@@ -10,13 +10,13 @@ const NOUSRESEARCH_HERMES_3_LLAMA_3_1_405B_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -40,17 +40,17 @@ const META_LLAMA_LLAMA_3_3_70B_INSTRUCT_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -74,16 +74,16 @@ const QWEN_QWEN3_CODER_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -108,17 +108,17 @@ const TNGTECH_DEEPSEEK_R1T2_CHIMERA_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 163840,
@@ -142,19 +142,19 @@ const QWEN_QWEN3_4B_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -178,14 +178,14 @@ const GOOGLE_GEMMA_3N_E2B_IT_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -210,13 +210,13 @@ const META_LLAMA_LLAMA_3_2_3B_INSTRUCT_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -239,7 +239,7 @@ const GOOGLE_GEMMA_3_12B_IT_FREE = {
   supports: {
     input: ['text', 'image'],
     output: ['text'],
-    supports: ['max_tokens', 'seed', 'stop', 'temperature', 'top_p'],
+    supports: ['max_tokens', 'seed', 'stop', 'temperature', 'topP'],
   },
   context_window: 131072,
   max_output_tokens: 8192,
@@ -263,15 +263,15 @@ const COGNITIVECOMPUTATIONS_DOLPHIN_MISTRAL_24B_VENICE_EDITION_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -295,13 +295,13 @@ const Z_AI_GLM_4_5_AIR_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -348,17 +348,17 @@ const GOOGLE_GEMMA_3_27B_IT_FREE = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -383,11 +383,11 @@ const GOOGLE_GEMMA_3_4B_IT_FREE = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -412,14 +412,14 @@ const NVIDIA_NEMOTRON_3_NANO_30B_A3B_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'seed',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -443,21 +443,21 @@ const TNGTECH_TNG_R1T_CHIMERA_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 163840,
@@ -482,14 +482,14 @@ const NVIDIA_NEMOTRON_NANO_12B_V2_VL_FREE = {
     input: ['image', 'text', 'video'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'seed',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -514,16 +514,16 @@ const ARCEE_AI_TRINITY_MINI_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -547,17 +547,17 @@ const TNGTECH_DEEPSEEK_R1T_CHIMERA_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 163840,
@@ -581,14 +581,14 @@ const GOOGLE_GEMMA_3N_E4B_IT_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 32000,
@@ -614,13 +614,13 @@ const GOOGLE_GEMINI_2_0_FLASH_EXP_FREE = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -645,13 +645,13 @@ const OPENAI_GPT_OSS_120B_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -676,13 +676,13 @@ const OPENAI_GPT_OSS_20B_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -707,17 +707,17 @@ const MISTRALAI_MISTRAL_SMALL_3_1_24B_INSTRUCT_FREE = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -741,17 +741,17 @@ const MISTRALAI_DEVSTRAL_2512_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -775,17 +775,17 @@ const XIAOMI_MIMO_V2_FLASH_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -810,17 +810,17 @@ const ALLENAI_MOLMO_2_8B_FREE = {
     input: ['text', 'image', 'video'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 36864,
@@ -845,12 +845,12 @@ const DEEPSEEK_DEEPSEEK_R1_0528_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
+      'repetitionPenalty',
       'temperature',
     ],
   },
@@ -875,16 +875,16 @@ const NVIDIA_NEMOTRON_NANO_9B_V2_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 32000,
@@ -908,10 +908,10 @@ const META_LLAMA_LLAMA_3_1_405B_INSTRUCT_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
+      'presencePenalty',
+      'repetitionPenalty',
       'temperature',
     ],
   },
@@ -936,10 +936,10 @@ const QWEN_QWEN_2_5_VL_7B_INSTRUCT_FREE = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
+      'presencePenalty',
+      'repetitionPenalty',
       'temperature',
     ],
   },
@@ -964,19 +964,19 @@ const MISTRALAI_MISTRAL_7B_INSTRUCT_FREE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -1001,16 +1001,16 @@ const LIQUID_LFM_2_2_6B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -1034,16 +1034,16 @@ const LIQUID_LFM2_8B_A1B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -1067,14 +1067,14 @@ const IBM_GRANITE_GRANITE_4_0_H_MICRO = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -1098,17 +1098,17 @@ const GOOGLE_GEMMA_3_4B_IT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1132,20 +1132,20 @@ const META_LLAMA_LLAMA_3_2_3B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1170,20 +1170,20 @@ const MISTRALAI_MISTRAL_NEMO = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1208,16 +1208,16 @@ const GOOGLE_GEMMA_3N_E4B_IT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32000,
@@ -1241,23 +1241,23 @@ const META_LLAMA_LLAMA_3_1_8B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1282,17 +1282,17 @@ const META_LLAMA_LLAMA_GUARD_3_8B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   pricing: {
@@ -1315,24 +1315,24 @@ const OPENAI_GPT_OSS_20B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
       'reasoning_effort',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1357,21 +1357,21 @@ const NOUSRESEARCH_DEEPHERMES_3_MISTRAL_24B_PREVIEW = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -1396,17 +1396,17 @@ const NOUSRESEARCH_HERMES_2_PRO_LLAMA_3_8B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -1431,14 +1431,14 @@ const META_LLAMA_LLAMA_3_2_1B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1462,20 +1462,20 @@ const MISTRALAI_MISTRAL_7B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -1500,20 +1500,20 @@ const META_LLAMA_LLAMA_3_8B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -1538,13 +1538,13 @@ const GOOGLE_GEMMA_2_9B_IT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
+      'presencePenalty',
+      'repetitionPenalty',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -1568,15 +1568,15 @@ const QWEN_QWEN2_5_CODER_7B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1600,19 +1600,19 @@ const GOOGLE_GEMMA_3_12B_IT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1637,19 +1637,19 @@ const MISTRALAI_MISTRAL_SMALL_3_1_24B_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -1674,23 +1674,23 @@ const DEEPSEEK_DEEPSEEK_R1_DISTILL_LLAMA_70B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -1715,19 +1715,19 @@ const QWEN_QWEN_2_5_CODER_32B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -1752,21 +1752,21 @@ const MISTRALAI_MISTRAL_SMALL_24B_INSTRUCT_2501 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -1791,24 +1791,24 @@ const QWEN_QWEN3_8B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1832,7 +1832,7 @@ const AMAZON_NOVA_MICRO_V1 = {
   supports: {
     input: ['text'],
     output: ['text'],
-    supports: ['max_tokens', 'stop', 'temperature', 'tools', 'top_k', 'top_p'],
+    supports: ['max_tokens', 'stop', 'temperature', 'tools', 'topK', 'topP'],
   },
   context_window: 128000,
   max_output_tokens: 5120,
@@ -1856,16 +1856,16 @@ const COHERE_COMMAND_R7B_12_2024 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -1890,26 +1890,26 @@ const OPENAI_GPT_OSS_120B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
       'reasoning_effort',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1933,22 +1933,22 @@ const OPENAI_GPT_OSS_120B_EXACTO = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -1972,17 +1972,17 @@ const MISTRALAI_MINISTRAL_3B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -2006,18 +2006,18 @@ const SAO10K_L3_LUNARIS_8B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -2041,19 +2041,19 @@ const QWEN_QWEN_2_5_7B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2077,21 +2077,21 @@ const GOOGLE_GEMMA_3_27B_IT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2116,22 +2116,22 @@ const NVIDIA_NEMOTRON_NANO_9B_V2 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32000,
@@ -2155,22 +2155,22 @@ const ARCEE_AI_TRINITY_MINI = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2195,18 +2195,18 @@ const META_LLAMA_LLAMA_3_2_11B_VISION_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2231,17 +2231,17 @@ const MICROSOFT_PHI_4_MULTIMODAL_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2266,13 +2266,13 @@ const QWEN_QWEN_TURBO = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1000000,
@@ -2297,21 +2297,21 @@ const Z_AI_GLM_4_5_AIR = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2336,21 +2336,21 @@ const QWEN_QWEN2_5_VL_32B_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -2375,22 +2375,22 @@ const QWEN_QWEN3_14B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131702,
@@ -2415,19 +2415,19 @@ const MISTRALAI_DEVSTRAL_2512 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -2452,13 +2452,13 @@ const OPENAI_GPT_5_NANO = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -2484,20 +2484,20 @@ const QWEN_QWEN3_30B_A3B_THINKING_2507 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2521,22 +2521,22 @@ const GRYPHE_MYTHOMAX_L2_13B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_a',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topA',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 4096,
@@ -2560,17 +2560,17 @@ const DEEPSEEK_DEEPSEEK_R1_0528_QWEN3_8B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2595,17 +2595,17 @@ const MISTRALAI_DEVSTRAL_SMALL_2505 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2629,18 +2629,18 @@ const MICROSOFT_PHI_4 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 16384,
@@ -2664,21 +2664,21 @@ const MISTRALAI_MISTRAL_SMALL_3_2_24B_INSTRUCT = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -2703,22 +2703,22 @@ const QWEN_QWEN3_30B_A3B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2742,7 +2742,7 @@ const AMAZON_NOVA_LITE_V1 = {
   supports: {
     input: ['text', 'image'],
     output: ['text'],
-    supports: ['max_tokens', 'stop', 'temperature', 'tools', 'top_k', 'top_p'],
+    supports: ['max_tokens', 'stop', 'temperature', 'tools', 'topK', 'topP'],
   },
   context_window: 300000,
   max_output_tokens: 5120,
@@ -2766,22 +2766,22 @@ const NVIDIA_NEMOTRON_3_NANO_30B_A3B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -2806,19 +2806,19 @@ const QWEN_QWEN3_CODER_30B_A3B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   max_output_tokens: 32768,
@@ -2842,20 +2842,20 @@ const MISTRALAI_DEVSTRAL_SMALL = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2879,17 +2879,17 @@ const BAIDU_ERNIE_4_5_21B_A3B_THINKING = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2914,17 +2914,17 @@ const BAIDU_ERNIE_4_5_21B_A3B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -2949,19 +2949,19 @@ const MICROSOFT_PHI_4_REASONING_PLUS = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -2985,26 +2985,26 @@ const QWEN_QWEN3_235B_A22B_2507 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
       'reasoning_effort',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -3028,16 +3028,16 @@ const OPENAI_GPT_OSS_SAFEGUARD_20B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   max_output_tokens: 65536,
@@ -3061,16 +3061,16 @@ const BYTEDANCE_SEED_SEED_1_6_FLASH = {
     input: ['image', 'text', 'video'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -3096,14 +3096,14 @@ const GOOGLE_GEMINI_2_0_FLASH_LITE_001 = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -3128,24 +3128,24 @@ const QWEN_QWEN3_32B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -3170,21 +3170,21 @@ const META_LLAMA_LLAMA_4_SCOUT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 10000000,
@@ -3209,19 +3209,19 @@ const QWEN_QWEN3_30B_A3B_INSTRUCT_2507 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -3246,21 +3246,21 @@ const QWEN_QWEN3_VL_8B_INSTRUCT = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -3285,22 +3285,22 @@ const ALIBABA_TONGYI_DEEPRESEARCH_30B_A3B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -3325,14 +3325,14 @@ const NEVERSLEEP_LLAMA_3_1_LUMIMAID_8B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -3356,21 +3356,21 @@ const QWEN_QWEN3_NEXT_80B_A3B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -3393,7 +3393,7 @@ const Z_AI_GLM_4_32B = {
   supports: {
     input: ['text'],
     output: ['text'],
-    supports: ['max_tokens', 'temperature', 'tool_choice', 'tools', 'top_p'],
+    supports: ['max_tokens', 'temperature', 'toolChoice', 'tools', 'topP'],
   },
   context_window: 128000,
   pricing: {
@@ -3416,21 +3416,21 @@ const MISTRALAI_PIXTRAL_12B = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 4096,
@@ -3454,17 +3454,17 @@ const MISTRALAI_MINISTRAL_3B_2512 = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -3488,17 +3488,17 @@ const MISTRAL_MINISTRAL_8B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -3522,17 +3522,17 @@ const MISTRALAI_MINISTRAL_8B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -3556,21 +3556,21 @@ const ALLENAI_OLMO_3_7B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 65536,
@@ -3595,17 +3595,17 @@ const BYTEDANCE_UI_TARS_1_5_7B = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -3629,7 +3629,7 @@ const MISTRALAI_MISTRAL_SMALL_CREATIVE = {
   supports: {
     input: ['text'],
     output: ['text'],
-    supports: ['tool_choice', 'tools'],
+    supports: ['toolChoice', 'tools'],
   },
   context_window: 32768,
   pricing: {
@@ -3652,17 +3652,17 @@ const MISTRALAI_VOXTRAL_SMALL_24B_2507 = {
     input: ['text', 'audio'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 32000,
@@ -3686,23 +3686,23 @@ const META_LLAMA_LLAMA_3_3_70B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -3727,17 +3727,17 @@ const OPENGVLAB_INTERNVL3_78B = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   max_output_tokens: 32768,
@@ -3762,13 +3762,13 @@ const OPENAI_GPT_4_1_NANO = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1047576,
@@ -3794,14 +3794,14 @@ const GOOGLE_GEMINI_2_0_FLASH_001 = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1000000,
@@ -3826,17 +3826,17 @@ const GOOGLE_GEMINI_2_5_FLASH_LITE_PREVIEW_09_2025 = {
     input: ['text', 'image', 'document', 'audio', 'video'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -3861,17 +3861,17 @@ const GOOGLE_GEMINI_2_5_FLASH_LITE = {
     input: ['text', 'image', 'document', 'audio', 'video'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -3896,21 +3896,21 @@ const NVIDIA_LLAMA_3_3_NEMOTRON_SUPER_49B_V1_5 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -3934,17 +3934,17 @@ const QWEN_QWEN3_VL_4B_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -3968,14 +3968,14 @@ const MISTRALAI_MISTRAL_7B_INSTRUCT_V0_1 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 4096,
@@ -3999,21 +3999,21 @@ const NOUSRESEARCH_HERMES_4_70B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -4038,23 +4038,23 @@ const QWEN_QWEN3_235B_A22B_THINKING_2507 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -4079,21 +4079,21 @@ const ALLENAI_OLMO_3_7B_THINK = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 65536,
@@ -4118,21 +4118,21 @@ const QWEN_QWEN_2_5_72B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -4157,19 +4157,19 @@ const BAIDU_ERNIE_4_5_VL_28B_A3B = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -4194,14 +4194,14 @@ const TENCENT_HUNYUAN_A13B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -4226,19 +4226,19 @@ const DEEPSEEK_DEEPSEEK_R1_DISTILL_QWEN_14B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -4263,18 +4263,18 @@ const ESSENTIALAI_RNJ_1_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -4298,17 +4298,17 @@ const MISTRALAI_MINISTRAL_8B_2512 = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -4332,23 +4332,23 @@ const QWEN_QWQ_32B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -4372,21 +4372,21 @@ const ALLENAI_OLMO_3_1_32B_THINK = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 65536,
@@ -4411,21 +4411,21 @@ const ALLENAI_OLMO_3_32B_THINK = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 65536,
@@ -4450,23 +4450,23 @@ const QWEN_QWEN3_VL_30B_A3B_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -4490,21 +4490,21 @@ const META_LLAMA_LLAMA_4_MAVERICK = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -4530,9 +4530,9 @@ const OPENAI_GPT_4O_MINI_SEARCH_PREVIEW = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'structured_outputs',
-      'web_search_options',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -4557,21 +4557,21 @@ const OPENAI_GPT_4O_MINI_2024_07_18 = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
-      'web_search_options',
+      'topLogprobs',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -4596,21 +4596,21 @@ const OPENAI_GPT_4O_MINI = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
-      'web_search_options',
+      'topLogprobs',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -4635,18 +4635,18 @@ const COHERE_COMMAND_R_08_2024 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -4671,19 +4671,19 @@ const QWEN_QWEN2_5_VL_72B_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -4708,25 +4708,25 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_1 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -4751,23 +4751,23 @@ const QWEN_QWEN3_NEXT_80B_A3B_THINKING = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -4792,21 +4792,21 @@ const THEDRUMMER_ROCINANTE_12B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -4830,16 +4830,16 @@ const ARCEE_AI_SPOTLIGHT = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -4864,18 +4864,18 @@ const META_LLAMA_LLAMA_GUARD_4_12B = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 163840,
@@ -4899,25 +4899,25 @@ const QWEN_QWEN3_235B_A22B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -4942,20 +4942,20 @@ const DEEPCOGITO_COGITO_V2_PREVIEW_LLAMA_109B_MOE = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
+      'repetitionPenalty',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -4979,17 +4979,17 @@ const QWEN_QWEN3_VL_8B_THINKING = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -5014,24 +5014,24 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_0324 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -5056,16 +5056,16 @@ const META_LLAMA_LLAMA_GUARD_2_8B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -5089,16 +5089,16 @@ const MISTRALAI_MISTRAL_7B_INSTRUCT_V0_3 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -5123,17 +5123,17 @@ const QWEN_QWEN_2_5_VL_7B_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -5157,21 +5157,21 @@ const MISTRALAI_MINISTRAL_14B_2512 = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -5195,16 +5195,16 @@ const MISTRALAI_MISTRAL_7B_INSTRUCT_V0_2 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -5229,12 +5229,12 @@ const AI21_JAMBA_MINI_1_7 = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -5259,18 +5259,18 @@ const X_AI_GROK_4_1_FAST = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'logprobs',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 2000000,
@@ -5295,18 +5295,18 @@ const X_AI_GROK_4_FAST = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'logprobs',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 2000000,
@@ -5331,19 +5331,19 @@ const NVIDIA_NEMOTRON_NANO_12B_V2_VL = {
     input: ['image', 'text', 'video'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -5367,17 +5367,17 @@ const MISTRALAI_MISTRAL_SABA = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 32000,
@@ -5401,20 +5401,20 @@ const ALLENAI_OLMO_3_1_32B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 65536,
@@ -5437,7 +5437,7 @@ const MEITUAN_LONGCAT_FLASH_CHAT = {
   supports: {
     input: ['text'],
     output: ['text'],
-    supports: ['max_tokens', 'temperature', 'top_p'],
+    supports: ['max_tokens', 'temperature', 'topP'],
   },
   context_window: 131072,
   max_output_tokens: 131072,
@@ -5461,21 +5461,21 @@ const QWEN_QWEN3_VL_30B_A3B_THINKING = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   max_output_tokens: 32768,
@@ -5499,22 +5499,22 @@ const MINIMAX_MINIMAX_M2 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 204800,
@@ -5538,7 +5538,7 @@ const MINIMAX_MINIMAX_01 = {
   supports: {
     input: ['text', 'image'],
     output: ['text'],
-    supports: ['max_tokens', 'temperature', 'top_p'],
+    supports: ['max_tokens', 'temperature', 'topP'],
   },
   context_window: 1000000,
   max_output_tokens: 1000192,
@@ -5562,23 +5562,23 @@ const PRIME_INTELLECT_INTELLECT_3 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -5603,23 +5603,23 @@ const QWEN_QWEN3_VL_235B_A22B_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -5643,19 +5643,19 @@ const X_AI_GROK_CODE_FAST_1 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'logprobs',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -5680,19 +5680,19 @@ const KWAIPILOT_KAT_CODER_PRO = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -5717,22 +5717,22 @@ const DEEPSEEK_DEEPSEEK_V3_2_EXP = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -5758,11 +5758,11 @@ const QWEN_QWEN_VL_PLUS = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 7500,
@@ -5787,22 +5787,22 @@ const DEEPSEEK_DEEPSEEK_V3_1_TERMINUS_EXACTO = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -5826,22 +5826,22 @@ const DEEPSEEK_DEEPSEEK_V3_1_TERMINUS = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -5865,24 +5865,24 @@ const QWEN_QWEN3_CODER = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -5907,20 +5907,20 @@ const QWEN_QWEN3_CODER_EXACTO = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -5945,17 +5945,17 @@ const MISTRALAI_MISTRAL_TINY = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 32000,
@@ -5979,25 +5979,25 @@ const DEEPSEEK_DEEPSEEK_V3_2 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -6022,21 +6022,21 @@ const TNGTECH_DEEPSEEK_R1T2_CHIMERA = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 163840,
@@ -6061,21 +6061,21 @@ const TNGTECH_TNG_R1T_CHIMERA = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 163840,
@@ -6100,17 +6100,17 @@ const INCEPTION_MERCURY = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -6135,17 +6135,17 @@ const INCEPTION_MERCURY_CODER = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -6173,10 +6173,10 @@ const ANTHROPIC_CLAUDE_3_HAIKU = {
       'max_tokens',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -6201,13 +6201,13 @@ const OPENAI_GPT_5_MINI = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -6233,13 +6233,13 @@ const OPENAI_GPT_5_1_CODEX_MINI = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -6265,16 +6265,16 @@ const BYTEDANCE_SEED_SEED_1_6 = {
     input: ['image', 'text', 'video'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -6299,20 +6299,20 @@ const DEEPSEEK_DEEPSEEK_R1_DISTILL_QWEN_32B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -6336,21 +6336,21 @@ const DEEPSEEK_DEEPSEEK_V3_2_SPECIALE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -6375,14 +6375,14 @@ const NEX_AGI_DEEPSEEK_V3_1_NEX_N1 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'response_format',
+      'frequencyPenalty',
+      'responseFormat',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -6407,25 +6407,25 @@ const MINIMAX_MINIMAX_M2_1 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 204800,
@@ -6450,17 +6450,17 @@ const BAIDU_ERNIE_4_5_300B_A47B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -6485,14 +6485,14 @@ const MOONSHOTAI_KIMI_DEV_72B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -6517,18 +6517,18 @@ const NOUSRESEARCH_HERMES_3_LLAMA_3_1_70B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -6552,21 +6552,21 @@ const META_LLAMA_LLAMA_3_70B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -6591,19 +6591,19 @@ const THEDRUMMER_CYDONIA_24B_V4_1 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -6628,19 +6628,19 @@ const X_AI_GROK_3_MINI = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'logprobs',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -6664,18 +6664,18 @@ const X_AI_GROK_3_MINI_BETA = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'logprobs',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -6699,23 +6699,23 @@ const Z_AI_GLM_4_6V = {
     input: ['image', 'text', 'video'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -6740,17 +6740,17 @@ const MISTRALAI_CODESTRAL_2508 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -6774,20 +6774,20 @@ const DEEPSEEK_DEEPSEEK_CHAT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -6812,19 +6812,19 @@ const TNGTECH_DEEPSEEK_R1T_CHIMERA = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 163840,
@@ -6850,13 +6850,13 @@ const QWEN_QWEN3_CODER_FLASH = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -6882,11 +6882,11 @@ const GOOGLE_GEMINI_2_5_FLASH_IMAGE_PREVIEW = {
     output: ['image', 'text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -6911,17 +6911,17 @@ const GOOGLE_GEMINI_2_5_FLASH_PREVIEW_09_2025 = {
     input: ['image', 'document', 'text', 'audio', 'video'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -6947,11 +6947,11 @@ const GOOGLE_GEMINI_2_5_FLASH_IMAGE = {
     output: ['image', 'text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -6976,15 +6976,15 @@ const AMAZON_NOVA_2_LITE_V1 = {
     input: ['text', 'image', 'video', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 1000000,
@@ -7009,17 +7009,17 @@ const GOOGLE_GEMINI_2_5_FLASH = {
     input: ['document', 'image', 'text', 'audio', 'video'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -7044,26 +7044,26 @@ const Z_AI_GLM_4_6 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_a',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topA',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -7088,22 +7088,22 @@ const Z_AI_GLM_4_5 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -7128,23 +7128,23 @@ const MOONSHOTAI_KIMI_K2_0905 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -7169,20 +7169,20 @@ const META_LLAMA_LLAMA_3_1_70B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -7206,16 +7206,16 @@ const THEDRUMMER_UNSLOPNEMO_12B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 32000,
@@ -7240,14 +7240,14 @@ const QWEN_QWEN_PLUS_2025_07_28 = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1000000,
@@ -7273,13 +7273,13 @@ const QWEN_QWEN_PLUS = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -7304,26 +7304,26 @@ const Z_AI_GLM_4_7 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_a',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topA',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -7349,13 +7349,13 @@ const OPENAI_GPT_4_1_MINI = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1047576,
@@ -7380,25 +7380,25 @@ const MOONSHOTAI_KIMI_K2_THINKING = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -7423,17 +7423,17 @@ const MISTRALAI_DEVSTRAL_MEDIUM = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -7457,17 +7457,17 @@ const MISTRALAI_MISTRAL_MEDIUM_3 = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -7491,17 +7491,17 @@ const MISTRALAI_MISTRAL_MEDIUM_3_1 = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -7525,19 +7525,19 @@ const MINIMAX_MINIMAX_M1 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 1000000,
@@ -7562,17 +7562,17 @@ const QWEN_QWEN_PLUS_2025_07_28_THINKING = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1000000,
@@ -7597,17 +7597,17 @@ const BAIDU_ERNIE_4_5_VL_424B_A47B = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -7632,21 +7632,21 @@ const Z_AI_GLM_4_6_EXACTO = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -7671,22 +7671,22 @@ const UNDI95_REMM_SLERP_L2_13B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_a',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topA',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 4096,
@@ -7710,25 +7710,25 @@ const DEEPSEEK_DEEPSEEK_R1_0528 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 163840,
@@ -7753,21 +7753,21 @@ const QWEN_QWEN3_VL_235B_A22B_THINKING = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -7792,17 +7792,17 @@ const MICROSOFT_WIZARDLM_2_8X22B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 65536,
@@ -7827,16 +7827,16 @@ const ARCEE_AI_CODER_LARGE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -7860,17 +7860,17 @@ const MISTRALAI_MISTRAL_LARGE_2512 = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -7894,18 +7894,18 @@ const QWEN_QWEN3_VL_32B_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -7929,20 +7929,20 @@ const OPENAI_GPT_3_5_TURBO = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 16385,
@@ -7967,17 +7967,17 @@ const DEEPSEEK_DEEPSEEK_PROVER_V2 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 163840,
@@ -8001,22 +8001,22 @@ const MOONSHOTAI_KIMI_K2 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -8040,17 +8040,17 @@ const GOOGLE_GEMINI_3_FLASH_PREVIEW = {
     input: ['text', 'image', 'document', 'audio', 'video'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -8075,20 +8075,20 @@ const MISTRALAI_MIXTRAL_8X7B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -8113,17 +8113,17 @@ const THEDRUMMER_SKYFALL_36B_V2 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -8148,19 +8148,19 @@ const MINIMAX_MINIMAX_M1_80K = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 1000000,
@@ -8185,16 +8185,16 @@ const STEPFUN_AI_STEP3 = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 65536,
@@ -8219,17 +8219,17 @@ const NVIDIA_LLAMA_3_1_NEMOTRON_ULTRA_253B_V1 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -8253,21 +8253,21 @@ const Z_AI_GLM_4_5V = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 65536,
@@ -8292,17 +8292,17 @@ const MOONSHOTAI_KIMI_K2_0905_EXACTO = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 262144,
@@ -8326,14 +8326,14 @@ const GOOGLE_GEMMA_2_27B_IT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -8357,18 +8357,18 @@ const SAO10K_L3_3_EURYALE_70B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -8393,20 +8393,20 @@ const SAO10K_L3_1_EURYALE_70B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -8430,11 +8430,11 @@ const AION_LABS_AION_1_0_MINI = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 16384,
@@ -8459,21 +8459,21 @@ const DEEPSEEK_DEEPSEEK_R1 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 163840,
@@ -8498,21 +8498,21 @@ const MANCER_WEAVER = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_a',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topA',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 8000,
@@ -8537,18 +8537,18 @@ const ARCEE_AI_VIRTUOSO_LARGE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -8596,16 +8596,16 @@ const ALFREDPROS_CODELLAMA_7B_INSTRUCT_SOLIDITY = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 4096,
@@ -8630,16 +8630,16 @@ const ELEUTHERAI_LLEMMA_7B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 4096,
@@ -8663,7 +8663,7 @@ const AION_LABS_AION_RP_LLAMA_3_1_8B = {
   supports: {
     input: ['text'],
     output: ['text'],
-    supports: ['max_tokens', 'temperature', 'top_p'],
+    supports: ['max_tokens', 'temperature', 'topP'],
   },
   context_window: 32768,
   max_output_tokens: 32768,
@@ -8686,7 +8686,7 @@ const AMAZON_NOVA_PRO_V1 = {
   supports: {
     input: ['text', 'image'],
     output: ['text'],
-    supports: ['max_tokens', 'stop', 'temperature', 'tools', 'top_k', 'top_p'],
+    supports: ['max_tokens', 'stop', 'temperature', 'tools', 'topK', 'topP'],
   },
   context_window: 300000,
   max_output_tokens: 5120,
@@ -8711,13 +8711,13 @@ const QWEN_QWEN_VL_MAX = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -8745,10 +8745,10 @@ const ANTHROPIC_CLAUDE_3_5_HAIKU = {
       'max_tokens',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -8796,14 +8796,14 @@ const SWITCHPOINT_ROUTER = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -8827,22 +8827,22 @@ const DEEPCOGITO_COGITO_V2_PREVIEW_LLAMA_70B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -8889,16 +8889,16 @@ const ARCEE_AI_MAESTRO_REASONING = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -8923,13 +8923,13 @@ const PERPLEXITY_SONAR = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'temperature',
-      'top_k',
-      'top_p',
-      'web_search_options',
+      'topK',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 127072,
@@ -8953,17 +8953,17 @@ const NOUSRESEARCH_HERMES_3_LLAMA_3_1_405B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -8988,22 +8988,22 @@ const NEVERSLEEP_NOROMAID_20B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_a',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topA',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -9027,20 +9027,20 @@ const OPENAI_GPT_3_5_TURBO_0613 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 4095,
@@ -9069,9 +9069,9 @@ const RELACE_RELACE_SEARCH = {
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -9096,16 +9096,16 @@ const NOUSRESEARCH_HERMES_4_405B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   pricing: {
@@ -9129,14 +9129,14 @@ const QWEN_QWEN3_CODER_PLUS = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -9161,15 +9161,15 @@ const ANTHROPIC_CLAUDE_HAIKU_4_5 = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -9194,13 +9194,13 @@ const OPENAI_O4_MINI_HIGH = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9227,10 +9227,10 @@ const OPENAI_O3_MINI_HIGH = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9257,10 +9257,10 @@ const OPENAI_O3_MINI = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9286,13 +9286,13 @@ const OPENAI_O4_MINI = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9318,19 +9318,19 @@ const NVIDIA_LLAMA_3_1_NEMOTRON_70B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -9356,13 +9356,13 @@ const QWEN_QWEN3_MAX = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -9387,20 +9387,20 @@ const DEEPCOGITO_COGITO_V2_1_671B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -9424,17 +9424,17 @@ const GOOGLE_GEMINI_2_5_PRO_PREVIEW = {
     input: ['document', 'image', 'text', 'audio'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -9458,7 +9458,7 @@ const OPENAI_GPT_5_CHAT = {
   supports: {
     input: ['document', 'image', 'text'],
     output: ['text'],
-    supports: ['max_tokens', 'response_format', 'seed', 'structured_outputs'],
+    supports: ['max_tokens', 'responseFormat', 'seed', 'structured_outputs'],
   },
   context_window: 128000,
   max_output_tokens: 16384,
@@ -9482,17 +9482,17 @@ const GOOGLE_GEMINI_2_5_PRO_PREVIEW_05_06 = {
     input: ['text', 'image', 'document', 'audio', 'video'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -9517,13 +9517,13 @@ const OPENAI_GPT_5 = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9549,13 +9549,13 @@ const OPENAI_GPT_5_CODEX = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9581,13 +9581,13 @@ const OPENAI_GPT_5_1_CODEX = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9614,10 +9614,10 @@ const OPENAI_GPT_5_1_CHAT = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9643,17 +9643,17 @@ const GOOGLE_GEMINI_2_5_PRO = {
     input: ['text', 'image', 'document', 'audio', 'video'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -9678,13 +9678,13 @@ const OPENAI_GPT_5_1_CODEX_MAX = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9710,13 +9710,13 @@ const OPENAI_GPT_5_1 = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9742,17 +9742,17 @@ const SAO10K_L3_EURYALE_70B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'repetition_penalty',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 8192,
@@ -9777,18 +9777,18 @@ const OPENAI_GPT_3_5_TURBO_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 4095,
@@ -9813,13 +9813,13 @@ const OPENAI_CODEX_MINI = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9846,13 +9846,13 @@ const QWEN_QWEN_MAX = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -9877,13 +9877,13 @@ const OPENAI_GPT_5_2 = {
     input: ['document', 'image', 'text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9910,10 +9910,10 @@ const OPENAI_GPT_5_2_CHAT = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -9939,17 +9939,17 @@ const MISTRALAI_MISTRAL_LARGE_2411 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -9973,17 +9973,17 @@ const MISTRALAI_PIXTRAL_LARGE_2411 = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -10007,17 +10007,17 @@ const MISTRALAI_MIXTRAL_8X22B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 65536,
@@ -10041,17 +10041,17 @@ const MISTRALAI_MISTRAL_LARGE = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -10075,17 +10075,17 @@ const MISTRALAI_MISTRAL_LARGE_2407 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -10109,15 +10109,15 @@ const PERPLEXITY_SONAR_DEEP_RESEARCH = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
       'temperature',
-      'top_k',
-      'top_p',
-      'web_search_options',
+      'topK',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -10141,15 +10141,15 @@ const PERPLEXITY_SONAR_REASONING_PRO = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
       'temperature',
-      'top_k',
-      'top_p',
-      'web_search_options',
+      'topK',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -10174,13 +10174,13 @@ const OPENAI_GPT_4_1 = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1047576,
@@ -10205,13 +10205,13 @@ const OPENAI_O3 = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -10238,12 +10238,12 @@ const AI21_JAMBA_LARGE_1_7 = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -10268,22 +10268,22 @@ const OPENAI_O4_MINI_DEEP_RESEARCH = {
     input: ['document', 'image', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -10308,15 +10308,15 @@ const GOOGLE_GEMINI_3_PRO_IMAGE_PREVIEW = {
     input: ['image', 'text'],
     output: ['image', 'text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 65536,
@@ -10341,17 +10341,17 @@ const GOOGLE_GEMINI_3_PRO_PREVIEW = {
     input: ['text', 'image', 'document', 'audio', 'video'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 1048576,
@@ -10376,22 +10376,22 @@ const OPENAI_GPT_5_IMAGE_MINI = {
     input: ['document', 'image', 'text'],
     output: ['image', 'text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 400000,
@@ -10417,9 +10417,9 @@ const OPENAI_GPT_4O_SEARCH_PREVIEW = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'structured_outputs',
-      'web_search_options',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -10444,20 +10444,20 @@ const OPENAI_GPT_4O_AUDIO_PREVIEW = {
     input: ['audio', 'text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -10482,16 +10482,16 @@ const COHERE_COMMAND_A = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -10515,7 +10515,7 @@ const INFLECTION_INFLECTION_3_PI = {
   supports: {
     input: ['text'],
     output: ['text'],
-    supports: ['max_tokens', 'stop', 'temperature', 'top_p'],
+    supports: ['max_tokens', 'stop', 'temperature', 'topP'],
   },
   context_window: 8000,
   max_output_tokens: 1024,
@@ -10538,7 +10538,7 @@ const INFLECTION_INFLECTION_3_PRODUCTIVITY = {
   supports: {
     input: ['text'],
     output: ['text'],
-    supports: ['max_tokens', 'stop', 'temperature', 'top_p'],
+    supports: ['max_tokens', 'stop', 'temperature', 'topP'],
   },
   context_window: 8000,
   max_output_tokens: 1024,
@@ -10562,21 +10562,21 @@ const OPENAI_GPT_4O_2024_11_20 = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
-      'web_search_options',
+      'topLogprobs',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -10601,21 +10601,21 @@ const OPENAI_GPT_4O_2024_08_06 = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
-      'web_search_options',
+      'topLogprobs',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -10640,21 +10640,21 @@ const OPENAI_GPT_4O = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
-      'web_search_options',
+      'topLogprobs',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -10679,18 +10679,18 @@ const COHERE_COMMAND_R_PLUS_08_2024 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -10714,7 +10714,7 @@ const AMAZON_NOVA_PREMIER_V1 = {
   supports: {
     input: ['text', 'image'],
     output: ['text'],
-    supports: ['max_tokens', 'stop', 'temperature', 'tools', 'top_k', 'top_p'],
+    supports: ['max_tokens', 'stop', 'temperature', 'tools', 'topK', 'topP'],
   },
   context_window: 1000000,
   max_output_tokens: 32000,
@@ -10738,17 +10738,17 @@ const SAO10K_L3_1_70B_HANAMI_X1 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 16000,
@@ -10772,20 +10772,20 @@ const OPENAI_GPT_3_5_TURBO_16K = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 16385,
@@ -10810,21 +10810,21 @@ const ANTHRACITE_ORG_MAGNUM_V4_72B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_a',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topA',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -10849,17 +10849,17 @@ const ANTHROPIC_CLAUDE_SONNET_4_5 = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 1000000,
@@ -10884,19 +10884,19 @@ const X_AI_GROK_3 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -10920,14 +10920,14 @@ const ANTHROPIC_CLAUDE_3_7_SONNET_THINKING = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -10952,18 +10952,18 @@ const X_AI_GROK_4 = {
     input: ['image', 'text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'logprobs',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 256000,
@@ -10987,13 +10987,13 @@ const PERPLEXITY_SONAR_PRO = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'temperature',
-      'top_k',
-      'top_p',
-      'web_search_options',
+      'topK',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 200000,
@@ -11018,18 +11018,18 @@ const X_AI_GROK_3_BETA = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -11053,15 +11053,15 @@ const ANTHROPIC_CLAUDE_SONNET_4 = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 1000000,
@@ -11086,15 +11086,15 @@ const ANTHROPIC_CLAUDE_3_7_SONNET = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -11119,16 +11119,16 @@ const PERPLEXITY_SONAR_PRO_SEARCH = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
+      'frequencyPenalty',
+      'includeReasoning',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
       'structured_outputs',
       'temperature',
-      'top_k',
-      'top_p',
-      'web_search_options',
+      'topK',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 200000,
@@ -11153,21 +11153,21 @@ const META_LLAMA_LLAMA_3_1_405B_INSTRUCT = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -11191,22 +11191,22 @@ const DEEPCOGITO_COGITO_V2_PREVIEW_LLAMA_405B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
+      'minP',
+      'presencePenalty',
       'reasoning',
-      'repetition_penalty',
-      'response_format',
+      'repetitionPenalty',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -11230,17 +11230,17 @@ const META_LLAMA_LLAMA_3_1_405B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -11265,11 +11265,11 @@ const AION_LABS_AION_1_0 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'temperature',
-      'top_p',
+      'topP',
     ],
   },
   context_window: 32768,
@@ -11294,17 +11294,17 @@ const RAIFLE_SORCERERLM_8X22B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 16000,
@@ -11328,18 +11328,18 @@ const OPENAI_CHATGPT_4O_LATEST = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -11364,21 +11364,21 @@ const OPENAI_GPT_4O_2024_05_13 = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
-      'web_search_options',
+      'topLogprobs',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -11403,16 +11403,16 @@ const ANTHROPIC_CLAUDE_OPUS_4_5 = {
     input: ['document', 'image', 'text'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
+      'topK',
       'verbosity',
     ],
   },
@@ -11438,21 +11438,21 @@ const ALPINDALE_GOLIATH_120B = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_a',
-      'top_k',
-      'top_logprobs',
-      'top_p',
+      'topA',
+      'topK',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 6144,
@@ -11477,21 +11477,21 @@ const OPENAI_GPT_4O_EXTENDED = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
-      'web_search_options',
+      'topLogprobs',
+      'topP',
+      'webSearchOptions',
     ],
   },
   context_window: 128000,
@@ -11519,10 +11519,10 @@ const ANTHROPIC_CLAUDE_3_5_SONNET = {
       'max_tokens',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -11547,22 +11547,22 @@ const OPENAI_GPT_5_IMAGE = {
     input: ['image', 'text', 'document'],
     output: ['image', 'text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 400000,
@@ -11587,20 +11587,20 @@ const OPENAI_GPT_4_1106_PREVIEW = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -11625,20 +11625,20 @@ const OPENAI_GPT_4_TURBO = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -11663,20 +11663,20 @@ const OPENAI_GPT_4_TURBO_PREVIEW = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 128000,
@@ -11701,22 +11701,22 @@ const OPENAI_O3_DEEP_RESEARCH = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
+      'presencePenalty',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -11742,10 +11742,10 @@ const OPENAI_O1 = {
     output: ['text'],
     supports: [
       'max_tokens',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -11771,17 +11771,17 @@ const ANTHROPIC_CLAUDE_OPUS_4_1 = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -11806,15 +11806,15 @@ const ANTHROPIC_CLAUDE_OPUS_4 = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -11839,13 +11839,13 @@ const OPENAI_GPT_5_PRO = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -11871,13 +11871,13 @@ const OPENAI_O3_PRO = {
     input: ['text', 'document', 'image'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -11903,13 +11903,13 @@ const OPENAI_GPT_5_2_PRO = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
-      'tool_choice',
+      'toolChoice',
       'tools',
     ],
   },
@@ -11935,20 +11935,20 @@ const OPENAI_GPT_4 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 8191,
@@ -11973,20 +11973,20 @@ const OPENAI_GPT_4_0314 = {
     input: ['text'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
-      'logit_bias',
+      'frequencyPenalty',
+      'logitBias',
       'logprobs',
       'max_tokens',
-      'presence_penalty',
-      'response_format',
+      'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'structured_outputs',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_logprobs',
-      'top_p',
+      'topLogprobs',
+      'topP',
     ],
   },
   context_window: 8191,
@@ -12011,10 +12011,10 @@ const OPENAI_O1_PRO = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
-      'include_reasoning',
+      'includeReasoning',
       'max_tokens',
       'reasoning',
-      'response_format',
+      'responseFormat',
       'seed',
       'structured_outputs',
     ],
@@ -12063,17 +12063,17 @@ const META_LLAMA_LLAMA_3_2_90B_VISION_INSTRUCT = {
     input: ['text', 'image'],
     output: ['text'],
     supports: [
-      'frequency_penalty',
+      'frequencyPenalty',
       'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
+      'minP',
+      'presencePenalty',
+      'repetitionPenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 131072,
@@ -12101,10 +12101,10 @@ const ANTHROPIC_CLAUDE_3_5_HAIKU_20241022 = {
       'max_tokens',
       'stop',
       'temperature',
-      'tool_choice',
+      'toolChoice',
       'tools',
-      'top_k',
-      'top_p',
+      'topK',
+      'topP',
     ],
   },
   context_window: 200000,
@@ -12127,4810 +12127,4810 @@ export type OpenRouterModelOptionsByName = {
   [NOUSRESEARCH_HERMES_3_LLAMA_3_1_405B_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_3_70B_INSTRUCT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_CODER_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [TNGTECH_DEEPSEEK_R1T2_CHIMERA_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_4B_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [GOOGLE_GEMMA_3N_E2B_IT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_2_3B_INSTRUCT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [GOOGLE_GEMMA_3_12B_IT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'seed' | 'stop' | 'temperature' | 'top_p'
+      'maxCompletionTokens' | 'seed' | 'stop' | 'temperature' | 'topP'
     >
   [COGNITIVECOMPUTATIONS_DOLPHIN_MISTRAL_24B_VENICE_EDITION_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [Z_AI_GLM_4_5_AIR_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MOONSHOTAI_KIMI_K2_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'seed' | 'stop' | 'temperature'
+      'maxCompletionTokens' | 'seed' | 'stop' | 'temperature'
     >
   [GOOGLE_GEMMA_3_27B_IT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [GOOGLE_GEMMA_3_4B_IT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [NVIDIA_NEMOTRON_3_NANO_30B_A3B_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [TNGTECH_TNG_R1T_CHIMERA_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [NVIDIA_NEMOTRON_NANO_12B_V2_VL_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [ARCEE_AI_TRINITY_MINI_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [TNGTECH_DEEPSEEK_R1T_CHIMERA_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [GOOGLE_GEMMA_3N_E4B_IT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [GOOGLE_GEMINI_2_0_FLASH_EXP_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [OPENAI_GPT_OSS_120B_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_GPT_OSS_20B_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [MISTRALAI_MISTRAL_SMALL_3_1_24B_INSTRUCT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_DEVSTRAL_2512_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [XIAOMI_MIMO_V2_FLASH_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [ALLENAI_MOLMO_2_8B_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_R1_0528_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
+      | 'repetitionPenalty'
       | 'temperature'
     >
   [NVIDIA_NEMOTRON_NANO_9B_V2_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_1_405B_INSTRUCT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'temperature'
     >
   [QWEN_QWEN_2_5_VL_7B_INSTRUCT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'temperature'
     >
   [MISTRALAI_MISTRAL_7B_INSTRUCT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [LIQUID_LFM_2_2_6B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [LIQUID_LFM2_8B_A1B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [IBM_GRANITE_GRANITE_4_0_H_MICRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [GOOGLE_GEMMA_3_4B_IT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_2_3B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_NEMO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [GOOGLE_GEMMA_3N_E4B_IT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_1_8B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_GUARD_3_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_OSS_20B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [NOUSRESEARCH_DEEPHERMES_3_MISTRAL_24B_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [NOUSRESEARCH_HERMES_2_PRO_LLAMA_3_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_2_1B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_7B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_8B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [GOOGLE_GEMMA_2_9B_IT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN2_5_CODER_7B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [GOOGLE_GEMMA_3_12B_IT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_SMALL_3_1_24B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_R1_DISTILL_LLAMA_70B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN_2_5_CODER_32B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_SMALL_24B_INSTRUCT_2501.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [AMAZON_NOVA_MICRO_V1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'stop' | 'temperature' | 'top_k' | 'top_p'
+      'maxCompletionTokens' | 'stop' | 'temperature' | 'topK' | 'topP'
     >
   [COHERE_COMMAND_R7B_12_2024.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_OSS_120B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_OSS_120B_EXACTO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MINISTRAL_3B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [SAO10K_L3_LUNARIS_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN_2_5_7B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [GOOGLE_GEMMA_3_27B_IT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [NVIDIA_NEMOTRON_NANO_9B_V2.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [ARCEE_AI_TRINITY_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_2_11B_VISION_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MICROSOFT_PHI_4_MULTIMODAL_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN_TURBO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [Z_AI_GLM_4_5_AIR.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN2_5_VL_32B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [QWEN_QWEN3_14B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_DEVSTRAL_2512.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_5_NANO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [QWEN_QWEN3_30B_A3B_THINKING_2507.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [GRYPHE_MYTHOMAX_L2_13B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_a'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'topA'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_R1_0528_QWEN3_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_DEVSTRAL_SMALL_2505.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MICROSOFT_PHI_4.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_SMALL_3_2_24B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_30B_A3B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [AMAZON_NOVA_LITE_V1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'stop' | 'temperature' | 'top_k' | 'top_p'
+      'maxCompletionTokens' | 'stop' | 'temperature' | 'topK' | 'topP'
     >
   [NVIDIA_NEMOTRON_3_NANO_30B_A3B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_CODER_30B_A3B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_DEVSTRAL_SMALL.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [BAIDU_ERNIE_4_5_21B_A3B_THINKING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [BAIDU_ERNIE_4_5_21B_A3B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MICROSOFT_PHI_4_REASONING_PLUS.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_235B_A22B_2507.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_OSS_SAFEGUARD_20B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [BYTEDANCE_SEED_SEED_1_6_FLASH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [GOOGLE_GEMINI_2_0_FLASH_LITE_001.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [QWEN_QWEN3_32B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_4_SCOUT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_30B_A3B_INSTRUCT_2507.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_VL_8B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [ALIBABA_TONGYI_DEEPRESEARCH_30B_A3B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [NEVERSLEEP_LLAMA_3_1_LUMIMAID_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [QWEN_QWEN3_NEXT_80B_A3B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [Z_AI_GLM_4_32B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'temperature' | 'tool_choice' | 'top_p'
+      'maxCompletionTokens' | 'temperature' | 'toolChoice' | 'topP'
     >
   [MISTRALAI_PIXTRAL_12B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MINISTRAL_3B_2512.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MISTRAL_MINISTRAL_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MISTRALAI_MINISTRAL_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [ALLENAI_OLMO_3_7B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [BYTEDANCE_UI_TARS_1_5_7B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_SMALL_CREATIVE.id]: OpenRouterCommonOptions &
-    Pick<OpenRouterBaseOptions, 'tool_choice'>
+    Pick<OpenRouterBaseOptions, 'toolChoice'>
   [MISTRALAI_VOXTRAL_SMALL_24B_2507.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_3_70B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENGVLAB_INTERNVL3_78B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_4_1_NANO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [GOOGLE_GEMINI_2_0_FLASH_001.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [GOOGLE_GEMINI_2_5_FLASH_LITE_PREVIEW_09_2025.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [GOOGLE_GEMINI_2_5_FLASH_LITE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [NVIDIA_LLAMA_3_3_NEMOTRON_SUPER_49B_V1_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_VL_4B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_7B_INSTRUCT_V0_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [NOUSRESEARCH_HERMES_4_70B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_235B_A22B_THINKING_2507.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [ALLENAI_OLMO_3_7B_THINK.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN_2_5_72B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [BAIDU_ERNIE_4_5_VL_28B_A3B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [TENCENT_HUNYUAN_A13B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_R1_DISTILL_QWEN_14B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [ESSENTIALAI_RNJ_1_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MINISTRAL_8B_2512.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [QWEN_QWQ_32B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [ALLENAI_OLMO_3_1_32B_THINK.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [ALLENAI_OLMO_3_32B_THINK.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_VL_30B_A3B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_4_MAVERICK.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_4O_MINI_SEARCH_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'response_format' | 'web_search_options'
+      'maxCompletionTokens' | 'responseFormat' | 'webSearchOptions'
     >
   [OPENAI_GPT_4O_MINI_2024_07_18.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
-      | 'web_search_options'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [OPENAI_GPT_4O_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
-      | 'web_search_options'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [COHERE_COMMAND_R_08_2024.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN2_5_VL_72B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_CHAT_V3_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [QWEN_QWEN3_NEXT_80B_A3B_THINKING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [THEDRUMMER_ROCINANTE_12B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [ARCEE_AI_SPOTLIGHT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_GUARD_4_12B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_235B_A22B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [DEEPCOGITO_COGITO_V2_PREVIEW_LLAMA_109B_MOE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
+      | 'repetitionPenalty'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_VL_8B_THINKING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_CHAT_V3_0324.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_GUARD_2_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_7B_INSTRUCT_V0_3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN_2_5_VL_7B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MINISTRAL_14B_2512.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_7B_INSTRUCT_V0_2.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [AI21_JAMBA_MINI_1_7.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [X_AI_GROK_4_1_FAST.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
+      | 'includeReasoning'
       | 'logprobs'
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [X_AI_GROK_4_FAST.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
+      | 'includeReasoning'
       | 'logprobs'
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [NVIDIA_NEMOTRON_NANO_12B_V2_VL.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_SABA.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [ALLENAI_OLMO_3_1_32B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MEITUAN_LONGCAT_FLASH_CHAT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'temperature' | 'top_p'
+      'maxCompletionTokens' | 'temperature' | 'topP'
     >
   [QWEN_QWEN3_VL_30B_A3B_THINKING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MINIMAX_MINIMAX_M2.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MINIMAX_MINIMAX_01.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'temperature' | 'top_p'
+      'maxCompletionTokens' | 'temperature' | 'topP'
     >
   [PRIME_INTELLECT_INTELLECT_3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_VL_235B_A22B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [X_AI_GROK_CODE_FAST_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
+      | 'includeReasoning'
       | 'logprobs'
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [KWAIPILOT_KAT_CODER_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_V3_2_EXP.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN_VL_PLUS.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_V3_1_TERMINUS_EXACTO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_V3_1_TERMINUS.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_CODER.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [QWEN_QWEN3_CODER_EXACTO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_TINY.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_V3_2.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [TNGTECH_DEEPSEEK_R1T2_CHIMERA.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [TNGTECH_TNG_R1T_CHIMERA.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [INCEPTION_MERCURY.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [INCEPTION_MERCURY_CODER.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [ANTHROPIC_CLAUDE_3_HAIKU.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_5_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_GPT_5_1_CODEX_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [BYTEDANCE_SEED_SEED_1_6.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_R1_DISTILL_QWEN_32B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_V3_2_SPECIALE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [NEX_AGI_DEEPSEEK_V3_1_NEX_N1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'responseFormat'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MINIMAX_MINIMAX_M2_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [BAIDU_ERNIE_4_5_300B_A47B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MOONSHOTAI_KIMI_DEV_72B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [NOUSRESEARCH_HERMES_3_LLAMA_3_1_70B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_70B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [THEDRUMMER_CYDONIA_24B_V4_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [X_AI_GROK_3_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
+      | 'includeReasoning'
       | 'logprobs'
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [X_AI_GROK_3_MINI_BETA.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
+      | 'includeReasoning'
       | 'logprobs'
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [Z_AI_GLM_4_6V.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_CODESTRAL_2508.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_CHAT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [TNGTECH_DEEPSEEK_R1T_CHIMERA.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_CODER_FLASH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [GOOGLE_GEMINI_2_5_FLASH_IMAGE_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [GOOGLE_GEMINI_2_5_FLASH_PREVIEW_09_2025.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [GOOGLE_GEMINI_2_5_FLASH_IMAGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [AMAZON_NOVA_2_LITE_V1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [GOOGLE_GEMINI_2_5_FLASH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [Z_AI_GLM_4_6.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_a'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topA'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [Z_AI_GLM_4_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MOONSHOTAI_KIMI_K2_0905.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_1_70B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [THEDRUMMER_UNSLOPNEMO_12B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [QWEN_QWEN_PLUS_2025_07_28.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [QWEN_QWEN_PLUS.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [Z_AI_GLM_4_7.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_a'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topA'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_4_1_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MOONSHOTAI_KIMI_K2_THINKING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [MISTRALAI_DEVSTRAL_MEDIUM.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_MEDIUM_3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_MEDIUM_3_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MINIMAX_MINIMAX_M1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN_PLUS_2025_07_28_THINKING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [BAIDU_ERNIE_4_5_VL_424B_A47B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [Z_AI_GLM_4_6_EXACTO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [UNDI95_REMM_SLERP_L2_13B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_a'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'topA'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_R1_0528.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [QWEN_QWEN3_VL_235B_A22B_THINKING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MICROSOFT_WIZARDLM_2_8X22B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [ARCEE_AI_CODER_LARGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_LARGE_2512.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [QWEN_QWEN3_VL_32B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_3_5_TURBO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_PROVER_V2.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MOONSHOTAI_KIMI_K2.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
+      | 'frequencyPenalty'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [GOOGLE_GEMINI_3_FLASH_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MISTRALAI_MIXTRAL_8X7B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [THEDRUMMER_SKYFALL_36B_V2.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [MINIMAX_MINIMAX_M1_80K.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [STEPFUN_AI_STEP3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [NVIDIA_LLAMA_3_1_NEMOTRON_ULTRA_253B_V1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [Z_AI_GLM_4_5V.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MOONSHOTAI_KIMI_K2_0905_EXACTO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [GOOGLE_GEMMA_2_27B_IT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [SAO10K_L3_3_EURYALE_70B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [SAO10K_L3_1_EURYALE_70B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [AION_LABS_AION_1_0_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [DEEPSEEK_DEEPSEEK_R1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MANCER_WEAVER.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_a'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'topA'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [ARCEE_AI_VIRTUOSO_LARGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MORPH_MORPH_V3_FAST.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'stop' | 'temperature'
+      'maxCompletionTokens' | 'stop' | 'temperature'
     >
   [ALFREDPROS_CODELLAMA_7B_INSTRUCT_SOLIDITY.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [ELEUTHERAI_LLEMMA_7B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [AION_LABS_AION_RP_LLAMA_3_1_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'temperature' | 'top_p'
+      'maxCompletionTokens' | 'temperature' | 'topP'
     >
   [AMAZON_NOVA_PRO_V1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'stop' | 'temperature' | 'top_k' | 'top_p'
+      'maxCompletionTokens' | 'stop' | 'temperature' | 'topK' | 'topP'
     >
   [QWEN_QWEN_VL_MAX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [ANTHROPIC_CLAUDE_3_5_HAIKU.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [RELACE_RELACE_APPLY_3.id]: OpenRouterCommonOptions &
-    Pick<OpenRouterBaseOptions, 'max_completion_tokens' | 'seed' | 'stop'>
+    Pick<OpenRouterBaseOptions, 'maxCompletionTokens' | 'seed' | 'stop'>
   [SWITCHPOINT_ROUTER.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [DEEPCOGITO_COGITO_V2_PREVIEW_LLAMA_70B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [MORPH_MORPH_V3_LARGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'stop' | 'temperature'
+      'maxCompletionTokens' | 'stop' | 'temperature'
     >
   [ARCEE_AI_MAESTRO_REASONING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [PERPLEXITY_SONAR.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
-      | 'web_search_options'
+      | 'topK'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [NOUSRESEARCH_HERMES_3_LLAMA_3_1_405B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [NEVERSLEEP_NOROMAID_20B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_a'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'topA'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_3_5_TURBO_0613.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [RELACE_RELACE_SEARCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [NOUSRESEARCH_HERMES_4_405B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_CODER_PLUS.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [ANTHROPIC_CLAUDE_HAIKU_4_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_O4_MINI_HIGH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_O3_MINI_HIGH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'response_format' | 'seed' | 'tool_choice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O3_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'response_format' | 'seed' | 'tool_choice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O4_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [NVIDIA_LLAMA_3_1_NEMOTRON_70B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [QWEN_QWEN3_MAX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [DEEPCOGITO_COGITO_V2_1_671B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [GOOGLE_GEMINI_2_5_PRO_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [OPENAI_GPT_5_CHAT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'response_format' | 'seed'
+      'maxCompletionTokens' | 'responseFormat' | 'seed'
     >
   [GOOGLE_GEMINI_2_5_PRO_PREVIEW_05_06.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [OPENAI_GPT_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_GPT_5_CODEX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_GPT_5_1_CODEX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_GPT_5_1_CHAT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'response_format' | 'seed' | 'tool_choice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [GOOGLE_GEMINI_2_5_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [OPENAI_GPT_5_1_CODEX_MAX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_GPT_5_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [SAO10K_L3_EURYALE_70B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_3_5_TURBO_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_CODEX_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [QWEN_QWEN_MAX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [OPENAI_GPT_5_2.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_GPT_5_2_CHAT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'response_format' | 'seed' | 'tool_choice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [MISTRALAI_MISTRAL_LARGE_2411.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MISTRALAI_PIXTRAL_LARGE_2411.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MISTRALAI_MIXTRAL_8X22B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_LARGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [MISTRALAI_MISTRAL_LARGE_2407.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [PERPLEXITY_SONAR_DEEP_RESEARCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
-      | 'web_search_options'
+      | 'topK'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [PERPLEXITY_SONAR_REASONING_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
-      | 'web_search_options'
+      | 'topK'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [OPENAI_GPT_4_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [OPENAI_O3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [AI21_JAMBA_LARGE_1_7.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [OPENAI_O4_MINI_DEEP_RESEARCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [GOOGLE_GEMINI_3_PRO_IMAGE_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [GOOGLE_GEMINI_3_PRO_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [OPENAI_GPT_5_IMAGE_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_4O_SEARCH_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'response_format' | 'web_search_options'
+      'maxCompletionTokens' | 'responseFormat' | 'webSearchOptions'
     >
   [OPENAI_GPT_4O_AUDIO_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [COHERE_COMMAND_A.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [INFLECTION_INFLECTION_3_PI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'stop' | 'temperature' | 'top_p'
+      'maxCompletionTokens' | 'stop' | 'temperature' | 'topP'
     >
   [INFLECTION_INFLECTION_3_PRODUCTIVITY.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'stop' | 'temperature' | 'top_p'
+      'maxCompletionTokens' | 'stop' | 'temperature' | 'topP'
     >
   [OPENAI_GPT_4O_2024_11_20.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
-      | 'web_search_options'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [OPENAI_GPT_4O_2024_08_06.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
-      | 'web_search_options'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [OPENAI_GPT_4O.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
-      | 'web_search_options'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [COHERE_COMMAND_R_PLUS_08_2024.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [AMAZON_NOVA_PREMIER_V1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'stop' | 'temperature' | 'top_k' | 'top_p'
+      'maxCompletionTokens' | 'stop' | 'temperature' | 'topK' | 'topP'
     >
   [SAO10K_L3_1_70B_HANAMI_X1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_3_5_TURBO_16K.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [ANTHRACITE_ORG_MAGNUM_V4_72B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_a'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'topA'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [ANTHROPIC_CLAUDE_SONNET_4_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [X_AI_GROK_3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
+      | 'frequencyPenalty'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [ANTHROPIC_CLAUDE_3_7_SONNET_THINKING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topP'
     >
   [X_AI_GROK_4.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
+      | 'includeReasoning'
       | 'logprobs'
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [PERPLEXITY_SONAR_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
-      | 'web_search_options'
+      | 'topK'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [X_AI_GROK_3_BETA.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
+      | 'frequencyPenalty'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [ANTHROPIC_CLAUDE_SONNET_4.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [ANTHROPIC_CLAUDE_3_7_SONNET.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [PERPLEXITY_SONAR_PRO_SEARCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
-      | 'web_search_options'
+      | 'topK'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [META_LLAMA_LLAMA_3_1_405B_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [DEEPCOGITO_COGITO_V2_PREVIEW_LLAMA_405B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [META_LLAMA_LLAMA_3_1_405B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [AION_LABS_AION_1_0.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'temperature'
-      | 'top_p'
+      | 'topP'
     >
   [RAIFLE_SORCERERLM_8X22B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_CHATGPT_4O_LATEST.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_4O_2024_05_13.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
-      | 'web_search_options'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [ANTHROPIC_CLAUDE_OPUS_4_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
+      | 'toolChoice'
+      | 'topK'
       | 'verbosity'
     >
   [ALPINDALE_GOLIATH_120B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_a'
-      | 'top_k'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'topA'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_4O_EXTENDED.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
-      | 'web_search_options'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+      | 'webSearchOptions'
     >
   [ANTHROPIC_CLAUDE_3_5_SONNET.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_5_IMAGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_4_1106_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_4_TURBO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_4_TURBO_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_O3_DEEP_RESEARCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'include_reasoning'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_O1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'max_completion_tokens' | 'response_format' | 'seed' | 'tool_choice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [ANTHROPIC_CLAUDE_OPUS_4_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [ANTHROPIC_CLAUDE_OPUS_4.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   [OPENAI_GPT_5_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_O3_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_GPT_5_2_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
-      | 'tool_choice'
+      | 'toolChoice'
     >
   [OPENAI_GPT_4.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_GPT_4_0314.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'logit_bias'
+      | 'frequencyPenalty'
+      | 'logitBias'
       | 'logprobs'
-      | 'max_completion_tokens'
-      | 'presence_penalty'
-      | 'response_format'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_logprobs'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
     >
   [OPENAI_O1_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'include_reasoning'
-      | 'max_completion_tokens'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'reasoning'
-      | 'response_format'
+      | 'responseFormat'
       | 'seed'
     >
   [ALLENAI_OLMO_2_0325_32B_INSTRUCT.id]: OpenRouterCommonOptions &
@@ -16938,27 +16938,27 @@ export type OpenRouterModelOptionsByName = {
   [META_LLAMA_LLAMA_3_2_90B_VISION_INSTRUCT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'frequency_penalty'
-      | 'max_completion_tokens'
-      | 'min_p'
-      | 'presence_penalty'
-      | 'repetition_penalty'
-      | 'response_format'
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'repetitionPenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'top_k'
-      | 'top_p'
+      | 'topK'
+      | 'topP'
     >
   [ANTHROPIC_CLAUDE_3_5_HAIKU_20241022.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'max_completion_tokens'
+      | 'maxCompletionTokens'
       | 'stop'
       | 'temperature'
-      | 'tool_choice'
-      | 'top_k'
-      | 'top_p'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
     >
   'openrouter/auto': OpenRouterCommonOptions & OpenRouterBaseOptions
 }
