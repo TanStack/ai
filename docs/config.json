@@ -51,6 +51,10 @@
           "to": "guides/agentic-cycle"
         },
         {
+          "label": "Middleware",
+          "to": "guides/middleware"
+        },
+        {
           "label": "Structured Outputs",
           "to": "guides/structured-outputs"
         },

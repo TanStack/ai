@@ -7,7 +7,11 @@
 
 import { aiEventClient } from '../../event-client.js'
 import { streamToText } from '../../stream-to-response.js'
-import { ToolCallManager, executeToolCalls } from './tools/tool-calls'
+import {
+  MiddlewareAbortError,
+  ToolCallManager,
+  executeToolCalls,
+} from './tools/tool-calls'
 import {
   convertSchemaToJsonSchema,
   isStandardSchema,
@@ -15,6 +19,7 @@ import {
 } from './tools/schema-converter'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages } from './messages'
+import { MiddlewareRunner } from './middleware/compose'
 import type {
   ApprovalRequest,
   ClientToolRequest,
@@ -38,6 +43,12 @@ import type {
   ToolCallEndEvent,
   ToolCallStartEvent,
 } from '../../types'
+import type {
+  ChatMiddleware,
+  ChatMiddlewareConfig,
+  ChatMiddlewareContext,
+  ChatMiddlewarePhase,
+} from './middleware/types'
 
 // ===========================
 // Activity Kind
@@ -132,6 +143,25 @@ export interface TextActivityOptions<
    * ```
    */
   stream?: TStream
+  /**
+   * Optional middleware array for observing/transforming chat behavior.
+   * Middleware hooks are called in array order. See {@link ChatMiddleware} for available hooks.
+   *
+   * @example
+   * ```ts
+   * const stream = chat({
+   *   adapter: openaiText('gpt-4o'),
+   *   messages: [...],
+   *   middleware: [loggingMiddleware, redactionMiddleware],
+   * })
+   * ```
+   */
+  middleware?: Array<ChatMiddleware>
+  /**
+   * Opaque user-provided context value passed to middleware hooks.
+   * Can be used to pass request-scoped data (e.g., user ID, request context).
+   */
+  context?: unknown
 }
 
 // ===========================
@@ -191,6 +221,8 @@ interface TextEngineConfig<
   adapter: TAdapter
   systemPrompts?: Array<string>
   params: TParams
+  middleware?: Array<ChatMiddleware>
+  context?: unknown
 }
 
 type ToolPhaseResult = 'continue' | 'stop' | 'wait'
@@ -201,9 +233,9 @@ class TextEngine<
   TParams extends TextOptions<any, any> = TextOptions<any>,
 > {
   private readonly adapter: TAdapter
-  private readonly params: TParams
-  private readonly systemPrompts: Array<string>
-  private readonly tools: ReadonlyArray<Tool>
+  private params: TParams
+  private systemPrompts: Array<string>
+  private tools: Array<Tool>
   private readonly loopStrategy: AgentLoopStrategy
   private readonly toolCallManager: ToolCallManager
   private readonly initialMessageCount: number
@@ -229,6 +261,14 @@ class TextEngine<
   // Client state extracted from initial messages (before conversion to ModelMessage)
   private readonly initialApprovals: Map<string, boolean>
   private readonly initialClientToolResults: Map<string, any>
+
+  // Middleware support
+  private readonly middlewareRunner: MiddlewareRunner
+  private readonly middlewareCtx: ChatMiddlewareContext
+  private readonly deferredPromises: Array<Promise<unknown>> = []
+  private abortReason?: string
+  private middlewareAbortController?: AbortController
+  private terminalHookCalled = false
 
   constructor(config: TextEngineConfig<TAdapter, TParams>) {
     this.adapter = config.adapter
@@ -260,6 +300,27 @@ class TextEngine<
       ? { signal: config.params.abortController.signal }
       : undefined
     this.effectiveSignal = config.params.abortController?.signal
+
+    // Initialize middleware
+    this.middlewareRunner = new MiddlewareRunner(config.middleware || [])
+    this.middlewareAbortController = new AbortController()
+    this.middlewareCtx = {
+      requestId: this.requestId,
+      streamId: this.streamId,
+      conversationId: config.params.conversationId,
+      phase: 'init' as ChatMiddlewarePhase,
+      iteration: 0,
+      chunkIndex: 0,
+      signal: this.effectiveSignal,
+      abort: (reason?: string) => {
+        this.abortReason = reason
+        this.middlewareAbortController?.abort(reason)
+      },
+      context: config.context,
+      defer: (promise: Promise<unknown>) => {
+        this.deferredPromises.push(promise)
+      },
+    }
   }
 
   /** Get the accumulated content after the chat loop completes */
@@ -276,19 +337,48 @@ class TextEngine<
     this.beforeRun()
 
     try {
+      // Run initial onConfig (phase = init)
+      if (this.middlewareRunner.hasMiddleware) {
+        this.middlewareCtx.phase = 'init'
+        const initialConfig = this.buildMiddlewareConfig()
+        const transformedConfig = await this.middlewareRunner.runOnConfig(
+          this.middlewareCtx,
+          initialConfig,
+        )
+        this.applyMiddlewareConfig(transformedConfig)
+
+        // Run onStart
+        await this.middlewareRunner.runOnStart(this.middlewareCtx)
+      }
+
       const pendingPhase = yield* this.checkForPendingToolCalls()
       if (pendingPhase === 'wait') {
         return
       }
 
       do {
-        if (this.earlyTermination || this.isAborted()) {
+        if (
+          this.earlyTermination ||
+          this.isCancelled()
+        ) {
           return
         }
 
         this.beginCycle()
 
         if (this.cyclePhase === 'processText') {
+          // Run onConfig before each model call (phase = beforeModel)
+          if (this.middlewareRunner.hasMiddleware) {
+            this.middlewareCtx.phase = 'beforeModel'
+            this.middlewareCtx.iteration = this.iterationCount
+            const iterConfig = this.buildMiddlewareConfig()
+            const transformedConfig = await this.middlewareRunner.runOnConfig(
+              this.middlewareCtx,
+              iterConfig,
+            )
+            this.applyMiddlewareConfig(transformedConfig)
+          }
+
           yield* this.streamModelResponse()
         } else {
           yield* this.processToolCalls()
@@ -296,8 +386,59 @@ class TextEngine<
 
         this.endCycle()
       } while (this.shouldContinue())
+
+      // Call terminal onFinish hook
+      if (this.middlewareRunner.hasMiddleware && !this.terminalHookCalled) {
+        this.terminalHookCalled = true
+        await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
+          finishReason: this.lastFinishReason,
+          duration: Date.now() - this.streamStartTime,
+          content: this.accumulatedContent,
+          usage: this.finishedEvent?.usage,
+        })
+      }
+    } catch (error: unknown) {
+      if (this.middlewareRunner.hasMiddleware && !this.terminalHookCalled) {
+        this.terminalHookCalled = true
+        if (error instanceof MiddlewareAbortError) {
+          // Middleware abort decision — call onAbort, not onError
+          this.abortReason = error.message
+          await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
+            reason: error.message,
+            duration: Date.now() - this.streamStartTime,
+          })
+        } else {
+          // Genuine error — call onError
+          await this.middlewareRunner.runOnError(this.middlewareCtx, {
+            error,
+            duration: Date.now() - this.streamStartTime,
+          })
+        }
+      }
+      // Don't rethrow middleware abort errors — the run just stops gracefully
+      if (!(error instanceof MiddlewareAbortError)) {
+        throw error
+      }
     } finally {
+      // Check for abort terminal hook
+      if (
+        this.middlewareRunner.hasMiddleware &&
+        !this.terminalHookCalled &&
+        this.isCancelled()
+      ) {
+        this.terminalHookCalled = true
+        await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
+          reason: this.abortReason,
+          duration: Date.now() - this.streamStartTime,
+        })
+      }
+
       this.afterRun()
+
+      // Await deferred promises (non-blocking side effects)
+      if (this.deferredPromises.length > 0) {
+        await Promise.allSettled(this.deferredPromises)
+      }
     }
   }
 
@@ -422,6 +563,10 @@ class TextEngine<
         : undefined,
     }))
 
+    if (this.middlewareRunner.hasMiddleware) {
+      this.middlewareCtx.phase = 'modelStream'
+    }
+
     for await (const chunk of this.adapter.chatStream({
       model: this.params.model,
       messages: this.messages,
@@ -434,14 +579,35 @@ class TextEngine<
       modelOptions,
       systemPrompts: this.systemPrompts,
     })) {
-      if (this.isAborted()) {
+      if (this.isCancelled()) {
         break
       }
 
       this.totalChunkCount++
 
-      yield chunk
-      this.handleStreamChunk(chunk)
+      // Pipe chunk through middleware
+      if (this.middlewareRunner.hasMiddleware) {
+        const outputChunks = await this.middlewareRunner.runOnChunk(
+          this.middlewareCtx,
+          chunk,
+        )
+        for (const outputChunk of outputChunks) {
+          yield outputChunk
+          this.handleStreamChunk(outputChunk)
+          this.middlewareCtx.chunkIndex++
+        }
+
+        // Handle usage via middleware
+        if (chunk.type === 'RUN_FINISHED' && chunk.usage) {
+          await this.middlewareRunner.runOnUsage(
+            this.middlewareCtx,
+            chunk.usage,
+          )
+        }
+      } else {
+        yield chunk
+        this.handleStreamChunk(chunk)
+      }
 
       if (this.earlyTermination) {
         break
@@ -663,6 +829,10 @@ class TextEngine<
 
     this.addAssistantToolCallMessage(toolCalls)
 
+    if (this.middlewareRunner.hasMiddleware) {
+      this.middlewareCtx.phase = 'beforeTools'
+    }
+
     const { approvals, clientToolResults } = this.collectClientState()
 
     const generator = executeToolCalls(
@@ -671,10 +841,43 @@ class TextEngine<
       approvals,
       clientToolResults,
       (eventName, data) => this.createCustomEventChunk(eventName, data),
+      this.middlewareRunner.hasMiddleware
+        ? {
+            onBeforeToolCall: async (toolCall, tool, args) => {
+              const hookCtx = {
+                toolCall,
+                tool,
+                args,
+                toolName: toolCall.function.name,
+                toolCallId: toolCall.id,
+              }
+              return this.middlewareRunner.runOnBeforeToolCall(
+                this.middlewareCtx,
+                hookCtx,
+              )
+            },
+            onAfterToolCall: async (info) => {
+              await this.middlewareRunner.runOnAfterToolCall(
+                this.middlewareCtx,
+                info,
+              )
+            },
+          }
+        : undefined,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
     const executionResult = yield* this.drainToolCallGenerator(generator)
+
+    if (this.middlewareRunner.hasMiddleware) {
+      this.middlewareCtx.phase = 'afterTools'
+    }
+
+    // Check if middleware aborted during tool execution
+    if (this.isMiddlewareAborted()) {
+      this.setToolPhase('stop')
+      return
+    }
 
     if (
       executionResult.needsApproval.length > 0 ||
@@ -1010,6 +1213,41 @@ class TextEngine<
     return !!this.effectiveSignal?.aborted
   }
 
+  private isMiddlewareAborted(): boolean {
+    return !!this.middlewareAbortController?.signal.aborted
+  }
+
+  private isCancelled(): boolean {
+    return this.isAborted() || this.isMiddlewareAborted()
+  }
+
+  private buildMiddlewareConfig(): ChatMiddlewareConfig {
+    return {
+      messages: this.messages,
+      systemPrompts: [...this.systemPrompts],
+      tools: [...this.tools],
+      temperature: this.params.temperature,
+      topP: this.params.topP,
+      maxTokens: this.params.maxTokens,
+      metadata: this.params.metadata,
+      modelOptions: this.params.modelOptions,
+    }
+  }
+
+  private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
+    this.messages = config.messages
+    this.systemPrompts = config.systemPrompts
+    this.tools = config.tools
+    this.params = {
+      ...this.params,
+      temperature: config.temperature,
+      topP: config.topP,
+      maxTokens: config.maxTokens,
+      metadata: config.metadata,
+      modelOptions: config.modelOptions,
+    }
+  }
+
   private buildTextEventContext(): {
     requestId: string
     streamId: string
@@ -1036,9 +1274,7 @@ class TextEngine<
         this.systemPrompts.length > 0 ? this.systemPrompts : undefined,
       toolNames: this.eventToolNames,
       options: this.eventOptions,
-      modelOptions: this.params.modelOptions as
-        | Record<string, unknown>
-        | undefined,
+      modelOptions: this.params.modelOptions,
       messageCount: this.initialMessageCount,
       hasTools: this.tools.length > 0,
       streaming: true,
@@ -1218,7 +1454,7 @@ export function chat<
 async function* runStreamingText(
   options: TextActivityOptions<AnyTextAdapter, undefined, true>,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, ...textOptions } = options
+  const { adapter, middleware, context, ...textOptions } = options
   const model = adapter.model
 
   const engine = new TextEngine({
@@ -1227,6 +1463,8 @@ async function* runStreamingText(
       Record<string, any>,
       Record<string, any>
     >,
+    middleware,
+    context,
   })
 
   for await (const chunk of engine.run()) {
@@ -1258,7 +1496,7 @@ function runNonStreamingText(
 async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
   options: TextActivityOptions<AnyTextAdapter, TSchema, boolean>,
 ): Promise<InferSchemaType<TSchema>> {
-  const { adapter, outputSchema, ...textOptions } = options
+  const { adapter, outputSchema, middleware, context, ...textOptions } = options
   const model = adapter.model
 
   if (!outputSchema) {
@@ -1272,6 +1510,8 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
       Record<string, unknown>,
       Record<string, unknown>
     >,
+    middleware,
+    context,
   })
 
   // Consume the stream to run the agentic loop

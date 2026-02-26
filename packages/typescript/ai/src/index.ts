@@ -70,6 +70,26 @@ export {
   combineStrategies,
 } from './activities/chat/agent-loop-strategies'
 
+// Chat middleware
+export type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+  ChatMiddlewarePhase,
+  ChatMiddlewareConfig,
+  ToolCallHookContext,
+  BeforeToolCallDecision,
+  AfterToolCallInfo,
+  UsageInfo,
+  FinishInfo,
+  AbortInfo,
+  ErrorInfo,
+  ToolCacheMiddlewareOptions,
+  ToolCacheStorage,
+  ToolCacheEntry,
+} from './activities/chat/middleware/index'
+
+export { toolCacheMiddleware } from './activities/chat/middleware/index'
+
 // All types
 export * from './types'
 
