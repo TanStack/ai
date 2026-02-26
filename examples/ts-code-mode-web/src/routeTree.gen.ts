@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as StructuredOutputRouteImport } from './routes/structured-output'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as ReportingAgentRouteImport } from './routes/reporting-agent'
+import { Route as ProductDemoRouteImport } from './routes/product-demo'
 import { Route as NoCodeRouteImport } from './routes/no-code'
 import { Route as ExcalidrawDemoRouteImport } from './routes/excalidraw-demo'
 import { Route as BankingDemoRouteImport } from './routes/banking-demo'
@@ -25,6 +26,8 @@ import { Route as ApiReportsRouteImport } from './routes/api.reports'
 import { Route as ApiReportSseRouteImport } from './routes/api.report-sse'
 import { Route as ApiReportEventRouteImport } from './routes/api.report-event'
 import { Route as ApiReportDemoRouteImport } from './routes/api.report-demo'
+import { Route as ApiProductRegularRouteImport } from './routes/api.product-regular'
+import { Route as ApiProductCodemodeRouteImport } from './routes/api.product-codemode'
 import { Route as ApiNoCodeRouteImport } from './routes/api.no-code'
 import { Route as ApiInvalidateRouteImport } from './routes/api.invalidate'
 import { Route as ApiGeneratePdfRouteImport } from './routes/api.generate-pdf'
@@ -50,6 +53,11 @@ const SkillsRoute = SkillsRouteImport.update({
 const ReportingAgentRoute = ReportingAgentRouteImport.update({
   id: '/reporting-agent',
   path: '/reporting-agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductDemoRoute = ProductDemoRouteImport.update({
+  id: '/product-demo',
+  path: '/product-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NoCodeRoute = NoCodeRouteImport.update({
@@ -117,6 +125,16 @@ const ApiReportDemoRoute = ApiReportDemoRouteImport.update({
   path: '/api/report-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProductRegularRoute = ApiProductRegularRouteImport.update({
+  id: '/api/product-regular',
+  path: '/api/product-regular',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProductCodemodeRoute = ApiProductCodemodeRouteImport.update({
+  id: '/api/product-codemode',
+  path: '/api/product-codemode',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiNoCodeRoute = ApiNoCodeRouteImport.update({
   id: '/api/no-code',
   path: '/api/no-code',
@@ -179,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/banking-demo': typeof BankingDemoRoute
   '/excalidraw-demo': typeof ExcalidrawDemoRoute
   '/no-code': typeof NoCodeRoute
+  '/product-demo': typeof ProductDemoRoute
   '/reporting-agent': typeof ReportingAgentRoute
   '/skills': typeof SkillsRoute
   '/structured-output': typeof StructuredOutputRoute
@@ -193,6 +212,8 @@ export interface FileRoutesByFullPath {
   '/api/generate-pdf': typeof ApiGeneratePdfRoute
   '/api/invalidate': typeof ApiInvalidateRoute
   '/api/no-code': typeof ApiNoCodeRoute
+  '/api/product-codemode': typeof ApiProductCodemodeRoute
+  '/api/product-regular': typeof ApiProductRegularRoute
   '/api/report-demo': typeof ApiReportDemoRoute
   '/api/report-event': typeof ApiReportEventRoute
   '/api/report-sse': typeof ApiReportSseRoute
@@ -208,6 +229,7 @@ export interface FileRoutesByTo {
   '/banking-demo': typeof BankingDemoRoute
   '/excalidraw-demo': typeof ExcalidrawDemoRoute
   '/no-code': typeof NoCodeRoute
+  '/product-demo': typeof ProductDemoRoute
   '/reporting-agent': typeof ReportingAgentRoute
   '/skills': typeof SkillsRoute
   '/structured-output': typeof StructuredOutputRoute
@@ -222,6 +244,8 @@ export interface FileRoutesByTo {
   '/api/generate-pdf': typeof ApiGeneratePdfRoute
   '/api/invalidate': typeof ApiInvalidateRoute
   '/api/no-code': typeof ApiNoCodeRoute
+  '/api/product-codemode': typeof ApiProductCodemodeRoute
+  '/api/product-regular': typeof ApiProductRegularRoute
   '/api/report-demo': typeof ApiReportDemoRoute
   '/api/report-event': typeof ApiReportEventRoute
   '/api/report-sse': typeof ApiReportSseRoute
@@ -238,6 +262,7 @@ export interface FileRoutesById {
   '/banking-demo': typeof BankingDemoRoute
   '/excalidraw-demo': typeof ExcalidrawDemoRoute
   '/no-code': typeof NoCodeRoute
+  '/product-demo': typeof ProductDemoRoute
   '/reporting-agent': typeof ReportingAgentRoute
   '/skills': typeof SkillsRoute
   '/structured-output': typeof StructuredOutputRoute
@@ -252,6 +277,8 @@ export interface FileRoutesById {
   '/api/generate-pdf': typeof ApiGeneratePdfRoute
   '/api/invalidate': typeof ApiInvalidateRoute
   '/api/no-code': typeof ApiNoCodeRoute
+  '/api/product-codemode': typeof ApiProductCodemodeRoute
+  '/api/product-regular': typeof ApiProductRegularRoute
   '/api/report-demo': typeof ApiReportDemoRoute
   '/api/report-event': typeof ApiReportEventRoute
   '/api/report-sse': typeof ApiReportSseRoute
@@ -269,6 +296,7 @@ export interface FileRouteTypes {
     | '/banking-demo'
     | '/excalidraw-demo'
     | '/no-code'
+    | '/product-demo'
     | '/reporting-agent'
     | '/skills'
     | '/structured-output'
@@ -283,6 +311,8 @@ export interface FileRouteTypes {
     | '/api/generate-pdf'
     | '/api/invalidate'
     | '/api/no-code'
+    | '/api/product-codemode'
+    | '/api/product-regular'
     | '/api/report-demo'
     | '/api/report-event'
     | '/api/report-sse'
@@ -298,6 +328,7 @@ export interface FileRouteTypes {
     | '/banking-demo'
     | '/excalidraw-demo'
     | '/no-code'
+    | '/product-demo'
     | '/reporting-agent'
     | '/skills'
     | '/structured-output'
@@ -312,6 +343,8 @@ export interface FileRouteTypes {
     | '/api/generate-pdf'
     | '/api/invalidate'
     | '/api/no-code'
+    | '/api/product-codemode'
+    | '/api/product-regular'
     | '/api/report-demo'
     | '/api/report-event'
     | '/api/report-sse'
@@ -327,6 +360,7 @@ export interface FileRouteTypes {
     | '/banking-demo'
     | '/excalidraw-demo'
     | '/no-code'
+    | '/product-demo'
     | '/reporting-agent'
     | '/skills'
     | '/structured-output'
@@ -341,6 +375,8 @@ export interface FileRouteTypes {
     | '/api/generate-pdf'
     | '/api/invalidate'
     | '/api/no-code'
+    | '/api/product-codemode'
+    | '/api/product-regular'
     | '/api/report-demo'
     | '/api/report-event'
     | '/api/report-sse'
@@ -357,6 +393,7 @@ export interface RootRouteChildren {
   BankingDemoRoute: typeof BankingDemoRoute
   ExcalidrawDemoRoute: typeof ExcalidrawDemoRoute
   NoCodeRoute: typeof NoCodeRoute
+  ProductDemoRoute: typeof ProductDemoRoute
   ReportingAgentRoute: typeof ReportingAgentRoute
   SkillsRoute: typeof SkillsRoute
   StructuredOutputRoute: typeof StructuredOutputRoute
@@ -371,6 +408,8 @@ export interface RootRouteChildren {
   ApiGeneratePdfRoute: typeof ApiGeneratePdfRoute
   ApiInvalidateRoute: typeof ApiInvalidateRoute
   ApiNoCodeRoute: typeof ApiNoCodeRoute
+  ApiProductCodemodeRoute: typeof ApiProductCodemodeRoute
+  ApiProductRegularRoute: typeof ApiProductRegularRoute
   ApiReportDemoRoute: typeof ApiReportDemoRoute
   ApiReportEventRoute: typeof ApiReportEventRoute
   ApiReportSseRoute: typeof ApiReportSseRoute
@@ -402,6 +441,13 @@ declare module '@tanstack/react-router' {
       path: '/reporting-agent'
       fullPath: '/reporting-agent'
       preLoaderRoute: typeof ReportingAgentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/product-demo': {
+      id: '/product-demo'
+      path: '/product-demo'
+      fullPath: '/product-demo'
+      preLoaderRoute: typeof ProductDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/no-code': {
@@ -495,6 +541,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiReportDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/product-regular': {
+      id: '/api/product-regular'
+      path: '/api/product-regular'
+      fullPath: '/api/product-regular'
+      preLoaderRoute: typeof ApiProductRegularRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/product-codemode': {
+      id: '/api/product-codemode'
+      path: '/api/product-codemode'
+      fullPath: '/api/product-codemode'
+      preLoaderRoute: typeof ApiProductCodemodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/no-code': {
       id: '/api/no-code'
       path: '/api/no-code'
@@ -581,6 +641,7 @@ const rootRouteChildren: RootRouteChildren = {
   BankingDemoRoute: BankingDemoRoute,
   ExcalidrawDemoRoute: ExcalidrawDemoRoute,
   NoCodeRoute: NoCodeRoute,
+  ProductDemoRoute: ProductDemoRoute,
   ReportingAgentRoute: ReportingAgentRoute,
   SkillsRoute: SkillsRoute,
   StructuredOutputRoute: StructuredOutputRoute,
@@ -595,6 +656,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGeneratePdfRoute: ApiGeneratePdfRoute,
   ApiInvalidateRoute: ApiInvalidateRoute,
   ApiNoCodeRoute: ApiNoCodeRoute,
+  ApiProductCodemodeRoute: ApiProductCodemodeRoute,
+  ApiProductRegularRoute: ApiProductRegularRoute,
   ApiReportDemoRoute: ApiReportDemoRoute,
   ApiReportEventRoute: ApiReportEventRoute,
   ApiReportSseRoute: ApiReportSseRoute,

@@ -12,6 +12,7 @@ import {
   FileCode2,
   Landmark,
   PenTool,
+  ShoppingBag,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -83,6 +84,18 @@ export default function Header({ children }: HeaderProps) {
           >
             <FileCode2 size={20} />
             <span className="font-medium">No-Code Chat</span>
+          </Link>
+          <Link
+            to="/product-demo"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-amber-600 hover:bg-amber-700 transition-colors mb-2',
+            }}
+          >
+            <ShoppingBag size={20} />
+            <span className="font-medium">Product Demo</span>
           </Link>
           <Link
             to="/skills"
