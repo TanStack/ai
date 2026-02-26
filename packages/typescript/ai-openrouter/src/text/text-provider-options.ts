@@ -104,12 +104,12 @@ export interface StreamOptions {
 }
 
 export type ImageConfig = {
-   /**
+  /**
    * The aspect ratio for generated images.
    */
   aspect_ratio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | string
-  
-  image_size?: "1k" | "2k" | "4k"
+
+  image_size?: '1k' | '2k' | '4k'
 }
 
 export interface PredictionOptions {
@@ -287,7 +287,6 @@ export interface OpenRouterBaseOptions {
    */
   reasoning?: ReasoningOptions
 
- 
   /**
    * Controls which (if any) tool the model should use.
    * 'none' - Don't call any tools

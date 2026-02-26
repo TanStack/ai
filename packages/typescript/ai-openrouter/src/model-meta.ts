@@ -14366,10 +14366,7 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [MEITUAN_LONGCAT_FLASH_CHAT.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'temperature' | 'topP'
-    >
+    Pick<OpenRouterBaseOptions, 'maxCompletionTokens' | 'temperature' | 'topP'>
   [QWEN_QWEN3_VL_30B_A3B_THINKING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -14406,10 +14403,7 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [MINIMAX_MINIMAX_01.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'temperature' | 'topP'
-    >
+    Pick<OpenRouterBaseOptions, 'maxCompletionTokens' | 'temperature' | 'topP'>
   [PRIME_INTELLECT_INTELLECT_3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -14961,11 +14955,7 @@ export type OpenRouterModelOptionsByName = {
   [GOOGLE_GEMINI_2_5_FLASH_IMAGE_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'responseFormat'
-      | 'seed'
-      | 'temperature'
-      | 'topP'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'temperature' | 'topP'
     >
   [GOOGLE_GEMINI_2_5_FLASH_PREVIEW_09_2025.id]: OpenRouterCommonOptions &
     Pick<
@@ -14983,11 +14973,7 @@ export type OpenRouterModelOptionsByName = {
   [GOOGLE_GEMINI_2_5_FLASH_IMAGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'responseFormat'
-      | 'seed'
-      | 'temperature'
-      | 'topP'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'temperature' | 'topP'
     >
   [AMAZON_NOVA_2_LITE_V1.id]: OpenRouterCommonOptions &
     Pick<
@@ -15661,10 +15647,7 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [MORPH_MORPH_V3_FAST.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'stop' | 'temperature'
-    >
+    Pick<OpenRouterBaseOptions, 'maxCompletionTokens' | 'stop' | 'temperature'>
   [ALFREDPROS_CODELLAMA_7B_INSTRUCT_SOLIDITY.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -15694,10 +15677,7 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [AION_LABS_AION_RP_LLAMA_3_1_8B.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'temperature' | 'topP'
-    >
+    Pick<OpenRouterBaseOptions, 'maxCompletionTokens' | 'temperature' | 'topP'>
   [AMAZON_NOVA_PRO_V1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -15757,10 +15737,7 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [MORPH_MORPH_V3_LARGE.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'stop' | 'temperature'
-    >
+    Pick<OpenRouterBaseOptions, 'maxCompletionTokens' | 'stop' | 'temperature'>
   [ARCEE_AI_MAESTRO_REASONING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
