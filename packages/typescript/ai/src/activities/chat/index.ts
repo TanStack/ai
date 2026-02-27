@@ -301,10 +301,7 @@ class TextEngine<
     this.effectiveSignal = config.params.abortController?.signal
 
     // Initialize middleware — devtools middleware is always first
-    const allMiddleware = [
-      devtoolsMiddleware(),
-      ...(config.middleware || []),
-    ]
+    const allMiddleware = [devtoolsMiddleware(), ...(config.middleware || [])]
     this.middlewareRunner = new MiddlewareRunner(allMiddleware)
     this.middlewareAbortController = new AbortController()
     this.middlewareCtx = {
@@ -550,10 +547,7 @@ class TextEngine<
 
       // Handle usage via middleware
       if (chunk.type === 'RUN_FINISHED' && chunk.usage) {
-        await this.middlewareRunner.runOnUsage(
-          this.middlewareCtx,
-          chunk.usage,
-        )
+        await this.middlewareRunner.runOnUsage(this.middlewareCtx, chunk.usage)
       }
 
       if (this.earlyTermination) {

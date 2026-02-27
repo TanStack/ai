@@ -64,7 +64,9 @@ describe('chat()', () => {
 
       expect(calls).toHaveLength(1)
       expect(calls[0]!.messages).toBeDefined()
-      expect((calls[0]!.messages as Array<{ role: string }>)[0]!.role).toBe('user')
+      expect((calls[0]!.messages as Array<{ role: string }>)[0]!.role).toBe(
+        'user',
+      )
     })
 
     it('should pass systemPrompts to the adapter', async () => {
@@ -222,9 +224,7 @@ describe('chat()', () => {
 
       // Second call should have tool result in messages
       const secondCallMessages = calls[1]!.messages as Array<{ role: string }>
-      const toolResultMsg = secondCallMessages.find(
-        (m) => m.role === 'tool',
-      )
+      const toolResultMsg = secondCallMessages.find((m) => m.role === 'tool')
       expect(toolResultMsg).toBeDefined()
     })
 
@@ -314,9 +314,7 @@ describe('chat()', () => {
 
       // Second adapter call should have both tool results
       const secondCallMessages = calls[1]!.messages as Array<{ role: string }>
-      const toolResultMsgs = secondCallMessages.filter(
-        (m) => m.role === 'tool',
-      )
+      const toolResultMsgs = secondCallMessages.filter((m) => m.role === 'tool')
       expect(toolResultMsgs).toHaveLength(2)
     })
   })

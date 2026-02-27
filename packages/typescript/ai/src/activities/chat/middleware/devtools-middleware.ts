@@ -18,8 +18,7 @@ function buildEventContext(ctx: ChatMiddlewareContext) {
     model: ctx.model,
     clientId: ctx.conversationId,
     source: ctx.source,
-    systemPrompts:
-      ctx.systemPrompts.length > 0 ? ctx.systemPrompts : undefined,
+    systemPrompts: ctx.systemPrompts.length > 0 ? ctx.systemPrompts : undefined,
     toolNames: ctx.toolNames,
     options: ctx.options,
     modelOptions: ctx.modelOptions,
@@ -71,9 +70,7 @@ export function devtoolsMiddleware(): ChatMiddleware {
         : messages
 
       messagesToEmit.forEach((message, index) => {
-        const messageIndex = ctx.conversationId
-          ? messages.length - 1
-          : index
+        const messageIndex = ctx.conversationId ? messages.length - 1 : index
         const messageId = ctx.createId('msg')
         const base = buildEventContext(ctx)
         const content = getContentString(message.content)
