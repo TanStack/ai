@@ -3,7 +3,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   ChevronDown,
   ChevronRight,
-  Send,
   Sparkles,
   Square,
   Trash2,
@@ -17,10 +16,8 @@ import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import { parsePartialJSON } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import type { UIMessage } from '@tanstack/ai-react'
 import type { VMEvent } from '@/components'
 import { CodeBlock, ExecutionResult, JavaScriptVM, Header } from '@/components'
-import { formatBytes, formatDuration } from '@/lib/efficiency'
 
 export const Route = createFileRoute('/')({
   component: ProductDemoPage,
@@ -76,9 +73,16 @@ const PROMPT_SUGGESTIONS = [
 
 // --- Stats Types ---
 
+const TOOL_NAMES = [
+  'execute_typescript',
+  'getProductListPage',
+  'getProductByID',
+] as const
+
 interface PanelStats {
   llmCalls: number
   toolCalls: number
+  toolCallsByName: Record<string, number>
   contextBytes: number
   durationMs: number | null
 }
@@ -86,6 +90,7 @@ interface PanelStats {
 const DEFAULT_STATS: PanelStats = {
   llmCalls: 0,
   toolCalls: 0,
+  toolCallsByName: {},
   contextBytes: 0,
   durationMs: null,
 }
@@ -135,12 +140,6 @@ function VersusStats({
         left: String(leftStats.llmCalls),
         right: String(rightStats.llmCalls),
         ...compare(leftStats.llmCalls, rightStats.llmCalls),
-      },
-      {
-        label: 'Tool Calls',
-        left: String(leftStats.toolCalls),
-        right: String(rightStats.toolCalls),
-        ...compare(leftStats.toolCalls, rightStats.toolCalls),
       },
       {
         label: 'Context (KB)',
@@ -256,6 +255,67 @@ function VersusStats({
             </div>
           </div>
         ))}
+
+        {/* Tool Calls breakdown — three centered columns */}
+        <div className="space-y-1">
+          <div className="text-sm text-center uppercase tracking-widest text-gray-500 font-semibold">
+            Tool Calls
+          </div>
+          {TOOL_NAMES.map((toolName) => {
+            const leftVal = leftStats.toolCallsByName[toolName] ?? 0
+            const rightVal =
+              toolName === 'execute_typescript'
+                ? null
+                : (rightStats.toolCallsByName[toolName] ?? 0)
+            const leftWins =
+              rightVal !== null && leftVal > 0 && rightVal > 0 && leftVal < rightVal
+            const rightWins =
+              rightVal !== null && leftVal > 0 && rightVal > 0 && rightVal < leftVal
+            return (
+              <div
+                key={toolName}
+                className="grid grid-cols-3 gap-1 text-center items-center"
+              >
+                <div className="text-[10px] font-mono text-gray-500 truncate text-center">
+                  {toolName}
+                </div>
+                <div className="flex justify-center">
+                  <span
+                    className={`font-mono text-sm tabular-nums ${
+                      leftWins ? 'text-cyan-400 font-bold' : 'text-gray-400'
+                    }`}
+                  >
+                    {leftVal}
+                  </span>
+                </div>
+                <div className="flex justify-center">
+                  <span
+                    className={`font-mono text-sm tabular-nums ${
+                      rightWins ? 'text-amber-400 font-bold' : 'text-gray-400'
+                    }`}
+                  >
+                    {rightVal === null ? '—' : rightVal}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+          <div className="grid grid-cols-3 gap-1 text-center items-center pt-1 mt-1 border-t border-gray-700/50">
+            <div className="text-[10px] text-gray-500 font-medium text-center">
+              Total
+            </div>
+            <div className="flex justify-center">
+              <span className="font-mono text-lg tabular-nums font-semibold text-gray-300">
+                {leftStats.toolCalls}
+              </span>
+            </div>
+            <div className="flex justify-center">
+              <span className="font-mono text-lg tabular-nums font-semibold text-gray-300">
+                {rightStats.toolCalls}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="h-px bg-linear-to-r from-cyan-500/50 via-gray-700/50 to-amber-500/50" />
@@ -662,26 +722,33 @@ function CodeModePanel({
     onStopReady?.(stop)
   }, [stop, onStopReady])
 
-  const toolCalls = useMemo(() => {
+  const { toolCalls, toolCallsByName } = useMemo(() => {
     let count = 0
+    const byName: Record<string, number> = {}
     for (const m of messages) {
       for (const p of m.parts) {
-        if (p.type === 'tool-call') count++
+        if (p.type === 'tool-call') {
+          count++
+          const name = p.name
+          byName[name] = (byName[name] ?? 0) + 1
+        }
       }
     }
-    return count
+    return { toolCalls: count, toolCallsByName: byName }
   }, [messages])
 
   useEffect(() => {
     onStatsChange({
       llmCalls: llmCallsBase.current + llmCallsCurrent,
       toolCalls,
+      toolCallsByName,
       contextBytes: contextBytesBase.current + contextBytesCurrent,
       durationMs: totalTimeMs,
     })
   }, [
     llmCallsCurrent,
     toolCalls,
+    toolCallsByName,
     contextBytesCurrent,
     totalTimeMs,
     onStatsChange,
@@ -949,26 +1016,33 @@ function RegularToolsPanel({
     onStopReady?.(stop)
   }, [stop, onStopReady])
 
-  const toolCalls = useMemo(() => {
+  const { toolCalls, toolCallsByName } = useMemo(() => {
     let count = 0
+    const byName: Record<string, number> = {}
     for (const m of messages) {
       for (const p of m.parts) {
-        if (p.type === 'tool-call') count++
+        if (p.type === 'tool-call') {
+          count++
+          const name = p.name
+          byName[name] = (byName[name] ?? 0) + 1
+        }
       }
     }
-    return count
+    return { toolCalls: count, toolCallsByName: byName }
   }, [messages])
 
   useEffect(() => {
     onStatsChange({
       llmCalls: llmCallsBase.current + llmCallsCurrent,
       toolCalls,
+      toolCallsByName,
       contextBytes: contextBytesBase.current + contextBytesCurrent,
       durationMs: totalTimeMs,
     })
   }, [
     llmCallsCurrent,
     toolCalls,
+    toolCallsByName,
     contextBytesCurrent,
     totalTimeMs,
     onStatsChange,
@@ -1098,7 +1172,8 @@ function ProductDemoPage() {
   const [skillsDialogOpen, setSkillsDialogOpen] = useState(false)
 
   const promptRef = useRef('')
-  const [triggerCount, setTriggerCount] = useState(0)
+  const [cmTriggerCount, setCmTriggerCount] = useState(0)
+  const [regTriggerCount, setRegTriggerCount] = useState(0)
 
   const isLoading = cmLoading || regLoading
 
@@ -1164,9 +1239,18 @@ function ProductDemoPage() {
     }
   }, [withSkills, loadSkills])
 
-  const handleSend = useCallback((text: string) => {
+  const handleSendCodeMode = useCallback((text: string) => {
     promptRef.current = text
-    setTriggerCount((c) => c + 1)
+    setCmTriggerCount((c) => c + 1)
+  }, [])
+  const handleSendRegular = useCallback((text: string) => {
+    promptRef.current = text
+    setRegTriggerCount((c) => c + 1)
+  }, [])
+  const handleSendBoth = useCallback((text: string) => {
+    promptRef.current = text
+    setCmTriggerCount((c) => c + 1)
+    setRegTriggerCount((c) => c + 1)
   }, [])
 
   const [cmStats, setCmStats] = useState<PanelStats>(DEFAULT_STATS)
@@ -1210,29 +1294,12 @@ function ProductDemoPage() {
         </select>
       </Header>
 
-      {/* Expository text */}
-      <div className="px-6 py-4 border-b border-gray-700/50 bg-gray-800/30">
-        <p className="text-sm text-gray-300 max-w-5xl mx-auto leading-relaxed">
-          <strong className="text-white">N+1 API Problem:</strong> Many
-          real-world APIs force clients through paginated listings and
-          individual record fetches — a classic N+1 pattern. With regular
-          tool-calling, the LLM must round-trip through each call sequentially,
-          ballooning context and latency. Worse, when the LLM finally has to
-          compute an answer from dozens of tool results stuffed into its context
-          window, it often gets the math wrong.{' '}
-          <strong className="text-cyan-400">Code Mode</strong> lets the LLM
-          write its own efficient data-fetching code in a single execution,
-          collapsing dozens of round trips into one — and because the runtime
-          does the arithmetic, the answer is correct every time.
-        </p>
-      </div>
-
       {/* Three-column layout: Code Mode | VS Stats | Regular Tools */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <CodeModePanel
           body={body}
           promptRef={promptRef}
-          triggerCount={triggerCount}
+          triggerCount={cmTriggerCount}
           onLoadingChange={onCmLoadingChange}
           onNewSkill={handleNewSkill}
           onStatsChange={onCmStatsChange}
@@ -1253,7 +1320,7 @@ function ProductDemoPage() {
         <RegularToolsPanel
           body={body}
           promptRef={promptRef}
-          triggerCount={triggerCount}
+          triggerCount={regTriggerCount}
           onLoadingChange={onRegLoadingChange}
           onStatsChange={onRegStatsChange}
           onStopReady={onRegStopReady}
@@ -1271,21 +1338,15 @@ function ProductDemoPage() {
         isLoading={isLoadingSkills}
       />
 
-      {/* Shared input with inline suggestion buttons */}
+      {/* Shared input: suggestions set prompt; action buttons on the right */}
       <div className="border-t border-cyan-500/10 bg-gray-900/80 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center gap-2">
             {PROMPT_SUGGESTIONS.map((suggestion, index) => (
               <button
                 key={index}
-                onClick={() => {
-                  if (!isLoading) {
-                    setInput('')
-                    handleSend(suggestion.prompt)
-                  }
-                }}
-                disabled={isLoading}
-                className="shrink-0 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 border border-cyan-500/20 hover:border-cyan-500/40 text-gray-300 hover:text-white rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setInput(suggestion.prompt)}
+                className="shrink-0 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 border border-cyan-500/20 hover:border-cyan-500/40 text-gray-300 hover:text-white rounded-full transition-all"
               >
                 {suggestion.label}
               </button>
@@ -1295,7 +1356,7 @@ function ProductDemoPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask a question about the shoe catalog..."
-                className="w-full rounded-lg border border-cyan-500/20 bg-gray-800/50 pl-4 pr-12 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
+                className="w-full rounded-lg border border-cyan-500/20 bg-gray-800/50 pl-4 pr-4 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
                 rows={1}
                 style={{ minHeight: '40px', maxHeight: '200px' }}
                 disabled={isLoading}
@@ -1308,22 +1369,38 @@ function ProductDemoPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && input.trim()) {
                     e.preventDefault()
-                    handleSend(input)
+                    handleSendBoth(input)
                     setInput('')
                   }
                 }}
               />
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => input.trim() && handleSendCodeMode(input)}
+                disabled={!input.trim() || cmLoading}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Code Mode
+              </button>
+              <button
+                onClick={() => input.trim() && handleSendRegular(input)}
+                disabled={!input.trim() || regLoading}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Regular Tools
+              </button>
               <button
                 onClick={() => {
                   if (input.trim()) {
-                    handleSend(input)
+                    handleSendBoth(input)
                     setInput('')
                   }
                 }}
-                disabled={!input.trim() || isLoading}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-cyan-500 hover:text-cyan-400 disabled:text-gray-500 transition-colors focus:outline-none"
+                disabled={!input.trim() || cmLoading || regLoading}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-500/30 bg-gray-500/10 hover:bg-gray-500/20 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <Send className="w-4 h-4" />
+                Run In Both
               </button>
             </div>
           </div>
