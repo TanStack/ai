@@ -62,7 +62,7 @@ export interface AdapterDefinition {
 
 // Model defaults from environment or sensible defaults
 const ANTHROPIC_MODEL =
-  process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-20241022'
+  process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5'
 const ANTHROPIC_SUMMARY_MODEL =
   process.env.ANTHROPIC_SUMMARY_MODEL || ANTHROPIC_MODEL
 
