@@ -60,7 +60,7 @@ const getUserDataDef = toolDefinition({
   name: "get_user_data",
   description: "Get user information from the database",
   inputSchema: z.object({
-    userId: z.string().describe("The user ID to look up"),
+    userId: z.string().meta({ description: "The user ID to look up" }),
   }),
   outputSchema: z.object({
     name: z.string(),
@@ -93,7 +93,7 @@ const getUserDataDef = toolDefinition({
   name: "get_user_data",
   description: "Get user information from the database",
   inputSchema: z.object({
-    userId: z.string().describe("The user ID to look up"),
+    userId: z.string().meta({ description: "The user ID to look up" }),
   }),
   outputSchema: z.object({
     name: z.string(),
@@ -118,8 +118,8 @@ const searchProductsDef = toolDefinition({
   name: "search_products",
   description: "Search for products in the catalog",
   inputSchema: z.object({
-    query: z.string().describe("Search query"),
-    limit: z.number().optional().describe("Maximum number of results"),
+    query: z.string().meta({ description: "Search query" }),
+    limit: z.number().optional().meta({ description: "Maximum number of results" }),
   }),
 });
 

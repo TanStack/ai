@@ -31,7 +31,7 @@ TanStack AI uses **Standard JSON Schema**, which means you can use any schema li
 - [Valibot](https://valibot.dev/) (via `@valibot/to-json-schema`)
 - Plain JSON Schema objects
 
-> **Note:** Refer to your schema library's documentation for details on defining schemas and using features like `.describe()` for field descriptions. TanStack AI will convert your schema to JSON Schema format automatically.
+> **Note:** Refer to your schema library's documentation for details on defining schemas and using features like `.meta()` for field descriptions. TanStack AI will convert your schema to JSON Schema format automatically.
 
 ## Basic Usage
 
@@ -44,9 +44,9 @@ import { z } from "zod";
 
 // Define your schema
 const PersonSchema = z.object({
-  name: z.string().describe("The person's full name"),
-  age: z.number().describe("The person's age in years"),
-  email: z.string().email().describe("The person's email address"),
+  name: z.string().meta({ description: "The person's full name" }),
+  age: z.number().meta({ description: "The person's age in years" }),
+  email: z.string().email().meta({ description: "The person's email address" }),
 });
 
 // Use it with chat()
@@ -112,16 +112,16 @@ recipe.instructions.map((step) => step.toUpperCase()); // string[]
 
 ## Using Field Descriptions
 
-Schema field descriptions help the AI understand what data to extract. Most schema libraries support a `.describe()` method:
+Schema field descriptions help the AI understand what data to extract. In Zod 4+, use the `.meta()` method:
 
 ```typescript
 const ProductSchema = z.object({
-  name: z.string().describe("The product name"),
-  price: z.number().describe("Price in USD"),
-  inStock: z.boolean().describe("Whether the product is currently available"),
+  name: z.string().meta({ description: "The product name" }),
+  price: z.number().meta({ description: "Price in USD" }),
+  inStock: z.boolean().meta({ description: "Whether the product is currently available" }),
   categories: z
     .array(z.string())
-    .describe("Product categories like 'electronics', 'clothing', etc."),
+    .meta({ description: "Product categories like 'electronics', 'clothing', etc." }),
 });
 ```
 
@@ -134,7 +134,7 @@ You can define deeply nested structures:
 ```typescript
 const CompanySchema = z.object({
   name: z.string(),
-  founded: z.number().describe("Year the company was founded"),
+  founded: z.number().meta({ description: "Year the company was founded" }),
   headquarters: z.object({
     city: z.string(),
     country: z.string(),
@@ -149,7 +149,7 @@ const CompanySchema = z.object({
   ),
   financials: z
     .object({
-      revenue: z.number().describe("Annual revenue in millions USD"),
+      revenue: z.number().meta({ description: "Annual revenue in millions USD" }),
       profitable: z.boolean(),
     })
     .optional(),
