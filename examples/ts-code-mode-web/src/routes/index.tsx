@@ -74,42 +74,111 @@ const PROMPT_SUGGESTIONS = [
   },
 ]
 
-// --- Scorecard ---
+// --- Stats Types ---
 
-function ScoreCard({
-  llmCalls,
-  toolCalls,
-  contextBytes,
-  durationMs,
-}: {
+interface PanelStats {
   llmCalls: number
   toolCalls: number
   contextBytes: number
   durationMs: number | null
-}) {
-  return (
-    <div className="flex items-center gap-4 px-4 py-2 text-xs border-b border-gray-700/50 bg-gray-800/40 whitespace-nowrap overflow-x-auto">
-      <Stat label="LLM Calls" value={llmCalls} />
-      <Stat label="Tool Calls" value={toolCalls} />
-      <Stat
-        label="Context"
-        value={contextBytes > 0 ? formatBytes(contextBytes) : '—'}
-      />
-      <Stat
-        label="Duration"
-        value={durationMs !== null ? formatDuration(durationMs) : '—'}
-      />
-    </div>
-  )
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+const DEFAULT_STATS: PanelStats = {
+  llmCalls: 0,
+  toolCalls: 0,
+  contextBytes: 0,
+  durationMs: null,
+}
+
+// --- Versus Scoreboard ---
+
+function VersusStats({
+  leftStats,
+  rightStats,
+}: {
+  leftStats: PanelStats
+  rightStats: PanelStats
+}) {
+  const rows = useMemo(() => {
+    const compare = (l: number | null, r: number | null) => {
+      if (l === null || r === null || l === 0 || r === 0)
+        return { leftWins: false, rightWins: false }
+      if (l < r) return { leftWins: true, rightWins: false }
+      if (r < l) return { leftWins: false, rightWins: true }
+      return { leftWins: false, rightWins: false }
+    }
+
+    const fmtKB = (bytes: number) =>
+      bytes > 0 ? (bytes / 1024).toFixed(1) : '—'
+    const fmtSec = (ms: number | null) =>
+      ms !== null ? String(Math.round(ms / 1000)) : '—'
+
+    return [
+      {
+        label: 'LLM Calls',
+        left: String(leftStats.llmCalls),
+        right: String(rightStats.llmCalls),
+        ...compare(leftStats.llmCalls, rightStats.llmCalls),
+      },
+      {
+        label: 'Tool Calls',
+        left: String(leftStats.toolCalls),
+        right: String(rightStats.toolCalls),
+        ...compare(leftStats.toolCalls, rightStats.toolCalls),
+      },
+      {
+        label: 'Context (KB)',
+        left: fmtKB(leftStats.contextBytes),
+        right: fmtKB(rightStats.contextBytes),
+        ...compare(leftStats.contextBytes, rightStats.contextBytes),
+      },
+      {
+        label: 'Duration (s)',
+        left: fmtSec(leftStats.durationMs),
+        right: fmtSec(rightStats.durationMs),
+        ...compare(leftStats.durationMs, rightStats.durationMs),
+      },
+    ]
+  }, [leftStats, rightStats])
+
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-gray-500">{label}:</span>
-      <span className="font-mono text-gray-200 font-medium">
-        {String(value)}
-      </span>
+    <div className="w-60 shrink-0 flex flex-col bg-gray-950/80 border-x border-gray-700/30">
+      <div className="relative h-14 bg-linear-to-r from-cyan-500/25 via-gray-900/60 to-amber-500/25 flex items-center justify-center">
+        <span className="text-2xl font-black tracking-[0.5em] text-white/15 uppercase select-none">
+          vs
+        </span>
+      </div>
+
+      <div className="flex-1 flex flex-col justify-center gap-6 px-5 py-4">
+        {rows.map(({ label, left, right, leftWins, rightWins }) => (
+          <div key={label} className="space-y-1">
+            <div className="text-[11px] text-center uppercase tracking-widest text-gray-500 font-medium">
+              {label}
+            </div>
+            <div className="flex items-center">
+              <span
+                className={`flex-1 text-right font-mono text-xl tabular-nums ${
+                  leftWins ? 'text-cyan-400 font-bold' : 'text-gray-400'
+                }`}
+              >
+                {left}
+              </span>
+              <div className="w-6 flex justify-center">
+                <div className="w-1 h-1 rounded-full bg-gray-700" />
+              </div>
+              <span
+                className={`flex-1 text-left font-mono text-xl tabular-nums ${
+                  rightWins ? 'text-amber-400 font-bold' : 'text-gray-400'
+                }`}
+              >
+                {right}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="h-px bg-linear-to-r from-cyan-500/50 via-gray-700/50 to-amber-500/50" />
     </div>
   )
 }
@@ -421,6 +490,7 @@ function CodeModePanel({
   skillCount,
   onSkillsButtonClick,
   onNewSkill,
+  onStatsChange,
 }: {
   body: { provider: string; model: string }
   promptRef: React.RefObject<string>
@@ -431,10 +501,13 @@ function CodeModePanel({
   skillCount: number
   onSkillsButtonClick: () => void
   onNewSkill: () => void
+  onStatsChange: (stats: PanelStats) => void
 }) {
-  const [llmCalls, setLlmCalls] = useState(0)
-  const [contextBytes, setContextBytes] = useState(0)
-  const [timeMs, setTimeMs] = useState<number | null>(null)
+  const llmCallsBase = useRef(0)
+  const contextBytesBase = useRef(0)
+  const [llmCallsCurrent, setLlmCallsCurrent] = useState(0)
+  const [contextBytesCurrent, setContextBytesCurrent] = useState(0)
+  const [totalTimeMs, setTotalTimeMs] = useState<number | null>(null)
   const [toolCallEvents, setToolCallEvents] = useState<
     Map<string, Array<VMEvent>>
   >(new Map())
@@ -445,18 +518,18 @@ function CodeModePanel({
       if (eventType === 'product_codemode:llm_call') {
         const d = data as { count?: number; totalContextBytes?: number }
         if (typeof d?.count === 'number')
-          setLlmCalls((p) => Math.max(p, d.count!))
+          setLlmCallsCurrent((p) => Math.max(p, d.count!))
         if (typeof d?.totalContextBytes === 'number')
-          setContextBytes(d.totalContextBytes)
+          setContextBytesCurrent(d.totalContextBytes)
         return
       }
       if (eventType === 'product_codemode:chat_start') {
-        setTimeMs(null)
         return
       }
       if (eventType === 'product_codemode:chat_end') {
         const d = data as { durationMs?: number }
-        if (typeof d?.durationMs === 'number') setTimeMs(d.durationMs)
+        if (typeof d?.durationMs === 'number')
+          setTotalTimeMs((prev) => (prev ?? 0) + d.durationMs!)
         return
       }
 
@@ -501,9 +574,10 @@ function CodeModePanel({
     const prompt = promptRef.current
     if (!prompt) return
 
-    setLlmCalls(0)
-    setContextBytes(0)
-    setTimeMs(null)
+    llmCallsBase.current += llmCallsCurrent
+    contextBytesBase.current += contextBytesCurrent
+    setLlmCallsCurrent(0)
+    setContextBytesCurrent(0)
     setToolCallEvents(new Map())
     eventIdCounter.current = 0
 
@@ -520,6 +594,15 @@ function CodeModePanel({
     return count
   }, [messages])
 
+  useEffect(() => {
+    onStatsChange({
+      llmCalls: llmCallsBase.current + llmCallsCurrent,
+      toolCalls,
+      contextBytes: contextBytesBase.current + contextBytesCurrent,
+      durationMs: totalTimeMs,
+    })
+  }, [llmCallsCurrent, toolCalls, contextBytesCurrent, totalTimeMs, onStatsChange])
+
   const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (containerRef.current) {
@@ -528,13 +611,13 @@ function CodeModePanel({
   }, [messages])
 
   return (
-    <div className="flex-1 flex flex-col border-r border-gray-700/50 min-w-0">
-      <div className="px-4 py-2 bg-cyan-900/20 border-b border-cyan-500/20 flex items-center gap-3">
-        <div className="w-2 h-2 rounded-full bg-cyan-400" />
-        <span className="text-sm font-semibold text-cyan-300">Code Mode</span>
+    <div className="flex-1 flex flex-col min-w-0">
+      <div className="px-4 py-2.5 bg-cyan-900/20 border-b border-cyan-500/20 flex items-center justify-center gap-3">
+        <span className="text-base font-bold text-cyan-300 tracking-wide">
+          Code Mode
+        </span>
 
-        {/* With Skills toggle */}
-        <label className="flex items-center gap-1.5 cursor-pointer select-none ml-2">
+        <label className="flex items-center gap-1.5 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={withSkills}
@@ -544,7 +627,6 @@ function CodeModePanel({
           <span className="text-[11px] text-gray-400">With Skills</span>
         </label>
 
-        {/* Skills count button */}
         {withSkills && (
           <button
             onClick={onSkillsButtonClick}
@@ -558,19 +640,13 @@ function CodeModePanel({
         {isLoading && (
           <button
             onClick={stop}
-            className="ml-auto px-2 py-0.5 bg-red-600/80 hover:bg-red-600 text-white rounded text-[10px] font-medium transition-colors flex items-center gap-1"
+            className="px-2 py-0.5 bg-red-600/80 hover:bg-red-600 text-white rounded text-[10px] font-medium transition-colors flex items-center gap-1"
           >
             <Square className="w-2.5 h-2.5 fill-current" />
             Stop
           </button>
         )}
       </div>
-      <ScoreCard
-        llmCalls={llmCalls}
-        toolCalls={toolCalls}
-        contextBytes={contextBytes}
-        durationMs={timeMs}
-      />
       {!messages.length ? (
         <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
           Waiting for prompt...
@@ -761,33 +837,37 @@ function RegularToolsPanel({
   promptRef,
   triggerCount,
   onLoadingChange,
+  onStatsChange,
 }: {
   body: { provider: string; model: string }
   promptRef: React.RefObject<string>
   triggerCount: number
   onLoadingChange: (loading: boolean) => void
+  onStatsChange: (stats: PanelStats) => void
 }) {
-  const [llmCalls, setLlmCalls] = useState(0)
-  const [contextBytes, setContextBytes] = useState(0)
-  const [timeMs, setTimeMs] = useState<number | null>(null)
+  const llmCallsBase = useRef(0)
+  const contextBytesBase = useRef(0)
+  const [llmCallsCurrent, setLlmCallsCurrent] = useState(0)
+  const [contextBytesCurrent, setContextBytesCurrent] = useState(0)
+  const [totalTimeMs, setTotalTimeMs] = useState<number | null>(null)
 
   const handleCustomEvent = useCallback(
     (eventType: string, data: unknown) => {
       if (eventType === 'product_regular:llm_call') {
         const d = data as { count?: number; totalContextBytes?: number }
         if (typeof d?.count === 'number')
-          setLlmCalls((p) => Math.max(p, d.count!))
+          setLlmCallsCurrent((p) => Math.max(p, d.count!))
         if (typeof d?.totalContextBytes === 'number')
-          setContextBytes(d.totalContextBytes)
+          setContextBytesCurrent(d.totalContextBytes)
         return
       }
       if (eventType === 'product_regular:chat_start') {
-        setTimeMs(null)
         return
       }
       if (eventType === 'product_regular:chat_end') {
         const d = data as { durationMs?: number }
-        if (typeof d?.durationMs === 'number') setTimeMs(d.durationMs)
+        if (typeof d?.durationMs === 'number')
+          setTotalTimeMs((prev) => (prev ?? 0) + d.durationMs!)
       }
     },
     [],
@@ -809,9 +889,10 @@ function RegularToolsPanel({
     const prompt = promptRef.current
     if (!prompt) return
 
-    setLlmCalls(0)
-    setContextBytes(0)
-    setTimeMs(null)
+    llmCallsBase.current += llmCallsCurrent
+    contextBytesBase.current += contextBytesCurrent
+    setLlmCallsCurrent(0)
+    setContextBytesCurrent(0)
 
     sendMessage(prompt)
   }, [triggerCount]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -826,6 +907,15 @@ function RegularToolsPanel({
     return count
   }, [messages])
 
+  useEffect(() => {
+    onStatsChange({
+      llmCalls: llmCallsBase.current + llmCallsCurrent,
+      toolCalls,
+      contextBytes: contextBytesBase.current + contextBytesCurrent,
+      durationMs: totalTimeMs,
+    })
+  }, [llmCallsCurrent, toolCalls, contextBytesCurrent, totalTimeMs, onStatsChange])
+
   const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (containerRef.current) {
@@ -835,27 +925,20 @@ function RegularToolsPanel({
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
-      <div className="px-4 py-2 bg-amber-900/20 border-b border-amber-500/20 flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-amber-400" />
-        <span className="text-sm font-semibold text-amber-300">
+      <div className="px-4 py-2.5 bg-amber-900/20 border-b border-amber-500/20 flex items-center justify-center gap-3">
+        <span className="text-base font-bold text-amber-300 tracking-wide">
           Regular Tools
         </span>
         {isLoading && (
           <button
             onClick={stop}
-            className="ml-auto px-2 py-0.5 bg-red-600/80 hover:bg-red-600 text-white rounded text-[10px] font-medium transition-colors flex items-center gap-1"
+            className="px-2 py-0.5 bg-red-600/80 hover:bg-red-600 text-white rounded text-[10px] font-medium transition-colors flex items-center gap-1"
           >
             <Square className="w-2.5 h-2.5 fill-current" />
             Stop
           </button>
         )}
       </div>
-      <ScoreCard
-        llmCalls={llmCalls}
-        toolCalls={toolCalls}
-        contextBytes={contextBytes}
-        durationMs={timeMs}
-      />
       {!messages.length ? (
         <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
           Waiting for prompt...
@@ -1039,8 +1122,13 @@ function ProductDemoPage() {
     setTriggerCount((c) => c + 1)
   }, [])
 
+  const [cmStats, setCmStats] = useState<PanelStats>(DEFAULT_STATS)
+  const [regStats, setRegStats] = useState<PanelStats>(DEFAULT_STATS)
+
   const onCmLoadingChange = useCallback((v: boolean) => setCmLoading(v), [])
   const onRegLoadingChange = useCallback((v: boolean) => setRegLoading(v), [])
+  const onCmStatsChange = useCallback((s: PanelStats) => setCmStats(s), [])
+  const onRegStatsChange = useCallback((s: PanelStats) => setRegStats(s), [])
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
@@ -1084,30 +1172,7 @@ function ProductDemoPage() {
         </p>
       </div>
 
-      {/* Canned prompts */}
-      <div className="px-6 py-3 border-b border-gray-700/50 bg-gray-800/20 flex items-center gap-3 justify-center">
-        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-          <Sparkles className="w-3 h-3" />
-          <span>Try:</span>
-        </div>
-        {PROMPT_SUGGESTIONS.map((suggestion, index) => (
-          <button
-            key={index}
-            onClick={() => {
-              if (!isLoading) {
-                setInput('')
-                handleSend(suggestion.prompt)
-              }
-            }}
-            disabled={isLoading}
-            className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 border border-cyan-500/20 hover:border-cyan-500/40 text-gray-300 hover:text-white rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {suggestion.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Two panels */}
+      {/* Three-column layout: Code Mode | VS Stats | Regular Tools */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <CodeModePanel
           body={body}
@@ -1119,12 +1184,15 @@ function ProductDemoPage() {
           skillCount={skills.length}
           onSkillsButtonClick={() => setSkillsDialogOpen(true)}
           onNewSkill={handleNewSkill}
+          onStatsChange={onCmStatsChange}
         />
+        <VersusStats leftStats={cmStats} rightStats={regStats} />
         <RegularToolsPanel
           body={body}
           promptRef={promptRef}
           triggerCount={triggerCount}
           onLoadingChange={onRegLoadingChange}
+          onStatsChange={onRegStatsChange}
         />
       </div>
 
@@ -1139,44 +1207,61 @@ function ProductDemoPage() {
         isLoading={isLoadingSkills}
       />
 
-      {/* Shared input */}
+      {/* Shared input with inline suggestion buttons */}
       <div className="border-t border-cyan-500/10 bg-gray-900/80 backdrop-blur-sm">
-        <div className="max-w-3xl mx-auto px-4 py-3">
-          <div className="relative">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask a question about the shoe catalog..."
-              className="w-full rounded-lg border border-cyan-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
-              rows={1}
-              style={{ minHeight: '44px', maxHeight: '200px' }}
-              disabled={isLoading}
-              onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement
-                target.style.height = 'auto'
-                target.style.height =
-                  Math.min(target.scrollHeight, 200) + 'px'
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && input.trim()) {
-                  e.preventDefault()
-                  handleSend(input)
-                  setInput('')
-                }
-              }}
-            />
-            <button
-              onClick={() => {
-                if (input.trim()) {
-                  handleSend(input)
-                  setInput('')
-                }
-              }}
-              disabled={!input.trim() || isLoading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-cyan-500 hover:text-cyan-400 disabled:text-gray-500 transition-colors focus:outline-none"
-            >
-              <Send className="w-4 h-4" />
-            </button>
+        <div className="max-w-5xl mx-auto px-4 py-3">
+          <div className="flex items-center gap-2">
+            {PROMPT_SUGGESTIONS.map((suggestion, index) => (
+              <button
+                key={index}
+                onClick={() => {
+                  if (!isLoading) {
+                    setInput('')
+                    handleSend(suggestion.prompt)
+                  }
+                }}
+                disabled={isLoading}
+                className="shrink-0 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 border border-cyan-500/20 hover:border-cyan-500/40 text-gray-300 hover:text-white rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {suggestion.label}
+              </button>
+            ))}
+            <div className="flex-1 relative">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask a question about the shoe catalog..."
+                className="w-full rounded-lg border border-cyan-500/20 bg-gray-800/50 pl-4 pr-12 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
+                rows={1}
+                style={{ minHeight: '40px', maxHeight: '200px' }}
+                disabled={isLoading}
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement
+                  target.style.height = 'auto'
+                  target.style.height =
+                    Math.min(target.scrollHeight, 200) + 'px'
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && input.trim()) {
+                    e.preventDefault()
+                    handleSend(input)
+                    setInput('')
+                  }
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (input.trim()) {
+                    handleSend(input)
+                    setInput('')
+                  }
+                }}
+                disabled={!input.trim() || isLoading}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-cyan-500 hover:text-cyan-400 disabled:text-gray-500 transition-colors focus:outline-none"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
