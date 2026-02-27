@@ -25,7 +25,7 @@ export const Route = createFileRoute('/api/skills')({
         try {
           const skillIndex = await skillStorage.loadIndex()
 
-          // Load full stats for each skill
+          // Load full stats and code for each skill
           const skillsWithStats = await Promise.all(
             skillIndex.map(async (skill) => {
               const full = await skillStorage.get(skill.name)
@@ -35,6 +35,7 @@ export const Route = createFileRoute('/api/skills')({
                 description: skill.description,
                 usageHints: skill.usageHints,
                 trustLevel: skill.trustLevel,
+                code: full?.code ?? '',
                 stats: full?.stats ?? { executions: 0, successRate: 0 },
               }
             }),
@@ -55,10 +56,23 @@ export const Route = createFileRoute('/api/skills')({
         }
       },
 
-      // DELETE - Delete a skill by name
+      // DELETE - Delete a skill by name, or all skills if ?all=true
       DELETE: async ({ request }) => {
         try {
           const url = new URL(request.url)
+          const deleteAll = url.searchParams.get('all') === 'true'
+
+          if (deleteAll) {
+            const skillIndex = await skillStorage.loadIndex()
+            await Promise.all(skillIndex.map((skill) => skillStorage.delete(skill.name)))
+            return new Response(
+              JSON.stringify({ success: true, deleted: skillIndex.length }),
+              {
+                headers: { 'Content-Type': 'application/json' },
+              },
+            )
+          }
+
           const name = url.searchParams.get('name')
 
           if (!name) {

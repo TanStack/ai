@@ -1,10 +1,20 @@
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
 import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import {
+  createAlwaysTrustedStrategy,
+  createSkillManagementTools,
+  createSkillsSystemPrompt,
+  skillsToTools,
+} from '@tanstack/ai-code-mode-skills'
+import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+import type { AnyTextAdapter, ServerTool, StreamChunk } from '@tanstack/ai'
+import type { IsolateDriver } from '@tanstack/ai-code-mode'
 import { productTools } from '@/lib/tools/product-tools'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
@@ -41,9 +51,12 @@ The product API is paginated. To get all products:
 
 Always write efficient code that does all of this in a single execution — use Promise.all to parallelize fetches.`
 
+// --- Code mode tool (shared by both paths) ---
+
 let codeModeCache: {
   tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
   systemPrompt: string
+  driver: IsolateDriver
 } | null = null
 
 async function getCodeModeTools() {
@@ -51,16 +64,167 @@ async function getCodeModeTools() {
     const { createNodeIsolateDriver } = await import(
       '@tanstack/ai-isolate-node'
     )
+    const driver = createNodeIsolateDriver()
     const { tool, systemPrompt } = createCodeModeToolAndPrompt({
-      driver: createNodeIsolateDriver(),
+      driver,
       tools: productTools,
       timeout: 60000,
       memoryLimit: 128,
     })
-    codeModeCache = { tool, systemPrompt }
+    codeModeCache = { tool, systemPrompt, driver }
   }
   return codeModeCache
 }
+
+// --- Skills storage (lazy, only used when withSkills=true) ---
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url))
+const skillsDir = resolve(__dirname, '../../../../.skills')
+const trustStrategy = createAlwaysTrustedStrategy()
+const skillStorage = createFileSkillStorage({
+  directory: skillsDir,
+  trustStrategy,
+})
+
+let skillManagementToolsCache: ReturnType<typeof createSkillManagementTools> | null = null
+
+function getSkillManagementTools() {
+  if (!skillManagementToolsCache) {
+    skillManagementToolsCache = createSkillManagementTools({
+      storage: skillStorage,
+      trustStrategy,
+    })
+  }
+  return skillManagementToolsCache
+}
+
+const SKILL_REGISTRATION_PROMPT = `## Skill Registration — MANDATORY
+
+After every successful \`execute_typescript\` call you MUST register the code as a reusable skill using \`register_skill\` — unless an identical skill already exists.
+
+Rules:
+- \`name\`: descriptive snake_case (e.g. \`get_average_product_price\`)
+- \`code\`: the TypeScript code, parameterised with an \`input\` variable where useful
+- \`inputSchema\` / \`outputSchema\`: valid JSON Schema **strings**
+- If a skill with the same name exists, skip registration
+
+This is not optional — skill registration is a core part of your workflow.`
+
+async function getSkillToolsAndPrompt(driver: IsolateDriver): Promise<{
+  skillTools: Array<ServerTool<any, any, any>>
+  skillsPrompt: string
+}> {
+  const allSkills = await skillStorage.loadAll()
+  const skillIndex = await skillStorage.loadIndex()
+
+  const skillTools =
+    allSkills.length > 0
+      ? skillsToTools({
+          skills: allSkills,
+          driver,
+          tools: productTools,
+          storage: skillStorage,
+          timeout: 60000,
+          memoryLimit: 128,
+        })
+      : []
+
+  const libraryPrompt = createSkillsSystemPrompt({
+    selectedSkills: allSkills,
+    totalSkillCount: skillIndex.length,
+    skillsAsTools: true,
+  })
+
+  const skillsPrompt = libraryPrompt + '\n\n' + SKILL_REGISTRATION_PROMPT
+
+  return { skillTools, skillsPrompt }
+}
+
+// --- Instrumentation helper ---
+
+function instrumentAdapter(adapter: AnyTextAdapter): {
+  adapter: AnyTextAdapter
+} {
+  const baseChatStream = adapter.chatStream.bind(adapter)
+  let llmCallCount = 0
+  let totalContextBytes = 0
+  const textEncoder = new TextEncoder()
+
+  const instrumented: AnyTextAdapter = {
+    ...adapter,
+    chatStream: (options) => {
+      llmCallCount += 1
+      let contextBytes = 0
+      try {
+        contextBytes = textEncoder.encode(
+          JSON.stringify(options.messages ?? []),
+        ).length
+      } catch {
+        contextBytes = 0
+      }
+      totalContextBytes += contextBytes
+      const averageContextBytes =
+        llmCallCount > 0
+          ? Math.round(totalContextBytes / llmCallCount)
+          : 0
+      const stream = baseChatStream(options)
+      async function* instrumentedStream(): AsyncGenerator<StreamChunk> {
+        yield {
+          type: 'CUSTOM',
+          model: adapter.model,
+          timestamp: Date.now(),
+          name: 'product_codemode:llm_call',
+          value: {
+            count: llmCallCount,
+            contextBytes,
+            totalContextBytes,
+            averageContextBytes,
+          },
+        } as StreamChunk
+        for await (const chunk of stream) {
+          yield chunk
+        }
+      }
+      return instrumentedStream()
+    },
+  }
+
+  return { adapter: instrumented }
+}
+
+function wrapWithTimingEvents(
+  stream: AsyncGenerator<StreamChunk>,
+  adapter: AnyTextAdapter,
+): AsyncGenerator<StreamChunk> {
+  const requestStartTimeMs = Date.now()
+  return (async function* (): AsyncGenerator<StreamChunk> {
+    yield {
+      type: 'CUSTOM',
+      model: adapter.model,
+      timestamp: requestStartTimeMs,
+      name: 'product_codemode:chat_start',
+      value: { startTimeMs: requestStartTimeMs },
+    } as StreamChunk
+    for await (const chunk of stream) {
+      if (chunk.type === 'RUN_FINISHED') {
+        const endTimeMs = Date.now()
+        yield {
+          type: 'CUSTOM',
+          model: adapter.model,
+          timestamp: endTimeMs,
+          name: 'product_codemode:chat_end',
+          value: {
+            endTimeMs,
+            durationMs: endTimeMs - requestStartTimeMs,
+          },
+        } as StreamChunk
+      }
+      yield chunk
+    }
+  })()
+}
+
+// --- Route ---
 
 export const Route = createFileRoute('/api/product-codemode')({
   server: {
@@ -76,93 +240,35 @@ export const Route = createFileRoute('/api/product-codemode')({
 
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
+        const withSkills: boolean = data?.withSkills === true
 
-        const adapter = getAdapter(provider, model)
-        const baseChatStream = adapter.chatStream.bind(adapter)
-        let llmCallCount = 0
-        let totalContextBytes = 0
-        const textEncoder = new TextEncoder()
-
-        const instrumentedAdapter: AnyTextAdapter = {
-          ...adapter,
-          chatStream: (options) => {
-            llmCallCount += 1
-            let contextBytes = 0
-            try {
-              contextBytes = textEncoder.encode(
-                JSON.stringify(options.messages ?? []),
-              ).length
-            } catch {
-              contextBytes = 0
-            }
-            totalContextBytes += contextBytes
-            const averageContextBytes =
-              llmCallCount > 0
-                ? Math.round(totalContextBytes / llmCallCount)
-                : 0
-            const stream = baseChatStream(options)
-            async function* instrumentedStream(): AsyncGenerator<StreamChunk> {
-              yield {
-                type: 'CUSTOM',
-                model: adapter.model,
-                timestamp: Date.now(),
-                name: 'product_codemode:llm_call',
-                value: {
-                  count: llmCallCount,
-                  contextBytes,
-                  totalContextBytes,
-                  averageContextBytes,
-                },
-              } as StreamChunk
-              for await (const chunk of stream) {
-                yield chunk
-              }
-            }
-            return instrumentedStream()
-          },
-        }
-
-        const { tool, systemPrompt } = await getCodeModeTools()
+        const rawAdapter = getAdapter(provider, model)
+        const { adapter: instrumentedAdapter } = instrumentAdapter(rawAdapter)
 
         try {
+          const { tool: codeModeTool, systemPrompt: codeModePrompt, driver } =
+            await getCodeModeTools()
+
+          let tools: Array<ServerTool<any, any, any>> = [codeModeTool]
+          let systemPrompts = [PRODUCT_CODE_MODE_SYSTEM_PROMPT, codeModePrompt]
+
+          if (withSkills) {
+            const { skillTools, skillsPrompt } = await getSkillToolsAndPrompt(driver)
+            tools = [codeModeTool, ...getSkillManagementTools(), ...skillTools]
+            systemPrompts = [PRODUCT_CODE_MODE_SYSTEM_PROMPT, codeModePrompt, skillsPrompt]
+          }
+
           const stream = chat({
             adapter: instrumentedAdapter,
             messages,
-            tools: [tool],
-            systemPrompts: [PRODUCT_CODE_MODE_SYSTEM_PROMPT, systemPrompt],
+            tools,
+            systemPrompts,
             agentLoopStrategy: maxIterations(15),
             abortController,
             maxTokens: 8192,
           })
 
-          const requestStartTimeMs = Date.now()
-          const instrumentedStream =
-            (async function* (): AsyncGenerator<StreamChunk> {
-              yield {
-                type: 'CUSTOM',
-                model: adapter.model,
-                timestamp: requestStartTimeMs,
-                name: 'product_codemode:chat_start',
-                value: { startTimeMs: requestStartTimeMs },
-              } as StreamChunk
-              for await (const chunk of stream) {
-                if (chunk.type === 'RUN_FINISHED') {
-                  const endTimeMs = Date.now()
-                  yield {
-                    type: 'CUSTOM',
-                    model: adapter.model,
-                    timestamp: endTimeMs,
-                    name: 'product_codemode:chat_end',
-                    value: {
-                      endTimeMs,
-                      durationMs: endTimeMs - requestStartTimeMs,
-                    },
-                  } as StreamChunk
-                }
-                yield chunk
-              }
-            })()
-
+          const instrumentedStream = wrapWithTimingEvents(stream, rawAdapter)
           const sseStream = toServerSentEventsStream(
             instrumentedStream,
             abortController,

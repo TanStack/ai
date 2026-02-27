@@ -2,7 +2,6 @@ import { Link } from '@tanstack/react-router'
 import {
   Code2,
   Menu,
-  Sparkles,
   FileJson,
   X,
   FileText,
@@ -80,18 +79,6 @@ export default function Header({ children }: HeaderProps) {
           >
             <FileCode2 size={20} />
             <span className="font-medium">NPM-GitHub Chat</span>
-          </Link>
-          <Link
-            to="/skills"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-            activeProps={{
-              className:
-                'flex items-center gap-3 p-3 rounded-lg bg-purple-600 hover:bg-purple-700 transition-colors mb-2',
-            }}
-          >
-            <Sparkles size={20} />
-            <span className="font-medium">Skills Demo</span>
           </Link>
           <Link
             to="/reporting-agent"

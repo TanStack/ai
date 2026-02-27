@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StructuredOutputRouteImport } from './routes/structured-output'
-import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as ReportingAgentRouteImport } from './routes/reporting-agent'
 import { Route as NpmGithubChatRouteImport } from './routes/npm-github-chat'
 import { Route as BankingDemoRouteImport } from './routes/banking-demo'
@@ -26,7 +25,6 @@ import { Route as ApiProductRegularRouteImport } from './routes/api.product-regu
 import { Route as ApiProductCodemodeRouteImport } from './routes/api.product-codemode'
 import { Route as ApiInvalidateRouteImport } from './routes/api.invalidate'
 import { Route as ApiGeneratePdfRouteImport } from './routes/api.generate-pdf'
-import { Route as ApiCodemodeSkillsRouteImport } from './routes/api.codemode-skills'
 import { Route as ApiCodemodeRouteImport } from './routes/api.codemode'
 import { Route as ApiBankingInitRouteImport } from './routes/api.banking-init'
 import { Route as ApiBankingDemoRouteImport } from './routes/api.banking-demo'
@@ -34,11 +32,6 @@ import { Route as ApiBankingDemoRouteImport } from './routes/api.banking-demo'
 const StructuredOutputRoute = StructuredOutputRouteImport.update({
   id: '/structured-output',
   path: '/structured-output',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SkillsRoute = SkillsRouteImport.update({
-  id: '/skills',
-  path: '/skills',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReportingAgentRoute = ReportingAgentRouteImport.update({
@@ -116,11 +109,6 @@ const ApiGeneratePdfRoute = ApiGeneratePdfRouteImport.update({
   path: '/api/generate-pdf',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCodemodeSkillsRoute = ApiCodemodeSkillsRouteImport.update({
-  id: '/api/codemode-skills',
-  path: '/api/codemode-skills',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiCodemodeRoute = ApiCodemodeRouteImport.update({
   id: '/api/codemode',
   path: '/api/codemode',
@@ -142,12 +130,10 @@ export interface FileRoutesByFullPath {
   '/banking-demo': typeof BankingDemoRoute
   '/npm-github-chat': typeof NpmGithubChatRoute
   '/reporting-agent': typeof ReportingAgentRoute
-  '/skills': typeof SkillsRoute
   '/structured-output': typeof StructuredOutputRoute
   '/api/banking-demo': typeof ApiBankingDemoRoute
   '/api/banking-init': typeof ApiBankingInitRoute
   '/api/codemode': typeof ApiCodemodeRoute
-  '/api/codemode-skills': typeof ApiCodemodeSkillsRoute
   '/api/generate-pdf': typeof ApiGeneratePdfRoute
   '/api/invalidate': typeof ApiInvalidateRoute
   '/api/product-codemode': typeof ApiProductCodemodeRoute
@@ -165,12 +151,10 @@ export interface FileRoutesByTo {
   '/banking-demo': typeof BankingDemoRoute
   '/npm-github-chat': typeof NpmGithubChatRoute
   '/reporting-agent': typeof ReportingAgentRoute
-  '/skills': typeof SkillsRoute
   '/structured-output': typeof StructuredOutputRoute
   '/api/banking-demo': typeof ApiBankingDemoRoute
   '/api/banking-init': typeof ApiBankingInitRoute
   '/api/codemode': typeof ApiCodemodeRoute
-  '/api/codemode-skills': typeof ApiCodemodeSkillsRoute
   '/api/generate-pdf': typeof ApiGeneratePdfRoute
   '/api/invalidate': typeof ApiInvalidateRoute
   '/api/product-codemode': typeof ApiProductCodemodeRoute
@@ -189,12 +173,10 @@ export interface FileRoutesById {
   '/banking-demo': typeof BankingDemoRoute
   '/npm-github-chat': typeof NpmGithubChatRoute
   '/reporting-agent': typeof ReportingAgentRoute
-  '/skills': typeof SkillsRoute
   '/structured-output': typeof StructuredOutputRoute
   '/api/banking-demo': typeof ApiBankingDemoRoute
   '/api/banking-init': typeof ApiBankingInitRoute
   '/api/codemode': typeof ApiCodemodeRoute
-  '/api/codemode-skills': typeof ApiCodemodeSkillsRoute
   '/api/generate-pdf': typeof ApiGeneratePdfRoute
   '/api/invalidate': typeof ApiInvalidateRoute
   '/api/product-codemode': typeof ApiProductCodemodeRoute
@@ -214,12 +196,10 @@ export interface FileRouteTypes {
     | '/banking-demo'
     | '/npm-github-chat'
     | '/reporting-agent'
-    | '/skills'
     | '/structured-output'
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/codemode'
-    | '/api/codemode-skills'
     | '/api/generate-pdf'
     | '/api/invalidate'
     | '/api/product-codemode'
@@ -237,12 +217,10 @@ export interface FileRouteTypes {
     | '/banking-demo'
     | '/npm-github-chat'
     | '/reporting-agent'
-    | '/skills'
     | '/structured-output'
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/codemode'
-    | '/api/codemode-skills'
     | '/api/generate-pdf'
     | '/api/invalidate'
     | '/api/product-codemode'
@@ -260,12 +238,10 @@ export interface FileRouteTypes {
     | '/banking-demo'
     | '/npm-github-chat'
     | '/reporting-agent'
-    | '/skills'
     | '/structured-output'
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/codemode'
-    | '/api/codemode-skills'
     | '/api/generate-pdf'
     | '/api/invalidate'
     | '/api/product-codemode'
@@ -284,12 +260,10 @@ export interface RootRouteChildren {
   BankingDemoRoute: typeof BankingDemoRoute
   NpmGithubChatRoute: typeof NpmGithubChatRoute
   ReportingAgentRoute: typeof ReportingAgentRoute
-  SkillsRoute: typeof SkillsRoute
   StructuredOutputRoute: typeof StructuredOutputRoute
   ApiBankingDemoRoute: typeof ApiBankingDemoRoute
   ApiBankingInitRoute: typeof ApiBankingInitRoute
   ApiCodemodeRoute: typeof ApiCodemodeRoute
-  ApiCodemodeSkillsRoute: typeof ApiCodemodeSkillsRoute
   ApiGeneratePdfRoute: typeof ApiGeneratePdfRoute
   ApiInvalidateRoute: typeof ApiInvalidateRoute
   ApiProductCodemodeRoute: typeof ApiProductCodemodeRoute
@@ -310,13 +284,6 @@ declare module '@tanstack/react-router' {
       path: '/structured-output'
       fullPath: '/structured-output'
       preLoaderRoute: typeof StructuredOutputRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/skills': {
-      id: '/skills'
-      path: '/skills'
-      fullPath: '/skills'
-      preLoaderRoute: typeof SkillsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reporting-agent': {
@@ -424,13 +391,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGeneratePdfRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/codemode-skills': {
-      id: '/api/codemode-skills'
-      path: '/api/codemode-skills'
-      fullPath: '/api/codemode-skills'
-      preLoaderRoute: typeof ApiCodemodeSkillsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/codemode': {
       id: '/api/codemode'
       path: '/api/codemode'
@@ -460,12 +420,10 @@ const rootRouteChildren: RootRouteChildren = {
   BankingDemoRoute: BankingDemoRoute,
   NpmGithubChatRoute: NpmGithubChatRoute,
   ReportingAgentRoute: ReportingAgentRoute,
-  SkillsRoute: SkillsRoute,
   StructuredOutputRoute: StructuredOutputRoute,
   ApiBankingDemoRoute: ApiBankingDemoRoute,
   ApiBankingInitRoute: ApiBankingInitRoute,
   ApiCodemodeRoute: ApiCodemodeRoute,
-  ApiCodemodeSkillsRoute: ApiCodemodeSkillsRoute,
   ApiGeneratePdfRoute: ApiGeneratePdfRoute,
   ApiInvalidateRoute: ApiInvalidateRoute,
   ApiProductCodemodeRoute: ApiProductCodemodeRoute,

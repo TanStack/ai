@@ -5,11 +5,8 @@ export { default as ChatInput } from './ChatInput'
 export { default as ChatMessages } from './ChatMessages'
 export { default as JavaScriptVM } from './JavaScriptVM'
 export { default as MessageSizeOverlay } from './MessageSizeOverlay'
-export { default as SkillCard } from './SkillCard'
-export { default as SkillsSidebar } from './SkillsSidebar'
 export { default as ToolSidebar } from './ToolSidebar'
 export { ContextSavings, NoCodeMetrics } from './ContextSavings'
-export { SkillsDropdown } from './SkillsDropdown'
 export {
   CollapsibleSection,
   LLMToolsSection,
@@ -24,7 +21,6 @@ export {
 } from './ToolSidebar'
 export type { Message, MessagePart } from './ChatMessages'
 export type { VMEvent } from './JavaScriptVM'
-export type { SkillInfo } from './SkillCard'
 export type {
   LLMTool,
   IsolateVM,

@@ -6,6 +6,9 @@ import {
   Send,
   Sparkles,
   Square,
+  Trash2,
+  X,
+  RefreshCw,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
@@ -29,6 +32,16 @@ interface ModelOption {
   provider: Provider
   model: string
   label: string
+}
+
+interface SkillWithCode {
+  id: string
+  name: string
+  description: string
+  code: string
+  trustLevel: 'untrusted' | 'provisional' | 'trusted'
+  usageHints?: Array<string>
+  stats?: { executions: number; successRate: number }
 }
 
 const MODEL_OPTIONS: Array<ModelOption> = [
@@ -238,6 +251,164 @@ function MessageMarkdown({ content }: { content: string }) {
   )
 }
 
+// --- Skills Dialog ---
+
+function SkillsDialog({
+  open,
+  onClose,
+  skills,
+  onDelete,
+  onDeleteAll,
+  onRefresh,
+  isLoading,
+}: {
+  open: boolean
+  onClose: () => void
+  skills: Array<SkillWithCode>
+  onDelete: (name: string) => void
+  onDeleteAll: () => void
+  onRefresh: () => void
+  isLoading: boolean
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  if (!open) return null
+
+  const trustColors: Record<string, string> = {
+    untrusted: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    provisional: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    trusted: 'bg-green-500/20 text-green-400 border-green-500/30',
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60"
+        onClick={onClose}
+      />
+
+      {/* Dialog */}
+      <div className="relative z-10 w-full max-w-2xl max-h-[80vh] flex flex-col bg-gray-900 border border-gray-700 rounded-xl shadow-2xl mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <h2 className="font-semibold text-white">
+              Registered Skills
+              <span className="ml-2 text-sm text-gray-400 font-normal">
+                ({skills.length})
+              </span>
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onRefresh}
+              disabled={isLoading}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors disabled:opacity-50"
+              title="Refresh skills"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            {skills.length > 0 && (
+              <button
+                onClick={() => {
+                  if (confirm(`Delete all ${skills.length} skills?`)) {
+                    onDeleteAll()
+                  }
+                }}
+                className="px-3 py-1.5 text-xs bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete All
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Skills list */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          {skills.length === 0 ? (
+            <div className="py-12 text-center text-gray-500">
+              <Sparkles className="w-8 h-8 mx-auto mb-3 text-gray-600" />
+              <p className="text-sm font-medium">No skills registered yet</p>
+              <p className="text-xs mt-1 text-gray-600">
+                Enable "With Skills" and the AI will create reusable skills as it works.
+              </p>
+            </div>
+          ) : (
+            skills.map((skill) => {
+              const isExpanded = expandedId === skill.id
+              return (
+                <div
+                  key={skill.id}
+                  className="rounded-lg border border-gray-700 overflow-hidden"
+                >
+                  {/* Accordion header */}
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-800 transition-colors text-left"
+                    onClick={() => setExpandedId(isExpanded ? null : skill.id)}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <code className="text-sm font-mono text-purple-300">
+                          skill_{skill.name}
+                        </code>
+                        <span
+                          className={`text-xs px-1.5 py-0.5 rounded border ${trustColors[skill.trustLevel] ?? ''}`}
+                        >
+                          {skill.trustLevel}
+                        </span>
+                      </div>
+                      {skill.description && (
+                        <p className="text-xs text-gray-400 mt-0.5 truncate">
+                          {skill.description}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm(`Delete skill "${skill.name}"?`)) {
+                          onDelete(skill.name)
+                        }
+                      }}
+                      className="p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-400/10 transition-colors shrink-0"
+                      title="Delete skill"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </button>
+
+                  {/* Accordion body - TypeScript code */}
+                  {isExpanded && (
+                    <div className="border-t border-gray-700 bg-gray-950">
+                      <pre className="p-4 text-xs text-gray-300 overflow-x-auto max-h-64 overflow-y-auto font-mono leading-relaxed">
+                        {skill.code || '// No code available'}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // --- Code Mode Panel (isolated useChat) ---
 
 function CodeModePanel({
@@ -245,11 +416,21 @@ function CodeModePanel({
   promptRef,
   triggerCount,
   onLoadingChange,
+  withSkills,
+  onWithSkillsChange,
+  skillCount,
+  onSkillsButtonClick,
+  onNewSkill,
 }: {
   body: { provider: string; model: string }
   promptRef: React.RefObject<string>
   triggerCount: number
   onLoadingChange: (loading: boolean) => void
+  withSkills: boolean
+  onWithSkillsChange: (v: boolean) => void
+  skillCount: number
+  onSkillsButtonClick: () => void
+  onNewSkill: () => void
 }) {
   const [llmCalls, setLlmCalls] = useState(0)
   const [contextBytes, setContextBytes] = useState(0)
@@ -279,6 +460,11 @@ function CodeModePanel({
         return
       }
 
+      if (eventType === 'skill:registered') {
+        onNewSkill()
+        return
+      }
+
       const toolCallId = context.toolCallId
       if (!toolCallId) return
 
@@ -296,7 +482,7 @@ function CodeModePanel({
         return next
       })
     },
-    [],
+    [onNewSkill],
   )
 
   const { messages, sendMessage, isLoading, stop } = useChat({
@@ -343,9 +529,32 @@ function CodeModePanel({
 
   return (
     <div className="flex-1 flex flex-col border-r border-gray-700/50 min-w-0">
-      <div className="px-4 py-2 bg-cyan-900/20 border-b border-cyan-500/20 flex items-center gap-2">
+      <div className="px-4 py-2 bg-cyan-900/20 border-b border-cyan-500/20 flex items-center gap-3">
         <div className="w-2 h-2 rounded-full bg-cyan-400" />
         <span className="text-sm font-semibold text-cyan-300">Code Mode</span>
+
+        {/* With Skills toggle */}
+        <label className="flex items-center gap-1.5 cursor-pointer select-none ml-2">
+          <input
+            type="checkbox"
+            checked={withSkills}
+            onChange={(e) => onWithSkillsChange(e.target.checked)}
+            className="w-3.5 h-3.5 accent-purple-500"
+          />
+          <span className="text-[11px] text-gray-400">With Skills</span>
+        </label>
+
+        {/* Skills count button */}
+        {withSkills && (
+          <button
+            onClick={onSkillsButtonClick}
+            className="flex items-center gap-1 px-2 py-0.5 text-[11px] bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 rounded transition-colors"
+          >
+            <Sparkles className="w-3 h-3" />
+            {skillCount} Skills
+          </button>
+        )}
+
         {isLoading && (
           <button
             onClick={stop}
@@ -755,6 +964,12 @@ function ProductDemoPage() {
   const [cmLoading, setCmLoading] = useState(false)
   const [regLoading, setRegLoading] = useState(false)
 
+  // Skills state
+  const [withSkills, setWithSkills] = useState(false)
+  const [skills, setSkills] = useState<Array<SkillWithCode>>([])
+  const [isLoadingSkills, setIsLoadingSkills] = useState(false)
+  const [skillsDialogOpen, setSkillsDialogOpen] = useState(false)
+
   const promptRef = useRef('')
   const [triggerCount, setTriggerCount] = useState(0)
 
@@ -764,9 +979,60 @@ function ProductDemoPage() {
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
+      withSkills,
     }),
-    [selectedModel.provider, selectedModel.model],
+    [selectedModel.provider, selectedModel.model, withSkills],
   )
+
+  const loadSkills = useCallback(async () => {
+    setIsLoadingSkills(true)
+    try {
+      const response = await fetch('/api/skills')
+      if (response.ok) {
+        const data = await response.json()
+        setSkills(data)
+      }
+    } catch (error) {
+      console.error('Failed to load skills:', error)
+    } finally {
+      setIsLoadingSkills(false)
+    }
+  }, [])
+
+  const deleteSkill = useCallback(async (name: string) => {
+    try {
+      const response = await fetch(`/api/skills?name=${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+      })
+      if (response.ok) {
+        setSkills((prev) => prev.filter((s) => s.name !== name))
+      }
+    } catch (error) {
+      console.error('Failed to delete skill:', error)
+    }
+  }, [])
+
+  const deleteAllSkills = useCallback(async () => {
+    try {
+      const response = await fetch('/api/skills?all=true', { method: 'DELETE' })
+      if (response.ok) {
+        setSkills([])
+      }
+    } catch (error) {
+      console.error('Failed to delete all skills:', error)
+    }
+  }, [])
+
+  const handleNewSkill = useCallback(() => {
+    loadSkills()
+  }, [loadSkills])
+
+  // Load skills when "With Skills" is first enabled
+  useEffect(() => {
+    if (withSkills) {
+      loadSkills()
+    }
+  }, [withSkills, loadSkills])
 
   const handleSend = useCallback((text: string) => {
     promptRef.current = text
@@ -848,6 +1114,11 @@ function ProductDemoPage() {
           promptRef={promptRef}
           triggerCount={triggerCount}
           onLoadingChange={onCmLoadingChange}
+          withSkills={withSkills}
+          onWithSkillsChange={setWithSkills}
+          skillCount={skills.length}
+          onSkillsButtonClick={() => setSkillsDialogOpen(true)}
+          onNewSkill={handleNewSkill}
         />
         <RegularToolsPanel
           body={body}
@@ -856,6 +1127,17 @@ function ProductDemoPage() {
           onLoadingChange={onRegLoadingChange}
         />
       </div>
+
+      {/* Skills Dialog */}
+      <SkillsDialog
+        open={skillsDialogOpen}
+        onClose={() => setSkillsDialogOpen(false)}
+        skills={skills}
+        onDelete={deleteSkill}
+        onDeleteAll={deleteAllSkills}
+        onRefresh={loadSkills}
+        isLoading={isLoadingSkills}
+      />
 
       {/* Shared input */}
       <div className="border-t border-cyan-500/10 bg-gray-900/80 backdrop-blur-sm">
