@@ -95,9 +95,25 @@ const DEFAULT_STATS: PanelStats = {
 function VersusStats({
   leftStats,
   rightStats,
+  withSkills,
+  onWithSkillsChange,
+  skillCount,
+  onSkillsButtonClick,
+  cmLoading,
+  onCmStop,
+  regLoading,
+  onRegStop,
 }: {
   leftStats: PanelStats
   rightStats: PanelStats
+  withSkills: boolean
+  onWithSkillsChange: (v: boolean) => void
+  skillCount: number
+  onSkillsButtonClick: () => void
+  cmLoading: boolean
+  onCmStop: () => void
+  regLoading: boolean
+  onRegStop: () => void
 }) {
   const rows = useMemo(() => {
     const compare = (l: number | null, r: number | null) => {
@@ -142,37 +158,101 @@ function VersusStats({
   }, [leftStats, rightStats])
 
   return (
-    <div className="w-60 shrink-0 flex flex-col bg-gray-950/80 border-x border-gray-700/30">
+    <div className="w-108 shrink-0 flex flex-col bg-gray-950/80 border-x border-gray-700/30">
       <div className="relative h-14 bg-linear-to-r from-cyan-500/25 via-gray-900/60 to-amber-500/25 flex items-center justify-center">
         <span className="text-2xl font-black tracking-[0.5em] text-white/15 uppercase select-none">
           vs
         </span>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center gap-6 px-5 py-4">
+      <div className="flex-1 flex flex-col justify-center gap-5 px-4 py-4">
+        {/* Images row with titles underneath */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col items-center gap-2">
+            <img
+              src="/coco-code-mode.png"
+              alt="Code Mode"
+              className="w-32 h-32 object-contain"
+            />
+            <span className="text-2xl font-bold text-cyan-300 tracking-wide mt-[-20px]">
+              Code Mode
+            </span>
+            <div className="flex flex-col items-center gap-1.5">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={withSkills}
+                  onChange={(e) => onWithSkillsChange(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-purple-500"
+                />
+                <span className="text-[11px] text-gray-400">With Skills</span>
+              </label>
+              {withSkills && (
+                <button
+                  onClick={onSkillsButtonClick}
+                  className="flex items-center gap-1 px-2 py-0.5 text-[11px] bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 rounded transition-colors"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  {skillCount} Skills
+                </button>
+              )}
+              {cmLoading && (
+                <button
+                  onClick={onCmStop}
+                  className="px-2 py-0.5 bg-red-600/80 hover:bg-red-600 text-white rounded text-[10px] font-medium transition-colors flex items-center gap-1"
+                >
+                  <Square className="w-2.5 h-2.5 fill-current" />
+                  Stop
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <img
+              src="/coco-regular-tools.png"
+              alt="Regular Tools"
+              className="w-32 h-32 object-contain"
+            />
+            <span className="text-2xl font-bold text-amber-300 tracking-wide mt-[-20px]">
+              Regular Tools
+            </span>
+            {regLoading && (
+              <button
+                onClick={onRegStop}
+                className="px-2 py-0.5 bg-red-600/80 hover:bg-red-600 text-white rounded text-[10px] font-medium transition-colors flex items-center gap-1"
+              >
+                <Square className="w-2.5 h-2.5 fill-current" />
+                Stop
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Stats rows: label spans both columns, values centered under each character */}
         {rows.map(({ label, left, right, leftWins, rightWins }) => (
           <div key={label} className="space-y-1">
-            <div className="text-[11px] text-center uppercase tracking-widest text-gray-500 font-medium">
+            <div className="text-sm text-center uppercase tracking-widest text-gray-500 font-semibold">
               {label}
             </div>
-            <div className="flex items-center">
-              <span
-                className={`flex-1 text-right font-mono text-xl tabular-nums ${
-                  leftWins ? 'text-cyan-400 font-bold' : 'text-gray-400'
-                }`}
-              >
-                {left}
-              </span>
-              <div className="w-6 flex justify-center">
-                <div className="w-1 h-1 rounded-full bg-gray-700" />
+            <div className="grid grid-cols-2">
+              <div className="flex justify-center">
+                <span
+                  className={`font-mono text-2xl tabular-nums ${
+                    leftWins ? 'text-cyan-400 font-bold' : 'text-gray-400'
+                  }`}
+                >
+                  {left}
+                </span>
               </div>
-              <span
-                className={`flex-1 text-left font-mono text-xl tabular-nums ${
-                  rightWins ? 'text-amber-400 font-bold' : 'text-gray-400'
-                }`}
-              >
-                {right}
-              </span>
+              <div className="flex justify-center">
+                <span
+                  className={`font-mono text-2xl tabular-nums ${
+                    rightWins ? 'text-amber-400 font-bold' : 'text-gray-400'
+                  }`}
+                >
+                  {right}
+                </span>
+              </div>
             </div>
           </div>
         ))}
@@ -352,10 +432,7 @@ function SkillsDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
       {/* Dialog */}
       <div className="relative z-10 w-full max-w-2xl max-h-[80vh] flex flex-col bg-gray-900 border border-gray-700 rounded-xl shadow-2xl mx-4">
@@ -377,7 +454,9 @@ function SkillsDialog({
               className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors disabled:opacity-50"
               title="Refresh skills"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
+              />
             </button>
             {skills.length > 0 && (
               <button
@@ -408,7 +487,8 @@ function SkillsDialog({
               <Sparkles className="w-8 h-8 mx-auto mb-3 text-gray-600" />
               <p className="text-sm font-medium">No skills registered yet</p>
               <p className="text-xs mt-1 text-gray-600">
-                Enable "With Skills" and the AI will create reusable skills as it works.
+                Enable "With Skills" and the AI will create reusable skills as
+                it works.
               </p>
             </div>
           ) : (
@@ -485,23 +565,17 @@ function CodeModePanel({
   promptRef,
   triggerCount,
   onLoadingChange,
-  withSkills,
-  onWithSkillsChange,
-  skillCount,
-  onSkillsButtonClick,
   onNewSkill,
   onStatsChange,
+  onStopReady,
 }: {
   body: { provider: string; model: string }
   promptRef: React.RefObject<string>
   triggerCount: number
   onLoadingChange: (loading: boolean) => void
-  withSkills: boolean
-  onWithSkillsChange: (v: boolean) => void
-  skillCount: number
-  onSkillsButtonClick: () => void
   onNewSkill: () => void
   onStatsChange: (stats: PanelStats) => void
+  onStopReady?: (stop: () => void) => void
 }) {
   const llmCallsBase = useRef(0)
   const contextBytesBase = useRef(0)
@@ -584,6 +658,10 @@ function CodeModePanel({
     sendMessage(prompt)
   }, [triggerCount]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    onStopReady?.(stop)
+  }, [stop, onStopReady])
+
   const toolCalls = useMemo(() => {
     let count = 0
     for (const m of messages) {
@@ -601,7 +679,13 @@ function CodeModePanel({
       contextBytes: contextBytesBase.current + contextBytesCurrent,
       durationMs: totalTimeMs,
     })
-  }, [llmCallsCurrent, toolCalls, contextBytesCurrent, totalTimeMs, onStatsChange])
+  }, [
+    llmCallsCurrent,
+    toolCalls,
+    contextBytesCurrent,
+    totalTimeMs,
+    onStatsChange,
+  ])
 
   const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -611,42 +695,7 @@ function CodeModePanel({
   }, [messages])
 
   return (
-    <div className="flex-1 flex flex-col min-w-0">
-      <div className="px-4 py-2.5 bg-cyan-900/20 border-b border-cyan-500/20 flex items-center justify-center gap-3">
-        <span className="text-base font-bold text-cyan-300 tracking-wide">
-          Code Mode
-        </span>
-
-        <label className="flex items-center gap-1.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={withSkills}
-            onChange={(e) => onWithSkillsChange(e.target.checked)}
-            className="w-3.5 h-3.5 accent-purple-500"
-          />
-          <span className="text-[11px] text-gray-400">With Skills</span>
-        </label>
-
-        {withSkills && (
-          <button
-            onClick={onSkillsButtonClick}
-            className="flex items-center gap-1 px-2 py-0.5 text-[11px] bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 rounded transition-colors"
-          >
-            <Sparkles className="w-3 h-3" />
-            {skillCount} Skills
-          </button>
-        )}
-
-        {isLoading && (
-          <button
-            onClick={stop}
-            className="px-2 py-0.5 bg-red-600/80 hover:bg-red-600 text-white rounded text-[10px] font-medium transition-colors flex items-center gap-1"
-          >
-            <Square className="w-2.5 h-2.5 fill-current" />
-            Stop
-          </button>
-        )}
-      </div>
+    <div className="flex-1 flex flex-col min-w-0 border-r border-gray-700/50">
       {!messages.length ? (
         <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
           Waiting for prompt...
@@ -838,12 +887,14 @@ function RegularToolsPanel({
   triggerCount,
   onLoadingChange,
   onStatsChange,
+  onStopReady,
 }: {
   body: { provider: string; model: string }
   promptRef: React.RefObject<string>
   triggerCount: number
   onLoadingChange: (loading: boolean) => void
   onStatsChange: (stats: PanelStats) => void
+  onStopReady?: (stop: () => void) => void
 }) {
   const llmCallsBase = useRef(0)
   const contextBytesBase = useRef(0)
@@ -851,27 +902,24 @@ function RegularToolsPanel({
   const [contextBytesCurrent, setContextBytesCurrent] = useState(0)
   const [totalTimeMs, setTotalTimeMs] = useState<number | null>(null)
 
-  const handleCustomEvent = useCallback(
-    (eventType: string, data: unknown) => {
-      if (eventType === 'product_regular:llm_call') {
-        const d = data as { count?: number; totalContextBytes?: number }
-        if (typeof d?.count === 'number')
-          setLlmCallsCurrent((p) => Math.max(p, d.count!))
-        if (typeof d?.totalContextBytes === 'number')
-          setContextBytesCurrent(d.totalContextBytes)
-        return
-      }
-      if (eventType === 'product_regular:chat_start') {
-        return
-      }
-      if (eventType === 'product_regular:chat_end') {
-        const d = data as { durationMs?: number }
-        if (typeof d?.durationMs === 'number')
-          setTotalTimeMs((prev) => (prev ?? 0) + d.durationMs!)
-      }
-    },
-    [],
-  )
+  const handleCustomEvent = useCallback((eventType: string, data: unknown) => {
+    if (eventType === 'product_regular:llm_call') {
+      const d = data as { count?: number; totalContextBytes?: number }
+      if (typeof d?.count === 'number')
+        setLlmCallsCurrent((p) => Math.max(p, d.count!))
+      if (typeof d?.totalContextBytes === 'number')
+        setContextBytesCurrent(d.totalContextBytes)
+      return
+    }
+    if (eventType === 'product_regular:chat_start') {
+      return
+    }
+    if (eventType === 'product_regular:chat_end') {
+      const d = data as { durationMs?: number }
+      if (typeof d?.durationMs === 'number')
+        setTotalTimeMs((prev) => (prev ?? 0) + d.durationMs!)
+    }
+  }, [])
 
   const { messages, sendMessage, isLoading, stop } = useChat({
     id: 'product-regular',
@@ -897,6 +945,10 @@ function RegularToolsPanel({
     sendMessage(prompt)
   }, [triggerCount]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    onStopReady?.(stop)
+  }, [stop, onStopReady])
+
   const toolCalls = useMemo(() => {
     let count = 0
     for (const m of messages) {
@@ -914,7 +966,13 @@ function RegularToolsPanel({
       contextBytes: contextBytesBase.current + contextBytesCurrent,
       durationMs: totalTimeMs,
     })
-  }, [llmCallsCurrent, toolCalls, contextBytesCurrent, totalTimeMs, onStatsChange])
+  }, [
+    llmCallsCurrent,
+    toolCalls,
+    contextBytesCurrent,
+    totalTimeMs,
+    onStatsChange,
+  ])
 
   const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -925,20 +983,6 @@ function RegularToolsPanel({
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
-      <div className="px-4 py-2.5 bg-amber-900/20 border-b border-amber-500/20 flex items-center justify-center gap-3">
-        <span className="text-base font-bold text-amber-300 tracking-wide">
-          Regular Tools
-        </span>
-        {isLoading && (
-          <button
-            onClick={stop}
-            className="px-2 py-0.5 bg-red-600/80 hover:bg-red-600 text-white rounded text-[10px] font-medium transition-colors flex items-center gap-1"
-          >
-            <Square className="w-2.5 h-2.5 fill-current" />
-            Stop
-          </button>
-        )}
-      </div>
       {!messages.length ? (
         <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
           Waiting for prompt...
@@ -1084,9 +1128,12 @@ function ProductDemoPage() {
 
   const deleteSkill = useCallback(async (name: string) => {
     try {
-      const response = await fetch(`/api/skills?name=${encodeURIComponent(name)}`, {
-        method: 'DELETE',
-      })
+      const response = await fetch(
+        `/api/skills?name=${encodeURIComponent(name)}`,
+        {
+          method: 'DELETE',
+        },
+      )
       if (response.ok) {
         setSkills((prev) => prev.filter((s) => s.name !== name))
       }
@@ -1124,11 +1171,19 @@ function ProductDemoPage() {
 
   const [cmStats, setCmStats] = useState<PanelStats>(DEFAULT_STATS)
   const [regStats, setRegStats] = useState<PanelStats>(DEFAULT_STATS)
+  const cmStopRef = useRef<(() => void) | null>(null)
+  const regStopRef = useRef<(() => void) | null>(null)
 
   const onCmLoadingChange = useCallback((v: boolean) => setCmLoading(v), [])
   const onRegLoadingChange = useCallback((v: boolean) => setRegLoading(v), [])
   const onCmStatsChange = useCallback((s: PanelStats) => setCmStats(s), [])
   const onRegStatsChange = useCallback((s: PanelStats) => setRegStats(s), [])
+  const onCmStopReady = useCallback((stop: () => void) => {
+    cmStopRef.current = stop
+  }, [])
+  const onRegStopReady = useCallback((stop: () => void) => {
+    regStopRef.current = stop
+  }, [])
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
@@ -1159,12 +1214,12 @@ function ProductDemoPage() {
       <div className="px-6 py-4 border-b border-gray-700/50 bg-gray-800/30">
         <p className="text-sm text-gray-300 max-w-5xl mx-auto leading-relaxed">
           <strong className="text-white">N+1 API Problem:</strong> Many
-          real-world APIs force clients through paginated listings and individual
-          record fetches — a classic N+1 pattern. With regular tool-calling, the
-          LLM must round-trip through each call sequentially, ballooning context
-          and latency. Worse, when the LLM finally has to compute an answer from
-          dozens of tool results stuffed into its context window, it often gets
-          the math wrong.{' '}
+          real-world APIs force clients through paginated listings and
+          individual record fetches — a classic N+1 pattern. With regular
+          tool-calling, the LLM must round-trip through each call sequentially,
+          ballooning context and latency. Worse, when the LLM finally has to
+          compute an answer from dozens of tool results stuffed into its context
+          window, it often gets the math wrong.{' '}
           <strong className="text-cyan-400">Code Mode</strong> lets the LLM
           write its own efficient data-fetching code in a single execution,
           collapsing dozens of round trips into one — and because the runtime
@@ -1179,20 +1234,29 @@ function ProductDemoPage() {
           promptRef={promptRef}
           triggerCount={triggerCount}
           onLoadingChange={onCmLoadingChange}
+          onNewSkill={handleNewSkill}
+          onStatsChange={onCmStatsChange}
+          onStopReady={onCmStopReady}
+        />
+        <VersusStats
+          leftStats={cmStats}
+          rightStats={regStats}
           withSkills={withSkills}
           onWithSkillsChange={setWithSkills}
           skillCount={skills.length}
           onSkillsButtonClick={() => setSkillsDialogOpen(true)}
-          onNewSkill={handleNewSkill}
-          onStatsChange={onCmStatsChange}
+          cmLoading={cmLoading}
+          onCmStop={() => cmStopRef.current?.()}
+          regLoading={regLoading}
+          onRegStop={() => regStopRef.current?.()}
         />
-        <VersusStats leftStats={cmStats} rightStats={regStats} />
         <RegularToolsPanel
           body={body}
           promptRef={promptRef}
           triggerCount={triggerCount}
           onLoadingChange={onRegLoadingChange}
           onStatsChange={onRegStatsChange}
+          onStopReady={onRegStopReady}
         />
       </div>
 
