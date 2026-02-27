@@ -37,15 +37,14 @@ const PRODUCT_CODE_MODE_SYSTEM_PROMPT = `You are an analytical assistant for a s
 
 ## Available External APIs (inside execute_typescript)
 
-- \`external_getProductListPageCount()\` — Returns { pageCount: number } (total pages of product listings)
-- \`external_getProductListPage({ page })\` — Returns { productIds: string[] } (10 product IDs per page, 1-based)
+- \`external_getProductListPage({ page })\` — Returns { productIds: string[], totalPages: number } (10 product IDs per page, 1-based page number)
 - \`external_getProductByID({ id })\` — Returns full product details: { id, name, brand, price, category, color, sizeRange }
 
 ## Strategy
 
 The product API is paginated. To get all products:
-1. Get the page count
-2. Fetch all pages to get all product IDs
+1. Call getProductListPage with page 1 to get the first page of IDs and totalPages
+2. Fetch remaining pages (2 through totalPages) to get all product IDs
 3. Fetch each product by ID
 4. Compute the answer from the full dataset
 

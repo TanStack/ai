@@ -219,11 +219,11 @@ async function* createTwoPhaseStream(
       model: adapter.model,
       timestamp: Date.now(),
       name: 'structured_output:result',
-      data: {
+      value: {
         format: outputFormat,
         result: structuredResult,
       },
-    } as StreamChunk
+    }
 
     // Emit final done chunk
     yield {
@@ -247,11 +247,11 @@ async function* createTwoPhaseStream(
       model: adapter.model,
       timestamp: Date.now(),
       name: 'structured_output:error',
-      data: {
+      value: {
         format: outputFormat,
         error: error instanceof Error ? error.message : 'Failed to generate structured output',
       },
-    } as StreamChunk
+    }
   }
 }
 

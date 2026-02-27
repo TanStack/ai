@@ -35,32 +35,26 @@ const SHOES: Array<Product> = [
 ]
 
 const PAGE_SIZE = 10
-
-export const getProductListPageCountTool = toolDefinition({
-  name: 'getProductListPageCount',
-  description: 'Get the total number of pages in the product listing.',
-  inputSchema: z.object({}),
-  outputSchema: z.object({
-    pageCount: z.number(),
-  }),
-}).server(async () => {
-  return { pageCount: Math.ceil(SHOES.length / PAGE_SIZE) }
-})
+const TOTAL_PAGES = 2
 
 export const getProductListPageTool = toolDefinition({
   name: 'getProductListPage',
   description:
-    'Get a page of product IDs from the catalog. Each page contains up to 10 product IDs.',
+    'Get a page of product IDs from the catalog. Returns product IDs for the requested page and the total number of pages. Each page contains up to 10 product IDs.',
   inputSchema: z.object({
     page: z.number().describe('1-based page number'),
   }),
   outputSchema: z.object({
     productIds: z.array(z.string()),
+    totalPages: z.number(),
   }),
 }).server(async ({ page }) => {
   const start = (page - 1) * PAGE_SIZE
   const end = start + PAGE_SIZE
-  return { productIds: SHOES.slice(start, end).map((s) => s.id) }
+  return {
+    productIds: SHOES.slice(start, end).map((s) => s.id),
+    totalPages: TOTAL_PAGES,
+  }
 })
 
 export const getProductByIDTool = toolDefinition({
@@ -87,7 +81,6 @@ export const getProductByIDTool = toolDefinition({
 })
 
 export const productTools = [
-  getProductListPageCountTool,
   getProductListPageTool,
   getProductByIDTool,
 ]
