@@ -5,6 +5,7 @@ import {
   geminiSummarize,
   geminiText,
 } from '@tanstack/ai-gemini'
+import { grokImage, grokSummarize, grokText } from '@tanstack/ai-grok'
 import { ollamaSummarize, ollamaText } from '@tanstack/ai-ollama'
 import {
   openaiImage,
@@ -13,6 +14,11 @@ import {
   openaiText,
   openaiTranscription,
 } from '@tanstack/ai-openai'
+import {
+  openRouterImage,
+  openRouterSummarize,
+  openRouterText,
+} from '@tanstack/ai-openrouter'
 
 /**
  * Adapter set containing all adapters for a provider
@@ -55,8 +61,7 @@ export interface AdapterDefinition {
 }
 
 // Model defaults from environment or sensible defaults
-const ANTHROPIC_MODEL =
-  process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-20241022'
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5'
 const ANTHROPIC_SUMMARY_MODEL =
   process.env.ANTHROPIC_SUMMARY_MODEL || ANTHROPIC_MODEL
 
@@ -76,6 +81,16 @@ const GEMINI_TTS_MODEL =
 
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral:7b'
 const OLLAMA_SUMMARY_MODEL = process.env.OLLAMA_SUMMARY_MODEL || OLLAMA_MODEL
+
+const GROK_MODEL = process.env.GROK_MODEL || 'grok-4'
+const GROK_SUMMARY_MODEL = process.env.GROK_SUMMARY_MODEL || GROK_MODEL
+const GROK_IMAGE_MODEL = process.env.GROK_IMAGE_MODEL || 'grok-2-image-1212'
+
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini'
+const OPENROUTER_SUMMARY_MODEL =
+  process.env.OPENROUTER_SUMMARY_MODEL || OPENROUTER_MODEL
+const OPENROUTER_IMAGE_MODEL =
+  process.env.OPENROUTER_IMAGE_MODEL || 'openai/gpt-5-image-mini'
 
 /**
  * Create Anthropic adapters
@@ -161,6 +176,49 @@ function createOllamaAdapters(): AdapterSet | null {
 }
 
 /**
+ * Create Grok adapters
+ */
+function createGrokAdapters(): AdapterSet | null {
+  const apiKey = process.env.XAI_API_KEY
+  if (!apiKey) return null
+
+  return {
+    textAdapter: grokText(GROK_MODEL as any, { apiKey } as any),
+    summarizeAdapter: grokSummarize(
+      GROK_SUMMARY_MODEL as any,
+      { apiKey } as any,
+    ),
+    imageAdapter: grokImage(GROK_IMAGE_MODEL as any, { apiKey } as any),
+    chatModel: GROK_MODEL,
+    summarizeModel: GROK_SUMMARY_MODEL,
+    imageModel: GROK_IMAGE_MODEL,
+  }
+}
+
+/**
+ * Create OpenRouter adapters
+ */
+function createOpenRouterAdapters(): AdapterSet | null {
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey) return null
+
+  return {
+    textAdapter: openRouterText(OPENROUTER_MODEL as any, { apiKey } as any),
+    summarizeAdapter: openRouterSummarize(
+      OPENROUTER_SUMMARY_MODEL as any,
+      { apiKey } as any,
+    ),
+    imageAdapter: openRouterImage(
+      OPENROUTER_IMAGE_MODEL as any,
+      { apiKey } as any,
+    ),
+    chatModel: OPENROUTER_MODEL,
+    summarizeModel: OPENROUTER_SUMMARY_MODEL,
+    imageModel: OPENROUTER_IMAGE_MODEL,
+  }
+}
+
+/**
  * Registry of all available adapters
  */
 export const ADAPTERS: Array<AdapterDefinition> = [
@@ -188,6 +246,18 @@ export const ADAPTERS: Array<AdapterDefinition> = [
     name: 'Ollama',
     envKey: null,
     create: createOllamaAdapters,
+  },
+  {
+    id: 'grok',
+    name: 'Grok',
+    envKey: 'XAI_API_KEY',
+    create: createGrokAdapters,
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    envKey: 'OPENROUTER_API_KEY',
+    create: createOpenRouterAdapters,
   },
 ]
 

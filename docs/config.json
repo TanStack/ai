@@ -126,6 +126,10 @@
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue"
+        },
+        {
+          "label": "@tanstack/ai-preact",
+          "to": "api/ai-preact"
         }
       ]
     },
@@ -135,6 +139,10 @@
         {
           "label": "OpenAI",
           "to": "adapters/openai"
+        },
+        {
+          "label": "OpenRouter",
+          "to": "adapters/openrouter"
         },
         {
           "label": "Anthropic",
@@ -147,6 +155,14 @@
         {
           "label": "Ollama",
           "to": "adapters/ollama"
+        },
+        {
+          "label": "Grok (xAI)",
+          "to": "adapters/grok"
+        },
+        {
+          "label": "Fal",
+          "to": "adapters/fal"
         }
       ]
     },
@@ -156,6 +172,22 @@
         {
           "label": "Community Adapters Guide",
           "to": "community-adapters/guide"
+        },
+        {
+          "label": "Cencori",
+          "to": "community-adapters/cencori"
+        },
+        {
+          "label": "Cloudflare",
+          "to": "community-adapters/cloudflare"
+        },
+        {
+          "label": "Decart",
+          "to": "community-adapters/decart"
+        },
+        {
+          "label": "Soniox",
+          "to": "community-adapters/soniox"
         }
       ]
     },

@@ -61,7 +61,7 @@ export function makeOpenAIStructuredOutputCompatible(
       const prop = properties[propName]
       const wasOptional = !originalRequired.includes(propName)
 
-      // Recursively transform nested objects/arrays
+      // Recursively transform nested objects/arrays/unions
       if (prop.type === 'object' && prop.properties) {
         properties[propName] = makeOpenAIStructuredOutputCompatible(
           prop,
@@ -75,6 +75,17 @@ export function makeOpenAIStructuredOutputCompatible(
             prop.items.required || [],
           ),
         }
+      } else if (prop.anyOf) {
+        // Handle anyOf at property level (union types)
+        properties[propName] = makeOpenAIStructuredOutputCompatible(
+          prop,
+          prop.required || [],
+        )
+      } else if (prop.oneOf) {
+        // oneOf is not supported by OpenAI - throw early
+        throw new Error(
+          'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
+        )
       } else if (wasOptional) {
         // Make optional fields nullable by adding null to the type
         if (prop.type && !Array.isArray(prop.type)) {
@@ -103,6 +114,19 @@ export function makeOpenAIStructuredOutputCompatible(
     result.items = makeOpenAIStructuredOutputCompatible(
       result.items,
       result.items.required || [],
+    )
+  }
+
+  // Handle anyOf (union types) - each variant needs to be transformed
+  if (result.anyOf && Array.isArray(result.anyOf)) {
+    result.anyOf = result.anyOf.map((variant) =>
+      makeOpenAIStructuredOutputCompatible(variant, variant.required || []),
+    )
+  }
+
+  if (result.oneOf) {
+    throw new Error(
+      'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
     )
   }
 

@@ -1,11 +1,19 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { aiEventClient } from '@tanstack/ai/event-client'
-import type { StreamChunk, ToolCall } from '@tanstack/ai'
+import { aiEventClient as baseAiEventClient } from '@tanstack/ai/event-client'
+import type { AIDevtoolsEventMap } from '../../../../packages/typescript/ai/src/event-client'
+import type { StreamChunk } from '@tanstack/ai'
 
 /**
  * Recording data structure matching the old format
  */
+export interface RecordedToolCall {
+  id: string
+  name: string
+  arguments: string
+  result?: unknown
+}
+
 export interface ChunkRecording {
   version: '1.0'
   timestamp: number
@@ -18,7 +26,7 @@ export interface ChunkRecording {
   }>
   result?: {
     content: string
-    toolCalls: Array<ToolCall>
+    toolCalls: Array<RecordedToolCall>
     finishReason: string | null
   }
 }
@@ -57,7 +65,7 @@ export function createEventRecording(
         index: number
       }>
       accumulatedContent: string
-      toolCalls: Map<string, ToolCall>
+      toolCalls: Map<string, RecordedToolCall>
       finishReason: string | null
       traceId?: string
     }
@@ -71,11 +79,17 @@ export function createEventRecording(
   // Helper to reconstruct StreamChunk from events
   const createContentChunk = (
     content: string,
-    delta?: string,
+    delta: string | undefined,
+    model: string,
+    timestamp: number,
+    id: string,
   ): StreamChunk => ({
     type: 'content',
     content,
-    delta,
+    delta: delta ?? '',
+    model,
+    timestamp,
+    id,
   })
 
   const createToolCallChunk = (
@@ -83,6 +97,9 @@ export function createEventRecording(
     toolName: string,
     index: number,
     arguments_: string,
+    model: string,
+    timestamp: number,
+    id: string,
   ): StreamChunk => ({
     type: 'tool_call',
     toolCall: {
@@ -94,16 +111,39 @@ export function createEventRecording(
       },
     },
     index,
+    model,
+    timestamp,
+    id,
   })
 
   const createToolResultChunk = (
     toolCallId: string,
     result: string,
+    model: string,
+    timestamp: number,
+    id: string,
   ): StreamChunk => ({
     type: 'tool_result',
     toolCallId,
     content: result,
+    model,
+    timestamp,
+    id,
   })
+
+  type FinishReason = 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+
+  const normalizeFinishReason = (finishReason: string | null): FinishReason => {
+    if (
+      finishReason === 'stop' ||
+      finishReason === 'length' ||
+      finishReason === 'content_filter' ||
+      finishReason === 'tool_calls'
+    ) {
+      return finishReason
+    }
+    return 'stop'
+  }
 
   const createDoneChunk = (
     finishReason: string | null,
@@ -112,71 +152,89 @@ export function createEventRecording(
       completionTokens: number
       totalTokens: number
     },
+    model?: string,
+    timestamp?: number,
+    id?: string,
   ): StreamChunk => ({
     type: 'done',
-    finishReason: finishReason as any,
+    finishReason: normalizeFinishReason(finishReason),
     usage,
+    model: model ?? 'unknown',
+    timestamp: timestamp ?? Date.now(),
+    id: id ?? `done-${Date.now()}`,
   })
 
-  const createErrorChunk = (error: string): StreamChunk => ({
+  const createErrorChunk = (
+    error: string,
+    model: string,
+    timestamp: number,
+    id: string,
+  ): StreamChunk => ({
     type: 'error',
     error: {
       message: error,
     },
+    model,
+    timestamp,
+    id,
   })
 
   const createThinkingChunk = (
     content: string,
-    delta?: string,
+    delta: string | undefined,
+    model: string,
+    timestamp: number,
+    id: string,
   ): StreamChunk => ({
     type: 'thinking',
     content,
-    delta,
+    delta: delta ?? '',
+    model,
+    timestamp,
+    id,
   })
 
-  // Subscribe to stream:started to initialize recording
+  type DevtoolsEventHandler<TEventName extends keyof AIDevtoolsEventMap> =
+    (event: { payload: AIDevtoolsEventMap[TEventName] }) => void
+
+  type DevtoolsEventClient = {
+    on: <TEventName extends keyof AIDevtoolsEventMap>(
+      eventName: TEventName,
+      handler: DevtoolsEventHandler<TEventName>,
+      options?: { withEventTarget?: boolean },
+    ) => () => void
+  }
+
+  const aiEventClient = baseAiEventClient as DevtoolsEventClient
+
+  // Subscribe to text:request:started to initialize recording
   const unsubscribeStarted = aiEventClient.on(
-    'stream:started',
+    'text:request:started',
     (event) => {
-      const { streamId, model, provider } = event.payload
-      // If traceId is provided, we'll track this streamId when we see chat:started
-      // For now, track all streams (we'll filter later)
+      const { streamId, model, provider, requestId, options, modelOptions } =
+        event.payload
+
       activeStreams.set(streamId, {
         streamId,
-        requestId: '', // Will be set from chat:started
+        requestId,
         model,
         provider,
         chunks: [],
         accumulatedContent: '',
-        toolCalls: new Map(),
+        toolCalls: new Map<string, RecordedToolCall>(),
         finishReason: null,
         traceId: undefined,
       })
-    },
-    { withEventTarget: false },
-  )
 
-  // Subscribe to chat:started to get requestId and check if we should record
-  const unsubscribeChatStarted = aiEventClient.on(
-    'chat:started',
-    (event) => {
-      const { streamId, requestId, providerOptions } = event.payload
-      const stream = activeStreams.get(streamId)
-      if (stream) {
-        stream.requestId = requestId
-        // Check if providerOptions contain traceId matching our filter
-        // If traceId is provided, only record streams that match
-        if (
-          traceId &&
-          providerOptions &&
-          (providerOptions as any).traceId === traceId
-        ) {
-          stream.traceId = traceId
-          recordingStreamId = streamId
-        } else if (!traceId) {
-          // If no traceId filter, record all streams
-          recordingStreamId = streamId
-        }
+      const optionsTraceId = options?.traceId
+      const modelOptionsTraceId = modelOptions?.traceId
+
+      const eventTraceId = optionsTraceId || modelOptionsTraceId
+
+      if (traceId && eventTraceId === traceId) {
+        recordingStreamId = streamId
+      } else if (!traceId) {
+        recordingStreamId = streamId
       }
     },
     { withEventTarget: false },
@@ -190,15 +248,23 @@ export function createEventRecording(
 
   // Subscribe to content chunks
   const unsubscribeContent = aiEventClient.on(
-    'stream:chunk:content',
+    'text:chunk:content',
     (event) => {
-      const { streamId, content, delta, timestamp } = event.payload
+      const { streamId, content, delta, timestamp, model } = event.payload
       if (!shouldRecord(streamId)) return
       const stream = activeStreams.get(streamId)
       if (stream) {
         stream.accumulatedContent = content
+        const resolvedModel = model ?? 'unknown'
+        const chunkId = `chunk-${chunkIndex}`
         stream.chunks.push({
-          chunk: createContentChunk(content, delta),
+          chunk: createContentChunk(
+            content,
+            delta,
+            resolvedModel,
+            timestamp,
+            chunkId,
+          ),
           timestamp,
           index: chunkIndex++,
         })
@@ -209,7 +275,7 @@ export function createEventRecording(
 
   // Subscribe to tool call chunks
   const unsubscribeToolCall = aiEventClient.on(
-    'stream:chunk:tool-call',
+    'text:chunk:tool-call',
     (event) => {
       const {
         streamId,
@@ -218,12 +284,23 @@ export function createEventRecording(
         index,
         arguments: args,
         timestamp,
+        model,
       } = event.payload
       if (!shouldRecord(streamId)) return
       const stream = activeStreams.get(streamId)
       if (stream) {
+        const resolvedModel = model ?? 'unknown'
+        const chunkId = `chunk-${chunkIndex}`
         stream.chunks.push({
-          chunk: createToolCallChunk(toolCallId, toolName, index, args),
+          chunk: createToolCallChunk(
+            toolCallId,
+            toolName,
+            index,
+            args,
+            resolvedModel,
+            timestamp,
+            chunkId,
+          ),
           timestamp,
           index: chunkIndex++,
         })
@@ -237,7 +314,7 @@ export function createEventRecording(
             name: toolName,
             arguments: args,
             result: undefined,
-          } as ToolCall)
+          })
         }
       }
     },
@@ -246,14 +323,22 @@ export function createEventRecording(
 
   // Subscribe to tool result chunks
   const unsubscribeToolResult = aiEventClient.on(
-    'stream:chunk:tool-result',
+    'text:chunk:tool-result',
     (event) => {
-      const { streamId, toolCallId, result, timestamp } = event.payload
+      const { streamId, toolCallId, result, timestamp, model } = event.payload
       if (!shouldRecord(streamId)) return
       const stream = activeStreams.get(streamId)
       if (stream) {
+        const resolvedModel = model ?? 'unknown'
+        const chunkId = `chunk-${chunkIndex}`
         stream.chunks.push({
-          chunk: createToolResultChunk(toolCallId, result),
+          chunk: createToolResultChunk(
+            toolCallId,
+            result,
+            resolvedModel,
+            timestamp,
+            chunkId,
+          ),
           timestamp,
           index: chunkIndex++,
         })
@@ -264,15 +349,23 @@ export function createEventRecording(
 
   // Subscribe to done chunks
   const unsubscribeDone = aiEventClient.on(
-    'stream:chunk:done',
+    'text:chunk:done',
     (event) => {
-      const { streamId, finishReason, usage, timestamp } = event.payload
+      const { streamId, finishReason, usage, timestamp, model } = event.payload
       if (!shouldRecord(streamId)) return
       const stream = activeStreams.get(streamId)
       if (stream) {
         stream.finishReason = finishReason || null
+        const resolvedModel = model ?? 'unknown'
+        const chunkId = `chunk-${chunkIndex}`
         stream.chunks.push({
-          chunk: createDoneChunk(finishReason, usage),
+          chunk: createDoneChunk(
+            finishReason,
+            usage,
+            resolvedModel,
+            timestamp,
+            chunkId,
+          ),
           timestamp,
           index: chunkIndex++,
         })
@@ -283,14 +376,16 @@ export function createEventRecording(
 
   // Subscribe to error chunks
   const unsubscribeError = aiEventClient.on(
-    'stream:chunk:error',
+    'text:chunk:error',
     (event) => {
-      const { streamId, error, timestamp } = event.payload
+      const { streamId, error, timestamp, model } = event.payload
       if (!shouldRecord(streamId)) return
       const stream = activeStreams.get(streamId)
       if (stream) {
+        const resolvedModel = model ?? 'unknown'
+        const chunkId = `chunk-${chunkIndex}`
         stream.chunks.push({
-          chunk: createErrorChunk(error),
+          chunk: createErrorChunk(error, resolvedModel, timestamp, chunkId),
           timestamp,
           index: chunkIndex++,
         })
@@ -301,14 +396,22 @@ export function createEventRecording(
 
   // Subscribe to thinking chunks
   const unsubscribeThinking = aiEventClient.on(
-    'stream:chunk:thinking',
+    'text:chunk:thinking',
     (event) => {
-      const { streamId, content, delta, timestamp } = event.payload
+      const { streamId, content, delta, timestamp, model } = event.payload
       if (!shouldRecord(streamId)) return
       const stream = activeStreams.get(streamId)
       if (stream) {
+        const resolvedModel = model ?? 'unknown'
+        const chunkId = `chunk-${chunkIndex}`
         stream.chunks.push({
-          chunk: createThinkingChunk(content, delta),
+          chunk: createThinkingChunk(
+            content,
+            delta,
+            resolvedModel,
+            timestamp,
+            chunkId,
+          ),
           timestamp,
           index: chunkIndex++,
         })
@@ -317,10 +420,10 @@ export function createEventRecording(
     { withEventTarget: false },
   )
 
-  // Subscribe to chat:completed to get final tool calls
+  // Subscribe to text:request:completed to get final tool calls
   const unsubscribeChatCompleted = aiEventClient.on(
-    'chat:completed',
-    async (event) => {
+    'text:request:completed',
+    (event) => {
       const { streamId, content, finishReason } = event.payload
       if (!shouldRecord(streamId)) return
       const stream = activeStreams.get(streamId)
@@ -332,9 +435,9 @@ export function createEventRecording(
     { withEventTarget: false },
   )
 
-  // Subscribe to tool:call-completed to update tool call results
+  // Subscribe to tools:call:completed to update tool call results
   const unsubscribeToolCompleted = aiEventClient.on(
-    'tool:call-completed',
+    'tools:call:completed',
     (event) => {
       const { streamId, toolCallId, toolName, result } = event.payload
       if (!shouldRecord(streamId)) return
@@ -351,16 +454,16 @@ export function createEventRecording(
             name: toolName,
             arguments: '',
             result,
-          } as ToolCall)
+          })
         }
       }
     },
     { withEventTarget: false },
   )
 
-  // Subscribe to stream:ended to save recording
+  // Subscribe to text:request:completed to save recording
   const unsubscribeStreamEnded = aiEventClient.on(
-    'stream:ended',
+    'text:request:completed',
     async (event) => {
       const { streamId } = event.payload
       if (!shouldRecord(streamId)) return
@@ -410,7 +513,6 @@ export function createEventRecording(
   return {
     stop: () => {
       unsubscribeStarted()
-      unsubscribeChatStarted()
       unsubscribeContent()
       unsubscribeToolCall()
       unsubscribeToolResult()

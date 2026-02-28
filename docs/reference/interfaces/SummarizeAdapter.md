@@ -109,7 +109,7 @@ Summarize the given text
 ### summarizeStream()?
 
 ```ts
-optional summarizeStream: (options) => AsyncIterable<StreamChunk>;
+optional summarizeStream: (options) => AsyncIterable<AGUIEvent>;
 ```
 
 Defined in: [activities/summarize/adapter.ts:56](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/adapter.ts#L56)
@@ -126,4 +126,4 @@ non-streaming summarize and yield the result as a single chunk.
 
 #### Returns
 
-`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>

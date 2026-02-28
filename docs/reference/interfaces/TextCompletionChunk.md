@@ -5,7 +5,7 @@ title: TextCompletionChunk
 
 # Interface: TextCompletionChunk
 
-Defined in: [types.ts:752](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L752)
+Defined in: [types.ts:928](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L928)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:752](https://github.com/TanStack/ai/blob/main/packages/typ
 content: string;
 ```
 
-Defined in: [types.ts:755](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L755)
+Defined in: [types.ts:931](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L931)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [types.ts:755](https://github.com/TanStack/ai/blob/main/packages/typ
 optional finishReason: "length" | "stop" | "content_filter" | null;
 ```
 
-Defined in: [types.ts:757](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L757)
+Defined in: [types.ts:933](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L933)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [types.ts:757](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:753](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L753)
+Defined in: [types.ts:929](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L929)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [types.ts:753](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:754](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L754)
+Defined in: [types.ts:930](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L930)
 
 ***
 
@@ -55,7 +55,7 @@ Defined in: [types.ts:754](https://github.com/TanStack/ai/blob/main/packages/typ
 optional role: "assistant";
 ```
 
-Defined in: [types.ts:756](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L756)
+Defined in: [types.ts:932](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L932)
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: [types.ts:756](https://github.com/TanStack/ai/blob/main/packages/typ
 optional usage: object;
 ```
 
-Defined in: [types.ts:758](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L758)
+Defined in: [types.ts:934](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L934)
 
 #### completionTokens
 

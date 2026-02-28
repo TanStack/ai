@@ -24,6 +24,11 @@ Or the `@tanstack/solid-ai-devtools` package for SolidJS:
 npm install -D @tanstack/solid-ai-devtools @tanstack/solid-devtools
 ```
 
+Or the `@tanstack/preact-ai-devtools` package for Preact:
+```bash
+npm install -D @tanstack/preact-ai-devtools @tanstack/preact-devtools
+```
+
 ## Usage
 
 Import and include the Devtools component in your application:

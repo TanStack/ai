@@ -9,7 +9,7 @@ title: toServerSentEventsResponse
 function toServerSentEventsResponse(stream, init?): Response;
 ```
 
-Defined in: [stream-to-response.ts:123](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L123)
+Defined in: [stream-to-response.ts:124](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L124)
 
 Convert a StreamChunk async iterable to a Response in Server-Sent Events format
 
@@ -22,7 +22,7 @@ This creates a Response that emits chunks in SSE format:
 
 ### stream
 
-`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
 
 AsyncIterable of StreamChunks from chat()
 

@@ -51,7 +51,7 @@ const PersonSchema = z.object({
 
 // Use it with chat()
 const person = await chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [
     {
       role: "user",
@@ -97,7 +97,7 @@ const RecipeSchema = z.object({
 
 // TypeScript knows the exact return type
 const recipe = await chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "Give me a recipe for scrambled eggs" }],
   outputSchema: RecipeSchema,
 });
@@ -201,7 +201,7 @@ const RecommendationSchema = z.object({
 });
 
 const recommendation = await chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [
     {
       role: "user",
@@ -235,7 +235,7 @@ const schema: JSONSchema = {
 };
 
 const result = await chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "Extract: John is 25 years old" }],
   outputSchema: schema,
 });
@@ -286,7 +286,7 @@ If the AI response doesn't match your schema, TanStack AI will throw a validatio
 ```typescript
 try {
   const result = await chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.2"),
     messages: [{ role: "user", content: "..." }],
     outputSchema: MySchema,
   });

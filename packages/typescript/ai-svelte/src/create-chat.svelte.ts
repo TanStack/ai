@@ -1,6 +1,12 @@
 import { ChatClient } from '@tanstack/ai-client'
+import type { ChatClientState } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
-import type { CreateChatOptions, CreateChatReturn, UIMessage } from './types'
+import type {
+  CreateChatOptions,
+  CreateChatReturn,
+  MultimodalContent,
+  UIMessage,
+} from './types'
 
 /**
  * Creates a reactive chat instance for Svelte 5.
@@ -44,6 +50,7 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
   let isLoading = $state(false)
   let error = $state<Error | undefined>(undefined)
+  let status = $state<ChatClientState>('ready')
 
   // Create ChatClient instance
   const client = new ChatClient({
@@ -53,15 +60,23 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     body: options.body,
     onResponse: options.onResponse,
     onChunk: options.onChunk,
-    onFinish: options.onFinish,
-    onError: options.onError,
+    onFinish: (message) => {
+      options.onFinish?.(message)
+    },
+    onError: (err) => {
+      options.onError?.(err)
+    },
     tools: options.tools,
+    onCustomEvent: options.onCustomEvent,
     streamProcessor: options.streamProcessor,
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages = newMessages
     },
     onLoadingChange: (newIsLoading: boolean) => {
       isLoading = newIsLoading
+    },
+    onStatusChange: (newStatus: ChatClientState) => {
+      status = newStatus
     },
     onErrorChange: (newError: Error | undefined) => {
       error = newError
@@ -74,7 +89,7 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // Users should call chat.stop() in their component's cleanup if needed.
 
   // Define methods
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string | MultimodalContent) => {
     await client.sendMessage(content)
   }
 
@@ -115,6 +130,10 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     await client.addToolApprovalResponse(response)
   }
 
+  const updateBody = (newBody: Record<string, any>) => {
+    client.updateOptions({ body: newBody })
+  }
+
   // Return the chat interface with reactive getters
   // Using getters allows Svelte to track reactivity without needing $ prefix
   return {
@@ -127,6 +146,9 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     get error() {
       return error
     },
+    get status() {
+      return status
+    },
     sendMessage,
     append,
     reload,
@@ -135,5 +157,6 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     clear,
     addToolResult,
     addToolApprovalResponse,
+    updateBody,
   }
 }

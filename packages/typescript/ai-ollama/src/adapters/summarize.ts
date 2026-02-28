@@ -5,6 +5,7 @@ import {
   getOllamaHostFromEnv,
 } from '../utils'
 
+import type { OLLAMA_TEXT_MODELS as OllamaSummarizeModels } from '../model-meta'
 import type { Ollama } from 'ollama'
 import type { SummarizeAdapter } from '@tanstack/ai/adapters'
 import type {
@@ -12,23 +13,6 @@ import type {
   SummarizationOptions,
   SummarizationResult,
 } from '@tanstack/ai'
-
-/**
- * Ollama models suitable for summarization
- * Note: Ollama models are dynamically loaded, this is a common subset
- */
-export const OllamaSummarizeModels = [
-  'llama2',
-  'llama3',
-  'llama3.1',
-  'llama3.2',
-  'mistral',
-  'mixtral',
-  'phi',
-  'phi3',
-  'qwen2',
-  'qwen2.5',
-] as const
 
 export type OllamaSummarizeModel =
   | (typeof OllamaSummarizeModels)[number]
@@ -142,13 +126,12 @@ export class OllamaSummarizeAdapter<
       if (chunk.response) {
         accumulatedContent += chunk.response
         yield {
-          type: 'content',
-          id,
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: id,
           model: chunk.model,
           timestamp: Date.now(),
           delta: chunk.response,
           content: accumulatedContent,
-          role: 'assistant',
         }
       }
 
@@ -156,8 +139,8 @@ export class OllamaSummarizeAdapter<
         const promptTokens = estimateTokens(prompt)
         const completionTokens = estimateTokens(accumulatedContent)
         yield {
-          type: 'done',
-          id,
+          type: 'RUN_FINISHED',
+          runId: id,
           model: chunk.model,
           timestamp: Date.now(),
           finishReason: 'stop',

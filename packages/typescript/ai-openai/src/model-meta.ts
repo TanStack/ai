@@ -133,7 +133,7 @@ const GPT5_2_PRO = {
 >
 
 const GPT5_2_CHAT = {
-  name: 'gpt-5.2-chat',
+  name: 'gpt-5.2-chat-latest',
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2025-08-31',
@@ -1271,7 +1271,7 @@ const GPT_4_TURBO = {
 >
 
 const CHATGPT_40 = {
-  name: 'chatgpt-4.0',
+  name: 'chatgpt-4o-latest',
   context_window: 128_000,
   max_output_tokens: 4_096,
   knowledge_cutoff: '2023-10-01',
@@ -1539,7 +1539,7 @@ const GPT_4O_TRANSCRIBE_DIARIZE = {
 > */
 
 const GPT_5_1_CHAT = {
-  name: 'gpt-5.1-chat',
+  name: 'gpt-5.1-chat-latest',
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2024-09-30',
@@ -1568,7 +1568,7 @@ const GPT_5_1_CHAT = {
 >
 
 const GPT_5_CHAT = {
-  name: 'gpt-5-chat',
+  name: 'gpt-5-chat-latest',
   context_window: 128_000,
   max_output_tokens: 16_384,
   knowledge_cutoff: '2024-09-30',
@@ -1696,6 +1696,8 @@ export const OPENAI_CHAT_MODELS = [
   O1_PRO.name,
 ] as const
 
+export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
+
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
 export const OPENAI_IMAGE_MODELS = [
   GPT_IMAGE_1.name,
@@ -1703,6 +1705,8 @@ export const OPENAI_IMAGE_MODELS = [
   DALL_E_3.name,
   DALL_E_2.name,
 ] as const
+
+export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
 
 // Audio models (based on endpoints: "transcription", "speech_generation", or "realtime")
 /* const OPENAI_AUDIO_MODELS = [
@@ -1734,6 +1738,8 @@ export const OPENAI_IMAGE_MODELS = [
  */
 export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 
+export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
+
 /**
  * Text-to-speech models (based on endpoints: "speech_generation")
  */
@@ -1742,6 +1748,8 @@ export const OPENAI_TTS_MODELS = [
   'tts-1-hd',
   'gpt-4o-audio-preview',
 ] as const
+
+export type OpenAITTSModel = (typeof OPENAI_TTS_MODELS)[number]
 
 /**
  * Transcription models (based on endpoints: "transcription")
@@ -1752,6 +1760,9 @@ export const OPENAI_TRANSCRIPTION_MODELS = [
   'gpt-4o-mini-transcribe',
   'gpt-4o-transcribe-diarize',
 ] as const
+
+export type OpenAITranscriptionModel =
+  (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
 
 /**
  * Type-only map from chat model name to its provider options type.

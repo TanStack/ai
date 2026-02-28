@@ -1,5 +1,105 @@
 # @tanstack/ai-svelte
 
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [[`d8678e2`](https://github.com/TanStack/ai/commit/d8678e254a8edfa4f95eeb059aa30083c18f52f8)]:
+  - @tanstack/ai@0.6.1
+  - @tanstack/ai-client@0.5.1
+
+## 0.6.0
+
+### Patch Changes
+
+- feat: add custom event dispatch support for tools ([#293](https://github.com/TanStack/ai/pull/293))
+
+  Tools can now emit custom events during execution via `dispatchEvent()`. Custom events are streamed to clients as `custom_event` stream chunks and surfaced through the client chat hook's `onCustomEvent` callback. This enables tools to send progress updates, intermediate results, or any structured data back to the UI during long-running operations.
+
+- Updated dependencies [[`5aa6acc`](https://github.com/TanStack/ai/commit/5aa6acc1a4faea5346f750322e80984abf2d7059), [`1f800aa`](https://github.com/TanStack/ai/commit/1f800aacf57081f37a075bc8d08ff397cb33cbe9)]:
+  - @tanstack/ai@0.6.0
+  - @tanstack/ai-client@0.5.0
+
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies [[`58702bc`](https://github.com/TanStack/ai/commit/58702bcaad31c46f8fd747b2f0e1daff2003beb9)]:
+  - @tanstack/ai@0.5.1
+  - @tanstack/ai-client@0.4.5
+
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies [[`5d98472`](https://github.com/TanStack/ai/commit/5d984722e1f84725e3cfda834fbda3d0341ecedd), [`5d98472`](https://github.com/TanStack/ai/commit/5d984722e1f84725e3cfda834fbda3d0341ecedd)]:
+  - @tanstack/ai@0.5.0
+  - @tanstack/ai-client@0.4.4
+
+## 0.5.2
+
+### Patch Changes
+
+- Updated dependencies [[`6f886e9`](https://github.com/TanStack/ai/commit/6f886e96f2478374520998395357fdf3aa9149ab)]:
+  - @tanstack/ai@0.4.2
+  - @tanstack/ai-client@0.4.3
+
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [[`6e1bb50`](https://github.com/TanStack/ai/commit/6e1bb5097178a6ad795273ca715f1e09d3f5a006)]:
+  - @tanstack/ai@0.4.1
+  - @tanstack/ai-client@0.4.2
+
+## 0.5.0
+
+### Minor Changes
+
+- add multiple modalities support to the client ([#263](https://github.com/TanStack/ai/pull/263))
+
+### Patch Changes
+
+- Updated dependencies [[`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f)]:
+  - @tanstack/ai@0.4.0
+  - @tanstack/ai-client@0.4.1
+
+## 0.4.0
+
+### Minor Changes
+
+- Added status property to useChat to track the generation lifecycle (ready, submitted, streaming, error) ([#247](https://github.com/TanStack/ai/pull/247))
+
+### Patch Changes
+
+- Updated dependencies [[`99ccee5`](https://github.com/TanStack/ai/commit/99ccee5c72df12adc13bede98142c6da84d13cc4), [`230bab6`](https://github.com/TanStack/ai/commit/230bab6417c8ff2c25586a12126c85e27dd7bc15)]:
+  - @tanstack/ai-client@0.4.0
+  - @tanstack/ai@0.3.1
+
+## 0.3.0
+
+### Patch Changes
+
+- Updated dependencies [[`e52135f`](https://github.com/TanStack/ai/commit/e52135f6ec3285227679411636e208ae84a408d7)]:
+  - @tanstack/ai@0.3.0
+  - @tanstack/ai-client@0.3.0
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`7573619`](https://github.com/TanStack/ai/commit/7573619a234d1a50bd2ac098d64524447ebc5869)]:
+  - @tanstack/ai@0.2.2
+  - @tanstack/ai-client@0.2.2
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`181e0ac`](https://github.com/TanStack/ai/commit/181e0acdfb44b27db6cf871b36593c0f867cadf9), [`181e0ac`](https://github.com/TanStack/ai/commit/181e0acdfb44b27db6cf871b36593c0f867cadf9)]:
+  - @tanstack/ai@0.2.1
+  - @tanstack/ai-client@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

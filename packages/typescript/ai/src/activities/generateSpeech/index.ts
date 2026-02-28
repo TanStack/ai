@@ -5,6 +5,7 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
+import { aiEventClient } from '../../event-client.js'
 import type { TTSAdapter } from './adapter'
 import type { TTSResult } from '../../types'
 
@@ -61,6 +62,10 @@ export interface TTSActivityOptions<
 /** Result type for the TTS activity */
 export type TTSActivityResult = Promise<TTSResult>
 
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
 // ===========================
 // Activity Implementation
 // ===========================
@@ -100,8 +105,39 @@ export async function generateSpeech<
 >(options: TTSActivityOptions<TAdapter>): TTSActivityResult {
   const { adapter, ...rest } = options
   const model = adapter.model
+  const requestId = createId('speech')
+  const startTime = Date.now()
 
-  return adapter.generateSpeech({ ...rest, model })
+  aiEventClient.emit('speech:request:started', {
+    requestId,
+    provider: adapter.name,
+    model,
+    text: rest.text,
+    voice: rest.voice,
+    format: rest.format,
+    speed: rest.speed,
+    modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+    timestamp: startTime,
+  })
+
+  return adapter.generateSpeech({ ...rest, model }).then((result) => {
+    const duration = Date.now() - startTime
+
+    aiEventClient.emit('speech:request:completed', {
+      requestId,
+      provider: adapter.name,
+      model,
+      audio: result.audio,
+      format: result.format,
+      audioDuration: result.duration,
+      contentType: result.contentType,
+      duration,
+      modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+      timestamp: Date.now(),
+    })
+
+    return result
+  })
 }
 
 // ===========================

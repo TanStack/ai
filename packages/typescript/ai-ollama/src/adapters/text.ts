@@ -3,6 +3,10 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 
 import type {
+  OLLAMA_TEXT_MODELS,
+  OllamaChatModelOptionsByName,
+} from '../model-meta'
+import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
@@ -17,34 +21,18 @@ import type {
 } from 'ollama'
 import type { StreamChunk, TextOptions, Tool } from '@tanstack/ai'
 
-/**
- * Ollama text models
- * Note: Ollama models are dynamically loaded, this is a common subset
- */
-export const OllamaTextModels = [
-  'llama2',
-  'llama3',
-  'llama3.1',
-  'llama3.2',
-  'codellama',
-  'mistral',
-  'mixtral',
-  'phi',
-  'phi3',
-  'neural-chat',
-  'starling-lm',
-  'orca-mini',
-  'vicuna',
-  'nous-hermes',
-  'qwen2',
-  'qwen2.5',
-  'gemma',
-  'gemma2',
-  'deepseek-coder',
-  'command-r',
-] as const
+export type OllamaTextModel =
+  | (typeof OLLAMA_TEXT_MODELS)[number]
+  | (string & {})
 
-export type OllamaTextModel = (typeof OllamaTextModels)[number] | (string & {})
+/**
+ * Resolve model options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
+type ResolveModelOptions<TModel extends string> =
+  TModel extends keyof OllamaChatModelOptionsByName
+    ? OllamaChatModelOptionsByName[TModel]
+    : ChatRequest
 
 /**
  * Ollama-specific provider options
@@ -122,7 +110,7 @@ type OllamaMessageMetadataByModality = {
  */
 export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   TModel,
-  OllamaTextProviderOptions,
+  ResolveModelOptions<TModel>,
   OllamaInputModalities,
   OllamaMessageMetadataByModality
 > {
@@ -155,7 +143,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
    * The outputSchema is already JSON Schema (converted in the ai layer).
    */
   async structuredOutput(
-    options: StructuredOutputOptions<OllamaTextProviderOptions>,
+    options: StructuredOutputOptions<ResolveModelOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
 
@@ -198,90 +186,161 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     const timestamp = Date.now()
-    const responseId = generateId('msg')
     let accumulatedReasoning = ''
-    let hasEmittedToolCalls = false
+    const toolCallsEmitted = new Set<string>()
+
+    // AG-UI lifecycle tracking
+    const runId = generateId('run')
+    const messageId = generateId('msg')
+    let stepId: string | null = null
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedStepStarted = false
 
     for await (const chunk of stream) {
-      const handleToolCall = (toolCall: ToolCall): StreamChunk => {
+      // Emit RUN_STARTED on first chunk
+      if (!hasEmittedRunStarted) {
+        hasEmittedRunStarted = true
+        yield {
+          type: 'RUN_STARTED',
+          runId,
+          model: chunk.model,
+          timestamp,
+        }
+      }
+
+      const handleToolCall = (toolCall: ToolCall): Array<StreamChunk> => {
         const actualToolCall = toolCall as ToolCall & {
           id: string
           function: { index: number }
         }
-        return {
-          type: 'tool_call',
-          id: responseId,
+        const toolCallId =
+          actualToolCall.id || `${actualToolCall.function.name}_${Date.now()}`
+        const events: Array<StreamChunk> = []
+
+        // Emit TOOL_CALL_START if not already emitted for this tool call
+        if (!toolCallsEmitted.has(toolCallId)) {
+          toolCallsEmitted.add(toolCallId)
+          events.push({
+            type: 'TOOL_CALL_START',
+            toolCallId,
+            toolName: actualToolCall.function.name || '',
+            model: chunk.model,
+            timestamp,
+            index: actualToolCall.function.index,
+          })
+        }
+
+        // Parse input
+        let parsedInput: unknown = {}
+        const argsStr =
+          typeof actualToolCall.function.arguments === 'string'
+            ? actualToolCall.function.arguments
+            : JSON.stringify(actualToolCall.function.arguments)
+        try {
+          parsedInput = JSON.parse(argsStr)
+        } catch {
+          parsedInput = actualToolCall.function.arguments
+        }
+
+        // Emit TOOL_CALL_END
+        events.push({
+          type: 'TOOL_CALL_END',
+          toolCallId,
+          toolName: actualToolCall.function.name || '',
           model: chunk.model,
           timestamp,
-          toolCall: {
-            type: 'function',
-            id: actualToolCall.id,
-            function: {
-              name: actualToolCall.function.name || '',
-              arguments:
-                typeof actualToolCall.function.arguments === 'string'
-                  ? actualToolCall.function.arguments
-                  : JSON.stringify(actualToolCall.function.arguments),
-            },
-          },
-          index: actualToolCall.function.index,
-        }
+          input: parsedInput,
+        })
+
+        return events
       }
 
       if (chunk.done) {
         if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
           for (const toolCall of chunk.message.tool_calls) {
-            yield handleToolCall(toolCall)
-            hasEmittedToolCalls = true
+            const events = handleToolCall(toolCall)
+            for (const event of events) {
+              yield event
+            }
           }
+        }
+
+        // Emit TEXT_MESSAGE_END if we had text content
+        if (hasEmittedTextMessageStart) {
           yield {
-            type: 'done',
-            id: responseId,
+            type: 'TEXT_MESSAGE_END',
+            messageId,
             model: chunk.model,
             timestamp,
-            finishReason: 'tool_calls',
           }
-          continue
         }
+
         yield {
-          type: 'done',
-          id: responseId,
+          type: 'RUN_FINISHED',
+          runId,
           model: chunk.model,
           timestamp,
-          finishReason: hasEmittedToolCalls ? 'tool_calls' : 'stop',
+          finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
         }
         continue
       }
 
       if (chunk.message.content) {
+        // Emit TEXT_MESSAGE_START on first text content
+        if (!hasEmittedTextMessageStart) {
+          hasEmittedTextMessageStart = true
+          yield {
+            type: 'TEXT_MESSAGE_START',
+            messageId,
+            model: chunk.model,
+            timestamp,
+            role: 'assistant',
+          }
+        }
+
         accumulatedContent += chunk.message.content
         yield {
-          type: 'content',
-          id: responseId,
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId,
           model: chunk.model,
           timestamp,
           delta: chunk.message.content,
           content: accumulatedContent,
-          role: 'assistant',
         }
       }
 
       if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
         for (const toolCall of chunk.message.tool_calls) {
-          yield handleToolCall(toolCall)
-          hasEmittedToolCalls = true
+          const events = handleToolCall(toolCall)
+          for (const event of events) {
+            yield event
+          }
         }
       }
 
       if (chunk.message.thinking) {
+        // Emit STEP_STARTED on first thinking content
+        if (!hasEmittedStepStarted) {
+          hasEmittedStepStarted = true
+          stepId = generateId('step')
+          yield {
+            type: 'STEP_STARTED',
+            stepId,
+            model: chunk.model,
+            timestamp,
+            stepType: 'thinking',
+          }
+        }
+
         accumulatedReasoning += chunk.message.thinking
         yield {
-          type: 'thinking',
-          id: responseId,
+          type: 'STEP_FINISHED',
+          stepId: stepId || generateId('step'),
           model: chunk.model,
           timestamp,
-          content: accumulatedReasoning,
           delta: chunk.message.thinking,
+          content: accumulatedReasoning,
         }
       }
     }

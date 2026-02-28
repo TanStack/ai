@@ -5,7 +5,7 @@ title: GeneratedImage
 
 # Interface: GeneratedImage
 
-Defined in: [types.ts:810](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L810)
+Defined in: [types.ts:987](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L987)
 
 A single generated image
 
@@ -17,7 +17,7 @@ A single generated image
 optional b64Json: string;
 ```
 
-Defined in: [types.ts:812](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L812)
+Defined in: [types.ts:989](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L989)
 
 Base64-encoded image data
 
@@ -29,7 +29,7 @@ Base64-encoded image data
 optional revisedPrompt: string;
 ```
 
-Defined in: [types.ts:816](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L816)
+Defined in: [types.ts:993](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L993)
 
 Revised prompt used by the model (if applicable)
 
@@ -41,6 +41,6 @@ Revised prompt used by the model (if applicable)
 optional url: string;
 ```
 
-Defined in: [types.ts:814](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L814)
+Defined in: [types.ts:991](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L991)
 
 URL to the generated image (may be temporary)

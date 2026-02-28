@@ -55,7 +55,6 @@ async function testToolWithEmptyObjectSchema() {
   console.log('  Tool name:', getGuitarsTool.name)
   console.log('  Input schema:', getGuitarsTool.inputSchema.toString())
   console.log('  User message:', messages[0].content)
-  console.log()
 
   try {
     console.log('📥 Streaming response...\n')

@@ -1,5 +1,97 @@
 # @tanstack/solid-ai-devtools
 
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.6
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.5
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.4
+
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.3
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.2
+
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.1
+
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [[`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f)]:
+  - @tanstack/ai-devtools-core@0.3.0
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.2.3
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.2.2
+
+## 0.2.1
+
+### Patch Changes
+
+- Fix issue with double mounting of devtools ([#123](https://github.com/TanStack/ai/pull/123))
+
+- Updated dependencies [[`a19b247`](https://github.com/TanStack/ai/commit/a19b247d6e7fe44749ede2416e21c6d9e2045912)]:
+  - @tanstack/ai-devtools-core@0.2.1
+
+## 0.2.0
+
+### Minor Changes
+
+- Bump tanstack-devtools to 0.2.3 ([#204](https://github.com/TanStack/ai/pull/204))
+
+### Patch Changes
+
+- Updated dependencies [[`b2a5fab`](https://github.com/TanStack/ai/commit/b2a5fab6b4f2f6d9980c9691f7fc864f01eb48d1)]:
+  - @tanstack/ai-devtools-core@0.2.0
+
+## 0.1.2
+
+### Patch Changes
+
+- fix up readmes ([#188](https://github.com/TanStack/ai/pull/188))
+
+- Updated dependencies [[`181e0ac`](https://github.com/TanStack/ai/commit/181e0acdfb44b27db6cf871b36593c0f867cadf9)]:
+  - @tanstack/ai-devtools-core@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

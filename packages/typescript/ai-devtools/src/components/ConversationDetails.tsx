@@ -2,6 +2,7 @@ import { Show, createEffect, createSignal } from 'solid-js'
 import { useStyles } from '../styles/use-styles'
 import { useAIStore } from '../store/ai-context'
 import {
+  ActivityEventsTab,
   ChunksTab,
   ConversationHeader,
   ConversationTabs,
@@ -35,12 +36,56 @@ export const ConversationDetails: Component = () => {
           (conv.summaries && conv.summaries.length > 0)
         ) {
           setActiveTab('summaries')
+        } else if (
+          conv.hasImage ||
+          (conv.imageEvents && conv.imageEvents.length > 0)
+        ) {
+          setActiveTab('image')
+        } else if (
+          conv.hasSpeech ||
+          (conv.speechEvents && conv.speechEvents.length > 0)
+        ) {
+          setActiveTab('speech')
+        } else if (
+          conv.hasTranscription ||
+          (conv.transcriptionEvents && conv.transcriptionEvents.length > 0)
+        ) {
+          setActiveTab('transcription')
+        } else if (
+          conv.hasVideo ||
+          (conv.videoEvents && conv.videoEvents.length > 0)
+        ) {
+          setActiveTab('video')
         } else {
           setActiveTab('chunks')
         }
       } else {
         // For client conversations, default to messages tab
-        setActiveTab('messages')
+        if (conv.messages.length > 0) {
+          setActiveTab('messages')
+        } else if (
+          conv.hasImage ||
+          (conv.imageEvents && conv.imageEvents.length > 0)
+        ) {
+          setActiveTab('image')
+        } else if (
+          conv.hasSpeech ||
+          (conv.speechEvents && conv.speechEvents.length > 0)
+        ) {
+          setActiveTab('speech')
+        } else if (
+          conv.hasTranscription ||
+          (conv.transcriptionEvents && conv.transcriptionEvents.length > 0)
+        ) {
+          setActiveTab('transcription')
+        } else if (
+          conv.hasVideo ||
+          (conv.videoEvents && conv.videoEvents.length > 0)
+        ) {
+          setActiveTab('video')
+        } else {
+          setActiveTab('messages')
+        }
       }
     }
   })
@@ -71,6 +116,30 @@ export const ConversationDetails: Component = () => {
             </Show>
             <Show when={activeTab() === 'summaries'}>
               <SummariesTab summaries={conv().summaries ?? []} />
+            </Show>
+            <Show when={activeTab() === 'image'}>
+              <ActivityEventsTab
+                title="Image Activity"
+                events={conv().imageEvents ?? []}
+              />
+            </Show>
+            <Show when={activeTab() === 'speech'}>
+              <ActivityEventsTab
+                title="Speech Activity"
+                events={conv().speechEvents ?? []}
+              />
+            </Show>
+            <Show when={activeTab() === 'transcription'}>
+              <ActivityEventsTab
+                title="Transcription Activity"
+                events={conv().transcriptionEvents ?? []}
+              />
+            </Show>
+            <Show when={activeTab() === 'video'}>
+              <ActivityEventsTab
+                title="Video Activity"
+                events={conv().videoEvents ?? []}
+              />
             </Show>
           </div>
         </div>

@@ -3,9 +3,9 @@ id: VideoAdapter
 title: VideoAdapter
 ---
 
-# Interface: VideoAdapter\<TModel, TProviderOptions\>
+# Interface: VideoAdapter\<TModel, TProviderOptions, TModelProviderOptionsByName, TModelSizeByName\>
 
-Defined in: [activities/generateVideo/adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L33)
+Defined in: [activities/generateVideo/adapter.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L35)
 
 **`Experimental`**
 
@@ -19,6 +19,8 @@ All type resolution happens at the provider call site, not in this interface.
 Generic parameters:
 - TModel: The specific model name (e.g., 'sora-2')
 - TProviderOptions: Provider-specific options (already resolved)
+- TModelProviderOptionsByName: Map from model name to its specific provider options
+- TModelSizeByName: Map from model name to its supported sizes
 
 ## Type Parameters
 
@@ -30,6 +32,14 @@ Generic parameters:
 
 `TProviderOptions` *extends* `object` = `Record`\<`string`, `unknown`\>
 
+### TModelProviderOptionsByName
+
+`TModelProviderOptionsByName` *extends* `Record`\<`string`, `any`\> = `Record`\<`string`, `any`\>
+
+### TModelSizeByName
+
+`TModelSizeByName` *extends* `Record`\<`string`, `string`\> = `Record`\<`string`, `string`\>
+
 ## Properties
 
 ### ~types
@@ -38,11 +48,23 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [activities/generateVideo/adapter.ts:47](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L47)
+Defined in: [activities/generateVideo/adapter.ts:51](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L51)
 
 **`Internal`**
 
 Type-only properties for inference. Not assigned at runtime.
+
+#### modelProviderOptionsByName
+
+```ts
+modelProviderOptionsByName: TModelProviderOptionsByName;
+```
+
+#### modelSizeByName
+
+```ts
+modelSizeByName: TModelSizeByName;
+```
 
 #### providerOptions
 
@@ -58,7 +80,7 @@ providerOptions: TProviderOptions;
 createVideoJob: (options) => Promise<VideoJobResult>;
 ```
 
-Defined in: [activities/generateVideo/adapter.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L55)
+Defined in: [activities/generateVideo/adapter.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L61)
 
 **`Experimental`**
 
@@ -69,7 +91,7 @@ Returns a job ID that can be used to poll for status and retrieve the video.
 
 ##### options
 
-[`VideoGenerationOptions`](VideoGenerationOptions.md)\<`TProviderOptions`\>
+[`VideoGenerationOptions`](VideoGenerationOptions.md)\<`TProviderOptions`, `TModelSizeByName`\[`TModel`\]\>
 
 #### Returns
 
@@ -83,7 +105,7 @@ Returns a job ID that can be used to poll for status and retrieve the video.
 getVideoStatus: (jobId) => Promise<VideoStatusResult>;
 ```
 
-Defined in: [activities/generateVideo/adapter.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L62)
+Defined in: [activities/generateVideo/adapter.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L68)
 
 **`Experimental`**
 
@@ -107,7 +129,7 @@ Get the current status of a video generation job.
 getVideoUrl: (jobId) => Promise<VideoUrlResult>;
 ```
 
-Defined in: [activities/generateVideo/adapter.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L68)
+Defined in: [activities/generateVideo/adapter.ts:74](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L74)
 
 **`Experimental`**
 
@@ -132,7 +154,7 @@ Should only be called after status is 'completed'.
 readonly kind: "video";
 ```
 
-Defined in: [activities/generateVideo/adapter.ts:38](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L38)
+Defined in: [activities/generateVideo/adapter.ts:42](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L42)
 
 **`Experimental`**
 
@@ -146,7 +168,7 @@ Discriminator for adapter kind - used to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [activities/generateVideo/adapter.ts:42](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L42)
+Defined in: [activities/generateVideo/adapter.ts:46](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L46)
 
 **`Experimental`**
 
@@ -160,7 +182,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [activities/generateVideo/adapter.ts:40](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L40)
+Defined in: [activities/generateVideo/adapter.ts:44](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L44)
 
 **`Experimental`**
 

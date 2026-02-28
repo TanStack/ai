@@ -73,8 +73,11 @@ export {
 // All types
 export * from './types'
 
-// Event client
-export { aiEventClient } from './event-client'
+// Utility functions
+export { detectImageMimeType } from './utils'
+
+// Event client + event types
+export * from './event-client'
 
 // Message converters
 export {
@@ -106,9 +109,12 @@ export type {
   ProcessorResult,
   ProcessorState,
   StreamProcessorEvents,
-  StreamProcessorHandlers,
   StreamProcessorOptions,
   ToolCallState,
   ToolResultState,
   JSONParser,
 } from './activities/chat/stream/index'
+
+// Adapter extension utilities
+export { createModel, extendAdapter } from './extend-adapter'
+export type { ExtendedModelDef } from './extend-adapter'

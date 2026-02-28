@@ -18,6 +18,22 @@ the `{ withEventTarget: true }` option.
 This will not only emit to the event bus (which is not present in production), but to the current eventTarget that
 you will be able to listen to. 
 
+## Event naming scheme
+
+Events follow the format `<system-part>:<what-it-does>`.
+
+- Text: `text:request:started`, `text:message:created`, `text:chunk:content`, `text:usage`
+- Tools: `tools:approval:requested`, `tools:call:completed`, `tools:result:added`
+- Summarize: `summarize:request:started`, `summarize:usage`
+- Image: `image:request:started`, `image:usage`
+- Speech: `speech:request:started`, `speech:usage`
+- Transcription: `transcription:request:started`, `transcription:usage`
+- Video: `video:request:started`, `video:usage`
+- Client: `client:created`, `client:loading:changed`, `client:messages:cleared`
+
+Every event includes all metadata available at the time of emission (model, provider,
+system prompts, request and message IDs, options, and tool names).
+
 ## Server events
 
 There are both events that happen on the server and on the client, if you want to listen to either side you just need to
@@ -28,7 +44,7 @@ Here is an example for the server:
 import { aiEventClient } from "@tanstack/ai/event-client";
 
 // server.ts file or wherever the root of your server is
-aiEventClient.on("chat:started", e => {
+aiEventClient.on("text:request:started", e => {
   // implement whatever you need to here
 })
 // rest of your server logic
@@ -46,7 +62,7 @@ import { aiEventClient } from "@tanstack/ai/event-client";
 
 const App = () => {
   useEffect(() => {
-    const cleanup = aiEventClient.on("client:tool-call-updated", e => {
+    const cleanup = aiEventClient.on("tools:call:updated", e => {
       // do whatever you need to do
     })
     return cleanup;
@@ -54,5 +70,18 @@ const App = () => {
   return <div></div>
 }
 ```
+
+## Reconstructing chat
+
+To rebuild a chat timeline from events, listen for:
+
+- `text:message:created` (full message content)
+- `text:message:user` (explicit user message events)
+- `text:chunk:*` (streaming content, tool calls, tool results, thinking)
+- `tools:*` (approvals, input availability, call completion)
+- `text:request:completed` (final completion + usage)
+
+This set is sufficient to replay the conversation end-to-end for observability and
+telemetry systems.
 
  

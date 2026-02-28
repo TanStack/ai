@@ -13,7 +13,7 @@ This allows tools to be defined without schema libraries when you have JSON Sche
 ## Indexable
 
 ```ts
-[key: string]: unknown
+[key: string]: any
 ```
 
 ## Properties

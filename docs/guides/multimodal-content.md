@@ -23,15 +23,16 @@ import type { ContentPart, ImagePart, TextPart } from '@tanstack/ai'
 // Text content
 const textPart: TextPart = {
   type: 'text',
-  text: 'What do you see in this image?'
+  content: 'What do you see in this image?'
 }
 
-// Image from base64 data
+// Image from base64 data (mimeType is required for data sources)
 const imagePart: ImagePart = {
   type: 'image',
   source: {
     type: 'data',
-    value: 'base64EncodedImageData...'
+    value: 'base64EncodedImageData...',
+    mimeType: 'image/jpeg' // Required for data sources
   },
   metadata: {
     // Provider-specific metadata
@@ -39,12 +40,13 @@ const imagePart: ImagePart = {
   }
 }
 
-// Image from URL
+// Image from URL (mimeType is optional for URL sources)
 const imageUrlPart: ImagePart = {
   type: 'image',
   source: {
     type: 'url',
-    value: 'https://example.com/image.jpg'
+    value: 'https://example.com/image.jpg',
+    mimeType: 'image/jpeg' // Optional hint for URL sources
   }
 }
 ```
@@ -58,12 +60,12 @@ import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const response = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.2'),
   messages: [
     {
       role: 'user',
       content: [
-        { type: 'text', text: 'What is in this image?' },
+        { type: 'text', content: 'What is in this image?' },
         {
           type: 'image',
           source: {
@@ -92,10 +94,10 @@ const adapter = openaiText()
 const message = {
   role: 'user' ,
   content: [
-    { type: 'text' , text: 'Describe this image' },
+    { type: 'text' , content: 'Describe this image' },
     {
       type: 'image' ,
-      source: { type: 'data' , value: imageBase64 },
+      source: { type: 'data' , value: imageBase64, mimeType: 'image/jpeg' },
       metadata: { detail: 'high' } // 'auto' | 'low' | 'high'
     }
   ]
@@ -103,8 +105,8 @@ const message = {
 ```
 
 **Supported modalities by model:**
-- `gpt-4o`, `gpt-4o-mini`: text, image
-- `gpt-4o-audio-preview`: text, image, audio
+- `gpt-5.2`, `gpt-5-mini`: text, image
+- `gpt-5.2-audio-preview`: text, image, audio
 
 ### Anthropic
 
@@ -115,15 +117,14 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 
 const adapter = anthropicText()
 
-// Image with media type
+// Image with mimeType in source
 const imageMessage = {
   role: 'user' ,
   content: [
-    { type: 'text' , text: 'What do you see?' },
+    { type: 'text' , content: 'What do you see?' },
     {
       type: 'image' ,
-      source: { type: 'data' , value: imageBase64 },
-      metadata: { media_type: 'image/jpeg' }
+      source: { type: 'data' , value: imageBase64, mimeType: 'image/jpeg' }
     }
   ]
 }
@@ -132,10 +133,10 @@ const imageMessage = {
 const docMessage = {
   role: 'user',
   content: [
-    { type: 'text', text: 'Summarize this document' },
+    { type: 'text', content: 'Summarize this document' },
     {
       type: 'document',
-      source: { type: 'data', value: pdfBase64 }
+      source: { type: 'data', value: pdfBase64, mimeType: 'application/pdf' }
     }
   ]
 }
@@ -154,15 +155,14 @@ import { geminiText } from '@tanstack/ai-gemini'
 
 const adapter = geminiText()
 
-// Image with mimeType
+// Image with mimeType in source
 const message = {
   role: 'user',
   content: [
-    { type: 'text', text: 'Analyze this image' },
+    { type: 'text', content: 'Analyze this image' },
     {
       type: 'image',
-      source: { type: 'data', value: imageBase64 },
-      metadata: { mimeType: 'image/png' }
+      source: { type: 'data', value: imageBase64, mimeType: 'image/png' }
     }
   ]
 }
@@ -185,10 +185,10 @@ const adapter = ollamaText('http://localhost:11434')
 const message = {
   role: 'user',
   content: [
-    { type: 'text', text: 'What is in this image?' },
+    { type: 'text', content: 'What is in this image?' },
     {
       type: 'image',
-      source: { type: 'data', value: imageBase64 }
+      source: { type: 'data', value: imageBase64, mimeType: 'image/jpeg' }
     }
   ]
 }
@@ -202,28 +202,39 @@ Content can be provided as either inline data or a URL:
 
 ### Data (Base64)
 
-Use `type: 'data'` for inline base64-encoded content:
+Use `type: 'data'` for inline base64-encoded content. **The `mimeType` field is required** to ensure providers receive proper content type information:
 
 ```typescript
 const imagePart = {
   type: 'image',
   source: {
     type: 'data',
-    value: 'iVBORw0KGgoAAAANSUhEUgAAAAUA...' // Base64 string
+    value: 'iVBORw0KGgoAAAANSUhEUgAAAAUA...', // Base64 string
+    mimeType: 'image/png' // Required for data sources
+  }
+}
+
+const audioPart = {
+  type: 'audio',
+  source: {
+    type: 'data',
+    value: 'base64AudioData...',
+    mimeType: 'audio/mp3' // Required for data sources
   }
 }
 ```
 
 ### URL
 
-Use `type: 'url'` for content hosted at a URL:
+Use `type: 'url'` for content hosted at a URL. The `mimeType` field is **optional** as providers can often infer it from the URL or response headers:
 
 ```typescript
 const imagePart = {
   type: 'image' ,
   source: {
     type: 'url' ,
-    value: 'https://example.com/image.jpg'
+    value: 'https://example.com/image.jpg',
+    mimeType: 'image/jpeg' // Optional hint
   }
 }
 ```
@@ -245,7 +256,7 @@ const message = {
 const multimodalMessage = {
   role: 'user',
   content: [
-    { type: 'text', text: 'Hello, world!' },
+    { type: 'text', content: 'Hello, world!' },
     { type: 'image', source: { type: 'url', value: '...' } }
   ]
 }
@@ -282,9 +293,9 @@ import { openaiText } from '@tanstack/ai-openai'
 // In an API route handler
 const { messages: incomingMessages } = await request.json()
 
-const adapter = openaiText('gpt-4o')
+const adapter = openaiText('gpt-5.2')
 
-// Assert incoming messages are compatible with gpt-4o (text + image only)
+// Assert incoming messages are compatible with gpt-5.2 (text + image only)
 const typedMessages = assertMessages({ adapter }, incomingMessages)
 
 // Now TypeScript will properly check any additional messages you add
@@ -296,7 +307,7 @@ const stream = chat({
     {
       role: 'user',
       content: [
-        { type: 'text', text: 'What do you see?' },
+        { type: 'text', content: 'What do you see?' },
         { type: 'image', source: { type: 'url', value: '...' } }
       ]
     }
@@ -315,3 +326,163 @@ const stream = chat({
 3. **Check model support**: Not all models support all modalities. Verify the model you're using supports the content types you want to send.
 
 4. **Handle errors gracefully**: When a model doesn't support a particular modality, it may throw an error. Handle these cases in your application.
+
+## Client-Side Multimodal Messages
+
+When using the `ChatClient` from `@tanstack/ai-client`, you can send multimodal messages directly from your UI using the `sendMessage` method.
+
+### Basic Usage
+
+The `sendMessage` method accepts either a simple string or a `MultimodalContent` object:
+
+```typescript
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents('/api/chat'),
+})
+
+// Simple text message
+await client.sendMessage('Hello!')
+
+// Multimodal message with image
+await client.sendMessage({
+  content: [
+    { type: 'text', content: 'What is in this image?' },
+    {
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/photo.jpg' }
+    }
+  ]
+})
+```
+
+### Custom Message ID
+
+You can provide a custom ID for the message:
+
+```typescript
+await client.sendMessage({
+  content: 'Hello!',
+  id: 'custom-message-id-123'
+})
+```
+
+### Per-Message Body Parameters
+
+The second parameter allows you to pass additional body parameters for that specific request. These are shallow-merged with the client's base body configuration, with per-message parameters taking priority:
+
+```typescript
+const client = new ChatClient({
+  connection: fetchServerSentEvents('/api/chat'),
+  body: { model: 'gpt-5' }, // Base body params
+})
+
+// Override model for this specific message
+await client.sendMessage('Analyze this complex problem', {
+  model: 'gpt-5',
+  temperature: 0.2,
+})
+
+ 
+```
+
+### React Example
+
+Here's how to use multimodal messages in a React component:
+
+```tsx
+import { useChat } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
+import { useState } from 'react'
+
+function ChatWithImages() {
+  const [imageUrl, setImageUrl] = useState('')
+  const { sendMessage, messages } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  const handleSendWithImage = () => {
+    if (imageUrl) {
+      sendMessage({
+        content: [
+          { type: 'text', content: 'What do you see in this image?' },
+          { type: 'image', source: { type: 'url', value: imageUrl } }
+        ]
+      })
+    }
+  }
+
+  return (
+    <div>
+      <input
+        type="url"
+        placeholder="Image URL"
+        value={imageUrl}
+        onChange={(e) => setImageUrl(e.target.value)}
+      />
+      <button onClick={handleSendWithImage}>Send with Image</button>
+    </div>
+  )
+}
+```
+
+### File Upload Example
+
+Here's how to handle file uploads and send them as multimodal content:
+
+```tsx
+import { useChat } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
+
+function ChatWithFileUpload() {
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  const handleFileUpload = async (file: File) => {
+    // Convert file to base64
+    const base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        // Remove data URL prefix (e.g., "data:image/png;base64,")
+        resolve(result.split(',')[1])
+      }
+      reader.readAsDataURL(file)
+    })
+
+    // Determine content type based on file type
+    const type = file.type.startsWith('image/')
+      ? 'image'
+      : file.type.startsWith('audio/')
+        ? 'audio'
+        : file.type.startsWith('video/')
+          ? 'video'
+          : 'document'
+
+    await sendMessage({
+      content: [
+        { type: 'text', content: `Please analyze this ${type}` },
+        {
+          type,
+          source: { type: 'data', value: base64 },
+          metadata: { mimeType: file.type }
+        }
+      ]
+    })
+  }
+
+  return (
+    <input
+      type="file"
+      accept="image/*,audio/*,video/*,.pdf"
+      onChange={(e) => {
+        const file = e.target.files?.[0]
+        if (file) handleFileUpload(file)
+      }}
+    />
+  )
+}
+```
+

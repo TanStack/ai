@@ -180,8 +180,9 @@ async function runSummarize(
   const inputLength = text.length
   const startTime = Date.now()
 
-  aiEventClient.emit('summarize:started', {
+  aiEventClient.emit('summarize:request:started', {
     requestId,
+    provider: adapter.name,
     model,
     inputLength,
     timestamp: startTime,
@@ -200,8 +201,9 @@ async function runSummarize(
   const duration = Date.now() - startTime
   const outputLength = result.summary.length
 
-  aiEventClient.emit('summarize:completed', {
+  aiEventClient.emit('summarize:request:completed', {
     requestId,
+    provider: adapter.name,
     model,
     inputLength,
     outputLength,
@@ -240,21 +242,20 @@ async function* runStreamingSummarize(
   // Fall back to non-streaming and yield as a single chunk
   const result = await adapter.summarize(summarizeOptions)
 
-  // Yield content chunk with the summary
+  // Yield TEXT_MESSAGE_CONTENT event with the summary
   yield {
-    type: 'content',
-    id: result.id,
+    type: 'TEXT_MESSAGE_CONTENT',
+    messageId: result.id,
     model: result.model,
     timestamp: Date.now(),
     delta: result.summary,
     content: result.summary,
-    role: 'assistant',
   }
 
-  // Yield done chunk
+  // Yield RUN_FINISHED event
   yield {
-    type: 'done',
-    id: result.id,
+    type: 'RUN_FINISHED',
+    runId: result.id,
     model: result.model,
     timestamp: Date.now(),
     finishReason: 'stop',
