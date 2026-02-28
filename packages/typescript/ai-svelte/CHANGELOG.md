@@ -1,5 +1,13 @@
 # @tanstack/ai-svelte
 
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [[`d8678e2`](https://github.com/TanStack/ai/commit/d8678e254a8edfa4f95eeb059aa30083c18f52f8)]:
+  - @tanstack/ai@0.6.1
+  - @tanstack/ai-client@0.5.1
+
 ## 0.6.0
 
 ### Patch Changes
