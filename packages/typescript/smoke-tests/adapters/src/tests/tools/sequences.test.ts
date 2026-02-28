@@ -189,7 +189,7 @@ describe('Tool Sequence Tests', () => {
         (c: any) => c.type === 'CUSTOM' && c.name === 'tool-input-available',
       )
       expect(inputChunks.length).toBe(1)
-      expect((inputChunks[0] as any).data.toolName).toBe('client_confirm')
+      expect((inputChunks[0] as any).value.toolName).toBe('client_confirm')
     })
   })
 
