@@ -906,10 +906,13 @@ describe('ChatClient', () => {
   describe('custom events', () => {
     it('should call onCustomEvent callback for arbitrary custom events', async () => {
       const chunks = createCustomEventChunks([
-        { name: 'progress-update', data: { progress: 50, step: 'processing' } },
+        {
+          name: 'progress-update',
+          value: { progress: 50, step: 'processing' },
+        },
         {
           name: 'tool-status',
-          data: { toolCallId: 'tc-1', status: 'running' },
+          value: { toolCallId: 'tc-1', status: 'running' },
         },
       ])
       const adapter = createMockConnectionAdapter({ chunks })
@@ -938,7 +941,7 @@ describe('ChatClient', () => {
       const chunks = createCustomEventChunks([
         {
           name: 'external-api-call',
-          data: {
+          value: {
             toolCallId: 'tc-123',
             url: 'https://api.example.com',
             method: 'POST',
@@ -996,7 +999,7 @@ describe('ChatClient', () => {
 
     it('should work when onCustomEvent is not provided', async () => {
       const chunks = createCustomEventChunks([
-        { name: 'some-event', data: { info: 'test' } },
+        { name: 'some-event', value: { info: 'test' } },
       ])
       const adapter = createMockConnectionAdapter({ chunks })
 
@@ -1008,7 +1011,7 @@ describe('ChatClient', () => {
 
     it('should allow updating onCustomEvent via updateOptions', async () => {
       const chunks = createCustomEventChunks([
-        { name: 'test-event', data: { value: 42 } },
+        { name: 'test-event', value: { value: 42 } },
       ])
       const adapter = createMockConnectionAdapter({ chunks })
 
@@ -1028,9 +1031,9 @@ describe('ChatClient', () => {
 
     it('should handle multiple different custom events in sequence', async () => {
       const chunks = createCustomEventChunks([
-        { name: 'step-1', data: { stage: 'init' } },
-        { name: 'step-2', data: { stage: 'process', toolCallId: 'tc-1' } },
-        { name: 'step-3', data: { stage: 'complete' } },
+        { name: 'step-1', value: { stage: 'init' } },
+        { name: 'step-2', value: { stage: 'process', toolCallId: 'tc-1' } },
+        { name: 'step-3', value: { stage: 'complete' } },
       ])
       const adapter = createMockConnectionAdapter({ chunks })
 
@@ -1070,7 +1073,7 @@ describe('ChatClient', () => {
       }
 
       const chunks = createCustomEventChunks([
-        { name: 'complex-data-event', data: complexEventData },
+        { name: 'complex-data-event', value: complexEventData },
       ])
       const adapter = createMockConnectionAdapter({ chunks })
 

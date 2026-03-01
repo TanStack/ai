@@ -67,7 +67,7 @@ const ev = {
     chunk('RUN_ERROR', { runId, error: { message } }),
   stepFinished: (delta: string, stepId = 'step-1') =>
     chunk('STEP_FINISHED', { stepId, delta }),
-  custom: (name: string, data?: unknown) => chunk('CUSTOM', { name, data }),
+  custom: (name: string, value?: unknown) => chunk('CUSTOM', { name, value }),
 }
 
 /** Events object with vi.fn() mocks for assertions. */

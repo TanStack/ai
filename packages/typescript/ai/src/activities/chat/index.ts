@@ -617,6 +617,15 @@ class TextEngine<
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
+      if (executionResult.results.length > 0) {
+        for (const chunk of this.emitToolResults(
+          executionResult.results,
+          finishEvent,
+        )) {
+          yield chunk
+        }
+      }
+
       for (const chunk of this.emitApprovalRequests(
         executionResult.needsApproval,
         finishEvent,
@@ -680,6 +689,15 @@ class TextEngine<
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
+      if (executionResult.results.length > 0) {
+        for (const chunk of this.emitToolResults(
+          executionResult.results,
+          finishEvent,
+        )) {
+          yield chunk
+        }
+      }
+
       for (const chunk of this.emitApprovalRequests(
         executionResult.needsApproval,
         finishEvent,
@@ -842,7 +860,7 @@ class TextEngine<
         timestamp: Date.now(),
         model: finishEvent.model,
         name: 'approval-requested',
-        data: {
+        value: {
           toolCallId: approval.toolCallId,
           toolName: approval.toolName,
           input: approval.input,
@@ -879,7 +897,7 @@ class TextEngine<
         timestamp: Date.now(),
         model: finishEvent.model,
         name: 'tool-input-available',
-        data: {
+        value: {
           toolCallId: clientTool.toolCallId,
           toolName: clientTool.toolName,
           input: clientTool.input,
@@ -1094,14 +1112,14 @@ class TextEngine<
 
   private createCustomEventChunk(
     eventName: string,
-    data: Record<string, any>,
+    value: Record<string, any>,
   ): CustomEvent {
     return {
       type: 'CUSTOM',
       timestamp: Date.now(),
       model: this.params.model,
       name: eventName,
-      data,
+      value,
     }
   }
 

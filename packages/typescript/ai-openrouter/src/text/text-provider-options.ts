@@ -103,11 +103,13 @@ export interface StreamOptions {
   include_usage?: boolean
 }
 
-export interface ImageConfig {
+export type ImageConfig = {
   /**
    * The aspect ratio for generated images.
    */
   aspect_ratio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | string
+
+  image_size?: '1k' | '2k' | '4k'
 }
 
 export interface PredictionOptions {
@@ -190,12 +192,12 @@ export type OpenRouterCommonOptions = {
   /**
    * Options for streaming responses.
    */
-  stream_options?: StreamOptions
+  streamOptions?: StreamOptions
   /**
    * Whether to allow the model to call multiple tools in parallel.
    * @default true
    */
-  parallel_tool_calls?: boolean
+  parallelToolCalls?: boolean
 
   /**
    * The modalities to enable for the response.
@@ -215,46 +217,46 @@ export interface OpenRouterBaseOptions {
   /**
    * Legacy parameter to include reasoning steps in the response.
    */
-  include_reasoning?: boolean
+  includeReasoning?: boolean
 
   /**
    * The maximum number of tokens to generate in the completion.
    */
-  max_completion_tokens?: number
+  maxCompletionTokens?: number
   /**
    * What sampling temperature to use, between 0 and 2. Higher values make output more random.
    * @default 1
    */
   temperature?: number
   /**
-   * Nucleus sampling: only consider tokens with top_p cumulative probability.
+   * Nucleus sampling: only consider tokens with topP cumulative probability.
    * @default 1
    */
-  top_p?: number
+  topP?: number
   /**
    * Only sample from the top K options for each subsequent token.
    */
-  top_k?: number
+  topK?: number
   /**
    * Penalizes new tokens based on their existing frequency in the text so far.
    * Range: -2.0 to 2.0
    */
-  frequency_penalty?: number
+  frequencyPenalty?: number
   /**
    * Penalizes new tokens based on whether they appear in the text so far.
    * Range: -2.0 to 2.0
    */
-  presence_penalty?: number
+  presencePenalty?: number
   /**
    * Penalizes tokens that have already appeared in the generated text.
    * Range: 0.0 to 2.0 (1.0 = no penalty)
    */
-  repetition_penalty?: number
+  repetitionPenalty?: number
   /**
    * Modify the likelihood of specified tokens appearing in the completion.
    * Maps token IDs to bias values from -100 to 100.
    */
-  logit_bias?: { [key: number]: number }
+  logitBias?: { [key: number]: number }
   /**
    * Whether to return log probabilities of the output tokens.
    */
@@ -262,15 +264,15 @@ export interface OpenRouterBaseOptions {
   /**
    * Number of most likely tokens to return at each position (0-20). Requires logprobs: true.
    */
-  top_logprobs?: number
+  topLogprobs?: number
   /**
    * Minimum probability threshold for token sampling.
    */
-  min_p?: number
+  minP?: number
   /**
-   * Consider only top tokens with "top_a" cumulative probability.
+   * Consider only top tokens with "topA" cumulative probability.
    */
-  top_a?: number
+  topA?: number
   /**
    * Random seed for deterministic sampling. Same seed should produce same results.
    */
@@ -278,7 +280,7 @@ export interface OpenRouterBaseOptions {
   /**
    * Force the model to respond in a specific format.
    */
-  response_format?: { type: 'json_object' }
+  responseFormat?: { type: 'json_object' }
 
   /**
    * Reasoning configuration for models that support chain-of-thought reasoning.
@@ -286,17 +288,13 @@ export interface OpenRouterBaseOptions {
   reasoning?: ReasoningOptions
 
   /**
-   * Configuration for image generation in the response.
-   */
-  image_config?: ImageConfig
-  /**
    * Controls which (if any) tool the model should use.
    * 'none' - Don't call any tools
    * 'auto' - Model decides whether to call tools
    * 'required' - Model must call at least one tool
    * Or specify a specific function to call
    */
-  tool_choice?:
+  toolChoice?:
     | 'none'
     | 'auto'
     | 'required'
@@ -312,7 +310,7 @@ export interface OpenRouterBaseOptions {
    * This is separate from the plugins array and provides additional control over search context.
    * https://openrouter.ai/docs/guides/features/plugins/web-search
    */
-  web_search_options?: WebSearchOptions
+  webSearchOptions?: WebSearchOptions
 }
 
 export type ExternalTextProviderOptions = OpenRouterBaseOptions
@@ -368,7 +366,7 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
   /**
    * Controls which (if any) tool the model should use.
    */
-  tool_choice?:
+  toolChoice?:
     | 'none'
     | 'auto'
     | 'required'

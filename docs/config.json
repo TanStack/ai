@@ -155,6 +155,10 @@
         {
           "label": "Grok (xAI)",
           "to": "adapters/grok"
+        },
+        {
+          "label": "Fal",
+          "to": "adapters/fal"
         }
       ]
     },

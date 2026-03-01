@@ -146,7 +146,7 @@ export function createTextChunks(
  * Helper to create custom event chunks
  */
 export function createCustomEventChunks(
-  events: Array<{ name: string; data?: unknown }>,
+  events: Array<{ name: string; value?: unknown }>,
   model: string = 'test',
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
@@ -157,7 +157,7 @@ export function createCustomEventChunks(
       model,
       timestamp: Date.now(),
       name: event.name,
-      data: event.data,
+      value: event.value,
     })
   }
 
@@ -221,7 +221,7 @@ export function createToolCallChunks(
         model,
         timestamp: Date.now(),
         name: 'tool-input-available',
-        data: {
+        value: {
           toolCallId: toolCall.id,
           toolName: toolCall.name,
           input: parsedInput,

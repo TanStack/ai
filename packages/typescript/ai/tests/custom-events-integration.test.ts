@@ -94,7 +94,7 @@ describe('Custom Events Integration', () => {
           processor.processChunk({
             type: 'CUSTOM',
             name: eventName,
-            data: { ...data, toolCallId: 'tc-1' },
+            value: { ...data, toolCallId: 'tc-1' },
             timestamp: Date.now(),
           })
         },
@@ -160,7 +160,7 @@ describe('Custom Events Integration', () => {
     processor.processChunk({
       type: 'CUSTOM',
       name: 'system:status',
-      data: { status: 'ready', version: '1.0.0' },
+      value: { status: 'ready', version: '1.0.0' },
       timestamp: Date.now(),
     })
 
@@ -197,7 +197,7 @@ describe('Custom Events Integration', () => {
     processor.processChunk({
       type: 'CUSTOM',
       name: 'tool-input-available',
-      data: {
+      value: {
         toolCallId: 'tc-1',
         toolName: 'testTool',
         input: { test: true },
@@ -209,7 +209,7 @@ describe('Custom Events Integration', () => {
     processor.processChunk({
       type: 'CUSTOM',
       name: 'approval-requested',
-      data: {
+      value: {
         toolCallId: 'tc-2',
         toolName: 'dangerousTool',
         input: { action: 'delete' },
@@ -222,7 +222,7 @@ describe('Custom Events Integration', () => {
     processor.processChunk({
       type: 'CUSTOM',
       name: 'user:custom-event',
-      data: { message: 'This should be forwarded' },
+      value: { message: 'This should be forwarded' },
       timestamp: Date.now(),
     })
 

@@ -356,7 +356,7 @@ export interface ToolExecutionContext {
    * Events are streamed to the client in real-time as AG-UI CUSTOM events.
    *
    * @param eventName - Name of the custom event
-   * @param data - Event payload data
+   * @param value - Event payload value
    *
    * @example
    * ```ts
@@ -369,7 +369,7 @@ export interface ToolExecutionContext {
    * })
    * ```
    */
-  emitCustomEvent: (eventName: string, data: Record<string, any>) => void
+  emitCustomEvent: (eventName: string, value: Record<string, any>) => void
 }
 
 /**
@@ -922,8 +922,8 @@ export interface CustomEvent extends BaseAGUIEvent {
   type: 'CUSTOM'
   /** Custom event name */
   name: string
-  /** Custom event data */
-  data?: unknown
+  /** Custom event value */
+  value?: unknown
 }
 
 /**

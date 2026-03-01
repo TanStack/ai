@@ -56,8 +56,8 @@ describe('Client Tool Tests', () => {
       expect(inputAvailableChunks.length).toBe(1)
 
       const inputChunk = inputAvailableChunks[0] as any
-      expect(inputChunk.data.toolName).toBe('show_notification')
-      expect(inputChunk.data.input).toEqual({
+      expect(inputChunk.value.toolName).toBe('show_notification')
+      expect(inputChunk.value.input).toEqual({
         message: 'Hello World',
         type: 'info',
       })
@@ -276,7 +276,7 @@ describe('Client Tool Tests', () => {
 
       // At least one should be for tool_b
       const toolBInputs = inputChunks.filter(
-        (c: any) => c.data?.toolName === 'client_tool_b',
+        (c: any) => c.value?.toolName === 'client_tool_b',
       )
       expect(toolBInputs.length).toBe(1)
     })
