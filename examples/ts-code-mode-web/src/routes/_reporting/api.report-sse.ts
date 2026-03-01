@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { getReportState, setSSEController, getSSEController } from '@/lib/reports/report-storage'
 
-export const Route = createFileRoute('/api/report-sse' as any)({
+export const Route = createFileRoute('/_reporting/api/report-sse' as any)({
   server: {
     handlers: {
       GET: async ({ request }) => {

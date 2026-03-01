@@ -94,7 +94,7 @@ blockquote { border-left: 4px solid #0ea5e9; margin: 1em 0; padding-left: 1em; c
   return lines.join('\n')
 }
 
-export const Route = createFileRoute('/api/generate-pdf')({
+export const Route = createFileRoute('/_npm-github-chat/api/generate-pdf')({
   server: {
     handlers: {
       POST: async ({ request }) => {

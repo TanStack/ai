@@ -17,7 +17,7 @@ const skillStorage = createFileSkillStorage({
   trustStrategy,
 })
 
-export const Route = createFileRoute('/api/skills')({
+export const Route = createFileRoute('/_home/api/skills')({
   server: {
     handlers: {
       // GET - List all skills with stats

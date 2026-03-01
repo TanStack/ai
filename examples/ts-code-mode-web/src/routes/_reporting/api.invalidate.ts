@@ -4,7 +4,7 @@ import { getReportState, getSSEController } from '@/lib/reports/report-storage'
 import { refreshComponent } from '@/lib/reports/refresh-component'
 import { evaluateWatchersForSignals } from '@/lib/reports/evaluate-watchers'
 
-export const Route = createFileRoute('/api/invalidate' as any)({
+export const Route = createFileRoute('/_reporting/api/invalidate' as any)({
   server: {
     handlers: {
       POST: async ({ request }) => {

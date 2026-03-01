@@ -42,7 +42,7 @@ async function getCodeModeTools() {
   return codeModeCache
 }
 
-export const Route = createFileRoute('/api/codemode')({
+export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
   server: {
     handlers: {
       POST: async ({ request }) => {

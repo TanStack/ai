@@ -42,7 +42,7 @@ import {
   type TriviaSet,
 } from '@/lib/structured-output-types'
 
-export const Route = createFileRoute('/structured-output')({
+export const Route = createFileRoute('/_structured-output/structured-output')({
   component: StructuredOutputPage,
 })
 

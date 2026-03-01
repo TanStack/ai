@@ -5,7 +5,7 @@ import { createHandlerBindings, getInvalidatedSignals } from '@/lib/reports/crea
 import { refreshComponent } from '@/lib/reports/refresh-component'
 import { evaluateWatchersForSignals } from '@/lib/reports/evaluate-watchers'
 
-export const Route = createFileRoute('/api/report-event' as any)({
+export const Route = createFileRoute('/_reporting/api/report-event' as any)({
   server: {
     handlers: {
       POST: async ({ request }) => {

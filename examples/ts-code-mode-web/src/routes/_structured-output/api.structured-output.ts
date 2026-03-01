@@ -47,7 +47,7 @@ async function getCodeModeTools() {
   return codeModeCache
 }
 
-export const Route = createFileRoute('/api/structured-output')({
+export const Route = createFileRoute('/_structured-output/api/structured-output')({
   server: {
     handlers: {
       POST: async ({ request }) => {

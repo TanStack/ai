@@ -10,7 +10,7 @@ import { getMockBalances } from '@/lib/reports/create-handler-bindings'
 
 const DASHBOARD_ID = 'dashboard'
 
-export const Route = createFileRoute('/api/banking-init' as any)({
+export const Route = createFileRoute('/_banking-demo/api/banking-init' as any)({
   server: {
     handlers: {
       POST: async () => {

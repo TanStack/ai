@@ -225,7 +225,7 @@ function wrapWithTimingEvents(
 
 // --- Route ---
 
-export const Route = createFileRoute('/api/product-codemode')({
+export const Route = createFileRoute('/_home/api/product-codemode')({
   server: {
     handlers: {
       POST: async ({ request }) => {

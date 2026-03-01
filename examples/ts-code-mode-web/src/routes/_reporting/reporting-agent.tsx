@@ -27,7 +27,7 @@ import {
 } from '@/components/reports'
 import type { Report, UIEvent } from '@/lib/reports/types'
 
-export const Route = createFileRoute('/reporting-agent')({
+export const Route = createFileRoute('/_reporting/reporting-agent')({
   component: ReportingAgentPage,
 })
 

@@ -22,7 +22,7 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
   }
 }
 
-export const Route = createFileRoute('/api/product-regular')({
+export const Route = createFileRoute('/_home/api/product-regular')({
   server: {
     handlers: {
       POST: async ({ request }) => {

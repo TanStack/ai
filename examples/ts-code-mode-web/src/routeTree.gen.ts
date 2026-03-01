@@ -9,185 +9,213 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as StructuredOutputRouteImport } from './routes/structured-output'
-import { Route as ReportingAgentRouteImport } from './routes/reporting-agent'
-import { Route as NpmGithubChatRouteImport } from './routes/npm-github-chat'
-import { Route as BankingDemoRouteImport } from './routes/banking-demo'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as ReportsIndexRouteImport } from './routes/reports/index'
-import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
-import { Route as ApiSkillsRouteImport } from './routes/api.skills'
-import { Route as ApiReportsRouteImport } from './routes/api.reports'
-import { Route as ApiReportSseRouteImport } from './routes/api.report-sse'
-import { Route as ApiReportEventRouteImport } from './routes/api.report-event'
-import { Route as ApiReportDemoRouteImport } from './routes/api.report-demo'
-import { Route as ApiProductRegularRouteImport } from './routes/api.product-regular'
-import { Route as ApiProductCodemodeRouteImport } from './routes/api.product-codemode'
-import { Route as ApiInvalidateRouteImport } from './routes/api.invalidate'
-import { Route as ApiGeneratePdfRouteImport } from './routes/api.generate-pdf'
-import { Route as ApiCodemodeRouteImport } from './routes/api.codemode'
-import { Route as ApiBankingInitRouteImport } from './routes/api.banking-init'
-import { Route as ApiBankingDemoRouteImport } from './routes/api.banking-demo'
+import { Route as StructuredOutputRouteRouteImport } from './routes/_structured-output/route'
+import { Route as ReportingRouteRouteImport } from './routes/_reporting/route'
+import { Route as NpmGithubChatRouteRouteImport } from './routes/_npm-github-chat/route'
+import { Route as HomeRouteRouteImport } from './routes/_home/route'
+import { Route as BankingDemoRouteRouteImport } from './routes/_banking-demo/route'
+import { Route as HomeIndexRouteImport } from './routes/_home/index'
+import { Route as StructuredOutputStructuredOutputRouteImport } from './routes/_structured-output/structured-output'
+import { Route as ReportingReportingAgentRouteImport } from './routes/_reporting/reporting-agent'
+import { Route as NpmGithubChatNpmGithubChatRouteImport } from './routes/_npm-github-chat/npm-github-chat'
+import { Route as BankingDemoBankingDemoRouteImport } from './routes/_banking-demo/banking-demo'
+import { Route as StructuredOutputApiStructuredOutputRouteImport } from './routes/_structured-output/api.structured-output'
+import { Route as ReportingApiReportsRouteImport } from './routes/_reporting/api.reports'
+import { Route as ReportingApiReportSseRouteImport } from './routes/_reporting/api.report-sse'
+import { Route as ReportingApiReportEventRouteImport } from './routes/_reporting/api.report-event'
+import { Route as ReportingApiReportDemoRouteImport } from './routes/_reporting/api.report-demo'
+import { Route as ReportingApiInvalidateRouteImport } from './routes/_reporting/api.invalidate'
+import { Route as NpmGithubChatApiGeneratePdfRouteImport } from './routes/_npm-github-chat/api.generate-pdf'
+import { Route as NpmGithubChatApiCodemodeRouteImport } from './routes/_npm-github-chat/api.codemode'
+import { Route as HomeApiSkillsRouteImport } from './routes/_home/api.skills'
+import { Route as HomeApiProductRegularRouteImport } from './routes/_home/api.product-regular'
+import { Route as HomeApiProductCodemodeRouteImport } from './routes/_home/api.product-codemode'
+import { Route as BankingDemoApiBankingInitRouteImport } from './routes/_banking-demo/api.banking-init'
+import { Route as BankingDemoApiBankingDemoRouteImport } from './routes/_banking-demo/api.banking-demo'
 
-const StructuredOutputRoute = StructuredOutputRouteImport.update({
-  id: '/structured-output',
-  path: '/structured-output',
+const StructuredOutputRouteRoute = StructuredOutputRouteRouteImport.update({
+  id: '/_structured-output',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReportingAgentRoute = ReportingAgentRouteImport.update({
-  id: '/reporting-agent',
-  path: '/reporting-agent',
+const ReportingRouteRoute = ReportingRouteRouteImport.update({
+  id: '/_reporting',
   getParentRoute: () => rootRouteImport,
 } as any)
-const NpmGithubChatRoute = NpmGithubChatRouteImport.update({
-  id: '/npm-github-chat',
-  path: '/npm-github-chat',
+const NpmGithubChatRouteRoute = NpmGithubChatRouteRouteImport.update({
+  id: '/_npm-github-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BankingDemoRoute = BankingDemoRouteImport.update({
-  id: '/banking-demo',
-  path: '/banking-demo',
+const HomeRouteRoute = HomeRouteRouteImport.update({
+  id: '/_home',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const BankingDemoRouteRoute = BankingDemoRouteRouteImport.update({
+  id: '/_banking-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeIndexRoute = HomeIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => HomeRouteRoute,
 } as any)
-const ReportsIndexRoute = ReportsIndexRouteImport.update({
-  id: '/reports/',
-  path: '/reports/',
-  getParentRoute: () => rootRouteImport,
+const StructuredOutputStructuredOutputRoute =
+  StructuredOutputStructuredOutputRouteImport.update({
+    id: '/structured-output',
+    path: '/structured-output',
+    getParentRoute: () => StructuredOutputRouteRoute,
+  } as any)
+const ReportingReportingAgentRoute = ReportingReportingAgentRouteImport.update({
+  id: '/reporting-agent',
+  path: '/reporting-agent',
+  getParentRoute: () => ReportingRouteRoute,
 } as any)
-const ApiStructuredOutputRoute = ApiStructuredOutputRouteImport.update({
-  id: '/api/structured-output',
-  path: '/api/structured-output',
-  getParentRoute: () => rootRouteImport,
+const NpmGithubChatNpmGithubChatRoute =
+  NpmGithubChatNpmGithubChatRouteImport.update({
+    id: '/npm-github-chat',
+    path: '/npm-github-chat',
+    getParentRoute: () => NpmGithubChatRouteRoute,
+  } as any)
+const BankingDemoBankingDemoRoute = BankingDemoBankingDemoRouteImport.update({
+  id: '/banking-demo',
+  path: '/banking-demo',
+  getParentRoute: () => BankingDemoRouteRoute,
 } as any)
-const ApiSkillsRoute = ApiSkillsRouteImport.update({
-  id: '/api/skills',
-  path: '/api/skills',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiReportsRoute = ApiReportsRouteImport.update({
+const StructuredOutputApiStructuredOutputRoute =
+  StructuredOutputApiStructuredOutputRouteImport.update({
+    id: '/api/structured-output',
+    path: '/api/structured-output',
+    getParentRoute: () => StructuredOutputRouteRoute,
+  } as any)
+const ReportingApiReportsRoute = ReportingApiReportsRouteImport.update({
   id: '/api/reports',
   path: '/api/reports',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ReportingRouteRoute,
 } as any)
-const ApiReportSseRoute = ApiReportSseRouteImport.update({
+const ReportingApiReportSseRoute = ReportingApiReportSseRouteImport.update({
   id: '/api/report-sse',
   path: '/api/report-sse',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ReportingRouteRoute,
 } as any)
-const ApiReportEventRoute = ApiReportEventRouteImport.update({
+const ReportingApiReportEventRoute = ReportingApiReportEventRouteImport.update({
   id: '/api/report-event',
   path: '/api/report-event',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ReportingRouteRoute,
 } as any)
-const ApiReportDemoRoute = ApiReportDemoRouteImport.update({
+const ReportingApiReportDemoRoute = ReportingApiReportDemoRouteImport.update({
   id: '/api/report-demo',
   path: '/api/report-demo',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ReportingRouteRoute,
 } as any)
-const ApiProductRegularRoute = ApiProductRegularRouteImport.update({
-  id: '/api/product-regular',
-  path: '/api/product-regular',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiProductCodemodeRoute = ApiProductCodemodeRouteImport.update({
-  id: '/api/product-codemode',
-  path: '/api/product-codemode',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiInvalidateRoute = ApiInvalidateRouteImport.update({
+const ReportingApiInvalidateRoute = ReportingApiInvalidateRouteImport.update({
   id: '/api/invalidate',
   path: '/api/invalidate',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ReportingRouteRoute,
 } as any)
-const ApiGeneratePdfRoute = ApiGeneratePdfRouteImport.update({
-  id: '/api/generate-pdf',
-  path: '/api/generate-pdf',
-  getParentRoute: () => rootRouteImport,
+const NpmGithubChatApiGeneratePdfRoute =
+  NpmGithubChatApiGeneratePdfRouteImport.update({
+    id: '/api/generate-pdf',
+    path: '/api/generate-pdf',
+    getParentRoute: () => NpmGithubChatRouteRoute,
+  } as any)
+const NpmGithubChatApiCodemodeRoute =
+  NpmGithubChatApiCodemodeRouteImport.update({
+    id: '/api/codemode',
+    path: '/api/codemode',
+    getParentRoute: () => NpmGithubChatRouteRoute,
+  } as any)
+const HomeApiSkillsRoute = HomeApiSkillsRouteImport.update({
+  id: '/api/skills',
+  path: '/api/skills',
+  getParentRoute: () => HomeRouteRoute,
 } as any)
-const ApiCodemodeRoute = ApiCodemodeRouteImport.update({
-  id: '/api/codemode',
-  path: '/api/codemode',
-  getParentRoute: () => rootRouteImport,
+const HomeApiProductRegularRoute = HomeApiProductRegularRouteImport.update({
+  id: '/api/product-regular',
+  path: '/api/product-regular',
+  getParentRoute: () => HomeRouteRoute,
 } as any)
-const ApiBankingInitRoute = ApiBankingInitRouteImport.update({
-  id: '/api/banking-init',
-  path: '/api/banking-init',
-  getParentRoute: () => rootRouteImport,
+const HomeApiProductCodemodeRoute = HomeApiProductCodemodeRouteImport.update({
+  id: '/api/product-codemode',
+  path: '/api/product-codemode',
+  getParentRoute: () => HomeRouteRoute,
 } as any)
-const ApiBankingDemoRoute = ApiBankingDemoRouteImport.update({
-  id: '/api/banking-demo',
-  path: '/api/banking-demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const BankingDemoApiBankingInitRoute =
+  BankingDemoApiBankingInitRouteImport.update({
+    id: '/api/banking-init',
+    path: '/api/banking-init',
+    getParentRoute: () => BankingDemoRouteRoute,
+  } as any)
+const BankingDemoApiBankingDemoRoute =
+  BankingDemoApiBankingDemoRouteImport.update({
+    id: '/api/banking-demo',
+    path: '/api/banking-demo',
+    getParentRoute: () => BankingDemoRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/banking-demo': typeof BankingDemoRoute
-  '/npm-github-chat': typeof NpmGithubChatRoute
-  '/reporting-agent': typeof ReportingAgentRoute
-  '/structured-output': typeof StructuredOutputRoute
-  '/api/banking-demo': typeof ApiBankingDemoRoute
-  '/api/banking-init': typeof ApiBankingInitRoute
-  '/api/codemode': typeof ApiCodemodeRoute
-  '/api/generate-pdf': typeof ApiGeneratePdfRoute
-  '/api/invalidate': typeof ApiInvalidateRoute
-  '/api/product-codemode': typeof ApiProductCodemodeRoute
-  '/api/product-regular': typeof ApiProductRegularRoute
-  '/api/report-demo': typeof ApiReportDemoRoute
-  '/api/report-event': typeof ApiReportEventRoute
-  '/api/report-sse': typeof ApiReportSseRoute
-  '/api/reports': typeof ApiReportsRoute
-  '/api/skills': typeof ApiSkillsRoute
-  '/api/structured-output': typeof ApiStructuredOutputRoute
-  '/reports/': typeof ReportsIndexRoute
+  '/': typeof HomeIndexRoute
+  '/banking-demo': typeof BankingDemoBankingDemoRoute
+  '/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
+  '/reporting-agent': typeof ReportingReportingAgentRoute
+  '/structured-output': typeof StructuredOutputStructuredOutputRoute
+  '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
+  '/api/banking-init': typeof BankingDemoApiBankingInitRoute
+  '/api/product-codemode': typeof HomeApiProductCodemodeRoute
+  '/api/product-regular': typeof HomeApiProductRegularRoute
+  '/api/skills': typeof HomeApiSkillsRoute
+  '/api/codemode': typeof NpmGithubChatApiCodemodeRoute
+  '/api/generate-pdf': typeof NpmGithubChatApiGeneratePdfRoute
+  '/api/invalidate': typeof ReportingApiInvalidateRoute
+  '/api/report-demo': typeof ReportingApiReportDemoRoute
+  '/api/report-event': typeof ReportingApiReportEventRoute
+  '/api/report-sse': typeof ReportingApiReportSseRoute
+  '/api/reports': typeof ReportingApiReportsRoute
+  '/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/banking-demo': typeof BankingDemoRoute
-  '/npm-github-chat': typeof NpmGithubChatRoute
-  '/reporting-agent': typeof ReportingAgentRoute
-  '/structured-output': typeof StructuredOutputRoute
-  '/api/banking-demo': typeof ApiBankingDemoRoute
-  '/api/banking-init': typeof ApiBankingInitRoute
-  '/api/codemode': typeof ApiCodemodeRoute
-  '/api/generate-pdf': typeof ApiGeneratePdfRoute
-  '/api/invalidate': typeof ApiInvalidateRoute
-  '/api/product-codemode': typeof ApiProductCodemodeRoute
-  '/api/product-regular': typeof ApiProductRegularRoute
-  '/api/report-demo': typeof ApiReportDemoRoute
-  '/api/report-event': typeof ApiReportEventRoute
-  '/api/report-sse': typeof ApiReportSseRoute
-  '/api/reports': typeof ApiReportsRoute
-  '/api/skills': typeof ApiSkillsRoute
-  '/api/structured-output': typeof ApiStructuredOutputRoute
-  '/reports': typeof ReportsIndexRoute
+  '/': typeof HomeIndexRoute
+  '/banking-demo': typeof BankingDemoBankingDemoRoute
+  '/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
+  '/reporting-agent': typeof ReportingReportingAgentRoute
+  '/structured-output': typeof StructuredOutputStructuredOutputRoute
+  '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
+  '/api/banking-init': typeof BankingDemoApiBankingInitRoute
+  '/api/product-codemode': typeof HomeApiProductCodemodeRoute
+  '/api/product-regular': typeof HomeApiProductRegularRoute
+  '/api/skills': typeof HomeApiSkillsRoute
+  '/api/codemode': typeof NpmGithubChatApiCodemodeRoute
+  '/api/generate-pdf': typeof NpmGithubChatApiGeneratePdfRoute
+  '/api/invalidate': typeof ReportingApiInvalidateRoute
+  '/api/report-demo': typeof ReportingApiReportDemoRoute
+  '/api/report-event': typeof ReportingApiReportEventRoute
+  '/api/report-sse': typeof ReportingApiReportSseRoute
+  '/api/reports': typeof ReportingApiReportsRoute
+  '/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/banking-demo': typeof BankingDemoRoute
-  '/npm-github-chat': typeof NpmGithubChatRoute
-  '/reporting-agent': typeof ReportingAgentRoute
-  '/structured-output': typeof StructuredOutputRoute
-  '/api/banking-demo': typeof ApiBankingDemoRoute
-  '/api/banking-init': typeof ApiBankingInitRoute
-  '/api/codemode': typeof ApiCodemodeRoute
-  '/api/generate-pdf': typeof ApiGeneratePdfRoute
-  '/api/invalidate': typeof ApiInvalidateRoute
-  '/api/product-codemode': typeof ApiProductCodemodeRoute
-  '/api/product-regular': typeof ApiProductRegularRoute
-  '/api/report-demo': typeof ApiReportDemoRoute
-  '/api/report-event': typeof ApiReportEventRoute
-  '/api/report-sse': typeof ApiReportSseRoute
-  '/api/reports': typeof ApiReportsRoute
-  '/api/skills': typeof ApiSkillsRoute
-  '/api/structured-output': typeof ApiStructuredOutputRoute
-  '/reports/': typeof ReportsIndexRoute
+  '/_banking-demo': typeof BankingDemoRouteRouteWithChildren
+  '/_home': typeof HomeRouteRouteWithChildren
+  '/_npm-github-chat': typeof NpmGithubChatRouteRouteWithChildren
+  '/_reporting': typeof ReportingRouteRouteWithChildren
+  '/_structured-output': typeof StructuredOutputRouteRouteWithChildren
+  '/_banking-demo/banking-demo': typeof BankingDemoBankingDemoRoute
+  '/_npm-github-chat/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
+  '/_reporting/reporting-agent': typeof ReportingReportingAgentRoute
+  '/_structured-output/structured-output': typeof StructuredOutputStructuredOutputRoute
+  '/_home/': typeof HomeIndexRoute
+  '/_banking-demo/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
+  '/_banking-demo/api/banking-init': typeof BankingDemoApiBankingInitRoute
+  '/_home/api/product-codemode': typeof HomeApiProductCodemodeRoute
+  '/_home/api/product-regular': typeof HomeApiProductRegularRoute
+  '/_home/api/skills': typeof HomeApiSkillsRoute
+  '/_npm-github-chat/api/codemode': typeof NpmGithubChatApiCodemodeRoute
+  '/_npm-github-chat/api/generate-pdf': typeof NpmGithubChatApiGeneratePdfRoute
+  '/_reporting/api/invalidate': typeof ReportingApiInvalidateRoute
+  '/_reporting/api/report-demo': typeof ReportingApiReportDemoRoute
+  '/_reporting/api/report-event': typeof ReportingApiReportEventRoute
+  '/_reporting/api/report-sse': typeof ReportingApiReportSseRoute
+  '/_reporting/api/reports': typeof ReportingApiReportsRoute
+  '/_structured-output/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -199,18 +227,17 @@ export interface FileRouteTypes {
     | '/structured-output'
     | '/api/banking-demo'
     | '/api/banking-init'
+    | '/api/product-codemode'
+    | '/api/product-regular'
+    | '/api/skills'
     | '/api/codemode'
     | '/api/generate-pdf'
     | '/api/invalidate'
-    | '/api/product-codemode'
-    | '/api/product-regular'
     | '/api/report-demo'
     | '/api/report-event'
     | '/api/report-sse'
     | '/api/reports'
-    | '/api/skills'
     | '/api/structured-output'
-    | '/reports/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -220,221 +247,310 @@ export interface FileRouteTypes {
     | '/structured-output'
     | '/api/banking-demo'
     | '/api/banking-init'
+    | '/api/product-codemode'
+    | '/api/product-regular'
+    | '/api/skills'
     | '/api/codemode'
     | '/api/generate-pdf'
     | '/api/invalidate'
-    | '/api/product-codemode'
-    | '/api/product-regular'
     | '/api/report-demo'
     | '/api/report-event'
     | '/api/report-sse'
     | '/api/reports'
-    | '/api/skills'
     | '/api/structured-output'
-    | '/reports'
   id:
     | '__root__'
-    | '/'
-    | '/banking-demo'
-    | '/npm-github-chat'
-    | '/reporting-agent'
-    | '/structured-output'
-    | '/api/banking-demo'
-    | '/api/banking-init'
-    | '/api/codemode'
-    | '/api/generate-pdf'
-    | '/api/invalidate'
-    | '/api/product-codemode'
-    | '/api/product-regular'
-    | '/api/report-demo'
-    | '/api/report-event'
-    | '/api/report-sse'
-    | '/api/reports'
-    | '/api/skills'
-    | '/api/structured-output'
-    | '/reports/'
+    | '/_banking-demo'
+    | '/_home'
+    | '/_npm-github-chat'
+    | '/_reporting'
+    | '/_structured-output'
+    | '/_banking-demo/banking-demo'
+    | '/_npm-github-chat/npm-github-chat'
+    | '/_reporting/reporting-agent'
+    | '/_structured-output/structured-output'
+    | '/_home/'
+    | '/_banking-demo/api/banking-demo'
+    | '/_banking-demo/api/banking-init'
+    | '/_home/api/product-codemode'
+    | '/_home/api/product-regular'
+    | '/_home/api/skills'
+    | '/_npm-github-chat/api/codemode'
+    | '/_npm-github-chat/api/generate-pdf'
+    | '/_reporting/api/invalidate'
+    | '/_reporting/api/report-demo'
+    | '/_reporting/api/report-event'
+    | '/_reporting/api/report-sse'
+    | '/_reporting/api/reports'
+    | '/_structured-output/api/structured-output'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  BankingDemoRoute: typeof BankingDemoRoute
-  NpmGithubChatRoute: typeof NpmGithubChatRoute
-  ReportingAgentRoute: typeof ReportingAgentRoute
-  StructuredOutputRoute: typeof StructuredOutputRoute
-  ApiBankingDemoRoute: typeof ApiBankingDemoRoute
-  ApiBankingInitRoute: typeof ApiBankingInitRoute
-  ApiCodemodeRoute: typeof ApiCodemodeRoute
-  ApiGeneratePdfRoute: typeof ApiGeneratePdfRoute
-  ApiInvalidateRoute: typeof ApiInvalidateRoute
-  ApiProductCodemodeRoute: typeof ApiProductCodemodeRoute
-  ApiProductRegularRoute: typeof ApiProductRegularRoute
-  ApiReportDemoRoute: typeof ApiReportDemoRoute
-  ApiReportEventRoute: typeof ApiReportEventRoute
-  ApiReportSseRoute: typeof ApiReportSseRoute
-  ApiReportsRoute: typeof ApiReportsRoute
-  ApiSkillsRoute: typeof ApiSkillsRoute
-  ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
-  ReportsIndexRoute: typeof ReportsIndexRoute
+  BankingDemoRouteRoute: typeof BankingDemoRouteRouteWithChildren
+  HomeRouteRoute: typeof HomeRouteRouteWithChildren
+  NpmGithubChatRouteRoute: typeof NpmGithubChatRouteRouteWithChildren
+  ReportingRouteRoute: typeof ReportingRouteRouteWithChildren
+  StructuredOutputRouteRoute: typeof StructuredOutputRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/structured-output': {
-      id: '/structured-output'
-      path: '/structured-output'
-      fullPath: '/structured-output'
-      preLoaderRoute: typeof StructuredOutputRouteImport
+    '/_structured-output': {
+      id: '/_structured-output'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof StructuredOutputRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/reporting-agent': {
-      id: '/reporting-agent'
-      path: '/reporting-agent'
-      fullPath: '/reporting-agent'
-      preLoaderRoute: typeof ReportingAgentRouteImport
+    '/_reporting': {
+      id: '/_reporting'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof ReportingRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/npm-github-chat': {
-      id: '/npm-github-chat'
-      path: '/npm-github-chat'
-      fullPath: '/npm-github-chat'
-      preLoaderRoute: typeof NpmGithubChatRouteImport
+    '/_npm-github-chat': {
+      id: '/_npm-github-chat'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof NpmGithubChatRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/banking-demo': {
-      id: '/banking-demo'
-      path: '/banking-demo'
-      fullPath: '/banking-demo'
-      preLoaderRoute: typeof BankingDemoRouteImport
+    '/_home': {
+      id: '/_home'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof HomeRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/_banking-demo': {
+      id: '/_banking-demo'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof BankingDemoRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_home/': {
+      id: '/_home/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof HomeIndexRouteImport
+      parentRoute: typeof HomeRouteRoute
     }
-    '/reports/': {
-      id: '/reports/'
-      path: '/reports'
-      fullPath: '/reports/'
-      preLoaderRoute: typeof ReportsIndexRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_structured-output/structured-output': {
+      id: '/_structured-output/structured-output'
+      path: '/structured-output'
+      fullPath: '/structured-output'
+      preLoaderRoute: typeof StructuredOutputStructuredOutputRouteImport
+      parentRoute: typeof StructuredOutputRouteRoute
     }
-    '/api/structured-output': {
-      id: '/api/structured-output'
+    '/_reporting/reporting-agent': {
+      id: '/_reporting/reporting-agent'
+      path: '/reporting-agent'
+      fullPath: '/reporting-agent'
+      preLoaderRoute: typeof ReportingReportingAgentRouteImport
+      parentRoute: typeof ReportingRouteRoute
+    }
+    '/_npm-github-chat/npm-github-chat': {
+      id: '/_npm-github-chat/npm-github-chat'
+      path: '/npm-github-chat'
+      fullPath: '/npm-github-chat'
+      preLoaderRoute: typeof NpmGithubChatNpmGithubChatRouteImport
+      parentRoute: typeof NpmGithubChatRouteRoute
+    }
+    '/_banking-demo/banking-demo': {
+      id: '/_banking-demo/banking-demo'
+      path: '/banking-demo'
+      fullPath: '/banking-demo'
+      preLoaderRoute: typeof BankingDemoBankingDemoRouteImport
+      parentRoute: typeof BankingDemoRouteRoute
+    }
+    '/_structured-output/api/structured-output': {
+      id: '/_structured-output/api/structured-output'
       path: '/api/structured-output'
       fullPath: '/api/structured-output'
-      preLoaderRoute: typeof ApiStructuredOutputRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof StructuredOutputApiStructuredOutputRouteImport
+      parentRoute: typeof StructuredOutputRouteRoute
     }
-    '/api/skills': {
-      id: '/api/skills'
-      path: '/api/skills'
-      fullPath: '/api/skills'
-      preLoaderRoute: typeof ApiSkillsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/reports': {
-      id: '/api/reports'
+    '/_reporting/api/reports': {
+      id: '/_reporting/api/reports'
       path: '/api/reports'
       fullPath: '/api/reports'
-      preLoaderRoute: typeof ApiReportsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ReportingApiReportsRouteImport
+      parentRoute: typeof ReportingRouteRoute
     }
-    '/api/report-sse': {
-      id: '/api/report-sse'
+    '/_reporting/api/report-sse': {
+      id: '/_reporting/api/report-sse'
       path: '/api/report-sse'
       fullPath: '/api/report-sse'
-      preLoaderRoute: typeof ApiReportSseRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ReportingApiReportSseRouteImport
+      parentRoute: typeof ReportingRouteRoute
     }
-    '/api/report-event': {
-      id: '/api/report-event'
+    '/_reporting/api/report-event': {
+      id: '/_reporting/api/report-event'
       path: '/api/report-event'
       fullPath: '/api/report-event'
-      preLoaderRoute: typeof ApiReportEventRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ReportingApiReportEventRouteImport
+      parentRoute: typeof ReportingRouteRoute
     }
-    '/api/report-demo': {
-      id: '/api/report-demo'
+    '/_reporting/api/report-demo': {
+      id: '/_reporting/api/report-demo'
       path: '/api/report-demo'
       fullPath: '/api/report-demo'
-      preLoaderRoute: typeof ApiReportDemoRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ReportingApiReportDemoRouteImport
+      parentRoute: typeof ReportingRouteRoute
     }
-    '/api/product-regular': {
-      id: '/api/product-regular'
-      path: '/api/product-regular'
-      fullPath: '/api/product-regular'
-      preLoaderRoute: typeof ApiProductRegularRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/product-codemode': {
-      id: '/api/product-codemode'
-      path: '/api/product-codemode'
-      fullPath: '/api/product-codemode'
-      preLoaderRoute: typeof ApiProductCodemodeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/invalidate': {
-      id: '/api/invalidate'
+    '/_reporting/api/invalidate': {
+      id: '/_reporting/api/invalidate'
       path: '/api/invalidate'
       fullPath: '/api/invalidate'
-      preLoaderRoute: typeof ApiInvalidateRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ReportingApiInvalidateRouteImport
+      parentRoute: typeof ReportingRouteRoute
     }
-    '/api/generate-pdf': {
-      id: '/api/generate-pdf'
+    '/_npm-github-chat/api/generate-pdf': {
+      id: '/_npm-github-chat/api/generate-pdf'
       path: '/api/generate-pdf'
       fullPath: '/api/generate-pdf'
-      preLoaderRoute: typeof ApiGeneratePdfRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof NpmGithubChatApiGeneratePdfRouteImport
+      parentRoute: typeof NpmGithubChatRouteRoute
     }
-    '/api/codemode': {
-      id: '/api/codemode'
+    '/_npm-github-chat/api/codemode': {
+      id: '/_npm-github-chat/api/codemode'
       path: '/api/codemode'
       fullPath: '/api/codemode'
-      preLoaderRoute: typeof ApiCodemodeRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof NpmGithubChatApiCodemodeRouteImport
+      parentRoute: typeof NpmGithubChatRouteRoute
     }
-    '/api/banking-init': {
-      id: '/api/banking-init'
+    '/_home/api/skills': {
+      id: '/_home/api/skills'
+      path: '/api/skills'
+      fullPath: '/api/skills'
+      preLoaderRoute: typeof HomeApiSkillsRouteImport
+      parentRoute: typeof HomeRouteRoute
+    }
+    '/_home/api/product-regular': {
+      id: '/_home/api/product-regular'
+      path: '/api/product-regular'
+      fullPath: '/api/product-regular'
+      preLoaderRoute: typeof HomeApiProductRegularRouteImport
+      parentRoute: typeof HomeRouteRoute
+    }
+    '/_home/api/product-codemode': {
+      id: '/_home/api/product-codemode'
+      path: '/api/product-codemode'
+      fullPath: '/api/product-codemode'
+      preLoaderRoute: typeof HomeApiProductCodemodeRouteImport
+      parentRoute: typeof HomeRouteRoute
+    }
+    '/_banking-demo/api/banking-init': {
+      id: '/_banking-demo/api/banking-init'
       path: '/api/banking-init'
       fullPath: '/api/banking-init'
-      preLoaderRoute: typeof ApiBankingInitRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof BankingDemoApiBankingInitRouteImport
+      parentRoute: typeof BankingDemoRouteRoute
     }
-    '/api/banking-demo': {
-      id: '/api/banking-demo'
+    '/_banking-demo/api/banking-demo': {
+      id: '/_banking-demo/api/banking-demo'
       path: '/api/banking-demo'
       fullPath: '/api/banking-demo'
-      preLoaderRoute: typeof ApiBankingDemoRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof BankingDemoApiBankingDemoRouteImport
+      parentRoute: typeof BankingDemoRouteRoute
     }
   }
 }
 
+interface BankingDemoRouteRouteChildren {
+  BankingDemoBankingDemoRoute: typeof BankingDemoBankingDemoRoute
+  BankingDemoApiBankingDemoRoute: typeof BankingDemoApiBankingDemoRoute
+  BankingDemoApiBankingInitRoute: typeof BankingDemoApiBankingInitRoute
+}
+
+const BankingDemoRouteRouteChildren: BankingDemoRouteRouteChildren = {
+  BankingDemoBankingDemoRoute: BankingDemoBankingDemoRoute,
+  BankingDemoApiBankingDemoRoute: BankingDemoApiBankingDemoRoute,
+  BankingDemoApiBankingInitRoute: BankingDemoApiBankingInitRoute,
+}
+
+const BankingDemoRouteRouteWithChildren =
+  BankingDemoRouteRoute._addFileChildren(BankingDemoRouteRouteChildren)
+
+interface HomeRouteRouteChildren {
+  HomeIndexRoute: typeof HomeIndexRoute
+  HomeApiProductCodemodeRoute: typeof HomeApiProductCodemodeRoute
+  HomeApiProductRegularRoute: typeof HomeApiProductRegularRoute
+  HomeApiSkillsRoute: typeof HomeApiSkillsRoute
+}
+
+const HomeRouteRouteChildren: HomeRouteRouteChildren = {
+  HomeIndexRoute: HomeIndexRoute,
+  HomeApiProductCodemodeRoute: HomeApiProductCodemodeRoute,
+  HomeApiProductRegularRoute: HomeApiProductRegularRoute,
+  HomeApiSkillsRoute: HomeApiSkillsRoute,
+}
+
+const HomeRouteRouteWithChildren = HomeRouteRoute._addFileChildren(
+  HomeRouteRouteChildren,
+)
+
+interface NpmGithubChatRouteRouteChildren {
+  NpmGithubChatNpmGithubChatRoute: typeof NpmGithubChatNpmGithubChatRoute
+  NpmGithubChatApiCodemodeRoute: typeof NpmGithubChatApiCodemodeRoute
+  NpmGithubChatApiGeneratePdfRoute: typeof NpmGithubChatApiGeneratePdfRoute
+}
+
+const NpmGithubChatRouteRouteChildren: NpmGithubChatRouteRouteChildren = {
+  NpmGithubChatNpmGithubChatRoute: NpmGithubChatNpmGithubChatRoute,
+  NpmGithubChatApiCodemodeRoute: NpmGithubChatApiCodemodeRoute,
+  NpmGithubChatApiGeneratePdfRoute: NpmGithubChatApiGeneratePdfRoute,
+}
+
+const NpmGithubChatRouteRouteWithChildren =
+  NpmGithubChatRouteRoute._addFileChildren(NpmGithubChatRouteRouteChildren)
+
+interface ReportingRouteRouteChildren {
+  ReportingReportingAgentRoute: typeof ReportingReportingAgentRoute
+  ReportingApiInvalidateRoute: typeof ReportingApiInvalidateRoute
+  ReportingApiReportDemoRoute: typeof ReportingApiReportDemoRoute
+  ReportingApiReportEventRoute: typeof ReportingApiReportEventRoute
+  ReportingApiReportSseRoute: typeof ReportingApiReportSseRoute
+  ReportingApiReportsRoute: typeof ReportingApiReportsRoute
+}
+
+const ReportingRouteRouteChildren: ReportingRouteRouteChildren = {
+  ReportingReportingAgentRoute: ReportingReportingAgentRoute,
+  ReportingApiInvalidateRoute: ReportingApiInvalidateRoute,
+  ReportingApiReportDemoRoute: ReportingApiReportDemoRoute,
+  ReportingApiReportEventRoute: ReportingApiReportEventRoute,
+  ReportingApiReportSseRoute: ReportingApiReportSseRoute,
+  ReportingApiReportsRoute: ReportingApiReportsRoute,
+}
+
+const ReportingRouteRouteWithChildren = ReportingRouteRoute._addFileChildren(
+  ReportingRouteRouteChildren,
+)
+
+interface StructuredOutputRouteRouteChildren {
+  StructuredOutputStructuredOutputRoute: typeof StructuredOutputStructuredOutputRoute
+  StructuredOutputApiStructuredOutputRoute: typeof StructuredOutputApiStructuredOutputRoute
+}
+
+const StructuredOutputRouteRouteChildren: StructuredOutputRouteRouteChildren = {
+  StructuredOutputStructuredOutputRoute: StructuredOutputStructuredOutputRoute,
+  StructuredOutputApiStructuredOutputRoute:
+    StructuredOutputApiStructuredOutputRoute,
+}
+
+const StructuredOutputRouteRouteWithChildren =
+  StructuredOutputRouteRoute._addFileChildren(
+    StructuredOutputRouteRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  BankingDemoRoute: BankingDemoRoute,
-  NpmGithubChatRoute: NpmGithubChatRoute,
-  ReportingAgentRoute: ReportingAgentRoute,
-  StructuredOutputRoute: StructuredOutputRoute,
-  ApiBankingDemoRoute: ApiBankingDemoRoute,
-  ApiBankingInitRoute: ApiBankingInitRoute,
-  ApiCodemodeRoute: ApiCodemodeRoute,
-  ApiGeneratePdfRoute: ApiGeneratePdfRoute,
-  ApiInvalidateRoute: ApiInvalidateRoute,
-  ApiProductCodemodeRoute: ApiProductCodemodeRoute,
-  ApiProductRegularRoute: ApiProductRegularRoute,
-  ApiReportDemoRoute: ApiReportDemoRoute,
-  ApiReportEventRoute: ApiReportEventRoute,
-  ApiReportSseRoute: ApiReportSseRoute,
-  ApiReportsRoute: ApiReportsRoute,
-  ApiSkillsRoute: ApiSkillsRoute,
-  ApiStructuredOutputRoute: ApiStructuredOutputRoute,
-  ReportsIndexRoute: ReportsIndexRoute,
+  BankingDemoRouteRoute: BankingDemoRouteRouteWithChildren,
+  HomeRouteRoute: HomeRouteRouteWithChildren,
+  NpmGithubChatRouteRoute: NpmGithubChatRouteRouteWithChildren,
+  ReportingRouteRoute: ReportingRouteRouteWithChildren,
+  StructuredOutputRouteRoute: StructuredOutputRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

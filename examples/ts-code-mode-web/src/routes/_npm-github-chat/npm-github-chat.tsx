@@ -28,7 +28,7 @@ import {
 import { NpmDataSidebar } from '@/components/NpmDataSidebar'
 import { exportConversationToPdfTool } from '@/lib/tools/export-pdf-tool'
 
-export const Route = createFileRoute('/npm-github-chat')({
+export const Route = createFileRoute('/_npm-github-chat/npm-github-chat')({
   component: CodeModePage,
 })
 

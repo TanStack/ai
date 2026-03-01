@@ -19,7 +19,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { VMEvent } from '@/components'
 import { CodeBlock, ExecutionResult, JavaScriptVM, Header } from '@/components'
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute('/_home/')({
   component: ProductDemoPage,
 })
 
