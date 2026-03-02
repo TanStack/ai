@@ -9,11 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
+import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 
+const ImageGenRoute = ImageGenRouteImport.update({
+  id: '/image-gen',
+  path: '/image-gen',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -22,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiTanchatRoute = ApiTanchatRouteImport.update({
   id: '/api/tanchat',
   path: '/api/tanchat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImageGenRoute = ApiImageGenRouteImport.update({
+  id: '/api/image-gen',
+  path: '/api/image-gen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExampleGuitarsIndexRoute = ExampleGuitarsIndexRouteImport.update({
@@ -37,12 +49,16 @@ const ExampleGuitarsGuitarIdRoute = ExampleGuitarsGuitarIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/image-gen': typeof ImageGenRoute
+  '/api/image-gen': typeof ApiImageGenRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars/': typeof ExampleGuitarsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/image-gen': typeof ImageGenRoute
+  '/api/image-gen': typeof ApiImageGenRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
@@ -50,6 +66,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/image-gen': typeof ImageGenRoute
+  '/api/image-gen': typeof ApiImageGenRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars/': typeof ExampleGuitarsIndexRoute
@@ -58,14 +76,24 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/image-gen'
+    | '/api/image-gen'
     | '/api/tanchat'
     | '/example/guitars/$guitarId'
     | '/example/guitars/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/tanchat' | '/example/guitars/$guitarId' | '/example/guitars'
+  to:
+    | '/'
+    | '/image-gen'
+    | '/api/image-gen'
+    | '/api/tanchat'
+    | '/example/guitars/$guitarId'
+    | '/example/guitars'
   id:
     | '__root__'
     | '/'
+    | '/image-gen'
+    | '/api/image-gen'
     | '/api/tanchat'
     | '/example/guitars/$guitarId'
     | '/example/guitars/'
@@ -73,6 +101,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ImageGenRoute: typeof ImageGenRoute
+  ApiImageGenRoute: typeof ApiImageGenRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ExampleGuitarsGuitarIdRoute: typeof ExampleGuitarsGuitarIdRoute
   ExampleGuitarsIndexRoute: typeof ExampleGuitarsIndexRoute
@@ -80,6 +110,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/image-gen': {
+      id: '/image-gen'
+      path: '/image-gen'
+      fullPath: '/image-gen'
+      preLoaderRoute: typeof ImageGenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -92,6 +129,13 @@ declare module '@tanstack/react-router' {
       path: '/api/tanchat'
       fullPath: '/api/tanchat'
       preLoaderRoute: typeof ApiTanchatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/image-gen': {
+      id: '/api/image-gen'
+      path: '/api/image-gen'
+      fullPath: '/api/image-gen'
+      preLoaderRoute: typeof ApiImageGenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/example/guitars/': {
@@ -113,6 +157,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ImageGenRoute: ImageGenRoute,
+  ApiImageGenRoute: ApiImageGenRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ExampleGuitarsGuitarIdRoute: ExampleGuitarsGuitarIdRoute,
   ExampleGuitarsIndexRoute: ExampleGuitarsIndexRoute,

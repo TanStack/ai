@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { ImagePlus, Send, Square, X } from 'lucide-react'
+import { Link, createFileRoute } from '@tanstack/react-router'
+import { Image, ImagePlus, Send, Square, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
@@ -407,6 +407,13 @@ function ChatPage() {
                 ))}
               </select>
             </div>
+            <Link
+              to="/image-gen"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
+            >
+              <Image className="w-4 h-4" />
+              Image Gen
+            </Link>
           </div>
         </div>
 
