@@ -667,6 +667,15 @@ class TextEngine<
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
+      if (executionResult.results.length > 0) {
+        for (const chunk of this.buildToolResultChunks(
+          executionResult.results,
+          finishEvent,
+        )) {
+          yield chunk
+        }
+      }
+
       for (const chunk of this.buildApprovalChunks(
         executionResult.needsApproval,
         finishEvent,
@@ -769,6 +778,15 @@ class TextEngine<
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
+      if (executionResult.results.length > 0) {
+        for (const chunk of this.buildToolResultChunks(
+          executionResult.results,
+          finishEvent,
+        )) {
+          yield chunk
+        }
+      }
+
       for (const chunk of this.buildApprovalChunks(
         executionResult.needsApproval,
         finishEvent,

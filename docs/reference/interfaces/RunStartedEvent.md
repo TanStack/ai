@@ -5,7 +5,7 @@ title: RunStartedEvent
 
 # Interface: RunStartedEvent
 
-Defined in: [types.ts:735](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L735)
+Defined in: [types.ts:763](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L763)
 
 Emitted when a run starts.
 This is the first event in any streaming response.
@@ -22,7 +22,7 @@ This is the first event in any streaming response.
 optional model: string;
 ```
 
-Defined in: [types.ts:722](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L722)
+Defined in: [types.ts:750](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L750)
 
 Model identifier for multi-model support
 
@@ -38,7 +38,7 @@ Model identifier for multi-model support
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:724](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L724)
+Defined in: [types.ts:752](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L752)
 
 Original provider event for debugging/advanced use cases
 
@@ -54,7 +54,7 @@ Original provider event for debugging/advanced use cases
 runId: string;
 ```
 
-Defined in: [types.ts:738](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L738)
+Defined in: [types.ts:766](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L766)
 
 Unique identifier for this run
 
@@ -66,7 +66,7 @@ Unique identifier for this run
 optional threadId: string;
 ```
 
-Defined in: [types.ts:740](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L740)
+Defined in: [types.ts:768](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L768)
 
 Optional thread/conversation ID
 
@@ -78,7 +78,7 @@ Optional thread/conversation ID
 timestamp: number;
 ```
 
-Defined in: [types.ts:720](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L720)
+Defined in: [types.ts:748](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L748)
 
 #### Inherited from
 
@@ -92,7 +92,7 @@ Defined in: [types.ts:720](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "RUN_STARTED";
 ```
 
-Defined in: [types.ts:736](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L736)
+Defined in: [types.ts:764](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L764)
 
 #### Overrides
 

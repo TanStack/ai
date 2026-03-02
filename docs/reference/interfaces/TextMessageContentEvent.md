@@ -5,7 +5,7 @@ title: TextMessageContentEvent
 
 # Interface: TextMessageContentEvent
 
-Defined in: [types.ts:788](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L788)
+Defined in: [types.ts:816](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L816)
 
 Emitted when text content is generated (streaming tokens).
 
@@ -21,7 +21,7 @@ Emitted when text content is generated (streaming tokens).
 optional content: string;
 ```
 
-Defined in: [types.ts:795](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L795)
+Defined in: [types.ts:823](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L823)
 
 Full accumulated content so far (optional, for debugging)
 
@@ -33,7 +33,7 @@ Full accumulated content so far (optional, for debugging)
 delta: string;
 ```
 
-Defined in: [types.ts:793](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L793)
+Defined in: [types.ts:821](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L821)
 
 The incremental content token
 
@@ -45,7 +45,7 @@ The incremental content token
 messageId: string;
 ```
 
-Defined in: [types.ts:791](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L791)
+Defined in: [types.ts:819](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L819)
 
 Message identifier
 
@@ -57,7 +57,7 @@ Message identifier
 optional model: string;
 ```
 
-Defined in: [types.ts:722](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L722)
+Defined in: [types.ts:750](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L750)
 
 Model identifier for multi-model support
 
@@ -73,7 +73,7 @@ Model identifier for multi-model support
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:724](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L724)
+Defined in: [types.ts:752](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L752)
 
 Original provider event for debugging/advanced use cases
 
@@ -89,7 +89,7 @@ Original provider event for debugging/advanced use cases
 timestamp: number;
 ```
 
-Defined in: [types.ts:720](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L720)
+Defined in: [types.ts:748](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L748)
 
 #### Inherited from
 
@@ -103,7 +103,7 @@ Defined in: [types.ts:720](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "TEXT_MESSAGE_CONTENT";
 ```
 
-Defined in: [types.ts:789](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L789)
+Defined in: [types.ts:817](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L817)
 
 #### Overrides
 

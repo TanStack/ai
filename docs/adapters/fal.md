@@ -5,7 +5,7 @@ id: fal-adapter
 
 The fal.ai adapter provides access to 600+ models on the fal.ai platform for image generation and video generation. Unlike text-focused adapters, the fal adapter is **media-focused** — it supports `generateImage()` and `generateVideo()` but does not support `chat()` or tools. Audio and speech support are coming soon.
 
-For a full working example, see the [fal.ai example app](https://github.com/TanStack/ai/tree/main/examples/ts-react-fal).
+For a full working example, see the [fal.ai example app](https://github.com/TanStack/ai/tree/main/examples/ts-react-media).
 
 ## Installation
 
@@ -79,7 +79,7 @@ const proxiedAdapter = falImage("fal-ai/flux/dev", {
 
 ## Example: Image Generation
 
-From the [fal.ai example app](https://github.com/TanStack/ai/tree/main/examples/ts-react-fal):
+From the [fal.ai example app](https://github.com/TanStack/ai/tree/main/examples/ts-react-media):
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
@@ -155,7 +155,7 @@ import { falVideo } from "@tanstack/ai-fal";
 
 ## Example: Text-to-Video
 
-From the [fal.ai example app](https://github.com/TanStack/ai/tree/main/examples/ts-react-fal):
+From the [fal.ai example app](https://github.com/TanStack/ai/tree/main/examples/ts-react-media):
 
 ```typescript
 import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
