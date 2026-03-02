@@ -5,6 +5,7 @@ import {
   getGeminiApiKeyFromEnv,
 } from '../utils'
 import {
+  parseNativeImageSize,
   sizeToAspectRatio,
   validateImageSize,
   validateNumberOfImages,
@@ -22,6 +23,8 @@ import type {
   ImageGenerationResult,
 } from '@tanstack/ai'
 import type {
+  GenerateContentConfig,
+  GenerateContentResponse,
   GenerateImagesConfig,
   GenerateImagesResponse,
   GoogleGenAI,
@@ -39,14 +42,16 @@ export type GeminiImageModel = (typeof GEMINI_IMAGE_MODELS)[number]
 /**
  * Gemini Image Generation Adapter
  *
- * Tree-shakeable adapter for Gemini Imagen image generation functionality.
- * Supports Imagen 3 and Imagen 4 models.
+ * Tree-shakeable adapter for Gemini image generation functionality.
+ * Supports Imagen 3/4 models (via generateImages API) and Gemini native
+ * image models like Nano Banana 2 (via generateContent API).
  *
  * Features:
  * - Aspect ratio-based image sizing
  * - Person generation controls
  * - Safety filtering
  * - Watermark options
+ * - Extended resolution tiers (Nano Banana 2)
  */
 export class GeminiImageAdapter<
   TModel extends GeminiImageModel,
@@ -76,15 +81,19 @@ export class GeminiImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<GeminiImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size } = options
+    const { model, prompt } = options
 
-    // Validate inputs
     validatePrompt({ prompt, model })
-    validateImageSize(model, size)
-    validateNumberOfImages(model, numberOfImages)
 
-    // Build request config
-    const config = this.buildConfig(options)
+    if (this.isGeminiImageModel(model)) {
+      return this.generateWithGeminiApi(options)
+    }
+
+    // Imagen models path (generateImages API)
+    validateImageSize(model, options.size)
+    validateNumberOfImages(model, options.numberOfImages)
+
+    const config = this.buildImagenConfig(options)
 
     const response = await this.client.models.generateImages({
       model,
@@ -92,10 +101,78 @@ export class GeminiImageAdapter<
       config,
     })
 
-    return this.transformResponse(model, response)
+    return this.transformImagenResponse(model, response)
   }
 
-  private buildConfig(
+  private isGeminiImageModel(model: string): boolean {
+    return model.startsWith('gemini-')
+  }
+
+  private async generateWithGeminiApi(
+    options: ImageGenerationOptions<GeminiImageProviderOptions>,
+  ): Promise<ImageGenerationResult> {
+    const { model, prompt, size, numberOfImages, modelOptions } = options
+
+    const parsedSize = size ? parseNativeImageSize(size) : undefined
+
+    // The generateContent API has no numberOfImages parameter.
+    // Instead, augment the prompt to request multiple images when needed.
+    const augmentedPrompt =
+      numberOfImages && numberOfImages > 1
+        ? `${prompt} Generate ${numberOfImages} distinct images.`
+        : prompt
+
+    const config: GenerateContentConfig = {
+      // Include TEXT so the model can interleave descriptions between images
+      responseModalities: ['TEXT', 'IMAGE'],
+      ...(parsedSize && {
+        imageConfig: {
+          ...(parsedSize.aspectRatio && {
+            aspectRatio: parsedSize.aspectRatio,
+          }),
+          ...(parsedSize.resolution && {
+            imageSize: parsedSize.resolution,
+          }),
+        },
+      }),
+      ...modelOptions,
+    }
+
+    const response = await this.client.models.generateContent({
+      model,
+      contents: augmentedPrompt,
+      config,
+    })
+
+    return this.transformGeminiResponse(model, response)
+  }
+
+  private transformGeminiResponse(
+    model: string,
+    response: GenerateContentResponse,
+  ): ImageGenerationResult {
+    const images: Array<GeneratedImage> = []
+    const parts = response.candidates?.[0]?.content?.parts ?? []
+
+    for (const part of parts) {
+      if (
+        part.inlineData?.data &&
+        typeof part.inlineData.data === 'string' &&
+        part.inlineData.data.length > 0
+      ) {
+        images.push({ b64Json: part.inlineData.data })
+      }
+    }
+
+    return {
+      id: generateId(this.name),
+      model,
+      images,
+      usage: undefined,
+    }
+  }
+
+  private buildImagenConfig(
     options: ImageGenerationOptions<GeminiImageProviderOptions>,
   ): GenerateImagesConfig {
     const { size, numberOfImages, modelOptions } = options
@@ -108,7 +185,7 @@ export class GeminiImageAdapter<
     }
   }
 
-  private transformResponse(
+  private transformImagenResponse(
     model: string,
     response: GenerateImagesResponse,
   ): ImageGenerationResult {

@@ -145,11 +145,49 @@ export type GeminiImageSize =
   | '1080x1920'
 
 /**
- * Model-specific size options mapping
- * All Imagen models use the same size options
+ * Aspect ratios supported by Gemini native image models (via generateContent API).
+ * Matches the SDK's ImageConfig.aspectRatio values.
+ */
+export type GeminiNativeImageAspectRatio =
+  | '1:1'
+  | '2:3'
+  | '3:2'
+  | '3:4'
+  | '4:3'
+  | '9:16'
+  | '16:9'
+  | '21:9'
+
+/**
+ * Resolution tiers for Gemini native image models.
+ * Matches the SDK's ImageConfig.imageSize values.
+ */
+export type GeminiNativeImageResolution = '1K' | '2K' | '4K'
+
+/**
+ * Template literal size type for Gemini native image models: "16:9_4K", "1:1_2K", etc.
+ */
+export type GeminiNativeImageSize =
+  `${GeminiNativeImageAspectRatio}_${GeminiNativeImageResolution}`
+
+/**
+ * Gemini native image models that use the generateContent API path.
+ * These models support template literal sizes (aspectRatio_resolution).
+ */
+export type GeminiNativeImageModels =
+  | 'gemini-3.1-flash-image-preview'
+  | 'gemini-3-pro-image-preview'
+  | 'gemini-2.5-flash-image'
+  | 'gemini-2.0-flash-preview-image-generation'
+
+/**
+ * Model-specific size options mapping.
+ * Gemini native image models use template literal sizes, Imagen models use pixel sizes.
  */
 export type GeminiImageModelSizeByName = {
-  [K in GeminiImageModels]: GeminiImageSize
+  [K in GeminiNativeImageModels]: GeminiNativeImageSize
+} & {
+  [K in Exclude<GeminiImageModels, GeminiNativeImageModels>]: GeminiImageSize
 }
 
 /**
@@ -236,4 +274,16 @@ export function validatePrompt(options: {
   if (!prompt || prompt.trim().length === 0) {
     throw new Error(`Prompt cannot be empty for model "${model}".`)
   }
+}
+
+/**
+ * Parses a Gemini native image size string into its components.
+ * Format: "aspectRatio_resolution" e.g. "16:9_4K" → { aspectRatio: "16:9", resolution: "4K" }
+ */
+export function parseNativeImageSize(
+  size: string,
+): { aspectRatio: string; resolution: string } | undefined {
+  const match = size.match(/^(\d+:\d+)_(.+)$/)
+  if (!match) return undefined
+  return { aspectRatio: match[1]!, resolution: match[2]! }
 }

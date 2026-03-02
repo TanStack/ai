@@ -5,7 +5,7 @@ title: TextOptions
 
 # Interface: TextOptions\<TProviderOptionsSuperset, TProviderOptionsForModel\>
 
-Defined in: [types.ts:597](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L597)
+Defined in: [types.ts:625](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L625)
 
 Options passed into the SDK and further piped to the AI provider.
 
@@ -27,7 +27,7 @@ Options passed into the SDK and further piped to the AI provider.
 optional abortController: AbortController;
 ```
 
-Defined in: [types.ts:681](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L681)
+Defined in: [types.ts:709](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L709)
 
 AbortController for request cancellation.
 
@@ -54,7 +54,7 @@ https://developer.mozilla.org/en-US/docs/Web/API/AbortController
 optional agentLoopStrategy: AgentLoopStrategy;
 ```
 
-Defined in: [types.ts:605](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L605)
+Defined in: [types.ts:633](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L633)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [types.ts:605](https://github.com/TanStack/ai/blob/main/packages/typ
 optional conversationId: string;
 ```
 
-Defined in: [types.ts:667](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L667)
+Defined in: [types.ts:695](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L695)
 
 Conversation ID for correlating client and server-side devtools events.
 When provided, server-side events will be linked to the client conversation in devtools.
@@ -77,7 +77,7 @@ When provided, server-side events will be linked to the client conversation in d
 optional maxTokens: number;
 ```
 
-Defined in: [types.ts:640](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L640)
+Defined in: [types.ts:668](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L668)
 
 The maximum number of tokens to generate in the response.
 
@@ -97,7 +97,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [types.ts:602](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L602)
+Defined in: [types.ts:630](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L630)
 
 ***
 
@@ -107,7 +107,7 @@ Defined in: [types.ts:602](https://github.com/TanStack/ai/blob/main/packages/typ
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [types.ts:651](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L651)
+Defined in: [types.ts:679](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L679)
 
 Additional metadata to attach to the request.
 Can be used for tracking, debugging, or passing custom information.
@@ -126,7 +126,7 @@ Provider usage:
 model: string;
 ```
 
-Defined in: [types.ts:601](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L601)
+Defined in: [types.ts:629](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L629)
 
 ***
 
@@ -136,7 +136,7 @@ Defined in: [types.ts:601](https://github.com/TanStack/ai/blob/main/packages/typ
 optional modelOptions: TProviderOptionsForModel;
 ```
 
-Defined in: [types.ts:652](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L652)
+Defined in: [types.ts:680](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L680)
 
 ***
 
@@ -146,7 +146,7 @@ Defined in: [types.ts:652](https://github.com/TanStack/ai/blob/main/packages/typ
 optional outputSchema: SchemaInput;
 ```
 
-Defined in: [types.ts:662](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L662)
+Defined in: [types.ts:690](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L690)
 
 Schema for structured output.
 When provided, the adapter should use the provider's native structured output API
@@ -162,7 +162,7 @@ Supports any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.
 optional request: Request | RequestInit;
 ```
 
-Defined in: [types.ts:653](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L653)
+Defined in: [types.ts:681](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L681)
 
 ***
 
@@ -172,7 +172,7 @@ Defined in: [types.ts:653](https://github.com/TanStack/ai/blob/main/packages/typ
 optional systemPrompts: string[];
 ```
 
-Defined in: [types.ts:604](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L604)
+Defined in: [types.ts:632](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L632)
 
 ***
 
@@ -182,7 +182,7 @@ Defined in: [types.ts:604](https://github.com/TanStack/ai/blob/main/packages/typ
 optional temperature: number;
 ```
 
-Defined in: [types.ts:618](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L618)
+Defined in: [types.ts:646](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L646)
 
 Controls the randomness of the output.
 Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) make it more focused and deterministic.
@@ -203,7 +203,7 @@ Provider usage:
 optional tools: Tool<any, any, any>[];
 ```
 
-Defined in: [types.ts:603](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L603)
+Defined in: [types.ts:631](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L631)
 
 ***
 
@@ -213,7 +213,7 @@ Defined in: [types.ts:603](https://github.com/TanStack/ai/blob/main/packages/typ
 optional topP: number;
 ```
 
-Defined in: [types.ts:631](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L631)
+Defined in: [types.ts:659](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L659)
 
 Nucleus sampling parameter. An alternative to temperature sampling.
 The model considers the results of tokens with topP probability mass.

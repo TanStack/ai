@@ -10,7 +10,7 @@ export default function Header() {
         </Link>
       </h1>
       <span className="ml-4 text-sm text-gray-400">
-        Image & Video Generation with fal.ai
+        Image & Video Generation
       </span>
     </header>
   )

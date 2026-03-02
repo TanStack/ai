@@ -98,7 +98,7 @@ describe('OpenRouter adapter option mapping', () => {
     const adapter = createAdapter()
 
     const modelOptions: OpenRouterTextModelOptions = {
-      tool_choice: 'auto',
+      toolChoice: 'auto',
     }
 
     const chunks: Array<StreamChunk> = []
@@ -138,7 +138,7 @@ describe('OpenRouter adapter option mapping', () => {
     expect(params.topP).toBe(0.6)
     expect(params.maxTokens).toBe(1024)
     expect(params.stream).toBe(true)
-    expect(params.tool_choice).toBe('auto')
+    expect(params.toolChoice).toBe('auto')
 
     expect(params.messages).toBeDefined()
     expect(Array.isArray(params.messages)).toBe(true)
@@ -817,5 +817,124 @@ describe('OpenRouter AG-UI event emission', () => {
       expect(stepFinishedChunk.stepId).toBeDefined()
       expect(stepFinishedChunk.delta).toBe('Let me think about this...')
     }
+  })
+})
+
+describe('OpenRouter modelOptions pass-through', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const minimalStreamChunks = [
+    {
+      id: 'chatcmpl-opts',
+      model: 'openai/gpt-4o-mini',
+      choices: [
+        {
+          delta: { content: 'ok' },
+          finishReason: 'stop',
+        },
+      ],
+      usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+    },
+  ]
+
+  it('forwards camelCase sampling options to the SDK request', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    const modelOptions: OpenRouterTextModelOptions = {
+      frequencyPenalty: 0.5,
+      presencePenalty: 0.3,
+      maxCompletionTokens: 2048,
+      topLogprobs: 5,
+      logitBias: { 123: -50 },
+      logprobs: true,
+      seed: 42,
+      stop: ['END'],
+      responseFormat: { type: 'json_object' },
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      modelOptions,
+    })) {
+      // consume
+    }
+
+    const [params] = mockSend.mock.calls[0]!
+    expect(params.frequencyPenalty).toBe(0.5)
+    expect(params.presencePenalty).toBe(0.3)
+    expect(params.maxCompletionTokens).toBe(2048)
+    expect(params.topLogprobs).toBe(5)
+    expect(params.logitBias).toEqual({ 123: -50 })
+    expect(params.logprobs).toBe(true)
+    expect(params.seed).toBe(42)
+    expect(params.stop).toEqual(['END'])
+    expect(params.responseFormat).toEqual({ type: 'json_object' })
+  })
+
+  it('forwards API-only params (topK, repetitionPenalty, minP, topA) to the SDK request', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    const modelOptions: OpenRouterTextModelOptions = {
+      topK: 40,
+      repetitionPenalty: 1.1,
+      minP: 0.05,
+      topA: 0.3,
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      modelOptions,
+    })) {
+      // consume
+    }
+
+    const [params] = mockSend.mock.calls[0]!
+    expect(params.topK).toBe(40)
+    expect(params.repetitionPenalty).toBe(1.1)
+    expect(params.minP).toBe(0.05)
+    expect(params.topA).toBe(0.3)
+  })
+
+  it('appends variant to model name instead of passing it as a separate property', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      modelOptions: { variant: 'free' } as OpenRouterTextModelOptions,
+    })) {
+      // consume
+    }
+
+    const [params] = mockSend.mock.calls[0]!
+    expect(params.model).toBe('openai/gpt-4o-mini:free')
+  })
+
+  it('forwards toolChoice to the SDK request', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    const modelOptions: OpenRouterTextModelOptions = {
+      toolChoice: 'required',
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      tools: [weatherTool],
+      modelOptions,
+    })) {
+      // consume
+    }
+
+    const [params] = mockSend.mock.calls[0]!
+    expect(params.toolChoice).toBe('required')
   })
 })
