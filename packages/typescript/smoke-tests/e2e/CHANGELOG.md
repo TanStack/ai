@@ -1,5 +1,12 @@
 # @tanstack/smoke-tests-e2e
 
+## 0.0.20
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/tests-adapters@0.1.16
+
 ## 0.0.19
 
 ### Patch Changes
