@@ -1,5 +1,19 @@
 # @tanstack/solid-ai-devtools
 
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.6
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.5
+
 ## 0.2.8
 
 ### Patch Changes

@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { falImage, falVideo } from '@tanstack/ai-fal'
+import { geminiImage } from '@tanstack/ai-gemini'
 import { generateImage, generateVideo, getVideoJobStatus } from '@tanstack/ai'
 
 import type { FalModel } from '@tanstack/ai-fal'
@@ -42,7 +43,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           adapter: falImage('fal-ai/flux-2/klein/9b'),
           prompt: data.prompt,
           numberOfImages: 1,
-          size: '16:9',
+          size: 'landscape_16_9',
         })
       }
       case 'fal-ai/z-image/turbo': {
@@ -55,6 +56,46 @@ export const generateImageFn = createServerFn({ method: 'POST' })
             acceleration: 'high',
             enable_prompt_expansion: true,
           },
+        })
+      }
+      case 'gemini-3.1-flash-image-preview': {
+        return generateImage({
+          adapter: geminiImage('gemini-3.1-flash-image-preview'),
+          prompt: data.prompt,
+          numberOfImages: 1,
+          size: '16:9_4K',
+        })
+      }
+      case 'gemini-3-pro-image-preview': {
+        return generateImage({
+          adapter: geminiImage('gemini-3-pro-image-preview'),
+          prompt: data.prompt,
+          numberOfImages: 1,
+          size: '16:9_4K',
+        })
+      }
+      case 'imagen-4.0-ultra-generate-001': {
+        return generateImage({
+          adapter: geminiImage('imagen-4.0-ultra-generate-001'),
+          prompt: data.prompt,
+          numberOfImages: 1,
+          size: '1024x1024',
+        })
+      }
+      case 'imagen-4.0-generate-001': {
+        return generateImage({
+          adapter: geminiImage('imagen-4.0-generate-001'),
+          prompt: data.prompt,
+          numberOfImages: 1,
+          size: '1024x1024',
+        })
+      }
+      case 'imagen-4.0-fast-generate-001': {
+        return generateImage({
+          adapter: geminiImage('imagen-4.0-fast-generate-001'),
+          prompt: data.prompt,
+          numberOfImages: 1,
+          size: '1024x1024',
         })
       }
       default:

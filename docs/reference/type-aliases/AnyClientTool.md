@@ -11,6 +11,6 @@ type AnyClientTool =
 | ToolDefinitionInstance<SchemaInput, SchemaInput>;
 ```
 
-Defined in: [activities/chat/tools/tool-definition.ts:54](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L54)
+Defined in: [activities/chat/tools/tool-definition.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L55)
 
 Union type for any kind of client-side tool (client tool or definition)

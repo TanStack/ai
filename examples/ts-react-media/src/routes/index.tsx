@@ -20,7 +20,7 @@ function VisualPage() {
             Visual Content Generator
           </h1>
           <p className="text-gray-400">
-            Generate images and videos using fal.ai models
+            Generate images and videos using AI models
           </p>
         </div>
 

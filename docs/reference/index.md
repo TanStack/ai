@@ -102,6 +102,7 @@ title: "@tanstack/ai"
 - [ToolDefinition](interfaces/ToolDefinition.md)
 - [ToolDefinitionConfig](interfaces/ToolDefinitionConfig.md)
 - [ToolDefinitionInstance](interfaces/ToolDefinitionInstance.md)
+- [ToolExecutionContext](interfaces/ToolExecutionContext.md)
 - [ToolResultPart](interfaces/ToolResultPart.md)
 - [ToolsApprovalRequestedEvent](interfaces/ToolsApprovalRequestedEvent.md)
 - [ToolsApprovalRespondedEvent](interfaces/ToolsApprovalRespondedEvent.md)

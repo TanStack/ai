@@ -45,6 +45,36 @@ Defined in: [activities/chat/stream/processor.ts:69](https://github.com/TanStack
 
 ***
 
+### onCustomEvent()?
+
+```ts
+optional onCustomEvent: (eventType, data, context) => void;
+```
+
+Defined in: [activities/chat/stream/processor.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L77)
+
+#### Parameters
+
+##### eventType
+
+`string`
+
+##### data
+
+`unknown`
+
+##### context
+
+###### toolCallId?
+
+`string`
+
+#### Returns
+
+`void`
+
+***
+
 ### onError()?
 
 ```ts
@@ -125,7 +155,7 @@ Defined in: [activities/chat/stream/processor.ts:59](https://github.com/TanStack
 optional onTextUpdate: (messageId, content) => void;
 ```
 
-Defined in: [activities/chat/stream/processor.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L77)
+Defined in: [activities/chat/stream/processor.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L84)
 
 #### Parameters
 
@@ -149,7 +179,7 @@ Defined in: [activities/chat/stream/processor.ts:77](https://github.com/TanStack
 optional onThinkingUpdate: (messageId, content) => void;
 ```
 
-Defined in: [activities/chat/stream/processor.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L84)
+Defined in: [activities/chat/stream/processor.ts:91](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L91)
 
 #### Parameters
 
@@ -203,7 +233,7 @@ Defined in: [activities/chat/stream/processor.ts:64](https://github.com/TanStack
 optional onToolCallStateChange: (messageId, toolCallId, state, args) => void;
 ```
 
-Defined in: [activities/chat/stream/processor.ts:78](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L78)
+Defined in: [activities/chat/stream/processor.ts:85](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L85)
 
 #### Parameters
 

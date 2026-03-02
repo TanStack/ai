@@ -484,6 +484,130 @@ describe('chat()', () => {
   })
 
   // ==========================================================================
+  // Mixed server + client tools (regression: server results were dropped)
+  // ==========================================================================
+  describe('mixed server + client tools', () => {
+    it('processToolCalls: emits server tool result before waiting for client tool', async () => {
+      const searchExecute = vi.fn().mockReturnValue({ results: ['a', 'b'] })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_server', 'searchTools'),
+            ev.toolArgs('call_server', '{"query":"hello"}'),
+            ev.toolStart('call_client', 'showNotification'),
+            ev.toolArgs('call_client', '{"message":"done"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Search and notify' }],
+        tools: [
+          serverTool('searchTools', searchExecute),
+          clientTool('showNotification'),
+        ],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Server tool should have executed
+      expect(searchExecute).toHaveBeenCalledTimes(1)
+
+      // TOOL_CALL_END with a result should be emitted for the server tool
+      const toolEndWithResult = chunks.filter(
+        (c) =>
+          c.type === 'TOOL_CALL_END' &&
+          (c as any).toolName === 'searchTools' &&
+          'result' in c &&
+          (c as any).result,
+      )
+      expect(toolEndWithResult).toHaveLength(1)
+
+      // Client tool should get a tool-input-available event
+      const customChunks = chunks.filter(
+        (c) =>
+          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+      )
+      expect(customChunks).toHaveLength(1)
+      expect((customChunks[0] as any).value.toolName).toBe('showNotification')
+
+      // Adapter called once (waiting for client result, not looping)
+      expect(calls).toHaveLength(1)
+    })
+
+    it('checkForPendingToolCalls: emits server result before waiting for pending client tool', async () => {
+      const weatherExecute = vi.fn().mockReturnValue({ temp: 72 })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          // This should NOT be called because we're still waiting for the client tool
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'Weather and notify?' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_server',
+                type: 'function' as const,
+                function: { name: 'getWeather', arguments: '{"city":"NYC"}' },
+              },
+              {
+                id: 'call_client',
+                type: 'function' as const,
+                function: {
+                  name: 'showNotification',
+                  arguments: '{"message":"done"}',
+                },
+              },
+            ],
+          },
+          // No tool result messages -> both are pending
+        ],
+        tools: [
+          serverTool('getWeather', weatherExecute),
+          clientTool('showNotification'),
+        ],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Server tool should have executed
+      expect(weatherExecute).toHaveBeenCalledTimes(1)
+
+      // TOOL_CALL_END with a result should be emitted for the server tool
+      const toolEndWithResult = chunks.filter(
+        (c) =>
+          c.type === 'TOOL_CALL_END' &&
+          (c as any).toolName === 'getWeather' &&
+          'result' in c &&
+          (c as any).result,
+      )
+      expect(toolEndWithResult).toHaveLength(1)
+
+      // Client tool should get a tool-input-available event
+      const customChunks = chunks.filter(
+        (c) =>
+          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+      )
+      expect(customChunks).toHaveLength(1)
+      expect((customChunks[0] as any).value.toolName).toBe('showNotification')
+
+      // Adapter should NOT be called (still waiting for client result)
+      expect(calls).toHaveLength(0)
+    })
+  })
+
+  // ==========================================================================
   // Approval flow
   // ==========================================================================
   describe('approval flow', () => {
