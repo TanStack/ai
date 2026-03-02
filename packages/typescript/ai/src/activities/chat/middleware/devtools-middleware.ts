@@ -52,6 +52,8 @@ export function devtoolsMiddleware(): ChatMiddleware {
   // runs first, before the engine updates ctx.currentMessageId / ctx.accumulatedContent
   let localMessageId: string | null = null
   let localAccumulatedContent = ''
+  let currentIteration = -1
+  let iterationStartTime = 0
 
   return {
     name: 'devtools',
@@ -99,15 +101,41 @@ export function devtoolsMiddleware(): ChatMiddleware {
     },
 
     onIteration(ctx: ChatMiddlewareContext, info: IterationInfo) {
+      const now = Date.now()
+
+      // Emit completed for previous iteration (it ended with tool_calls if we got here)
+      if (currentIteration >= 0) {
+        aiEventClient.emit('text:iteration:completed', {
+          ...buildEventContext(ctx),
+          iteration: currentIteration,
+          messageId: localMessageId || undefined,
+          duration: now - iterationStartTime,
+          finishReason: 'tool_calls',
+          timestamp: now,
+        })
+      }
+
+      // Track new iteration
+      currentIteration = info.iteration
+      iterationStartTime = now
       localMessageId = info.messageId
       localAccumulatedContent = ''
 
+      // Emit iteration:started with config snapshot
+      aiEventClient.emit('text:iteration:started', {
+        ...buildEventContext(ctx),
+        iteration: info.iteration,
+        messageId: info.messageId,
+        timestamp: now,
+      })
+
+      // Emit assistant message placeholder
       aiEventClient.emit('text:message:created', {
         ...buildEventContext(ctx),
         messageId: info.messageId,
         role: 'assistant' as const,
         content: '',
-        timestamp: Date.now(),
+        timestamp: now,
       })
     },
 
@@ -272,6 +300,21 @@ export function devtoolsMiddleware(): ChatMiddleware {
     },
 
     onFinish(ctx, info) {
+      const now = Date.now()
+
+      // Emit completed for the final iteration
+      if (currentIteration >= 0) {
+        aiEventClient.emit('text:iteration:completed', {
+          ...buildEventContext(ctx),
+          iteration: currentIteration,
+          messageId: localMessageId || undefined,
+          duration: now - iterationStartTime,
+          finishReason: info.finishReason || undefined,
+          usage: info.usage,
+          timestamp: now,
+        })
+      }
+
       aiEventClient.emit('text:request:completed', {
         ...buildEventContext(ctx),
         content: info.content,
@@ -279,7 +322,7 @@ export function devtoolsMiddleware(): ChatMiddleware {
         finishReason: info.finishReason || undefined,
         usage: info.usage,
         duration: info.duration,
-        timestamp: Date.now(),
+        timestamp: now,
       })
     },
   }

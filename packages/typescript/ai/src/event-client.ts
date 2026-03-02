@@ -163,6 +163,65 @@ export interface TextUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Iteration Events
+// ===========================
+
+/** Emitted when a new agent loop iteration begins, with a config snapshot. */
+export interface TextIterationStartedEvent extends BaseEventContext {
+  requestId: string
+  streamId: string
+  iteration: number
+  messageId: string
+  provider: string
+  model: string
+}
+
+/** Emitted when an agent loop iteration completes. */
+export interface TextIterationCompletedEvent extends BaseEventContext {
+  requestId: string
+  streamId: string
+  iteration: number
+  messageId?: string
+  duration: number
+  finishReason?: string
+  usage?: TokenUsage
+}
+
+// ===========================
+// Middleware Events
+// ===========================
+
+/** Emitted when a middleware hook completes execution. */
+export interface MiddlewareHookExecutedEvent extends BaseEventContext {
+  requestId: string
+  streamId: string
+  middlewareName: string
+  hookName: string
+  iteration: number
+  duration: number
+  hasTransform: boolean
+}
+
+/** Emitted when onConfig returns a non-void transform. */
+export interface MiddlewareConfigTransformedEvent extends BaseEventContext {
+  requestId: string
+  streamId: string
+  middlewareName: string
+  iteration: number
+  changes: Record<string, unknown>
+}
+
+/** Emitted when onChunk transforms, drops, or expands a chunk. */
+export interface MiddlewareChunkTransformedEvent extends BaseEventContext {
+  requestId: string
+  streamId: string
+  middlewareName: string
+  originalChunkType: string
+  resultCount: number
+  wasDropped: boolean
+}
+
+// ===========================
 // Tool Events
 // ===========================
 
@@ -441,6 +500,15 @@ export interface AIDevtoolsEventMap {
   'tanstack-ai-devtools:text:chunk:done': TextChunkDoneEvent
   'tanstack-ai-devtools:text:chunk:error': TextChunkErrorEvent
   'tanstack-ai-devtools:text:usage': TextUsageEvent
+
+  // Iteration events
+  'tanstack-ai-devtools:text:iteration:started': TextIterationStartedEvent
+  'tanstack-ai-devtools:text:iteration:completed': TextIterationCompletedEvent
+
+  // Middleware events
+  'tanstack-ai-devtools:middleware:hook:executed': MiddlewareHookExecutedEvent
+  'tanstack-ai-devtools:middleware:config:transformed': MiddlewareConfigTransformedEvent
+  'tanstack-ai-devtools:middleware:chunk:transformed': MiddlewareChunkTransformedEvent
 
   // Tool events
   'tanstack-ai-devtools:tools:approval:requested': ToolsApprovalRequestedEvent

@@ -1,3 +1,4 @@
+import { aiEventClient } from '../../../event-client.js'
 import type { StreamChunk } from '../../../types'
 import type {
   AbortInfo,
@@ -13,6 +14,21 @@ import type {
   ToolPhaseCompleteInfo,
   UsageInfo,
 } from './types'
+
+/** Check if a middleware should be skipped for instrumentation events. */
+function shouldSkipInstrumentation(mw: ChatMiddleware): boolean {
+  return mw.name === 'devtools'
+}
+
+/** Build the base context for middleware instrumentation events. */
+function instrumentCtx(ctx: ChatMiddlewareContext) {
+  return {
+    requestId: ctx.requestId,
+    streamId: ctx.streamId,
+    clientId: ctx.conversationId,
+    timestamp: Date.now(),
+  }
+}
 
 /**
  * Internal middleware runner that manages composed execution of middleware hooks.
@@ -41,9 +57,31 @@ export class MiddlewareRunner {
     let current = config
     for (const mw of this.middlewares) {
       if (mw.onConfig) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
         const result = await mw.onConfig(ctx, current)
-        if (result !== undefined && result !== null) {
+        const hasTransform = result !== undefined && result !== null
+        if (hasTransform) {
           current = { ...current, ...result }
+        }
+        if (!skip) {
+          const base = instrumentCtx(ctx)
+          aiEventClient.emit('middleware:hook:executed', {
+            ...base,
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onConfig',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform,
+          })
+          if (hasTransform) {
+            aiEventClient.emit('middleware:config:transformed', {
+              ...base,
+              middlewareName: mw.name || 'unnamed',
+              iteration: ctx.iteration,
+              changes: result as Record<string, unknown>,
+            })
+          }
         }
       }
     }
@@ -56,7 +94,19 @@ export class MiddlewareRunner {
   async runOnStart(ctx: ChatMiddlewareContext): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onStart) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
         await mw.onStart(ctx)
+        if (!skip) {
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onStart',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
       }
     }
   }
@@ -78,22 +128,50 @@ export class MiddlewareRunner {
 
     for (const mw of this.middlewares) {
       if (!mw.onChunk) continue
+      const skip = shouldSkipInstrumentation(mw)
 
       const nextChunks: Array<StreamChunk> = []
       for (const c of chunks) {
         const result = await mw.onChunk(ctx, c)
         if (result === null) {
           // Drop this chunk
+          if (!skip) {
+            aiEventClient.emit('middleware:chunk:transformed', {
+              ...instrumentCtx(ctx),
+              middlewareName: mw.name || 'unnamed',
+              originalChunkType: c.type,
+              resultCount: 0,
+              wasDropped: true,
+            })
+          }
           continue
         } else if (result === undefined) {
-          // Pass through
+          // Pass through — no instrumentation for pass-throughs
           nextChunks.push(c)
         } else if (Array.isArray(result)) {
           // Expand
           nextChunks.push(...result)
+          if (!skip) {
+            aiEventClient.emit('middleware:chunk:transformed', {
+              ...instrumentCtx(ctx),
+              middlewareName: mw.name || 'unnamed',
+              originalChunkType: c.type,
+              resultCount: result.length,
+              wasDropped: false,
+            })
+          }
         } else {
           // Replace
           nextChunks.push(result)
+          if (!skip) {
+            aiEventClient.emit('middleware:chunk:transformed', {
+              ...instrumentCtx(ctx),
+              middlewareName: mw.name || 'unnamed',
+              originalChunkType: c.type,
+              resultCount: 1,
+              wasDropped: false,
+            })
+          }
         }
       }
       chunks = nextChunks
@@ -112,8 +190,21 @@ export class MiddlewareRunner {
   ): Promise<BeforeToolCallDecision> {
     for (const mw of this.middlewares) {
       if (mw.onBeforeToolCall) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
         const decision = await mw.onBeforeToolCall(ctx, hookCtx)
-        if (decision !== undefined && decision !== null) {
+        const hasTransform = decision !== undefined && decision !== null
+        if (!skip) {
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onBeforeToolCall',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform,
+          })
+        }
+        if (hasTransform) {
           return decision
         }
       }
@@ -130,7 +221,19 @@ export class MiddlewareRunner {
   ): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onAfterToolCall) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
         await mw.onAfterToolCall(ctx, info)
+        if (!skip) {
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onAfterToolCall',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
       }
     }
   }
@@ -144,7 +247,19 @@ export class MiddlewareRunner {
   ): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onUsage) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
         await mw.onUsage(ctx, usage)
+        if (!skip) {
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onUsage',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
       }
     }
   }
@@ -158,7 +273,19 @@ export class MiddlewareRunner {
   ): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onFinish) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
         await mw.onFinish(ctx, info)
+        if (!skip) {
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onFinish',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
       }
     }
   }
@@ -169,7 +296,19 @@ export class MiddlewareRunner {
   async runOnAbort(ctx: ChatMiddlewareContext, info: AbortInfo): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onAbort) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
         await mw.onAbort(ctx, info)
+        if (!skip) {
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onAbort',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
       }
     }
   }
@@ -180,7 +319,19 @@ export class MiddlewareRunner {
   async runOnError(ctx: ChatMiddlewareContext, info: ErrorInfo): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onError) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
         await mw.onError(ctx, info)
+        if (!skip) {
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onError',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
       }
     }
   }
@@ -195,7 +346,19 @@ export class MiddlewareRunner {
   ): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onIteration) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
         await mw.onIteration(ctx, info)
+        if (!skip) {
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onIteration',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
       }
     }
   }
@@ -210,7 +373,19 @@ export class MiddlewareRunner {
   ): Promise<void> {
     for (const mw of this.middlewares) {
       if (mw.onToolPhaseComplete) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
         await mw.onToolPhaseComplete(ctx, info)
+        if (!skip) {
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onToolPhaseComplete',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: false,
+          })
+        }
       }
     }
   }
