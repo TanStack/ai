@@ -1,5 +1,5 @@
 {
-  "name": "ts-react-fal",
+  "name": "ts-react-media",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-fal": "workspace:*",
+    "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",
     "@tanstack/router-plugin": "^1.158.4",

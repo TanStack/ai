@@ -48,7 +48,7 @@ Zod schemas provide full TypeScript type inference and runtime validation:
 import { z } from "zod";
 
 const inputSchema = z.object({
-  location: z.string().describe("City name"),
+  location: z.string().meta({ description: "City name" }),
   unit: z.enum(["celsius", "fahrenheit"]).optional(),
 });
 ```
@@ -91,7 +91,7 @@ const getWeatherDef = toolDefinition({
   name: "get_weather",
   description: "Get the current weather for a location",
   inputSchema: z.object({
-    location: z.string().describe("The city and state, e.g. San Francisco, CA"),
+    location: z.string().meta({ description: "The city and state, e.g. San Francisco, CA" }),
     unit: z.enum(["celsius", "fahrenheit"]).optional(),
   }),
   outputSchema: z.object({

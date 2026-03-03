@@ -5,7 +5,7 @@ title: VideoGenerationOptions
 
 # Interface: VideoGenerationOptions\<TProviderOptions, TSize\>
 
-Defined in: [types.ts:1024](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1024)
+Defined in: [types.ts:1052](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1052)
 
 **`Experimental`**
 
@@ -32,7 +32,7 @@ These are the common options supported across providers.
 optional duration: number;
 ```
 
-Defined in: [types.ts:1035](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1035)
+Defined in: [types.ts:1063](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1063)
 
 **`Experimental`**
 
@@ -46,7 +46,7 @@ Video duration in seconds
 model: string;
 ```
 
-Defined in: [types.ts:1029](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1029)
+Defined in: [types.ts:1057](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1057)
 
 **`Experimental`**
 
@@ -60,7 +60,7 @@ The model to use for video generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [types.ts:1037](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1037)
+Defined in: [types.ts:1065](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1065)
 
 **`Experimental`**
 
@@ -74,7 +74,7 @@ Model-specific options for video generation
 prompt: string;
 ```
 
-Defined in: [types.ts:1031](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1031)
+Defined in: [types.ts:1059](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1059)
 
 **`Experimental`**
 
@@ -88,7 +88,7 @@ Text description of the desired video
 optional size: TSize;
 ```
 
-Defined in: [types.ts:1033](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1033)
+Defined in: [types.ts:1061](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1061)
 
 **`Experimental`**
 

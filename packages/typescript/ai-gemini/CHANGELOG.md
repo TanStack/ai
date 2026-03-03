@@ -1,5 +1,20 @@
 # @tanstack/ai-gemini
 
+## 0.7.0
+
+### Minor Changes
+
+- - Add NanoBanana native image generation with up to 4K image output, routing all gemini-\* native image models through generateContent API ([#321](https://github.com/TanStack/ai/pull/321))
+  - Fix SDK property names (imageGenerationConfig → imageConfig, outputImageSize → imageSize) and rename NanoBanana types to GeminiNativeImage
+  - Add Gemini 3.1 Pro model support for text generation
+
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [[`5aa6acc`](https://github.com/TanStack/ai/commit/5aa6acc1a4faea5346f750322e80984abf2d7059), [`1f800aa`](https://github.com/TanStack/ai/commit/1f800aacf57081f37a075bc8d08ff397cb33cbe9)]:
+  - @tanstack/ai@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes

@@ -5,7 +5,7 @@ title: Tool
 
 # Interface: Tool\<TInput, TOutput, TName\>
 
-Defined in: [types.ts:360](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L360)
+Defined in: [types.ts:388](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L388)
 
 Tool/Function definition for function calling.
 
@@ -48,7 +48,7 @@ or plain JSON Schema objects for runtime validation and type safety.
 description: string;
 ```
 
-Defined in: [types.ts:383](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L383)
+Defined in: [types.ts:411](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L411)
 
 Clear description of what the tool does.
 
@@ -66,10 +66,10 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 ### execute()?
 
 ```ts
-optional execute: (args) => any;
+optional execute: (args, context?) => any;
 ```
 
-Defined in: [types.ts:463](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L463)
+Defined in: [types.ts:491](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L491)
 
 Optional function to execute when the model calls this tool.
 
@@ -85,6 +85,10 @@ Can return any value - will be automatically stringified if needed.
 `any`
 
 The arguments parsed from the model's tool call (validated against inputSchema)
+
+##### context?
+
+[`ToolExecutionContext`](ToolExecutionContext.md)
 
 #### Returns
 
@@ -109,7 +113,7 @@ execute: async (args) => {
 optional inputSchema: TInput;
 ```
 
-Defined in: [types.ts:423](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L423)
+Defined in: [types.ts:451](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L451)
 
 Schema describing the tool's input parameters.
 
@@ -129,7 +133,7 @@ Standard JSON Schema compliant schemas are converted to JSON Schema for LLM prov
 // Using Zod v4+ schema (natively supports Standard JSON Schema)
 import { z } from 'zod';
 z.object({
-  location: z.string().describe("City name or coordinates"),
+  location: z.string().meta({ description: "City name or coordinates" }),
   unit: z.enum(["celsius", "fahrenheit"]).optional()
 })
 ```
@@ -163,7 +167,7 @@ type({
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [types.ts:469](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L469)
+Defined in: [types.ts:497](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L497)
 
 Additional metadata for adapters or custom extensions
 
@@ -175,7 +179,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [types.ts:373](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L373)
+Defined in: [types.ts:401](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L401)
 
 Unique name of the tool (used by the model to call it).
 
@@ -196,7 +200,7 @@ Must be unique within the tools array.
 optional needsApproval: boolean;
 ```
 
-Defined in: [types.ts:466](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L466)
+Defined in: [types.ts:494](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L494)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -208,7 +212,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema: TOutput;
 ```
 
-Defined in: [types.ts:444](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L444)
+Defined in: [types.ts:472](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L472)
 
 Optional schema for validating tool output.
 
