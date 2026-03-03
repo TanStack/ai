@@ -37,10 +37,11 @@ function RootDocument({ children }: { children: JSXElement }) {
 
   onMount(async () => {
     try {
-      const [{ TanStackDevtools }, { TanStackRouterDevtoolsPanel }] = await Promise.all([
-        import('@tanstack/solid-devtools'),
-        import('@tanstack/solid-router-devtools'),
-      ])
+      const [{ TanStackDevtools }, { TanStackRouterDevtoolsPanel }] =
+        await Promise.all([
+          import('@tanstack/solid-devtools'),
+          import('@tanstack/solid-router-devtools'),
+        ])
 
       setDevtools(
         <TanStackDevtools
