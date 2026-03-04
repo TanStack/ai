@@ -1040,7 +1040,8 @@ describe('OpenRouter modelOptions pass-through', () => {
       // consume
     }
 
-    const [params] = mockSend.mock.calls[0]!
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
     expect(params.frequencyPenalty).toBe(0.5)
     expect(params.presencePenalty).toBe(0.3)
     expect(params.maxCompletionTokens).toBe(2048)
@@ -1071,7 +1072,8 @@ describe('OpenRouter modelOptions pass-through', () => {
       // consume
     }
 
-    const [params] = mockSend.mock.calls[0]!
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
     expect(params.topK).toBe(40)
     expect(params.repetitionPenalty).toBe(1.1)
     expect(params.minP).toBe(0.05)
@@ -1090,7 +1092,8 @@ describe('OpenRouter modelOptions pass-through', () => {
       // consume
     }
 
-    const [params] = mockSend.mock.calls[0]!
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
     expect(params.model).toBe('openai/gpt-4o-mini:free')
   })
 
@@ -1111,7 +1114,8 @@ describe('OpenRouter modelOptions pass-through', () => {
       // consume
     }
 
-    const [params] = mockSend.mock.calls[0]!
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
     expect(params.toolChoice).toBe('required')
   })
 })

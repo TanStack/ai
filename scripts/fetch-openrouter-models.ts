@@ -75,6 +75,9 @@ async function main() {
     data: Array<Record<string, unknown>>
   }
   const models = json.data
+  models.sort((a: Record<string, unknown>, b: Record<string, unknown>) =>
+    String(a.id).localeCompare(String(b.id)),
+  )
   console.log(`Fetched ${models.length} models`)
 
   const modelEntries = models.map(

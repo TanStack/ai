@@ -280,15 +280,15 @@ export interface OpenRouterBaseOptions {
   /**
    * Force the model to respond in a specific format.
    */
-  response_format?:
+  responseFormat?:
     | { type: 'json_object' }
     | {
         type: 'json_schema'
-        json_schema: {
+        jsonSchema: {
           name: string
           description?: string
-          schema: Record<string, unknown>
-          strict?: boolean
+          schema?: Record<string, unknown>
+          strict?: boolean | null
         }
       }
 
