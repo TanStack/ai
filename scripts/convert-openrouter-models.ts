@@ -198,8 +198,7 @@ function generateModelMetaString(model: OpenRouterModel): string {
   const supportedParams =
     model.supported_parameters
       ?.filter((p) => !SKIPPED_PARAMS.has(p))
-      .map((p) => `'${mapApiParam(p)}'`)
-      ?? []
+      .map((p) => `'${mapApiParam(p)}'`) ?? []
   perModelProviderOptions[`${constName}.id`] =
     supportedParams.length > 0
       ? `OpenRouterCommonOptions & Pick<OpenRouterBaseOptions,${
