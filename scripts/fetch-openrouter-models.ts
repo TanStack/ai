@@ -1,4 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises'
+import * as prettier from 'prettier'
 
 const API_URL = 'https://openrouter.ai/api/v1/models'
 const OUTPUT_PATH = new URL('./openrouter.models.ts', import.meta.url)
@@ -84,7 +85,13 @@ async function main() {
     (model) => `  ${serializeValue(model, 1).trimStart()},`,
   )
 
-  const output = `${preamble}${ARRAY_START}\n${modelEntries.join('\n')}\n]\n`
+  const raw = `${preamble}${ARRAY_START}\n${modelEntries.join('\n')}\n]\n`
+
+  const prettierConfig = await prettier.resolveConfig(OUTPUT_PATH.pathname)
+  const output = await prettier.format(raw, {
+    ...prettierConfig,
+    filepath: OUTPUT_PATH.pathname,
+  })
 
   await writeFile(OUTPUT_PATH, output)
   console.log(`Wrote ${models.length} models to scripts/openrouter.models.ts`)
