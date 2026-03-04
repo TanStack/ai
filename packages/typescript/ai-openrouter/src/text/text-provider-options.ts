@@ -15,10 +15,7 @@ export type WebPlugin = Extract<Plugin, { id: 'web' }>
 
 export type PluginFileParser = Extract<Plugin, { id: 'file-parser' }>
 
-export type PluginResponseHealing = Extract<
-  Plugin,
-  { id: 'response-healing' }
->
+export type PluginResponseHealing = Extract<Plugin, { id: 'response-healing' }>
 
 export type PluginModeration = Extract<Plugin, { id: 'moderation' }>
 
