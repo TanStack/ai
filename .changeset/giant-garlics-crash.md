@@ -2,6 +2,9 @@
 '@tanstack/ai-openrouter': patch
 ---
 
-- Updated openrouter sdk to 0.8.0
-- Updated model list to include Opus 4.6, Sonnet 4.6, and Gemini 3.1 Pro amongst others
-- Updated structured output support to natively support open router structured output
+- Bump `@openrouter/sdk` to 0.9.11
+- Updated model list with latest models (Opus 4.6, Sonnet 4.6, Gemini 3.1 Pro, etc.)
+- Native structured output support for OpenRouter
+- Refactored text-provider-options to derive types from SDK's `ChatGenerationParams`
+- Refactored options passthrough to use camelCase naming convention
+- Improved error handling
