@@ -1776,7 +1776,6 @@ export const AIProvider: ParentComponent = (props) => {
               )
             }
           }
-         
         }
       }),
     )
@@ -1825,12 +1824,10 @@ export const AIProvider: ParentComponent = (props) => {
             )
           }
         }
-       
 
         // Guard against duplicate iteration events (e.g. middleware registered twice)
         const existingConv = state.conversations[conversationId]
         if (
-          
           existingConv.iterations.some(
             (it) => it.index === iteration && it.requestId === requestId,
           )
