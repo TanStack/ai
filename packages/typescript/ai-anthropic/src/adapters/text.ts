@@ -61,6 +61,8 @@ type AnthropicContentBlocks =
     : never
 type AnthropicContentBlock =
   AnthropicContentBlocks extends Array<infer Block> ? Block : never
+type AnthropicThinkingBlock = { thinking: string; signature: string }
+type ThinkingByToolCallBatchKey = Map<string, Array<AnthropicThinkingBlock>>
 
 // ===========================
 // Type Resolution Helpers
@@ -119,7 +121,11 @@ export class AnthropicTextAdapter<
     options: TextOptions<AnthropicTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     try {
-      const requestParams = this.mapCommonOptionsToAnthropic(options)
+      const thinkingByToolCallBatchKey: ThinkingByToolCallBatchKey = new Map()
+      const requestParams = this.mapCommonOptionsToAnthropic(
+        options,
+        thinkingByToolCallBatchKey,
+      )
 
       const stream = await this.client.beta.messages.create(
         { ...requestParams, stream: true },
@@ -129,8 +135,11 @@ export class AnthropicTextAdapter<
         },
       )
 
-      yield* this.processAnthropicStream(stream, options.model, () =>
-        generateId(this.name),
+      yield* this.processAnthropicStream(
+        stream,
+        options.model,
+        () => generateId(this.name),
+        thinkingByToolCallBatchKey,
       )
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
@@ -156,8 +165,12 @@ export class AnthropicTextAdapter<
     options: StructuredOutputOptions<AnthropicTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
+    const thinkingByToolCallBatchKey: ThinkingByToolCallBatchKey = new Map()
 
-    const requestParams = this.mapCommonOptionsToAnthropic(chatOptions)
+    const requestParams = this.mapCommonOptionsToAnthropic(
+      chatOptions,
+      thinkingByToolCallBatchKey,
+    )
 
     // Create a tool that will capture the structured output
     // Anthropic's SDK requires input_schema with type: 'object' literal
@@ -232,12 +245,16 @@ export class AnthropicTextAdapter<
 
   private mapCommonOptionsToAnthropic(
     options: TextOptions<AnthropicTextProviderOptions>,
+    thinkingByToolCallBatchKey: ThinkingByToolCallBatchKey,
   ) {
     const modelOptions = options.modelOptions as
       | InternalTextProviderOptions
       | undefined
 
-    const formattedMessages = this.formatMessages(options.messages)
+    const formattedMessages = this.formatMessages(
+      options.messages,
+      thinkingByToolCallBatchKey,
+    )
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
       : undefined
@@ -292,6 +309,10 @@ export class AnthropicTextAdapter<
     }
     validateTextProviderOptions(requestParams)
     return requestParams
+  }
+
+  private getToolCallBatchKey(toolCallIds: Array<string>): string {
+    return toolCallIds.join('|')
   }
 
   private convertContentPartToAnthropic(
@@ -365,6 +386,7 @@ export class AnthropicTextAdapter<
 
   private formatMessages(
     messages: Array<ModelMessage>,
+    thinkingByToolCallBatchKey: ThinkingByToolCallBatchKey,
   ): InternalTextProviderOptions['messages'] {
     const formattedMessages: InternalTextProviderOptions['messages'] = []
 
@@ -388,6 +410,21 @@ export class AnthropicTextAdapter<
 
       if (role === 'assistant' && message.toolCalls?.length) {
         const contentBlocks: AnthropicContentBlocks = []
+        const preservedThinkingBlocks = thinkingByToolCallBatchKey.get(
+          this.getToolCallBatchKey(
+            message.toolCalls.map((toolCall) => toolCall.id),
+          ),
+        )
+
+        if (preservedThinkingBlocks) {
+          for (const thinkingBlock of preservedThinkingBlocks) {
+            contentBlocks.push({
+              type: 'thinking',
+              thinking: thinkingBlock.thinking,
+              signature: thinkingBlock.signature,
+            } as unknown as AnthropicContentBlock)
+          }
+        }
 
         if (message.content) {
           const content =
@@ -525,6 +562,7 @@ export class AnthropicTextAdapter<
     stream: AsyncIterable<Anthropic_SDK.Beta.BetaRawMessageStreamEvent>,
     model: string,
     genId: () => string,
+    thinkingByToolCallBatchKey: ThinkingByToolCallBatchKey,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     let accumulatedThinking = ''
@@ -533,6 +571,7 @@ export class AnthropicTextAdapter<
       number,
       { id: string; name: string; input: string; started: boolean }
     >()
+    const completedThinkingBlocks: Array<AnthropicThinkingBlock> = []
     let currentToolIndex = -1
 
     // AG-UI lifecycle tracking
@@ -544,6 +583,7 @@ export class AnthropicTextAdapter<
     let hasEmittedRunFinished = false
     // Track current content block type for proper content_block_stop handling
     let currentBlockType: string | null = null
+    let currentThinkingBlock: AnthropicThinkingBlock | null = null
 
     try {
       for await (const event of stream) {
@@ -570,6 +610,10 @@ export class AnthropicTextAdapter<
             })
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
+            currentThinkingBlock = {
+              thinking: '',
+              signature: '',
+            }
             // Emit STEP_STARTED for thinking
             stepId = genId()
             yield {
@@ -607,6 +651,9 @@ export class AnthropicTextAdapter<
           } else if (event.delta.type === 'thinking_delta') {
             const delta = event.delta.thinking
             accumulatedThinking += delta
+            if (currentThinkingBlock) {
+              currentThinkingBlock.thinking += delta
+            }
             yield {
               type: 'STEP_FINISHED',
               stepId: stepId || genId(),
@@ -614,6 +661,10 @@ export class AnthropicTextAdapter<
               timestamp,
               delta,
               content: accumulatedThinking,
+            }
+          } else if (event.delta.type === 'signature_delta') {
+            if (currentThinkingBlock) {
+              currentThinkingBlock.signature = event.delta.signature
             }
           } else if (event.delta.type === 'input_json_delta') {
             const existing = toolCallsMap.get(currentToolIndex)
@@ -681,6 +732,11 @@ export class AnthropicTextAdapter<
               // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
               hasEmittedTextMessageStart = false
             }
+          } else if (currentBlockType === 'thinking') {
+            if (currentThinkingBlock) {
+              completedThinkingBlocks.push(currentThinkingBlock)
+              currentThinkingBlock = null
+            }
           } else {
             // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
             if (hasEmittedTextMessageStart && accumulatedContent) {
@@ -711,6 +767,18 @@ export class AnthropicTextAdapter<
             hasEmittedRunFinished = true
             switch (event.delta.stop_reason) {
               case 'tool_use': {
+                const toolCallIds = Array.from(toolCallsMap.values()).map(
+                  (toolCall) => toolCall.id,
+                )
+                if (
+                  completedThinkingBlocks.length > 0 &&
+                  toolCallIds.length > 0
+                ) {
+                  thinkingByToolCallBatchKey.set(
+                    this.getToolCallBatchKey(toolCallIds),
+                    completedThinkingBlocks,
+                  )
+                }
                 yield {
                   type: 'RUN_FINISHED',
                   runId,
