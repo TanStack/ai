@@ -1,10 +1,9 @@
 import { constructCoreClass } from '@tanstack/devtools-utils/solid/class'
 
 export interface AiDevtoolsInit {}
-
-const importPath = './components/Shell'
+ 
 const [AiDevtoolsCore, AiDevtoolsCoreNoOp] = constructCoreClass(
-  () => import(importPath),
+  () => import("./components/Shell"),
 )
 
 export { AiDevtoolsCore, AiDevtoolsCoreNoOp }
