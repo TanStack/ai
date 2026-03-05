@@ -721,11 +721,11 @@ importers:
         specifier: workspace:*
         version: link:../ai
       '@tanstack/devtools-ui':
-        specifier: ^0.4.4
-        version: 0.4.4(csstype@3.2.3)(solid-js@1.9.10)
+        specifier: https://pkg.pr.new/@tanstack/devtools-ui@367
+        version: https://pkg.pr.new/@tanstack/devtools-ui@367(csstype@3.2.3)(solid-js@1.9.10)
       '@tanstack/devtools-utils':
-        specifier: ^0.3.0
-        version: 0.3.0(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
+        specifier: https://pkg.pr.new/@tanstack/devtools-utils@367
+        version: https://pkg.pr.new/@tanstack/devtools-utils@367(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
       goober:
         specifier: ^2.1.18
         version: 2.1.18(csstype@3.2.3)
@@ -1124,7 +1124,7 @@ importers:
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.3.0
-        version: 0.3.0(@types/react@19.2.7)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
+        version: 0.3.0(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))
       preact:
         specifier: ^10.0.0
         version: 10.28.1
@@ -3829,8 +3829,44 @@ packages:
     peerDependencies:
       solid-js: '>=1.9.7'
 
+  '@tanstack/devtools-ui@https://pkg.pr.new/@tanstack/devtools-ui@367':
+    resolution: {tarball: https://pkg.pr.new/@tanstack/devtools-ui@367}
+    version: 0.5.0
+    engines: {node: '>=18'}
+    peerDependencies:
+      solid-js: '>=1.9.7'
+
+  '@tanstack/devtools-ui@https://pkg.pr.new/TanStack/devtools/@tanstack/devtools-ui@fc06159':
+    resolution: {tarball: https://pkg.pr.new/TanStack/devtools/@tanstack/devtools-ui@fc06159}
+    version: 0.5.0
+    engines: {node: '>=18'}
+    peerDependencies:
+      solid-js: '>=1.9.7'
+
   '@tanstack/devtools-utils@0.3.0':
     resolution: {integrity: sha512-JgApXVrgtgSLIPrm/QWHx0u6c9Ji0MNMDWhwujapj8eMzux5aOfi+2Ycwzj0A0qITXA12SEPYV3HC568mDtYmQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/react': '>=17.0.0'
+      preact: '>=10.0.0'
+      react: '>=17.0.0'
+      solid-js: '>=1.9.7'
+      vue: '>=3.2.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      preact:
+        optional: true
+      react:
+        optional: true
+      solid-js:
+        optional: true
+      vue:
+        optional: true
+
+  '@tanstack/devtools-utils@https://pkg.pr.new/@tanstack/devtools-utils@367':
+    resolution: {tarball: https://pkg.pr.new/@tanstack/devtools-utils@367}
+    version: 0.3.1
     engines: {node: '>=18'}
     peerDependencies:
       '@types/react': '>=17.0.0'
@@ -5391,6 +5427,9 @@ packages:
   dax-sh@0.39.2:
     resolution: {integrity: sha512-gpuGEkBQM+5y6p4cWaw9+ePy5TNon+fdwFVtTI8leU3UhwhsBfPewRxMXGuQNC+M2b/MDGMlfgpqynkcd0C3FQ==}
     deprecated: This package has moved to simply be 'dax' instead of 'dax-sh'
+
+  dayjs@1.11.19:
+    resolution: {integrity: sha512-t5EcLVS6QPBNqM2z8fakk/NKel+Xzshgt8FFKAn+qwlD1pzZWxh0nVCrvFK7ZDb6XucZeF9z8C7CBWTRIVApAw==}
 
   db0@0.3.4:
     resolution: {integrity: sha512-RiXXi4WaNzPTHEOu8UPQKMooIbqOEyqA1t7Z6MsdxSCeb8iUC9ko3LcmsLmeUt2SM5bctfArZKkRQggKZz7JNw==}
@@ -11315,6 +11354,36 @@ snapshots:
     transitivePeerDependencies:
       - csstype
 
+  '@tanstack/devtools-ui@https://pkg.pr.new/@tanstack/devtools-ui@367(csstype@3.2.3)(solid-js@1.9.10)':
+    dependencies:
+      clsx: 2.1.1
+      dayjs: 1.11.19
+      goober: 2.1.18(csstype@3.2.3)
+      solid-js: 1.9.10
+    transitivePeerDependencies:
+      - csstype
+
+  '@tanstack/devtools-ui@https://pkg.pr.new/TanStack/devtools/@tanstack/devtools-ui@fc06159(csstype@3.2.3)(solid-js@1.9.10)':
+    dependencies:
+      clsx: 2.1.1
+      dayjs: 1.11.19
+      goober: 2.1.18(csstype@3.2.3)
+      solid-js: 1.9.10
+    transitivePeerDependencies:
+      - csstype
+
+  '@tanstack/devtools-utils@0.3.0(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))':
+    dependencies:
+      '@tanstack/devtools-ui': 0.4.4(csstype@3.2.3)(solid-js@1.9.10)
+    optionalDependencies:
+      '@types/react': 19.2.7
+      preact: 10.28.1
+      react: 19.2.3
+      solid-js: 1.9.10
+      vue: 3.5.25(typescript@5.9.3)
+    transitivePeerDependencies:
+      - csstype
+
   '@tanstack/devtools-utils@0.3.0(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))':
     dependencies:
       '@tanstack/devtools-ui': 0.4.4(csstype@3.2.3)(solid-js@1.9.10)
@@ -11327,12 +11396,12 @@ snapshots:
     transitivePeerDependencies:
       - csstype
 
-  '@tanstack/devtools-utils@0.3.0(@types/react@19.2.7)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))':
+  '@tanstack/devtools-utils@https://pkg.pr.new/@tanstack/devtools-utils@367(@types/react@19.2.7)(csstype@3.2.3)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@5.9.3))':
     dependencies:
-      '@tanstack/devtools-ui': 0.4.4(csstype@3.2.3)(solid-js@1.9.10)
+      '@tanstack/devtools-ui': https://pkg.pr.new/TanStack/devtools/@tanstack/devtools-ui@fc06159(csstype@3.2.3)(solid-js@1.9.10)
     optionalDependencies:
       '@types/react': 19.2.7
-      preact: 10.28.1
+      preact: 10.28.2
       react: 19.2.3
       solid-js: 1.9.10
       vue: 3.5.25(typescript@5.9.3)
@@ -13871,6 +13940,8 @@ snapshots:
     dependencies:
       '@deno/shim-deno': 0.19.2
       undici-types: 5.28.4
+
+  dayjs@1.11.19: {}
 
   db0@0.3.4: {}
 
