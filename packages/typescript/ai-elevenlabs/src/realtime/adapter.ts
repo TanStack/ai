@@ -147,12 +147,9 @@ async function createElevenLabsConnection(
       emit('mode_change', { mode: 'idle' })
     },
 
-    sendText(_text: string) {
-      // ElevenLabs doesn't support direct text input in the same way
-      // The SDK is voice-first. Log a warning.
-      console.warn(
-        'ElevenLabs realtime adapter does not support sendText. Use voice input.',
-      )
+    sendText(text: string) {
+      if (!conversation) return
+      conversation.sendUserMessage(text)
     },
 
     sendToolResult(_callId: string, _result: string) {

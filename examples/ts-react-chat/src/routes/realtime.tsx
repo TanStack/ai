@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Mic, MicOff, Phone, PhoneOff, Volume2, Wrench } from 'lucide-react'
+import {
+  Mic,
+  MicOff,
+  Phone,
+  PhoneOff,
+  Send,
+  Volume2,
+  Wrench,
+} from 'lucide-react'
 import { AudioSparkline } from '@/components/AudioSparkline'
 import { useRealtime } from '@/lib/use-realtime'
 
@@ -14,6 +22,7 @@ const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
 function RealtimePage() {
   const [provider, setProvider] = useState<Provider>('openai')
   const [agentId, setAgentId] = useState('')
+  const [textInput, setTextInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -26,6 +35,7 @@ function RealtimePage() {
     connect,
     disconnect,
     interrupt,
+    sendText,
     inputLevel,
     outputLevel,
     getInputTimeDomainData,
@@ -255,6 +265,37 @@ function RealtimePage() {
         {error && (
           <div className="mx-4 mb-2 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
             Error: {error.message}
+          </div>
+        )}
+
+        {/* Text input */}
+        {status === 'connected' && (
+          <div className="px-4 pt-3">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                const text = textInput.trim()
+                if (!text) return
+                sendText(text)
+                setTextInput('')
+              }}
+              className="flex items-center gap-2"
+            >
+              <input
+                type="text"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder="Type a message..."
+                className="flex-1 rounded-lg border border-orange-500/20 bg-gray-800 px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+              />
+              <button
+                type="submit"
+                disabled={!textInput.trim()}
+                className="flex items-center justify-center w-10 h-10 rounded-lg bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:hover:bg-orange-600 text-white transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
           </div>
         )}
 
