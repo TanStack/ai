@@ -599,6 +599,7 @@ class TextEngine<
     } else {
       this.accumulatedContent += chunk.delta
     }
+    this.middlewareCtx.accumulatedContent = this.accumulatedContent
   }
 
   private handleToolCallStartEvent(chunk: ToolCallStartEvent): void {
@@ -675,6 +676,12 @@ class TextEngine<
 
     // Consume the async generator, yielding custom events and collecting the return value
     const executionResult = yield* this.drainToolCallGenerator(generator)
+
+    // Check if middleware aborted during pending tool execution
+    if (this.isMiddlewareAborted()) {
+      this.setToolPhase('stop')
+      return 'stop'
+    }
 
     // Notify middleware of tool phase completion (devtools emits aggregate events here)
     await this.middlewareRunner.runOnToolPhaseComplete(this.middlewareCtx, {

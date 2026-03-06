@@ -2028,6 +2028,263 @@ describe('chat() middleware', () => {
   })
 
   // ==========================================================================
+  // onConfig tools sent to adapter (Fix: this.tools vs this.params.tools)
+  // ==========================================================================
+  describe('onConfig tools sent to adapter', () => {
+    it('should send middleware-modified tools to the adapter chatStream', async () => {
+      const injectedToolExecute = vi.fn(() => ({ injected: true }))
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'tool-injector',
+        onConfig: (_ctx, config) => ({
+          tools: [
+            ...config.tools,
+            {
+              name: 'injectedTool',
+              description: 'Injected by middleware',
+              execute: injectedToolExecute,
+            },
+          ],
+        }),
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [],
+        middleware: [middleware],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // The adapter should receive the tools array including the injected tool
+      const adapterCall = calls[0] as { tools?: Array<{ name: string }> }
+      expect(adapterCall.tools).toBeDefined()
+      expect(adapterCall.tools!.some((t) => t.name === 'injectedTool')).toBe(
+        true,
+      )
+    })
+  })
+
+  // ==========================================================================
+  // Pending tool calls run middleware hooks (Fix: checkForPendingToolCalls)
+  // ==========================================================================
+  describe('pending tool calls middleware hooks', () => {
+    it('should call onBeforeToolCall/onAfterToolCall for pending tool calls in messages', async () => {
+      const beforeNames: Array<string> = []
+      const afterNames: Array<string> = []
+
+      const tool = serverTool('myTool', () => ({ done: true }))
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          // After pending tool replay, model responds with text
+          [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'hook-tracker',
+        onBeforeToolCall: (_ctx, hookCtx) => {
+          beforeNames.push(hookCtx.toolName)
+        },
+        onAfterToolCall: (_ctx, info) => {
+          afterNames.push(info.toolName)
+        },
+      }
+
+      // Pass messages with an assistant tool call but NO corresponding tool result
+      // This triggers checkForPendingToolCalls
+      const stream = chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'Hi' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'tc-pending',
+                type: 'function' as const,
+                function: { name: 'myTool', arguments: '{}' },
+              },
+            ],
+          },
+        ],
+        tools: [tool],
+        middleware: [middleware],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Middleware hooks should have been called for the pending tool call
+      expect(beforeNames).toContain('myTool')
+      expect(afterNames).toContain('myTool')
+    })
+  })
+
+  // ==========================================================================
+  // Tools returning plain text (Fix: safe JSON.parse)
+  // ==========================================================================
+  describe('tools returning plain text', () => {
+    it('should not throw when a tool returns a non-JSON string', async () => {
+      const tool = serverTool('greet', () => 'Hello, world!')
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tc-1', 'greet'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'greet', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+          [ev.runStarted(), ev.textContent('Done'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [tool],
+      })
+
+      // Should not throw — previously would throw JSON.parse error
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+      expect(chunks.length).toBeGreaterThan(0)
+    })
+
+    it('should still parse valid JSON string results', async () => {
+      const afterResults: Array<unknown> = []
+      const tool = serverTool('getData', () => '{"value":42}')
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tc-1', 'getData'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'getData', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+          [ev.runStarted(), ev.textContent('Done'), ev.runFinished('stop')],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'result-observer',
+        onAfterToolCall: (_ctx, info) => {
+          afterResults.push(info.result)
+        },
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [tool],
+        middleware: [middleware],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Valid JSON string results are parsed into objects
+      expect(afterResults[0]).toEqual({ value: 42 })
+    })
+  })
+
+  // ==========================================================================
+  // Abort check in pending tool calls
+  // ==========================================================================
+  describe('pending tool calls abort check', () => {
+    it('should stop processing when middleware aborts during pending tool execution', async () => {
+      const tool = serverTool('myTool', () => ({ done: true }))
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'aborter',
+        onBeforeToolCall: (ctx) => {
+          ctx.abort('stop now')
+          return { type: 'abort', reason: 'stop now' }
+        },
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'Hi' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'tc-pending',
+                type: 'function' as const,
+                function: { name: 'myTool', arguments: '{}' },
+              },
+            ],
+          },
+        ],
+        tools: [tool],
+        middleware: [middleware],
+      })
+
+      // Should not throw — abort should be handled gracefully
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+      // Stream should be short (aborted before model response)
+      expect(chunks.length).toBeLessThanOrEqual(1)
+    })
+  })
+
+  // ==========================================================================
+  // accumulatedContent sync to middleware context
+  // ==========================================================================
+  describe('accumulatedContent sync', () => {
+    it('should keep ctx.accumulatedContent in sync during streaming', async () => {
+      const contentSnapshots: Array<string> = []
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textContent('Hello'),
+            ev.textContent(' world'),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'content-observer',
+        onChunk: (ctx) => {
+          contentSnapshots.push(ctx.accumulatedContent)
+        },
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [middleware],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // After each text content chunk, accumulatedContent should be updated
+      // Snapshots include non-text chunks too (RUN_STARTED, RUN_FINISHED)
+      // but the text ones should show accumulated content
+      const nonEmpty = contentSnapshots.filter((s) => s.length > 0)
+      expect(nonEmpty).toContain('Hello')
+      expect(nonEmpty).toContain('Hello world')
+    })
+  })
+
+  // ==========================================================================
   // onConfig removing tools
   // ==========================================================================
   describe('onConfig tool removal', () => {

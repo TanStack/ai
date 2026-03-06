@@ -333,6 +333,73 @@ describe('toolCacheMiddleware', () => {
     expect(executedKeys).toEqual(['a', 'b', 'c', 'a'])
   })
 
+  it('should use true LRU eviction (access refreshes recency)', async () => {
+    const executeSpy = vi.fn((args: unknown) => {
+      const key = (args as { key: string }).key
+      return { value: `result-${key}` }
+    })
+    const spyTool = serverTool('lookup', executeSpy)
+
+    const { adapter } = createMockAdapter({
+      iterations: [
+        // Fill cache: key=a, key=b (maxSize=2)
+        [
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'lookup'),
+          ev.toolArgs('tc-1', '{"key":"a"}'),
+          ev.toolEnd('tc-1', 'lookup', { input: { key: 'a' } }),
+          ev.toolStart('tc-2', 'lookup'),
+          ev.toolArgs('tc-2', '{"key":"b"}'),
+          ev.toolEnd('tc-2', 'lookup', { input: { key: 'b' } }),
+          ev.runFinished('tool_calls'),
+        ],
+        // Access key=a again (should refresh its recency, making b the LRU)
+        [
+          ev.runStarted(),
+          ev.toolStart('tc-3', 'lookup'),
+          ev.toolArgs('tc-3', '{"key":"a"}'),
+          ev.toolEnd('tc-3', 'lookup', { input: { key: 'a' } }),
+          ev.runFinished('tool_calls'),
+        ],
+        // Add key=c — should evict key=b (LRU), NOT key=a
+        [
+          ev.runStarted(),
+          ev.toolStart('tc-4', 'lookup'),
+          ev.toolArgs('tc-4', '{"key":"c"}'),
+          ev.toolEnd('tc-4', 'lookup', { input: { key: 'c' } }),
+          ev.runFinished('tool_calls'),
+        ],
+        // key=a should still be cached (was refreshed), key=b should miss (was evicted)
+        [
+          ev.runStarted(),
+          ev.toolStart('tc-5', 'lookup'),
+          ev.toolArgs('tc-5', '{"key":"a"}'),
+          ev.toolEnd('tc-5', 'lookup', { input: { key: 'a' } }),
+          ev.toolStart('tc-6', 'lookup'),
+          ev.toolArgs('tc-6', '{"key":"b"}'),
+          ev.toolEnd('tc-6', 'lookup', { input: { key: 'b' } }),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.runStarted(), ev.textContent('Done'), ev.runFinished('stop')],
+      ],
+    })
+
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      tools: [spyTool],
+      middleware: [toolCacheMiddleware({ maxSize: 2 })],
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+    // Calls: a(exec), b(exec), a(cache hit), c(exec, evicts b), a(cache hit), b(exec, was evicted)
+    expect(executeSpy).toHaveBeenCalledTimes(4)
+    const executedKeys = executeSpy.mock.calls.map(
+      (call) => (call[0] as { key: string }).key,
+    )
+    expect(executedKeys).toEqual(['a', 'b', 'c', 'b'])
+  })
+
   it('should support custom keyFn', async () => {
     let callCount = 0
     const tool = serverTool('search', () => {
