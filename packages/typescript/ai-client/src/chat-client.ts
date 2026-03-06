@@ -40,6 +40,9 @@ export class ChatClient {
   private pendingToolExecutions: Map<string, Promise<void>> = new Map()
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
+  // Tracks whether a queued checkForContinuation was skipped because
+  // continuationPending was true (chained approval scenario)
+  private continuationSkipped = false
 
   private callbacksRef: {
     current: {
@@ -631,15 +634,25 @@ export class ChatClient {
   private async checkForContinuation(): Promise<void> {
     // Prevent duplicate continuation attempts
     if (this.continuationPending || this.isLoading) {
+      this.continuationSkipped = true
       return
     }
 
     if (this.shouldAutoSend()) {
       this.continuationPending = true
+      this.continuationSkipped = false
       try {
         await this.streamResponse()
       } finally {
         this.continuationPending = false
+      }
+      // If a queued check was skipped while continuationPending was true
+      // (e.g. a chained approval responded to during the stream), re-evaluate
+      // now that the flag is cleared.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
+      if (this.continuationSkipped) {
+        this.continuationSkipped = false
+        await this.checkForContinuation()
       }
     }
   }
