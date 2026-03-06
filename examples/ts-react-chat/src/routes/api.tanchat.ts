@@ -12,7 +12,7 @@ import { geminiText } from '@tanstack/ai-gemini'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
-import { groqText } from '@tanstack/ai-groq' 
+import { groqText } from '@tanstack/ai-groq'
 import {
   addToCartToolDef,
   addToWishListToolDef,
