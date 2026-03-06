@@ -448,7 +448,8 @@ export class RealtimeClient {
     if (!this.connection) return
 
     const { instructions, voice, vadMode, tools } = this.options
-    const hasConfig = instructions || voice || vadMode || (tools && tools.length > 0)
+    const hasConfig =
+      instructions || voice || vadMode || (tools && tools.length > 0)
     if (!hasConfig) return
 
     const toolsConfig = tools
