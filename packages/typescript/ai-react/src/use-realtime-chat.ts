@@ -92,6 +92,10 @@ export function useRealtimeChat(
       autoPlayback: optionsRef.current.autoPlayback,
       autoCapture: optionsRef.current.autoCapture,
       vadMode: optionsRef.current.vadMode,
+      outputModalities: optionsRef.current.outputModalities,
+      temperature: optionsRef.current.temperature,
+      maxOutputTokens: optionsRef.current.maxOutputTokens,
+      semanticEagerness: optionsRef.current.semanticEagerness,
       onStatusChange: (newStatus) => {
         setStatus(newStatus)
       },
@@ -192,6 +196,14 @@ export function useRealtimeChat(
     [client],
   )
 
+  // Image input
+  const sendImage = useCallback(
+    (imageData: string, mimeType: string) => {
+      client.sendImage(imageData, mimeType)
+    },
+    [client],
+  )
+
   // Audio visualization
   const getInputFrequencyData = useCallback(() => {
     return (
@@ -246,6 +258,9 @@ export function useRealtimeChat(
 
     // Text input
     sendText,
+
+    // Image input
+    sendImage,
 
     // Audio visualization
     inputLevel,

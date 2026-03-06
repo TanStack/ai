@@ -79,6 +79,10 @@
           "to": "guides/runtime-adapter-switching"
         },
         {
+          "label": "Realtime Voice Chat",
+          "to": "guides/realtime-chat"
+        },
+        {
           "label": "Text-to-Speech",
           "to": "guides/text-to-speech"
         },
@@ -223,6 +227,10 @@
         {
           "label": "ToolCallManager",
           "to": "reference/classes/ToolCallManager"
+        },
+        {
+          "label": "RealtimeClient",
+          "to": "reference/classes/RealtimeClient"
         },
         {
           "label": "WordBoundaryStrategy",

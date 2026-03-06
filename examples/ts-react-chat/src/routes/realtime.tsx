@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import {
+  Image,
   Mic,
   MicOff,
   Phone,
@@ -13,17 +14,45 @@ import { AudioSparkline } from '@/components/AudioSparkline'
 import { useRealtime } from '@/lib/use-realtime'
 
 type Provider = 'openai' | 'elevenlabs'
+type OutputMode = 'audio+text' | 'text-only' | 'audio-only'
 
 const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
   { value: 'openai', label: 'OpenAI Realtime' },
   { value: 'elevenlabs', label: 'ElevenLabs' },
 ]
 
+const OUTPUT_MODE_OPTIONS: Array<{ value: OutputMode; label: string }> = [
+  { value: 'audio+text', label: 'Audio + Text' },
+  { value: 'text-only', label: 'Text Only' },
+  { value: 'audio-only', label: 'Audio Only' },
+]
+
+function outputModeToModalities(
+  mode: OutputMode,
+): Array<'audio' | 'text'> | undefined {
+  switch (mode) {
+    case 'text-only':
+      return ['text']
+    case 'audio-only':
+      return ['audio']
+    case 'audio+text':
+      return ['audio', 'text']
+    default:
+      return undefined
+  }
+}
+
 function RealtimePage() {
   const [provider, setProvider] = useState<Provider>('openai')
   const [agentId, setAgentId] = useState('')
   const [textInput, setTextInput] = useState('')
+  const [outputMode, setOutputMode] = useState<OutputMode>('audio+text')
+  const [temperature, setTemperature] = useState(0.8)
+  const [semanticEagerness, setSemanticEagerness] = useState<
+    'low' | 'medium' | 'high'
+  >('medium')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   const {
     status,
@@ -36,11 +65,38 @@ function RealtimePage() {
     disconnect,
     interrupt,
     sendText,
+    sendImage,
     inputLevel,
     outputLevel,
     getInputTimeDomainData,
     getOutputTimeDomainData,
-  } = useRealtime({ provider, agentId })
+  } = useRealtime({
+    provider,
+    agentId,
+    outputModalities: outputModeToModalities(outputMode),
+    temperature,
+    semanticEagerness,
+  })
+
+  // Handle image file selection
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      // Extract base64 data (remove data:image/xxx;base64, prefix)
+      const base64 = result.split(',')[1]
+      if (base64) {
+        sendImage(base64, file.type)
+      }
+    }
+    reader.readAsDataURL(file)
+
+    // Reset input so the same file can be selected again
+    e.target.value = ''
+  }
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -138,6 +194,73 @@ function RealtimePage() {
                   />
                 </div>
               )}
+
+              {/* Output mode selector (OpenAI only) */}
+              {provider === 'openai' && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Output
+                  </label>
+                  <select
+                    value={outputMode}
+                    onChange={(e) =>
+                      setOutputMode(e.target.value as OutputMode)
+                    }
+                    disabled={status !== 'idle'}
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                  >
+                    {OUTPUT_MODE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Temperature slider */}
+              {provider === 'openai' && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Temp: {temperature.toFixed(1)}
+                  </label>
+                  <input
+                    type="range"
+                    min="0.6"
+                    max="1.2"
+                    step="0.1"
+                    value={temperature}
+                    onChange={(e) =>
+                      setTemperature(parseFloat(e.target.value))
+                    }
+                    disabled={status !== 'idle'}
+                    className="w-24 accent-orange-500 disabled:opacity-50"
+                  />
+                </div>
+              )}
+
+              {/* Semantic eagerness */}
+              {provider === 'openai' && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Eagerness
+                  </label>
+                  <select
+                    value={semanticEagerness}
+                    onChange={(e) =>
+                      setSemanticEagerness(
+                        e.target.value as 'low' | 'medium' | 'high',
+                      )
+                    }
+                    disabled={status !== 'idle'}
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Status */}
@@ -175,13 +298,13 @@ function RealtimePage() {
           {messages.length === 0 && status === 'idle' && (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Mic className="w-16 h-16 mb-4" />
-              <p className="text-lg">Voice Chat with Tools</p>
+              <p className="text-lg">Voice Chat with Tools & Vision</p>
               <p className="text-sm">
                 Click "Start Conversation" to begin talking with the AI
               </p>
               <p className="text-xs mt-2 text-gray-600">
-                Try asking: "What time is it?" or "What's the weather in San
-                Francisco?"
+                Try asking: "What time is it?" or "What's the weather?" — or
+                send an image!
               </p>
             </div>
           )}
@@ -219,6 +342,19 @@ function RealtimePage() {
                         <p key={idx} className="text-white">
                           {part.content}
                         </p>
+                      )
+                    }
+                    if (part.type === 'image') {
+                      const src = part.data.startsWith('http')
+                        ? part.data
+                        : `data:${part.mimeType};base64,${part.data}`
+                      return (
+                        <img
+                          key={idx}
+                          src={src}
+                          alt="User uploaded"
+                          className="max-w-xs max-h-48 rounded-lg border border-gray-700 mt-1"
+                        />
                       )
                     }
                     return null
@@ -288,6 +424,26 @@ function RealtimePage() {
                 placeholder="Type a message..."
                 className="flex-1 rounded-lg border border-orange-500/20 bg-gray-800 px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
               />
+              {/* Image upload button (OpenAI only) */}
+              {provider === 'openai' && (
+                <>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    title="Send an image"
+                    className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+                  >
+                    <Image className="w-4 h-4" />
+                  </button>
+                </>
+              )}
               <button
                 type="submit"
                 disabled={!textInput.trim()}

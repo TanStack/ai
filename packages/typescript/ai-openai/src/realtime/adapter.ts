@@ -1,4 +1,5 @@
 import type {
+  AnyClientTool,
   AudioVisualization,
   RealtimeEvent,
   RealtimeEventHandler,
@@ -40,7 +41,10 @@ export function openaiRealtime(
   return {
     provider: 'openai',
 
-    async connect(token: RealtimeToken): Promise<RealtimeConnection> {
+    async connect(
+      token: RealtimeToken,
+      _clientTools?: ReadonlyArray<AnyClientTool>,
+    ): Promise<RealtimeConnection> {
       if (connectionMode === 'webrtc') {
         return createWebRTCConnection(token)
       }
@@ -475,7 +479,27 @@ async function createWebRTCConnection(
       })
       sendEvent({
         type: 'response.create',
-        response: { output_modalities: ['text'] },
+      })
+    },
+
+    sendImage(imageData: string, mimeType: string) {
+      // Determine if imageData is a URL or base64 data
+      const isUrl =
+        imageData.startsWith('http://') || imageData.startsWith('https://')
+      const imageContent = isUrl
+        ? { type: 'input_image', image_url: imageData }
+        : { type: 'input_image', image_url: `data:${mimeType};base64,${imageData}` }
+
+      sendEvent({
+        type: 'conversation.item.create',
+        item: {
+          type: 'message',
+          role: 'user',
+          content: [imageContent],
+        },
+      })
+      sendEvent({
+        type: 'response.create',
       })
     },
 
@@ -506,7 +530,7 @@ async function createWebRTCConnection(
         if (config.vadMode === 'semantic') {
           sessionUpdate.turn_detection = {
             type: 'semantic_vad',
-            eagerness: 'medium',
+            eagerness: config.semanticEagerness ?? 'medium',
           }
         } else if (config.vadMode === 'server') {
           sessionUpdate.turn_detection = {
@@ -528,6 +552,18 @@ async function createWebRTCConnection(
           parameters: t.inputSchema ?? { type: 'object', properties: {} },
         }))
         sessionUpdate.tool_choice = 'auto'
+      }
+
+      if (config.outputModalities) {
+        sessionUpdate.modalities = config.outputModalities
+      }
+
+      if (config.temperature !== undefined) {
+        sessionUpdate.temperature = config.temperature
+      }
+
+      if (config.maxOutputTokens !== undefined) {
+        sessionUpdate.max_response_output_tokens = config.maxOutputTokens
       }
 
       // Always enable input audio transcription so user speech is transcribed

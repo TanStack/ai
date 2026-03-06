@@ -25,9 +25,13 @@ export interface RealtimeAdapter {
   /**
    * Create a connection using the provided token
    * @param token - The ephemeral token from the server
+   * @param clientTools - Optional client-side tools to register with the provider
    * @returns A connection instance
    */
-  connect: (token: RealtimeToken) => Promise<RealtimeConnection>
+  connect: (
+    token: RealtimeToken,
+    clientTools?: ReadonlyArray<AnyClientTool>,
+  ) => Promise<RealtimeConnection>
 }
 
 /**
@@ -48,6 +52,10 @@ export interface RealtimeConnection {
   // Text input
   /** Send a text message (fallback for when voice isn't available) */
   sendText: (text: string) => void
+
+  // Image input
+  /** Send an image to the conversation */
+  sendImage: (imageData: string, mimeType: string) => void
 
   // Tool results
   /** Send a tool execution result back to the provider */
@@ -119,6 +127,26 @@ export interface RealtimeClientOptions {
    * Voice activity detection mode (default: 'server')
    */
   vadMode?: 'server' | 'semantic' | 'manual'
+
+  /**
+   * Output modalities for responses (e.g., ['audio', 'text'])
+   */
+  outputModalities?: Array<'audio' | 'text'>
+
+  /**
+   * Temperature for generation (provider-specific range)
+   */
+  temperature?: number
+
+  /**
+   * Maximum number of tokens in a response
+   */
+  maxOutputTokens?: number | 'inf'
+
+  /**
+   * Eagerness level for semantic VAD ('low', 'medium', 'high')
+   */
+  semanticEagerness?: 'low' | 'medium' | 'high'
 
   // Callbacks
   onStatusChange?: (status: RealtimeStatus) => void

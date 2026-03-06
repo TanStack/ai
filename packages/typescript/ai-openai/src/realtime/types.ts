@@ -12,6 +12,8 @@ export type OpenAIRealtimeVoice =
   | 'sage'
   | 'shimmer'
   | 'verse'
+  | 'marin'
+  | 'cedar'
 
 /**
  * OpenAI realtime model options
@@ -21,6 +23,8 @@ export type OpenAIRealtimeModel =
   | 'gpt-4o-realtime-preview-2024-10-01'
   | 'gpt-4o-mini-realtime-preview'
   | 'gpt-4o-mini-realtime-preview-2024-12-17'
+  | 'gpt-realtime'
+  | 'gpt-realtime-mini'
 
 /**
  * OpenAI semantic VAD configuration

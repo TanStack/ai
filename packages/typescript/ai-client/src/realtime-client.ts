@@ -95,8 +95,15 @@ export class RealtimeClient {
       // Schedule token refresh
       this.scheduleTokenRefresh()
 
-      // Connect via adapter
-      this.connection = await this.options.adapter.connect(this.token)
+      // Connect via adapter (pass tools for providers like ElevenLabs that need them at connect time)
+      const toolsList =
+        this.clientTools.size > 0
+          ? Array.from(this.clientTools.values())
+          : undefined
+      this.connection = await this.options.adapter.connect(
+        this.token,
+        toolsList,
+      )
 
       // Subscribe to connection events
       this.subscribeToConnectionEvents()
@@ -210,6 +217,29 @@ export class RealtimeClient {
 
     // Send to provider
     this.connection.sendText(text)
+  }
+
+  /**
+   * Send an image to the conversation.
+   * @param imageData - Base64-encoded image data or a URL
+   * @param mimeType - MIME type of the image (e.g., 'image/png', 'image/jpeg')
+   */
+  sendImage(imageData: string, mimeType: string): void {
+    if (!this.connection || this.state.status !== 'connected') {
+      return
+    }
+
+    // Add user message with image part
+    const userMessage: RealtimeMessage = {
+      id: this.generateId(),
+      role: 'user',
+      timestamp: Date.now(),
+      parts: [{ type: 'image', data: imageData, mimeType }],
+    }
+    this.addMessage(userMessage)
+
+    // Send to provider
+    this.connection.sendImage(imageData, mimeType)
   }
 
   // ============================================================================
@@ -447,9 +477,25 @@ export class RealtimeClient {
   private applySessionConfig(): void {
     if (!this.connection) return
 
-    const { instructions, voice, vadMode, tools } = this.options
+    const {
+      instructions,
+      voice,
+      vadMode,
+      tools,
+      outputModalities,
+      temperature,
+      maxOutputTokens,
+      semanticEagerness,
+    } = this.options
     const hasConfig =
-      instructions || voice || vadMode || (tools && tools.length > 0)
+      instructions ||
+      voice ||
+      vadMode ||
+      (tools && tools.length > 0) ||
+      outputModalities ||
+      temperature !== undefined ||
+      maxOutputTokens !== undefined ||
+      semanticEagerness
     if (!hasConfig) return
 
     const toolsConfig = tools
@@ -467,6 +513,10 @@ export class RealtimeClient {
       voice,
       vadMode,
       tools: toolsConfig,
+      outputModalities,
+      temperature,
+      maxOutputTokens,
+      semanticEagerness,
     })
   }
 

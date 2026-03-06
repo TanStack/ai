@@ -52,6 +52,26 @@ export interface UseRealtimeChatOptions {
    */
   vadMode?: 'server' | 'semantic' | 'manual'
 
+  /**
+   * Output modalities for responses (e.g., ['audio', 'text'])
+   */
+  outputModalities?: Array<'audio' | 'text'>
+
+  /**
+   * Temperature for generation (provider-specific range)
+   */
+  temperature?: number
+
+  /**
+   * Maximum number of tokens in a response
+   */
+  maxOutputTokens?: number | 'inf'
+
+  /**
+   * Eagerness level for semantic VAD ('low', 'medium', 'high')
+   */
+  semanticEagerness?: 'low' | 'medium' | 'high'
+
   // Callbacks
   onConnect?: () => void
   onDisconnect?: () => void
@@ -96,6 +116,10 @@ export interface UseRealtimeChatReturn {
   // Text input
   /** Send a text message instead of voice */
   sendText: (text: string) => void
+
+  // Image input
+  /** Send an image to the conversation */
+  sendImage: (imageData: string, mimeType: string) => void
 
   // Audio visualization (0-1 normalized)
   /** Current input (microphone) volume level */

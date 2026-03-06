@@ -1,5 +1,6 @@
 import { Conversation } from '@11labs/client'
 import type {
+  AnyClientTool,
   AudioVisualization,
   RealtimeEvent,
   RealtimeEventHandler,
@@ -37,8 +38,11 @@ export function elevenlabsRealtime(
   return {
     provider: 'elevenlabs',
 
-    async connect(token: RealtimeToken): Promise<RealtimeConnection> {
-      return createElevenLabsConnection(token, options)
+    async connect(
+      token: RealtimeToken,
+      clientToolDefs?: ReadonlyArray<AnyClientTool>,
+    ): Promise<RealtimeConnection> {
+      return createElevenLabsConnection(token, options, clientToolDefs)
     },
   }
 }
@@ -49,6 +53,7 @@ export function elevenlabsRealtime(
 async function createElevenLabsConnection(
   token: RealtimeToken,
   _options: ElevenLabsRealtimeOptions,
+  clientToolDefs?: ReadonlyArray<AnyClientTool>,
 ): Promise<RealtimeConnection> {
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
   let conversation: Awaited<
@@ -77,8 +82,32 @@ async function createElevenLabsConnection(
     return `el-msg-${Date.now()}-${++messageIdCounter}`
   }
 
-  // Start the conversation session
-  conversation = await Conversation.startSession({
+  // Convert TanStack tool definitions to ElevenLabs clientTools format
+  const elevenLabsClientTools: Record<
+    string,
+    { handler: (params: unknown) => Promise<string>; description: string; parameters: Record<string, unknown> }
+  > = {}
+
+  if (clientToolDefs) {
+    for (const tool of clientToolDefs) {
+      elevenLabsClientTools[tool.name] = {
+        handler: async (params: unknown) => {
+          if (tool.execute) {
+            const result = await tool.execute(params)
+            return typeof result === 'string' ? result : JSON.stringify(result)
+          }
+          return JSON.stringify({ error: `No execute function for tool ${tool.name}` })
+        },
+        description: tool.description,
+        parameters: tool.inputSchema
+          ? (tool.inputSchema as Record<string, unknown>)
+          : { type: 'object', properties: {} },
+      }
+    }
+  }
+
+  // Build session options
+  const sessionOptions: Record<string, unknown> = {
     signedUrl: token.token,
 
     onConnect: () => {
@@ -91,13 +120,13 @@ async function createElevenLabsConnection(
       emit('mode_change', { mode: 'idle' })
     },
 
-    onModeChange: ({ mode }) => {
+    onModeChange: ({ mode }: { mode: string }) => {
       const mappedMode: RealtimeMode =
         mode === 'speaking' ? 'speaking' : 'listening'
       emit('mode_change', { mode: mappedMode })
     },
 
-    onMessage: ({ message, source }) => {
+    onMessage: ({ message, source }: { message: string; source: string }) => {
       const role = source === 'user' ? 'user' : 'assistant'
 
       // Emit transcript update
@@ -124,7 +153,15 @@ async function createElevenLabsConnection(
         ),
       })
     },
-  })
+  }
+
+  // Only add clientTools if we have any
+  if (Object.keys(elevenLabsClientTools).length > 0) {
+    sessionOptions.clientTools = elevenLabsClientTools
+  }
+
+  // Start the conversation session
+  conversation = await Conversation.startSession(sessionOptions as Parameters<typeof Conversation.startSession>[0])
 
   // Connection implementation
   const connection: RealtimeConnection = {
@@ -152,11 +189,16 @@ async function createElevenLabsConnection(
       conversation.sendUserMessage(text)
     },
 
-    sendToolResult(_callId: string, _result: string) {
-      // ElevenLabs handles client tools differently - they're registered at session start
+    sendImage(_imageData: string, _mimeType: string) {
+      // ElevenLabs does not support direct image input in the conversation API
       console.warn(
-        'ElevenLabs tool results are handled via clientTools option during session creation.',
+        'ElevenLabs realtime does not support sending images directly.',
       )
+    },
+
+    sendToolResult(_callId: string, _result: string) {
+      // ElevenLabs client tools are handled via the clientTools handlers
+      // registered at session start — results are returned automatically
     },
 
     updateSession(_config: Partial<RealtimeSessionConfig>) {

@@ -93,6 +93,7 @@ export type {
   RealtimeAudioPart,
   RealtimeToolCallPart,
   RealtimeToolResultPart,
+  RealtimeImagePart,
   RealtimeStatus,
   RealtimeMode,
   AudioVisualization,

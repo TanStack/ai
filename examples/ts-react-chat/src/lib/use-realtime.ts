@@ -42,9 +42,17 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
 export function useRealtime({
   provider,
   agentId,
+  outputModalities,
+  temperature,
+  maxOutputTokens,
+  semanticEagerness,
 }: {
   provider: Provider
   agentId: string
+  outputModalities?: Array<'audio' | 'text'>
+  temperature?: number
+  maxOutputTokens?: number | 'inf'
+  semanticEagerness?: 'low' | 'medium' | 'high'
 }) {
   const adapter =
     provider === 'openai' ? openaiRealtime() : elevenlabsRealtime()
@@ -68,9 +76,14 @@ You can:
 
 Keep your responses concise and conversational since this is a voice interface.
 When using tools, briefly explain what you're doing and then share the results naturally.
+If the user sends an image, describe what you see and answer any questions about it.
 Be friendly and engaging!`,
     voice: 'alloy',
     tools: realtimeClientTools,
+    outputModalities,
+    temperature,
+    maxOutputTokens,
+    semanticEagerness,
     onError: (err) => {
       console.error('Realtime error:', err)
     },

@@ -40,6 +40,14 @@ export interface RealtimeSessionConfig {
   vadMode?: 'server' | 'semantic' | 'manual'
   /** VAD configuration */
   vadConfig?: VADConfig
+  /** Output modalities for responses (e.g., ['audio', 'text'], ['text']) */
+  outputModalities?: Array<'audio' | 'text'>
+  /** Temperature for generation (provider-specific range, e.g., 0.6-1.2 for OpenAI) */
+  temperature?: number
+  /** Maximum number of tokens in a response */
+  maxOutputTokens?: number | 'inf'
+  /** Eagerness level for semantic VAD ('low', 'medium', 'high') */
+  semanticEagerness?: 'low' | 'medium' | 'high'
   /** Provider-specific options */
   providerOptions?: Record<string, any>
 }
@@ -123,6 +131,17 @@ export interface RealtimeToolResultPart {
 }
 
 /**
+ * Image content part in a realtime message
+ */
+export interface RealtimeImagePart {
+  type: 'image'
+  /** Base64-encoded image data or a URL */
+  data: string
+  /** MIME type of the image (e.g., 'image/png', 'image/jpeg') */
+  mimeType: string
+}
+
+/**
  * Union of all realtime message parts
  */
 export type RealtimeMessagePart =
@@ -130,6 +149,7 @@ export type RealtimeMessagePart =
   | RealtimeAudioPart
   | RealtimeToolCallPart
   | RealtimeToolResultPart
+  | RealtimeImagePart
 
 /**
  * A message in a realtime conversation
