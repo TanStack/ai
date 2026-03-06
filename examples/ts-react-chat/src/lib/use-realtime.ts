@@ -11,12 +11,10 @@ import { realtimeClientTools } from '@/lib/realtime-tools'
 type Provider = 'openai' | 'elevenlabs'
 
 const getRealtimeTokenFn = createServerFn({ method: 'POST' })
-  .inputValidator(
-    (data: { provider: Provider; agentId?: string }) => {
-      if (!data.provider) throw new Error('Provider is required')
-      return data
-    },
-  )
+  .inputValidator((data: { provider: Provider; agentId?: string }) => {
+    if (!data.provider) throw new Error('Provider is required')
+    return data
+  })
   .handler(async ({ data }) => {
     if (data.provider === 'openai') {
       return realtimeToken({
