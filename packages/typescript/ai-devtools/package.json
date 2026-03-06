@@ -63,8 +63,8 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/devtools-ui": "https://pkg.pr.new/@tanstack/devtools-ui@be94dfb",
-    "@tanstack/devtools-utils": "https://pkg.pr.new/@tanstack/devtools-utils@be94dfb",
+    "@tanstack/devtools-ui": "^0.4.4",
+    "@tanstack/devtools-utils": "0.3.2",
     "goober": "^2.1.18",
     "solid-js": "^1.9.10"
   },
