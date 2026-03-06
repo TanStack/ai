@@ -1,5 +1,16 @@
 # @tanstack/solid-ai-devtools
 
+## 0.2.11
+
+### Patch Changes
+
+- fix solid bundling of devtools ([#334](https://github.com/TanStack/ai/pull/334))
+
+- Bump up package versions ([#334](https://github.com/TanStack/ai/pull/334))
+
+- Updated dependencies [[`d40adfe`](https://github.com/TanStack/ai/commit/d40adfed2dc2964eb77f8f192e74c3e0aae08460), [`d40adfe`](https://github.com/TanStack/ai/commit/d40adfed2dc2964eb77f8f192e74c3e0aae08460)]:
+  - @tanstack/ai-devtools-core@0.3.7
+
 ## 0.2.10
 
 ### Patch Changes
