@@ -84,10 +84,21 @@ function createDefaultStorage(maxSize: number): ToolCacheStorage {
   const cache = new Map<string, ToolCacheEntry>()
 
   return {
-    getItem: (key) => cache.get(key),
+    getItem: (key) => {
+      const entry = cache.get(key)
+      if (entry !== undefined) {
+        // Refresh recency: delete and re-insert so this key becomes newest
+        cache.delete(key)
+        cache.set(key, entry)
+      }
+      return entry
+    },
     setItem: (key, value) => {
-      if (cache.size >= maxSize && !cache.has(key)) {
-        // LRU eviction: Map iteration order is insertion order — first key is oldest
+      // Delete first so re-inserts also refresh recency
+      if (cache.has(key)) {
+        cache.delete(key)
+      } else if (cache.size >= maxSize) {
+        // LRU eviction: Map iteration order is insertion order — first key is least recently used
         const firstKey = cache.keys().next().value
         if (firstKey !== undefined) {
           cache.delete(firstKey)

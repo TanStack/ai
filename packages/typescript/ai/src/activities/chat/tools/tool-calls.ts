@@ -15,6 +15,14 @@ import type {
   BeforeToolCallDecision,
 } from '../middleware/types'
 
+function safeJsonParse(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
 /**
  * Optional middleware hooks for tool execution.
  * When provided, these callbacks are invoked before/after each tool execution.
@@ -350,7 +358,7 @@ async function applyBeforeToolCallDecision(
       toolName,
       result:
         typeof skipResult === 'string'
-          ? JSON.parse(skipResult)
+          ? safeJsonParse(skipResult)
           : skipResult || null,
       duration: 0,
     })
@@ -407,7 +415,7 @@ async function* executeServerTool(
     }
 
     const finalResult =
-      typeof result === 'string' ? JSON.parse(result) : result || null
+      typeof result === 'string' ? safeJsonParse(result) : result || null
 
     results.push({
       toolCallId: toolCall.id,

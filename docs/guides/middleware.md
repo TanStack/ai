@@ -507,10 +507,12 @@ Limit the number of tool calls per request:
 
 ```typescript
 function rateLimitMiddleware(maxCalls: number): ChatMiddleware {
+  let toolCallCount = 0;
   return {
     name: "rate-limit",
     onBeforeToolCall: (ctx, hookCtx) => {
-      if (ctx.iteration >= maxCalls) {
+      toolCallCount++;
+      if (toolCallCount > maxCalls) {
         return {
           type: "abort",
           reason: `Rate limit: exceeded ${maxCalls} tool calls`,

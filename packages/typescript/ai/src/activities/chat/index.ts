@@ -501,10 +501,10 @@ class TextEngine<
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
     const { temperature, topP, maxTokens, metadata, modelOptions } = this.params
-    const tools = this.params.tools
+    const tools = this.tools
 
     // Convert tool schemas to JSON Schema before passing to adapter
-    const toolsWithJsonSchemas = tools?.map((tool) => ({
+    const toolsWithJsonSchemas = tools.map((tool) => ({
       ...tool,
       inputSchema: tool.inputSchema
         ? convertSchemaToJsonSchema(tool.inputSchema)
@@ -650,6 +650,27 @@ class TextEngine<
       approvals,
       clientToolResults,
       (eventName, data) => this.createCustomEventChunk(eventName, data),
+      {
+        onBeforeToolCall: async (toolCall, tool, args) => {
+          const hookCtx = {
+            toolCall,
+            tool,
+            args,
+            toolName: toolCall.function.name,
+            toolCallId: toolCall.id,
+          }
+          return this.middlewareRunner.runOnBeforeToolCall(
+            this.middlewareCtx,
+            hookCtx,
+          )
+        },
+        onAfterToolCall: async (info) => {
+          await this.middlewareRunner.runOnAfterToolCall(
+            this.middlewareCtx,
+            info,
+          )
+        },
+      },
     )
 
     // Consume the async generator, yielding custom events and collecting the return value

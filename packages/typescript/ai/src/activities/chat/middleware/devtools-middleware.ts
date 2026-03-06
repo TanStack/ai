@@ -54,6 +54,7 @@ export function devtoolsMiddleware(): ChatMiddleware {
   let localAccumulatedContent = ''
   let currentIteration = -1
   let iterationStartTime = 0
+  const activeToolCalls = new Map<string, { toolName: string; index: number }>()
 
   return {
     name: 'devtools',
@@ -159,30 +160,37 @@ export function devtoolsMiddleware(): ChatMiddleware {
           break
         }
         case 'TOOL_CALL_START': {
+          const toolIndex = chunk.index ?? 0
+          activeToolCalls.set(chunk.toolCallId, {
+            toolName: chunk.toolName,
+            index: toolIndex,
+          })
           aiEventClient.emit('text:chunk:tool-call', {
             ...base,
             messageId: localMessageId || undefined,
             toolCallId: chunk.toolCallId,
             toolName: chunk.toolName,
-            index: chunk.index ?? 0,
+            index: toolIndex,
             arguments: '',
             timestamp: Date.now(),
           })
           break
         }
         case 'TOOL_CALL_ARGS': {
+          const active = activeToolCalls.get(chunk.toolCallId)
           aiEventClient.emit('text:chunk:tool-call', {
             ...base,
             messageId: localMessageId || undefined,
             toolCallId: chunk.toolCallId,
-            toolName: '',
-            index: 0,
+            toolName: active?.toolName ?? '',
+            index: active?.index ?? 0,
             arguments: chunk.delta,
             timestamp: Date.now(),
           })
           break
         }
         case 'TOOL_CALL_END': {
+          activeToolCalls.delete(chunk.toolCallId)
           aiEventClient.emit('text:chunk:tool-result', {
             ...base,
             messageId: localMessageId || undefined,
