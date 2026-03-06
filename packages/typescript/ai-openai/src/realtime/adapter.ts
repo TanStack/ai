@@ -502,9 +502,7 @@ async function createWebRTCConnection(
           type: 'function',
           name: t.name,
           description: t.description,
-          parameters: t.inputSchema
-            ? (t.inputSchema as Record<string, unknown>)
-            : { type: 'object', properties: {} },
+          parameters: t.inputSchema ?? { type: 'object', properties: {} },
         }))
         sessionUpdate.tool_choice = 'auto'
       }

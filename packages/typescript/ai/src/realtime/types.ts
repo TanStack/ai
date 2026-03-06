@@ -1,5 +1,3 @@
-import type { Tool } from '../types'
-
 // ============================================================================
 // Token Types
 // ============================================================================
@@ -17,6 +15,16 @@ export interface VADConfig {
 }
 
 /**
+ * Serializable tool descriptor for realtime session configuration.
+ * Contains only the metadata needed by providers, not Zod schemas or execute functions.
+ */
+export interface RealtimeToolConfig {
+  name: string
+  description: string
+  inputSchema?: Record<string, any>
+}
+
+/**
  * Configuration for a realtime session
  */
 export interface RealtimeSessionConfig {
@@ -27,13 +35,13 @@ export interface RealtimeSessionConfig {
   /** System instructions for the assistant */
   instructions?: string
   /** Tools available in the session */
-  tools?: Array<Tool>
+  tools?: Array<RealtimeToolConfig>
   /** VAD mode */
   vadMode?: 'server' | 'semantic' | 'manual'
   /** VAD configuration */
   vadConfig?: VADConfig
   /** Provider-specific options */
-  providerOptions?: Record<string, unknown>
+  providerOptions?: Record<string, any>
 }
 
 /**

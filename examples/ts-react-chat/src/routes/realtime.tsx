@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { useRealtimeChat } from '@tanstack/ai-react'
-import { openaiRealtime } from '@tanstack/ai-openai'
-import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
 import { Mic, MicOff, Phone, PhoneOff, Volume2, Wrench } from 'lucide-react'
-import { realtimeClientTools } from '@/lib/realtime-tools'
+import { AudioSparkline } from '@/components/AudioSparkline'
+import { useRealtime } from '@/lib/use-realtime'
 
 type Provider = 'openai' | 'elevenlabs'
 
@@ -13,100 +11,10 @@ const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
   { value: 'elevenlabs', label: 'ElevenLabs' },
 ]
 
-// Sparkline component to visualize audio waveform
-function AudioSparkline({
-  getData,
-  color,
-  label,
-}: {
-  getData: () => Uint8Array
-  color: string
-  label: string
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const animationRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    function draw() {
-      const data = getData()
-      const width = canvas!.width
-      const height = canvas!.height
-
-      // Clear canvas
-      ctx!.fillStyle = '#1f2937' // gray-800
-      ctx!.fillRect(0, 0, width, height)
-
-      // Draw waveform
-      ctx!.strokeStyle = color
-      ctx!.lineWidth = 1
-      ctx!.beginPath()
-
-      // Sample the data to fit the canvas width
-      const step = Math.max(1, Math.floor(data.length / width))
-
-      for (let i = 0; i < width; i++) {
-        const dataIndex = Math.min(i * step, data.length - 1)
-        const value = data[dataIndex] ?? 128
-        // Convert 0-255 to canvas height (128 is center/silence)
-        const y = height - (value / 255) * height
-
-        if (i === 0) {
-          ctx!.moveTo(i, y)
-        } else {
-          ctx!.lineTo(i, y)
-        }
-      }
-
-      ctx!.stroke()
-
-      // Draw center line (silence level)
-      ctx!.strokeStyle = '#4b5563' // gray-600
-      ctx!.setLineDash([2, 2])
-      ctx!.beginPath()
-      ctx!.moveTo(0, height / 2)
-      ctx!.lineTo(width, height / 2)
-      ctx!.stroke()
-      ctx!.setLineDash([])
-
-      animationRef.current = requestAnimationFrame(draw)
-    }
-
-    draw()
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current)
-      }
-    }
-  }, [getData, color])
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-gray-500 w-12">{label}</span>
-      <canvas
-        ref={canvasRef}
-        width={200}
-        height={40}
-        className="rounded border border-gray-700"
-      />
-    </div>
-  )
-}
-
 function RealtimePage() {
   const [provider, setProvider] = useState<Provider>('openai')
   const [agentId, setAgentId] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  // Get the appropriate adapter based on provider
-  const adapter =
-    provider === 'openai' ? openaiRealtime() : elevenlabsRealtime()
 
   const {
     status,
@@ -122,41 +30,7 @@ function RealtimePage() {
     outputLevel,
     getInputTimeDomainData,
     getOutputTimeDomainData,
-  } = useRealtimeChat({
-    getToken: async () => {
-      const body: Record<string, string> = { provider }
-      if (provider === 'elevenlabs' && agentId) {
-        body.agentId = agentId
-      }
-      const response = await fetch('/api/realtime-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to get token')
-      }
-      return response.json()
-    },
-    adapter,
-    instructions: `You are a helpful, friendly voice assistant with access to several tools.
-
-You can:
-- Tell the user the current time and date (getCurrentTime)
-- Get weather information for any location (getWeather)
-- Set reminders for the user (setReminder)
-- Search a knowledge base for information (searchKnowledge)
-
-Keep your responses concise and conversational since this is a voice interface.
-When using tools, briefly explain what you're doing and then share the results naturally.
-Be friendly and engaging!`,
-    voice: 'alloy',
-    tools: realtimeClientTools,
-    onError: (err) => {
-      console.error('Realtime error:', err)
-    },
-  })
+  } = useRealtime({ provider, agentId })
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
