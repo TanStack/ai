@@ -12,6 +12,7 @@ import { geminiText } from '@tanstack/ai-gemini'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
+import { groqText } from '@tanstack/ai-groq' 
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -26,6 +27,7 @@ type Provider =
   | 'gemini'
   | 'ollama'
   | 'grok'
+  | 'groq'
   | 'openrouter'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
@@ -163,6 +165,13 @@ export const Route = createFileRoute('/api/tanchat')({
             createChatOptions({
               adapter: grokText((model || 'grok-3') as 'grok-3'),
               modelOptions: {},
+            }),
+          groq: () =>
+            createChatOptions({
+              adapter: groqText(
+                (model ||
+                  'llama-3.3-70b-versatile') as 'llama-3.3-70b-versatile',
+              ),
             }),
           ollama: () =>
             createChatOptions({

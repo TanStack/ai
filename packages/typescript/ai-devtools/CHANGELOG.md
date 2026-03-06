@@ -1,5 +1,13 @@
 # @tanstack/ai-devtools-core
 
+## 0.3.7
+
+### Patch Changes
+
+- fix solid bundling of devtools ([#334](https://github.com/TanStack/ai/pull/334))
+
+- Bump up package versions ([#334](https://github.com/TanStack/ai/pull/334))
+
 ## 0.3.6
 
 ### Patch Changes
