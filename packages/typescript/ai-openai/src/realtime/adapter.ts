@@ -248,7 +248,11 @@ async function createWebRTCConnection(
 
       case 'response.output_text.done': {
         const text = event.text as string
-        emit('transcript', { role: 'assistant', transcript: text, isFinal: true })
+        emit('transcript', {
+          role: 'assistant',
+          transcript: text,
+          isFinal: true,
+        })
         break
       }
 
