@@ -310,13 +310,13 @@ export interface SearchSettings {
 /**
  * Metadata for Groq document content parts.
  */
-export interface GroqDocumentMetadata { }
+export interface GroqDocumentMetadata {}
 
 /**
  * Metadata for Groq text content parts.
  * Currently no specific metadata options for text in Groq.
  */
-export interface GroqTextMetadata { }
+export interface GroqTextMetadata {}
 
 /**
  * Metadata for Groq image content parts.
@@ -338,13 +338,13 @@ export interface GroqImageMetadata {
  * Metadata for Groq audio content parts.
  * Note: Audio support in Groq is limited; check current API capabilities.
  */
-export interface GroqAudioMetadata { }
+export interface GroqAudioMetadata {}
 
 /**
  * Metadata for Groq video content parts.
  * Note: Groq does not currently support video input.
  */
-export interface GroqVideoMetadata { }
+export interface GroqVideoMetadata {}
 
 /**
  * Map of modality types to their Groq-specific metadata types.

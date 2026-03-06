@@ -272,17 +272,17 @@ function ChatPage() {
     addToolApprovalResponse,
     stop,
   } = useChat({
-      connection: fetchServerSentEvents('/api/tanchat'),
-      tools,
-      body,
-      onCustomEvent: (eventType, data, context) => {
-        console.log(
-          `[CustomEvent] ${eventType}`,
-          data,
-          context.toolCallId ? `(tool call: ${context.toolCallId})` : '',
-        )
-      },
-    })
+    connection: fetchServerSentEvents('/api/tanchat'),
+    tools,
+    body,
+    onCustomEvent: (eventType, data, context) => {
+      console.log(
+        `[CustomEvent] ${eventType}`,
+        data,
+        context.toolCallId ? `(tool call: ${context.toolCallId})` : '',
+      )
+    },
+  })
   const [input, setInput] = useState('')
 
   /**

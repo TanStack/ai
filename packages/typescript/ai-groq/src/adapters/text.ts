@@ -37,7 +37,7 @@ import type { GroqClientConfig } from '../utils'
 /**
  * Configuration for Groq text adapter
  */
-export interface GroqTextConfig extends GroqClientConfig { }
+export interface GroqTextConfig extends GroqClientConfig {}
 
 /**
  * Alias for TextProviderOptions for external use
@@ -87,11 +87,7 @@ export class GroqTextAdapter<
         stream: true,
       })
 
-      yield* this.processGroqStreamChunks(
-        stream,
-        options,
-        aguiState,
-      )
+      yield* this.processGroqStreamChunks(stream, options, aguiState)
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
 
@@ -338,7 +334,7 @@ export class GroqTextAdapter<
 
           const computedFinishReason =
             choice.finish_reason === 'tool_calls' ||
-              toolCallsInProgress.size > 0
+            toolCallsInProgress.size > 0
               ? 'tool_calls'
               : choice.finish_reason === 'length'
                 ? 'length'
@@ -362,10 +358,10 @@ export class GroqTextAdapter<
             timestamp,
             usage: groqUsage
               ? {
-                promptTokens: groqUsage.prompt_tokens || 0,
-                completionTokens: groqUsage.completion_tokens || 0,
-                totalTokens: groqUsage.total_tokens || 0,
-              }
+                  promptTokens: groqUsage.prompt_tokens || 0,
+                  completionTokens: groqUsage.completion_tokens || 0,
+                  totalTokens: groqUsage.total_tokens || 0,
+                }
               : undefined,
             finishReason: computedFinishReason,
           }
@@ -396,9 +392,9 @@ export class GroqTextAdapter<
   ): ChatCompletionCreateParamsStreaming {
     const modelOptions = options.modelOptions as
       | Omit<
-        InternalTextProviderOptions,
-        'max_tokens' | 'tools' | 'temperature' | 'input' | 'top_p'
-      >
+          InternalTextProviderOptions,
+          'max_tokens' | 'tools' | 'temperature' | 'input' | 'top_p'
+        >
       | undefined
 
     if (modelOptions) {

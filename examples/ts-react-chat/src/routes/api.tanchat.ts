@@ -136,7 +136,8 @@ export const Route = createFileRoute('/api/tanchat')({
           groq: () =>
             createChatOptions({
               adapter: groqText(
-                (model || 'llama-3.3-70b-versatile') as 'llama-3.3-70b-versatile',
+                (model ||
+                  'llama-3.3-70b-versatile') as 'llama-3.3-70b-versatile',
               ),
             }),
           ollama: () =>

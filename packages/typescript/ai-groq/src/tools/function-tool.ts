@@ -14,31 +14,31 @@ export type FunctionTool = ChatCompletionTool
  * - additionalProperties: false
  */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
-    const inputSchema = (tool.inputSchema ?? {
-        type: 'object',
-        properties: {},
-        required: [],
-    }) as JSONSchema
+  const inputSchema = (tool.inputSchema ?? {
+    type: 'object',
+    properties: {},
+    required: [],
+  }) as JSONSchema
 
-    // Ensure object schemas always have properties (e.g. z.object({}) may produce { type: 'object' } without properties)
-    if (inputSchema.type === 'object' && !inputSchema.properties) {
-        inputSchema.properties = {}
-    }
+  // Ensure object schemas always have properties (e.g. z.object({}) may produce { type: 'object' } without properties)
+  if (inputSchema.type === 'object' && !inputSchema.properties) {
+    inputSchema.properties = {}
+  }
 
-    const jsonSchema = makeGroqStructuredOutputCompatible(
-        inputSchema,
-        inputSchema.required || [],
-    )
+  const jsonSchema = makeGroqStructuredOutputCompatible(
+    inputSchema,
+    inputSchema.required || [],
+  )
 
-    jsonSchema.additionalProperties = false
+  jsonSchema.additionalProperties = false
 
-    return {
-        type: 'function',
-        function: {
-            name: tool.name,
-            description: tool.description,
-            parameters: jsonSchema,
-            strict: true,
-        },
-    } satisfies FunctionTool
+  return {
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: jsonSchema,
+      strict: true,
+    },
+  } satisfies FunctionTool
 }

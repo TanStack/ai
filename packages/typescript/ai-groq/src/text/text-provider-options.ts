@@ -115,10 +115,10 @@ export interface GroqTextProviderOptions {
    * @see https://console.groq.com/docs/structured-outputs
    */
   response_format?:
-  | ResponseFormatText
-  | ResponseFormatJsonSchema
-  | ResponseFormatJsonObject
-  | null
+    | ResponseFormatText
+    | ResponseFormatJsonSchema
+    | ResponseFormatJsonObject
+    | null
 
   /** Settings for web search functionality when the model uses a web search tool. */
   search_settings?: SearchSettings | null

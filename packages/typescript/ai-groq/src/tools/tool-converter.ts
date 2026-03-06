@@ -7,9 +7,9 @@ import type { Tool } from '@tanstack/ai'
  * Groq uses an OpenAI-compatible API, so we primarily support function tools.
  */
 export function convertToolsToProviderFormat(
-    tools: Array<Tool>,
+  tools: Array<Tool>,
 ): Array<FunctionTool> {
-    return tools.map((tool) => {
-        return convertFunctionToolToAdapterFormat(tool)
-    })
+  return tools.map((tool) => {
+    return convertFunctionToolToAdapterFormat(tool)
+  })
 }

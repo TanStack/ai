@@ -7,27 +7,27 @@
 
 // Text (Chat) adapter
 export {
-    GroqTextAdapter,
-    createGroqText,
-    groqText,
-    type GroqTextConfig,
-    type GroqTextProviderOptions,
+  GroqTextAdapter,
+  createGroqText,
+  groqText,
+  type GroqTextConfig,
+  type GroqTextProviderOptions,
 } from './adapters/text'
 
 // Types
 export type {
-    GroqChatModelProviderOptionsByName,
-    GroqModelInputModalitiesByName,
-    ResolveProviderOptions,
-    ResolveInputModalities,
-    GroqChatModels,
+  GroqChatModelProviderOptionsByName,
+  GroqModelInputModalitiesByName,
+  ResolveProviderOptions,
+  ResolveInputModalities,
+  GroqChatModels,
 } from './model-meta'
 export { GROQ_CHAT_MODELS } from './model-meta'
 export type {
-    GroqTextMetadata,
-    GroqImageMetadata,
-    GroqAudioMetadata,
-    GroqVideoMetadata,
-    GroqDocumentMetadata,
-    GroqMessageMetadataByModality,
+  GroqTextMetadata,
+  GroqImageMetadata,
+  GroqAudioMetadata,
+  GroqVideoMetadata,
+  GroqDocumentMetadata,
+  GroqMessageMetadataByModality,
 } from './message-types'

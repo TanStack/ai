@@ -257,7 +257,7 @@ const GPT_OSS_20B = {
       'json_object',
       'json_schema',
       'reasoning',
-      'tools'
+      'tools',
     ],
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
@@ -357,8 +357,8 @@ export type GroqChatModelProviderOptionsByName = {
  */
 export type ResolveProviderOptions<TModel extends string> =
   TModel extends keyof GroqChatModelProviderOptionsByName
-  ? GroqChatModelProviderOptionsByName[TModel]
-  : GroqTextProviderOptions
+    ? GroqChatModelProviderOptionsByName[TModel]
+    : GroqTextProviderOptions
 
 /**
  * Resolve input modalities for a specific model.
@@ -366,5 +366,5 @@ export type ResolveProviderOptions<TModel extends string> =
  */
 export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GroqModelInputModalitiesByName
-  ? GroqModelInputModalitiesByName[TModel]
-  : readonly ['text']
+    ? GroqModelInputModalitiesByName[TModel]
+    : readonly ['text']
