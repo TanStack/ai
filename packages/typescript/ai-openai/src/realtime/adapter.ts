@@ -236,6 +236,22 @@ async function createWebRTCConnection(
         break
       }
 
+      case 'response.output_text.delta': {
+        const delta = event.delta as string
+        emit('transcript', {
+          role: 'assistant',
+          transcript: delta,
+          isFinal: false,
+        })
+        break
+      }
+
+      case 'response.output_text.done': {
+        const text = event.text as string
+        emit('transcript', { role: 'assistant', transcript: text, isFinal: true })
+        break
+      }
+
       case 'response.audio.delta':
         if (currentMode !== 'speaking') {
           currentMode = 'speaking'
@@ -453,7 +469,10 @@ async function createWebRTCConnection(
           content: [{ type: 'input_text', text }],
         },
       })
-      sendEvent({ type: 'response.create' })
+      sendEvent({
+        type: 'response.create',
+        response: { output_modalities: ['text'] },
+      })
     },
 
     sendToolResult(callId: string, result: string) {
