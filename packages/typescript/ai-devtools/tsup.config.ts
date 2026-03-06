@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup'
 import { generateTsupOptions, parsePresetOptions } from 'tsup-preset-solid'
 
-const preset_options = {
+const index_preset = {
   entries: {
     entry: 'src/index.ts',
     dev_entry: true,
@@ -11,11 +11,24 @@ const preset_options = {
   drop_console: true,
 }
 
-export default defineConfig(() => {
-  const parsed_data = parsePresetOptions(preset_options)
-  const tsup_options = generateTsupOptions(parsed_data)
+const production_preset = {
+  entries: {
+    entry: 'src/production.ts',
+    dev_entry: true,
+    server_entry: true,
+  },
+  cjs: false,
+  drop_console: true,
+  out_dir: 'dist/production',
+}
 
-  return tsup_options.map((option) => ({
+export default defineConfig(() => {
+  const index_options = generateTsupOptions(parsePresetOptions(index_preset))
+  const production_options = generateTsupOptions(
+    parsePresetOptions(production_preset),
+  )
+
+  return [...index_options, ...production_options].map((option) => ({
     ...option,
     clean: false,
   }))
