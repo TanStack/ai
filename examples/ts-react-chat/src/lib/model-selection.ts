@@ -4,6 +4,7 @@ export type Provider =
   | 'gemini'
   | 'ollama'
   | 'grok'
+  | 'groq'
   | 'openrouter'
 
 export interface ModelOption {
@@ -89,6 +90,23 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     provider: 'ollama',
     model: 'smollm',
     label: 'Ollama - SmolLM',
+  },
+
+  // Groq
+  {
+    provider: 'groq',
+    model: 'llama-3.3-70b-versatile',
+    label: 'Groq - Llama 3.3 70B',
+  },
+  {
+    provider: 'groq',
+    model: 'meta-llama/llama-4-maverick-17b-128e-instruct',
+    label: 'Groq - Llama 4 Maverick',
+  },
+  {
+    provider: 'groq',
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    label: 'Groq - Llama 4 Scout',
   },
 
   // Grok

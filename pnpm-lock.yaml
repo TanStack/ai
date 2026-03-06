@@ -207,6 +207,9 @@ importers:
       '@tanstack/ai-grok':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-grok
+      '@tanstack/ai-groq':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-groq
       '@tanstack/ai-ollama':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-ollama

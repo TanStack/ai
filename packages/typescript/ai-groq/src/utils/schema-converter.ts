@@ -50,7 +50,10 @@ export function makeGroqStructuredOutputCompatible(
 ): Record<string, any> {
     const result = { ...schema }
 
-    if (result.type === 'object' && result.properties) {
+    if (result.type === 'object') {
+        if (!result.properties) {
+            result.properties = {}
+        }
         const properties = { ...result.properties }
         const allPropertyNames = Object.keys(properties)
 
@@ -87,7 +90,12 @@ export function makeGroqStructuredOutputCompatible(
         }
 
         result.properties = properties
-        result.required = allPropertyNames
+        // Groq rejects `required` when there are no properties, even if it's an empty array
+        if (allPropertyNames.length > 0) {
+            result.required = allPropertyNames
+        } else {
+            delete result.required
+        }
         result.additionalProperties = false
     }
 
