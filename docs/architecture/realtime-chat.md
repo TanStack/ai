@@ -58,7 +58,7 @@ The realtime chat system provides a vendor-neutral, type-safe abstraction for vo
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Server-Side                              │
 │  ┌─────────────────────────────────────────────────────────┐    │
-│  │              Token Generation Endpoint                   │    │
+│  │            Token Generation (Server Function)            │    │
 │  │  - openaiRealtimeToken() - ephemeral client secrets     │    │
 │  │  - elevenlabsRealtimeToken() - signed URLs              │    │
 │  │  (Minimal config: model only — session config is        │    │
@@ -74,15 +74,19 @@ The realtime chat system provides a vendor-neutral, type-safe abstraction for vo
 Token adapters generate short-lived credentials for client-side connections. This keeps API keys secure on the server. The token endpoint sends **only the model** to the provider; all other session configuration (instructions, voice, tools, VAD) is applied client-side.
 
 ```typescript
-// Server-side token endpoint
+// Server function (TanStack Start)
+import { createServerFn } from '@tanstack/react-start'
 import { realtimeToken } from '@tanstack/ai'
 import { openaiRealtimeToken } from '@tanstack/ai-openai'
 
-const token = await realtimeToken({
-  adapter: openaiRealtimeToken({
-    model: 'gpt-4o-realtime-preview',
-  }),
-})
+const getRealtimeTokenFn = createServerFn({ method: 'POST' })
+  .handler(async () => {
+    return realtimeToken({
+      adapter: openaiRealtimeToken({
+        model: 'gpt-4o-realtime-preview',
+      }),
+    })
+  })
 ```
 
 **Token Structure:**
@@ -155,7 +159,7 @@ const {
   getInputTimeDomainData,
   getOutputTimeDomainData,
 } = useRealtimeChat({
-  getToken: () => fetch('/api/realtime-token').then(r => r.json()),
+  getToken: () => getRealtimeTokenFn(),
   adapter: openaiRealtime(),
   instructions: 'You are a helpful voice assistant.',
   voice: 'alloy',
@@ -173,7 +177,7 @@ sequenceDiagram
     participant Server
     participant OpenAI
 
-    Browser->>Server: POST /api/realtime-token
+    Browser->>Server: getRealtimeTokenFn() (server function)
     Server->>OpenAI: POST /v1/realtime/sessions (model only)
     OpenAI-->>Server: { client_secret, expires_at }
     Server-->>Browser: RealtimeToken
@@ -206,7 +210,7 @@ sequenceDiagram
     participant Server
     participant ElevenLabs
 
-    Browser->>Server: POST /api/realtime-token
+    Browser->>Server: getRealtimeTokenFn() (server function)
     Server->>ElevenLabs: POST /v1/convai/conversation/get_signed_url
     ElevenLabs-->>Server: { signed_url }
     Server-->>Browser: RealtimeToken
@@ -280,7 +284,7 @@ When connecting, the `RealtimeClient` calls `applySessionConfig()` which sends a
 
 - **instructions** — System prompt for the assistant
 - **voice** — Voice to use for audio output (e.g., `'alloy'`)
-- **tools** — Array of tool definitions with JSON Schema parameters, plus `tool_choice: 'auto'`
+- **tools** — Array of `RealtimeToolConfig` descriptors (name, description, JSON Schema parameters), plus `tool_choice: 'auto'`
 - **turn_detection** — VAD configuration (server_vad, semantic_vad, or manual)
 - **input_audio_transcription** — Enables user speech transcription (e.g., Whisper)
 
@@ -389,5 +393,6 @@ ELEVENLABS_AGENT_ID=...        # Optional, for ElevenLabs
 
 ### Demo Application
 - `examples/ts-react-chat/src/routes/realtime.tsx` - Demo UI component
-- `examples/ts-react-chat/src/routes/api.realtime-token.ts` - Token API endpoint
+- `examples/ts-react-chat/src/lib/use-realtime.ts` - Custom hook with server function for token generation
 - `examples/ts-react-chat/src/lib/realtime-tools.ts` - Client-side tool definitions
+- `examples/ts-react-chat/src/components/AudioSparkline.tsx` - Audio waveform visualization component
