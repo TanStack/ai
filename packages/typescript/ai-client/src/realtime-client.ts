@@ -1,3 +1,4 @@
+import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -37,10 +38,7 @@ const TOKEN_REFRESH_BUFFER_MS = 60_000
  * await client.connect()
  * ```
  */
-let clientIdCounter = 0
-
 export class RealtimeClient {
-  private instanceId: number
   private options: RealtimeClientOptions
   private connection: RealtimeConnection | null = null
   private token: RealtimeToken | null = null
@@ -59,9 +57,6 @@ export class RealtimeClient {
   }
 
   constructor(options: RealtimeClientOptions) {
-    this.instanceId = ++clientIdCounter
-    console.log(`[RealtimeClient #${this.instanceId}] Created`)
-
     this.options = {
       autoPlayback: true,
       autoCapture: true,
@@ -102,13 +97,12 @@ export class RealtimeClient {
 
       // Connect via adapter
       this.connection = await this.options.adapter.connect(this.token)
-      console.log(
-        `[RealtimeClient #${this.instanceId}] Connection established:`,
-        !!this.connection,
-      )
 
       // Subscribe to connection events
       this.subscribeToConnectionEvents()
+
+      // Auto-configure session with client-provided settings
+      this.applySessionConfig()
 
       // Start audio capture if configured
       if (this.options.autoCapture) {
@@ -254,10 +248,6 @@ export class RealtimeClient {
 
   /** Get audio visualization data */
   get audio(): AudioVisualization | null {
-    console.log(
-      `[RealtimeClient #${this.instanceId}] audio getter, connection:`,
-      !!this.connection,
-    )
     return this.connection?.getAudioVisualization() ?? null
   }
 
@@ -452,6 +442,31 @@ export class RealtimeClient {
         this.options.onError?.(error)
       }),
     )
+  }
+
+  private applySessionConfig(): void {
+    if (!this.connection) return
+
+    const { instructions, voice, vadMode, tools } = this.options
+    const hasConfig = instructions || voice || vadMode || (tools && tools.length > 0)
+    if (!hasConfig) return
+
+    const toolsConfig = tools
+      ? Array.from(this.clientTools.values()).map((t) => ({
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema
+            ? convertSchemaToJsonSchema(t.inputSchema)
+            : undefined,
+        }))
+      : undefined
+
+    this.connection.updateSession({
+      instructions,
+      voice,
+      vadMode,
+      tools: toolsConfig,
+    })
   }
 
   private generateId(): string {

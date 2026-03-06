@@ -25,6 +25,7 @@ The realtime chat system provides a vendor-neutral, type-safe abstraction for vo
 │  │  - Messages & transcripts                                │    │
 │  │  - Audio visualization (levels, waveforms)               │    │
 │  │  - Control methods (connect, disconnect, interrupt)      │    │
+│  │  - Client-side tool configuration                        │    │
 │  └─────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
                                 │
@@ -35,6 +36,7 @@ The realtime chat system provides a vendor-neutral, type-safe abstraction for vo
 │  │                    RealtimeClient                        │    │
 │  │  - Connection lifecycle management                       │    │
 │  │  - Token refresh scheduling                              │    │
+│  │  - Client-side session configuration (tools, voice, etc) │    │
 │  │  - Event subscription & dispatch                         │    │
 │  │  - Tool execution coordination                           │    │
 │  └─────────────────────────────────────────────────────────┘    │
@@ -48,6 +50,7 @@ The realtime chat system provides a vendor-neutral, type-safe abstraction for vo
 │  │  - WebRTC connection │    │  - SDK wrapper       │          │
 │  │  - Audio I/O         │    │  - Signed URL auth   │          │
 │  │  - Event mapping     │    │  - Event mapping     │          │
+│  │  - Session updates   │    │                      │          │
 │  └──────────────────────┘    └──────────────────────┘          │
 └─────────────────────────────────────────────────────────────────┘
                                 │
@@ -58,6 +61,8 @@ The realtime chat system provides a vendor-neutral, type-safe abstraction for vo
 │  │              Token Generation Endpoint                   │    │
 │  │  - openaiRealtimeToken() - ephemeral client secrets     │    │
 │  │  - elevenlabsRealtimeToken() - signed URLs              │    │
+│  │  (Minimal config: model only — session config is        │    │
+│  │   applied client-side via session.update)               │    │
 │  └─────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -66,7 +71,7 @@ The realtime chat system provides a vendor-neutral, type-safe abstraction for vo
 
 ### 1. Token Adapters (Server-Side)
 
-Token adapters generate short-lived credentials for client-side connections. This keeps API keys secure on the server.
+Token adapters generate short-lived credentials for client-side connections. This keeps API keys secure on the server. The token endpoint sends **only the model** to the provider; all other session configuration (instructions, voice, tools, VAD) is applied client-side.
 
 ```typescript
 // Server-side token endpoint
@@ -76,13 +81,6 @@ import { openaiRealtimeToken } from '@tanstack/ai-openai'
 const token = await realtimeToken({
   adapter: openaiRealtimeToken({
     model: 'gpt-4o-realtime-preview',
-    voice: 'alloy',
-    instructions: 'You are a helpful assistant.',
-    turnDetection: {
-      type: 'server_vad',
-      threshold: 0.5,
-      silence_duration_ms: 500,
-    },
   }),
 })
 ```
@@ -104,6 +102,7 @@ Client adapters handle the actual connection to provider APIs, managing:
 - Audio capture and playback
 - Event translation to common format
 - Audio visualization data
+- Session configuration updates (tools, instructions, voice, VAD)
 
 ```typescript
 // Client-side adapter usage
@@ -114,15 +113,18 @@ const adapter = openaiRealtime({
 })
 ```
 
+**Data Channel Readiness:** The OpenAI adapter waits for the WebRTC data channel to be fully open before returning the connection. If `updateSession()` is called before the channel is ready, events are queued and flushed once the channel opens.
+
 ### 3. RealtimeClient
 
 The `RealtimeClient` class manages the connection lifecycle:
 
 - **Connection Management**: Connect, disconnect, reconnect
 - **Token Refresh**: Automatically refreshes tokens before expiry
+- **Session Configuration**: Applies client-side config (instructions, voice, tools, VAD) via `session.update` after connecting
 - **Event Handling**: Subscribes to adapter events and dispatches to callbacks
 - **State Management**: Tracks status, mode, messages, transcripts
-- **Tool Execution**: Coordinates client-side tool calls
+- **Tool Execution**: Looks up client-side tools by name, executes them, and sends results back to the provider
 
 ### 4. useRealtimeChat Hook
 
@@ -155,6 +157,9 @@ const {
 } = useRealtimeChat({
   getToken: () => fetch('/api/realtime-token').then(r => r.json()),
   adapter: openaiRealtime(),
+  instructions: 'You are a helpful voice assistant.',
+  voice: 'alloy',
+  tools: myClientTools,
 })
 ```
 
@@ -169,7 +174,7 @@ sequenceDiagram
     participant OpenAI
 
     Browser->>Server: POST /api/realtime-token
-    Server->>OpenAI: POST /v1/realtime/sessions
+    Server->>OpenAI: POST /v1/realtime/sessions (model only)
     OpenAI-->>Server: { client_secret, expires_at }
     Server-->>Browser: RealtimeToken
 
@@ -183,7 +188,11 @@ sequenceDiagram
     OpenAI-->>Browser: SDP answer
 
     Browser->>Browser: setRemoteDescription()
+    Browser->>Browser: Wait for data channel open
     Note over Browser,OpenAI: WebRTC connection established
+
+    Browser->>OpenAI: session.update (tools, instructions, voice, VAD)
+    OpenAI-->>Browser: session.updated (confirms config)
 
     Browser->>OpenAI: Audio via WebRTC
     OpenAI-->>Browser: Audio + events via WebRTC
@@ -209,14 +218,82 @@ sequenceDiagram
     ElevenLabs-->>Browser: Audio + events via SDK
 ```
 
+## Client-Side Tool Calling
+
+Tools are defined once using `toolDefinition()` and instantiated for client-side execution with `.client()`. When the AI model invokes a tool, the `RealtimeClient` executes it locally in the browser and sends the result back to the provider.
+
+### Tool Definition
+
+```typescript
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const getWeatherToolDef = toolDefinition({
+  name: 'getWeather',
+  description: 'Get the current weather for a location.',
+  inputSchema: z.object({
+    location: z.string().describe('City and state/country'),
+  }),
+  outputSchema: z.object({
+    location: z.string(),
+    temperature: z.number(),
+    condition: z.string(),
+  }),
+})
+
+// Create client-side implementation
+const getWeatherClient = getWeatherToolDef.client(({ location }) => ({
+  location,
+  temperature: 72,
+  condition: 'Sunny',
+}))
+```
+
+### Tool Call Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Browser as Browser (RealtimeClient)
+    participant OpenAI
+
+    User->>Browser: "What's the weather in London?"
+    Browser->>OpenAI: Audio via WebRTC
+
+    OpenAI->>Browser: response.function_call_arguments.done
+    Note right of OpenAI: { name: "getWeather", arguments: '{"location":"London"}' }
+
+    Browser->>Browser: Look up tool in clientTools Map
+    Browser->>Browser: Execute tool.execute(input)
+    Browser->>OpenAI: conversation.item.create (function_call_output)
+    Browser->>OpenAI: response.create
+
+    OpenAI->>Browser: response.audio_transcript.delta
+    Note right of OpenAI: "The weather in London is 72°F and sunny!"
+    OpenAI->>Browser: response.done
+    Browser->>User: Display message + play audio
+```
+
+### Session Configuration
+
+When connecting, the `RealtimeClient` calls `applySessionConfig()` which sends a `session.update` event to the provider with:
+
+- **instructions** — System prompt for the assistant
+- **voice** — Voice to use for audio output (e.g., `'alloy'`)
+- **tools** — Array of tool definitions with JSON Schema parameters, plus `tool_choice: 'auto'`
+- **turn_detection** — VAD configuration (server_vad, semantic_vad, or manual)
+- **input_audio_transcription** — Enables user speech transcription (e.g., Whisper)
+
+Tool schemas are converted from Zod (or any Standard JSON Schema compliant library) to JSON Schema using `convertSchemaToJsonSchema()` before being sent to the provider.
+
 ## Audio Visualization
 
 The system provides real-time audio visualization through the `AudioVisualization` interface:
 
 ```typescript
 interface AudioVisualization {
-  inputLevel: number           // 0-1 normalized input volume (RMS)
-  outputLevel: number          // 0-1 normalized output volume (RMS)
+  inputLevel: number           // 0-1 normalized input volume
+  outputLevel: number          // 0-1 normalized output volume
   getInputFrequencyData(): Uint8Array   // FFT frequency bins
   getOutputFrequencyData(): Uint8Array
   getInputTimeDomainData(): Uint8Array  // Raw waveform samples
@@ -228,7 +305,7 @@ interface AudioVisualization {
 
 The OpenAI adapter uses Web Audio API `AnalyserNode` for visualization:
 - `fftSize: 2048` for high-resolution analysis
-- RMS (Root Mean Square) calculation for accurate volume levels
+- Peak amplitude detection for responsive volume meters
 - Separate analysers for input (microphone) and output (AI voice)
 
 ## Event System
@@ -256,15 +333,16 @@ Adapters emit standardized events:
 - [x] Real-time transcription display
 - [x] Audio visualization (levels, waveforms)
 - [x] Interrupt capability
+- [x] Client-side tool calling (define, execute, return results)
+- [x] Client-side session configuration (instructions, voice, tools, VAD)
 - [x] React hook (`useRealtimeChat`)
-- [x] Demo application at `/realtime` route
+- [x] Demo application at `/realtime` route with tool examples
 
 ### Known Limitations
 
 - **Device Selection**: Currently uses system default audio devices. Custom device selection not yet implemented.
 - **ElevenLabs SDK**: Using `@11labs/client@0.2.0` which has limited TypeScript support.
 - **Push-to-Talk**: Manual VAD mode implemented but not exposed in demo UI.
-- **Tool Calling**: Framework supports tools but demo doesn't showcase them.
 
 ### Demo Application
 
@@ -276,8 +354,9 @@ The `examples/ts-react-chat` application includes a realtime voice chat demo at 
 - Conversation mode indicator (Listening/Thinking/Speaking)
 - Message history with transcripts
 - Audio level meters
-- Waveform visualization (debug mode)
+- Waveform visualization
 - Interrupt button during AI speech
+- Client-side tool execution (getCurrentTime, getWeather, setReminder, searchKnowledge)
 
 **Required Environment Variables:**
 ```bash
@@ -311,3 +390,4 @@ ELEVENLABS_AGENT_ID=...        # Optional, for ElevenLabs
 ### Demo Application
 - `examples/ts-react-chat/src/routes/realtime.tsx` - Demo UI component
 - `examples/ts-react-chat/src/routes/api.realtime-token.ts` - Token API endpoint
+- `examples/ts-react-chat/src/lib/realtime-tools.ts` - Client-side tool definitions

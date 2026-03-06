@@ -87,6 +87,8 @@ export function useRealtimeChat(
       getToken: optionsRef.current.getToken,
       adapter: optionsRef.current.adapter,
       tools: optionsRef.current.tools,
+      instructions: optionsRef.current.instructions,
+      voice: optionsRef.current.voice,
       autoPlayback: optionsRef.current.autoPlayback,
       autoCapture: optionsRef.current.autoCapture,
       vadMode: optionsRef.current.vadMode,

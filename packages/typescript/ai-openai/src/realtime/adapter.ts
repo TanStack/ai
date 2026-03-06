@@ -100,9 +100,14 @@ async function createWebRTCConnection(
   // Set up data channel for bidirectional communication
   dataChannel = pc.createDataChannel('oai-events')
 
-  dataChannel.onopen = () => {
-    emit('status_change', { status: 'connected' as RealtimeStatus })
-  }
+  // Promise that resolves when the data channel is open and ready
+  const dataChannelReady = new Promise<void>((resolve) => {
+    dataChannel!.onopen = () => {
+      flushPendingEvents()
+      emit('status_change', { status: 'connected' as RealtimeStatus })
+      resolve()
+    }
+  })
 
   dataChannel.onmessage = (event) => {
     try {
@@ -119,10 +124,8 @@ async function createWebRTCConnection(
 
   // Handle incoming audio track
   pc.ontrack = (event) => {
-    console.log('[Realtime] ontrack event:', event.track.kind, event.streams[0])
     if (event.track.kind === 'audio' && event.streams[0]) {
       setupOutputAudioAnalysis(event.streams[0])
-      console.log('[Realtime] Output analyser created:', outputAnalyser)
     }
   }
 
@@ -172,12 +175,7 @@ async function createWebRTCConnection(
   await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
 
   // Set up input audio analysis now that we have the stream
-  console.log(
-    '[Realtime] Setting up input audio analysis, localStream:',
-    localStream,
-  )
   setupInputAudioAnalysis(localStream)
-  console.log('[Realtime] Input analyser created:', inputAnalyser)
 
   // Handle server events
   function handleServerEvent(event: Record<string, unknown>) {
@@ -262,16 +260,16 @@ async function createWebRTCConnection(
       }
 
       case 'response.done': {
+        const response = event.response as Record<string, unknown>
+        const output = response.output as
+          | Array<Record<string, unknown>>
+          | undefined
+
         currentMode = 'listening'
         emit('mode_change', { mode: 'listening' })
 
         // Emit message complete if we have a current message
         if (currentMessageId) {
-          const response = event.response as Record<string, unknown>
-          const output = response.output as
-            | Array<Record<string, unknown>>
-            | undefined
-
           const message: RealtimeMessage = {
             id: currentMessageId,
             role: 'assistant',
@@ -372,11 +370,24 @@ async function createWebRTCConnection(
     inputSource.connect(inputAnalyser)
   }
 
-  // Send event to server
+  // Queue for events sent before the data channel is open
+  const pendingEvents: Array<Record<string, unknown>> = []
+
+  // Send event to server (queues if data channel not yet open)
   function sendEvent(event: Record<string, unknown>) {
     if (dataChannel?.readyState === 'open') {
       dataChannel.send(JSON.stringify(event))
+    } else {
+      pendingEvents.push(event)
     }
+  }
+
+  // Flush any queued events (called when data channel opens)
+  function flushPendingEvents() {
+    for (const event of pendingEvents) {
+      dataChannel!.send(JSON.stringify(event))
+    }
+    pendingEvents.length = 0
   }
 
   // Connection implementation
@@ -486,6 +497,21 @@ async function createWebRTCConnection(
         }
       }
 
+      if (config.tools !== undefined) {
+        sessionUpdate.tools = config.tools.map((t) => ({
+          type: 'function',
+          name: t.name,
+          description: t.description,
+          parameters: t.inputSchema
+            ? (t.inputSchema as Record<string, unknown>)
+            : { type: 'object', properties: {} },
+        }))
+        sessionUpdate.tool_choice = 'auto'
+      }
+
+      // Always enable input audio transcription so user speech is transcribed
+      sessionUpdate.input_audio_transcription = { model: 'whisper-1' }
+
       if (Object.keys(sessionUpdate).length > 0) {
         sendEvent({
           type: 'session.update',
@@ -516,14 +542,6 @@ async function createWebRTCConnection(
     },
 
     getAudioVisualization(): AudioVisualization {
-      // Log analyser state for debugging
-      console.log(
-        '[Realtime] getAudioVisualization called, inputAnalyser:',
-        !!inputAnalyser,
-        'outputAnalyser:',
-        !!outputAnalyser,
-      )
-
       // Helper to calculate audio level from time domain data
       // Uses peak amplitude which is more responsive for voice audio meters
       function calculateLevel(analyser: AnalyserNode): number {
@@ -596,6 +614,10 @@ async function createWebRTCConnection(
       }
     },
   }
+
+  // Wait for the data channel to be open before returning the connection.
+  // This ensures session.update (tools, instructions, etc.) can be sent immediately.
+  await dataChannelReady
 
   return connection
 }

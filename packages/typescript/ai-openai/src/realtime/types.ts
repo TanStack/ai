@@ -52,33 +52,6 @@ export type OpenAITurnDetection =
 export interface OpenAIRealtimeTokenOptions {
   /** Model to use (default: 'gpt-4o-realtime-preview') */
   model?: OpenAIRealtimeModel
-  /** Voice to use (default: 'alloy') */
-  voice?: OpenAIRealtimeVoice
-  /** System instructions */
-  instructions?: string
-  /** Turn detection configuration */
-  turnDetection?: OpenAITurnDetection
-  /** Input audio format (default: 'pcm16') */
-  inputAudioFormat?: 'pcm16' | 'g711_ulaw' | 'g711_alaw'
-  /** Output audio format (default: 'pcm16') */
-  outputAudioFormat?: 'pcm16' | 'g711_ulaw' | 'g711_alaw'
-  /** Input audio transcription model */
-  inputAudioTranscription?: {
-    model: 'whisper-1'
-  }
-  /** Tools available in the session */
-  tools?: Array<{
-    type: 'function'
-    name: string
-    description: string
-    parameters: Record<string, unknown>
-  }>
-  /** Tool choice strategy */
-  toolChoice?: 'auto' | 'none' | 'required' | { type: 'function'; name: string }
-  /** Temperature for response generation */
-  temperature?: number
-  /** Maximum response output tokens */
-  maxResponseOutputTokens?: number | 'inf'
 }
 
 /**

@@ -140,7 +140,18 @@ function RealtimePage() {
       return response.json()
     },
     adapter,
-    // Pass the client tools - these execute locally when the AI calls them
+    instructions: `You are a helpful, friendly voice assistant with access to several tools.
+
+You can:
+- Tell the user the current time and date (getCurrentTime)
+- Get weather information for any location (getWeather)
+- Set reminders for the user (setReminder)
+- Search a knowledge base for information (searchKnowledge)
+
+Keep your responses concise and conversational since this is a voice interface.
+When using tools, briefly explain what you're doing and then share the results naturally.
+Be friendly and engaging!`,
+    voice: 'alloy',
     tools: realtimeClientTools,
     onError: (err) => {
       console.error('Realtime error:', err)

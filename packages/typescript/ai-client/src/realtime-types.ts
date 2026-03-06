@@ -106,6 +106,16 @@ export interface RealtimeClientOptions {
   autoCapture?: boolean
 
   /**
+   * System instructions for the assistant
+   */
+  instructions?: string
+
+  /**
+   * Voice to use for audio output
+   */
+  voice?: string
+
+  /**
    * Voice activity detection mode (default: 'server')
    */
   vadMode?: 'server' | 'semantic' | 'manual'
