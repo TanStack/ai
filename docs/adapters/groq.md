@@ -90,6 +90,8 @@ const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
   return { results: [] };
 });
 
+const messages = [{ role: "user", content: "Search for something" }];
+
 const stream = chat({
   adapter: groqText("llama-3.3-70b-versatile"),
   messages,
@@ -115,13 +117,11 @@ const stream = chat({
 
 ### Reasoning
 
-Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
+Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/qwen3-32b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
 
 ```typescript
 modelOptions: {
-  reasoning: {
-    effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
-  },
+  reasoning_effort: "medium", // "none" | "default" | "low" | "medium" | "high"
 }
 ```
 
@@ -196,11 +196,13 @@ const result = await generateSpeech({
 
 ### Supported TTS Formats
 
-- `wav` (currently recommended)
+- `wav` (only format currently supported for Orpheus models)
 - `mp3`
 - `flac`
 - `ogg`
 - `mulaw`
+
+> **Note:** Additional formats (`mp3`, `flac`, `ogg`, `mulaw`) are defined for future compatibility but are not yet supported by Orpheus TTS models.
 
 ## Environment Variables
 
