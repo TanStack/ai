@@ -1,5 +1,11 @@
 # @tanstack/ai-client
 
+## 0.5.2
+
+### Patch Changes
+
+- Fix chained tool approval flows where a second approval arriving during an active continuation stream was silently dropped ([#347](https://github.com/TanStack/ai/pull/347))
+
 ## 0.5.1
 
 ### Patch Changes
