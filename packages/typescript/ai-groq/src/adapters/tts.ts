@@ -46,15 +46,24 @@ export class GroqTTSAdapter<TModel extends GroqTTSModel> extends BaseTTSAdapter<
   async generateSpeech(
     options: TTSOptions<GroqTTSProviderOptions>,
   ): Promise<TTSResult> {
-    const { model, text, voice, format, speed, modelOptions } = options
+    const {
+      model,
+      text,
+      voice = 'autumn',
+      format = 'wav',
+      speed,
+      modelOptions,
+    } = options
 
     validateAudioInput({ input: text, model })
+
+    const voiceFormat = format as GroqTTSFormat
 
     const request: Groq_SDK.Audio.Speech.SpeechCreateParams = {
       model,
       input: text,
-      voice: (voice as GroqTTSVoice) || 'autumn',
-      response_format: (format as GroqTTSFormat) || 'wav',
+      voice: voice as GroqTTSVoice,
+      response_format: voiceFormat,
       speed,
       ...modelOptions,
     }
@@ -64,14 +73,13 @@ export class GroqTTSAdapter<TModel extends GroqTTSModel> extends BaseTTSAdapter<
     const arrayBuffer = await response.arrayBuffer()
     const base64 = Buffer.from(arrayBuffer).toString('base64')
 
-    const outputFormat = format || 'wav'
-    const contentType = this.getContentType(outputFormat)
+    const contentType = this.getContentType(voiceFormat)
 
     return {
       id: generateId(this.name),
       model,
       audio: base64,
-      format: outputFormat,
+      format: voiceFormat,
       contentType,
     }
   }

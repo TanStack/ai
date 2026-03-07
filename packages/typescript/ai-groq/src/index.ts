@@ -33,6 +33,7 @@ export type {
 // Types
 export type {
   GroqChatModelProviderOptionsByName,
+  GroqTTSModelProviderOptionsByName,
   GroqModelInputModalitiesByName,
   ResolveProviderOptions,
   ResolveInputModalities,
