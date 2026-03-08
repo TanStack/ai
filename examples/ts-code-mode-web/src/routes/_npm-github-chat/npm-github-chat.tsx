@@ -483,8 +483,9 @@ function CodeModePage() {
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
+      vm: selectedVM,
     }),
-    [selectedModel.provider, selectedModel.model],
+    [selectedModel.provider, selectedModel.model, selectedVM],
   )
 
   const handleCustomEvent = useCallback(

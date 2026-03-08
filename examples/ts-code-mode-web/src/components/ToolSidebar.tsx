@@ -101,13 +101,13 @@ export const DEFAULT_ISOLATE_VM_OPTIONS: Array<IsolateVMOption> = [
     id: 'quickjs',
     name: 'QuickJS',
     description: 'Lightweight JavaScript engine',
-    available: false,
+    available: true,
   },
   {
     id: 'cloudflare',
     name: 'Cloudflare Workers',
-    description: 'Edge runtime isolate',
-    available: false,
+    description: 'Edge runtime isolate (requires wrangler dev)',
+    available: true,
   },
 ]
 

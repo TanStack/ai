@@ -25,21 +25,25 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
   }
 }
 
-// Lazy initialization to avoid loading native modules at module load time
-let codeModeCache: { tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']; systemPrompt: string } | null = null
+import { createIsolateDriver, type IsolateVM } from '@/lib/create-isolate-driver'
 
-async function getCodeModeTools() {
-  if (!codeModeCache) {
-    const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
+type CodeModeEntry = { tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']; systemPrompt: string }
+const codeModeCacheByVM = new Map<IsolateVM, CodeModeEntry>()
+
+async function getCodeModeTools(vm: IsolateVM = 'node') {
+  let entry = codeModeCacheByVM.get(vm)
+  if (!entry) {
+    const driver = await createIsolateDriver(vm)
     const { tool, systemPrompt } = createCodeModeToolAndPrompt({
-      driver: createNodeIsolateDriver(),
+      driver,
       tools: allTools,
       timeout: 60000,
       memoryLimit: 128,
     })
-    codeModeCache = { tool, systemPrompt }
+    entry = { tool, systemPrompt }
+    codeModeCacheByVM.set(vm, entry)
   }
-  return codeModeCache
+  return entry
 }
 
 export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
@@ -57,6 +61,7 @@ export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
 
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
+        const vm: IsolateVM = data?.vm || 'node'
 
         const adapter = getAdapter(provider, model)
         const baseChatStream = adapter.chatStream.bind(adapter)
@@ -101,7 +106,7 @@ export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
             return instrumentedStream()
           },
         }
-        const { tool, systemPrompt } = await getCodeModeTools()
+        const { tool, systemPrompt } = await getCodeModeTools(vm)
 
         try {
           const stream = chat({

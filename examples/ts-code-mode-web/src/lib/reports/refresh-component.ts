@@ -66,8 +66,8 @@ export async function refreshComponent(
   console.log('[RefreshComponent] dataSource code:', component.dataSource)
 
   // Dynamic import to avoid RSC module runner issues
-  const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
-  const driver = createNodeIsolateDriver()
+  const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
+  const driver = await createIsolateDriver('node')
 
   // Capture the result via a binding since isolate doesn't return async values properly
   let capturedResult: unknown = undefined

@@ -45,8 +45,8 @@ export async function evaluateWatcher(
   watcher: WatcherSubscription,
   collectedEffects: Array<{ type: string; params: Record<string, unknown> }>,
 ): Promise<WatcherResult> {
-  const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
-  const driver = createNodeIsolateDriver()
+  const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
+  const driver = await createIsolateDriver('node')
 
   // First, evaluate the condition
   const conditionContext = await driver.createContext({

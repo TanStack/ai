@@ -4,6 +4,13 @@ import type { QuickJSAsyncContext } from 'quickjs-emscripten'
 import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
 
 /**
+ * Serializes all QuickJS evalCodeAsync calls across contexts.
+ * Required because newAsyncContext() reuses a singleton WASM module
+ * whose asyncify stack can only handle one suspension at a time.
+ */
+let globalExecQueue: Promise<void> = Promise.resolve()
+
+/**
  * IsolateContext implementation using QuickJS WASM
  */
 export class QuickJSIsolateContext implements IsolateContext {
@@ -11,6 +18,7 @@ export class QuickJSIsolateContext implements IsolateContext {
   private logs: Array<string>
   private timeout: number
   private disposed = false
+  private executing = false
 
   constructor(vm: QuickJSAsyncContext, logs: Array<string>, timeout: number) {
     this.vm = vm
@@ -30,66 +38,69 @@ export class QuickJSIsolateContext implements IsolateContext {
       }
     }
 
-    // Clear previous logs
+    // Serialize through the global queue to prevent concurrent
+    // WASM asyncify suspensions across contexts.
+    let resolve!: () => void
+    const myTurn = new Promise<void>((r) => {
+      resolve = r
+    })
+    const waitForPrev = globalExecQueue
+    globalExecQueue = myTurn
+
+    await waitForPrev
+
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- dispose() may be called concurrently while awaiting the queue
+    if (this.disposed) {
+      resolve()
+      return {
+        success: false,
+        error: {
+          name: 'DisposedError',
+          message: 'Context has been disposed',
+        },
+        logs: [],
+      }
+    }
+
+    this.executing = true
     this.logs.length = 0
 
     try {
-      // Wrap user code in async IIFE
       const wrappedCode = wrapCode(code)
 
-      // Set up timeout using interrupt handler
       const deadline = Date.now() + this.timeout
       this.vm.runtime.setInterruptHandler(() => {
         return Date.now() > deadline
       })
 
-      // Evaluate async code
       const result = await this.vm.evalCodeAsync(wrappedCode)
 
-      // Clear interrupt handler
       this.vm.runtime.setInterruptHandler(() => false)
 
-      // Handle result using unwrapResult which throws on error
       let parsedResult: T
       try {
-        const valueHandle = this.vm.unwrapResult(result)
-        // Dump the result - for async code, this returns { type: 'fulfilled'|'rejected', value|error }
+        const promiseHandle = this.vm.unwrapResult(result)
+
+        // evalCodeAsync returns a Promise handle (our wrapper is an async IIFE).
+        // Use resolvePromise + executePendingJobs to properly await the
+        // QuickJS promise without re-entering the WASM asyncify state.
+        const nativePromise = this.vm.resolvePromise(promiseHandle)
+        promiseHandle.dispose()
+        this.vm.runtime.executePendingJobs()
+        const resolvedResult = await nativePromise
+
+        const valueHandle = this.vm.unwrapResult(resolvedResult)
         const dumpedResult = this.vm.dump(valueHandle)
+        valueHandle.dispose()
 
-        // evalCodeAsync returns a promise result structure for async code
-        // Check if it's a promise result and extract the actual value
-        let actualValue: unknown
-        if (
-          typeof dumpedResult === 'object' &&
-          dumpedResult !== null &&
-          'type' in dumpedResult
-        ) {
-          const promiseResult = dumpedResult as {
-            type: 'fulfilled' | 'rejected'
-            value?: unknown
-            error?: unknown
-          }
-          if (promiseResult.type === 'rejected') {
-            return {
-              success: false,
-              error: normalizeError(promiseResult.error),
-              logs: [...this.logs],
-            }
-          }
-          actualValue = promiseResult.value
-        } else {
-          actualValue = dumpedResult
-        }
-
-        // Parse JSON if it's a string (from our serialization wrapper)
-        if (typeof actualValue === 'string') {
+        if (typeof dumpedResult === 'string') {
           try {
-            parsedResult = JSON.parse(actualValue) as T
+            parsedResult = JSON.parse(dumpedResult) as T
           } catch {
-            parsedResult = actualValue as T
+            parsedResult = dumpedResult as T
           }
         } else {
-          parsedResult = actualValue as T
+          parsedResult = dumpedResult as T
         }
 
         return {
@@ -98,7 +109,6 @@ export class QuickJSIsolateContext implements IsolateContext {
           logs: [...this.logs],
         }
       } catch (unwrapError) {
-        // unwrapResult throws if there was an error
         return {
           success: false,
           error: normalizeError(unwrapError),
@@ -111,14 +121,23 @@ export class QuickJSIsolateContext implements IsolateContext {
         error: normalizeError(error),
         logs: [...this.logs],
       }
+    } finally {
+      this.executing = false
+      resolve()
     }
   }
 
-  dispose(): Promise<void> {
-    if (!this.disposed) {
-      this.disposed = true
-      this.vm.dispose()
+  async dispose(): Promise<void> {
+    if (this.disposed) return
+
+    // If an execution is in flight, wait for the global queue to drain
+    // before disposing the VM. Otherwise the asyncified callback would
+    // try to access a freed context.
+    if (this.executing) {
+      await globalExecQueue
     }
-    return Promise.resolve()
+
+    this.disposed = true
+    this.vm.dispose()
   }
 }

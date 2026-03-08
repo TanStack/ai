@@ -35,11 +35,13 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "dev:worker": "wrangler dev",
+    "dev:worker": "node dev-server.mjs",
     "deploy:worker": "wrangler deploy",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
   "keywords": [
@@ -57,6 +59,8 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241230.0",
     "@vitest/coverage-v8": "4.0.14",
+    "esbuild": "^0.25.12",
+    "miniflare": "^4.20260305.0",
     "wrangler": "^4.19.1"
   }
 }

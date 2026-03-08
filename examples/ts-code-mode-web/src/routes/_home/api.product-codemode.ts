@@ -60,10 +60,8 @@ let codeModeCache: {
 
 async function getCodeModeTools() {
   if (!codeModeCache) {
-    const { createNodeIsolateDriver } = await import(
-      '@tanstack/ai-isolate-node'
-    )
-    const driver = createNodeIsolateDriver()
+    const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
+    const driver = await createIsolateDriver('node')
     const { tool, systemPrompt } = createCodeModeToolAndPrompt({
       driver,
       tools: productTools,

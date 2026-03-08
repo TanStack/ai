@@ -49,8 +49,8 @@ export const Route = createFileRoute('/_reporting/api/report-event' as any)({
         console.log('[HandlerExec] Code:\n', handlerCode)
         console.log('[HandlerExec] ----------------------------------------')
 
-        const { createNodeIsolateDriver } = await import('@tanstack/ai-isolate-node')
-        const driver = createNodeIsolateDriver()
+        const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
+        const driver = await createIsolateDriver('node')
         const effects: UIEffect[] = []
         const uiUpdates: UIUpdate[] = []
         const calledBindings: string[] = []

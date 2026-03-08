@@ -13,12 +13,11 @@
  * 6. Return final result
  */
 
+import { wrapCode } from './wrap-code'
 import type {
   ExecuteRequest,
   ExecuteResponse,
   ToolCallRequest,
-  ToolResultPayload,
-  ToolSchema,
 } from '../types'
 
 /**
@@ -35,127 +34,6 @@ interface Env {
    * Configured in wrangler.toml as an unsafe binding
    */
   UNSAFE_EVAL?: UnsafeEval
-}
-
-/**
- * Generate tool wrapper code that collects calls or returns cached results
- * Function names match the binding keys (e.g., external_fetchWeather)
- */
-function generateToolWrappers(
-  tools: Array<ToolSchema>,
-  toolResults?: Record<string, ToolResultPayload>,
-): string {
-  const wrappers: Array<string> = []
-
-  for (const tool of tools) {
-    if (toolResults) {
-      // We have results - create functions that return cached results
-      wrappers.push(`
-        async function ${tool.name}(input) {
-          const callId = '${tool.name}_' + JSON.stringify(input);
-          const result = __toolResults[callId];
-          if (!result) {
-            throw new Error('Tool result not found for: ' + callId);
-          }
-          if (!result.success) {
-            throw new Error(result.error || 'Tool call failed');
-          }
-          return result.value;
-        }
-      `)
-    } else {
-      // First pass - collect tool calls
-      wrappers.push(`
-        async function ${tool.name}(input) {
-          const callId = '${tool.name}_' + JSON.stringify(input);
-          __pendingToolCalls.push({
-            id: callId,
-            name: '${tool.name}',
-            args: input
-          });
-          // Throw a special error to halt execution
-          throw new __ToolCallNeeded(callId);
-        }
-      `)
-    }
-  }
-
-  return wrappers.join('\n')
-}
-
-/**
- * Wrap user code in an async IIFE with tool wrappers
- */
-function wrapCode(
-  code: string,
-  tools: Array<ToolSchema>,
-  toolResults?: Record<string, ToolResultPayload>,
-): string {
-  const toolWrappers = generateToolWrappers(tools, toolResults)
-  const toolResultsJson = toolResults ? JSON.stringify(toolResults) : '{}'
-
-  return `
-    (async function() {
-      // Tool call tracking
-      const __pendingToolCalls = [];
-      const __toolResults = ${toolResultsJson};
-      const __logs = [];
-
-      // Special error class for tool calls
-      class __ToolCallNeeded extends Error {
-        constructor(callId) {
-          super('Tool call needed: ' + callId);
-          this.callId = callId;
-        }
-      }
-
-      // Console capture
-      const console = {
-        log: (...args) => __logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
-        error: (...args) => __logs.push('ERROR: ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
-        warn: (...args) => __logs.push('WARN: ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
-        info: (...args) => __logs.push('INFO: ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
-      };
-
-      // Tool wrappers
-      ${toolWrappers}
-
-      try {
-        // Execute user code
-        const __userResult = await (async function() {
-          ${code}
-        })();
-
-        return {
-          status: 'done',
-          success: true,
-          value: __userResult,
-          logs: __logs
-        };
-      } catch (__error) {
-        if (__error instanceof __ToolCallNeeded) {
-          // Tool calls needed - return pending calls
-          return {
-            status: 'need_tools',
-            toolCalls: __pendingToolCalls,
-            logs: __logs
-          };
-        }
-
-        // Regular error
-        return {
-          status: 'done',
-          success: false,
-          error: {
-            name: __error.name || 'Error',
-            message: __error.message || String(__error),
-            stack: __error.stack
-          },
-          logs: __logs
-        };
-      }
-    })()
-  `
 }
 
 /**

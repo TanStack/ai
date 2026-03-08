@@ -22,6 +22,12 @@ const config = defineConfig({
   ssr: {
     external: [
       'isolated-vm',
+      'quickjs-emscripten',
+      'quickjs-emscripten-core',
+      '@jitl/quickjs-wasmfile-release-asyncify',
+      '@jitl/quickjs-wasmfile-release-sync',
+      '@jitl/quickjs-wasmfile-debug-asyncify',
+      '@jitl/quickjs-wasmfile-debug-sync',
       'esbuild',
       // Google/Gemini related CJS packages
       'google-auth-library',
@@ -40,7 +46,7 @@ const config = defineConfig({
     ],
   },
   optimizeDeps: {
-    exclude: ['isolated-vm'],
+    exclude: ['isolated-vm', 'quickjs-emscripten'],
   },
 })
 
