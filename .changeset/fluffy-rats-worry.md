@@ -2,9 +2,9 @@
 '@tanstack/ai-gemini': minor
 ---
 
-feat: add support for Gemini 3.1 Flash Lite model
+feat: add support for Gemini 3.1 Flash Lite Preview model
 
-Added `gemini-3.1-flash-lite` to the Gemini adapter with:
+Added `gemini-3.1-flash-lite-preview` to the Gemini adapter with:
 
 - Full multimodal support (text, image, audio, video, document)
 - Thinking and structured output capabilities

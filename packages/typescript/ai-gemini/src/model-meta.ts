@@ -229,7 +229,7 @@ const GEMINI_3_1_FLASH_IMAGE = {
 >
 
 const GEMINI_3_1_FLASH_LITE = {
-  name: 'gemini-3.1-flash-lite',
+  name: 'gemini-3.1-flash-lite-preview',
   max_input_tokens: 1_048_576,
   max_output_tokens: 65_536,
   knowledge_cutoff: '2025-01-01',
