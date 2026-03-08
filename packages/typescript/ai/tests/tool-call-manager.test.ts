@@ -663,6 +663,9 @@ describe('executeToolCalls', () => {
     })
 
     it('should execute all tools once all approvals in the batch are resolved', async () => {
+      // Reset file-scoped mock so assertion only reflects this test's calls
+      vi.mocked(serverToolWithApproval.execute!).mockClear()
+
       const normalTool: Tool = {
         name: 'get_weather',
         description: 'Get weather',

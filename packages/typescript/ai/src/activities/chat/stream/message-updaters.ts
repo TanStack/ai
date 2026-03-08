@@ -74,7 +74,7 @@ export function updateToolCallPart(
       arguments: toolCall.arguments,
       state: toolCall.state,
       // Carry forward approval and output from the existing part
-      ...(existing?.approval && { approval: existing.approval }),
+      ...(existing?.approval && { approval: { ...existing.approval } }),
       ...(existing?.output !== undefined && { output: existing.output }),
     }
 
