@@ -1,7 +1,7 @@
 ---
 title: Groq
 id: groq-adapter
-order: 3
+order: 6
 ---
 
 The Groq adapter provides access to Groq's fast inference API, featuring the world's fastest LLM inference.
