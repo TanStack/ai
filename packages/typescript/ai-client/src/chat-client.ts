@@ -534,13 +534,13 @@ export class ChatClient {
       // If this stream was superseded (e.g. by reload()), bail out —
       // the new stream owns the processor and processingResolve now.
       if (generation !== this.streamGeneration) {
-        return
+        return false
       }
 
       // A RUN_ERROR from the stream transitions status to error.
       // Do not treat this stream as a successful completion.
       if (this.status === 'error') {
-        return
+        return false
       }
 
       // Wait for pending client tool executions
