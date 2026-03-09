@@ -1,9 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  streamGenerationResult,
-  summarize,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
+import { summarize, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiSummarize } from '@tanstack/ai-openai'
 
 export const Route = createFileRoute('/api/summarize')({
@@ -13,14 +9,13 @@ export const Route = createFileRoute('/api/summarize')({
         const body = await request.json()
         const { text, maxLength, style, model } = body.data
 
-        const stream = streamGenerationResult(() =>
-          summarize({
-            adapter: openaiSummarize(model ?? 'gpt-4o-mini'),
-            text,
-            maxLength,
-            style,
-          }),
-        )
+        const stream = summarize({
+          adapter: openaiSummarize(model ?? 'gpt-4o-mini'),
+          text,
+          maxLength,
+          style,
+          stream: true,
+        })
 
         return toServerSentEventsResponse(stream)
       },

@@ -16,15 +16,13 @@ All generations follow the same architecture, making it easy to learn one and ap
 flowchart TB
   subgraph Server ["Server"]
     direction TB
-    activities["generateImage()
-generateSpeech()
-generateTranscription()
-summarize()
-generateVideo()"]
-    stream["streamGenerationResult()"]
+    activities["generateImage({ ..., stream: true })
+generateSpeech({ ..., stream: true })
+generateTranscription({ ..., stream: true })
+summarize({ ..., stream: true })
+generateVideo({ ..., stream: true })"]
     transport["toServerSentEventsResponse()"]
-    activities --> stream
-    stream --> transport
+    activities --> transport
   end
 
   transport -- "StreamChunks via SSE
@@ -44,31 +42,26 @@ useTranscription()"]
   end
 ```
 
-The key insight: **every generation activity on the server is just an async function that returns a result**. The `streamGenerationResult()` helper wraps that result into a `StreamChunk` iterable that the client already knows how to consume.
+The key insight: **every generation activity on the server is just an async function that returns a result**. By passing `stream: true`, the function returns a `StreamChunk` iterable instead of a plain result, which the client already knows how to consume.
 
 ## Two Transport Modes
 
 ### Streaming Mode (Connection Adapter)
 
-The server wraps the generation in `streamGenerationResult()` and sends it as SSE. The client uses `fetchServerSentEvents()` to consume the stream.
+The server passes `stream: true` to the generation function and sends the result as SSE. The client uses `fetchServerSentEvents()` to consume the stream.
 
 **Server:**
 
 ```typescript
-import {
-  streamGenerationResult,
-  generateImage,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
+import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 // In your API route handler
-const stream = streamGenerationResult(() =>
-  generateImage({
-    adapter: openaiImage('dall-e-3'),
-    prompt: 'A sunset over mountains',
-  }),
-)
+const stream = generateImage({
+  adapter: openaiImage('dall-e-3'),
+  prompt: 'A sunset over mountains',
+  stream: true,
+})
 
 return toServerSentEventsResponse(stream)
 ```
@@ -116,9 +109,9 @@ const { generate, result, isLoading } = useGenerateImage({
 })
 ```
 
-## How streamGenerationResult Works
+## How Streaming Works
 
-`streamGenerationResult()` takes any async function and wraps its result as a sequence of `StreamChunk` events:
+When you pass `stream: true` to any generation function, it returns an async iterable of `StreamChunk` events instead of a plain result:
 
 ```
 1. RUN_STARTED          → Client sets status to 'generating'

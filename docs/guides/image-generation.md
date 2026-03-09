@@ -264,11 +264,7 @@ TanStack AI provides React hooks and server-side streaming helpers to build full
 
 ```typescript
 // routes/api/generate/image.ts
-import {
-  streamGenerationResult,
-  generateImage,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
+import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 import { createFileRoute } from '@tanstack/react-router'
 
@@ -278,14 +274,13 @@ export const Route = createFileRoute('/api/generate/image')({
       POST: async ({ request }) => {
         const { prompt, size, model, numberOfImages } = await request.json()
 
-        const stream = streamGenerationResult(() =>
-          generateImage({
-            adapter: openaiImage(model ?? 'dall-e-3'),
-            prompt,
-            size,
-            numberOfImages,
-          }),
-        )
+        const stream = generateImage({
+          adapter: openaiImage(model ?? 'dall-e-3'),
+          prompt,
+          size,
+          numberOfImages,
+          stream: true,
+        })
 
         return toServerSentEventsResponse(stream)
       },

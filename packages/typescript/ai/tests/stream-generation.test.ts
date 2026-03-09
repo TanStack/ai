@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  streamGenerationResult,
-  streamVideoGeneration,
-} from '../src/stream-generation'
+  generateImage,
+  generateVideo,
+  generateSpeech,
+  generateTranscription,
+} from '../src/index'
 import type { StreamChunk, VideoStatusResult } from '../src/types'
 
 // Helper to collect all chunks from an async iterable
@@ -16,15 +18,40 @@ async function collectChunks(
   return chunks
 }
 
-describe('streamGenerationResult', () => {
-  it('should emit RUN_STARTED, CUSTOM result, and RUN_FINISHED', async () => {
-    const mockResult = {
-      id: '1',
-      images: [{ url: 'http://example.com/img.png' }],
+// ============================================================================
+// generateImage({ stream: true }) tests
+// ============================================================================
+
+describe('generateImage({ stream: true })', () => {
+  function createMockImageAdapter(
+    overrides?: Partial<{
+      generateImages: (...args: Array<any>) => Promise<any>
+    }>,
+  ) {
+    return {
+      kind: 'image' as const,
+      name: 'test-image',
+      model: 'test-model',
+      '~types': {} as any,
+      generateImages:
+        overrides?.generateImages ??
+        vi.fn(async () => ({
+          id: 'img-1',
+          model: 'test-model',
+          images: [{ url: 'https://example.com/image.png' }],
+        })),
     }
+  }
+
+  it('should emit RUN_STARTED, CUSTOM result, and RUN_FINISHED', async () => {
+    const adapter = createMockImageAdapter()
 
     const chunks = await collectChunks(
-      streamGenerationResult(async () => mockResult),
+      generateImage({
+        adapter,
+        prompt: 'A beautiful sunset',
+        stream: true,
+      }),
     )
 
     expect(chunks).toHaveLength(3)
@@ -35,7 +62,11 @@ describe('streamGenerationResult', () => {
     expect(chunks[1]!.type).toBe('CUSTOM')
     if (chunks[1]!.type === 'CUSTOM') {
       expect(chunks[1]!.name).toBe('generation:result')
-      expect(chunks[1]!.value).toEqual(mockResult)
+      expect(chunks[1]!.value).toEqual({
+        id: 'img-1',
+        model: 'test-model',
+        images: [{ url: 'https://example.com/image.png' }],
+      })
     }
 
     expect(chunks[2]!.type).toBe('RUN_FINISHED')
@@ -44,10 +75,18 @@ describe('streamGenerationResult', () => {
     }
   })
 
-  it('should emit RUN_ERROR when generator throws', async () => {
+  it('should emit RUN_ERROR when adapter throws', async () => {
+    const adapter = createMockImageAdapter({
+      generateImages: vi.fn(async () => {
+        throw new Error('Image generation failed')
+      }),
+    })
+
     const chunks = await collectChunks(
-      streamGenerationResult(async () => {
-        throw new Error('Generation failed')
+      generateImage({
+        adapter,
+        prompt: 'A beautiful sunset',
+        stream: true,
       }),
     )
 
@@ -57,27 +96,52 @@ describe('streamGenerationResult', () => {
 
     expect(chunks[1]!.type).toBe('RUN_ERROR')
     if (chunks[1]!.type === 'RUN_ERROR') {
-      expect(chunks[1]!.error.message).toBe('Generation failed')
+      expect(chunks[1]!.error.message).toBe('Image generation failed')
     }
   })
 
-  it('should use provided runId', async () => {
+  it('should include the image generation result in the CUSTOM event value', async () => {
+    const mockResult = {
+      id: 'img-42',
+      model: 'test-model',
+      images: [
+        { url: 'https://example.com/a.png' },
+        { url: 'https://example.com/b.png' },
+      ],
+    }
+    const adapter = createMockImageAdapter({
+      generateImages: vi.fn(async () => mockResult),
+    })
+
     const chunks = await collectChunks(
-      streamGenerationResult(async () => ({ id: '1' }), {
-        runId: 'custom-run',
+      generateImage({
+        adapter,
+        prompt: 'Multiple images',
+        stream: true,
       }),
     )
 
-    if (chunks[0]!.type === 'RUN_STARTED') {
-      expect(chunks[0]!.runId).toBe('custom-run')
+    const resultChunk = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'generation:result',
+    )
+    expect(resultChunk).toBeDefined()
+    if (resultChunk?.type === 'CUSTOM') {
+      expect(resultChunk.value).toEqual(mockResult)
     }
   })
 
   it('should include timestamps on all events', async () => {
+    const adapter = createMockImageAdapter()
     const before = Date.now()
+
     const chunks = await collectChunks(
-      streamGenerationResult(async () => ({ id: '1' })),
+      generateImage({
+        adapter,
+        prompt: 'Timestamp test',
+        stream: true,
+      }),
     )
+
     const after = Date.now()
 
     for (const chunk of chunks) {
@@ -85,39 +149,13 @@ describe('streamGenerationResult', () => {
       expect(chunk.timestamp).toBeLessThanOrEqual(after)
     }
   })
-
-  it('should emit null result when generator returns null', async () => {
-    const chunks = await collectChunks(streamGenerationResult(async () => null))
-
-    expect(chunks).toHaveLength(3)
-    expect(chunks[0]!.type).toBe('RUN_STARTED')
-
-    expect(chunks[1]!.type).toBe('CUSTOM')
-    if (chunks[1]!.type === 'CUSTOM') {
-      expect(chunks[1]!.name).toBe('generation:result')
-      expect(chunks[1]!.value).toBeNull()
-    }
-
-    expect(chunks[2]!.type).toBe('RUN_FINISHED')
-  })
-
-  it('should use fallback message when error has no message', async () => {
-    const chunks = await collectChunks(
-      streamGenerationResult(async () => {
-        throw { code: 'TIMEOUT' }
-      }),
-    )
-
-    expect(chunks).toHaveLength(2)
-    expect(chunks[1]!.type).toBe('RUN_ERROR')
-    if (chunks[1]!.type === 'RUN_ERROR') {
-      expect(chunks[1]!.error.message).toBe('Generation failed')
-      expect(chunks[1]!.error.code).toBe('TIMEOUT')
-    }
-  })
 })
 
-describe('streamVideoGeneration', () => {
+// ============================================================================
+// generateVideo({ stream: true }) tests
+// ============================================================================
+
+describe('generateVideo({ stream: true })', () => {
   function createMockVideoAdapter(options?: {
     pollsBeforeComplete?: number
     failOnPoll?: number
@@ -172,11 +210,12 @@ describe('streamVideoGeneration', () => {
     const adapter = createMockVideoAdapter({ pollsBeforeComplete: 2 })
 
     const chunks = await collectChunks(
-      streamVideoGeneration(
+      generateVideo({
         adapter,
-        { prompt: 'test' },
-        { pollingInterval: 10 },
-      ),
+        prompt: 'test',
+        stream: true,
+        pollingInterval: 10,
+      }),
     )
 
     // RUN_STARTED, video:job:created, video:status (processing), video:status (completed), generation:result, RUN_FINISHED
@@ -214,11 +253,12 @@ describe('streamVideoGeneration', () => {
     const adapter = createMockVideoAdapter({ failOnPoll: 1 })
 
     const chunks = await collectChunks(
-      streamVideoGeneration(
+      generateVideo({
         adapter,
-        { prompt: 'test' },
-        { pollingInterval: 10 },
-      ),
+        prompt: 'test',
+        stream: true,
+        pollingInterval: 10,
+      }),
     )
 
     const types = chunks.map((c) => c.type)
@@ -234,11 +274,14 @@ describe('streamVideoGeneration', () => {
     const adapter = createMockVideoAdapter({ pollsBeforeComplete: 1 })
 
     await collectChunks(
-      streamVideoGeneration(
+      generateVideo({
         adapter,
-        { prompt: 'A flying car', size: '1280x720', duration: 5 },
-        { pollingInterval: 10 },
-      ),
+        prompt: 'A flying car',
+        size: '1280x720',
+        duration: 5,
+        stream: true,
+        pollingInterval: 10,
+      }),
     )
 
     expect(adapter.createVideoJob).toHaveBeenCalledWith({
@@ -255,11 +298,13 @@ describe('streamVideoGeneration', () => {
     const adapter = createMockVideoAdapter({ pollsBeforeComplete: 999999 })
 
     const chunks = await collectChunks(
-      streamVideoGeneration(
+      generateVideo({
         adapter,
-        { prompt: 'test' },
-        { pollingInterval: 10, maxDuration: 50 },
-      ),
+        prompt: 'test',
+        stream: true,
+        pollingInterval: 10,
+        maxDuration: 50,
+      }),
     )
 
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
@@ -275,11 +320,12 @@ describe('streamVideoGeneration', () => {
     })
 
     const chunks = await collectChunks(
-      streamVideoGeneration(
+      generateVideo({
         adapter,
-        { prompt: 'test' },
-        { pollingInterval: 10 },
-      ),
+        prompt: 'test',
+        stream: true,
+        pollingInterval: 10,
+      }),
     )
 
     const types = chunks.map((c) =>
@@ -302,11 +348,12 @@ describe('streamVideoGeneration', () => {
     })
 
     const chunks = await collectChunks(
-      streamVideoGeneration(
+      generateVideo({
         adapter,
-        { prompt: 'test' },
-        { pollingInterval: 10 },
-      ),
+        prompt: 'test',
+        stream: true,
+        pollingInterval: 10,
+      }),
     )
 
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
@@ -318,22 +365,19 @@ describe('streamVideoGeneration', () => {
 
   it('should propagate error message from failed status', async () => {
     const adapter = createMockVideoAdapter()
-    let pollCount = 0
-    adapter.getVideoStatus = vi.fn(async () => {
-      pollCount++
-      return {
-        jobId: 'job-123',
-        status: 'failed' as const,
-        error: 'Content policy violation',
-      }
-    })
+    adapter.getVideoStatus = vi.fn(async () => ({
+      jobId: 'job-123',
+      status: 'failed' as const,
+      error: 'Content policy violation',
+    }))
 
     const chunks = await collectChunks(
-      streamVideoGeneration(
+      generateVideo({
         adapter,
-        { prompt: 'test' },
-        { pollingInterval: 10 },
-      ),
+        prompt: 'test',
+        stream: true,
+        pollingInterval: 10,
+      }),
     )
 
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
@@ -350,16 +394,193 @@ describe('streamVideoGeneration', () => {
     }))
 
     const chunks = await collectChunks(
-      streamVideoGeneration(
+      generateVideo({
         adapter,
-        { prompt: 'test' },
-        { pollingInterval: 10 },
-      ),
+        prompt: 'test',
+        stream: true,
+        pollingInterval: 10,
+      }),
     )
 
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
     if (error?.type === 'RUN_ERROR') {
       expect(error.error.message).toBe('Video generation failed')
+    }
+  })
+})
+
+// ============================================================================
+// generateSpeech({ stream: true }) tests
+// ============================================================================
+
+describe('generateSpeech({ stream: true })', () => {
+  function createMockTTSAdapter(
+    overrides?: Partial<{
+      generateSpeech: (...args: Array<any>) => Promise<any>
+    }>,
+  ) {
+    return {
+      kind: 'tts' as const,
+      name: 'test-tts',
+      model: 'test-model',
+      '~types': {} as any,
+      generateSpeech:
+        overrides?.generateSpeech ??
+        vi.fn(async () => ({
+          id: 'speech-1',
+          model: 'test-model',
+          audio: 'base64-audio-data',
+          format: 'mp3',
+          duration: 2.5,
+          contentType: 'audio/mp3',
+        })),
+    }
+  }
+
+  it('should emit RUN_STARTED, CUSTOM result, and RUN_FINISHED', async () => {
+    const adapter = createMockTTSAdapter()
+
+    const chunks = await collectChunks(
+      generateSpeech({
+        adapter,
+        text: 'Hello world',
+        stream: true,
+      }),
+    )
+
+    expect(chunks).toHaveLength(3)
+
+    expect(chunks[0]!.type).toBe('RUN_STARTED')
+    expect(chunks[0]!).toHaveProperty('runId')
+
+    expect(chunks[1]!.type).toBe('CUSTOM')
+    if (chunks[1]!.type === 'CUSTOM') {
+      expect(chunks[1]!.name).toBe('generation:result')
+      expect(chunks[1]!.value).toEqual({
+        id: 'speech-1',
+        model: 'test-model',
+        audio: 'base64-audio-data',
+        format: 'mp3',
+        duration: 2.5,
+        contentType: 'audio/mp3',
+      })
+    }
+
+    expect(chunks[2]!.type).toBe('RUN_FINISHED')
+    if (chunks[2]!.type === 'RUN_FINISHED') {
+      expect(chunks[2]!.finishReason).toBe('stop')
+    }
+  })
+
+  it('should emit RUN_ERROR when adapter throws', async () => {
+    const adapter = createMockTTSAdapter({
+      generateSpeech: vi.fn(async () => {
+        throw new Error('Speech generation failed')
+      }),
+    })
+
+    const chunks = await collectChunks(
+      generateSpeech({
+        adapter,
+        text: 'Hello world',
+        stream: true,
+      }),
+    )
+
+    expect(chunks).toHaveLength(2)
+
+    expect(chunks[0]!.type).toBe('RUN_STARTED')
+
+    expect(chunks[1]!.type).toBe('RUN_ERROR')
+    if (chunks[1]!.type === 'RUN_ERROR') {
+      expect(chunks[1]!.error.message).toBe('Speech generation failed')
+    }
+  })
+})
+
+// ============================================================================
+// generateTranscription({ stream: true }) tests
+// ============================================================================
+
+describe('generateTranscription({ stream: true })', () => {
+  function createMockTranscriptionAdapter(
+    overrides?: Partial<{
+      transcribe: (...args: Array<any>) => Promise<any>
+    }>,
+  ) {
+    return {
+      kind: 'transcription' as const,
+      name: 'test-transcription',
+      model: 'test-model',
+      '~types': {} as any,
+      transcribe:
+        overrides?.transcribe ??
+        vi.fn(async () => ({
+          id: 'txn-1',
+          model: 'test-model',
+          text: 'Hello, this is a transcription.',
+          language: 'en',
+          duration: 5.0,
+        })),
+    }
+  }
+
+  it('should emit RUN_STARTED, CUSTOM result, and RUN_FINISHED', async () => {
+    const adapter = createMockTranscriptionAdapter()
+
+    const chunks = await collectChunks(
+      generateTranscription({
+        adapter,
+        audio: 'base64-audio-data',
+        stream: true,
+      }),
+    )
+
+    expect(chunks).toHaveLength(3)
+
+    expect(chunks[0]!.type).toBe('RUN_STARTED')
+    expect(chunks[0]!).toHaveProperty('runId')
+
+    expect(chunks[1]!.type).toBe('CUSTOM')
+    if (chunks[1]!.type === 'CUSTOM') {
+      expect(chunks[1]!.name).toBe('generation:result')
+      expect(chunks[1]!.value).toEqual({
+        id: 'txn-1',
+        model: 'test-model',
+        text: 'Hello, this is a transcription.',
+        language: 'en',
+        duration: 5.0,
+      })
+    }
+
+    expect(chunks[2]!.type).toBe('RUN_FINISHED')
+    if (chunks[2]!.type === 'RUN_FINISHED') {
+      expect(chunks[2]!.finishReason).toBe('stop')
+    }
+  })
+
+  it('should emit RUN_ERROR when adapter throws', async () => {
+    const adapter = createMockTranscriptionAdapter({
+      transcribe: vi.fn(async () => {
+        throw new Error('Transcription failed')
+      }),
+    })
+
+    const chunks = await collectChunks(
+      generateTranscription({
+        adapter,
+        audio: 'base64-audio-data',
+        stream: true,
+      }),
+    )
+
+    expect(chunks).toHaveLength(2)
+
+    expect(chunks[0]!.type).toBe('RUN_STARTED')
+
+    expect(chunks[1]!.type).toBe('RUN_ERROR')
+    if (chunks[1]!.type === 'RUN_ERROR') {
+      expect(chunks[1]!.error.message).toBe('Transcription failed')
     }
   })
 })

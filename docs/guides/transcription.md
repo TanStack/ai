@@ -294,7 +294,6 @@ TanStack AI provides React hooks and server-side streaming helpers to build full
 ```typescript
 // routes/api/transcribe.ts
 import {
-  streamGenerationResult,
   generateTranscription,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
@@ -307,13 +306,12 @@ export const Route = createFileRoute('/api/transcribe')({
       POST: async ({ request }) => {
         const { audio, language, model } = await request.json()
 
-        const stream = streamGenerationResult(() =>
-          generateTranscription({
-            adapter: openaiTranscription(model ?? 'whisper-1'),
-            audio,
-            language,
-          }),
-        )
+        const stream = generateTranscription({
+          adapter: openaiTranscription(model ?? 'whisper-1'),
+          audio,
+          language,
+          stream: true,
+        })
 
         return toServerSentEventsResponse(stream)
       },

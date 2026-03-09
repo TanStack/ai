@@ -142,7 +142,7 @@ console.log('Video ready:', videoUrl)
 
 ## Full-Stack Usage
 
-TanStack AI provides a dedicated `streamVideoGeneration` helper that handles the job creation and polling loop server-side, streaming status updates to the client in real-time.
+TanStack AI's `generateVideo` function supports a `stream: true` flag that handles the job creation and polling loop server-side, streaming status updates to the client in real-time.
 
 ### Streaming Mode (Server Route + Client Hook)
 
@@ -150,10 +150,7 @@ TanStack AI provides a dedicated `streamVideoGeneration` helper that handles the
 
 ```typescript
 // routes/api/generate/video.ts
-import {
-  streamVideoGeneration,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
+import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 import { createFileRoute } from '@tanstack/react-router'
 
@@ -163,14 +160,15 @@ export const Route = createFileRoute('/api/generate/video')({
       POST: async ({ request }) => {
         const { prompt, size, duration, model } = await request.json()
 
-        const stream = streamVideoGeneration(
-          openaiVideo(model ?? 'sora-2'),
-          { prompt, size, duration },
-          {
-            pollingInterval: 3000, // Check status every 3 seconds
-            maxDuration: 600_000, // Timeout after 10 minutes
-          },
-        )
+        const stream = generateVideo({
+          adapter: openaiVideo(model ?? 'sora-2'),
+          prompt,
+          size,
+          duration,
+          stream: true,
+          pollingInterval: 3000, // Check status every 3 seconds
+          maxDuration: 600_000, // Timeout after 10 minutes
+        })
 
         return toServerSentEventsResponse(stream)
       },

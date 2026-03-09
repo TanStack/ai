@@ -1,9 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  generateSpeech,
-  streamGenerationResult,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
+import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiSpeech } from '@tanstack/ai-openai'
 
 export const Route = createFileRoute('/api/generate/speech')({
@@ -13,14 +9,13 @@ export const Route = createFileRoute('/api/generate/speech')({
         const body = await request.json()
         const { text, voice, format, model } = body.data
 
-        const stream = streamGenerationResult(() =>
-          generateSpeech({
-            adapter: openaiSpeech(model ?? 'tts-1'),
-            text,
-            voice,
-            format,
-          }),
-        )
+        const stream = generateSpeech({
+          adapter: openaiSpeech(model ?? 'tts-1'),
+          text,
+          voice,
+          format,
+          stream: true,
+        })
 
         return toServerSentEventsResponse(stream)
       },

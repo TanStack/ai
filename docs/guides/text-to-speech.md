@@ -187,11 +187,7 @@ TanStack AI provides React hooks and server-side streaming helpers to build full
 
 ```typescript
 // routes/api/generate/speech.ts
-import {
-  streamGenerationResult,
-  generateSpeech,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
+import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiTTS } from '@tanstack/ai-openai'
 import { createFileRoute } from '@tanstack/react-router'
 
@@ -201,14 +197,13 @@ export const Route = createFileRoute('/api/generate/speech')({
       POST: async ({ request }) => {
         const { text, voice, format, model } = await request.json()
 
-        const stream = streamGenerationResult(() =>
-          generateSpeech({
-            adapter: openaiTTS(model ?? 'tts-1'),
-            text,
-            voice,
-            format,
-          }),
-        )
+        const stream = generateSpeech({
+          adapter: openaiTTS(model ?? 'tts-1'),
+          text,
+          voice,
+          format,
+          stream: true,
+        })
 
         return toServerSentEventsResponse(stream)
       },
