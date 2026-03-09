@@ -78,16 +78,18 @@ describe('VideoGenerationClient', () => {
     })
 
     it('should pass abort signal to fetcher', async () => {
-      const fetcherSpy = vi.fn(async (_input: any, options?: { signal: AbortSignal }) => {
-        expect(options).toBeDefined()
-        expect(options!.signal).toBeInstanceOf(AbortSignal)
-        expect(options!.signal.aborted).toBe(false)
-        return {
-          jobId: 'job-1',
-          status: 'completed' as const,
-          url: 'https://example.com/video.mp4',
-        }
-      })
+      const fetcherSpy = vi.fn(
+        async (_input: any, options?: { signal: AbortSignal }) => {
+          expect(options).toBeDefined()
+          expect(options!.signal).toBeInstanceOf(AbortSignal)
+          expect(options!.signal.aborted).toBe(false)
+          return {
+            jobId: 'job-1',
+            status: 'completed' as const,
+            url: 'https://example.com/video.mp4',
+          }
+        },
+      )
 
       const client = new VideoGenerationClient({
         fetcher: fetcherSpy,
