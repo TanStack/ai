@@ -272,7 +272,8 @@ export const Route = createFileRoute('/api/generate/image')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { prompt, size, model, numberOfImages } = await request.json()
+        const body = await request.json()
+        const { prompt, size, model, numberOfImages } = body.data
 
         const stream = generateImage({
           adapter: openaiImage(model ?? 'dall-e-3'),

@@ -195,7 +195,8 @@ export const Route = createFileRoute('/api/generate/speech')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { text, voice, format, model } = await request.json()
+        const body = await request.json()
+        const { text, voice, format, model } = body.data
 
         const stream = generateSpeech({
           adapter: openaiTTS(model ?? 'tts-1'),

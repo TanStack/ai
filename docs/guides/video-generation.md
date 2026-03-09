@@ -158,7 +158,8 @@ export const Route = createFileRoute('/api/generate/video')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { prompt, size, duration, model } = await request.json()
+        const body = await request.json()
+        const { prompt, size, duration, model } = body.data
 
         const stream = generateVideo({
           adapter: openaiVideo(model ?? 'sora-2'),

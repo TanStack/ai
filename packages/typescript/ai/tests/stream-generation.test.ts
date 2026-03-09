@@ -308,6 +308,7 @@ describe('generateVideo({ stream: true })', () => {
     )
 
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(error).toBeDefined()
     if (error?.type === 'RUN_ERROR') {
       expect(error.error.message).toBe('Video generation timed out')
     }
@@ -381,6 +382,7 @@ describe('generateVideo({ stream: true })', () => {
     )
 
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(error).toBeDefined()
     if (error?.type === 'RUN_ERROR') {
       expect(error.error.message).toBe('Content policy violation')
     }
@@ -403,6 +405,7 @@ describe('generateVideo({ stream: true })', () => {
     )
 
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(error).toBeDefined()
     if (error?.type === 'RUN_ERROR') {
       expect(error.error.message).toBe('Video generation failed')
     }

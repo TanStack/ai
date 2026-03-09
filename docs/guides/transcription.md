@@ -304,7 +304,8 @@ export const Route = createFileRoute('/api/transcribe')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { audio, language, model } = await request.json()
+        const body = await request.json()
+        const { audio, language, model } = body.data
 
         const stream = generateTranscription({
           adapter: openaiTranscription(model ?? 'whisper-1'),
