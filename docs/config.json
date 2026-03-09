@@ -153,6 +153,10 @@
           "to": "adapters/ollama"
         },
         {
+          "label": "Groq",
+          "to": "adapters/groq"
+        },
+        {
           "label": "Grok (xAI)",
           "to": "adapters/grok"
         },

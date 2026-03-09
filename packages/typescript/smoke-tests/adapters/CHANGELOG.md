@@ -1,5 +1,12 @@
 # @tanstack/tests-adapters
 
+## 0.1.18
+
+### Patch Changes
+
+- Updated dependencies [[`f737db8`](https://github.com/TanStack/ai/commit/f737db8076f5e9bdc55690c5ec6d39898f839512)]:
+  - @tanstack/ai-gemini@0.8.0
+
 ## 0.1.17
 
 ### Patch Changes
