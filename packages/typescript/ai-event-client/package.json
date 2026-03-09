@@ -1,22 +1,14 @@
 {
-  "name": "@tanstack/ai-client",
-  "version": "0.5.1",
-  "description": "Framework-agnostic headless client for TanStack AI",
+  "name": "@tanstack/ai-event-client",
+  "version": "0.0.1",
+  "description": "Event client for TanStack AI devtools integration",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/typescript/ai-client"
+    "directory": "packages/typescript/ai-event-client"
   },
-  "keywords": [
-    "ai",
-    "client",
-    "headless",
-    "tanstack",
-    "chat",
-    "streaming"
-  ],
   "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
@@ -26,6 +18,7 @@
       "import": "./dist/esm/index.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"
@@ -35,20 +28,12 @@
     "clean": "premove ./build ./dist",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
-    "test:coverage": "vitest run --coverage",
-    "test:coverage:watch": "vitest --coverage --watch",
     "test:eslint": "eslint ./src",
-    "test:lib": "vitest",
+    "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-event-client": "workspace:*"
-  },
-  "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7",
-    "zod": "^4.2.0"
+    "@tanstack/devtools-event-client": "^0.4.1"
   }
 }

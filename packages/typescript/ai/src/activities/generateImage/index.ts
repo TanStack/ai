@@ -5,7 +5,7 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
-import { aiEventClient } from '../../event-client.js'
+import { aiEventClient } from '@tanstack/ai-event-client'
 import type { ImageAdapter } from './adapter'
 import type { ImageGenerationResult } from '../../types'
 

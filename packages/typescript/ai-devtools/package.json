@@ -79,6 +79,7 @@
   ],
   "dependencies": {
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-event-client": "workspace:*",
     "@tanstack/devtools-ui": "^0.5.0",
     "@tanstack/devtools-utils": "0.3.2",
     "goober": "^2.1.18",

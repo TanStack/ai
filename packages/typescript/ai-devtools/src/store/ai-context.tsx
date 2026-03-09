@@ -1,6 +1,6 @@
 import { batch, createContext, onCleanup, onMount, useContext } from 'solid-js'
 import { createStore, produce } from 'solid-js/store'
-import { aiEventClient } from '@tanstack/ai/event-client'
+import { aiEventClient } from '@tanstack/ai-event-client'
 import type { ContentPartSource } from '@tanstack/ai'
 import type { ParentComponent } from 'solid-js'
 

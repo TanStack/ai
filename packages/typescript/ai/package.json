@@ -20,10 +20,6 @@
     "./adapters": {
       "types": "./dist/esm/activities/index.d.ts",
       "import": "./dist/esm/activities/index.js"
-    },
-    "./event-client": {
-      "types": "./dist/esm/event-client.d.ts",
-      "import": "./dist/esm/event-client.js"
     }
   },
   "sideEffects": false,
@@ -55,7 +51,7 @@
     "embeddings"
   ],
   "dependencies": {
-    "@tanstack/devtools-event-client": "^0.4.0",
+    "@tanstack/ai-event-client": "workspace:*",
     "partial-json": "^0.1.7"
   },
   "devDependencies": {

@@ -101,9 +101,6 @@ export * from './types'
 // Utility functions
 export { detectImageMimeType } from './utils'
 
-// Event client + event types
-export * from './event-client'
-
 // Message converters
 export {
   convertMessagesToModelMessages,

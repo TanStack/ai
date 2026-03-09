@@ -669,9 +669,9 @@ importers:
 
   packages/typescript/ai:
     dependencies:
-      '@tanstack/devtools-event-client':
-        specifier: ^0.4.0
-        version: 0.4.0
+      '@tanstack/ai-event-client':
+        specifier: workspace:*
+        version: link:../ai-event-client
       partial-json:
         specifier: ^0.1.7
         version: 0.1.7
@@ -707,6 +707,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-event-client':
+        specifier: workspace:*
+        version: link:../ai-event-client
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
@@ -723,6 +726,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-event-client':
+        specifier: workspace:*
+        version: link:../ai-event-client
       '@tanstack/devtools-ui':
         specifier: ^0.5.0
         version: 0.5.0(csstype@3.2.3)(solid-js@1.9.10)
@@ -754,6 +760,12 @@ importers:
       vite-plugin-solid:
         specifier: ^2.11.10
         version: 2.11.10(solid-js@1.9.10)(vite@7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+
+  packages/typescript/ai-event-client:
+    dependencies:
+      '@tanstack/devtools-event-client':
+        specifier: ^0.4.1
+        version: 0.4.1
 
   packages/typescript/ai-fal:
     dependencies:
@@ -1343,6 +1355,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-client
+      '@tanstack/ai-event-client':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-event-client
       '@tanstack/ai-gemini':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-gemini
@@ -11502,7 +11517,7 @@ snapshots:
 
   '@tanstack/devtools-client@0.0.5':
     dependencies:
-      '@tanstack/devtools-event-client': 0.4.0
+      '@tanstack/devtools-event-client': 0.4.1
 
   '@tanstack/devtools-client@0.0.6':
     dependencies:

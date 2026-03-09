@@ -1,4 +1,4 @@
-import { aiEventClient } from '../../../event-client.js'
+import { aiEventClient } from '@tanstack/ai-event-client'
 import type { ModelMessage } from '../../../types'
 import type {
   ChatMiddleware,

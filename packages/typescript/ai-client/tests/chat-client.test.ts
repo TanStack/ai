@@ -534,7 +534,7 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('Hello, world!')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const { aiEventClient } = await import('@tanstack/ai/event-client')
+      const { aiEventClient } = await import('@tanstack/ai-event-client')
       const emitSpy = vi.spyOn(aiEventClient, 'emit')
 
       const client = new ChatClient({ connection: adapter })
@@ -558,7 +558,7 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('Hello, world!')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const { aiEventClient } = await import('@tanstack/ai/event-client')
+      const { aiEventClient } = await import('@tanstack/ai-event-client')
       const emitSpy = vi.spyOn(aiEventClient, 'emit')
 
       const client = new ChatClient({ connection: adapter })
@@ -580,7 +580,7 @@ describe('ChatClient', () => {
       ])
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const { aiEventClient } = await import('@tanstack/ai/event-client')
+      const { aiEventClient } = await import('@tanstack/ai-event-client')
       const emitSpy = vi.spyOn(aiEventClient, 'emit')
 
       const client = new ChatClient({ connection: adapter })
@@ -603,7 +603,7 @@ describe('ChatClient', () => {
       )
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const { aiEventClient } = await import('@tanstack/ai/event-client')
+      const { aiEventClient } = await import('@tanstack/ai-event-client')
       const emitSpy = vi.spyOn(aiEventClient, 'emit')
 
       const client = new ChatClient({ connection: adapter })
@@ -871,7 +871,7 @@ describe('ChatClient', () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
 
-      const { aiEventClient } = await import('@tanstack/ai/event-client')
+      const { aiEventClient } = await import('@tanstack/ai-event-client')
       const emitSpy = vi.spyOn(aiEventClient, 'emit')
       emitSpy.mockClear() // Clear any previous calls
 
