@@ -5,8 +5,10 @@ import {
   createTextChunks,
   createThinkingChunks,
   createToolCallChunks,
+  createApprovalToolCallChunks,
   createCustomEventChunks,
 } from './test-utils'
+import type { ConnectionAdapter } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '../src/types'
 
@@ -1243,6 +1245,131 @@ describe('ChatClient', () => {
       expect(actualData.nested.object.with).toBe('values')
       expect(actualData.array).toEqual([1, 2, 3])
       expect(actualData.null_value).toBeNull()
+    })
+  })
+
+  describe('chained tool approvals', () => {
+    it('should continue after second approval arrives during active continuation stream', async () => {
+      let streamCount = 0
+      let resolveStreamPause: (() => void) | null = null
+
+      const adapter: ConnectionAdapter = {
+        async *connect() {
+          streamCount++
+
+          if (streamCount === 1) {
+            // First stream: tool call A needing approval
+            const chunks = createApprovalToolCallChunks([
+              {
+                id: 'tc-1',
+                name: 'dangerous_tool_1',
+                arguments: '{}',
+                approvalId: 'approval-1',
+              },
+            ])
+            for (const chunk of chunks) yield chunk
+          } else if (streamCount === 2) {
+            // Second stream (after first approval): tool call B needing approval
+            // Yield the tool call and approval request
+            const preChunks: Array<StreamChunk> = [
+              {
+                type: 'TOOL_CALL_START',
+                toolCallId: 'tc-2',
+                toolName: 'dangerous_tool_2',
+                model: 'test',
+                timestamp: Date.now(),
+                index: 0,
+              },
+              {
+                type: 'TOOL_CALL_ARGS',
+                toolCallId: 'tc-2',
+                model: 'test',
+                timestamp: Date.now(),
+                delta: '{}',
+              },
+              {
+                type: 'TOOL_CALL_END',
+                toolCallId: 'tc-2',
+                toolName: 'dangerous_tool_2',
+                model: 'test',
+                timestamp: Date.now(),
+              },
+              {
+                type: 'CUSTOM',
+                model: 'test',
+                timestamp: Date.now(),
+                name: 'approval-requested',
+                value: {
+                  toolCallId: 'tc-2',
+                  toolName: 'dangerous_tool_2',
+                  input: {},
+                  approval: { id: 'approval-2', needsApproval: true },
+                },
+              },
+            ]
+            for (const chunk of preChunks) yield chunk
+
+            // Pause stream so the test can approve tool B while stream is active
+            await new Promise<void>((resolve) => {
+              resolveStreamPause = resolve
+            })
+
+            yield {
+              type: 'RUN_FINISHED' as const,
+              runId: 'run-2',
+              model: 'test',
+              timestamp: Date.now(),
+              finishReason: 'tool_calls' as const,
+            }
+          } else if (streamCount === 3) {
+            // Third stream (after second approval): final text response
+            const chunks = createTextChunks('All done!')
+            for (const chunk of chunks) yield chunk
+          }
+        },
+      }
+
+      const client = new ChatClient({ connection: adapter })
+
+      // Step 1: Send message. First stream produces tool A with approval.
+      await client.sendMessage('Do something dangerous')
+      expect(streamCount).toBe(1)
+
+      // Step 2: Approve tool A. This triggers checkForContinuation → streamResponse (stream 2).
+      // Don't await - we need to interact during the stream.
+      const approvalPromise = client.addToolApprovalResponse({
+        id: 'approval-1',
+        approved: true,
+      })
+
+      // Wait for second stream to pause (approval-requested chunk already processed)
+      await vi.waitFor(() => {
+        expect(resolveStreamPause).not.toBeNull()
+      })
+
+      // Step 3: Approve tool B while second stream is still active (isLoading=true)
+      expect(client.getIsLoading()).toBe(true)
+      await client.addToolApprovalResponse({
+        id: 'approval-2',
+        approved: true,
+      })
+
+      // Resume the second stream
+      resolveStreamPause!()
+
+      // Wait for the full chain to complete
+      await approvalPromise
+
+      // Step 4: Verify all 3 streams fired (the second approval triggered stream 3)
+      expect(streamCount).toBe(3)
+
+      // Verify final text response is present
+      const messages = client.getMessages()
+      const lastAssistant = [...messages]
+        .reverse()
+        .find((m) => m.role === 'assistant')
+      const textPart = lastAssistant?.parts.find((p) => p.type === 'text')
+      expect(textPart?.content).toBe('All done!')
     })
   })
 })

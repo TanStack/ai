@@ -5,6 +5,7 @@ export const IMAGE_MODELS = [
     description: 'Fast, high-quality image generation',
     defaultSize: 'landscape_16_9' as const,
     sizeType: 'standard' as const,
+    provider: 'fal' as const,
   },
   {
     id: 'xai/grok-imagine-image',
@@ -12,6 +13,7 @@ export const IMAGE_MODELS = [
     description: 'xAI highly aesthetic images with prompt enhancement',
     defaultSize: '16:9' as const,
     sizeType: 'aspect_ratio' as const,
+    provider: 'fal' as const,
   },
   {
     id: 'fal-ai/flux-2/klein/9b',
@@ -19,6 +21,7 @@ export const IMAGE_MODELS = [
     description: 'Enhanced realism, crisp text generation',
     defaultSize: 'landscape_16_9' as const,
     sizeType: 'standard' as const,
+    provider: 'fal' as const,
   },
   {
     id: 'fal-ai/z-image/turbo',
@@ -26,6 +29,47 @@ export const IMAGE_MODELS = [
     description: 'Super fast 6B parameter model',
     defaultSize: 'landscape_16_9' as const,
     sizeType: 'standard' as const,
+    provider: 'fal' as const,
+  },
+  {
+    id: 'gemini-3.1-flash-image-preview',
+    name: 'NanoBanana 2 (Gemini 3.1 Flash)',
+    description: 'Latest and fastest Gemini native image generation',
+    defaultSize: '16:9_4K' as const,
+    sizeType: 'native' as const,
+    provider: 'gemini' as const,
+  },
+  {
+    id: 'gemini-3-pro-image-preview',
+    name: 'NanoBanana Pro (Gemini 3 Pro)',
+    description: 'Higher quality Gemini native image generation',
+    defaultSize: '16:9_4K' as const,
+    sizeType: 'native' as const,
+    provider: 'gemini' as const,
+  },
+  {
+    id: 'imagen-4.0-ultra-generate-001',
+    name: 'Imagen 4.0 Ultra',
+    description: 'Best quality Imagen image generation',
+    defaultSize: '1024x1024' as const,
+    sizeType: 'standard' as const,
+    provider: 'gemini' as const,
+  },
+  {
+    id: 'imagen-4.0-generate-001',
+    name: 'Imagen 4.0',
+    description: 'High quality Imagen image generation',
+    defaultSize: '1024x1024' as const,
+    sizeType: 'standard' as const,
+    provider: 'gemini' as const,
+  },
+  {
+    id: 'imagen-4.0-fast-generate-001',
+    name: 'Imagen 4.0 Fast',
+    description: 'Fast Imagen image generation',
+    defaultSize: '1024x1024' as const,
+    sizeType: 'standard' as const,
+    provider: 'gemini' as const,
   },
 ] as const
 

@@ -1,5 +1,49 @@
 # @tanstack/tests-adapters
 
+## 0.1.17
+
+### Patch Changes
+
+- Updated dependencies [[`2ee0b33`](https://github.com/TanStack/ai/commit/2ee0b33386c1f1604c04c1f2f78a859f8a83fd2d)]:
+  - @tanstack/ai@0.6.2
+  - @tanstack/ai-anthropic@0.6.0
+  - @tanstack/ai-gemini@0.7.0
+  - @tanstack/ai-ollama@0.6.0
+  - @tanstack/ai-openai@0.6.0
+  - @tanstack/ai-openrouter@0.6.2
+
+## 0.1.16
+
+### Patch Changes
+
+- Updated dependencies [[`87ae93a`](https://github.com/TanStack/ai/commit/87ae93a1a3e4fca732b0ceddb374d446086d591f)]:
+  - @tanstack/ai-gemini@0.7.0
+
+## 0.1.15
+
+### Patch Changes
+
+- Updated dependencies [[`d8678e2`](https://github.com/TanStack/ai/commit/d8678e254a8edfa4f95eeb059aa30083c18f52f8)]:
+  - @tanstack/ai@0.6.1
+  - @tanstack/ai-anthropic@0.6.0
+  - @tanstack/ai-gemini@0.6.0
+  - @tanstack/ai-ollama@0.6.0
+  - @tanstack/ai-openai@0.6.0
+  - @tanstack/ai-openrouter@0.6.1
+
+## 0.1.14
+
+### Patch Changes
+
+- Updated dependencies [[`5aa6acc`](https://github.com/TanStack/ai/commit/5aa6acc1a4faea5346f750322e80984abf2d7059), [`808c32d`](https://github.com/TanStack/ai/commit/808c32d5cedcd6fa1f80387f1d03d8fc4481d3e1), [`1f800aa`](https://github.com/TanStack/ai/commit/1f800aacf57081f37a075bc8d08ff397cb33cbe9)]:
+  - @tanstack/ai@0.6.0
+  - @tanstack/ai-openrouter@0.6.0
+  - @tanstack/ai-anthropic@0.6.0
+  - @tanstack/ai-gemini@0.6.0
+  - @tanstack/ai-grok@0.6.0
+  - @tanstack/ai-ollama@0.6.0
+  - @tanstack/ai-openai@0.6.0
+
 ## 0.1.13
 
 ### Patch Changes

@@ -264,19 +264,25 @@ function ChatPage() {
     [selectedModel.provider, selectedModel.model],
   )
 
-  const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
-    useChat({
-      connection: fetchServerSentEvents('/api/tanchat'),
-      tools,
-      body,
-      onCustomEvent: (eventType, data, context) => {
-        console.log(
-          `[CustomEvent] ${eventType}`,
-          data,
-          context.toolCallId ? `(tool call: ${context.toolCallId})` : '',
-        )
-      },
-    })
+  const {
+    messages,
+    sendMessage,
+    isLoading,
+    error,
+    addToolApprovalResponse,
+    stop,
+  } = useChat({
+    connection: fetchServerSentEvents('/api/tanchat'),
+    tools,
+    body,
+    onCustomEvent: (eventType, data, context) => {
+      console.log(
+        `[CustomEvent] ${eventType}`,
+        data,
+        context.toolCallId ? `(tool call: ${context.toolCallId})` : '',
+      )
+    },
+  })
   const [input, setInput] = useState('')
 
   /**
@@ -414,6 +420,12 @@ function ChatPage() {
           messages={messages}
           addToolApprovalResponse={addToolApprovalResponse}
         />
+
+        {error && (
+          <div className="mx-4 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+            {error.message}
+          </div>
+        )}
 
         <ChatInputArea>
           <div className="space-y-3">

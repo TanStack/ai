@@ -1,5 +1,35 @@
 # @tanstack/ai
 
+## 0.6.2
+
+### Patch Changes
+
+- Fix tool approval flow: output priority over approval metadata, preserve approval/output fields in updateToolCallPart, batch-gate execution until all approvals are resolved ([#352](https://github.com/TanStack/ai/pull/352))
+
+## 0.6.1
+
+### Patch Changes
+
+- Fix chat stall when server and client tools are called in the same turn. ([#323](https://github.com/TanStack/ai/pull/323))
+
+  When the LLM requested both a server tool and a client tool in the same response, the server tool's result was silently dropped. The `processToolCalls` and `checkForPendingToolCalls` methods returned early to wait for the client tool, skipping the `emitToolResults` call entirely — so the server result was never emitted or added to the message history, causing the session to stall indefinitely.
+
+  The fix emits completed server tool results before yielding the early return for client tool / approval waiting.
+
+  Also fixes the smoke-test harness and test fixtures to use `chunk.value` instead of `chunk.data` for CUSTOM events, following the rename introduced in #307.
+
+## 0.6.0
+
+### Minor Changes
+
+- feat: add custom event dispatch support for tools ([#293](https://github.com/TanStack/ai/pull/293))
+
+  Tools can now emit custom events during execution via `dispatchEvent()`. Custom events are streamed to clients as `custom_event` stream chunks and surfaced through the client chat hook's `onCustomEvent` callback. This enables tools to send progress updates, intermediate results, or any structured data back to the UI during long-running operations.
+
+### Patch Changes
+
+- Refactor CustomEvent property from 'data' to 'value' for AG-UI compliance ([#307](https://github.com/TanStack/ai/pull/307))
+
 ## 0.5.1
 
 ### Patch Changes

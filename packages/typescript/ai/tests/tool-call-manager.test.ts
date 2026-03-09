@@ -630,6 +630,71 @@ describe('executeToolCalls', () => {
     })
   })
 
+  describe('mixed approval batch gating', () => {
+    it('should not execute non-approval tools when the same batch contains unapproved tools', async () => {
+      // Non-approval tools should wait until all approvals in the batch are resolved,
+      // otherwise side effects happen before the user has a chance to deny.
+      const normalTool: Tool = {
+        name: 'get_weather',
+        description: 'Get weather',
+        inputSchema: z.object({ location: z.string() }),
+        execute: vi.fn(() => ({ temp: 72 })),
+      }
+
+      const toolCalls = [
+        makeToolCall('call_1', 'delete_record', '{"id":"rec_123"}'),
+        makeToolCall('call_2', 'get_weather', '{"location":"Paris"}'),
+      ]
+
+      const result = await drainExecuteToolCalls(
+        toolCalls,
+        [serverToolWithApproval, normalTool],
+        new Map(), // No approval decision yet
+        new Map(),
+      )
+
+      // The approval-needing tool should be in needsApproval
+      expect(result.needsApproval).toHaveLength(1)
+      expect(result.needsApproval[0]?.toolCallId).toBe('call_1')
+
+      // The non-approval tool should NOT have been executed
+      expect(normalTool.execute).not.toHaveBeenCalled()
+      expect(result.results).toHaveLength(0)
+    })
+
+    it('should execute all tools once all approvals in the batch are resolved', async () => {
+      // Reset file-scoped mock so assertion only reflects this test's calls
+      vi.mocked(serverToolWithApproval.execute!).mockClear()
+
+      const normalTool: Tool = {
+        name: 'get_weather',
+        description: 'Get weather',
+        inputSchema: z.object({ location: z.string() }),
+        execute: vi.fn(() => ({ temp: 72 })),
+      }
+
+      const toolCalls = [
+        makeToolCall('call_1', 'delete_record', '{"id":"rec_123"}'),
+        makeToolCall('call_2', 'get_weather', '{"location":"Paris"}'),
+      ]
+
+      const approvals = new Map([['approval_call_1', true]])
+
+      const result = await drainExecuteToolCalls(
+        toolCalls,
+        [serverToolWithApproval, normalTool],
+        approvals,
+        new Map(),
+      )
+
+      // Both tools should have produced results
+      expect(result.results).toHaveLength(2)
+      expect(result.needsApproval).toHaveLength(0)
+      expect(serverToolWithApproval.execute).toHaveBeenCalled()
+      expect(normalTool.execute).toHaveBeenCalled()
+    })
+  })
+
   describe('argument normalization', () => {
     it('should normalize empty arguments to empty object', async () => {
       const tool: Tool = {

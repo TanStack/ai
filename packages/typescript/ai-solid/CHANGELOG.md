@@ -1,5 +1,40 @@
 # @tanstack/ai-solid
 
+## 0.6.3
+
+### Patch Changes
+
+- Updated dependencies [[`2ee0b33`](https://github.com/TanStack/ai/commit/2ee0b33386c1f1604c04c1f2f78a859f8a83fd2d)]:
+  - @tanstack/ai@0.6.2
+  - @tanstack/ai-client@0.5.3
+
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [[`4fe31d4`](https://github.com/TanStack/ai/commit/4fe31d41c2c67ea721173d63cdfd5fbcbaf13d93)]:
+  - @tanstack/ai-client@0.5.2
+
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [[`d8678e2`](https://github.com/TanStack/ai/commit/d8678e254a8edfa4f95eeb059aa30083c18f52f8)]:
+  - @tanstack/ai@0.6.1
+  - @tanstack/ai-client@0.5.1
+
+## 0.6.0
+
+### Patch Changes
+
+- feat: add custom event dispatch support for tools ([#293](https://github.com/TanStack/ai/pull/293))
+
+  Tools can now emit custom events during execution via `dispatchEvent()`. Custom events are streamed to clients as `custom_event` stream chunks and surfaced through the client chat hook's `onCustomEvent` callback. This enables tools to send progress updates, intermediate results, or any structured data back to the UI during long-running operations.
+
+- Updated dependencies [[`5aa6acc`](https://github.com/TanStack/ai/commit/5aa6acc1a4faea5346f750322e80984abf2d7059), [`1f800aa`](https://github.com/TanStack/ai/commit/1f800aacf57081f37a075bc8d08ff397cb33cbe9)]:
+  - @tanstack/ai@0.6.0
+  - @tanstack/ai-client@0.5.0
+
 ## 0.5.4
 
 ### Patch Changes
