@@ -1,0 +1,15 @@
+{
+    "name": "@tanstack/ai-bedrock-live-tests",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test": "tsx tool-test.ts",
+        "test:nova": "tsx tool-test-nova.ts"
+    },
+    "devDependencies": {
+        "tsx": "^4.7.1",
+        "typescript": "^5.4.2",
+        "zod": "^4.2.1"
+    }
+}
