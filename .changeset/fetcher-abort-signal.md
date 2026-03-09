@@ -1,4 +1,5 @@
 ---
+'@tanstack/ai': patch
 '@tanstack/ai-client': patch
 '@tanstack/ai-react': patch
 '@tanstack/ai-solid': patch
