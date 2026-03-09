@@ -16,7 +16,10 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
   /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectionAdapter
   /** Direct async function for speech generation */
-  fetcher?: (input: SpeechGenerateInput) => Promise<TTSResult>
+  fetcher?: (
+    input: SpeechGenerateInput,
+    options?: { signal: AbortSignal },
+  ) => Promise<TTSResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */

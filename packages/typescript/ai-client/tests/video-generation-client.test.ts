@@ -77,6 +77,31 @@ describe('VideoGenerationClient', () => {
       expect(states).toEqual([true, false])
     })
 
+    it('should pass abort signal to fetcher', async () => {
+      const fetcherSpy = vi.fn(async (_input: any, options?: { signal: AbortSignal }) => {
+        expect(options).toBeDefined()
+        expect(options!.signal).toBeInstanceOf(AbortSignal)
+        expect(options!.signal.aborted).toBe(false)
+        return {
+          jobId: 'job-1',
+          status: 'completed' as const,
+          url: 'https://example.com/video.mp4',
+        }
+      })
+
+      const client = new VideoGenerationClient({
+        fetcher: fetcherSpy,
+      })
+
+      await client.generate({ prompt: 'test video' })
+
+      expect(fetcherSpy).toHaveBeenCalledTimes(1)
+      expect(fetcherSpy).toHaveBeenCalledWith(
+        { prompt: 'test video' },
+        { signal: expect.any(AbortSignal) },
+      )
+    })
+
     it('should not allow concurrent requests', async () => {
       let resolveFirst: (value: any) => void
       let callCount = 0

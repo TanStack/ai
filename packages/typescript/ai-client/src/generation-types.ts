@@ -62,7 +62,13 @@ export const GENERATION_EVENTS = {
  */
 export type GenerationTransport<TInput, TResult> =
   | { connection: ConnectionAdapter; fetcher?: never }
-  | { fetcher: (input: TInput) => Promise<TResult>; connection?: never }
+  | {
+      fetcher: (
+        input: TInput,
+        options?: { signal: AbortSignal },
+      ) => Promise<TResult>
+      connection?: never
+    }
 
 // ===========================
 // Client Options

@@ -61,7 +61,9 @@ export class GenerationClient<
   TOutput = TResult,
 > {
   private connection: ConnectionAdapter | undefined
-  private fetcher: ((input: TInput) => Promise<TResult>) | undefined
+  private fetcher:
+    | ((input: TInput, options?: { signal: AbortSignal }) => Promise<TResult>)
+    | undefined
   private body: Record<string, any>
   private result: TOutput | null = null
   private isLoading = false
@@ -74,7 +76,13 @@ export class GenerationClient<
     options: GenerationClientOptions<TInput, TResult, TOutput> &
       (
         | { connection: ConnectionAdapter; fetcher?: never }
-        | { fetcher: (input: TInput) => Promise<TResult>; connection?: never }
+        | {
+            fetcher: (
+              input: TInput,
+              options?: { signal: AbortSignal },
+            ) => Promise<TResult>
+            connection?: never
+          }
       ),
   ) {
     this.connection = options.connection
@@ -112,7 +120,7 @@ export class GenerationClient<
     try {
       if (this.fetcher) {
         // Direct fetch path
-        const result = await this.fetcher(input)
+        const result = await this.fetcher(input, { signal })
         if (signal.aborted) return
         this.setResult(result)
         this.setStatus('success')

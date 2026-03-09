@@ -17,7 +17,10 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
   /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectionAdapter
   /** Direct async function for image generation */
-  fetcher?: (input: ImageGenerateInput) => Promise<ImageGenerationResult>
+  fetcher?: (
+    input: ImageGenerateInput,
+    options?: { signal: AbortSignal },
+  ) => Promise<ImageGenerationResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */

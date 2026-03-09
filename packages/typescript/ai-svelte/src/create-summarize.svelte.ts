@@ -16,7 +16,10 @@ export interface CreateSummarizeOptions<TOutput = SummarizationResult> {
   /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectionAdapter
   /** Direct async function for summarization */
-  fetcher?: (input: SummarizeGenerateInput) => Promise<SummarizationResult>
+  fetcher?: (
+    input: SummarizeGenerateInput,
+    options?: { signal: AbortSignal },
+  ) => Promise<SummarizationResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */

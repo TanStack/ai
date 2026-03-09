@@ -21,7 +21,10 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
-  fetcher?: (input: TInput) => Promise<TResult>
+  fetcher?: (
+    input: TInput,
+    options?: { signal: AbortSignal },
+  ) => Promise<TResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */

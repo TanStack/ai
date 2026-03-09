@@ -18,7 +18,10 @@ export interface CreateGenerateVideoOptions<TOutput = VideoGenerateResult> {
   /** Connection adapter for streaming transport (server handles polling) */
   connection?: ConnectionAdapter
   /** Direct async function that returns a completed video result */
-  fetcher?: (input: VideoGenerateInput) => Promise<VideoGenerateResult>
+  fetcher?: (
+    input: VideoGenerateInput,
+    options?: { signal: AbortSignal },
+  ) => Promise<VideoGenerateResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */
