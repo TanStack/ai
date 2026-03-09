@@ -12,7 +12,7 @@ TanStack AI is a lightweight, type-safe SDK for building production-ready AI exp
 - ✅ **Streaming** - Built-in streaming support for real-time responses
 - ✅ **Isomorphic Tools** - Define once with `toolDefinition()`, implement with `.server()` or `.client()`
 - ✅ **Framework Agnostic** - Core library works anywhere
-- ✅ **Multiple Providers** - OpenAI, Anthropic, Gemini, Ollama, and more
+- ✅ **Multiple Providers** - OpenRouter, OpenAI, Anthropic, Gemini, Ollama, and more
 - ✅ **Approval Flow** - Built-in support for tool approval workflows
 - ✅ **Automatic Execution** - Both server and client tools execute automatically
 
@@ -92,10 +92,14 @@ Solid hooks for TanStack AI:
 
 With the help of adapters, TanStack AI can connect to various LLM providers. Available adapters include:
 
-- **@tanstack/ai-openai** - OpenAI (GPT-4, GPT-3.5, etc.)
+- **@tanstack/ai-openrouter** - OpenRouter (300+ models via a single API key — recommended)
+- **@tanstack/ai-openai** - OpenAI (GPT series)
 - **@tanstack/ai-anthropic** - Anthropic (Claude)
 - **@tanstack/ai-gemini** - Google Gemini
 - **@tanstack/ai-ollama** - Ollama (local models)
+- **@tanstack/ai-groq** - Groq
+- **@tanstack/ai-grok** - xAI Grok
+- **@tanstack/ai-fal** - fal (image & video generation)
 
 ## Next Steps
 
