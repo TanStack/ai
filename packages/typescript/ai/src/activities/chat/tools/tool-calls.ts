@@ -324,6 +324,13 @@ export async function* executeToolCalls(
     toolMap.set(tool.name, tool)
   }
 
+  // Batch gating: when any tool in the batch still needs an approval decision,
+  // defer all execution so side effects don't happen before the user decides.
+  const hasPendingApprovals = toolCalls.some((tc) => {
+    const t = toolMap.get(tc.function.name)
+    return t?.needsApproval && !approvals.has(`approval_${tc.id}`)
+  })
+
   for (const toolCall of toolCalls) {
     const tool = toolMap.get(toolCall.function.name)
     const toolName = toolCall.function.name
@@ -337,6 +344,13 @@ export async function* executeToolCalls(
         state: 'output-error',
       })
       continue
+    }
+
+    // Skip non-pending tools while approvals are outstanding
+    if (hasPendingApprovals) {
+      if (!tool.needsApproval || approvals.has(`approval_${toolCall.id}`)) {
+        continue
+      }
     }
 
     // Parse arguments, throwing error if invalid JSON

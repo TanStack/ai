@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.6.2
+
+### Patch Changes
+
+- Fix tool approval flow: output priority over approval metadata, preserve approval/output fields in updateToolCallPart, batch-gate execution until all approvals are resolved ([#352](https://github.com/TanStack/ai/pull/352))
+
 ## 0.6.1
 
 ### Patch Changes
