@@ -87,6 +87,12 @@ export function makeGroqStructuredOutputCompatible(
     }
 
     result.properties = properties
+    // Groq rejects `required` when there are no properties, even if it's an empty array
+    if (allPropertyNames.length > 0) {
+      result.required = allPropertyNames
+    } else {
+      delete result.required
+    }
     result.required = allPropertyNames
     result.additionalProperties = false
   }
