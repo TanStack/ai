@@ -1479,6 +1479,43 @@ describe('Message Converters', () => {
       expect(content.pendingExecution).toBe(true)
     })
 
+    it('should emit concrete output instead of pendingExecution when tool-call has both output and approval', () => {
+      // After approval + execution, the part retains both `output` and `approval`.
+      // Output should take priority — otherwise the tool replays as pendingExecution.
+      const toolOutput = { result: 'file deleted successfully' }
+      const uiMessage: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'call_789',
+            name: 'delete_local_data',
+            arguments: '{"key":"myKey"}',
+            state: 'approval-responded',
+            approval: {
+              id: 'approval_call_789',
+              needsApproval: true,
+              approved: true,
+            },
+            output: toolOutput,
+          },
+        ],
+      }
+
+      const result = uiMessageToModelMessages(uiMessage)
+
+      // Should produce a tool result with the concrete output,
+      // NOT a pendingExecution marker
+      const toolMsg = result.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_789',
+      )
+      expect(toolMsg).toBeDefined()
+      const content = JSON.parse(toolMsg!.content as string)
+      expect(content).toEqual(toolOutput)
+      expect(content.pendingExecution).toBeUndefined()
+    })
+
     it('should emit declined message for denied client tool without pendingExecution', () => {
       const uiMessage: UIMessage = {
         id: 'msg-1',

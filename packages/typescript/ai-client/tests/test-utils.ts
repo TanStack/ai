@@ -242,6 +242,76 @@ export function createToolCallChunks(
 }
 
 /**
+ * Helper to create tool call chunks with approval requests (AG-UI format)
+ * Tools will be in 'input-complete' state with pending approval
+ */
+export function createApprovalToolCallChunks(
+  toolCalls: Array<{
+    id: string
+    name: string
+    arguments: string
+    approvalId: string
+  }>,
+  messageId: string = 'msg-1',
+  model: string = 'test',
+): Array<StreamChunk> {
+  const chunks: Array<StreamChunk> = []
+  const runId = `run-${messageId}`
+
+  for (let i = 0; i < toolCalls.length; i++) {
+    const toolCall = toolCalls[i]!
+
+    chunks.push({
+      type: 'TOOL_CALL_START',
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      model,
+      timestamp: Date.now(),
+      index: i,
+    })
+
+    chunks.push({
+      type: 'TOOL_CALL_ARGS',
+      toolCallId: toolCall.id,
+      model,
+      timestamp: Date.now(),
+      delta: toolCall.arguments,
+    })
+
+    chunks.push({
+      type: 'TOOL_CALL_END',
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      model,
+      timestamp: Date.now(),
+    })
+
+    chunks.push({
+      type: 'CUSTOM',
+      model,
+      timestamp: Date.now(),
+      name: 'approval-requested',
+      value: {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        input: JSON.parse(toolCall.arguments),
+        approval: { id: toolCall.approvalId, needsApproval: true },
+      },
+    })
+  }
+
+  chunks.push({
+    type: 'RUN_FINISHED',
+    runId,
+    model,
+    timestamp: Date.now(),
+    finishReason: 'tool_calls',
+  })
+
+  return chunks
+}
+
+/**
  * Helper to create thinking chunks (AG-UI format using STEP_FINISHED for thinking)
  */
 export function createThinkingChunks(
