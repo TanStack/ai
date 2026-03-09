@@ -9,6 +9,7 @@ import type { StreamChunk } from '@tanstack/ai'
 import type {
   ConnectionAdapter,
   GenerationClientState,
+  GenerationFetcher,
   InferGenerationOutput,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -25,7 +26,7 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   /** Connection adapter for streaming transport (server handles polling) */
   connection?: ConnectionAdapter
   /** Direct async function that returns a completed video result */
-  fetcher?: (input: VideoGenerateInput) => Promise<VideoGenerateResult>
+  fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */

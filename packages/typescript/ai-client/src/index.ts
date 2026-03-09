@@ -22,6 +22,8 @@ export type {
   InferGenerationOutput,
   GenerationClientState,
   GenerationClientOptions,
+  GenerationFetcher,
+  GenerationFetcherOptions,
   GenerationTransport,
   VideoGenerationClientOptions,
   VideoStatusInfo,

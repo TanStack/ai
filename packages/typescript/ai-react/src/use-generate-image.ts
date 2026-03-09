@@ -3,6 +3,7 @@ import type { ImageGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
   ConnectionAdapter,
   GenerationClientState,
+  GenerationFetcher,
   ImageGenerateInput,
   InferGenerationOutput,
 } from '@tanstack/ai-client'
@@ -16,7 +17,7 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
   /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectionAdapter
   /** Direct async function for image generation */
-  fetcher?: (input: ImageGenerateInput) => Promise<ImageGenerationResult>
+  fetcher?: GenerationFetcher<ImageGenerateInput, ImageGenerationResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */

@@ -3,6 +3,7 @@ import type { StreamChunk, TranscriptionResult } from '@tanstack/ai'
 import type {
   ConnectionAdapter,
   GenerationClientState,
+  GenerationFetcher,
   InferGenerationOutput,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
@@ -17,7 +18,7 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
   /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectionAdapter
   /** Direct async function for transcription */
-  fetcher?: (input: TranscriptionGenerateInput) => Promise<TranscriptionResult>
+  fetcher?: GenerationFetcher<TranscriptionGenerateInput, TranscriptionResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */

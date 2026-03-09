@@ -3,6 +3,7 @@ import type { StreamChunk, TTSResult } from '@tanstack/ai'
 import type {
   ConnectionAdapter,
   GenerationClientState,
+  GenerationFetcher,
   InferGenerationOutput,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
@@ -17,7 +18,7 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
   /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectionAdapter
   /** Direct async function for speech generation */
-  fetcher?: (input: SpeechGenerateInput) => Promise<TTSResult>
+  fetcher?: GenerationFetcher<SpeechGenerateInput, TTSResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */

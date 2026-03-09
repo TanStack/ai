@@ -57,12 +57,31 @@ export const GENERATION_EVENTS = {
 // ===========================
 
 /**
+ * Options passed to a fetcher function by the generation client.
+ */
+export interface GenerationFetcherOptions {
+  /** AbortSignal that is triggered when the user calls `stop()` */
+  signal: AbortSignal
+}
+
+/**
+ * A direct async function that performs a generation request.
+ *
+ * @template TInput - The input type for the generation request
+ * @template TResult - The result type returned by the generation
+ */
+export type GenerationFetcher<TInput, TResult> = (
+  input: TInput,
+  options?: GenerationFetcherOptions,
+) => Promise<TResult>
+
+/**
  * Transport configuration for generation clients.
  * Supports either a ConnectionAdapter (streaming) or a direct fetcher function.
  */
 export type GenerationTransport<TInput, TResult> =
   | { connection: ConnectionAdapter; fetcher?: never }
-  | { fetcher: (input: TInput) => Promise<TResult>; connection?: never }
+  | { fetcher: GenerationFetcher<TInput, TResult>; connection?: never }
 
 // ===========================
 // Client Options
