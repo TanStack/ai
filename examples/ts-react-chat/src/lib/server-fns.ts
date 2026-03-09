@@ -38,9 +38,7 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
     z.object({
       text: z.string(),
       voice: z.string().optional(),
-      format: z
-        .enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm'])
-        .optional(),
+      format: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
     }),
   )
   .handler(async ({ data }) => {
