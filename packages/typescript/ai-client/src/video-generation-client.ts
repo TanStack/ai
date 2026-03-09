@@ -3,6 +3,7 @@ import type { StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 import type {
   GenerationClientState,
+  GenerationFetcher,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoGenerationClientOptions,
@@ -65,10 +66,7 @@ interface VideoCallbacks<TOutput> {
 export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private connection: ConnectionAdapter | undefined
   private fetcher:
-    | ((
-        input: VideoGenerateInput,
-        options?: { signal: AbortSignal },
-      ) => Promise<VideoGenerateResult>)
+    | GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
     | undefined
   private body: Record<string, any>
 
@@ -86,10 +84,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       (
         | { connection: ConnectionAdapter; fetcher?: never }
         | {
-            fetcher: (
-              input: VideoGenerateInput,
-              options?: { signal: AbortSignal },
-            ) => Promise<VideoGenerateResult>
+            fetcher: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
             connection?: never
           }
       ),

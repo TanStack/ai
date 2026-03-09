@@ -3,6 +3,7 @@ import type { StreamChunk, SummarizationResult } from '@tanstack/ai'
 import type {
   ConnectionAdapter,
   GenerationClientState,
+  GenerationFetcher,
   InferGenerationOutput,
   SummarizeGenerateInput,
 } from '@tanstack/ai-client'
@@ -17,10 +18,7 @@ export interface UseSummarizeOptions<TOutput = SummarizationResult> {
   /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectionAdapter
   /** Direct async function for summarization */
-  fetcher?: (
-    input: SummarizeGenerateInput,
-    options?: { signal: AbortSignal },
-  ) => Promise<SummarizationResult>
+  fetcher?: GenerationFetcher<SummarizeGenerateInput, SummarizationResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */

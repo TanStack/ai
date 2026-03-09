@@ -4,6 +4,7 @@ import type { ConnectionAdapter } from './connection-adapters'
 import type {
   GenerationClientOptions,
   GenerationClientState,
+  GenerationFetcher,
 } from './generation-types'
 
 /**
@@ -61,9 +62,7 @@ export class GenerationClient<
   TOutput = TResult,
 > {
   private connection: ConnectionAdapter | undefined
-  private fetcher:
-    | ((input: TInput, options?: { signal: AbortSignal }) => Promise<TResult>)
-    | undefined
+  private fetcher: GenerationFetcher<TInput, TResult> | undefined
   private body: Record<string, any>
   private result: TOutput | null = null
   private isLoading = false
@@ -77,10 +76,7 @@ export class GenerationClient<
       (
         | { connection: ConnectionAdapter; fetcher?: never }
         | {
-            fetcher: (
-              input: TInput,
-              options?: { signal: AbortSignal },
-            ) => Promise<TResult>
+            fetcher: GenerationFetcher<TInput, TResult>
             connection?: never
           }
       ),

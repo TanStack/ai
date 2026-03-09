@@ -4,6 +4,7 @@ import type {
   ConnectionAdapter,
   GenerationClientOptions,
   GenerationClientState,
+  GenerationFetcher,
   InferGenerationOutput,
 } from '@tanstack/ai-client'
 
@@ -20,10 +21,7 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
   /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
-  fetcher?: (
-    input: TInput,
-    options?: { signal: AbortSignal },
-  ) => Promise<TResult>
+  fetcher?: GenerationFetcher<TInput, TResult>
   /** Unique identifier for this generation instance */
   id?: string
   /** Additional body parameters to send with ConnectionAdapter requests */
