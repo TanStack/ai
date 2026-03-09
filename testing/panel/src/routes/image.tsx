@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { ImageIcon, Loader2, Download } from 'lucide-react'
 
-type Provider = 'openai' | 'gemini'
+type Provider = 'openai' | 'gemini' | 'openrouter'
 
 interface ImageProvider {
   id: Provider
@@ -22,6 +22,19 @@ const PROVIDERS: Array<ImageProvider> = [
   //   name: 'Gemini (Imagen)',
   //   sizes: ['1024x1024', '1:1', '16:9', '9:16', '4:3', '3:4'],
   // },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter (Gemini 3.1 Flash Image)',
+    sizes: [
+      '1024x1024',
+      '1248x832',
+      '832x1248',
+      '1184x864',
+      '864x1184',
+      '1344x768',
+      '768x1344',
+    ],
+  },
 ]
 
 interface GeneratedImage {

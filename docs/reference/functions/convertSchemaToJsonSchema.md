@@ -48,7 +48,7 @@ JSON Schema object that can be sent to LLM providers
 import * as z from 'zod';
 
 const zodSchema = z.object({
-  location: z.string().meta({ description: 'City name' }),
+  location: z.string().describe('City name'),
   unit: z.enum(['celsius', 'fahrenheit']).optional()
 });
 

@@ -40,6 +40,9 @@ export class ChatClient {
   private pendingToolExecutions: Map<string, Promise<void>> = new Map()
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
+  // Tracks whether a queued checkForContinuation was skipped because
+  // continuationPending was true (chained approval scenario)
+  private continuationSkipped = false
 
   private callbacksRef: {
     current: {
@@ -404,7 +407,9 @@ export class ChatClient {
 
     // If stream is in progress, queue the response for after it ends
     if (this.isLoading) {
-      this.queuePostStreamAction(() => this.streamResponse())
+      this.queuePostStreamAction(async () => {
+        await this.streamResponse()
+      })
       return
     }
 
@@ -412,12 +417,13 @@ export class ChatClient {
   }
 
   /**
-   * Stream a response from the LLM
+   * Stream a response from the LLM.
+   * Returns true if the stream completed successfully, false on abort or error.
    */
-  private async streamResponse(): Promise<void> {
+  private async streamResponse(): Promise<boolean> {
     // Guard against concurrent streams - if already loading, skip
     if (this.isLoading) {
-      return
+      return false
     }
 
     this.setIsLoading(true)
@@ -458,7 +464,7 @@ export class ChatClient {
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
-          return
+          return false
         }
         this.setError(err)
         this.setStatus('error')
@@ -486,6 +492,8 @@ export class ChatClient {
         }
       }
     }
+
+    return streamCompletedSuccessfully
   }
 
   /**
@@ -631,15 +639,27 @@ export class ChatClient {
   private async checkForContinuation(): Promise<void> {
     // Prevent duplicate continuation attempts
     if (this.continuationPending || this.isLoading) {
+      this.continuationSkipped = true
       return
     }
 
     if (this.shouldAutoSend()) {
       this.continuationPending = true
+      this.continuationSkipped = false
+      let succeeded = false
       try {
-        await this.streamResponse()
+        succeeded = await this.streamResponse()
       } finally {
         this.continuationPending = false
+      }
+      // If a queued check was skipped while continuationPending was true
+      // (e.g. a chained approval responded to during the stream), re-evaluate
+      // now that the flag is cleared. Only replay after a successful stream —
+      // aborted or errored streams should not trigger further continuation.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
+      if (this.continuationSkipped && succeeded) {
+        this.continuationSkipped = false
+        await this.checkForContinuation()
       }
     }
   }

@@ -166,7 +166,7 @@ Standard JSON Schema compliant schemas are converted to JSON Schema for LLM prov
 // Using Zod v4+ schema (natively supports Standard JSON Schema)
 import { z } from 'zod';
 z.object({
-  location: z.string().meta({ description: "City name or coordinates" }),
+  location: z.string().describe("City name or coordinates"),
   unit: z.enum(["celsius", "fahrenheit"]).optional()
 })
 ```
