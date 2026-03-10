@@ -6,6 +6,8 @@ order: 2
 
 Get started with TanStack AI in minutes. This guide will walk you through creating a simple chat application using the React integration and OpenAI adapter.
 
+> **Tip:** If you'd prefer not to sign up with individual AI providers, [OpenRouter](../adapters/openrouter) gives you access to 300+ models with a single API key and is the easiest way to get started.
+
 ## Installation
 
 ```bash
@@ -209,6 +211,9 @@ export function Chat() {
 
 To connect to AI providers, set your API keys in your environment variables. Create a `.env.local` file (or `.env` depending on your setup):
 ```bash
+# OpenRouter (recommended — access 300+ models with one key)
+OPENROUTER_API_KEY=sk-or-...
+
 # OpenAI
 OPENAI_API_KEY=your-openai-api-key
 

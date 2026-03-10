@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchHttpStream,
   fetchServerSentEvents,
+  rpcStream,
   stream,
 } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
@@ -344,6 +345,161 @@ describe('connection-adapters', () => {
       expect(customFetch).toHaveBeenCalledWith('/api/chat', expect.any(Object))
       expect(fetchMock).not.toHaveBeenCalled()
     })
+
+    it('should resolve dynamic URL from function', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents(() => '/api/dynamic')
+
+      for await (const _ of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        // Consume
+      }
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/dynamic', expect.any(Object))
+    })
+
+    it('should resolve dynamic options from sync function', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat', () => ({
+        headers: { 'X-Custom': 'dynamic' },
+      }))
+
+      for await (const _ of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      expect(call?.[1]?.headers).toMatchObject({ 'X-Custom': 'dynamic' })
+    })
+
+    it('should resolve dynamic options from async function', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat', async () => ({
+        headers: { 'X-Async': 'token' },
+      }))
+
+      for await (const _ of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      expect(call?.[1]?.headers).toMatchObject({ 'X-Async': 'token' })
+    })
+
+    it('should merge options.body into request body', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat', {
+        body: { model: 'gpt-4o', provider: 'openai' },
+      })
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { key: 'value' },
+      )) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call?.[1]?.body as string)
+      expect(body.model).toBe('gpt-4o')
+      expect(body.provider).toBe('openai')
+      expect(body.data).toEqual({ key: 'value' })
+    })
+
+    it('should handle multiple chunks across multiple reads', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              'data: {"type":"RUN_STARTED","runId":"run-1","timestamp":100}\n\n',
+            ),
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              'data: {"type":"CUSTOM","name":"generation:result","value":{"id":"1"},"timestamp":200}\n\n',
+            ),
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              'data: {"type":"RUN_FINISHED","runId":"run-1","finishReason":"stop","timestamp":300}\n\ndata: [DONE]\n\n',
+            ),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/generate')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect([], { prompt: 'test' })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toHaveLength(3)
+      expect(chunks[0]!.type).toBe('RUN_STARTED')
+      expect(chunks[1]!.type).toBe('CUSTOM')
+      expect(chunks[2]!.type).toBe('RUN_FINISHED')
+    })
   })
 
   describe('fetchHttpStream', () => {
@@ -468,6 +624,154 @@ describe('connection-adapters', () => {
       expect(customFetch).toHaveBeenCalledWith('/api/chat', expect.any(Object))
       expect(fetchMock).not.toHaveBeenCalled()
     })
+
+    it('should handle missing response body', async () => {
+      const mockResponse = {
+        ok: true,
+        body: null,
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat')
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect([
+            { role: 'user', content: 'Hello' },
+          ])) {
+            // Consume
+          }
+        })(),
+      ).rejects.toThrow('Response body is not readable')
+    })
+
+    it('should merge custom headers', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat', {
+        headers: { Authorization: 'Bearer token' },
+      })
+
+      for await (const _ of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      expect(call?.[1]?.headers).toMatchObject({
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer token',
+      })
+    })
+
+    it('should pass data to request body', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat')
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { key: 'value' },
+      )) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call?.[1]?.body as string)
+      expect(body.data).toEqual({ key: 'value' })
+    })
+
+    it('should resolve dynamic URL from function', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream(() => '/api/dynamic')
+
+      for await (const _ of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        // Consume
+      }
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/dynamic', expect.any(Object))
+    })
+
+    it('should handle multiple chunks across multiple reads', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              '{"type":"RUN_STARTED","runId":"run-1","timestamp":100}\n',
+            ),
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              '{"type":"CUSTOM","name":"generation:result","value":{"id":"1"},"timestamp":200}\n',
+            ),
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              '{"type":"RUN_FINISHED","runId":"run-1","finishReason":"stop","timestamp":300}\n',
+            ),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/generate')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect([], { prompt: 'test' })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toHaveLength(3)
+      expect(chunks[0]!.type).toBe('RUN_STARTED')
+      expect(chunks[1]!.type).toBe('CUSTOM')
+      expect(chunks[2]!.type).toBe('RUN_FINISHED')
+    })
   })
 
   describe('stream', () => {
@@ -518,6 +822,64 @@ describe('connection-adapters', () => {
       }
 
       expect(streamFactory).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
+        data,
+      )
+    })
+  })
+
+  describe('rpcStream', () => {
+    it('should delegate to RPC call', async () => {
+      const rpcCall = vi.fn().mockImplementation(function* () {
+        yield {
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hello',
+          content: 'Hello',
+        }
+      })
+
+      const adapter = rpcStream(rpcCall)
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        chunks.push(chunk)
+      }
+
+      expect(rpcCall).toHaveBeenCalled()
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]).toMatchObject({
+        type: 'TEXT_MESSAGE_CONTENT',
+        delta: 'Hello',
+      })
+    })
+
+    it('should pass messages and data to RPC call', async () => {
+      const rpcCall = vi.fn().mockImplementation(function* () {
+        yield {
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        }
+      })
+
+      const adapter = rpcStream(rpcCall)
+      const data = { model: 'gpt-4o' }
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        data,
+      )) {
+        // Consume
+      }
+
+      expect(rpcCall).toHaveBeenCalledWith(
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
       )

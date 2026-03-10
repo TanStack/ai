@@ -204,6 +204,65 @@ describe('message-updaters', () => {
       expect(result[1]?.parts[0]).toEqual({ type: 'text', content: 'Hi' })
     })
 
+    it('should preserve existing approval metadata when updating a tool call', () => {
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-call',
+            id: 'call-1',
+            name: 'deleteFile',
+            arguments: '{"path":"/tmp/file"}',
+            state: 'approval-requested',
+            approval: {
+              id: 'approval-123',
+              needsApproval: true,
+              approved: true,
+            },
+          },
+        ]),
+      ]
+
+      const result = updateToolCallPart(messages, 'msg-1', {
+        id: 'call-1',
+        name: 'deleteFile',
+        arguments: '{"path":"/tmp/file"}',
+        state: 'approval-responded',
+      })
+
+      const part = result[0]?.parts[0] as ToolCallPart | undefined
+      expect(part?.approval).toEqual({
+        id: 'approval-123',
+        needsApproval: true,
+        approved: true,
+      })
+    })
+
+    it('should preserve existing output when updating a tool call', () => {
+      const toolOutput = { temperature: 20, conditions: 'sunny' }
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-call',
+            id: 'call-1',
+            name: 'getWeather',
+            arguments: '{"location":"Paris"}',
+            state: 'input-complete',
+            output: toolOutput,
+          },
+        ]),
+      ]
+
+      const result = updateToolCallPart(messages, 'msg-1', {
+        id: 'call-1',
+        name: 'getWeather',
+        arguments: '{"location":"Paris"}',
+        state: 'input-complete',
+      })
+
+      const part = result[0]?.parts[0] as ToolCallPart | undefined
+      expect(part?.output).toEqual(toolOutput)
+    })
+
     it('should find tool call by ID, not index', () => {
       const messages = [
         createMessage('msg-1', 'assistant', [
