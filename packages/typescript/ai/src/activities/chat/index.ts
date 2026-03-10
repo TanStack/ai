@@ -8,6 +8,7 @@
 import { aiEventClient } from '../../event-client.js'
 import { streamToText } from '../../stream-to-response.js'
 import { ToolCallManager, executeToolCalls } from './tools/tool-calls'
+import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
   convertSchemaToJsonSchema,
   isStandardSchema,
@@ -203,9 +204,10 @@ class TextEngine<
   private readonly adapter: TAdapter
   private readonly params: TParams
   private readonly systemPrompts: Array<string>
-  private readonly tools: ReadonlyArray<Tool>
+  private tools: ReadonlyArray<Tool>
   private readonly loopStrategy: AgentLoopStrategy
-  private readonly toolCallManager: ToolCallManager
+  private toolCallManager: ToolCallManager
+  private readonly lazyToolManager: LazyToolManager
   private readonly initialMessageCount: number
   private readonly requestId: string
   private readonly streamId: string
@@ -234,10 +236,8 @@ class TextEngine<
     this.adapter = config.adapter
     this.params = config.params
     this.systemPrompts = config.params.systemPrompts || []
-    this.tools = config.params.tools || []
     this.loopStrategy =
       config.params.agentLoopStrategy || maxIterationsStrategy(5)
-    this.toolCallManager = new ToolCallManager(this.tools)
     this.initialMessageCount = config.params.messages.length
 
     // Extract client state (approvals, client tool results) from original messages BEFORE conversion
@@ -254,6 +254,14 @@ class TextEngine<
     this.messages = convertMessagesToModelMessages(
       config.params.messages as Array<any>,
     )
+
+    // Initialize lazy tool manager after messages are converted (needs message history for scanning)
+    this.lazyToolManager = new LazyToolManager(
+      config.params.tools || [],
+      this.messages,
+    )
+    this.tools = this.lazyToolManager.getActiveTools()
+    this.toolCallManager = new ToolCallManager(this.tools)
     this.requestId = this.createId('chat')
     this.streamId = this.createId('stream')
     this.effectiveRequest = config.params.abortController
@@ -409,7 +417,7 @@ class TextEngine<
 
   private async *streamModelResponse(): AsyncGenerator<StreamChunk> {
     const { temperature, topP, maxTokens, metadata, modelOptions } = this.params
-    const tools = this.params.tools
+    const tools = this.tools
 
     // Convert tool schemas to JSON Schema before passing to adapter
     const toolsWithJsonSchemas = tools?.map((tool) => ({
@@ -600,10 +608,42 @@ class TextEngine<
 
     const finishEvent = this.createSyntheticFinishedEvent()
 
+    // Handle undiscovered lazy tool calls with self-correcting error messages
+    const undiscoveredLazyResults: Array<ToolResult> = []
+    const executablePendingCalls = pendingToolCalls.filter((tc) => {
+      if (this.lazyToolManager.isUndiscoveredLazyTool(tc.function.name)) {
+        undiscoveredLazyResults.push({
+          toolCallId: tc.id,
+          toolName: tc.function.name,
+          result: {
+            error: this.lazyToolManager.getUndiscoveredToolError(
+              tc.function.name,
+            ),
+          },
+          state: 'output-error',
+        })
+        return false
+      }
+      return true
+    })
+
+    if (undiscoveredLazyResults.length > 0) {
+      for (const chunk of this.emitToolResults(
+        undiscoveredLazyResults,
+        finishEvent,
+      )) {
+        yield chunk
+      }
+    }
+
+    if (executablePendingCalls.length === 0) {
+      return 'continue'
+    }
+
     const { approvals, clientToolResults } = this.collectClientState()
 
     const generator = executeToolCalls(
-      pendingToolCalls,
+      executablePendingCalls,
       this.tools,
       approvals,
       clientToolResults,
@@ -672,10 +712,46 @@ class TextEngine<
 
     this.addAssistantToolCallMessage(toolCalls)
 
+    // Handle undiscovered lazy tool calls with self-correcting error messages
+    const undiscoveredLazyResults: Array<ToolResult> = []
+    const executableToolCalls = toolCalls.filter((tc) => {
+      if (this.lazyToolManager.isUndiscoveredLazyTool(tc.function.name)) {
+        undiscoveredLazyResults.push({
+          toolCallId: tc.id,
+          toolName: tc.function.name,
+          result: {
+            error: this.lazyToolManager.getUndiscoveredToolError(
+              tc.function.name,
+            ),
+          },
+          state: 'output-error',
+        })
+        return false
+      }
+      return true
+    })
+
+    if (undiscoveredLazyResults.length > 0) {
+      const finishEvt = this.finishedEvent!
+      for (const chunk of this.emitToolResults(
+        undiscoveredLazyResults,
+        finishEvt,
+      )) {
+        yield chunk
+      }
+    }
+
+    if (executableToolCalls.length === 0) {
+      // All tool calls were undiscovered lazy tools — errors emitted, continue loop
+      this.toolCallManager.clear()
+      this.setToolPhase('continue')
+      return
+    }
+
     const { approvals, clientToolResults } = this.collectClientState()
 
     const generator = executeToolCalls(
-      toolCalls,
+      executableToolCalls,
       this.tools,
       approvals,
       clientToolResults,
@@ -723,6 +799,14 @@ class TextEngine<
 
     for (const chunk of toolResultChunks) {
       yield chunk
+    }
+
+    // Refresh tools if lazy tools were discovered in this batch
+    if (this.lazyToolManager.hasNewlyDiscoveredTools()) {
+      this.tools = this.lazyToolManager.getActiveTools()
+      this.toolCallManager = new ToolCallManager(this.tools)
+      this.setToolPhase('continue')
+      return
     }
 
     this.toolCallManager.clear()
