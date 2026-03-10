@@ -1,5 +1,23 @@
 # @tanstack/ai-client
 
+## 0.6.0
+
+### Minor Changes
+
+- feat: support server function Response streaming via fetcher ([#327](https://github.com/TanStack/ai/pull/327))
+
+  Generation fetchers can now return a `Response` with an SSE body (e.g., from a TanStack Start server function using `toServerSentEventsResponse()`). When a `Response` is returned, `GenerationClient` and `VideoGenerationClient` automatically parse it as an SSE stream while preserving full type safety on the input.
+
+### Patch Changes
+
+- feat: pass abort signal to generation fetchers and extract GenerationFetcher utility type ([#327](https://github.com/TanStack/ai/pull/327))
+  - Generation clients now forward an `AbortSignal` to fetcher functions via an optional `options` parameter, enabling cancellation support when `stop()` is called
+  - Introduced `GenerationFetcher<TInput, TResult>` utility type in `@tanstack/ai-client` to centralize the fetcher function signature across all framework integrations
+  - All framework hooks/composables (React, Solid, Vue, Svelte) now use the shared `GenerationFetcher` type instead of inline definitions
+
+- Updated dependencies [[`6dfffca`](https://github.com/TanStack/ai/commit/6dfffca99aeac1ada59eb288f8eb09e564d3db1e)]:
+  - @tanstack/ai@0.6.3
+
 ## 0.5.3
 
 ### Patch Changes
