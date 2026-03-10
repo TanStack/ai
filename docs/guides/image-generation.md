@@ -368,6 +368,54 @@ function ImageGenerator() {
 }
 ```
 
+### Server Function Streaming (Fetcher + Response)
+
+For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+export const generateImageStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { prompt: string; model?: string }) => data)
+  .handler(({ data }) => {
+    return toServerSentEventsResponse(
+      generateImage({
+        adapter: openaiImage(data.model ?? 'dall-e-3'),
+        prompt: data.prompt,
+        stream: true,
+      }),
+    )
+  })
+```
+
+```tsx
+import { useGenerateImage } from '@tanstack/ai-react'
+import { generateImageStreamFn } from '../lib/server-functions'
+
+function ImageGenerator() {
+  const { generate, result, isLoading } = useGenerateImage({
+    fetcher: (input) => generateImageStreamFn({ data: input }),
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() => generate({ prompt: 'A sunset over mountains' })}
+        disabled={isLoading}
+      >
+        Generate
+      </button>
+      {result?.images.map((img, i) => (
+        <img key={i} src={img.url || `data:image/png;base64,${img.b64Json}`} />
+      ))}
+    </div>
+  )
+}
+```
+
 ### Hook API
 
 The `useGenerateImage` hook accepts:
@@ -375,7 +423,7 @@ The `useGenerateImage` hook accepts:
 | Option | Type | Description |
 |--------|------|-------------|
 | `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
-| `fetcher` | `(input) => Promise<ImageGenerationResult>` | Direct async function (no streaming) |
+| `fetcher` | `(input) => Promise<ImageGenerationResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
 | `id` | `string` | Unique identifier for this instance |
 | `body` | `Record<string, any>` | Additional body parameters (connection mode) |
 | `onResult` | `(result) => void` | Callback when images are generated |

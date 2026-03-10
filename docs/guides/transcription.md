@@ -396,6 +396,44 @@ function AudioTranscriber() {
 }
 ```
 
+### Server Function Streaming (Fetcher + Response)
+
+For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiTranscription } from '@tanstack/ai-openai'
+
+export const transcribeStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { audio: string; language?: string }) => data)
+  .handler(({ data }) => {
+    return toServerSentEventsResponse(
+      generateTranscription({
+        adapter: openaiTranscription('whisper-1'),
+        audio: data.audio,
+        language: data.language,
+        stream: true,
+      }),
+    )
+  })
+```
+
+```tsx
+import { useTranscription } from '@tanstack/ai-react'
+import { transcribeStreamFn } from '../lib/server-functions'
+
+function AudioTranscriber() {
+  const { generate, result, isLoading } = useTranscription({
+    fetcher: (input) => transcribeStreamFn({
+      data: { ...input, audio: input.audio as string },
+    }),
+  })
+  // ... same UI as above
+}
+```
+
 ### Hook API
 
 The `useTranscription` hook accepts:
@@ -403,7 +441,7 @@ The `useTranscription` hook accepts:
 | Option | Type | Description |
 |--------|------|-------------|
 | `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
-| `fetcher` | `(input) => Promise<TranscriptionResult>` | Direct async function (no streaming) |
+| `fetcher` | `(input) => Promise<TranscriptionResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
 | `onResult` | `(result) => void` | Callback when transcription completes |
 | `onError` | `(error) => void` | Callback on error |
 | `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |

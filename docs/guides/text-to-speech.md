@@ -285,6 +285,42 @@ function SpeechGenerator() {
 }
 ```
 
+### Server Function Streaming (Fetcher + Response)
+
+For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiTTS } from '@tanstack/ai-openai'
+
+export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { text: string; voice?: string }) => data)
+  .handler(({ data }) => {
+    return toServerSentEventsResponse(
+      generateSpeech({
+        adapter: openaiTTS('tts-1'),
+        text: data.text,
+        voice: data.voice,
+        stream: true,
+      }),
+    )
+  })
+```
+
+```tsx
+import { useGenerateSpeech } from '@tanstack/ai-react'
+import { generateSpeechStreamFn } from '../lib/server-functions'
+
+function SpeechGenerator() {
+  const { generate, result, isLoading } = useGenerateSpeech({
+    fetcher: (input) => generateSpeechStreamFn({ data: input }),
+  })
+  // ... same UI as above
+}
+```
+
 ### Hook API
 
 The `useGenerateSpeech` hook accepts:
@@ -292,7 +328,7 @@ The `useGenerateSpeech` hook accepts:
 | Option | Type | Description |
 |--------|------|-------------|
 | `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
-| `fetcher` | `(input) => Promise<TTSResult>` | Direct async function (no streaming) |
+| `fetcher` | `(input) => Promise<TTSResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
 | `onResult` | `(result) => TOutput \| null \| void` | Callback when audio is generated. Optionally return a transformed value (see [Result Transform](#result-transform)) |
 | `onError` | `(error) => void` | Callback on error |
 | `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |

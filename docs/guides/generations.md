@@ -44,7 +44,7 @@ useTranscription()"]
 
 The key insight: **every generation activity on the server is just an async function that returns a result**. By passing `stream: true`, the function returns a `StreamChunk` iterable instead of a plain result, which the client already knows how to consume.
 
-## Two Transport Modes
+## Three Transport Modes
 
 ### Streaming Mode (Connection Adapter)
 
@@ -109,6 +109,43 @@ const { generate, result, isLoading } = useGenerateImage({
 })
 ```
 
+### Server Function Streaming (Fetcher + Response)
+
+Combines the best of both: **type-safe input** from the fetcher pattern with **streaming** from a server function that returns an SSE `Response`. When the fetcher returns a `Response` object (instead of a plain result), the client automatically parses it as an SSE stream.
+
+**Server:**
+
+```typescript
+import { createServerFn } from '@tanstack/react-start'
+import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+export const generateImageStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { prompt: string }) => data)
+  .handler(({ data }) => {
+    return toServerSentEventsResponse(
+      generateImage({
+        adapter: openaiImage('dall-e-3'),
+        prompt: data.prompt,
+        stream: true,
+      }),
+    )
+  })
+```
+
+**Client:**
+
+```tsx
+import { useGenerateImage } from '@tanstack/ai-react'
+import { generateImageStreamFn } from '../lib/server-functions'
+
+const { generate, result, isLoading } = useGenerateImage({
+  fetcher: (input) => generateImageStreamFn({ data: input }),
+})
+```
+
+This is the recommended approach when using TanStack Start server functions — the input is fully typed (e.g., `ImageGenerateInput`), and the streaming protocol is handled transparently.
+
 ## How Streaming Works
 
 When you pass `stream: true` to any generation function, it returns an async iterable of `StreamChunk` events instead of a plain result:
@@ -138,7 +175,7 @@ All generation hooks share the same interface:
 | Option | Type | Description |
 |--------|------|-------------|
 | `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
-| `fetcher` | `(input) => Promise<Result>` | Direct async function (no streaming) |
+| `fetcher` | `(input) => Promise<Result \| Response>` | Direct async function, or server function returning an SSE `Response` |
 | `id` | `string` | Unique identifier for this instance |
 | `body` | `Record<string, any>` | Additional body parameters (connection mode) |
 | `onResult` | `(result) => T \| null \| void` | Transform or react to the result |

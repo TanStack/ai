@@ -286,7 +286,44 @@ function VideoGenerator() {
 }
 ```
 
-> **Note:** In fetcher mode, `jobId` and `videoStatus` won't receive real-time updates since there's no streaming. Use the streaming connection mode for progress tracking.
+> **Note:** In direct fetcher mode, `jobId` and `videoStatus` won't receive real-time updates since there's no streaming. Use the streaming connection mode or server function streaming for progress tracking.
+
+### Server Function Streaming (Fetcher + Response)
+
+For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically. This gives you both type safety and real-time `jobId`/`videoStatus` updates:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+export const generateVideoStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { prompt: string; size?: string; duration?: number }) => data)
+  .handler(({ data }) => {
+    return toServerSentEventsResponse(
+      generateVideo({
+        adapter: openaiVideo('sora-2'),
+        prompt: data.prompt,
+        size: data.size as any,
+        duration: data.duration,
+        stream: true,
+      }),
+    )
+  })
+```
+
+```tsx
+import { useGenerateVideo } from '@tanstack/ai-react'
+import { generateVideoStreamFn } from '../lib/server-functions'
+
+function VideoGenerator() {
+  const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
+    fetcher: (input) => generateVideoStreamFn({ data: input }),
+  })
+  // ... same UI as streaming mode (jobId and videoStatus update in real-time)
+}
+```
 
 ### Hook API
 
@@ -295,7 +332,7 @@ The `useGenerateVideo` hook accepts all common options plus video-specific callb
 | Option | Type | Description |
 |--------|------|-------------|
 | `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
-| `fetcher` | `(input) => Promise<VideoGenerateResult>` | Direct async function (no streaming) |
+| `fetcher` | `(input) => Promise<VideoGenerateResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
 | `onResult` | `(result) => void` | Callback when video is ready |
 | `onError` | `(error) => void` | Callback on error |
 | `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
