@@ -3,7 +3,7 @@ title: OpenRouter Adapter
 id: openrouter-adapter
 ---
 
-The OpenRouter adapter provides access to 300+ AI models from various providers through a single unified API, including models from OpenAI, Anthropic, Google, Meta, Mistral, and many more.
+OpenRouter is TanStack AI's first official AI partner and the recommended starting point for most projects. It provides access to 300+ models from OpenAI, Anthropic, Google, Meta, Mistral, and many more — all through a single API key and unified interface.
 
 ## Installation
 
