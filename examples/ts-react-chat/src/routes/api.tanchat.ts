@@ -16,9 +16,12 @@ import type { AnyTextAdapter } from '@tanstack/ai'
 import {
   addToCartToolDef,
   addToWishListToolDef,
+  calculateFinancing,
+  compareGuitars,
   getGuitars,
   getPersonalGuitarPreferenceToolDef,
   recommendGuitarToolDef,
+  searchGuitars,
 } from '@/lib/guitar-tools'
 
 type Provider =
@@ -49,8 +52,9 @@ IMPORTANT:
 Example workflow:
 User: "I want an acoustic guitar"
 Step 1: Call getGuitars()
-Step 2: Call recommendGuitar(id: "6") 
+Step 2: Call recommendGuitar(id: "6")
 Step 3: Done - do NOT add any text after calling recommendGuitar
+
 `
 const addToCartToolServer = addToCartToolDef.server((args, context) => {
   context?.emitCustomEvent('tool:progress', {
@@ -167,6 +171,10 @@ export const Route = createFileRoute('/api/tanchat')({
               addToCartToolServer,
               addToWishListToolDef,
               getPersonalGuitarPreferenceToolDef,
+              // Lazy tools - discovered on demand
+              compareGuitars,
+              calculateFinancing,
+              searchGuitars,
             ],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
