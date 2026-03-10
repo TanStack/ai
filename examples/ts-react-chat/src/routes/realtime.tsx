@@ -230,9 +230,7 @@ function RealtimePage() {
                     max="1.2"
                     step="0.1"
                     value={temperature}
-                    onChange={(e) =>
-                      setTemperature(parseFloat(e.target.value))
-                    }
+                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
                     disabled={status !== 'idle'}
                     className="w-24 accent-orange-500 disabled:opacity-50"
                   />
