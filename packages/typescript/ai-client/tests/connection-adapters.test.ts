@@ -500,7 +500,6 @@ describe('connection-adapters', () => {
       expect(chunks[1]!.type).toBe('CUSTOM')
       expect(chunks[2]!.type).toBe('RUN_FINISHED')
     })
-
   })
 
   describe('fetchHttpStream', () => {
@@ -725,10 +724,7 @@ describe('connection-adapters', () => {
         // Consume
       }
 
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/dynamic',
-        expect.any(Object),
-      )
+      expect(fetchMock).toHaveBeenCalledWith('/api/dynamic', expect.any(Object))
     })
 
     it('should handle multiple chunks across multiple reads', async () => {
@@ -776,7 +772,6 @@ describe('connection-adapters', () => {
       expect(chunks[1]!.type).toBe('CUSTOM')
       expect(chunks[2]!.type).toBe('RUN_FINISHED')
     })
-
   })
 
   describe('stream', () => {

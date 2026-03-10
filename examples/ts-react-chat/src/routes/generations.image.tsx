@@ -3,10 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateImage } from '@tanstack/ai-react'
 import type { UseGenerateImageReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
-import {
-  generateImageFn,
-  generateImageStreamFn,
-} from '../lib/server-fns'
+import { generateImageFn, generateImageStreamFn } from '../lib/server-fns'
 
 function StreamingImageGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -166,7 +163,9 @@ function ImageGenerationUI({
 }
 
 function ImageGenerationPage() {
-  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>('streaming')
+  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>(
+    'streaming',
+  )
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">

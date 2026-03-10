@@ -171,7 +171,9 @@ function SummarizeUI({
 }
 
 function SummarizePage() {
-  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>('streaming')
+  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>(
+    'streaming',
+  )
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
