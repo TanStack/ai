@@ -85,7 +85,11 @@ async function createElevenLabsConnection(
   // Convert TanStack tool definitions to ElevenLabs clientTools format
   const elevenLabsClientTools: Record<
     string,
-    { handler: (params: unknown) => Promise<string>; description: string; parameters: Record<string, unknown> }
+    {
+      handler: (params: unknown) => Promise<string>
+      description: string
+      parameters: Record<string, unknown>
+    }
   > = {}
 
   if (clientToolDefs) {
@@ -96,7 +100,9 @@ async function createElevenLabsConnection(
             const result = await tool.execute(params)
             return typeof result === 'string' ? result : JSON.stringify(result)
           }
-          return JSON.stringify({ error: `No execute function for tool ${tool.name}` })
+          return JSON.stringify({
+            error: `No execute function for tool ${tool.name}`,
+          })
         },
         description: tool.description,
         parameters: tool.inputSchema
@@ -161,7 +167,9 @@ async function createElevenLabsConnection(
   }
 
   // Start the conversation session
-  conversation = await Conversation.startSession(sessionOptions as Parameters<typeof Conversation.startSession>[0])
+  conversation = await Conversation.startSession(
+    sessionOptions as Parameters<typeof Conversation.startSession>[0],
+  )
 
   // Connection implementation
   const connection: RealtimeConnection = {

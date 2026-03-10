@@ -488,7 +488,10 @@ async function createWebRTCConnection(
         imageData.startsWith('http://') || imageData.startsWith('https://')
       const imageContent = isUrl
         ? { type: 'input_image', image_url: imageData }
-        : { type: 'input_image', image_url: `data:${mimeType};base64,${imageData}` }
+        : {
+            type: 'input_image',
+            image_url: `data:${mimeType};base64,${imageData}`,
+          }
 
       sendEvent({
         type: 'conversation.item.create',
