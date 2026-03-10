@@ -18,9 +18,7 @@ function makeTool(
 
 /** Find the discovery tool from the active tools list */
 function findDiscoveryTool(manager: LazyToolManager): Tool | undefined {
-  return manager
-    .getActiveTools()
-    .find((t) => t.name === DISCOVERY_TOOL_NAME)
+  return manager.getActiveTools().find((t) => t.name === DISCOVERY_TOOL_NAME)
 }
 
 describe('LazyToolManager', () => {
@@ -314,9 +312,7 @@ describe('LazyToolManager', () => {
       ]
 
       // Should not throw
-      expect(
-        () => new LazyToolManager(tools, messages as any),
-      ).not.toThrow()
+      expect(() => new LazyToolManager(tools, messages as any)).not.toThrow()
 
       const manager = new LazyToolManager(tools, messages as any)
       // lazyA should still be undiscovered

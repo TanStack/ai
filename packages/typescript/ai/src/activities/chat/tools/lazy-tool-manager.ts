@@ -77,7 +77,10 @@ export class LazyToolManager {
     }
 
     // Add discovery tool if there are still undiscovered lazy tools
-    if (this.discoveryTool && this.discoveredTools.size < this.lazyToolMap.size) {
+    if (
+      this.discoveryTool &&
+      this.discoveredTools.size < this.lazyToolMap.size
+    ) {
       active.push(this.discoveryTool)
     }
 
@@ -139,14 +142,24 @@ export class LazyToolManager {
 
     // Find corresponding tool result messages
     for (const msg of messages) {
-      if (msg.role === 'tool' && msg.toolCallId && discoveryCallIds.has(msg.toolCallId)) {
+      if (
+        msg.role === 'tool' &&
+        msg.toolCallId &&
+        discoveryCallIds.has(msg.toolCallId)
+      ) {
         try {
           const content =
-            typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+            typeof msg.content === 'string'
+              ? msg.content
+              : JSON.stringify(msg.content)
           const parsed = JSON.parse(content)
           if (parsed && Array.isArray(parsed.tools)) {
             for (const tool of parsed.tools) {
-              if (tool && typeof tool.name === 'string' && this.lazyToolMap.has(tool.name)) {
+              if (
+                tool &&
+                typeof tool.name === 'string' &&
+                this.lazyToolMap.has(tool.name)
+              ) {
                 this.discoveredTools.add(tool.name)
               }
             }
@@ -219,7 +232,9 @@ export class LazyToolManager {
               ...(jsonSchema ? { inputSchema: jsonSchema } : {}),
             })
           } else {
-            errors.push(`Unknown tool: '${name}'. Available tools: [${undiscoveredNames().join(', ')}]`)
+            errors.push(
+              `Unknown tool: '${name}'. Available tools: [${undiscoveredNames().join(', ')}]`,
+            )
           }
         }
 

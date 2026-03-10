@@ -48,18 +48,23 @@ The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
 ### Test Prompts
 
 **Compare guitars** — triggers discovery of `compareGuitars`:
+
 > "Can you compare the Motherboard Guitar and the Racing Guitar for me?"
 
 **Financing** — triggers discovery of `calculateFinancing`:
+
 > "How much would it cost per month if I financed the Superhero Guitar over 12 months?"
 
 **Search** — triggers discovery of `searchGuitars`:
+
 > "Do you have any guitars with LED lights or tech features?"
 
 **Multi-discovery** — triggers discovery of multiple lazy tools at once:
+
 > "I'm looking for acoustic guitars. Can you search for them, then compare the ones you find, and show me financing options for the cheapest one?"
 
 **Self-correction** — the LLM may try calling a lazy tool directly without discovering it first. It will get an error telling it to discover first, then self-correct:
+
 > "Compare guitar 1 and guitar 4 right now"
 
 ### What to watch for

@@ -149,7 +149,9 @@ export const calculateFinancingToolDef = toolDefinition({
   description:
     'Calculate monthly payment plans for a guitar purchase. Supports 6, 12, and 24 month terms.',
   inputSchema: z.object({
-    guitarId: z.number().describe('The ID of the guitar to calculate financing for'),
+    guitarId: z
+      .number()
+      .describe('The ID of the guitar to calculate financing for'),
     months: z
       .number()
       .describe('Number of months for the payment plan (6, 12, or 24)'),
@@ -176,7 +178,8 @@ export const calculateFinancing = calculateFinancingToolDef.server((args) => {
   const monthlyPayment =
     apr === 0
       ? guitar.price / args.months
-      : (guitar.price * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -args.months))
+      : (guitar.price * monthlyRate) /
+        (1 - Math.pow(1 + monthlyRate, -args.months))
 
   return {
     guitarName: guitar.name,
@@ -194,7 +197,11 @@ export const searchGuitarsToolDef = toolDefinition({
   description:
     'Search guitars by keyword in their name or description. Useful for finding guitars matching specific features like "acoustic", "electric", "LED", "vintage", etc.',
   inputSchema: z.object({
-    query: z.string().describe('Search keyword or phrase to match against guitar names and descriptions'),
+    query: z
+      .string()
+      .describe(
+        'Search keyword or phrase to match against guitar names and descriptions',
+      ),
   }),
   outputSchema: z.object({
     results: z.array(

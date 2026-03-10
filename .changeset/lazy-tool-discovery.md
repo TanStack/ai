@@ -1,5 +1,5 @@
 ---
-"@tanstack/ai": minor
+'@tanstack/ai': minor
 ---
 
 feat: Add lazy tool discovery for `chat()`
