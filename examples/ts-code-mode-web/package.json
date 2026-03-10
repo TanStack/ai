@@ -31,7 +31,7 @@
     "framer-motion": "^11.15.0",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.561.0",
-    "md-to-pdf": "^5.2.4",
+    "marked": "^15.0.6",
     "puppeteer": "^24.34.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

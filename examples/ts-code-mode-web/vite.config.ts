@@ -42,7 +42,6 @@ const config = defineConfig({
       'openai',
       // Puppeteer/PDF packages
       'puppeteer',
-      'md-to-pdf',
     ],
   },
   optimizeDeps: {
