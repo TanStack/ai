@@ -420,7 +420,7 @@ class TextEngine<
     const tools = this.tools
 
     // Convert tool schemas to JSON Schema before passing to adapter
-    const toolsWithJsonSchemas = tools?.map((tool) => ({
+    const toolsWithJsonSchemas = tools.map((tool) => ({
       ...tool,
       inputSchema: tool.inputSchema
         ? convertSchemaToJsonSchema(tool.inputSchema)
