@@ -2,7 +2,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { createCodeModeTool } from '../src/create-code-mode-tool'
-import type { IsolateDriver, IsolateContext, ExecutionResult } from '../src/types'
+import type {
+  IsolateDriver,
+  IsolateContext,
+  ExecutionResult,
+} from '../src/types'
 
 function createMockDriver(
   executeResult: ExecutionResult = { success: true, value: 42, logs: [] },
@@ -30,9 +34,9 @@ function createMockTool(name: string) {
 describe('createCodeModeTool', () => {
   it('throws on empty tools array', () => {
     const { driver } = createMockDriver()
-    expect(() =>
-      createCodeModeTool({ driver, tools: [] }),
-    ).toThrow('At least one tool must be provided')
+    expect(() => createCodeModeTool({ driver, tools: [] })).toThrow(
+      'At least one tool must be provided',
+    )
   })
 
   it('returns a tool named execute_typescript', () => {
@@ -152,10 +156,7 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    await tool.execute(
-      { typescriptCode: 'return 1' },
-      { emitCustomEvent },
-    )
+    await tool.execute({ typescriptCode: 'return 1' }, { emitCustomEvent })
 
     expect(emitCustomEvent).toHaveBeenCalledWith(
       'code_mode:execution_started',
@@ -179,10 +180,7 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    await tool.execute(
-      { typescriptCode: 'return null' },
-      { emitCustomEvent },
-    )
+    await tool.execute({ typescriptCode: 'return null' }, { emitCustomEvent })
 
     const consoleEvents = emitCustomEvent.mock.calls.filter(
       (c: any) => c[0] === 'code_mode:console',

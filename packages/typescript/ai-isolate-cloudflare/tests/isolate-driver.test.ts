@@ -98,7 +98,12 @@ describe('createCloudflareIsolateDriver', () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () =>
-          ({ status: 'done', success: true, value: null, logs: [] }) as ExecuteResponse,
+          ({
+            status: 'done',
+            success: true,
+            value: null,
+            logs: [],
+          }) as ExecuteResponse,
       })
 
       const driver = createCloudflareIsolateDriver({
@@ -122,7 +127,12 @@ describe('createCloudflareIsolateDriver', () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () =>
-          ({ status: 'done', success: true, value: null, logs: [] }) as ExecuteResponse,
+          ({
+            status: 'done',
+            success: true,
+            value: null,
+            logs: [],
+          }) as ExecuteResponse,
       })
 
       const driver = createCloudflareIsolateDriver({
@@ -147,7 +157,12 @@ describe('createCloudflareIsolateDriver', () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () =>
-          ({ status: 'done', success: true, value: null, logs: [] }) as ExecuteResponse,
+          ({
+            status: 'done',
+            success: true,
+            value: null,
+            logs: [],
+          }) as ExecuteResponse,
       })
 
       const driver = createCloudflareIsolateDriver({ workerUrl: WORKER_URL })
@@ -173,9 +188,7 @@ describe('createCloudflareIsolateDriver', () => {
         json: async () =>
           ({
             status: 'need_tools',
-            toolCalls: [
-              { id: 'add_1', name: 'add', args: { a: 2, b: 3 } },
-            ],
+            toolCalls: [{ id: 'add_1', name: 'add', args: { a: 2, b: 3 } }],
             logs: ['before add'],
             continuationId: 'cont-1',
           }) as ExecuteResponse,
@@ -198,7 +211,9 @@ describe('createCloudflareIsolateDriver', () => {
         bindings: { add: addBinding },
       })
 
-      const result = await context.execute('const x = await add({ a: 2, b: 3 }); return x')
+      const result = await context.execute(
+        'const x = await add({ a: 2, b: 3 }); return x',
+      )
 
       expect(result.success).toBe(true)
       expect(result.value).toBe(5)
@@ -252,14 +267,22 @@ describe('createCloudflareIsolateDriver', () => {
         bindings: { getA, getB },
       })
 
-      const result = await context.execute('return (await getA({})) + (await getB({}))')
+      const result = await context.execute(
+        'return (await getA({})) + (await getB({}))',
+      )
 
       expect(result.success).toBe(true)
       expect(result.value).toBe('AB')
 
       const body2: ExecuteRequest = JSON.parse(fetchMock.mock.calls[1][1].body)
-      expect(body2.toolResults!['getA_1']).toEqual({ success: true, value: 'A' })
-      expect(body2.toolResults!['getB_1']).toEqual({ success: true, value: 'B' })
+      expect(body2.toolResults!['getA_1']).toEqual({
+        success: true,
+        value: 'A',
+      })
+      expect(body2.toolResults!['getB_1']).toEqual({
+        success: true,
+        value: 'B',
+      })
     })
 
     it('reports tool execution errors in toolResults', async () => {
@@ -424,7 +447,11 @@ describe('createCloudflareIsolateDriver', () => {
           ({
             status: 'done',
             success: false,
-            error: { name: 'SyntaxError', message: 'Unexpected token', stack: '...' },
+            error: {
+              name: 'SyntaxError',
+              message: 'Unexpected token',
+              stack: '...',
+            },
             logs: [],
           }) as ExecuteResponse,
       })

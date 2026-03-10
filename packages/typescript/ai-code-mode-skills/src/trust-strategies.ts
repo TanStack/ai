@@ -14,7 +14,7 @@ export interface TrustStrategy {
    */
   calculateTrustLevel: (
     currentLevel: TrustLevel,
-    stats: SkillStats
+    stats: SkillStats,
   ) => TrustLevel
 }
 
@@ -140,4 +140,3 @@ export function createCustomTrustStrategy(config: {
     },
   }
 }
-

@@ -110,7 +110,7 @@ export function skillsToBindings({
  * but not yet being executed.
  */
 export function skillsToSimpleBindings(
-  skills: Array<Skill>
+  skills: Array<Skill>,
 ): Record<string, ToolBinding> {
   const bindings: Record<string, ToolBinding> = {}
 
@@ -124,7 +124,7 @@ export function skillsToSimpleBindings(
       outputSchema: skill.outputSchema,
       execute: async () => {
         throw new Error(
-          `Skill ${skill.name} is not available for execution in this context`
+          `Skill ${skill.name} is not available for execution in this context`,
         )
       },
     }
@@ -132,4 +132,3 @@ export function skillsToSimpleBindings(
 
   return bindings
 }
-

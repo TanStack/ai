@@ -420,7 +420,11 @@ export function IsolateVMSection({
         className="w-full rounded-lg border border-purple-500/30 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50"
       >
         {options.map((option) => (
-          <option key={option.id} value={option.id} disabled={!option.available}>
+          <option
+            key={option.id}
+            value={option.id}
+            disabled={!option.available}
+          >
             {option.name}
             {!option.available ? ' (coming soon)' : ''}
           </option>
@@ -599,4 +603,3 @@ export default function ToolSidebar({
     </aside>
   )
 }
-

@@ -1,5 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { getReportState, setSSEController, getSSEController } from '@/lib/reports/report-storage'
+import {
+  getReportState,
+  setSSEController,
+  getSSEController,
+} from '@/lib/reports/report-storage'
 
 export const Route = createFileRoute('/_reporting/api/report-sse' as any)({
   server: {
@@ -26,8 +30,9 @@ export const Route = createFileRoute('/_reporting/api/report-sse' as any)({
         // Create SSE stream
         // We need to track this specific controller to avoid race conditions
         // where an old connection closing wipes out a new connection's controller
-        let thisController: ReadableStreamDefaultController<Uint8Array> | null = null
-        
+        let thisController: ReadableStreamDefaultController<Uint8Array> | null =
+          null
+
         const stream = new ReadableStream({
           start(controller) {
             thisController = controller
@@ -56,10 +61,16 @@ export const Route = createFileRoute('/_reporting/api/report-sse' as any)({
               // Only clear the controller if it's still ours
               const currentController = getSSEController(reportId)
               if (currentController === thisController) {
-                console.log('[SSE] Cleaning up controller for reportId:', reportId)
+                console.log(
+                  '[SSE] Cleaning up controller for reportId:',
+                  reportId,
+                )
                 setSSEController(reportId, undefined)
               } else {
-                console.log('[SSE] Skipping cleanup - controller has been replaced for reportId:', reportId)
+                console.log(
+                  '[SSE] Skipping cleanup - controller has been replaced for reportId:',
+                  reportId,
+                )
               }
             })
           },
@@ -70,7 +81,10 @@ export const Route = createFileRoute('/_reporting/api/report-sse' as any)({
               console.log('[SSE] Cancel cleanup for reportId:', reportId)
               setSSEController(reportId, undefined)
             } else {
-              console.log('[SSE] Skipping cancel cleanup - controller has been replaced for reportId:', reportId)
+              console.log(
+                '[SSE] Skipping cancel cleanup - controller has been replaced for reportId:',
+                reportId,
+              )
             }
           },
         })

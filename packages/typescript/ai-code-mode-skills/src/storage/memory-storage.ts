@@ -1,5 +1,10 @@
 import { createDefaultTrustStrategy } from '../trust-strategies'
-import type { Skill, SkillIndexEntry, SkillSearchOptions, SkillStorage } from '../types'
+import type {
+  Skill,
+  SkillIndexEntry,
+  SkillSearchOptions,
+  SkillStorage,
+} from '../types'
 import type { TrustStrategy } from '../trust-strategies'
 
 export interface MemorySkillStorageOptions {
@@ -19,7 +24,7 @@ export interface MemorySkillStorageOptions {
  * In-memory skill storage for testing and demos
  */
 export function createMemorySkillStorage(
-  optionsOrSkills: MemorySkillStorageOptions | Array<Skill> = []
+  optionsOrSkills: MemorySkillStorageOptions | Array<Skill> = [],
 ): SkillStorage {
   const options = Array.isArray(optionsOrSkills)
     ? { initialSkills: optionsOrSkills }
@@ -55,7 +60,7 @@ export function createMemorySkillStorage(
   }
 
   async function save(
-    skill: Omit<Skill, 'createdAt' | 'updatedAt'>
+    skill: Omit<Skill, 'createdAt' | 'updatedAt'>,
   ): Promise<Skill> {
     const now = new Date().toISOString()
     const existing = skills.get(skill.name)
@@ -80,7 +85,7 @@ export function createMemorySkillStorage(
 
   async function search(
     query: string,
-    options: SkillSearchOptions = {}
+    options: SkillSearchOptions = {},
   ): Promise<Array<SkillIndexEntry>> {
     const { limit = 5 } = options
 
@@ -90,11 +95,7 @@ export function createMemorySkillStorage(
 
     const scored = Array.from(skills.values()).map((skill) => {
       let score = 0
-      const searchText = [
-        skill.name,
-        skill.description,
-        ...skill.usageHints,
-      ]
+      const searchText = [skill.name, skill.description, ...skill.usageHints]
         .join(' ')
         .toLowerCase()
 
@@ -138,7 +139,7 @@ export function createMemorySkillStorage(
     // Use trust strategy to calculate new trust level
     const newTrustLevel = trustStrategy.calculateTrustLevel(
       skill.trustLevel,
-      newStats
+      newStats,
     )
 
     skills.set(name, {

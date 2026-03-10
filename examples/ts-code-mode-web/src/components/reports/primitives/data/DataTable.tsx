@@ -6,7 +6,7 @@ import type { DataTableProps, DataTableColumn } from '@/lib/reports/types'
 
 function formatCellValue(
   value: unknown,
-  format?: DataTableColumn['format']
+  format?: DataTableColumn['format'],
 ): string {
   if (value === null || value === undefined) return '-'
 
@@ -55,7 +55,7 @@ export function DataTable({
 }: DataTableProps) {
   const [sortBy, setSortBy] = useState<string | undefined>(initialSortBy)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(
-    initialSortDirection
+    initialSortDirection,
   )
   const [currentPage, setCurrentPage] = useState(0)
 
@@ -127,13 +127,13 @@ export function DataTable({
                   >
                     <div className="flex items-center gap-1">
                       <span>{column.label}</span>
-                      {isSortable && isSorted && (
-                        sortDirection === 'asc' ? (
+                      {isSortable &&
+                        isSorted &&
+                        (sortDirection === 'asc' ? (
                           <ChevronUp className="w-4 h-4" />
                         ) : (
                           <ChevronDown className="w-4 h-4" />
-                        )
-                      )}
+                        ))}
                     </div>
                   </th>
                 )
@@ -164,7 +164,8 @@ export function DataTable({
         <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--report-border)] bg-sky-50/50">
           <span className="text-sm text-[var(--report-text-muted)]">
             Showing {currentPage * pageSize + 1} to{' '}
-            {Math.min((currentPage + 1) * pageSize, rows.length)} of {rows.length}
+            {Math.min((currentPage + 1) * pageSize, rows.length)} of{' '}
+            {rows.length}
           </span>
           <div className="flex items-center gap-2">
             <button

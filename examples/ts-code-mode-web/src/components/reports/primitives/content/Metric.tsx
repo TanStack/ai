@@ -12,7 +12,7 @@ function formatValue(
   value: number | string,
   format: MetricProps['format'],
   prefix?: string,
-  suffix?: string
+  suffix?: string,
 ): string {
   if (typeof value === 'string') {
     return `${prefix || ''}${value}${suffix || ''}`
@@ -60,7 +60,7 @@ function formatValue(
 
 function getTrendDirection(
   trend?: string,
-  explicitDirection?: MetricProps['trendDirection']
+  explicitDirection?: MetricProps['trendDirection'],
 ): 'up' | 'down' | 'neutral' {
   if (explicitDirection) return explicitDirection
   if (!trend) return 'neutral'
@@ -108,7 +108,9 @@ export function Metric({
           {formatValue(value, format, prefix, suffix)}
         </span>
         {trend && (
-          <span className={`flex items-center gap-1 text-sm ${trendColorClass}`}>
+          <span
+            className={`flex items-center gap-1 text-sm ${trendColorClass}`}
+          >
             <TrendIcon className="w-4 h-4" />
             {trend}
           </span>

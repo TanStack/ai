@@ -1,5 +1,16 @@
-import type { Report, ReportState, SignalRegistry, UIEvent, UIUpdate, WatcherSubscription } from './types'
-import { applyUIEvent, applyUIUpdates, createEmptyReportState } from './apply-event'
+import type {
+  Report,
+  ReportState,
+  SignalRegistry,
+  UIEvent,
+  UIUpdate,
+  WatcherSubscription,
+} from './types'
+import {
+  applyUIEvent,
+  applyUIUpdates,
+  createEmptyReportState,
+} from './apply-event'
 import { createSignalRegistry } from './signal-registry'
 
 /**
@@ -96,7 +107,7 @@ export function getWatchersForSignal(
 ): WatcherSubscription[] {
   const state = reportStateStore.get(reportId)
   if (!state) return []
-  
+
   const watchers: WatcherSubscription[] = []
   for (const watcher of state.watchers.values()) {
     if (watcher.signals.includes(signal) && !watcher.fired) {

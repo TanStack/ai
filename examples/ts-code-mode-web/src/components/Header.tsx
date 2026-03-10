@@ -34,9 +34,7 @@ export default function Header({ children }: HeaderProps) {
             <Link to="/">TanStack AI Code Mode Demo</Link>
           </h1>
         </div>
-        <div className="ml-auto flex items-center gap-3">
-          {children}
-        </div>
+        <div className="ml-auto flex items-center gap-3">{children}</div>
       </header>
 
       <aside

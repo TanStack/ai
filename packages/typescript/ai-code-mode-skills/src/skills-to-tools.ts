@@ -1,8 +1,16 @@
 import { toolDefinition } from '@tanstack/ai'
-import { createEventAwareBindings, stripTypeScript, toolsToBindings } from '@tanstack/ai-code-mode'
+import {
+  createEventAwareBindings,
+  stripTypeScript,
+  toolsToBindings,
+} from '@tanstack/ai-code-mode'
 import { z } from 'zod'
 import type { ServerTool, ToolExecutionContext } from '@tanstack/ai'
-import type { CodeModeTool, IsolateDriver, ToolBinding } from '@tanstack/ai-code-mode'
+import type {
+  CodeModeTool,
+  IsolateDriver,
+  ToolBinding,
+} from '@tanstack/ai-code-mode'
 import type { Skill, SkillStorage } from './types'
 
 /**
@@ -194,8 +202,14 @@ export function skillToTool({
       )
 
       // Create event-aware bindings
-      const eventAwareBindings = createEventAwareBindings(bindings, emitCustomEvent)
-      console.log(`[Skill:${skill.name}] Event-aware bindings:`, Object.keys(eventAwareBindings))
+      const eventAwareBindings = createEventAwareBindings(
+        bindings,
+        emitCustomEvent,
+      )
+      console.log(
+        `[Skill:${skill.name}] Event-aware bindings:`,
+        Object.keys(eventAwareBindings),
+      )
 
       // Create sandbox context
       console.log(`[Skill:${skill.name}] Creating sandbox context...`)
@@ -219,8 +233,13 @@ export function skillToTool({
       const duration = Date.now() - startTime
 
       if (!executionResult.success) {
-        console.error(`[Skill:${skill.name}] Execution failed:`, executionResult.error)
-        throw new Error(executionResult.error?.message || 'Skill execution failed')
+        console.error(
+          `[Skill:${skill.name}] Execution failed:`,
+          executionResult.error,
+        )
+        throw new Error(
+          executionResult.error?.message || 'Skill execution failed',
+        )
       }
 
       // Emit success event

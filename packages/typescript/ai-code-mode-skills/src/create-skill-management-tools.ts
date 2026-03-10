@@ -59,7 +59,8 @@ export function createSkillManagementTools({
     trustStrategy ?? storage.trustStrategy ?? createDefaultTrustStrategy()
 
   // Compute bindings if not provided but config is available
-  const bindings = baseBindings ?? (config ? toolsToBindings(config.tools, 'external_') : {})
+  const bindings =
+    baseBindings ?? (config ? toolsToBindings(config.tools, 'external_') : {})
   return [
     // Search for skills
     toolDefinition({
@@ -82,7 +83,7 @@ export function createSkillManagementTools({
           description: z.string(),
           usageHints: z.array(z.string()),
           trustLevel: z.enum(['untrusted', 'provisional', 'trusted']),
-        })
+        }),
       ),
     }).server(async ({ query, limit }) => {
       const results = await storage.search(query, { limit: limit ?? 5 })
@@ -147,31 +148,33 @@ export function createSkillManagementTools({
           .string()
           .regex(
             /^[a-z][a-z0-9_]*$/,
-            'Must be snake_case starting with a letter'
+            'Must be snake_case starting with a letter',
           )
-          .describe('Unique skill name in snake_case (e.g., fetch_github_stats)'),
+          .describe(
+            'Unique skill name in snake_case (e.g., fetch_github_stats)',
+          ),
         description: z
           .string()
           .describe('Clear description of what the skill does'),
         code: z
           .string()
           .describe(
-            'The TypeScript code. Receives `input` variable, can call external_* and skill_* functions, should return a value.'
+            'The TypeScript code. Receives `input` variable, can call external_* and skill_* functions, should return a value.',
           ),
         inputSchema: z
           .string()
           .describe(
-            'JSON Schema as a JSON string describing the input parameter, e.g. {"type":"object","properties":{"a":{"type":"number"}},"required":["a"]}'
+            'JSON Schema as a JSON string describing the input parameter, e.g. {"type":"object","properties":{"a":{"type":"number"}},"required":["a"]}',
           ),
         outputSchema: z
           .string()
           .describe(
-            'JSON Schema as a JSON string describing the return value, e.g. {"type":"object","properties":{"result":{"type":"number"}}}'
+            'JSON Schema as a JSON string describing the return value, e.g. {"type":"object","properties":{"result":{"type":"number"}}}',
           ),
         usageHints: z
           .array(z.string())
           .describe(
-            'Hints about when to use this skill, e.g. "Use when user asks about..."'
+            'Hints about when to use this skill, e.g. "Use when user asks about..."',
           ),
         dependsOn: z
           .array(z.string())
@@ -263,7 +266,9 @@ export function createSkillManagementTools({
             memoryLimit: config.memoryLimit,
           })
           registry.add(skillTool)
-          console.log(`[register_skill] Added skill '${skill.name}' to registry immediately`)
+          console.log(
+            `[register_skill] Added skill '${skill.name}' to registry immediately`,
+          )
         }
 
         // Emit event for UI notification
@@ -289,4 +294,3 @@ export function createSkillManagementTools({
     }),
   ]
 }
-

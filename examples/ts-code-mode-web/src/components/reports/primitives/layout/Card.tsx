@@ -21,13 +21,11 @@ export function Card({
   children,
 }: CardProps) {
   const hasHeader = title || subtitle
-  
+
   // When there's a header, we need separate sections for header and content
   if (hasHeader) {
     return (
-      <div
-        className={`rounded-lg overflow-hidden ${variantClasses[variant]}`}
-      >
+      <div className={`rounded-lg overflow-hidden ${variantClasses[variant]}`}>
         <div className="px-4 py-3 bg-gradient-to-r from-sky-100/60 to-sky-50/40 border-b border-sky-200/50">
           {title && (
             <h3 className="text-lg font-semibold text-[var(--report-text)]">
@@ -40,13 +38,11 @@ export function Card({
             </p>
           )}
         </div>
-        <div className={paddingClasses[padding]}>
-          {children}
-        </div>
+        <div className={paddingClasses[padding]}>{children}</div>
       </div>
     )
   }
-  
+
   // No header - simpler structure with padding on outer div
   return (
     <div

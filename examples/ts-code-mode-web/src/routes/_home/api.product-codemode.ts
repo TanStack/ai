@@ -27,9 +27,7 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
       return geminiText((model || 'gemini-2.5-flash') as 'gemini-2.5-flash')
     case 'anthropic':
     default:
-      return anthropicText(
-        (model || 'claude-haiku-4-5') as 'claude-haiku-4-5',
-      )
+      return anthropicText((model || 'claude-haiku-4-5') as 'claude-haiku-4-5')
   }
 }
 
@@ -83,7 +81,9 @@ const skillStorage = createFileSkillStorage({
   trustStrategy,
 })
 
-let skillManagementToolsCache: ReturnType<typeof createSkillManagementTools> | null = null
+let skillManagementToolsCache: ReturnType<
+  typeof createSkillManagementTools
+> | null = null
 
 function getSkillManagementTools() {
   if (!skillManagementToolsCache) {
@@ -161,9 +161,7 @@ function instrumentAdapter(adapter: AnyTextAdapter): {
       }
       totalContextBytes += contextBytes
       const averageContextBytes =
-        llmCallCount > 0
-          ? Math.round(totalContextBytes / llmCallCount)
-          : 0
+        llmCallCount > 0 ? Math.round(totalContextBytes / llmCallCount) : 0
       const stream = baseChatStream(options)
       async function* instrumentedStream(): AsyncGenerator<StreamChunk> {
         yield {
@@ -243,16 +241,24 @@ export const Route = createFileRoute('/_home/api/product-codemode')({
         const { adapter: instrumentedAdapter } = instrumentAdapter(rawAdapter)
 
         try {
-          const { tool: codeModeTool, systemPrompt: codeModePrompt, driver } =
-            await getCodeModeTools()
+          const {
+            tool: codeModeTool,
+            systemPrompt: codeModePrompt,
+            driver,
+          } = await getCodeModeTools()
 
           let tools: Array<ServerTool<any, any, any>> = [codeModeTool]
           let systemPrompts = [PRODUCT_CODE_MODE_SYSTEM_PROMPT, codeModePrompt]
 
           if (withSkills) {
-            const { skillTools, skillsPrompt } = await getSkillToolsAndPrompt(driver)
+            const { skillTools, skillsPrompt } =
+              await getSkillToolsAndPrompt(driver)
             tools = [codeModeTool, ...getSkillManagementTools(), ...skillTools]
-            systemPrompts = [PRODUCT_CODE_MODE_SYSTEM_PROMPT, codeModePrompt, skillsPrompt]
+            systemPrompts = [
+              PRODUCT_CODE_MODE_SYSTEM_PROMPT,
+              codeModePrompt,
+              skillsPrompt,
+            ]
           }
 
           const stream = chat({

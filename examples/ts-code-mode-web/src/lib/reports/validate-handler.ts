@@ -20,8 +20,14 @@ export async function validateHandler(
   // in the isolate which will catch any actual errors.
   const syntaxChecks = [
     { pattern: /^\s*$/, error: 'Handler code cannot be empty' },
-    { pattern: /import\s+/, error: 'import statements are not allowed in handlers' },
-    { pattern: /export\s+/, error: 'export statements are not allowed in handlers' },
+    {
+      pattern: /import\s+/,
+      error: 'import statements are not allowed in handlers',
+    },
+    {
+      pattern: /export\s+/,
+      error: 'export statements are not allowed in handlers',
+    },
   ]
 
   for (const check of syntaxChecks) {

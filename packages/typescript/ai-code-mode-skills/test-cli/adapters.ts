@@ -30,7 +30,8 @@ export interface AdapterDefinition {
 
 // Model defaults from environment or sensible defaults
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o'
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514'
+const ANTHROPIC_MODEL =
+  process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514'
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
 
 /**

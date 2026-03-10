@@ -15,7 +15,11 @@ pnpm add @tanstack/ai-code-mode-skills
 ## Usage
 
 ```typescript
-import { codeModeWithSkills, createFileSkillStorage, createAlwaysTrustedStrategy } from '@tanstack/ai-code-mode-skills'
+import {
+  codeModeWithSkills,
+  createFileSkillStorage,
+  createAlwaysTrustedStrategy,
+} from '@tanstack/ai-code-mode-skills'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 
 // Create skill storage
@@ -27,7 +31,7 @@ const skillStorage = createFileSkillStorage({
 // Create code mode config
 const codeModeConfig = {
   driver: createNodeIsolateDriver(),
-  tools: allTools,  // Your external tools
+  tools: allTools, // Your external tools
   timeout: 60000,
   memoryLimit: 128,
 }
@@ -35,7 +39,7 @@ const codeModeConfig = {
 // Get tools and system prompt with skills
 const { tools, systemPrompt, selectedSkills } = await codeModeWithSkills({
   config: codeModeConfig,
-  adapter: anthropic('claude-3-haiku'),  // Cheap model for skill selection
+  adapter: anthropic('claude-3-haiku'), // Cheap model for skill selection
   skills: {
     storage: skillStorage,
     maxSkillsInContext: 5,
@@ -45,7 +49,7 @@ const { tools, systemPrompt, selectedSkills } = await codeModeWithSkills({
 
 // Use in chat
 const stream = chat({
-  adapter: anthropic('claude-sonnet-4-20250514'),  // Main model
+  adapter: anthropic('claude-sonnet-4-20250514'), // Main model
   tools,
   messages,
   systemPrompts: [basePrompt, systemPrompt],
@@ -78,6 +82,7 @@ The live test uses a real LLM (OpenAI or Anthropic) to verify the skills flow wi
 #### Setup
 
 1. Copy the environment example file:
+
    ```bash
    cp test-cli/env.example test-cli/.env.local
    ```
@@ -130,6 +135,7 @@ Options:
 Creates Code Mode tools and system prompt with skills integration.
 
 **Options:**
+
 - `config` - Code Mode tool configuration (driver, tools, timeout, memoryLimit)
 - `adapter` - Text adapter for skill selection (should be a cheap/fast model)
 - `skills.storage` - Skill storage implementation
@@ -138,6 +144,7 @@ Creates Code Mode tools and system prompt with skills integration.
 - `skillsAsTools` - Whether to include skills as direct tools (default: true)
 
 **Returns:**
+
 - `tools` - Array of tools including execute_typescript, skill management, and skill tools
 - `systemPrompt` - System prompt documenting available skills and external functions
 - `selectedSkills` - Skills that were selected for this request
@@ -147,6 +154,7 @@ Creates Code Mode tools and system prompt with skills integration.
 #### `createFileSkillStorage(options)`
 
 Git-friendly file-based storage:
+
 ```
 .skills/
 ├── compare_react_state_libraries/
@@ -165,13 +173,14 @@ In-memory storage for testing.
 
 Skills track execution success and promote trust levels over time:
 
-| Trust Level | Description |
-|-------------|-------------|
-| `untrusted` | Newly created, not yet proven |
-| `provisional` | 10+ executions with ≥90% success |
-| `trusted` | 100+ executions with ≥95% success |
+| Trust Level   | Description                       |
+| ------------- | --------------------------------- |
+| `untrusted`   | Newly created, not yet proven     |
+| `provisional` | 10+ executions with ≥90% success  |
+| `trusted`     | 100+ executions with ≥95% success |
 
 Available strategies:
+
 - `createDefaultTrustStrategy()` - Earn trust through successful executions
 - `createAlwaysTrustedStrategy()` - Trust immediately (dev/testing)
 - `createRelaxedTrustStrategy()` - Faster promotion
@@ -180,4 +189,3 @@ Available strategies:
 ## License
 
 MIT
-

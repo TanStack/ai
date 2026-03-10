@@ -268,9 +268,15 @@ function VersusStats({
                 ? null
                 : (rightStats.toolCallsByName[toolName] ?? 0)
             const leftWins =
-              rightVal !== null && leftVal > 0 && rightVal > 0 && leftVal < rightVal
+              rightVal !== null &&
+              leftVal > 0 &&
+              rightVal > 0 &&
+              leftVal < rightVal
             const rightWins =
-              rightVal !== null && leftVal > 0 && rightVal > 0 && rightVal < leftVal
+              rightVal !== null &&
+              leftVal > 0 &&
+              rightVal > 0 &&
+              rightVal < leftVal
             return (
               <div
                 key={toolName}

@@ -64,7 +64,9 @@ export const Route = createFileRoute('/_home/api/skills')({
 
           if (deleteAll) {
             const skillIndex = await skillStorage.loadIndex()
-            await Promise.all(skillIndex.map((skill) => skillStorage.delete(skill.name)))
+            await Promise.all(
+              skillIndex.map((skill) => skillStorage.delete(skill.name)),
+            )
             return new Response(
               JSON.stringify({ success: true, deleted: skillIndex.length }),
               {

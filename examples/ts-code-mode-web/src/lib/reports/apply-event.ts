@@ -1,4 +1,11 @@
-import type { RefreshResult, Report, UINode, UIEvent, ReportState, UIUpdate } from './types'
+import type {
+  RefreshResult,
+  Report,
+  UINode,
+  UIEvent,
+  ReportState,
+  UIUpdate,
+} from './types'
 
 /**
  * Apply a UIEvent to a ReportState, returning a new immutable state.
@@ -64,7 +71,7 @@ export function applyUIEvent(state: ReportState, event: UIEvent): ReportState {
       // Remove from parent's children
       newNodes.forEach((node, id) => {
         const filtered = node.children.filter(
-          (childId) => !toRemove.has(childId)
+          (childId) => !toRemove.has(childId),
         )
         if (filtered.length !== node.children.length) {
           newNodes.set(id, { ...node, children: filtered })

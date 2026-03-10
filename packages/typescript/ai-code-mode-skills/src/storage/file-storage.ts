@@ -2,7 +2,12 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { createDefaultTrustStrategy } from '../trust-strategies'
-import type { Skill, SkillIndexEntry, SkillSearchOptions, SkillStorage } from '../types'
+import type {
+  Skill,
+  SkillIndexEntry,
+  SkillSearchOptions,
+  SkillStorage,
+} from '../types'
 import type { TrustStrategy } from '../trust-strategies'
 
 export interface FileSkillStorageOptions {
@@ -32,7 +37,7 @@ export interface FileSkillStorageOptions {
  *       code.ts
  */
 export function createFileSkillStorage(
-  directoryOrOptions: string | FileSkillStorageOptions
+  directoryOrOptions: string | FileSkillStorageOptions,
 ): SkillStorage {
   const options =
     typeof directoryOrOptions === 'string'
@@ -41,7 +46,7 @@ export function createFileSkillStorage(
 
   const { directory, trustStrategy = createDefaultTrustStrategy() } = options
   const indexPath = join(directory, '_index.json')
-  
+
   console.log('[FileSkillStorage] Initialized with directory:', directory)
 
   async function ensureDirectory(): Promise<void> {
@@ -99,7 +104,7 @@ export function createFileSkillStorage(
   }
 
   async function save(
-    skill: Omit<Skill, 'createdAt' | 'updatedAt'>
+    skill: Omit<Skill, 'createdAt' | 'updatedAt'>,
   ): Promise<Skill> {
     await ensureDirectory()
 
@@ -166,7 +171,7 @@ export function createFileSkillStorage(
 
   async function search(
     query: string,
-    options: SkillSearchOptions = {}
+    options: SkillSearchOptions = {},
   ): Promise<Array<SkillIndexEntry>> {
     const { limit = 5 } = options
     const index = await loadIndex()
@@ -177,11 +182,7 @@ export function createFileSkillStorage(
 
     const scored = index.map((skill) => {
       let score = 0
-      const searchText = [
-        skill.name,
-        skill.description,
-        ...skill.usageHints,
-      ]
+      const searchText = [skill.name, skill.description, ...skill.usageHints]
         .join(' ')
         .toLowerCase()
 
@@ -219,7 +220,7 @@ export function createFileSkillStorage(
     // Use trust strategy to calculate new trust level
     const newTrustLevel = trustStrategy.calculateTrustLevel(
       skill.trustLevel,
-      newStats
+      newStats,
     )
 
     await save({
@@ -240,4 +241,3 @@ export function createFileSkillStorage(
     trustStrategy,
   }
 }
-

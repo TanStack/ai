@@ -18,7 +18,11 @@ const mockExecutionContext = {
 
 describe('generateToolWrappers', () => {
   const tools: Array<ToolSchema> = [
-    { name: 'add', description: 'Add numbers', inputSchema: { type: 'object' } },
+    {
+      name: 'add',
+      description: 'Add numbers',
+      inputSchema: { type: 'object' },
+    },
     { name: 'fetchData', description: 'Fetch data', inputSchema: {} },
   ]
 
@@ -33,8 +37,8 @@ describe('generateToolWrappers', () => {
 
   it('generates second-pass wrappers that return cached results when toolResults is provided', () => {
     const toolResults: Record<string, ToolResultPayload> = {
-      'add_1': { success: true, value: 5 },
-      'fetchData_1': { success: false, error: 'Failed' },
+      add_1: { success: true, value: 5 },
+      fetchData_1: { success: false, error: 'Failed' },
     }
     const code = generateToolWrappers(tools, toolResults)
     expect(code).toContain('async function add(input)')
@@ -56,14 +60,14 @@ describe('wrapCode', () => {
     expect(wrapped).toContain('const __pendingToolCalls = []')
     expect(wrapped).toContain('const __toolResults = {}')
     expect(wrapped).toContain('return 1 + 1')
-    expect(wrapped).toContain('status: \'done\'')
-    expect(wrapped).toContain('status: \'need_tools\'')
+    expect(wrapped).toContain("status: 'done'")
+    expect(wrapped).toContain("status: 'need_tools'")
     expect(wrapped).toContain('async function greet(input)')
   })
 
   it('includes toolResults JSON when toolResults provided', () => {
     const toolResults: Record<string, ToolResultPayload> = {
-      'greet_1': { success: true, value: 'Hi' },
+      greet_1: { success: true, value: 'Hi' },
     }
     const wrapped = wrapCode('return await greet({})', tools, toolResults)
     expect(wrapped).toContain('"greet_1"')
@@ -86,7 +90,9 @@ describe('Worker fetch handler', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
-    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('POST')
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+      'POST',
+    )
     expect(response.headers.get('Access-Control-Allow-Headers')).toContain(
       'Content-Type',
     )

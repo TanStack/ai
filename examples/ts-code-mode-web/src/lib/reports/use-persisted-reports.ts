@@ -22,7 +22,7 @@ interface ReportsStorage {
 // Debounce helper
 function debounce<T extends (...args: never[]) => void>(
   fn: T,
-  delay: number
+  delay: number,
 ): T & { cancel: () => void } {
   let timeoutId: ReturnType<typeof setTimeout> | null = null
 
@@ -82,7 +82,7 @@ export function usePersistedReports() {
               report,
               nodes: Array.from(nodes.entries()),
               rootIds,
-            })
+            }),
           ),
           activeReportId,
           version: STORAGE_VERSION,
@@ -111,7 +111,7 @@ export function usePersistedReports() {
         setActiveReportId(report.id)
       }
     },
-    []
+    [],
   )
 
   // Delete a report
@@ -126,27 +126,24 @@ export function usePersistedReports() {
         setActiveReportId(null)
       }
     },
-    [activeReportId]
+    [activeReportId],
   )
 
   // Apply a UI event to a specific report
-  const dispatchUIEvent = useCallback(
-    (reportId: string, event: UIEvent) => {
-      setReports((prev) => {
-        const reportState = prev.get(reportId)
-        if (!reportState) {
-          console.warn(`Report "${reportId}" not found`)
-          return prev
-        }
+  const dispatchUIEvent = useCallback((reportId: string, event: UIEvent) => {
+    setReports((prev) => {
+      const reportState = prev.get(reportId)
+      if (!reportState) {
+        console.warn(`Report "${reportId}" not found`)
+        return prev
+      }
 
-        const newState = applyUIEvent(reportState, event)
-        const newMap = new Map(prev)
-        newMap.set(reportId, newState)
-        return newMap
-      })
-    },
-    []
-  )
+      const newState = applyUIEvent(reportState, event)
+      const newMap = new Map(prev)
+      newMap.set(reportId, newState)
+      return newMap
+    })
+  }, [])
 
   // Clear all reports
   const clearAll = useCallback(() => {

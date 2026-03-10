@@ -78,7 +78,8 @@ export function ReportsList({
                       {reportState.report.title}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {componentCount} component{componentCount !== 1 ? 's' : ''}
+                      {componentCount} component
+                      {componentCount !== 1 ? 's' : ''}
                     </p>
                   </div>
                   {onDeleteReport && (

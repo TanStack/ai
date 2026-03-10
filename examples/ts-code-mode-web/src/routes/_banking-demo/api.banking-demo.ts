@@ -21,9 +21,7 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
       return geminiText((model || 'gemini-2.5-flash') as 'gemini-2.5-flash')
     case 'anthropic':
     default:
-      return anthropicText(
-        (model || 'claude-haiku-4-5') as 'claude-haiku-4-5'
-      )
+      return anthropicText((model || 'claude-haiku-4-5') as 'claude-haiku-4-5')
   }
 }
 
@@ -179,7 +177,10 @@ You can add new components to the root level or nest them inside existing contai
 `
 
 // Lazy initialization
-let codeModeCache: { tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']; systemPrompt: string } | null = null
+let codeModeCache: {
+  tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
+  systemPrompt: string
+} | null = null
 
 async function getCodeModeTools() {
   if (!codeModeCache) {
@@ -218,7 +219,7 @@ export const Route = createFileRoute('/_banking-demo/api/banking-demo' as any)({
 
         // Filter out report creation tools - we don't want the LLM to create new reports
         const filteredReportTools = reportTools.filter(
-          (t) => t.name !== 'new_report' && t.name !== 'delete_report'
+          (t) => t.name !== 'new_report' && t.name !== 'delete_report',
         )
 
         try {
@@ -263,7 +264,7 @@ export const Route = createFileRoute('/_banking-demo/api/banking-demo' as any)({
             {
               status: 500,
               headers: { 'Content-Type': 'application/json' },
-            }
+            },
           )
         }
       },

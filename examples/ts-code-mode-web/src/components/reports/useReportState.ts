@@ -23,10 +23,10 @@ interface UseReportStateReturn {
 }
 
 export function useReportState(
-  options?: UseReportStateOptions
+  options?: UseReportStateOptions,
 ): UseReportStateReturn {
   const [report, setReport] = useState<Report | null>(
-    options?.initialReport ?? null
+    options?.initialReport ?? null,
   )
   const [nodes, setNodes] = useState<Map<string, UINode>>(new Map())
   const [rootIds, setRootIds] = useState<string[]>([])
@@ -119,7 +119,7 @@ export function useReportState(
               newMap.set(id, {
                 ...node,
                 children: node.children.filter(
-                  (childId) => !toRemove.has(childId)
+                  (childId) => !toRemove.has(childId),
                 ),
               })
             }
@@ -171,7 +171,7 @@ export function useReportState(
     (id: string) => {
       return nodes.get(id)
     },
-    [nodes]
+    [nodes],
   )
 
   const getChildren = useCallback(
@@ -182,7 +182,7 @@ export function useReportState(
         .map((childId) => nodes.get(childId))
         .filter((node): node is UINode => node !== undefined)
     },
-    [nodes]
+    [nodes],
   )
 
   const getRootNodes = useCallback((): UINode[] => {
@@ -213,6 +213,6 @@ export function useReportState(
       getNode,
       getChildren,
       getRootNodes,
-    ]
+    ],
   )
 }

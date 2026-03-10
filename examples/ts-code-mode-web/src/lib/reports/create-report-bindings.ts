@@ -6,16 +6,28 @@ import {
   type ToolExecutionContext,
 } from '@tanstack/ai-code-mode'
 import type { UIEvent, ComponentType, WatcherSubscription } from './types'
-import { applyReportUIEvent, getSignalRegistry, addWatcher, removeWatcher, getAllWatchers } from './report-storage'
+import {
+  applyReportUIEvent,
+  getSignalRegistry,
+  addWatcher,
+  removeWatcher,
+  getAllWatchers,
+} from './report-storage'
 import { createHandlerBindings } from './create-handler-bindings'
 
 // Common schemas for subscription support
-const subscriptionsSchema = z.array(z.string()).optional().describe(
-  'Signal names this component subscribes to (e.g., ["balances", "transactions"])',
-)
-const dataSourceSchema = z.string().optional().describe(
-  'TypeScript code that fetches data and returns props to merge (e.g., "const b = await external_get_balances(); return { value: b.checking }")',
-)
+const subscriptionsSchema = z
+  .array(z.string())
+  .optional()
+  .describe(
+    'Signal names this component subscribes to (e.g., ["balances", "transactions"])',
+  )
+const dataSourceSchema = z
+  .string()
+  .optional()
+  .describe(
+    'TypeScript code that fetches data and returns props to merge (e.g., "const b = await external_get_balances(); return { value: b.checking }")',
+  )
 
 /**
  * Helper to create a ToolBinding that emits a report:ui event
@@ -24,28 +36,31 @@ function createReportBinding<T extends z.ZodType>(
   name: string,
   description: string,
   inputSchema: T,
-  createEvent: (input: z.infer<T>) => UIEvent
+  createEvent: (input: z.infer<T>) => UIEvent,
 ): ToolBinding {
   return {
     name,
     description,
-    inputSchema: convertSchemaToJsonSchema(inputSchema) || { type: 'object', properties: {} },
+    inputSchema: convertSchemaToJsonSchema(inputSchema) || {
+      type: 'object',
+      properties: {},
+    },
     outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean() })),
     execute: async (args: unknown, context?: ToolExecutionContext) => {
       const parsed = inputSchema.parse(args)
       const event = createEvent(parsed)
       const emitCustomEvent = context?.emitCustomEvent || (() => {})
-      
+
       // Extract reportId from the parsed input
       const reportId = (parsed as { reportId: string }).reportId
-      
+
       emitCustomEvent('report:ui', {
         reportId,
         event,
       })
 
       applyReportUIEvent(reportId, event)
-      
+
       return { success: true }
     },
   }
@@ -59,15 +74,11 @@ function generateId(prefix: string): string {
 }
 
 // Common schemas - using .catch() to gracefully handle invalid values from stored skills
-const gapSchema = z
-  .enum(['none', 'xs', 'sm', 'md', 'lg', 'xl'])
-  .catch('md')
+const gapSchema = z.enum(['none', 'xs', 'sm', 'md', 'lg', 'xl']).catch('md')
 const alignSchema = z
   .enum(['start', 'center', 'end', 'stretch'])
   .catch('stretch')
-const paddingSchema = z
-  .enum(['none', 'sm', 'md', 'lg'])
-  .catch('md')
+const paddingSchema = z.enum(['none', 'sm', 'md', 'lg']).catch('md')
 
 const buttonVariantSchema = z
   .enum(['primary', 'secondary', 'danger', 'ghost'])
@@ -89,7 +100,12 @@ const vboxBinding = createReportBinding(
   z.object({
     reportId: z.string().describe('ID of the report to add to'),
     id: z.string().describe('Unique ID for this component'),
-    parentId: z.string().optional().describe('Parent component ID (optional, adds to root if not specified)'),
+    parentId: z
+      .string()
+      .optional()
+      .describe(
+        'Parent component ID (optional, adds to root if not specified)',
+      ),
     gap: gapSchema.describe('Gap between children'),
     align: alignSchema.describe('Cross-axis alignment'),
     padding: paddingSchema.describe('Internal padding'),
@@ -104,7 +120,7 @@ const vboxBinding = createReportBinding(
       align: input.align,
       padding: input.padding,
     },
-  })
+  }),
 )
 
 const hboxBinding = createReportBinding(
@@ -116,8 +132,17 @@ const hboxBinding = createReportBinding(
     parentId: z.string().optional().describe('Parent component ID'),
     gap: gapSchema.describe('Gap between children'),
     align: alignSchema.describe('Cross-axis alignment'),
-    justify: z.enum(['start', 'center', 'end', 'between', 'around']).catch('start').describe('Main-axis alignment. Must be one of: start, center, end, between, around'),
-    wrap: z.boolean().optional().default(false).describe('Whether to wrap children'),
+    justify: z
+      .enum(['start', 'center', 'end', 'between', 'around'])
+      .catch('start')
+      .describe(
+        'Main-axis alignment. Must be one of: start, center, end, between, around',
+      ),
+    wrap: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Whether to wrap children'),
   }),
   (input) => ({
     op: 'add' as const,
@@ -130,7 +155,7 @@ const hboxBinding = createReportBinding(
       justify: input.justify,
       wrap: input.wrap,
     },
-  })
+  }),
 )
 
 const gridBinding = createReportBinding(
@@ -140,10 +165,18 @@ const gridBinding = createReportBinding(
     reportId: z.string().describe('ID of the report to add to'),
     id: z.string().describe('Unique ID for this component'),
     parentId: z.string().optional().describe('Parent component ID'),
-    cols: z.union([
-      z.number(),
-      z.object({ sm: z.number().optional(), md: z.number().optional(), lg: z.number().optional() }),
-    ]).optional().default(3).describe('Number of columns or responsive breakpoints'),
+    cols: z
+      .union([
+        z.number(),
+        z.object({
+          sm: z.number().optional(),
+          md: z.number().optional(),
+          lg: z.number().optional(),
+        }),
+      ])
+      .optional()
+      .default(3)
+      .describe('Number of columns or responsive breakpoints'),
     gap: gapSchema.describe('Gap between grid items'),
   }),
   (input) => ({
@@ -155,7 +188,7 @@ const gridBinding = createReportBinding(
       cols: input.cols,
       gap: input.gap,
     },
-  })
+  }),
 )
 
 const cardBinding = createReportBinding(
@@ -167,7 +200,12 @@ const cardBinding = createReportBinding(
     parentId: z.string().optional().describe('Parent component ID'),
     title: z.string().optional().describe('Card title'),
     subtitle: z.string().optional().describe('Card subtitle'),
-    variant: z.enum(['default', 'outlined', 'elevated']).catch('default').describe('Card style variant. Must be one of: default, outlined, elevated'),
+    variant: z
+      .enum(['default', 'outlined', 'elevated'])
+      .catch('default')
+      .describe(
+        'Card style variant. Must be one of: default, outlined, elevated',
+      ),
     padding: paddingSchema.describe('Internal padding'),
   }),
   (input) => ({
@@ -181,7 +219,7 @@ const cardBinding = createReportBinding(
       variant: input.variant,
       padding: input.padding,
     },
-  })
+  }),
 )
 
 const sectionBinding = createReportBinding(
@@ -192,8 +230,16 @@ const sectionBinding = createReportBinding(
     id: z.string().describe('Unique ID for this component'),
     parentId: z.string().optional().describe('Parent component ID'),
     title: z.string().describe('Section title'),
-    defaultOpen: z.boolean().optional().default(true).describe('Whether section is initially open'),
-    collapsible: z.boolean().optional().default(true).describe('Whether section can be collapsed'),
+    defaultOpen: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('Whether section is initially open'),
+    collapsible: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('Whether section can be collapsed'),
   }),
   (input) => ({
     op: 'add' as const,
@@ -205,7 +251,7 @@ const sectionBinding = createReportBinding(
       defaultOpen: input.defaultOpen,
       collapsible: input.collapsible,
     },
-  })
+  }),
 )
 
 // ============================================================================
@@ -217,12 +263,28 @@ const textBinding = createReportBinding(
   'Add text content with typography variants',
   z.object({
     reportId: z.string().describe('ID of the report to add to'),
-    id: z.string().optional().describe('Component ID (auto-generated if not specified)'),
+    id: z
+      .string()
+      .optional()
+      .describe('Component ID (auto-generated if not specified)'),
     parentId: z.string().optional().describe('Parent component ID'),
     content: z.string().describe('Text content to display'),
-    variant: z.enum(['h1', 'h2', 'h3', 'body', 'caption', 'code']).catch('body').describe('Typography variant. Must be one of: h1, h2, h3, body, caption, code'),
-    color: z.enum(['default', 'muted', 'accent', 'success', 'warning', 'error']).catch('default').describe('Text color. Must be one of: default, muted, accent, success, warning, error'),
-    align: z.enum(['left', 'center', 'right']).catch('left').describe('Text alignment. Must be one of: left, center, right'),
+    variant: z
+      .enum(['h1', 'h2', 'h3', 'body', 'caption', 'code'])
+      .catch('body')
+      .describe(
+        'Typography variant. Must be one of: h1, h2, h3, body, caption, code',
+      ),
+    color: z
+      .enum(['default', 'muted', 'accent', 'success', 'warning', 'error'])
+      .catch('default')
+      .describe(
+        'Text color. Must be one of: default, muted, accent, success, warning, error',
+      ),
+    align: z
+      .enum(['left', 'center', 'right'])
+      .catch('left')
+      .describe('Text alignment. Must be one of: left, center, right'),
   }),
   (input) => ({
     op: 'add' as const,
@@ -235,29 +297,49 @@ const textBinding = createReportBinding(
       color: input.color,
       align: input.align,
     },
-  })
+  }),
 )
 
 const metricBindingSchema = z.object({
   reportId: z.string().describe('ID of the report to add to'),
-  id: z.string().optional().describe('Component ID (auto-generated if not specified)'),
+  id: z
+    .string()
+    .optional()
+    .describe('Component ID (auto-generated if not specified)'),
   parentId: z.string().optional().describe('Parent component ID'),
   value: z.union([z.number(), z.string()]).describe('The metric value'),
   label: z.string().describe('Label describing the metric'),
   trend: z.string().optional().describe('Trend indicator (e.g., "+8%")'),
-  trendDirection: z.enum(['up', 'down', 'neutral']).optional().describe('Direction of trend'),
-  format: z.enum(['number', 'currency', 'percent', 'compact']).catch('number').describe('Number format. Must be one of: number, currency, percent, compact'),
+  trendDirection: z
+    .enum(['up', 'down', 'neutral'])
+    .optional()
+    .describe('Direction of trend'),
+  format: z
+    .enum(['number', 'currency', 'percent', 'compact'])
+    .catch('number')
+    .describe(
+      'Number format. Must be one of: number, currency, percent, compact',
+    ),
   prefix: z.string().optional().describe('Prefix (e.g., "$")'),
   suffix: z.string().optional().describe('Suffix (e.g., "/week")'),
-  variant: z.enum(['default', 'success', 'warning', 'error']).catch('default').describe('Color variant. Must be one of: default, success, warning, error'),
+  variant: z
+    .enum(['default', 'success', 'warning', 'error'])
+    .catch('default')
+    .describe(
+      'Color variant. Must be one of: default, success, warning, error',
+    ),
   subscriptions: subscriptionsSchema,
   dataSource: dataSourceSchema,
 })
 
 const metricBinding: ToolBinding = {
   name: 'external_report_metric',
-  description: 'Display a big number with label and optional trend indicator. Supports subscriptions for reactive updates.',
-  inputSchema: convertSchemaToJsonSchema(metricBindingSchema) || { type: 'object', properties: {} },
+  description:
+    'Display a big number with label and optional trend indicator. Supports subscriptions for reactive updates.',
+  inputSchema: convertSchemaToJsonSchema(metricBindingSchema) || {
+    type: 'object',
+    properties: {},
+  },
   outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean() })),
   execute: async (args, context) => {
     const parsed = metricBindingSchema.parse(args)
@@ -324,11 +406,22 @@ const badgeBinding = createReportBinding(
   'Add a status pill/badge indicator',
   z.object({
     reportId: z.string().describe('ID of the report to add to'),
-    id: z.string().optional().describe('Component ID (auto-generated if not specified)'),
+    id: z
+      .string()
+      .optional()
+      .describe('Component ID (auto-generated if not specified)'),
     parentId: z.string().optional().describe('Parent component ID'),
     label: z.string().describe('Badge text'),
-    variant: z.enum(['default', 'success', 'warning', 'error', 'info']).catch('default').describe('Badge color variant. Must be one of: default, success, warning, error, info'),
-    size: z.enum(['sm', 'md']).catch('md').describe('Badge size. Must be one of: sm, md'),
+    variant: z
+      .enum(['default', 'success', 'warning', 'error', 'info'])
+      .catch('default')
+      .describe(
+        'Badge color variant. Must be one of: default, success, warning, error, info',
+      ),
+    size: z
+      .enum(['sm', 'md'])
+      .catch('md')
+      .describe('Badge size. Must be one of: sm, md'),
   }),
   (input) => ({
     op: 'add' as const,
@@ -340,7 +433,7 @@ const badgeBinding = createReportBinding(
       variant: input.variant,
       size: input.size,
     },
-  })
+  }),
 )
 
 const markdownBinding = createReportBinding(
@@ -348,7 +441,10 @@ const markdownBinding = createReportBinding(
   'Render markdown content with GFM support',
   z.object({
     reportId: z.string().describe('ID of the report to add to'),
-    id: z.string().optional().describe('Component ID (auto-generated if not specified)'),
+    id: z
+      .string()
+      .optional()
+      .describe('Component ID (auto-generated if not specified)'),
     parentId: z.string().optional().describe('Parent component ID'),
     content: z.string().describe('Markdown content'),
   }),
@@ -360,7 +456,7 @@ const markdownBinding = createReportBinding(
     props: {
       content: input.content,
     },
-  })
+  }),
 )
 
 const dividerBinding = createReportBinding(
@@ -368,10 +464,19 @@ const dividerBinding = createReportBinding(
   'Add a horizontal divider line',
   z.object({
     reportId: z.string().describe('ID of the report to add to'),
-    id: z.string().optional().describe('Component ID (auto-generated if not specified)'),
+    id: z
+      .string()
+      .optional()
+      .describe('Component ID (auto-generated if not specified)'),
     parentId: z.string().optional().describe('Parent component ID'),
-    variant: z.enum(['solid', 'dashed']).catch('solid').describe('Line style. Must be one of: solid, dashed'),
-    spacing: z.enum(['sm', 'md', 'lg']).catch('md').describe('Vertical spacing. Must be one of: sm, md, lg'),
+    variant: z
+      .enum(['solid', 'dashed'])
+      .catch('solid')
+      .describe('Line style. Must be one of: solid, dashed'),
+    spacing: z
+      .enum(['sm', 'md', 'lg'])
+      .catch('md')
+      .describe('Vertical spacing. Must be one of: sm, md, lg'),
   }),
   (input) => ({
     op: 'add' as const,
@@ -382,7 +487,7 @@ const dividerBinding = createReportBinding(
       variant: input.variant,
       spacing: input.spacing,
     },
-  })
+  }),
 )
 
 const spacerBinding = createReportBinding(
@@ -390,9 +495,15 @@ const spacerBinding = createReportBinding(
   'Add empty space between components',
   z.object({
     reportId: z.string().describe('ID of the report to add to'),
-    id: z.string().optional().describe('Component ID (auto-generated if not specified)'),
+    id: z
+      .string()
+      .optional()
+      .describe('Component ID (auto-generated if not specified)'),
     parentId: z.string().optional().describe('Parent component ID'),
-    size: z.enum(['sm', 'md', 'lg', 'xl', 'flex']).catch('md').describe('Space size. Must be one of: sm, md, lg, xl, flex'),
+    size: z
+      .enum(['sm', 'md', 'lg', 'xl', 'flex'])
+      .catch('md')
+      .describe('Space size. Must be one of: sm, md, lg, xl, flex'),
   }),
   (input) => ({
     op: 'add' as const,
@@ -402,36 +513,35 @@ const spacerBinding = createReportBinding(
     props: {
       size: input.size,
     },
-  })
+  }),
 )
 
 const buttonBinding: ToolBinding = {
   name: 'external_report_button',
   description: 'Add a button with optional event handlers and subscriptions',
-  inputSchema:
-    convertSchemaToJsonSchema(
-      z.object({
-        reportId: z.string().describe('ID of the report to add to'),
-        id: z.string().describe('Unique ID for this component'),
-        parentId: z
-          .string()
-          .optional()
-          .describe('Parent component ID (optional)'),
-        label: z.string().describe('Button label'),
-        variant: buttonVariantSchema.describe(
-          'Button style variant. Must be one of: primary, secondary, danger, ghost',
+  inputSchema: convertSchemaToJsonSchema(
+    z.object({
+      reportId: z.string().describe('ID of the report to add to'),
+      id: z.string().describe('Unique ID for this component'),
+      parentId: z
+        .string()
+        .optional()
+        .describe('Parent component ID (optional)'),
+      label: z.string().describe('Button label'),
+      variant: buttonVariantSchema.describe(
+        'Button style variant. Must be one of: primary, secondary, danger, ghost',
+      ),
+      disabled: z.boolean().optional().describe('Disable the button'),
+      handlers: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe(
+          'Event handlers as TypeScript strings (e.g. { onPress: "..." })',
         ),
-        disabled: z.boolean().optional().describe('Disable the button'),
-        handlers: z
-          .record(z.string(), z.string())
-          .optional()
-          .describe(
-            'Event handlers as TypeScript strings (e.g. { onPress: "..." })',
-          ),
-        subscriptions: subscriptionsSchema,
-        dataSource: dataSourceSchema,
-      }),
-    ) || { type: 'object', properties: {} },
+      subscriptions: subscriptionsSchema,
+      dataSource: dataSourceSchema,
+    }),
+  ) || { type: 'object', properties: {} },
   outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean() })),
   execute: async (args, context) => {
     const parsed = z
@@ -448,7 +558,17 @@ const buttonBinding: ToolBinding = {
       })
       .parse(args)
 
-    const { reportId, id, parentId, label, variant, disabled, handlers, subscriptions, dataSource } = parsed
+    const {
+      reportId,
+      id,
+      parentId,
+      label,
+      variant,
+      disabled,
+      handlers,
+      subscriptions,
+      dataSource,
+    } = parsed
     const emitCustomEvent = context?.emitCustomEvent || (() => {})
 
     let validatedHandlers: Record<string, string> | undefined
@@ -537,11 +657,17 @@ const chartBindingSchema = z.object({
   type: z.enum(['line', 'bar', 'area', 'pie', 'donut']).describe('Chart type'),
   data: z.array(z.record(z.string(), z.unknown())).describe('Chart data array'),
   xKey: z.string().describe('Key for X axis values'),
-  yKey: z.union([z.string(), z.array(z.string())]).describe('Key(s) for Y axis values'),
+  yKey: z
+    .union([z.string(), z.array(z.string())])
+    .describe('Key(s) for Y axis values'),
   height: z.number().optional().default(300).describe('Chart height in pixels'),
   showLegend: z.boolean().optional().default(true).describe('Show legend'),
   showGrid: z.boolean().optional().default(true).describe('Show grid lines'),
-  showTooltip: z.boolean().optional().default(true).describe('Show tooltips on hover'),
+  showTooltip: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Show tooltips on hover'),
   colors: z.array(z.string()).optional().describe('Custom colors array'),
   animate: z.boolean().optional().default(true).describe('Enable animations'),
   subscriptions: subscriptionsSchema,
@@ -550,8 +676,12 @@ const chartBindingSchema = z.object({
 
 const chartBinding: ToolBinding = {
   name: 'external_report_chart',
-  description: 'Create an interactive chart (line, bar, area, pie, donut). Supports subscriptions for reactive updates.',
-  inputSchema: convertSchemaToJsonSchema(chartBindingSchema) || { type: 'object', properties: {} },
+  description:
+    'Create an interactive chart (line, bar, area, pie, donut). Supports subscriptions for reactive updates.',
+  inputSchema: convertSchemaToJsonSchema(chartBindingSchema) || {
+    type: 'object',
+    properties: {},
+  },
   outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean() })),
   execute: async (args, context) => {
     const parsed = chartBindingSchema.parse(args)
@@ -622,14 +752,24 @@ const sparklineBinding = createReportBinding(
   'Add a mini inline chart',
   z.object({
     reportId: z.string().describe('ID of the report to add to'),
-    id: z.string().optional().describe('Component ID (auto-generated if not specified)'),
+    id: z
+      .string()
+      .optional()
+      .describe('Component ID (auto-generated if not specified)'),
     parentId: z.string().optional().describe('Parent component ID'),
     data: z.array(z.number()).describe('Array of numeric values'),
-    type: z.enum(['line', 'bar', 'area']).catch('line').describe('Sparkline type. Must be one of: line, bar, area'),
+    type: z
+      .enum(['line', 'bar', 'area'])
+      .catch('line')
+      .describe('Sparkline type. Must be one of: line, bar, area'),
     color: z.string().optional().describe('Line/bar color'),
     height: z.number().optional().default(32).describe('Height in pixels'),
     width: z.number().optional().default(100).describe('Width in pixels'),
-    showEndValue: z.boolean().optional().default(false).describe('Show the last value'),
+    showEndValue: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Show the last value'),
   }),
   (input) => ({
     op: 'add' as const,
@@ -644,36 +784,63 @@ const sparklineBinding = createReportBinding(
       width: input.width,
       showEndValue: input.showEndValue,
     },
-  })
+  }),
 )
 
 const dataTableBindingSchema = z.object({
   reportId: z.string().describe('ID of the report to add to'),
   id: z.string().describe('Unique ID for this component'),
   parentId: z.string().optional().describe('Parent component ID'),
-  columns: z.array(z.object({
-    key: z.string().describe('Data key for this column'),
-    label: z.string().describe('Column header label'),
-    align: z.enum(['left', 'center', 'right']).catch('left').describe('Column alignment. Must be one of: left, center, right'),
-    format: z.enum(['text', 'number', 'currency', 'percent', 'date']).catch('text').describe('Data format. Must be one of: text, number, currency, percent, date'),
-    sortable: z.boolean().optional().default(true),
-    width: z.union([z.number(), z.string()]).optional(),
-  })).describe('Column definitions'),
+  columns: z
+    .array(
+      z.object({
+        key: z.string().describe('Data key for this column'),
+        label: z.string().describe('Column header label'),
+        align: z
+          .enum(['left', 'center', 'right'])
+          .catch('left')
+          .describe('Column alignment. Must be one of: left, center, right'),
+        format: z
+          .enum(['text', 'number', 'currency', 'percent', 'date'])
+          .catch('text')
+          .describe(
+            'Data format. Must be one of: text, number, currency, percent, date',
+          ),
+        sortable: z.boolean().optional().default(true),
+        width: z.union([z.number(), z.string()]).optional(),
+      }),
+    )
+    .describe('Column definitions'),
   rows: z.array(z.record(z.string(), z.unknown())).describe('Row data'),
   pageSize: z.number().optional().default(10).describe('Rows per page'),
-  showPagination: z.boolean().optional().default(true).describe('Show pagination controls'),
-  striped: z.boolean().optional().default(true).describe('Alternating row colors'),
+  showPagination: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Show pagination controls'),
+  striped: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Alternating row colors'),
   compact: z.boolean().optional().default(false).describe('Compact row height'),
   sortBy: z.string().optional().describe('Initial sort column'),
-  sortDirection: z.enum(['asc', 'desc']).catch('asc').describe('Initial sort direction. Must be one of: asc, desc'),
+  sortDirection: z
+    .enum(['asc', 'desc'])
+    .catch('asc')
+    .describe('Initial sort direction. Must be one of: asc, desc'),
   subscriptions: subscriptionsSchema,
   dataSource: dataSourceSchema,
 })
 
 const dataTableBinding: ToolBinding = {
   name: 'external_report_dataTable',
-  description: 'Create a sortable, paginated data table. Supports subscriptions for reactive updates.',
-  inputSchema: convertSchemaToJsonSchema(dataTableBindingSchema) || { type: 'object', properties: {} },
+  description:
+    'Create a sortable, paginated data table. Supports subscriptions for reactive updates.',
+  inputSchema: convertSchemaToJsonSchema(dataTableBindingSchema) || {
+    type: 'object',
+    properties: {},
+  },
   outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean() })),
   execute: async (args, context) => {
     const parsed = dataTableBindingSchema.parse(args)
@@ -740,14 +907,25 @@ const progressBinding = createReportBinding(
   'Add a progress bar',
   z.object({
     reportId: z.string().describe('ID of the report to add to'),
-    id: z.string().optional().describe('Component ID (auto-generated if not specified)'),
+    id: z
+      .string()
+      .optional()
+      .describe('Component ID (auto-generated if not specified)'),
     parentId: z.string().optional().describe('Parent component ID'),
     value: z.number().describe('Current progress value'),
     max: z.number().optional().default(100).describe('Maximum value'),
     label: z.string().optional().describe('Progress label'),
     showValue: z.boolean().optional().default(true).describe('Show percentage'),
-    variant: z.enum(['default', 'success', 'warning', 'error']).catch('default').describe('Color variant. Must be one of: default, success, warning, error'),
-    size: z.enum(['sm', 'md', 'lg']).catch('md').describe('Bar size. Must be one of: sm, md, lg'),
+    variant: z
+      .enum(['default', 'success', 'warning', 'error'])
+      .catch('default')
+      .describe(
+        'Color variant. Must be one of: default, success, warning, error',
+      ),
+    size: z
+      .enum(['sm', 'md', 'lg'])
+      .catch('md')
+      .describe('Bar size. Must be one of: sm, md, lg'),
   }),
   (input) => ({
     op: 'add' as const,
@@ -762,7 +940,7 @@ const progressBinding = createReportBinding(
       variant: input.variant,
       size: input.size,
     },
-  })
+  }),
 )
 
 // ============================================================================
@@ -776,7 +954,11 @@ const placeholderBinding = createReportBinding(
     reportId: z.string().describe('ID of the report to add to'),
     id: z.string().describe('Unique ID for this component'),
     parentId: z.string().optional().describe('Parent component ID'),
-    height: z.union([z.number(), z.string()]).optional().default(100).describe('Placeholder height'),
+    height: z
+      .union([z.number(), z.string()])
+      .optional()
+      .default(100)
+      .describe('Placeholder height'),
     label: z.string().optional().describe('Loading label'),
   }),
   (input) => ({
@@ -788,7 +970,7 @@ const placeholderBinding = createReportBinding(
       height: input.height,
       label: input.label,
     },
-  })
+  }),
 )
 
 const errorBinding = createReportBinding(
@@ -796,11 +978,17 @@ const errorBinding = createReportBinding(
   'Display an error message',
   z.object({
     reportId: z.string().describe('ID of the report to add to'),
-    id: z.string().optional().describe('Component ID (auto-generated if not specified)'),
+    id: z
+      .string()
+      .optional()
+      .describe('Component ID (auto-generated if not specified)'),
     parentId: z.string().optional().describe('Parent component ID'),
     message: z.string().describe('Error message'),
     details: z.string().optional().describe('Additional error details'),
-    variant: z.enum(['inline', 'card']).catch('inline').describe('Display variant. Must be one of: inline, card'),
+    variant: z
+      .enum(['inline', 'card'])
+      .catch('inline')
+      .describe('Display variant. Must be one of: inline, card'),
   }),
   (input) => ({
     op: 'add' as const,
@@ -812,7 +1000,7 @@ const errorBinding = createReportBinding(
       details: input.details,
       variant: input.variant,
     },
-  })
+  }),
 )
 
 const emptyBinding = createReportBinding(
@@ -820,7 +1008,10 @@ const emptyBinding = createReportBinding(
   'Display an empty state message',
   z.object({
     reportId: z.string().describe('ID of the report to add to'),
-    id: z.string().optional().describe('Component ID (auto-generated if not specified)'),
+    id: z
+      .string()
+      .optional()
+      .describe('Component ID (auto-generated if not specified)'),
     parentId: z.string().optional().describe('Parent component ID'),
     title: z.string().optional().describe('Empty state title'),
     description: z.string().optional().describe('Empty state description'),
@@ -836,7 +1027,7 @@ const emptyBinding = createReportBinding(
       description: input.description,
       icon: input.icon,
     },
-  })
+  }),
 )
 
 // ============================================================================
@@ -846,17 +1037,22 @@ const emptyBinding = createReportBinding(
 const updateInputSchema = z.object({
   reportId: z.string().describe('ID of the report'),
   componentId: z.string().describe('ID of the component to update'),
-  props: z.record(z.string(), z.unknown()).describe('Props to merge with existing'),
+  props: z
+    .record(z.string(), z.unknown())
+    .describe('Props to merge with existing'),
 })
 
 const updateBinding: ToolBinding = {
   name: 'external_report_update',
   description: 'Update the props of an existing component',
-  inputSchema: convertSchemaToJsonSchema(updateInputSchema) || { type: 'object', properties: {} },
+  inputSchema: convertSchemaToJsonSchema(updateInputSchema) || {
+    type: 'object',
+    properties: {},
+  },
   outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean() })),
   execute: async (args, context) => {
     const { reportId, componentId, props } = updateInputSchema.parse(args)
-    
+
     const emitCustomEvent = context?.emitCustomEvent || (() => {})
     const event: UIEvent = {
       op: 'update',
@@ -865,7 +1061,7 @@ const updateBinding: ToolBinding = {
     }
     emitCustomEvent('report:ui', { reportId, event })
     applyReportUIEvent(reportId, event)
-    
+
     return { success: true }
   },
 }
@@ -878,17 +1074,20 @@ const removeInputSchema = z.object({
 const removeBinding: ToolBinding = {
   name: 'external_report_remove',
   description: 'Remove a component from the report',
-  inputSchema: convertSchemaToJsonSchema(removeInputSchema) || { type: 'object', properties: {} },
+  inputSchema: convertSchemaToJsonSchema(removeInputSchema) || {
+    type: 'object',
+    properties: {},
+  },
   outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean() })),
   execute: async (args, context) => {
     const { reportId, componentId } = removeInputSchema.parse(args)
-    
+
     // Unsubscribe component from all signals before removal
     const registry = getSignalRegistry(reportId)
     if (registry) {
       registry.unsubscribeAll(componentId)
     }
-    
+
     const emitCustomEvent = context?.emitCustomEvent || (() => {})
     const event: UIEvent = {
       op: 'remove',
@@ -896,25 +1095,31 @@ const removeBinding: ToolBinding = {
     }
     emitCustomEvent('report:ui', { reportId, event })
     applyReportUIEvent(reportId, event)
-    
+
     return { success: true }
   },
 }
 
 const reorderInputSchema = z.object({
   reportId: z.string().describe('ID of the report'),
-  parentId: z.string().optional().describe('Parent container ID (root if not specified)'),
+  parentId: z
+    .string()
+    .optional()
+    .describe('Parent container ID (root if not specified)'),
   childIds: z.array(z.string()).describe('Ordered array of child IDs'),
 })
 
 const reorderBinding: ToolBinding = {
   name: 'external_report_reorder',
   description: 'Reorder children of a container',
-  inputSchema: convertSchemaToJsonSchema(reorderInputSchema) || { type: 'object', properties: {} },
+  inputSchema: convertSchemaToJsonSchema(reorderInputSchema) || {
+    type: 'object',
+    properties: {},
+  },
   outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean() })),
   execute: async (args, context) => {
     const { reportId, parentId, childIds } = reorderInputSchema.parse(args)
-    
+
     const emitCustomEvent = context?.emitCustomEvent || (() => {})
     const event: UIEvent = {
       op: 'reorder',
@@ -923,7 +1128,7 @@ const reorderBinding: ToolBinding = {
     }
     emitCustomEvent('report:ui', { reportId, event })
     applyReportUIEvent(reportId, event)
-    
+
     return { success: true }
   },
 }
@@ -935,21 +1140,46 @@ const reorderBinding: ToolBinding = {
 const subscribeWatcherSchema = z.object({
   reportId: z.string().describe('ID of the report'),
   id: z.string().describe('Unique ID for this watcher'),
-  description: z.string().describe('Human-readable description (e.g., "Alert when savings below $50")'),
-  signals: z.array(z.string()).describe('Signal names to watch (e.g., ["balances"])'),
-  condition: z.string().describe('TypeScript code that returns true/false (e.g., "const b = await external_get_balances(); return b.savings < 50")'),
-  action: z.string().describe('TypeScript code to run when condition is true (e.g., "await external_ui_toast({ message: \'Low savings!\', variant: \'error\' })")'),
-  once: z.boolean().optional().default(false).describe('If true, watcher fires once then is removed'),
+  description: z
+    .string()
+    .describe(
+      'Human-readable description (e.g., "Alert when savings below $50")',
+    ),
+  signals: z
+    .array(z.string())
+    .describe('Signal names to watch (e.g., ["balances"])'),
+  condition: z
+    .string()
+    .describe(
+      'TypeScript code that returns true/false (e.g., "const b = await external_get_balances(); return b.savings < 50")',
+    ),
+  action: z
+    .string()
+    .describe(
+      "TypeScript code to run when condition is true (e.g., \"await external_ui_toast({ message: 'Low savings!', variant: 'error' })\")",
+    ),
+  once: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('If true, watcher fires once then is removed'),
 })
 
 const subscribeWatcherBinding: ToolBinding = {
   name: 'external_subscribe_watcher',
-  description: 'Register a watcher that runs code when signals change and a condition is met. Use for alerts like "notify if savings falls below $50".',
-  inputSchema: convertSchemaToJsonSchema(subscribeWatcherSchema) || { type: 'object', properties: {} },
-  outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean(), watcherId: z.string().optional() })),
+  description:
+    'Register a watcher that runs code when signals change and a condition is met. Use for alerts like "notify if savings falls below $50".',
+  inputSchema: convertSchemaToJsonSchema(subscribeWatcherSchema) || {
+    type: 'object',
+    properties: {},
+  },
+  outputSchema: convertSchemaToJsonSchema(
+    z.object({ success: z.boolean(), watcherId: z.string().optional() }),
+  ),
   execute: async (args, _context) => {
     const parsed = subscribeWatcherSchema.parse(args)
-    const { reportId, id, description, signals, condition, action, once } = parsed
+    const { reportId, id, description, signals, condition, action, once } =
+      parsed
 
     // Validate condition code
     const { validateHandler } = await import('./validate-handler')
@@ -1005,7 +1235,10 @@ const unsubscribeWatcherSchema = z.object({
 const unsubscribeWatcherBinding: ToolBinding = {
   name: 'external_unsubscribe_watcher',
   description: 'Remove a previously registered watcher',
-  inputSchema: convertSchemaToJsonSchema(unsubscribeWatcherSchema) || { type: 'object', properties: {} },
+  inputSchema: convertSchemaToJsonSchema(unsubscribeWatcherSchema) || {
+    type: 'object',
+    properties: {},
+  },
   outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean() })),
   execute: async (args) => {
     const { reportId, watcherId } = unsubscribeWatcherSchema.parse(args)
@@ -1021,20 +1254,27 @@ const listWatchersSchema = z.object({
 const listWatchersBinding: ToolBinding = {
   name: 'external_list_watchers',
   description: 'List all active watchers for a report',
-  inputSchema: convertSchemaToJsonSchema(listWatchersSchema) || { type: 'object', properties: {} },
-  outputSchema: convertSchemaToJsonSchema(z.object({ 
-    watchers: z.array(z.object({
-      id: z.string(),
-      description: z.string(),
-      signals: z.array(z.string()),
-      fired: z.boolean().optional(),
-    }))
-  })),
+  inputSchema: convertSchemaToJsonSchema(listWatchersSchema) || {
+    type: 'object',
+    properties: {},
+  },
+  outputSchema: convertSchemaToJsonSchema(
+    z.object({
+      watchers: z.array(
+        z.object({
+          id: z.string(),
+          description: z.string(),
+          signals: z.array(z.string()),
+          fired: z.boolean().optional(),
+        }),
+      ),
+    }),
+  ),
   execute: async (args) => {
     const { reportId } = listWatchersSchema.parse(args)
     const watchers = getAllWatchers(reportId)
     return {
-      watchers: watchers.map(w => ({
+      watchers: watchers.map((w) => ({
         id: w.id,
         description: w.description,
         signals: w.signals,

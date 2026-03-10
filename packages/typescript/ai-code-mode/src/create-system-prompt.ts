@@ -93,4 +93,3 @@ return { warmestCity: warmest.location, temperature: warmest.temperature };
 - Each execution is independent (no shared state between calls)
 `
 }
-

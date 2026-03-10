@@ -168,7 +168,10 @@ export interface SkillStorage {
   /**
    * Search for skills by query
    */
-  search: (query: string, options?: SkillSearchOptions) => Promise<Array<SkillIndexEntry>>
+  search: (
+    query: string,
+    options?: SkillSearchOptions,
+  ) => Promise<Array<SkillIndexEntry>>
 
   /**
    * Update execution statistics for a skill
@@ -284,4 +287,3 @@ export interface SkillBinding {
    */
   execute: (input: unknown) => Promise<unknown>
 }
-

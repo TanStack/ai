@@ -52,7 +52,9 @@ function MetricRow({
             style={{ width: `${usedPercent}%` }}
           />
         </div>
-        <span className="text-xs text-cyan-400 w-10 text-right">{percent}%</span>
+        <span className="text-xs text-cyan-400 w-10 text-right">
+          {percent}%
+        </span>
       </div>
       <p className="text-xs text-gray-500">
         {savedLabel ?? `${percent}% ${description}`}
@@ -93,7 +95,7 @@ export function ContextSavings({
         theoreticalBytes: theoretical,
         model,
       }),
-    [actual, theoretical, model]
+    [actual, theoretical, model],
   )
 
   // Don't render if no savings
@@ -124,12 +126,17 @@ export function ContextSavings({
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
 
           {/* Popover */}
           <div className="absolute right-0 top-full mt-2 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-700/50">
-              <h3 className="font-medium text-gray-200">Code Mode Efficiency</h3>
+              <h3 className="font-medium text-gray-200">
+                Code Mode Efficiency
+              </h3>
             </div>
 
             <div className="p-4 space-y-4">
@@ -222,7 +229,10 @@ export function NoCodeMetrics({
 
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
 
           <div className="absolute right-0 top-full mt-2 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-700/50">
@@ -235,13 +245,14 @@ export function NoCodeMetrics({
                 value={formatBytes(totalBytes)}
                 description="Final serialized size of the messages array."
               />
-              {typeof totalContextBytes === 'number' && totalContextBytes > 0 && (
-                <ValueRow
-                  label="Context Bytes (Total)"
-                  value={formatBytes(totalContextBytes)}
-                  description="Accumulated context size across LLM calls."
-                />
-              )}
+              {typeof totalContextBytes === 'number' &&
+                totalContextBytes > 0 && (
+                  <ValueRow
+                    label="Context Bytes (Total)"
+                    value={formatBytes(totalContextBytes)}
+                    description="Accumulated context size across LLM calls."
+                  />
+                )}
               {typeof averageContextBytes === 'number' &&
                 averageContextBytes > 0 && (
                   <ValueRow

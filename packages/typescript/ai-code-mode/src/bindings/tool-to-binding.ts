@@ -29,7 +29,10 @@ export function toolsToBindings(
  * @param prefix - Optional prefix to add to binding name (e.g., 'external_')
  * @throws Error if the tool doesn't have an execute function
  */
-export function toolToBinding(tool: CodeModeTool, prefix: string = ''): ToolBinding {
+export function toolToBinding(
+  tool: CodeModeTool,
+  prefix: string = '',
+): ToolBinding {
   // Convert schemas (Zod or Standard Schema) to JSON Schema
   const inputSchema = convertSchemaToJsonSchema(tool.inputSchema) || {
     type: 'object',
@@ -42,7 +45,10 @@ export function toolToBinding(tool: CodeModeTool, prefix: string = ''): ToolBind
 
   // Get execute function
   // ServerTool has execute, ToolDefinition (without .server()) does not
-  let execute: (args: unknown, context?: ToolExecutionContext) => Promise<unknown>
+  let execute: (
+    args: unknown,
+    context?: ToolExecutionContext,
+  ) => Promise<unknown>
 
   if ('execute' in tool && typeof tool.execute === 'function') {
     const toolExecute = tool.execute

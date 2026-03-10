@@ -40,7 +40,9 @@ export interface LiveTestOptions {
 /**
  * Run the live test with a real LLM
  */
-export async function runLiveTest(options: LiveTestOptions): Promise<TestResult> {
+export async function runLiveTest(
+  options: LiveTestOptions,
+): Promise<TestResult> {
   const { adapter, verbose = false } = options
 
   logSection('Live Skills Test')
@@ -86,22 +88,25 @@ Please complete all three steps: execute the code, register the skill, and tell 
     ]
 
     // Get tools and system prompt with skills integration
-    const { tools: tools1, systemPrompt: systemPrompt1 } = await codeModeWithSkills({
-      config: {
-        driver,
-        tools: [addNumbersTool],
-        timeout: 60000,
-        memoryLimit: 128,
-      },
-      adapter,
-      skills: {
-        storage,
-        maxSkillsInContext: 5,
-      },
-      messages: messages1,
-    })
+    const { tools: tools1, systemPrompt: systemPrompt1 } =
+      await codeModeWithSkills({
+        config: {
+          driver,
+          tools: [addNumbersTool],
+          timeout: 60000,
+          memoryLimit: 128,
+        },
+        adapter,
+        skills: {
+          storage,
+          maxSkillsInContext: 5,
+        },
+        messages: messages1,
+      })
 
-    logInfo(`Phase 1 tools available: ${tools1.map((t: any) => t.name).join(', ')}`)
+    logInfo(
+      `Phase 1 tools available: ${tools1.map((t: any) => t.name).join(', ')}`,
+    )
     if (verbose) {
       logInfo(`System prompt:\n${systemPrompt1.substring(0, 500)}...`)
     }
@@ -128,7 +133,9 @@ Please complete all three steps: execute the code, register the skill, and tell 
         const toolName = chunk.toolCall.function.name
         logInfo(`Tool called: ${toolName}`)
         if (verbose) {
-          logInfo(`  Arguments: ${chunk.toolCall.function.arguments.substring(0, 200)}...`)
+          logInfo(
+            `  Arguments: ${chunk.toolCall.function.arguments.substring(0, 200)}...`,
+          )
         }
         if (toolName === 'execute_typescript') {
           executeTypescriptCalled = true
@@ -153,12 +160,12 @@ Please complete all three steps: execute the code, register the skill, and tell 
 
     // Verify skill was created
     const skillIndex = await storage.loadIndex()
-    const skillCreated = skillIndex.some(s => s.name === 'add_two_numbers')
+    const skillCreated = skillIndex.some((s) => s.name === 'add_two_numbers')
 
     if (skillCreated) {
       result.skillCreated = true
       logSuccess('Skill "add_two_numbers" was created successfully')
-      
+
       // Log the created skill
       const skill = await storage.get('add_two_numbers')
       if (skill && verbose) {
@@ -167,7 +174,9 @@ Please complete all three steps: execute the code, register the skill, and tell 
         logInfo(`  Code: ${skill.code.substring(0, 100)}...`)
       }
     } else {
-      logWarning('Skill was not created - LLM may not have followed instructions')
+      logWarning(
+        'Skill was not created - LLM may not have followed instructions',
+      )
     }
 
     result.phases.phase1 = {
@@ -186,7 +195,6 @@ Please complete all three steps: execute the code, register the skill, and tell 
     } else {
       logError('Phase 1 failed - execute_typescript was not called')
     }
-
   } catch (error) {
     result.phases.phase1 = {
       success: false,
@@ -222,7 +230,11 @@ If you have a skill called "add_two_numbers" available, please use it directly i
       ]
 
       // Get tools and system prompt with skills integration
-      const { tools: tools2, systemPrompt: systemPrompt2, selectedSkills } = await codeModeWithSkills({
+      const {
+        tools: tools2,
+        systemPrompt: systemPrompt2,
+        selectedSkills,
+      } = await codeModeWithSkills({
         config: {
           driver,
           tools: [addNumbersTool],
@@ -237,15 +249,23 @@ If you have a skill called "add_two_numbers" available, please use it directly i
         messages: messages2,
       })
 
-      logInfo(`Phase 2 tools available: ${tools2.map((t: any) => t.name).join(', ')}`)
-      logInfo(`Selected skills: ${selectedSkills.map(s => s.name).join(', ') || 'none'}`)
+      logInfo(
+        `Phase 2 tools available: ${tools2.map((t: any) => t.name).join(', ')}`,
+      )
+      logInfo(
+        `Selected skills: ${selectedSkills.map((s) => s.name).join(', ') || 'none'}`,
+      )
 
       // Check if skill is now available as a tool
-      const skillToolAvailable = tools2.some((t: any) => t.name === 'add_two_numbers')
+      const skillToolAvailable = tools2.some(
+        (t: any) => t.name === 'add_two_numbers',
+      )
       if (skillToolAvailable) {
         logSuccess('Skill "add_two_numbers" is available as a tool')
       } else {
-        logWarning('Skill is not available as a tool (may not have been selected by LLM)')
+        logWarning(
+          'Skill is not available as a tool (may not have been selected by LLM)',
+        )
       }
 
       // Run the chat
@@ -282,7 +302,10 @@ If you have a skill called "add_two_numbers" available, please use it directly i
           if (skillCalled && chunk.toolCallId) {
             // Check if the result contains an error
             const resultContent = chunk.content
-            if (resultContent.includes('error') || resultContent.includes('Error')) {
+            if (
+              resultContent.includes('error') ||
+              resultContent.includes('Error')
+            ) {
               skillExecutionError = resultContent.substring(0, 200)
               logError(`Skill execution failed: ${skillExecutionError}`)
             } else {
@@ -308,7 +331,9 @@ If you have a skill called "add_two_numbers" available, please use it directly i
       // Consider phase 2 successful if either:
       // 1. The skill was called directly AND executed successfully, OR
       // 2. The skill wasn't available (selection issue) but execute_typescript worked
-      const phase2Success = (skillCalled && skillExecutedSuccessfully) || executeTypescriptCalledPhase2
+      const phase2Success =
+        (skillCalled && skillExecutedSuccessfully) ||
+        executeTypescriptCalledPhase2
 
       result.phases.phase2 = {
         success: phase2Success,
@@ -324,15 +349,20 @@ If you have a skill called "add_two_numbers" available, please use it directly i
       }
 
       if (skillCalled && skillExecutedSuccessfully) {
-        logSuccess('Phase 2 completed successfully - skill was called and executed correctly!')
+        logSuccess(
+          'Phase 2 completed successfully - skill was called and executed correctly!',
+        )
       } else if (skillCalled && !skillExecutedSuccessfully) {
-        logError(`Phase 2 failed - skill was called but execution failed: ${skillExecutionError}`)
+        logError(
+          `Phase 2 failed - skill was called but execution failed: ${skillExecutionError}`,
+        )
       } else if (executeTypescriptCalledPhase2) {
-        logWarning('Phase 2 completed but LLM used execute_typescript instead of the skill')
+        logWarning(
+          'Phase 2 completed but LLM used execute_typescript instead of the skill',
+        )
       } else {
         logError('Phase 2 failed - no tool was called')
       }
-
     } catch (error) {
       result.phases.phase2 = {
         success: false,
@@ -354,7 +384,9 @@ If you have a skill called "add_two_numbers" available, please use it directly i
 
   if (result.passed) {
     logSuccess('Test passed!')
-    logInfo(`✓ execute_typescript used in Phase 1: ${result.phases.phase1.details?.executeTypescriptCalled}`)
+    logInfo(
+      `✓ execute_typescript used in Phase 1: ${result.phases.phase1.details?.executeTypescriptCalled}`,
+    )
     logInfo(`✓ Skill created: ${result.skillCreated}`)
     logInfo(`✓ Skill used successfully in Phase 2: ${result.skillUsed}`)
   } else {
@@ -363,15 +395,20 @@ If you have a skill called "add_two_numbers" available, please use it directly i
       logError(`Phase 1 (Code Mode): ${result.phases.phase1.error || 'Failed'}`)
     }
     if (!result.phases.phase2.success) {
-      const phase2Details = result.phases.phase2.details as Record<string, unknown> | undefined
+      const phase2Details = result.phases.phase2.details as
+        | Record<string, unknown>
+        | undefined
       if (phase2Details?.skillExecutionError) {
-        logError(`Phase 2 (Skill Reuse): Skill execution failed - ${phase2Details.skillExecutionError}`)
+        logError(
+          `Phase 2 (Skill Reuse): Skill execution failed - ${phase2Details.skillExecutionError}`,
+        )
       } else {
-        logError(`Phase 2 (Skill Reuse): ${result.phases.phase2.error || 'Failed'}`)
+        logError(
+          `Phase 2 (Skill Reuse): ${result.phases.phase2.error || 'Failed'}`,
+        )
       }
     }
   }
 
   return result
 }
-

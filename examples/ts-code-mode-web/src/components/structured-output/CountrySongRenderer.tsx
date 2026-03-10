@@ -1,14 +1,28 @@
 import { useState } from 'react'
-import { Music, Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Volume2 } from 'lucide-react'
+import {
+  Music,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Heart,
+  Shuffle,
+  Repeat,
+  Volume2,
+} from 'lucide-react'
 import type { CountrySong } from '@/lib/structured-output-types'
 
 interface CountrySongRendererProps {
   data: CountrySong
 }
 
-export default function CountrySongRenderer({ data }: CountrySongRendererProps) {
+export default function CountrySongRenderer({
+  data,
+}: CountrySongRendererProps) {
   const [isPlaying, setIsPlaying] = useState(false)
-  const [activeSection, setActiveSection] = useState<'verse1' | 'chorus' | 'verse2' | 'bridge' | 'outro'>('verse1')
+  const [activeSection, setActiveSection] = useState<
+    'verse1' | 'chorus' | 'verse2' | 'bridge' | 'outro'
+  >('verse1')
 
   const sections = [
     { id: 'verse1', label: 'Verse 1', content: data.verse1 },
@@ -24,7 +38,10 @@ export default function CountrySongRenderer({ data }: CountrySongRendererProps) 
       <div className="relative aspect-square max-h-80 bg-gradient-to-br from-amber-800 via-orange-700 to-stone-800 overflow-hidden">
         {/* Vinyl Record Effect */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className={`w-64 h-64 rounded-full bg-gradient-to-br from-stone-900 to-stone-800 shadow-2xl flex items-center justify-center ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }}>
+          <div
+            className={`w-64 h-64 rounded-full bg-gradient-to-br from-stone-900 to-stone-800 shadow-2xl flex items-center justify-center ${isPlaying ? 'animate-spin' : ''}`}
+            style={{ animationDuration: '3s' }}
+          >
             <div className="w-48 h-48 rounded-full bg-gradient-to-br from-stone-800 to-stone-700 flex items-center justify-center">
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-amber-600 to-orange-600 flex items-center justify-center">
                 <div className="w-6 h-6 rounded-full bg-stone-900" />
@@ -63,11 +80,15 @@ export default function CountrySongRenderer({ data }: CountrySongRendererProps) 
           <button className="text-stone-400 hover:text-white transition-colors">
             <SkipBack size={24} />
           </button>
-          <button 
+          <button
             onClick={() => setIsPlaying(!isPlaying)}
             className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white hover:scale-105 transition-transform shadow-lg"
           >
-            {isPlaying ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
+            {isPlaying ? (
+              <Pause size={24} />
+            ) : (
+              <Play size={24} className="ml-1" />
+            )}
           </button>
           <button className="text-stone-400 hover:text-white transition-colors">
             <SkipForward size={24} />
@@ -149,10 +170,11 @@ export default function CountrySongRenderer({ data }: CountrySongRendererProps) 
           <h3 className="text-stone-400 font-medium mb-2 text-sm uppercase tracking-wider">
             About this track
           </h3>
-          <p className="text-stone-300 leading-relaxed">{data.spotifyDescription}</p>
+          <p className="text-stone-300 leading-relaxed">
+            {data.spotifyDescription}
+          </p>
         </div>
       </div>
     </div>
   )
 }
-

@@ -17,9 +17,7 @@ After creating a report, use execute_typescript with external_report_* functions
     id: z
       .string()
       .describe('Unique identifier for the report (snake_case recommended)'),
-    title: z
-      .string()
-      .describe('Display title shown at the top of the report'),
+    title: z.string().describe('Display title shown at the top of the report'),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -79,7 +77,8 @@ export const listReportsTool = toolDefinition({
  */
 export const deleteReportTool = toolDefinition({
   name: 'delete_report',
-  description: 'Delete a report by ID. This will remove the report from the UI.',
+  description:
+    'Delete a report by ID. This will remove the report from the UI.',
   inputSchema: z.object({
     reportId: z.string().describe('ID of the report to delete'),
   }),

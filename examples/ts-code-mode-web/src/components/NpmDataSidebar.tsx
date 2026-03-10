@@ -148,12 +148,8 @@ export function NpmDataSidebar({
     >
       <div className="p-4 space-y-4">
         <div className="border-b border-cyan-500/20 pb-3">
-          <h2 className="text-sm font-semibold text-cyan-400">
-            NPM Data
-          </h2>
-          <p className="text-xs text-gray-400 mt-1">
-            Live data from npm tools
-          </p>
+          <h2 className="text-sm font-semibold text-cyan-400">NPM Data</h2>
+          <p className="text-xs text-gray-400 mt-1">Live data from npm tools</p>
         </div>
 
         {components.length === 0 ? (
@@ -163,7 +159,10 @@ export function NpmDataSidebar({
         ) : (
           <div className="space-y-4">
             {components.map((component) => (
-              <div key={component.id} className="animate-in fade-in slide-in-from-right">
+              <div
+                key={component.id}
+                className="animate-in fade-in slide-in-from-right"
+              >
                 <NpmDataCard type={component.type} data={component.data} />
               </div>
             ))}

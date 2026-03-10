@@ -1,7 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
-import type { HandlerResult, RefreshResult, UIEffect, UIUpdate } from '@/lib/reports/types'
-import { getReportState, applyReportUIUpdates } from '@/lib/reports/report-storage'
-import { createHandlerBindings, getInvalidatedSignals } from '@/lib/reports/create-handler-bindings'
+import type {
+  HandlerResult,
+  RefreshResult,
+  UIEffect,
+  UIUpdate,
+} from '@/lib/reports/types'
+import {
+  getReportState,
+  applyReportUIUpdates,
+} from '@/lib/reports/report-storage'
+import {
+  createHandlerBindings,
+  getInvalidatedSignals,
+} from '@/lib/reports/create-handler-bindings'
 import { refreshComponent } from '@/lib/reports/refresh-component'
 import { evaluateWatchersForSignals } from '@/lib/reports/evaluate-watchers'
 
@@ -14,7 +25,9 @@ export const Route = createFileRoute('/_reporting/api/report-event' as any)({
 
         if (!reportId || !componentId || !handlerName) {
           return new Response(
-            JSON.stringify({ error: 'Missing reportId, componentId, or handlerName' }),
+            JSON.stringify({
+              error: 'Missing reportId, componentId, or handlerName',
+            }),
             { status: 400, headers: { 'Content-Type': 'application/json' } },
           )
         }
@@ -29,16 +42,21 @@ export const Route = createFileRoute('/_reporting/api/report-event' as any)({
 
         const component = reportState.nodes.get(componentId)
         if (!component) {
-          return new Response(JSON.stringify({ error: 'Component not found' }), {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          })
+          return new Response(
+            JSON.stringify({ error: 'Component not found' }),
+            {
+              status: 404,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         }
 
         const handlerCode = component.handlers?.[handlerName]
         if (!handlerCode) {
           return new Response(
-            JSON.stringify({ error: `No handler '${handlerName}' on component` }),
+            JSON.stringify({
+              error: `No handler '${handlerName}' on component`,
+            }),
             { status: 400, headers: { 'Content-Type': 'application/json' } },
           )
         }
@@ -49,7 +67,8 @@ export const Route = createFileRoute('/_reporting/api/report-event' as any)({
         console.log('[HandlerExec] Code:\n', handlerCode)
         console.log('[HandlerExec] ----------------------------------------')
 
-        const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
+        const { createIsolateDriver } =
+          await import('@/lib/create-isolate-driver')
         const driver = await createIsolateDriver('node')
         const effects: UIEffect[] = []
         const uiUpdates: UIUpdate[] = []
@@ -93,7 +112,7 @@ const event = ${JSON.stringify(event)};
 `
           const executionResult = await isolateContext.execute(wrappedCode)
           console.log('[HandlerExec] Execution result:', executionResult)
-          
+
           if (executionResult.success) {
             result = {
               success: true,
@@ -102,10 +121,14 @@ const event = ${JSON.stringify(event)};
               uiUpdates,
             }
           } else {
-            console.log('[HandlerExec] Execution failed:', executionResult.error)
+            console.log(
+              '[HandlerExec] Execution failed:',
+              executionResult.error,
+            )
             result = {
               success: false,
-              error: executionResult.error?.message ?? 'Unknown execution error',
+              error:
+                executionResult.error?.message ?? 'Unknown execution error',
               effects,
               uiUpdates,
             }
@@ -121,8 +144,11 @@ const event = ${JSON.stringify(event)};
         } finally {
           await isolateContext.dispose()
         }
-        
-        console.log('[HandlerExec] Final result:', { success: result.success, error: result.error })
+
+        console.log('[HandlerExec] Final result:', {
+          success: result.success,
+          error: result.error,
+        })
         console.log('[HandlerExec] ========================================')
 
         if (uiUpdates.length > 0) {
@@ -134,40 +160,65 @@ const event = ${JSON.stringify(event)};
         console.log('[HandlerExec] Called bindings:', calledBindings)
         for (const bindingName of calledBindings) {
           const signals = getInvalidatedSignals(bindingName)
-          console.log('[HandlerExec] Binding', bindingName, 'invalidates:', signals)
+          console.log(
+            '[HandlerExec] Binding',
+            bindingName,
+            'invalidates:',
+            signals,
+          )
           for (const signal of signals) {
             invalidatedSignals.add(signal)
           }
         }
-        console.log('[HandlerExec] Total invalidated signals:', Array.from(invalidatedSignals))
+        console.log(
+          '[HandlerExec] Total invalidated signals:',
+          Array.from(invalidatedSignals),
+        )
 
         // Refresh all subscribers of invalidated signals
         const refreshResults: RefreshResult[] = []
         if (invalidatedSignals.size > 0 && reportState.signalRegistry) {
           const subscribersToRefresh = new Set<string>()
           for (const signal of invalidatedSignals) {
-            const subscribers = reportState.signalRegistry.getSubscribers(signal)
-            console.log('[HandlerExec] Signal', signal, 'has subscribers:', subscribers)
+            const subscribers =
+              reportState.signalRegistry.getSubscribers(signal)
+            console.log(
+              '[HandlerExec] Signal',
+              signal,
+              'has subscribers:',
+              subscribers,
+            )
             for (const subscriberId of subscribers) {
               subscribersToRefresh.add(subscriberId)
             }
           }
-          console.log('[HandlerExec] Components to refresh:', Array.from(subscribersToRefresh))
+          console.log(
+            '[HandlerExec] Components to refresh:',
+            Array.from(subscribersToRefresh),
+          )
 
           // Re-fetch current report state after UI updates
           const currentState = getReportState(reportId)
           if (currentState) {
             for (const subscriberId of subscribersToRefresh) {
               console.log('[HandlerExec] Refreshing component:', subscriberId)
-              const refreshResult = await refreshComponent(currentState, subscriberId)
+              const refreshResult = await refreshComponent(
+                currentState,
+                subscriberId,
+              )
               console.log('[HandlerExec] Refresh result:', refreshResult)
               refreshResults.push(refreshResult)
             }
           }
         } else {
-          console.log('[HandlerExec] No signals to invalidate or no signal registry')
+          console.log(
+            '[HandlerExec] No signals to invalidate or no signal registry',
+          )
         }
-        console.log('[HandlerExec] Total refresh results:', refreshResults.length)
+        console.log(
+          '[HandlerExec] Total refresh results:',
+          refreshResults.length,
+        )
 
         // Evaluate watchers for invalidated signals
         if (invalidatedSignals.size > 0) {

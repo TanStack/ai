@@ -36,9 +36,21 @@ import type { ModelMessage, StreamChunk, ToolRegistry } from '@tanstack/ai'
 export interface RegistryTestResult {
   passed: boolean
   phases: {
-    setup: { success: boolean; error?: string; details?: Record<string, unknown> }
-    registration: { success: boolean; error?: string; details?: Record<string, unknown> }
-    verification: { success: boolean; error?: string; details?: Record<string, unknown> }
+    setup: {
+      success: boolean
+      error?: string
+      details?: Record<string, unknown>
+    }
+    registration: {
+      success: boolean
+      error?: string
+      details?: Record<string, unknown>
+    }
+    verification: {
+      success: boolean
+      error?: string
+      details?: Record<string, unknown>
+    }
   }
 }
 
@@ -150,10 +162,13 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
       logError('Missing register_skill tool')
     }
 
-    const hasAllExpectedTools = hasExecuteTypescript && hasSearchSkills && hasGetSkill && hasRegisterSkill
+    const hasAllExpectedTools =
+      hasExecuteTypescript && hasSearchSkills && hasGetSkill && hasRegisterSkill
 
     // Verify NO skill tools exist yet (since no skills in storage)
-    const skillToolsBefore = toolNames.filter((n) => n.startsWith('skill_') || n === 'add_two_numbers')
+    const skillToolsBefore = toolNames.filter(
+      (n) => n.startsWith('skill_') || n === 'add_two_numbers',
+    )
     const noSkillToolsYet = skillToolsBefore.length === 0
 
     result.phases.setup = {
@@ -172,8 +187,12 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     if (result.phases.setup.success) {
       logSuccess('Phase 1 passed: Registry has all expected initial tools')
     } else {
-      logError('Phase 1 failed: Missing expected tools or unexpected skill tools')
-      logInfo(`Details: ${JSON.stringify(result.phases.setup.details, null, 2)}`)
+      logError(
+        'Phase 1 failed: Missing expected tools or unexpected skill tools',
+      )
+      logInfo(
+        `Details: ${JSON.stringify(result.phases.setup.details, null, 2)}`,
+      )
     }
   } catch (error) {
     result.phases.setup = {
@@ -195,20 +214,28 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     const chatAdapter = createMockTextAdapter({
       responses: [
         // First: Execute TypeScript to test
-        singleToolCall('execute_typescript', {
-          typescriptCode: ADD_NUMBERS_CODE,
-        }, 'call_execute_1'),
+        singleToolCall(
+          'execute_typescript',
+          {
+            typescriptCode: ADD_NUMBERS_CODE,
+          },
+          'call_execute_1',
+        ),
 
         // Second: Register the skill
-        singleToolCall('register_skill', {
-          name: 'add_two_numbers',
-          description: 'Add two numbers together using the add_numbers tool',
-          code: EXPECTED_SKILL_CODE,
-          inputSchema: JSON.stringify(EXPECTED_SKILL_INPUT_SCHEMA),
-          outputSchema: JSON.stringify(EXPECTED_SKILL_OUTPUT_SCHEMA),
-          usageHints: ['Use when the user wants to add two numbers'],
-          dependsOn: [],
-        }, 'call_register_1'),
+        singleToolCall(
+          'register_skill',
+          {
+            name: 'add_two_numbers',
+            description: 'Add two numbers together using the add_numbers tool',
+            code: EXPECTED_SKILL_CODE,
+            inputSchema: JSON.stringify(EXPECTED_SKILL_INPUT_SCHEMA),
+            outputSchema: JSON.stringify(EXPECTED_SKILL_OUTPUT_SCHEMA),
+            usageHints: ['Use when the user wants to add two numbers'],
+            dependsOn: [],
+          },
+          'call_register_1',
+        ),
 
         // Third: Final response
         textResponse('Done! I created an add_two_numbers skill.'),
@@ -221,7 +248,10 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     })
 
     const messages: Array<ModelMessage> = [
-      { role: 'user', content: 'Please add 5 + 3 and create a reusable skill for it.' },
+      {
+        role: 'user',
+        content: 'Please add 5 + 3 and create a reusable skill for it.',
+      },
     ]
 
     // Count tools before
@@ -253,7 +283,9 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
         // Check if this is the register_skill result
         if (chunk.toolCallId === 'call_register_1') {
           registerSkillResult = chunk.result
-          logInfo(`register_skill result: ${JSON.stringify(registerSkillResult)}`)
+          logInfo(
+            `register_skill result: ${JSON.stringify(registerSkillResult)}`,
+          )
         }
       } else if (chunk.type === 'done') {
         logInfo(`Chat done: ${chunk.finishReason}`)
@@ -280,10 +312,14 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     }
 
     if (result.phases.registration.success) {
-      logSuccess('Phase 2 passed: Skill registered and added to registry mid-stream')
+      logSuccess(
+        'Phase 2 passed: Skill registered and added to registry mid-stream',
+      )
     } else {
       logError('Phase 2 failed: Skill was not properly added to registry')
-      logInfo(`Details: ${JSON.stringify(result.phases.registration.details, null, 2)}`)
+      logInfo(
+        `Details: ${JSON.stringify(result.phases.registration.details, null, 2)}`,
+      )
     }
   } catch (error) {
     result.phases.registration = {
@@ -328,10 +364,14 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     const secondChatAdapter = createMockTextAdapter({
       responses: [
         // Directly call the newly registered skill
-        singleToolCall('add_two_numbers', {
-          a: 10,
-          b: 20,
-        }, 'call_skill_1'),
+        singleToolCall(
+          'add_two_numbers',
+          {
+            a: 10,
+            b: 20,
+          },
+          'call_skill_1',
+        ),
 
         // Final response
         textResponse('The answer is 30.'),
@@ -384,7 +424,8 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     // the skill code ran and called the external tool correctly.
 
     result.phases.verification = {
-      success: hasName && hasDescription && skillToolCalled && skillToolResultReceived,
+      success:
+        hasName && hasDescription && skillToolCalled && skillToolResultReceived,
       details: {
         hasName,
         hasDescription,
@@ -396,10 +437,14 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     }
 
     if (result.phases.verification.success) {
-      logSuccess('Phase 3 passed: Skill tool is callable and returns correct result')
+      logSuccess(
+        'Phase 3 passed: Skill tool is callable and returns correct result',
+      )
     } else {
       logError('Phase 3 failed: Skill tool verification failed')
-      logInfo(`Details: ${JSON.stringify(result.phases.verification.details, null, 2)}`)
+      logInfo(
+        `Details: ${JSON.stringify(result.phases.verification.details, null, 2)}`,
+      )
     }
   } catch (error) {
     result.phases.verification = {
@@ -440,4 +485,3 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
 
   return result
 }
-

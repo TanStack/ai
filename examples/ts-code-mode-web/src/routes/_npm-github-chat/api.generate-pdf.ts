@@ -10,7 +10,10 @@ interface MessagePart {
   output?: unknown
 }
 
-function messagesToMarkdown(messages: Array<UIMessage>, title?: string): string {
+function messagesToMarkdown(
+  messages: Array<UIMessage>,
+  title?: string,
+): string {
   const lines: Array<string> = []
 
   // Embed CSS styles directly in the markdown
@@ -39,7 +42,8 @@ blockquote { border-left: 4px solid #0ea5e9; margin: 1em 0; padding-left: 1em; c
   lines.push('')
 
   for (const message of messages) {
-    const role = message.role === 'assistant' ? '🤖 **Assistant**' : '👤 **User**'
+    const role =
+      message.role === 'assistant' ? '🤖 **Assistant**' : '👤 **User**'
     lines.push(`## ${role}`)
     lines.push('')
 
@@ -100,7 +104,10 @@ export const Route = createFileRoute('/_npm-github-chat/api/generate-pdf')({
       POST: async ({ request }) => {
         try {
           const body = await request.json()
-          const { messages, title } = body as { messages: Array<UIMessage>; title?: string }
+          const { messages, title } = body as {
+            messages: Array<UIMessage>
+            title?: string
+          }
 
           if (!messages || !Array.isArray(messages)) {
             return new Response(
@@ -143,7 +150,10 @@ export const Route = createFileRoute('/_npm-github-chat/api/generate-pdf')({
           }
 
           // Generate filename with timestamp
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+          const timestamp = new Date()
+            .toISOString()
+            .replace(/[:.]/g, '-')
+            .slice(0, 19)
           const filename = `conversation-${timestamp}.pdf`
 
           return new Response(new Uint8Array(pdf.content), {
@@ -158,7 +168,10 @@ export const Route = createFileRoute('/_npm-github-chat/api/generate-pdf')({
           console.error('[Generate PDF] Error:', error)
           return new Response(
             JSON.stringify({
-              error: error instanceof Error ? error.message : 'Failed to generate PDF',
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Failed to generate PDF',
             }),
             {
               status: 500,
@@ -170,4 +183,3 @@ export const Route = createFileRoute('/_npm-github-chat/api/generate-pdf')({
     },
   },
 })
-

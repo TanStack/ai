@@ -68,7 +68,9 @@ export default function CodeBlock({
     setIsCollapsed(!isCollapsed)
   }
 
-  const highlighted = highlightExternalCalls(hljs.highlight(code, { language }).value)
+  const highlighted = highlightExternalCalls(
+    hljs.highlight(code, { language }).value,
+  )
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code)

@@ -31,7 +31,10 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
 }
 
 // Lazy initialization to avoid loading native modules at module load time
-let codeModeCache: { tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']; systemPrompt: string } | null = null
+let codeModeCache: {
+  tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
+  systemPrompt: string
+} | null = null
 
 async function getCodeModeTools() {
   if (!codeModeCache) {
@@ -48,7 +51,9 @@ async function getCodeModeTools() {
   return codeModeCache
 }
 
-export const Route = createFileRoute('/_structured-output/api/structured-output')({
+export const Route = createFileRoute(
+  '/_structured-output/api/structured-output',
+)({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -95,7 +100,10 @@ IMPORTANT: After completing your analysis using execute_typescript, your final s
             abortController,
           })
 
-          const sseStream = toServerSentEventsStream(combinedStream, abortController)
+          const sseStream = toServerSentEventsStream(
+            combinedStream,
+            abortController,
+          )
 
           return new Response(sseStream, {
             headers: {
@@ -165,7 +173,10 @@ async function* createTwoPhaseStream(
   })
 
   // Collect messages for phase 2 while streaming phase 1
-  const collectedMessages: Array<{ role: 'user' | 'assistant' | 'tool'; content: string }> = [...messages]
+  const collectedMessages: Array<{
+    role: 'user' | 'assistant' | 'tool'
+    content: string
+  }> = [...messages]
   let currentAssistantContent = ''
 
   for await (const chunk of analysisStream) {
@@ -196,7 +207,7 @@ async function* createTwoPhaseStream(
     country: 'a country song with verses, chorus, and bridge',
     trivia: 'a trivia quiz with multiple choice questions',
   }
-  
+
   const structuredRequestMessages = [
     ...collectedMessages,
     {
@@ -241,7 +252,7 @@ async function* createTwoPhaseStream(
     } as StreamChunk
   } catch (error) {
     console.error('[Structured Output] Phase 2 error:', error)
-    
+
     // Emit error as custom event
     yield {
       type: 'CUSTOM',
@@ -250,9 +261,11 @@ async function* createTwoPhaseStream(
       name: 'structured_output:error',
       value: {
         format: outputFormat,
-        error: error instanceof Error ? error.message : 'Failed to generate structured output',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to generate structured output',
       },
     }
   }
 }
-

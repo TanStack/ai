@@ -4,7 +4,10 @@ import type { ServerReportState } from './report-storage'
 /**
  * Find a component by ID in the report's node tree.
  */
-function findComponent(state: ServerReportState, componentId: string): UINode | null {
+function findComponent(
+  state: ServerReportState,
+  componentId: string,
+): UINode | null {
   return state.nodes.get(componentId) ?? null
 }
 

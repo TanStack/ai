@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useCallback } from 'react'
 import type { UIEffect } from '@/lib/reports/types'

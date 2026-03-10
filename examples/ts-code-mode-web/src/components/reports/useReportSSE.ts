@@ -49,7 +49,7 @@ export function useReportSSE({
         if (data.type === 'refresh' && data.results) {
           onRefresh(data.results)
         }
-        
+
         if (data.type === 'effects' && data.effects && onEffects) {
           onEffects(data.effects)
         }
@@ -91,7 +91,9 @@ export function useReportSSE({
 /**
  * Helper to convert refresh results to UI updates for use with applyUIUpdates.
  */
-export function refreshResultsToUIUpdates(results: RefreshResult[]): UIUpdate[] {
+export function refreshResultsToUIUpdates(
+  results: RefreshResult[],
+): UIUpdate[] {
   return results
     .filter((r) => r.success && r.props)
     .map((r) => ({

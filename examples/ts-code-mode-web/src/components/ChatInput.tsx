@@ -66,9 +66,7 @@ export default function ChatInput({
 
         <div className="mt-2 text-xs text-gray-500">
           <strong className="text-gray-400">Example queries:</strong>
-          <span className="ml-2">
-            {exampleQueries}
-          </span>
+          <span className="ml-2">{exampleQueries}</span>
         </div>
       </div>
     </div>

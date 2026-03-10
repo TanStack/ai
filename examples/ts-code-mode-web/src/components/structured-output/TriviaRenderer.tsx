@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { HelpCircle, Check, X, ChevronRight, Trophy, RotateCcw, BookOpen } from 'lucide-react'
+import {
+  HelpCircle,
+  Check,
+  X,
+  ChevronRight,
+  Trophy,
+  RotateCcw,
+  BookOpen,
+} from 'lucide-react'
 import type { TriviaSet } from '@/lib/structured-output-types'
 
 interface TriviaRendererProps {
@@ -11,7 +19,9 @@ export default function TriviaRenderer({ data }: TriviaRendererProps) {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [showExplanation, setShowExplanation] = useState(false)
   const [score, setScore] = useState(0)
-  const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set())
+  const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(
+    new Set(),
+  )
 
   const question = data.questions[currentQuestion]
   const isAnswered = answeredQuestions.has(currentQuestion)
@@ -20,19 +30,19 @@ export default function TriviaRenderer({ data }: TriviaRendererProps) {
 
   const handleAnswer = (index: number) => {
     if (isAnswered) return
-    
+
     setSelectedAnswer(index)
     setShowExplanation(true)
-    setAnsweredQuestions(prev => new Set(prev).add(currentQuestion))
-    
+    setAnsweredQuestions((prev) => new Set(prev).add(currentQuestion))
+
     if (index === question.correctAnswer) {
-      setScore(prev => prev + 1)
+      setScore((prev) => prev + 1)
     }
   }
 
   const nextQuestion = () => {
     if (currentQuestion < data.questions.length - 1) {
-      setCurrentQuestion(prev => prev + 1)
+      setCurrentQuestion((prev) => prev + 1)
       setSelectedAnswer(null)
       setShowExplanation(false)
     }
@@ -57,19 +67,26 @@ export default function TriviaRenderer({ data }: TriviaRendererProps) {
       {/* Header */}
       <div className="relative bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 p-6 overflow-hidden">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIyIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSIvPjwvZz48L3N2Zz4=')] opacity-50" />
-        
+
         <div className="relative flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <HelpCircle className="w-6 h-6 text-indigo-200" />
-              <span className="text-indigo-100 font-medium">{data.category}</span>
+              <span className="text-indigo-100 font-medium">
+                {data.category}
+              </span>
             </div>
-            <div className={`inline-block px-3 py-1 rounded-full text-sm font-bold text-white bg-gradient-to-r ${difficultyColors[data.difficulty]}`}>
-              {data.difficulty.charAt(0).toUpperCase() + data.difficulty.slice(1)}
+            <div
+              className={`inline-block px-3 py-1 rounded-full text-sm font-bold text-white bg-gradient-to-r ${difficultyColors[data.difficulty]}`}
+            >
+              {data.difficulty.charAt(0).toUpperCase() +
+                data.difficulty.slice(1)}
             </div>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold text-white">{score}/{data.questions.length}</div>
+            <div className="text-3xl font-bold text-white">
+              {score}/{data.questions.length}
+            </div>
             <div className="text-indigo-200 text-sm">Score</div>
           </div>
         </div>
@@ -108,15 +125,18 @@ export default function TriviaRenderer({ data }: TriviaRendererProps) {
           {/* Options */}
           <div className="space-y-3 mb-6">
             {question.options.map((option, index) => {
-              let buttonStyle = 'bg-indigo-900/30 border-indigo-500/20 hover:border-indigo-400/50 text-white'
-              
+              let buttonStyle =
+                'bg-indigo-900/30 border-indigo-500/20 hover:border-indigo-400/50 text-white'
+
               if (isAnswered) {
                 if (index === question.correctAnswer) {
-                  buttonStyle = 'bg-green-500/20 border-green-500/50 text-green-300'
+                  buttonStyle =
+                    'bg-green-500/20 border-green-500/50 text-green-300'
                 } else if (index === selectedAnswer) {
                   buttonStyle = 'bg-red-500/20 border-red-500/50 text-red-300'
                 } else {
-                  buttonStyle = 'bg-indigo-900/20 border-indigo-500/10 text-indigo-400'
+                  buttonStyle =
+                    'bg-indigo-900/20 border-indigo-500/10 text-indigo-400'
                 }
               }
 
@@ -134,9 +154,11 @@ export default function TriviaRenderer({ data }: TriviaRendererProps) {
                   {isAnswered && index === question.correctAnswer && (
                     <Check className="w-6 h-6 text-green-400" />
                   )}
-                  {isAnswered && index === selectedAnswer && index !== question.correctAnswer && (
-                    <X className="w-6 h-6 text-red-400" />
-                  )}
+                  {isAnswered &&
+                    index === selectedAnswer &&
+                    index !== question.correctAnswer && (
+                      <X className="w-6 h-6 text-red-400" />
+                    )}
                 </button>
               )
             })}
@@ -144,13 +166,17 @@ export default function TriviaRenderer({ data }: TriviaRendererProps) {
 
           {/* Explanation */}
           {showExplanation && (
-            <div className={`rounded-xl p-5 border mb-6 ${
-              isCorrect 
-                ? 'bg-green-500/10 border-green-500/30' 
-                : 'bg-red-500/10 border-red-500/30'
-            }`}>
+            <div
+              className={`rounded-xl p-5 border mb-6 ${
+                isCorrect
+                  ? 'bg-green-500/10 border-green-500/30'
+                  : 'bg-red-500/10 border-red-500/30'
+              }`}
+            >
               <div className="flex items-start gap-3">
-                <div className={`p-2 rounded-lg ${isCorrect ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                <div
+                  className={`p-2 rounded-lg ${isCorrect ? 'bg-green-500/20' : 'bg-red-500/20'}`}
+                >
                   {isCorrect ? (
                     <Check className="w-5 h-5 text-green-400" />
                   ) : (
@@ -158,10 +184,14 @@ export default function TriviaRenderer({ data }: TriviaRendererProps) {
                   )}
                 </div>
                 <div>
-                  <h4 className={`font-bold mb-1 ${isCorrect ? 'text-green-300' : 'text-red-300'}`}>
+                  <h4
+                    className={`font-bold mb-1 ${isCorrect ? 'text-green-300' : 'text-red-300'}`}
+                  >
                     {isCorrect ? 'Correct!' : 'Not quite!'}
                   </h4>
-                  <p className="text-slate-300 text-sm mb-2">{question.explanation}</p>
+                  <p className="text-slate-300 text-sm mb-2">
+                    {question.explanation}
+                  </p>
                   <div className="flex items-center gap-2 text-xs text-slate-400">
                     <BookOpen size={14} />
                     <span>Source: {question.source}</span>
@@ -207,4 +237,3 @@ export default function TriviaRenderer({ data }: TriviaRendererProps) {
     </div>
   )
 }
-

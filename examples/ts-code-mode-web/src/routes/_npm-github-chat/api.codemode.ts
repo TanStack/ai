@@ -19,15 +19,19 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
       return geminiText((model || 'gemini-2.5-flash') as 'gemini-2.5-flash')
     case 'anthropic':
     default:
-      return anthropicText(
-        (model || 'claude-haiku-4-5') as 'claude-haiku-4-5',
-      )
+      return anthropicText((model || 'claude-haiku-4-5') as 'claude-haiku-4-5')
   }
 }
 
-import { createIsolateDriver, type IsolateVM } from '@/lib/create-isolate-driver'
+import {
+  createIsolateDriver,
+  type IsolateVM,
+} from '@/lib/create-isolate-driver'
 
-type CodeModeEntry = { tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']; systemPrompt: string }
+type CodeModeEntry = {
+  tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
+  systemPrompt: string
+}
 const codeModeCacheByVM = new Map<IsolateVM, CodeModeEntry>()
 
 async function getCodeModeTools(vm: IsolateVM = 'node') {

@@ -36,13 +36,19 @@ export const Route = createFileRoute('/_reporting/api/invalidate' as any)({
         const subscribersToRefresh = new Set<string>()
         for (const signal of signals) {
           const subscribers = reportState.signalRegistry.getSubscribers(signal)
-          console.log(`[Invalidate] Signal "${signal}" subscribers:`, Array.from(subscribers))
+          console.log(
+            `[Invalidate] Signal "${signal}" subscribers:`,
+            Array.from(subscribers),
+          )
           for (const subscriberId of subscribers) {
             subscribersToRefresh.add(subscriberId)
           }
         }
 
-        console.log('[Invalidate] Total subscribers to refresh:', Array.from(subscribersToRefresh))
+        console.log(
+          '[Invalidate] Total subscribers to refresh:',
+          Array.from(subscribersToRefresh),
+        )
 
         // Refresh each subscriber
         const refreshResults: RefreshResult[] = []
@@ -53,7 +59,10 @@ export const Route = createFileRoute('/_reporting/api/invalidate' as any)({
           refreshResults.push(result)
         }
 
-        console.log('[Invalidate] Total refresh results:', refreshResults.length)
+        console.log(
+          '[Invalidate] Total refresh results:',
+          refreshResults.length,
+        )
 
         // Evaluate watchers for the invalidated signals
         const invalidatedSignals = new Set(signals as string[])
@@ -65,7 +74,7 @@ export const Route = createFileRoute('/_reporting/api/invalidate' as any)({
         // Push updates via SSE if connected
         const sseController = getSSEController(reportId)
         console.log('[Invalidate] SSE controller exists:', !!sseController)
-        
+
         if (sseController) {
           // Push component refresh results
           if (refreshResults.length > 0) {
