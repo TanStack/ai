@@ -1,4 +1,5 @@
 import { GENERATION_EVENTS } from './generation-types'
+import { parseSSEResponse } from './sse-parser'
 import type { StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 import type {
@@ -159,12 +160,17 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   ): Promise<void> {
     if (!this.fetcher) return
 
-    // Fetcher returns a completed result directly
+    // Fetcher returns a completed result directly, or a Response with SSE body
     const result = await this.fetcher(input, { signal })
     if (signal.aborted) return
 
-    this.setResult(result)
-    this.setStatus('success')
+    if (result instanceof Response) {
+      // Server function returned SSE Response — parse stream
+      await this.processStream(parseSSEResponse(result, signal))
+    } else {
+      this.setResult(result)
+      this.setStatus('success')
+    }
   }
 
   /**

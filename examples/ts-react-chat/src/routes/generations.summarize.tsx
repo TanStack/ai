@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useSummarize } from '@tanstack/ai-react'
 import type { UseSummarizeReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
-import { summarizeFn } from '../lib/server-fns'
+import { summarizeFn, summarizeStreamFn } from '../lib/server-fns'
 
 const SAMPLE_TEXT = `Artificial intelligence (AI) has rapidly transformed from a niche academic pursuit into one of the most influential technologies of the 21st century. The development of large language models, in particular, has demonstrated capabilities that were previously thought to be decades away. These models can generate human-like text, translate languages, write code, and even engage in complex reasoning tasks.
 
@@ -40,6 +40,27 @@ function DirectSummarize() {
 
   const hookReturn = useSummarize({
     fetcher: (input) => summarizeFn({ data: input }),
+  })
+
+  return (
+    <SummarizeUI
+      {...hookReturn}
+      text={text}
+      setText={setText}
+      style={style}
+      setStyle={setStyle}
+    />
+  )
+}
+
+function ServerFnSummarize() {
+  const [text, setText] = useState('')
+  const [style, setStyle] = useState<'concise' | 'bullet-points' | 'paragraph'>(
+    'concise',
+  )
+
+  const hookReturn = useSummarize({
+    fetcher: (input) => summarizeStreamFn({ data: input }),
   })
 
   return (
@@ -150,7 +171,7 @@ function SummarizeUI({
 }
 
 function SummarizePage() {
-  const [mode, setMode] = useState<'streaming' | 'direct'>('streaming')
+  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>('streaming')
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
@@ -183,6 +204,16 @@ function SummarizePage() {
             >
               Direct
             </button>
+            <button
+              onClick={() => setMode('server-fn')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                mode === 'server-fn'
+                  ? 'bg-orange-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Server Fn
+            </button>
           </div>
         </div>
       </div>
@@ -191,8 +222,10 @@ function SummarizePage() {
         <div className="max-w-2xl mx-auto">
           {mode === 'streaming' ? (
             <StreamingSummarize key="streaming" />
-          ) : (
+          ) : mode === 'direct' ? (
             <DirectSummarize key="direct" />
+          ) : (
+            <ServerFnSummarize key="server-fn" />
           )}
         </div>
       </div>

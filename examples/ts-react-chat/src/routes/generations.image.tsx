@@ -3,7 +3,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateImage } from '@tanstack/ai-react'
 import type { UseGenerateImageReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
-import { generateImageFn } from '../lib/server-fns'
+import {
+  generateImageFn,
+  generateImageStreamFn,
+} from '../lib/server-fns'
 
 function StreamingImageGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -30,6 +33,25 @@ function DirectImageGeneration() {
 
   const hookReturn = useGenerateImage({
     fetcher: (input) => generateImageFn({ data: input }),
+  })
+
+  return (
+    <ImageGenerationUI
+      {...hookReturn}
+      prompt={prompt}
+      setPrompt={setPrompt}
+      numberOfImages={numberOfImages}
+      setNumberOfImages={setNumberOfImages}
+    />
+  )
+}
+
+function ServerFnImageGeneration() {
+  const [prompt, setPrompt] = useState('')
+  const [numberOfImages, setNumberOfImages] = useState(1)
+
+  const hookReturn = useGenerateImage({
+    fetcher: (input) => generateImageStreamFn({ data: input }),
   })
 
   return (
@@ -144,7 +166,7 @@ function ImageGenerationUI({
 }
 
 function ImageGenerationPage() {
-  const [mode, setMode] = useState<'streaming' | 'direct'>('streaming')
+  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>('streaming')
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
@@ -177,6 +199,16 @@ function ImageGenerationPage() {
             >
               Direct
             </button>
+            <button
+              onClick={() => setMode('server-fn')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                mode === 'server-fn'
+                  ? 'bg-orange-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Server Fn
+            </button>
           </div>
         </div>
       </div>
@@ -185,8 +217,10 @@ function ImageGenerationPage() {
         <div className="max-w-2xl mx-auto">
           {mode === 'streaming' ? (
             <StreamingImageGeneration key="streaming" />
-          ) : (
+          ) : mode === 'direct' ? (
             <DirectImageGeneration key="direct" />
+          ) : (
+            <ServerFnImageGeneration key="server-fn" />
           )}
         </div>
       </div>

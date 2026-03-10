@@ -657,6 +657,219 @@ describe('GenerationClient', () => {
     })
   })
 
+  describe('fetcher returning Response (SSE stream)', () => {
+    function createSSEResponse(lines: Array<string>): Response {
+      const sseData = lines.map((l) => `data: ${l}`).join('\n\n') + '\n\n'
+      const mockReader = {
+        _callCount: 0,
+        _chunks: [new TextEncoder().encode(sseData)],
+        read() {
+          if (this._callCount < this._chunks.length) {
+            return Promise.resolve({
+              done: false,
+              value: this._chunks[this._callCount++],
+            })
+          }
+          return Promise.resolve({ done: true, value: undefined })
+        },
+        releaseLock() {},
+      }
+      const response = new Response(null, { status: 200 })
+      Object.defineProperty(response, 'body', {
+        value: { getReader: () => mockReader },
+      })
+      return response
+    }
+
+    it('should parse SSE Response and extract result from CUSTOM event', async () => {
+      const mockResult = { id: '1', images: [{ url: 'http://example.com' }] }
+      const onResult = vi.fn()
+
+      const response = createSSEResponse([
+        JSON.stringify({
+          type: 'RUN_STARTED',
+          runId: 'run-1',
+          timestamp: 100,
+        }),
+        JSON.stringify({
+          type: 'CUSTOM',
+          name: 'generation:result',
+          value: mockResult,
+          timestamp: 200,
+        }),
+        JSON.stringify({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          finishReason: 'stop',
+          timestamp: 300,
+        }),
+      ])
+
+      const client = new GenerationClient({
+        fetcher: async () => response,
+        onResult,
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(onResult).toHaveBeenCalledWith(mockResult)
+      expect(client.getResult()).toEqual(mockResult)
+      expect(client.getStatus()).toBe('success')
+    })
+
+    it('should handle RUN_ERROR from SSE Response', async () => {
+      const onError = vi.fn()
+
+      const response = createSSEResponse([
+        JSON.stringify({
+          type: 'RUN_STARTED',
+          runId: 'run-1',
+          timestamp: 100,
+        }),
+        JSON.stringify({
+          type: 'RUN_ERROR',
+          runId: 'run-1',
+          error: { message: 'Generation failed' },
+          timestamp: 200,
+        }),
+      ])
+
+      const client = new GenerationClient({
+        fetcher: async () => response,
+        onError,
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
+      expect(client.getStatus()).toBe('error')
+      expect(client.getError()?.message).toBe('Generation failed')
+    })
+
+    it('should call onChunk for each SSE chunk from Response', async () => {
+      const onChunk = vi.fn()
+
+      const response = createSSEResponse([
+        JSON.stringify({
+          type: 'RUN_STARTED',
+          runId: 'run-1',
+          timestamp: 100,
+        }),
+        JSON.stringify({
+          type: 'CUSTOM',
+          name: 'generation:result',
+          value: { id: '1' },
+          timestamp: 200,
+        }),
+        JSON.stringify({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          finishReason: 'stop',
+          timestamp: 300,
+        }),
+      ])
+
+      const client = new GenerationClient({
+        fetcher: async () => response,
+        onChunk,
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(onChunk).toHaveBeenCalledTimes(3)
+    })
+
+    it('should report progress from SSE Response stream', async () => {
+      const onProgress = vi.fn()
+
+      const response = createSSEResponse([
+        JSON.stringify({
+          type: 'RUN_STARTED',
+          runId: 'run-1',
+          timestamp: 100,
+        }),
+        JSON.stringify({
+          type: 'CUSTOM',
+          name: 'generation:progress',
+          value: { progress: 50, message: 'Halfway' },
+          timestamp: 200,
+        }),
+        JSON.stringify({
+          type: 'CUSTOM',
+          name: 'generation:result',
+          value: { id: '1' },
+          timestamp: 300,
+        }),
+        JSON.stringify({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          finishReason: 'stop',
+          timestamp: 400,
+        }),
+      ])
+
+      const client = new GenerationClient({
+        fetcher: async () => response,
+        onProgress,
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(onProgress).toHaveBeenCalledWith(50, 'Halfway')
+    })
+
+    it('should handle HTTP error Response from fetcher', async () => {
+      const onError = vi.fn()
+
+      const errorResponse = new Response(null, {
+        status: 500,
+        statusText: 'Internal Server Error',
+      })
+
+      const client = new GenerationClient({
+        fetcher: async () => errorResponse,
+        onError,
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
+      expect(client.getStatus()).toBe('error')
+      expect(client.getError()?.message).toContain('500')
+    })
+
+    it('should pass input type-safely (fetcher receives typed input)', async () => {
+      const fetcherSpy = vi.fn(async (_input: { prompt: string }) => {
+        return createSSEResponse([
+          JSON.stringify({
+            type: 'CUSTOM',
+            name: 'generation:result',
+            value: { id: '1' },
+            timestamp: 100,
+          }),
+          JSON.stringify({
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            finishReason: 'stop',
+            timestamp: 200,
+          }),
+        ])
+      })
+
+      const client = new GenerationClient({
+        fetcher: fetcherSpy,
+      })
+
+      await client.generate({ prompt: 'sunset' })
+
+      expect(fetcherSpy).toHaveBeenCalledWith(
+        { prompt: 'sunset' },
+        { signal: expect.any(AbortSignal) },
+      )
+      expect(client.getResult()).toEqual({ id: '1' })
+    })
+  })
+
   describe('state transitions', () => {
     it('should follow idle -> generating -> success', async () => {
       const states: Array<string> = []

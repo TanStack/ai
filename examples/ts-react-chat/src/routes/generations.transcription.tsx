@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useTranscription } from '@tanstack/ai-react'
 import type { UseTranscriptionReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
-import { transcribeFn } from '../lib/server-fns'
+import { transcribeFn, transcribeStreamFn } from '../lib/server-fns'
 
 function StreamingTranscription() {
   const hookReturn = useTranscription({
@@ -17,6 +17,17 @@ function DirectTranscription() {
   const hookReturn = useTranscription({
     fetcher: (input) =>
       transcribeFn({
+        data: { ...input, audio: input.audio as string },
+      }),
+  })
+
+  return <TranscriptionUI {...hookReturn} />
+}
+
+function ServerFnTranscription() {
+  const hookReturn = useTranscription({
+    fetcher: (input) =>
+      transcribeStreamFn({
         data: { ...input, audio: input.audio as string },
       }),
   })
@@ -121,7 +132,7 @@ function TranscriptionUI({
 }
 
 function TranscriptionPage() {
-  const [mode, setMode] = useState<'streaming' | 'direct'>('streaming')
+  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>('streaming')
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
@@ -154,6 +165,16 @@ function TranscriptionPage() {
             >
               Direct
             </button>
+            <button
+              onClick={() => setMode('server-fn')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                mode === 'server-fn'
+                  ? 'bg-orange-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Server Fn
+            </button>
           </div>
         </div>
       </div>
@@ -162,8 +183,10 @@ function TranscriptionPage() {
         <div className="max-w-2xl mx-auto">
           {mode === 'streaming' ? (
             <StreamingTranscription key="streaming" />
-          ) : (
+          ) : mode === 'direct' ? (
             <DirectTranscription key="direct" />
+          ) : (
+            <ServerFnTranscription key="server-fn" />
           )}
         </div>
       </div>

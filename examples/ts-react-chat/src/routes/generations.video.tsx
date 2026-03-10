@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateVideo } from '@tanstack/ai-react'
 import type { UseGenerateVideoReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
-import { generateVideoFn } from '../lib/server-fns'
+import { generateVideoFn, generateVideoStreamFn } from '../lib/server-fns'
 
 function StreamingVideoGeneration() {
   const [prompt, setPrompt] = useState('')
@@ -22,6 +22,18 @@ function DirectVideoGeneration() {
 
   const hookReturn = useGenerateVideo({
     fetcher: (input) => generateVideoFn({ data: input }),
+  })
+
+  return (
+    <VideoGenerationUI {...hookReturn} prompt={prompt} setPrompt={setPrompt} />
+  )
+}
+
+function ServerFnVideoGeneration() {
+  const [prompt, setPrompt] = useState('')
+
+  const hookReturn = useGenerateVideo({
+    fetcher: (input) => generateVideoStreamFn({ data: input }),
   })
 
   return (
@@ -143,7 +155,7 @@ function VideoGenerationUI({
 }
 
 function VideoGenerationPage() {
-  const [mode, setMode] = useState<'streaming' | 'direct'>('streaming')
+  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>('streaming')
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
@@ -176,6 +188,16 @@ function VideoGenerationPage() {
             >
               Direct
             </button>
+            <button
+              onClick={() => setMode('server-fn')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                mode === 'server-fn'
+                  ? 'bg-orange-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Server Fn
+            </button>
           </div>
         </div>
       </div>
@@ -184,8 +206,10 @@ function VideoGenerationPage() {
         <div className="max-w-2xl mx-auto">
           {mode === 'streaming' ? (
             <StreamingVideoGeneration key="streaming" />
-          ) : (
+          ) : mode === 'direct' ? (
             <DirectVideoGeneration key="direct" />
+          ) : (
+            <ServerFnVideoGeneration key="server-fn" />
           )}
         </div>
       </div>

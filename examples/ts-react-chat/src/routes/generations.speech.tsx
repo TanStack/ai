@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateSpeech } from '@tanstack/ai-react'
 import type { UseGenerateSpeechReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
-import { generateSpeechFn } from '../lib/server-fns'
+import { generateSpeechFn, generateSpeechStreamFn } from '../lib/server-fns'
 
 const VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const
 
@@ -56,6 +56,26 @@ function DirectSpeechGeneration() {
 
   const hookReturn = useGenerateSpeech({
     fetcher: (input) => generateSpeechFn({ data: input }),
+    onResult: toSpeechOutput,
+  })
+
+  return (
+    <SpeechGenerationUI
+      {...hookReturn}
+      text={text}
+      setText={setText}
+      voice={voice}
+      setVoice={setVoice}
+    />
+  )
+}
+
+function ServerFnSpeechGeneration() {
+  const [text, setText] = useState('')
+  const [voice, setVoice] = useState<string>('alloy')
+
+  const hookReturn = useGenerateSpeech({
+    fetcher: (input) => generateSpeechStreamFn({ data: input }),
     onResult: toSpeechOutput,
   })
 
@@ -162,7 +182,7 @@ function SpeechGenerationUI({
 }
 
 function SpeechGenerationPage() {
-  const [mode, setMode] = useState<'streaming' | 'direct'>('streaming')
+  const [mode, setMode] = useState<'streaming' | 'direct' | 'server-fn'>('streaming')
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
@@ -195,6 +215,16 @@ function SpeechGenerationPage() {
             >
               Direct
             </button>
+            <button
+              onClick={() => setMode('server-fn')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                mode === 'server-fn'
+                  ? 'bg-orange-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Server Fn
+            </button>
           </div>
         </div>
       </div>
@@ -203,8 +233,10 @@ function SpeechGenerationPage() {
         <div className="max-w-2xl mx-auto">
           {mode === 'streaming' ? (
             <StreamingSpeechGeneration key="streaming" />
-          ) : (
+          ) : mode === 'direct' ? (
             <DirectSpeechGeneration key="direct" />
+          ) : (
+            <ServerFnSpeechGeneration key="server-fn" />
           )}
         </div>
       </div>

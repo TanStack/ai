@@ -21,7 +21,6 @@ const production_preset = {
   drop_console: true,
   out_dir: 'dist/production',
 }
-
 export default defineConfig(() => {
   const index_options = generateTsupOptions(parsePresetOptions(index_preset))
   const production_options = generateTsupOptions(

@@ -67,13 +67,17 @@ export interface GenerationFetcherOptions {
 /**
  * A direct async function that performs a generation request.
  *
+ * Can return the result directly, or return a `Response` with an SSE body
+ * (e.g., from a TanStack Start server function using `toServerSentEventsResponse()`).
+ * When a `Response` is returned, the client will parse it as an SSE stream.
+ *
  * @template TInput - The input type for the generation request
  * @template TResult - The result type returned by the generation
  */
 export type GenerationFetcher<TInput, TResult> = (
   input: TInput,
   options?: GenerationFetcherOptions,
-) => Promise<TResult>
+) => Promise<TResult | Response>
 
 /**
  * Transport configuration for generation clients.
