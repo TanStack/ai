@@ -13,7 +13,10 @@
     },
     "ignoredBuiltDependencies": [
       "isolated-vm"
-    ]
+    ],
+    "patchedDependencies": {
+      "@changesets/assemble-release-plan@6.0.9": "patches/@changesets__assemble-release-plan@6.0.9.patch"
+    }
   },
   "scripts": {
     "clean": "pnpm --filter \"./packages/**\" run clean",

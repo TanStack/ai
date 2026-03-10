@@ -79,6 +79,10 @@
           "to": "guides/runtime-adapter-switching"
         },
         {
+          "label": "Realtime Voice Chat",
+          "to": "guides/realtime-chat"
+        },
+        {
           "label": "Text-to-Speech",
           "to": "guides/text-to-speech"
         },
@@ -153,6 +157,10 @@
           "to": "adapters/ollama"
         },
         {
+          "label": "Groq",
+          "to": "adapters/groq"
+        },
+        {
           "label": "Grok (xAI)",
           "to": "adapters/grok"
         },
@@ -223,6 +231,10 @@
         {
           "label": "ToolCallManager",
           "to": "reference/classes/ToolCallManager"
+        },
+        {
+          "label": "RealtimeClient",
+          "to": "reference/classes/RealtimeClient"
         },
         {
           "label": "WordBoundaryStrategy",
@@ -312,6 +324,10 @@
           "to": "reference/functions/uiMessageToModelMessages"
         },
         {
+          "label": "realtimeToken",
+          "to": "reference/functions/realtimeToken"
+        },
+        {
           "label": "untilFinishReason",
           "to": "reference/functions/untilFinishReason"
         }
@@ -341,6 +357,10 @@
         {
           "label": "AudioPart",
           "to": "reference/interfaces/AudioPart"
+        },
+        {
+          "label": "AudioVisualization",
+          "to": "reference/interfaces/AudioVisualization"
         },
         {
           "label": "BaseStreamChunk",
@@ -421,6 +441,38 @@
         {
           "label": "ProcessorState",
           "to": "reference/interfaces/ProcessorState"
+        },
+        {
+          "label": "RealtimeAdapter",
+          "to": "reference/interfaces/RealtimeAdapter"
+        },
+        {
+          "label": "RealtimeClientOptions",
+          "to": "reference/interfaces/RealtimeClientOptions"
+        },
+        {
+          "label": "RealtimeConnection",
+          "to": "reference/interfaces/RealtimeConnection"
+        },
+        {
+          "label": "RealtimeMessage",
+          "to": "reference/interfaces/RealtimeMessage"
+        },
+        {
+          "label": "RealtimeSessionConfig",
+          "to": "reference/interfaces/RealtimeSessionConfig"
+        },
+        {
+          "label": "RealtimeToken",
+          "to": "reference/interfaces/RealtimeToken"
+        },
+        {
+          "label": "RealtimeTokenAdapter",
+          "to": "reference/interfaces/RealtimeTokenAdapter"
+        },
+        {
+          "label": "RealtimeTokenOptions",
+          "to": "reference/interfaces/RealtimeTokenOptions"
         },
         {
           "label": "ResponseFormat",
@@ -576,6 +628,22 @@
         {
           "label": "MessagePart",
           "to": "reference/type-aliases/MessagePart"
+        },
+        {
+          "label": "RealtimeEvent",
+          "to": "reference/type-aliases/RealtimeEvent"
+        },
+        {
+          "label": "RealtimeMessagePart",
+          "to": "reference/type-aliases/RealtimeMessagePart"
+        },
+        {
+          "label": "RealtimeMode",
+          "to": "reference/type-aliases/RealtimeMode"
+        },
+        {
+          "label": "RealtimeStatus",
+          "to": "reference/type-aliases/RealtimeStatus"
         },
         {
           "label": "ModalitiesArrayToUnion",
