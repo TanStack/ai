@@ -36,6 +36,9 @@
   "dependencies": {
     "@tanstack/devtools-event-client": "^0.4.1"
   },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:*"
+  },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14"
