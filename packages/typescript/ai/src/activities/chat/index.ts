@@ -19,7 +19,7 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
-import { devtoolsMiddleware } from './middleware/devtools-middleware'
+import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import type {
   ApprovalRequest,
   ClientToolRequest,

@@ -16,8 +16,6 @@ export type {
 
 export { MiddlewareRunner } from './compose'
 
-export { devtoolsMiddleware } from './devtools-middleware'
-
 export { toolCacheMiddleware } from './tool-cache-middleware'
 export type {
   ToolCacheMiddlewareOptions,

@@ -657,3 +657,6 @@ class AiEventClient extends EventClient<AIDevtoolsEventMap> {
 const aiEventClient = new AiEventClient()
 
 export { aiEventClient }
+
+// Devtools middleware
+export { devtoolsMiddleware } from './devtools-middleware.js'

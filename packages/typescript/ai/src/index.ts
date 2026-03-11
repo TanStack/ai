@@ -90,10 +90,10 @@ export type {
   ToolCacheEntry,
 } from './activities/chat/middleware/index'
 
-export {
-  devtoolsMiddleware,
-  toolCacheMiddleware,
-} from './activities/chat/middleware/index'
+export { toolCacheMiddleware } from './activities/chat/middleware/index'
+
+// Re-export devtools middleware from its canonical location
+export { devtoolsMiddleware } from '@tanstack/ai-event-client'
 
 // All types
 export * from './types'

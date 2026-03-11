@@ -1,11 +1,11 @@
-import { aiEventClient } from '@tanstack/ai-event-client'
-import type { ModelMessage } from '../../../types'
+import { aiEventClient } from './index.js'
+import type { ModelMessage } from '@tanstack/ai'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
   IterationInfo,
   ToolPhaseCompleteInfo,
-} from './types'
+} from '@tanstack/ai'
 
 /**
  * Build the common event context object used by all devtools events.
