@@ -92,7 +92,9 @@ export async function evaluateWatcher(
 
   // Execute the action
   const actionContext = await driver.createContext({
-    bindings: await createActionBindings((effect) => collectedEffects.push(effect)),
+    bindings: await createActionBindings((effect) =>
+      collectedEffects.push(effect),
+    ),
     timeout: 5000,
     memoryLimit: 64,
   })

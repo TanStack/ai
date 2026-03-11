@@ -31,10 +31,18 @@ code {
   line-height: 1.3;
 }
 
-.markdown-content h1 { font-size: 1.5rem; }
-.markdown-content h2 { font-size: 1.25rem; }
-.markdown-content h3 { font-size: 1.1rem; }
-.markdown-content h4 { font-size: 1rem; }
+.markdown-content h1 {
+  font-size: 1.5rem;
+}
+.markdown-content h2 {
+  font-size: 1.25rem;
+}
+.markdown-content h3 {
+  font-size: 1.1rem;
+}
+.markdown-content h4 {
+  font-size: 1rem;
+}
 
 .markdown-content p {
   margin-top: 0.75em;
@@ -134,7 +142,11 @@ code {
 .external-fn {
   color: #f472b6;
   font-weight: 600;
-  background: linear-gradient(135deg, rgba(244, 114, 182, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(244, 114, 182, 0.15) 0%,
+    rgba(168, 85, 247, 0.15) 100%
+  );
   padding: 0.1em 0.3em;
   border-radius: 4px;
   border-bottom: 2px solid #f472b6;
@@ -156,13 +168,17 @@ code {
   margin-bottom: 1em;
 }
 
-.blog-body h1 { font-size: 2rem; }
-.blog-body h2 { 
-  font-size: 1.5rem; 
+.blog-body h1 {
+  font-size: 2rem;
+}
+.blog-body h2 {
+  font-size: 1.5rem;
   border-bottom: 1px solid #334155;
   padding-bottom: 0.5em;
 }
-.blog-body h3 { font-size: 1.25rem; }
+.blog-body h3 {
+  font-size: 1.25rem;
+}
 
 .blog-body p {
   margin-top: 1em;

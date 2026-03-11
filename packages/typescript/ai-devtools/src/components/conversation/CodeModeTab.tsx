@@ -208,13 +208,16 @@ const IterationDisplay: Component<{ iteration: CodeModeIteration }> = (
             <div class={styles().conversationDetails.errorContainer}>
               <div class={styles().conversationDetails.errorHeader}>Error:</div>
               <div style={{ color: '#ef4444' }}>
-                {typeof props.iteration.executionResult?.error === 'string'
-                  ? props.iteration.executionResult.error
-                  : <>
-                      <strong>{props.iteration.executionResult?.error?.name}:</strong>{' '}
-                      {props.iteration.executionResult?.error?.message}
-                    </>
-                }
+                {typeof props.iteration.executionResult?.error === 'string' ? (
+                  props.iteration.executionResult.error
+                ) : (
+                  <>
+                    <strong>
+                      {props.iteration.executionResult?.error?.name}:
+                    </strong>{' '}
+                    {props.iteration.executionResult?.error?.message}
+                  </>
+                )}
               </div>
             </div>
           </Show>
@@ -287,7 +290,10 @@ const SessionDisplay: Component<{ session: CodeModeSession }> = (props) => {
             Iterations:
           </span>
           <span class={styles().conversationDetails.cmInfoValue}>
-            {props.session.iterations.length}{props.session.maxIterations ? ` / ${props.session.maxIterations}` : ''}
+            {props.session.iterations.length}
+            {props.session.maxIterations
+              ? ` / ${props.session.maxIterations}`
+              : ''}
           </span>
         </div>
       </div>
@@ -319,13 +325,14 @@ const SessionDisplay: Component<{ session: CodeModeSession }> = (props) => {
           </Show>
           <Show when={props.session.error}>
             <div style={{ color: '#ef4444' }}>
-              {typeof props.session.error === 'string'
-                ? props.session.error
-                : <>
-                    <strong>{props.session.error?.name}:</strong>{' '}
-                    {props.session.error?.message}
-                  </>
-              }
+              {typeof props.session.error === 'string' ? (
+                props.session.error
+              ) : (
+                <>
+                  <strong>{props.session.error?.name}:</strong>{' '}
+                  {props.session.error?.message}
+                </>
+              )}
             </div>
           </Show>
         </div>

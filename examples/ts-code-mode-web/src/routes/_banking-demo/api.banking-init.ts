@@ -15,12 +15,14 @@ export const Route = createFileRoute('/_banking-demo/api/banking-init' as any)({
     handlers: {
       POST: async () => {
         console.log('[BankingInit] Initializing dashboard...')
-        
+
         // Check if dashboard already exists
         let reportState = getReportState(DASHBOARD_ID)
 
         if (reportState) {
-          console.log('[BankingInit] Dashboard already exists, returning current state')
+          console.log(
+            '[BankingInit] Dashboard already exists, returning current state',
+          )
           // Dashboard already exists, return its current state
           return new Response(
             JSON.stringify({
@@ -30,7 +32,7 @@ export const Route = createFileRoute('/_banking-demo/api/banking-init' as any)({
               rootIds: reportState.rootIds,
               isNew: false,
             }),
-            { headers: { 'Content-Type': 'application/json' } }
+            { headers: { 'Content-Type': 'application/json' } },
           )
         }
 
@@ -120,16 +122,27 @@ export const Route = createFileRoute('/_banking-demo/api/banking-init' as any)({
           // Register subscriptions for components that have them
           if (event.op === 'add' && event.subscriptions && signalRegistry) {
             for (const signal of event.subscriptions) {
-              console.log('[BankingInit] Registering subscription:', event.id, '->', signal)
+              console.log(
+                '[BankingInit] Registering subscription:',
+                event.id,
+                '->',
+                signal,
+              )
               signalRegistry.subscribe(event.id, signal)
             }
           }
         }
-        
+
         // Log the registered subscriptions
         if (signalRegistry) {
-          console.log('[BankingInit] Subscribers for "balances":', signalRegistry.getSubscribers('balances'))
-          console.log('[BankingInit] Subscribers for "transactions":', signalRegistry.getSubscribers('transactions'))
+          console.log(
+            '[BankingInit] Subscribers for "balances":',
+            signalRegistry.getSubscribers('balances'),
+          )
+          console.log(
+            '[BankingInit] Subscribers for "transactions":',
+            signalRegistry.getSubscribers('transactions'),
+          )
         }
 
         // Get the updated state
@@ -143,7 +156,7 @@ export const Route = createFileRoute('/_banking-demo/api/banking-init' as any)({
             rootIds: finalState.rootIds,
             isNew: true,
           }),
-          { headers: { 'Content-Type': 'application/json' } }
+          { headers: { 'Content-Type': 'application/json' } },
         )
       },
     },

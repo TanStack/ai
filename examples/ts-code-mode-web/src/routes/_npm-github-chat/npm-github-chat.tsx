@@ -489,11 +489,7 @@ function CodeModePage() {
   )
 
   const handleCustomEvent = useCallback(
-    (
-      eventType: string,
-      data: unknown,
-      context: { toolCallId?: string },
-    ) => {
+    (eventType: string, data: unknown, context: { toolCallId?: string }) => {
       const toolCallId = context.toolCallId
 
       // Handle npm:data events - store JSON data for sidebar display

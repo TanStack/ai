@@ -7,8 +7,15 @@ export { runRegistryTest } from './registry-test'
 export type { RegistryTestResult } from './registry-test'
 export { runLiveTest } from './live-test'
 export type { LiveTestOptions } from './live-test'
-export { runStructuredOutputTest, MathReportSchema } from './structured-output-test'
-export type { StructuredOutputTestOptions, StructuredOutputTestResult, MathReport } from './structured-output-test'
+export {
+  runStructuredOutputTest,
+  MathReportSchema,
+} from './structured-output-test'
+export type {
+  StructuredOutputTestOptions,
+  StructuredOutputTestResult,
+  MathReport,
+} from './structured-output-test'
 export {
   createMockTextAdapter,
   singleToolCall,
@@ -34,4 +41,3 @@ export { ADAPTERS, getAdapter, getAdapterIds } from './adapters'
 export type { AdapterDefinition, AdapterSet } from './adapters'
 export { TESTS, getTest, getTestIds, getDefaultTests } from './tests'
 export type { TestDefinition, TestOutcome } from './tests'
-

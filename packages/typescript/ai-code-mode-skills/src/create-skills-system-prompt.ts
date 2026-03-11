@@ -287,4 +287,3 @@ register_skill({
 **Important**: Newly registered skills become available as tools on the **next message**, not immediately in the current conversation turn.
 `
 }
-

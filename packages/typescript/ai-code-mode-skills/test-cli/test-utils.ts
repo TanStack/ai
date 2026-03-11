@@ -147,4 +147,3 @@ export const EXPECTED_SKILL_OUTPUT_SCHEMA = {
   },
   required: ['result'],
 }
-

@@ -53,26 +53,25 @@ const { tool, systemPrompt } = createCodeModeToolAndPrompt({
 const result = await chat({
   adapter: yourAdapter,
   model: 'gpt-4o',
-  systemPrompts: [
-    'You are a helpful assistant.',
-    systemPrompt,
-  ],
+  systemPrompts: ['You are a helpful assistant.', systemPrompt],
   tools: [tool],
-  messages: [{ role: 'user', content: 'Compare weather in Tokyo, Paris, and NYC' }],
+  messages: [
+    { role: 'user', content: 'Compare weather in Tokyo, Paris, and NYC' },
+  ],
 })
 ```
 
 The LLM will generate code like:
 
 ```typescript
-const cities = ["Tokyo", "Paris", "NYC"];
+const cities = ['Tokyo', 'Paris', 'NYC']
 const results = await Promise.all(
-  cities.map(city => external_fetchWeather({ location: city }))
-);
+  cities.map((city) => external_fetchWeather({ location: city })),
+)
 const warmest = results.reduce((prev, curr) =>
-  curr.temperature > prev.temperature ? curr : prev
-);
-return { warmestCity: warmest.location, temperature: warmest.temperature };
+  curr.temperature > prev.temperature ? curr : prev,
+)
+return { warmestCity: warmest.location, temperature: warmest.temperature }
 ```
 
 ## API Reference
@@ -82,6 +81,7 @@ return { warmestCity: warmest.location, temperature: warmest.temperature };
 Creates both the `execute_typescript` tool and its matching system prompt. This is the recommended entry point.
 
 **Config:**
+
 - `driver` — An `IsolateDriver` (Node, QuickJS, or Cloudflare)
 - `tools` — Array of `ServerTool` or `ToolDefinition` instances. Exposed as `external_*` functions in the sandbox
 - `timeout` — Execution timeout in ms (default: 30000)
@@ -102,23 +102,23 @@ These utilities are used internally and exported for custom pipelines:
 
 ## Driver Selection Guide
 
-| Driver | Best For | Native Deps | Browser | Memory Limit |
-|--------|----------|-------------|---------|--------------|
-| `@tanstack/ai-isolate-node` | Server-side Node.js apps | Yes (`isolated-vm`) | No | Yes |
-| `@tanstack/ai-isolate-quickjs` | Browser, edge, or no-native-dep environments | No (WASM) | Yes | No |
-| `@tanstack/ai-isolate-cloudflare` | Cloudflare Workers deployments | No | N/A | N/A |
+| Driver                            | Best For                                     | Native Deps         | Browser | Memory Limit |
+| --------------------------------- | -------------------------------------------- | ------------------- | ------- | ------------ |
+| `@tanstack/ai-isolate-node`       | Server-side Node.js apps                     | Yes (`isolated-vm`) | No      | Yes          |
+| `@tanstack/ai-isolate-quickjs`    | Browser, edge, or no-native-dep environments | No (WASM)           | Yes     | No           |
+| `@tanstack/ai-isolate-cloudflare` | Cloudflare Workers deployments               | No                  | N/A     | N/A          |
 
 ## Custom Events
 
 Code Mode emits custom events during execution that you can observe via the TanStack AI event system:
 
-| Event | Description |
-|-------|-------------|
-| `code_mode:execution_started` | Emitted when code execution begins |
-| `code_mode:console` | Emitted for each `console.log/error/warn/info` call |
-| `code_mode:external_call` | Emitted before each `external_*` function call |
-| `code_mode:external_result` | Emitted after a successful `external_*` call |
-| `code_mode:external_error` | Emitted when an `external_*` call fails |
+| Event                         | Description                                         |
+| ----------------------------- | --------------------------------------------------- |
+| `code_mode:execution_started` | Emitted when code execution begins                  |
+| `code_mode:console`           | Emitted for each `console.log/error/warn/info` call |
+| `code_mode:external_call`     | Emitted before each `external_*` function call      |
+| `code_mode:external_result`   | Emitted after a successful `external_*` call        |
+| `code_mode:external_error`    | Emitted when an `external_*` call fails             |
 
 ## License
 

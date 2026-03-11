@@ -1,6 +1,12 @@
 // Main entry point
-export { codeModeWithSkills, createCodeModeWithSkillsConfig } from './code-mode-with-skills'
-export type { CodeModeWithSkillsOptions, CodeModeWithSkillsResult } from './code-mode-with-skills'
+export {
+  codeModeWithSkills,
+  createCodeModeWithSkillsConfig,
+} from './code-mode-with-skills'
+export type {
+  CodeModeWithSkillsOptions,
+  CodeModeWithSkillsResult,
+} from './code-mode-with-skills'
 
 // Trust strategies
 export {
@@ -43,4 +49,3 @@ export type {
   TrustLevel,
   SkillBinding,
 } from './types'
-

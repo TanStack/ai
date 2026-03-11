@@ -30,7 +30,7 @@ function schemaToType(schema: Record<string, unknown>): string {
       Record<string, unknown>
     >
     const required = new Set(
-      (schema.required as Array<string> | undefined) ?? []
+      (schema.required as Array<string> | undefined) ?? [],
     )
 
     const props = Object.entries(properties)
@@ -147,19 +147,16 @@ export function generateSkillTypes(skills: Array<Skill>): string {
         : outputType
 
     // Generate function declaration with JSDoc
-    const hintsDoc = skill.usageHints
-      .map((h) => ` * @hint ${h}`)
-      .join('\n')
+    const hintsDoc = skill.usageHints.map((h) => ` * @hint ${h}`).join('\n')
 
     declarations.push(
       `/**
  * ${skill.description}
 ${hintsDoc}
  */
-declare function skill_${skill.name}(input: ${inputRef}): Promise<${outputRef}>;`
+declare function skill_${skill.name}(input: ${inputRef}): Promise<${outputRef}>;`,
     )
   }
 
   return declarations.join('\n\n')
 }
-

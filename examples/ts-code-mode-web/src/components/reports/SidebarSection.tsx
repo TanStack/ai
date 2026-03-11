@@ -80,9 +80,19 @@ export function SidebarSection({
             animate={{ height: flexContent ? '100%' : 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className={flexContent ? 'flex-1 min-h-0 flex flex-col' : 'overflow-hidden flex-1'}
+            className={
+              flexContent
+                ? 'flex-1 min-h-0 flex flex-col'
+                : 'overflow-hidden flex-1'
+            }
           >
-            <div className={flexContent ? 'px-2 pb-2 flex-1 min-h-0 flex flex-col overflow-hidden' : 'px-2 pb-2'}>
+            <div
+              className={
+                flexContent
+                  ? 'px-2 pb-2 flex-1 min-h-0 flex flex-col overflow-hidden'
+                  : 'px-2 pb-2'
+              }
+            >
               {children}
             </div>
           </motion.div>

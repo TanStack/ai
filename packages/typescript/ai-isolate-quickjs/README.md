@@ -15,7 +15,7 @@ import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 import { createCodeModeTool } from '@tanstack/ai-code-mode'
 
 const driver = createQuickJSIsolateDriver({
-  timeout: 30000,  // execution timeout in ms (default: 30000)
+  timeout: 30000, // execution timeout in ms (default: 30000)
 })
 
 const executeTypescript = createCodeModeTool({
@@ -30,13 +30,13 @@ const executeTypescript = createCodeModeTool({
 
 ## Tradeoffs vs Node Driver
 
-| | QuickJS (WASM) | Node (`isolated-vm`) |
-|---|---|---|
-| Native deps | None | Yes (C++ addon) |
-| Browser support | Yes | No |
-| Performance | Slower (interpreted) | Faster (V8 JIT) |
-| Memory limit | Not supported | Configurable |
-| Best for | Browser, edge, portability | Server-side performance |
+|                 | QuickJS (WASM)             | Node (`isolated-vm`)    |
+| --------------- | -------------------------- | ----------------------- |
+| Native deps     | None                       | Yes (C++ addon)         |
+| Browser support | Yes                        | No                      |
+| Performance     | Slower (interpreted)       | Faster (V8 JIT)         |
+| Memory limit    | Not supported              | Configurable            |
+| Best for        | Browser, edge, portability | Server-side performance |
 
 ## How It Works
 

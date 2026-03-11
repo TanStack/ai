@@ -74,10 +74,7 @@ export function Sparkline({
         </ResponsiveContainer>
       </div>
       {showEndValue && (
-        <span
-          className="text-sm font-medium"
-          style={{ color }}
-        >
+        <span className="text-sm font-medium" style={{ color }}>
           {formatValue(lastValue)}
         </span>
       )}

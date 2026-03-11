@@ -16,9 +16,7 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
       return geminiText((model || 'gemini-2.5-flash') as 'gemini-2.5-flash')
     case 'anthropic':
     default:
-      return anthropicText(
-        (model || 'claude-haiku-4-5') as 'claude-haiku-4-5',
-      )
+      return anthropicText((model || 'claude-haiku-4-5') as 'claude-haiku-4-5')
   }
 }
 

@@ -75,7 +75,10 @@ export function Chart({
             isAnimationActive={animate}
           >
             {data.map((_, index) => (
-              <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+              <Cell
+                key={`cell-${index}`}
+                fill={colors[index % colors.length]}
+              />
             ))}
           </Pie>
           {showTooltip && <Tooltip {...tooltipStyle} />}

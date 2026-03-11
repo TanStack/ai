@@ -55,7 +55,8 @@ export async function selectRelevantSkills({
         content = m.content
           .map((part: unknown) => {
             if (typeof part === 'string') return part
-            if (part && typeof part === 'object' && 'text' in part) return (part as { text: string }).text
+            if (part && typeof part === 'object' && 'text' in part)
+              return (part as { text: string }).text
             return '[non-text content]'
           })
           .join(' ')
@@ -123,7 +124,7 @@ Respond with only the JSON array, no explanation. Example: ["skill_name_1", "ski
 
     // Load full skill data for selected skills
     const selectedSkills = await Promise.all(
-      selectedNames.slice(0, maxSkills).map((name) => storage.get(name))
+      selectedNames.slice(0, maxSkills).map((name) => storage.get(name)),
     )
 
     return selectedSkills.filter((s): s is Skill => s !== null)
@@ -133,4 +134,3 @@ Respond with only the JSON array, no explanation. Example: ["skill_name_1", "ski
     return []
   }
 }
-

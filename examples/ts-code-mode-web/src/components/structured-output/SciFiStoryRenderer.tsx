@@ -34,11 +34,14 @@ export default function SciFiStoryRenderer({ data }: SciFiStoryRendererProps) {
             />
           ))}
         </div>
-        
+
         {/* Title */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
           <Rocket className="w-12 h-12 text-purple-400 mb-4 animate-bounce" />
-          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 mb-2 tracking-wider" style={{ fontFamily: 'system-ui' }}>
+          <h1
+            className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 mb-2 tracking-wider"
+            style={{ fontFamily: 'system-ui' }}
+          >
             {data.title}
           </h1>
           <p className="text-purple-300/70 text-sm italic max-w-lg">
@@ -59,8 +62,12 @@ export default function SciFiStoryRenderer({ data }: SciFiStoryRendererProps) {
                 <User className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-white font-bold mb-1">{character.name}</h3>
-              <p className="text-purple-400 text-xs font-medium mb-2">{character.role}</p>
-              <p className="text-slate-400 text-xs line-clamp-3">{character.description}</p>
+              <p className="text-purple-400 text-xs font-medium mb-2">
+                {character.role}
+              </p>
+              <p className="text-slate-400 text-xs line-clamp-3">
+                {character.description}
+              </p>
             </div>
           ))}
         </div>
@@ -97,7 +104,9 @@ export default function SciFiStoryRenderer({ data }: SciFiStoryRendererProps) {
             <div className="bg-slate-900/50 rounded-xl p-6 border border-purple-500/20">
               <div className="flex items-center gap-3 mb-4">
                 <ChevronRight className="w-5 h-5 text-purple-400" />
-                <h2 className="text-xl font-bold text-white">{actData.title}</h2>
+                <h2 className="text-xl font-bold text-white">
+                  {actData.title}
+                </h2>
               </div>
               <p className="text-slate-300 leading-relaxed whitespace-pre-line">
                 {actData.content}
@@ -129,4 +138,3 @@ export default function SciFiStoryRenderer({ data }: SciFiStoryRendererProps) {
     </div>
   )
 }
-

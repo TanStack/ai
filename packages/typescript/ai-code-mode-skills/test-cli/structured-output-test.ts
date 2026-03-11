@@ -66,7 +66,7 @@ export interface StructuredOutputTestResult {
  * Run the structured output test with a real LLM
  */
 export async function runStructuredOutputTest(
-  options: StructuredOutputTestOptions
+  options: StructuredOutputTestOptions,
 ): Promise<StructuredOutputTestResult> {
   const { adapter, verbose = false } = options
 
@@ -112,7 +112,8 @@ After performing the calculation, provide a structured report about the result.`
   const messages: Array<ModelMessage> = [
     {
       role: 'user',
-      content: 'Please add 42 and 17 together using code execution, then give me a math report about the result.',
+      content:
+        'Please add 42 and 17 together using code execution, then give me a math report about the result.',
     },
   ]
 
@@ -136,7 +137,9 @@ After performing the calculation, provide a structured report about the result.`
         const toolName = chunk.toolCall.function.name
         logInfo(`Tool called: ${toolName}`)
         if (verbose) {
-          logInfo(`  Arguments: ${chunk.toolCall.function.arguments.substring(0, 200)}...`)
+          logInfo(
+            `  Arguments: ${chunk.toolCall.function.arguments.substring(0, 200)}...`,
+          )
         }
         if (toolName === 'execute_typescript') {
           executeTypescriptCalled = true
@@ -157,7 +160,9 @@ After performing the calculation, provide a structured report about the result.`
     if (executeTypescriptCalled) {
       logSuccess('execute_typescript was called')
     } else {
-      logWarning('execute_typescript was not called - LLM may have skipped code execution')
+      logWarning(
+        'execute_typescript was not called - LLM may have skipped code execution',
+      )
     }
 
     if (verbose && fullContent) {
@@ -184,7 +189,8 @@ After performing the calculation, provide a structured report about the result.`
       ...collectedMessages,
       {
         role: 'user' as const,
-        content: 'Now provide a structured math report about the calculation you just performed.',
+        content:
+          'Now provide a structured math report about the calculation you just performed.',
       },
     ]
 
@@ -202,7 +208,9 @@ After performing the calculation, provide a structured report about the result.`
     result.structuredOutput = structuredResult as MathReport
 
     if (verbose) {
-      logInfo(`Structured output: ${JSON.stringify(result.structuredOutput, null, 2)}`)
+      logInfo(
+        `Structured output: ${JSON.stringify(result.structuredOutput, null, 2)}`,
+      )
     }
 
     // Validate the structured output
@@ -213,17 +221,25 @@ After performing the calculation, provide a structured report about the result.`
       logError('Structured output is empty')
     } else {
       // Check required fields exist
-      const hasTitle = typeof output.title === 'string' && output.title.length > 0
-      const hasOperation = typeof output.operation === 'string' && output.operation.length > 0
-      const hasOperands = Array.isArray(output.operands) && output.operands.length > 0
+      const hasTitle =
+        typeof output.title === 'string' && output.title.length > 0
+      const hasOperation =
+        typeof output.operation === 'string' && output.operation.length > 0
+      const hasOperands =
+        Array.isArray(output.operands) && output.operands.length > 0
       const hasResult = typeof output.result === 'number'
-      const hasFunFact = typeof output.funFact === 'string' && output.funFact.length > 0
+      const hasFunFact =
+        typeof output.funFact === 'string' && output.funFact.length > 0
 
       logInfo(`  title: ${hasTitle ? '✓' : '✗'} "${output.title}"`)
       logInfo(`  operation: ${hasOperation ? '✓' : '✗'} "${output.operation}"`)
-      logInfo(`  operands: ${hasOperands ? '✓' : '✗'} [${output.operands?.join(', ')}]`)
+      logInfo(
+        `  operands: ${hasOperands ? '✓' : '✗'} [${output.operands?.join(', ')}]`,
+      )
       logInfo(`  result: ${hasResult ? '✓' : '✗'} ${output.result}`)
-      logInfo(`  funFact: ${hasFunFact ? '✓' : '✗'} "${output.funFact?.substring(0, 50)}..."`)
+      logInfo(
+        `  funFact: ${hasFunFact ? '✓' : '✗'} "${output.funFact?.substring(0, 50)}..."`,
+      )
 
       // Check if the result is correct (42 + 17 = 59)
       const expectedResult = 59
@@ -232,13 +248,15 @@ After performing the calculation, provide a structured report about the result.`
       if (resultCorrect) {
         logSuccess(`Result is correct: ${output.result} = 42 + 17`)
       } else {
-        logWarning(`Result may be incorrect: got ${output.result}, expected ${expectedResult}`)
+        logWarning(
+          `Result may be incorrect: got ${output.result}, expected ${expectedResult}`,
+        )
       }
 
       // Test passes if we got structured output with all required fields
-      result.passed = hasTitle && hasOperation && hasOperands && hasResult && hasFunFact
+      result.passed =
+        hasTitle && hasOperation && hasOperands && hasResult && hasFunFact
     }
-
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error)
     logError(`Test error: ${result.error}`)
@@ -272,4 +290,3 @@ After performing the calculation, provide a structured report about the result.`
 
   return result
 }
-

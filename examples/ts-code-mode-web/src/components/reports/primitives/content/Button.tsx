@@ -8,10 +8,7 @@ type ButtonRendererProps = ButtonProps & {
   handlers?: Record<string, string>
 }
 
-const variantClasses: Record<
-  NonNullable<ButtonProps['variant']>,
-  string
-> = {
+const variantClasses: Record<NonNullable<ButtonProps['variant']>, string> = {
   primary: 'bg-cyan-600 text-white hover:bg-cyan-700',
   secondary: 'bg-gray-700 text-white hover:bg-gray-600',
   danger: 'bg-red-600 text-white hover:bg-red-700',
@@ -40,7 +37,7 @@ export function Button({
     try {
       const result = await dispatch(id, 'onPress')
       console.log('[Button] Handler result:', result)
-      
+
       if (result.effects?.length) {
         console.log('[Button] Processing effects:', result.effects)
         handleEffects(result.effects)
@@ -51,7 +48,10 @@ export function Button({
       }
       // Apply refresh results from subscription invalidation
       if (result.refreshResults?.length) {
-        console.log('[Button] Processing refresh results:', JSON.stringify(result.refreshResults, null, 2))
+        console.log(
+          '[Button] Processing refresh results:',
+          JSON.stringify(result.refreshResults, null, 2),
+        )
         const refreshUpdates: UIUpdate[] = result.refreshResults
           .filter((r) => r.success && r.props)
           .map((r) => ({
@@ -59,9 +59,16 @@ export function Button({
             componentId: r.componentId,
             props: r.props,
           }))
-        console.log('[Button] Converted to UI updates:', JSON.stringify(refreshUpdates, null, 2))
+        console.log(
+          '[Button] Converted to UI updates:',
+          JSON.stringify(refreshUpdates, null, 2),
+        )
         if (refreshUpdates.length > 0) {
-          console.log('[Button] Calling applyUIUpdates with', refreshUpdates.length, 'updates')
+          console.log(
+            '[Button] Calling applyUIUpdates with',
+            refreshUpdates.length,
+            'updates',
+          )
           applyUIUpdates(refreshUpdates)
         } else {
           console.log('[Button] No valid refresh updates to apply')

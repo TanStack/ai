@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
@@ -12,7 +12,10 @@ import {
   ReportRenderer,
   ReportRuntimeProvider,
 } from '@/components/reports'
-import { refreshResultsToUIUpdates, useReportSSE } from '@/components/reports/useReportSSE'
+import {
+  refreshResultsToUIUpdates,
+  useReportSSE,
+} from '@/components/reports/useReportSSE'
 import ChatInput from '@/components/ChatInput'
 import { Header } from '@/components'
 import { applyUIEvent, applyUIUpdates } from '@/lib/reports/apply-event'
@@ -67,12 +70,19 @@ function ToolCallDisplay({
 
   // Get code from execute_typescript calls
   let code = ''
-  if (name === 'execute_typescript' && typeof parsedArgs === 'object' && parsedArgs !== null) {
+  if (
+    name === 'execute_typescript' &&
+    typeof parsedArgs === 'object' &&
+    parsedArgs !== null
+  ) {
     code = (parsedArgs as { typescriptCode?: string }).typescriptCode || ''
   }
 
-  const isReportTool = name.includes('report') || name === 'new_report' || name === 'delete_report'
-  const borderColor = isReportTool ? 'border-cyan-500/30' : 'border-amber-500/30'
+  const isReportTool =
+    name.includes('report') || name === 'new_report' || name === 'delete_report'
+  const borderColor = isReportTool
+    ? 'border-cyan-500/30'
+    : 'border-amber-500/30'
   const bgColor = isReportTool ? 'bg-cyan-900/10' : 'bg-amber-900/10'
   const headerBg = isReportTool ? 'bg-cyan-900/20' : 'bg-amber-900/20'
   const textColor = isReportTool ? 'text-cyan-300' : 'text-amber-300'
@@ -81,16 +91,24 @@ function ToolCallDisplay({
   const dotColor = isReportTool ? 'bg-cyan-500/50' : 'bg-amber-500/50'
 
   return (
-    <div className={`mt-2 rounded-lg border ${borderColor} ${bgColor} overflow-hidden text-sm`}>
-      <div className={`flex items-center gap-2 px-3 py-1.5 ${headerBg} ${textColor}`}>
+    <div
+      className={`mt-2 rounded-lg border ${borderColor} ${bgColor} overflow-hidden text-sm`}
+    >
+      <div
+        className={`flex items-center gap-2 px-3 py-1.5 ${headerBg} ${textColor}`}
+      >
         {isRunning ? (
-          <div className={`w-3 h-3 border-2 ${spinnerColor} border-t-transparent rounded-full animate-spin`} />
+          <div
+            className={`w-3 h-3 border-2 ${spinnerColor} border-t-transparent rounded-full animate-spin`}
+          />
         ) : (
           <div className={`w-3 h-3 rounded-full ${dotColor}`} />
         )}
         <span className="font-mono font-medium text-xs">{name}</span>
         {isRunning && (
-          <span className={`text-xs px-2 py-0.5 rounded-full ${pillColor} animate-pulse`}>
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full ${pillColor} animate-pulse`}
+          >
             Running...
           </span>
         )}
@@ -129,9 +147,15 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
   if (!messages.length) return null
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
+    >
       {messages.map((message) => {
-        const toolResults = new Map<string, { content: string; state: string; error?: string }>()
+        const toolResults = new Map<
+          string,
+          { content: string; state: string; error?: string }
+        >()
         for (const p of message.parts) {
           if (p.type === 'tool-result') {
             toolResults.set(p.toolCallId, {
@@ -165,7 +189,10 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
                 {message.parts.map((part, index) => {
                   if (part.type === 'text' && part.content) {
                     return (
-                      <div key={`text-${index}`} className="prose prose-invert prose-sm max-w-none">
+                      <div
+                        key={`text-${index}`}
+                        className="prose prose-invert prose-sm max-w-none"
+                      >
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {part.content}
                         </ReactMarkdown>
@@ -270,13 +297,16 @@ function BankingDemoPage() {
   }, [])
 
   // Toast helper
-  const pushToast = useCallback((message: string, variant: 'default' | 'success' | 'error' = 'default') => {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    setToasts((prev) => [...prev, { id, message, variant }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 4000)
-  }, [])
+  const pushToast = useCallback(
+    (message: string, variant: 'default' | 'success' | 'error' = 'default') => {
+      const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      setToasts((prev) => [...prev, { id, message, variant }])
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id))
+      }, 4000)
+    },
+    [],
+  )
 
   const body = useMemo(
     () => ({
@@ -286,22 +316,19 @@ function BankingDemoPage() {
     [selectedModel.provider, selectedModel.model],
   )
 
-  const handleCustomEvent = useCallback(
-    (eventType: string, data: unknown) => {
-      // We don't handle report:created or report:deleted since we have a fixed dashboard
-      if (eventType === 'report:ui') {
-        const eventData = data as ReportUIEventData
-        // Only handle events for our dashboard
-        if (eventData.reportId === DASHBOARD_ID) {
-          setDashboard((prev) => {
-            if (!prev) return prev
-            return applyUIEvent(prev, eventData.event)
-          })
-        }
+  const handleCustomEvent = useCallback((eventType: string, data: unknown) => {
+    // We don't handle report:created or report:deleted since we have a fixed dashboard
+    if (eventType === 'report:ui') {
+      const eventData = data as ReportUIEventData
+      // Only handle events for our dashboard
+      if (eventData.reportId === DASHBOARD_ID) {
+        setDashboard((prev) => {
+          if (!prev) return prev
+          return applyUIEvent(prev, eventData.event)
+        })
       }
-    },
-    [],
-  )
+    }
+  }, [])
 
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents('/api/banking-demo'),
@@ -309,15 +336,12 @@ function BankingDemoPage() {
     onCustomEvent: handleCustomEvent,
   })
 
-  const applyUpdates = useCallback(
-    (updates: UIUpdate[]) => {
-      setDashboard((prev) => {
-        if (!prev) return prev
-        return applyUIUpdates(prev, updates)
-      })
-    },
-    [],
-  )
+  const applyUpdates = useCallback((updates: UIUpdate[]) => {
+    setDashboard((prev) => {
+      if (!prev) return prev
+      return applyUIUpdates(prev, updates)
+    })
+  }, [])
 
   // Handle refresh results from SSE (external invalidation)
   const handleSSERefresh = useCallback(
@@ -335,8 +359,14 @@ function BankingDemoPage() {
     (effects: UIEffect[]) => {
       for (const effect of effects) {
         if (effect.type === 'toast') {
-          const params = effect.params as { message?: string; variant?: 'default' | 'success' | 'error' }
-          pushToast(params.message || 'Notification', params.variant || 'default')
+          const params = effect.params as {
+            message?: string
+            variant?: 'default' | 'success' | 'error'
+          }
+          pushToast(
+            params.message || 'Notification',
+            params.variant || 'default',
+          )
         }
       }
     },
@@ -357,7 +387,11 @@ function BankingDemoPage() {
     const depositResponse = await fetch('/api/report-demo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'deposit', account: 'checking', amount: 100 }),
+      body: JSON.stringify({
+        action: 'deposit',
+        account: 'checking',
+        amount: 100,
+      }),
     })
     const depositResult = await depositResponse.json()
 
@@ -372,7 +406,10 @@ function BankingDemoPage() {
     })
 
     if (depositResult?.newBalance) {
-      pushToast(`Deposited $100! New balance: $${depositResult.newBalance}`, 'success')
+      pushToast(
+        `Deposited $100! New balance: $${depositResult.newBalance}`,
+        'success',
+      )
     }
   }, [pushToast])
 
@@ -394,7 +431,9 @@ function BankingDemoPage() {
           <div className="p-4 border-b border-gray-800 bg-gray-850">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <div className="text-sm font-semibold text-white">Demo Controls</div>
+                <div className="text-sm font-semibold text-white">
+                  Demo Controls
+                </div>
                 <div className="text-xs text-gray-400">
                   Simulate external events
                 </div>
@@ -473,56 +512,58 @@ function BankingDemoPage() {
             onSend={(content) => sendMessage(content)}
             disabled={isLoading || isInitializing}
             placeholder="Add to your dashboard..."
-            exampleQueries={'"Add a transfer button" | "Show transaction history" | "Create a savings goal tracker"'}
+            exampleQueries={
+              '"Add a transfer button" | "Show transaction history" | "Create a savings goal tracker"'
+            }
           />
         </div>
 
         {/* Right dashboard - 2/3 width */}
         <div className="w-2/3 flex flex-col">
-        {dashboard ? (
-          <>
-            <ReportHeader
-              report={dashboard.report}
-            />
-            <div
-              className="flex-1 overflow-auto p-6"
-              style={{
-                ['--report-bg' as string]: 'rgb(17, 24, 39)',
-                ['--report-card-bg' as string]: 'rgb(31, 41, 55)',
-                ['--report-border' as string]: 'rgb(55, 65, 81)',
-                ['--report-text' as string]: 'rgb(243, 244, 246)',
-                ['--report-text-muted' as string]: 'rgb(156, 163, 175)',
-                ['--report-accent' as string]: 'rgb(6, 182, 212)',
-                ['--report-success' as string]: 'rgb(34, 197, 94)',
-                ['--report-warning' as string]: 'rgb(245, 158, 11)',
-                ['--report-error' as string]: 'rgb(239, 68, 68)',
-              }}
-            >
-              {dashboard.nodes.size === 0 ? (
-                <div className="flex items-center justify-center h-full text-gray-400">
-                  Building dashboard...
-                </div>
-              ) : (
-                <div className="max-w-4xl mx-auto">
-                  <ReportRuntimeProvider
-                    reportId={DASHBOARD_ID}
-                    applyUIUpdates={applyUpdates}
-                  >
-                    <ReportRenderer
-                      nodes={dashboard.nodes}
-                      rootIds={dashboard.rootIds}
-                    />
-                  </ReportRuntimeProvider>
-                </div>
-              )}
+          {dashboard ? (
+            <>
+              <ReportHeader report={dashboard.report} />
+              <div
+                className="flex-1 overflow-auto p-6"
+                style={{
+                  ['--report-bg' as string]: 'rgb(17, 24, 39)',
+                  ['--report-card-bg' as string]: 'rgb(31, 41, 55)',
+                  ['--report-border' as string]: 'rgb(55, 65, 81)',
+                  ['--report-text' as string]: 'rgb(243, 244, 246)',
+                  ['--report-text-muted' as string]: 'rgb(156, 163, 175)',
+                  ['--report-accent' as string]: 'rgb(6, 182, 212)',
+                  ['--report-success' as string]: 'rgb(34, 197, 94)',
+                  ['--report-warning' as string]: 'rgb(245, 158, 11)',
+                  ['--report-error' as string]: 'rgb(239, 68, 68)',
+                }}
+              >
+                {dashboard.nodes.size === 0 ? (
+                  <div className="flex items-center justify-center h-full text-gray-400">
+                    Building dashboard...
+                  </div>
+                ) : (
+                  <div className="max-w-4xl mx-auto">
+                    <ReportRuntimeProvider
+                      reportId={DASHBOARD_ID}
+                      applyUIUpdates={applyUpdates}
+                    >
+                      <ReportRenderer
+                        nodes={dashboard.nodes}
+                        rootIds={dashboard.rootIds}
+                      />
+                    </ReportRuntimeProvider>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              {isInitializing
+                ? 'Loading dashboard...'
+                : 'Failed to load dashboard'}
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
-            {isInitializing ? 'Loading dashboard...' : 'Failed to load dashboard'}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       </div>
 
       {/* Global toasts from watchers */}

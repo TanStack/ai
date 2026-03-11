@@ -33,6 +33,8 @@ export function Grid({ cols = 3, gap = 'md', children }: GridProps) {
   }
 
   return (
-    <div className={`grid ${getColsClass()} ${gapClasses[gap]}`}>{children}</div>
+    <div className={`grid ${getColsClass()} ${gapClasses[gap]}`}>
+      {children}
+    </div>
   )
 }

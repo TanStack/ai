@@ -19,10 +19,13 @@ function getGitHubHeaders(): HeadersInit {
 /**
  * Fetch with timeout - prevents hanging on network issues
  */
-async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
-  
+
   try {
     const response = await fetch(url, {
       ...options,

@@ -23,7 +23,10 @@ interface JavaScriptVMProps {
   isExecuting?: boolean
 }
 
-export default function JavaScriptVM({ events, isExecuting }: JavaScriptVMProps) {
+export default function JavaScriptVM({
+  events,
+  isExecuting,
+}: JavaScriptVMProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [userControlled, setUserControlled] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -117,7 +120,8 @@ export default function JavaScriptVM({ events, isExecuting }: JavaScriptVMProps)
       const codeLength = typedData.codeLength as number
       return (
         <span className="text-cyan-300">
-          <span className="text-gray-500">⚡</span> Executing {codeLength} characters of TypeScript...
+          <span className="text-gray-500">⚡</span> Executing {codeLength}{' '}
+          characters of TypeScript...
         </span>
       )
     }
@@ -140,7 +144,8 @@ export default function JavaScriptVM({ events, isExecuting }: JavaScriptVMProps)
       const funcName = typedData.function as string
       const result = typedData.result
       const resultStr = JSON.stringify(result)
-      const truncated = resultStr.length > 60 ? resultStr.slice(0, 60) + '...' : resultStr
+      const truncated =
+        resultStr.length > 60 ? resultStr.slice(0, 60) + '...' : resultStr
       return (
         <span className="text-green-300">
           <span className="text-gray-500">{'<'}</span> {funcName}
@@ -228,9 +233,7 @@ export default function JavaScriptVM({ events, isExecuting }: JavaScriptVMProps)
               <span>Waiting for external calls...</span>
             </div>
           ) : (
-            events.map((event) => (
-              <EventItem key={event.id} event={event} />
-            ))
+            events.map((event) => <EventItem key={event.id} event={event} />)
           )}
         </div>
       )}
@@ -266,4 +269,3 @@ export default function JavaScriptVM({ events, isExecuting }: JavaScriptVMProps)
     )
   }
 }
-

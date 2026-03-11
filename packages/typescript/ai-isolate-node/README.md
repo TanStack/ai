@@ -20,8 +20,8 @@ import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { createCodeModeTool } from '@tanstack/ai-code-mode'
 
 const driver = createNodeIsolateDriver({
-  timeout: 30000,    // execution timeout in ms (default: 30000)
-  memoryLimit: 128,  // memory limit in MB (default: 128)
+  timeout: 30000, // execution timeout in ms (default: 30000)
+  memoryLimit: 128, // memory limit in MB (default: 128)
 })
 
 const executeTypescript = createCodeModeTool({

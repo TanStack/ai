@@ -30,7 +30,14 @@ export function Text({
   color = 'default',
   align = 'left',
 }: TextProps) {
-  const Tag = variant === 'h1' ? 'h1' : variant === 'h2' ? 'h2' : variant === 'h3' ? 'h3' : 'p'
+  const Tag =
+    variant === 'h1'
+      ? 'h1'
+      : variant === 'h2'
+        ? 'h2'
+        : variant === 'h3'
+          ? 'h3'
+          : 'p'
 
   return (
     <Tag

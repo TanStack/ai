@@ -400,7 +400,12 @@ async function runCommand(options: {
   console.log(`   Parallel: ${parallel}`)
 
   // Run tests
-  const results = await runParallel(adaptersToRun, testsToRun, parallel, verbose)
+  const results = await runParallel(
+    adaptersToRun,
+    testsToRun,
+    parallel,
+    verbose,
+  )
 
   console.log('\n')
 
@@ -488,7 +493,9 @@ program
         process.exit(1)
       }
     } catch (error) {
-      logError(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`)
+      logError(
+        `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+      )
       process.exit(1)
     }
   })
@@ -513,7 +520,9 @@ program
         process.exit(1)
       }
     } catch (error) {
-      logError(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`)
+      logError(
+        `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+      )
       process.exit(1)
     }
   })
@@ -522,7 +531,11 @@ program
 program
   .command('live')
   .description('Run test with a real LLM (requires API key)')
-  .option('--provider <provider>', 'LLM provider to use (openai, anthropic, or gemini)', 'openai')
+  .option(
+    '--provider <provider>',
+    'LLM provider to use (openai, anthropic, or gemini)',
+    'openai',
+  )
   .option('--model <model>', 'Model to use (default depends on provider)')
   .option('-v, --verbose', 'Enable verbose output')
   .action(async (options) => {
@@ -541,7 +554,9 @@ program
       const apiKey = process.env.OPENAI_API_KEY
       if (!apiKey) {
         logError('OPENAI_API_KEY environment variable is not set')
-        logInfo('Set it in test-cli/.env.local or export it: export OPENAI_API_KEY=sk-...')
+        logInfo(
+          'Set it in test-cli/.env.local or export it: export OPENAI_API_KEY=sk-...',
+        )
         process.exit(1)
       }
 
@@ -551,7 +566,9 @@ program
         adapter = openaiText(modelName, { apiKey })
         logInfo(`Using OpenAI adapter with model: ${modelName}`)
       } catch (error) {
-        logError('Failed to load OpenAI adapter. Make sure @tanstack/ai-openai is installed.')
+        logError(
+          'Failed to load OpenAI adapter. Make sure @tanstack/ai-openai is installed.',
+        )
         logInfo('Run: pnpm add @tanstack/ai-openai')
         process.exit(1)
       }
@@ -559,7 +576,9 @@ program
       const apiKey = process.env.ANTHROPIC_API_KEY
       if (!apiKey) {
         logError('ANTHROPIC_API_KEY environment variable is not set')
-        logInfo('Set it in test-cli/.env.local or export it: export ANTHROPIC_API_KEY=sk-ant-...')
+        logInfo(
+          'Set it in test-cli/.env.local or export it: export ANTHROPIC_API_KEY=sk-ant-...',
+        )
         process.exit(1)
       }
 
@@ -569,7 +588,9 @@ program
         adapter = anthropicText(modelName, { apiKey })
         logInfo(`Using Anthropic adapter with model: ${modelName}`)
       } catch (error) {
-        logError('Failed to load Anthropic adapter. Make sure @tanstack/ai-anthropic is installed.')
+        logError(
+          'Failed to load Anthropic adapter. Make sure @tanstack/ai-anthropic is installed.',
+        )
         logInfo('Run: pnpm add @tanstack/ai-anthropic')
         process.exit(1)
       }
@@ -577,7 +598,9 @@ program
       const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
       if (!apiKey) {
         logError('GEMINI_API_KEY environment variable is not set')
-        logInfo('Set it in test-cli/.env.local or export it: export GEMINI_API_KEY=...')
+        logInfo(
+          'Set it in test-cli/.env.local or export it: export GEMINI_API_KEY=...',
+        )
         process.exit(1)
       }
 
@@ -587,7 +610,9 @@ program
         adapter = geminiText(modelName, { apiKey })
         logInfo(`Using Gemini adapter with model: ${modelName}`)
       } catch (error) {
-        logError('Failed to load Gemini adapter. Make sure @tanstack/ai-gemini is installed.')
+        logError(
+          'Failed to load Gemini adapter. Make sure @tanstack/ai-gemini is installed.',
+        )
         logInfo('Run: pnpm add @tanstack/ai-gemini')
         process.exit(1)
       }
@@ -609,7 +634,9 @@ program
         process.exit(1)
       }
     } catch (error) {
-      logError(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`)
+      logError(
+        `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+      )
       if (error instanceof Error && error.stack) {
         console.error(error.stack)
       }
@@ -621,7 +648,11 @@ program
 program
   .command('structured')
   .description('Test structured output with code mode (requires API key)')
-  .option('--provider <provider>', 'LLM provider to use (openai, anthropic, or gemini)', 'openai')
+  .option(
+    '--provider <provider>',
+    'LLM provider to use (openai, anthropic, or gemini)',
+    'openai',
+  )
   .option('--model <model>', 'Model to use (default depends on provider)')
   .option('-v, --verbose', 'Enable verbose output')
   .action(async (options) => {
@@ -640,7 +671,9 @@ program
       const apiKey = process.env.OPENAI_API_KEY
       if (!apiKey) {
         logError('OPENAI_API_KEY environment variable is not set')
-        logInfo('Set it in test-cli/.env.local or export it: export OPENAI_API_KEY=sk-...')
+        logInfo(
+          'Set it in test-cli/.env.local or export it: export OPENAI_API_KEY=sk-...',
+        )
         process.exit(1)
       }
 
@@ -650,14 +683,18 @@ program
         adapter = openaiText(modelName, { apiKey })
         logInfo(`Using OpenAI adapter with model: ${modelName}`)
       } catch (error) {
-        logError('Failed to load OpenAI adapter. Make sure @tanstack/ai-openai is installed.')
+        logError(
+          'Failed to load OpenAI adapter. Make sure @tanstack/ai-openai is installed.',
+        )
         process.exit(1)
       }
     } else if (provider === 'anthropic') {
       const apiKey = process.env.ANTHROPIC_API_KEY
       if (!apiKey) {
         logError('ANTHROPIC_API_KEY environment variable is not set')
-        logInfo('Set it in test-cli/.env.local or export it: export ANTHROPIC_API_KEY=sk-ant-...')
+        logInfo(
+          'Set it in test-cli/.env.local or export it: export ANTHROPIC_API_KEY=sk-ant-...',
+        )
         process.exit(1)
       }
 
@@ -667,14 +704,18 @@ program
         adapter = anthropicText(modelName, { apiKey })
         logInfo(`Using Anthropic adapter with model: ${modelName}`)
       } catch (error) {
-        logError('Failed to load Anthropic adapter. Make sure @tanstack/ai-anthropic is installed.')
+        logError(
+          'Failed to load Anthropic adapter. Make sure @tanstack/ai-anthropic is installed.',
+        )
         process.exit(1)
       }
     } else if (provider === 'gemini') {
       const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
       if (!apiKey) {
         logError('GEMINI_API_KEY environment variable is not set')
-        logInfo('Set it in test-cli/.env.local or export it: export GEMINI_API_KEY=...')
+        logInfo(
+          'Set it in test-cli/.env.local or export it: export GEMINI_API_KEY=...',
+        )
         process.exit(1)
       }
 
@@ -684,7 +725,9 @@ program
         adapter = geminiText(modelName, { apiKey })
         logInfo(`Using Gemini adapter with model: ${modelName}`)
       } catch (error) {
-        logError('Failed to load Gemini adapter. Make sure @tanstack/ai-gemini is installed.')
+        logError(
+          'Failed to load Gemini adapter. Make sure @tanstack/ai-gemini is installed.',
+        )
         process.exit(1)
       }
     } else {
@@ -705,7 +748,9 @@ program
         process.exit(1)
       }
     } catch (error) {
-      logError(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`)
+      logError(
+        `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+      )
       if (error instanceof Error && error.stack) {
         console.error(error.stack)
       }

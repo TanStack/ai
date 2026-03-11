@@ -65,7 +65,9 @@ export type BlogPost = z.infer<typeof BlogPostSchema>
 
 export const SciFiCharacterSchema = z.object({
   name: z.string().describe('Character name'),
-  role: z.string().describe('Role in the story (Protagonist, Antagonist, etc.)'),
+  role: z
+    .string()
+    .describe('Role in the story (Protagonist, Antagonist, etc.)'),
   description: z.string().describe('Brief character description'),
 })
 
@@ -216,4 +218,3 @@ Each question should test real knowledge from your research.
 Include the source of each fact and explain why each answer is correct.`
   }
 }
-

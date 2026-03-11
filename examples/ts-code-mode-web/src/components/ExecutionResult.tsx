@@ -1,4 +1,10 @@
-import { CheckCircle, XCircle, Terminal, ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  CheckCircle,
+  XCircle,
+  Terminal,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 
 interface ExecutionResultProps {

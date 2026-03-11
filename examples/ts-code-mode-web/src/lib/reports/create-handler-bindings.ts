@@ -63,8 +63,10 @@ function createBinding(
   return {
     name,
     description,
-    inputSchema:
-      convertSchemaToJsonSchema(inputSchema) || { type: 'object', properties: {} },
+    inputSchema: convertSchemaToJsonSchema(inputSchema) || {
+      type: 'object',
+      properties: {},
+    },
     outputSchema: convertSchemaToJsonSchema(z.object({ success: z.boolean() })),
     execute,
   }
@@ -137,9 +139,7 @@ export function createHandlerBindings(
       context
         ? async (params) => {
             track('external_report_remove_component')
-            const parsed = z
-              .object({ componentId: z.string() })
-              .parse(params)
+            const parsed = z.object({ componentId: z.string() }).parse(params)
             context.onUIUpdate({
               type: 'remove',
               componentId: parsed.componentId,
@@ -267,15 +267,24 @@ function performMockTransfer(params: {
   console.log('[MockBank] performMockTransfer:', { from, to, amount })
   console.log('[MockBank] Current balances:', mockState.balances)
 
-  const fromBalance = mockState.balances[from as keyof typeof mockState.balances]
+  const fromBalance =
+    mockState.balances[from as keyof typeof mockState.balances]
   if (fromBalance === undefined) {
     console.log('[MockBank] Transfer failed: Invalid source account:', from)
     return { success: false, error: `Invalid account: ${from}` }
   }
 
   if (fromBalance < amount) {
-    console.log('[MockBank] Transfer failed: Insufficient funds. Has:', fromBalance, 'Needs:', amount)
-    return { success: false, error: `Insufficient funds in ${from}. Balance: $${fromBalance}, Requested: $${amount}` }
+    console.log(
+      '[MockBank] Transfer failed: Insufficient funds. Has:',
+      fromBalance,
+      'Needs:',
+      amount,
+    )
+    return {
+      success: false,
+      error: `Insufficient funds in ${from}. Balance: $${fromBalance}, Requested: $${amount}`,
+    }
   }
 
   mockState.balances[from as keyof typeof mockState.balances] -= amount
@@ -289,12 +298,20 @@ function performMockTransfer(params: {
     amount,
     timestamp: now,
     date: new Date(now).toISOString(),
-    type: from === 'external' ? 'deposit' : to === 'external' ? 'withdrawal' : 'transfer',
+    type:
+      from === 'external'
+        ? 'deposit'
+        : to === 'external'
+          ? 'withdrawal'
+          : 'transfer',
     balance: mockState.balances.checking + mockState.balances.savings, // Total balance
   }
   mockState.transactions.unshift(transaction)
 
-  console.log('[MockBank] Transfer successful. New balances:', mockState.balances)
+  console.log(
+    '[MockBank] Transfer successful. New balances:',
+    mockState.balances,
+  )
   return {
     success: true,
     balances: { ...mockState.balances },

@@ -33,10 +33,7 @@ describe('createCodeModeSystemPrompt', () => {
   it('all tool names appear with external_ prefix', () => {
     const prompt = createCodeModeSystemPrompt({
       driver: mockDriver,
-      tools: [
-        createMockTool('fetchWeather'),
-        createMockTool('dbQuery'),
-      ],
+      tools: [createMockTool('fetchWeather'), createMockTool('dbQuery')],
     })
     expect(prompt).toContain('external_fetchWeather')
     expect(prompt).toContain('external_dbQuery')

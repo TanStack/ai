@@ -21,15 +21,16 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
       return geminiText((model || 'gemini-2.5-flash') as 'gemini-2.5-flash')
     case 'anthropic':
     default:
-      return anthropicText(
-        (model || 'claude-haiku-4-5') as 'claude-haiku-4-5'
-      )
+      return anthropicText((model || 'claude-haiku-4-5') as 'claude-haiku-4-5')
   }
 }
 
 // Lazy initialization to avoid loading native modules at module load time
 // This is necessary for RSC compatibility with Vite's module runner
-let codeModeCache: { tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']; systemPrompt: string } | null = null
+let codeModeCache: {
+  tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
+  systemPrompt: string
+} | null = null
 
 async function getCodeModeTools() {
   if (!codeModeCache) {
@@ -108,7 +109,7 @@ export const Route = createFileRoute('/_reporting/api/reports' as any)({
             {
               status: 500,
               headers: { 'Content-Type': 'application/json' },
-            }
+            },
           )
         }
       },

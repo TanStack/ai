@@ -28,7 +28,11 @@ const result = await build({
 
 const mf = new Miniflare({
   modules: [
-    { type: 'ESModule', path: 'worker.js', contents: result.outputFiles[0].text },
+    {
+      type: 'ESModule',
+      path: 'worker.js',
+      contents: result.outputFiles[0].text,
+    },
   ],
   unsafeEvalBinding: 'UNSAFE_EVAL',
   compatibilityDate: '2024-12-01',

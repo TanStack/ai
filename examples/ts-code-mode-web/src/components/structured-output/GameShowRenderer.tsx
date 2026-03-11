@@ -39,7 +39,10 @@ export default function GameShowRenderer({ data }: GameShowRendererProps) {
               New Show Pitch
             </span>
           </div>
-          <h1 className="text-5xl font-black text-white mb-3 drop-shadow-lg tracking-tight" style={{ textShadow: '3px 3px 0 rgba(0,0,0,0.3)' }}>
+          <h1
+            className="text-5xl font-black text-white mb-3 drop-shadow-lg tracking-tight"
+            style={{ textShadow: '3px 3px 0 rgba(0,0,0,0.3)' }}
+          >
             {data.title}
           </h1>
           <p className="text-xl text-yellow-100 font-medium italic">
@@ -55,14 +58,18 @@ export default function GameShowRenderer({ data }: GameShowRendererProps) {
             <Zap size={18} />
             Show Format
           </h3>
-          <p className="text-slate-300 text-sm leading-relaxed">{data.format}</p>
+          <p className="text-slate-300 text-sm leading-relaxed">
+            {data.format}
+          </p>
         </div>
         <div className="bg-slate-900/50 rounded-xl p-5 border border-orange-500/20">
           <h3 className="text-orange-400 font-bold mb-2 flex items-center gap-2">
             <Mic size={18} />
             Host Style
           </h3>
-          <p className="text-slate-300 text-sm leading-relaxed">{data.hostStyle}</p>
+          <p className="text-slate-300 text-sm leading-relaxed">
+            {data.hostStyle}
+          </p>
         </div>
       </div>
 
@@ -84,12 +91,18 @@ export default function GameShowRenderer({ data }: GameShowRendererProps) {
                     {index + 1}
                   </div>
                   <div>
-                    <h3 className="text-white font-bold text-lg mb-1">{round.name}</h3>
-                    <p className="text-slate-400 text-sm">{round.description}</p>
+                    <h3 className="text-white font-bold text-lg mb-1">
+                      {round.name}
+                    </h3>
+                    <p className="text-slate-400 text-sm">
+                      {round.description}
+                    </p>
                   </div>
                 </div>
                 <div className="bg-yellow-500/10 px-3 py-1.5 rounded-lg border border-yellow-500/20 flex-shrink-0">
-                  <span className="text-yellow-400 font-bold">{round.points}</span>
+                  <span className="text-yellow-400 font-bold">
+                    {round.points}
+                  </span>
                   <span className="text-yellow-400/70 text-sm ml-1">pts</span>
                 </div>
               </div>
@@ -108,16 +121,22 @@ export default function GameShowRenderer({ data }: GameShowRendererProps) {
           <div className="bg-gradient-to-br from-yellow-600/20 to-amber-600/20 rounded-xl p-5 border border-yellow-500/30">
             <div className="flex items-center gap-2 mb-2">
               <Trophy className="text-yellow-400" size={24} />
-              <span className="text-yellow-300 font-bold uppercase text-sm tracking-wider">Grand Prize</span>
+              <span className="text-yellow-300 font-bold uppercase text-sm tracking-wider">
+                Grand Prize
+              </span>
             </div>
             <p className="text-white font-medium">{data.prizes.grand}</p>
           </div>
           <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700">
             <div className="flex items-center gap-2 mb-2">
               <Gift className="text-slate-400" size={24} />
-              <span className="text-slate-400 font-bold uppercase text-sm tracking-wider">Consolation</span>
+              <span className="text-slate-400 font-bold uppercase text-sm tracking-wider">
+                Consolation
+              </span>
             </div>
-            <p className="text-slate-300 font-medium">{data.prizes.consolation}</p>
+            <p className="text-slate-300 font-medium">
+              {data.prizes.consolation}
+            </p>
           </div>
         </div>
       </div>
@@ -147,10 +166,11 @@ export default function GameShowRenderer({ data }: GameShowRendererProps) {
             <Star className="w-4 h-4" />
             Pilot Episode Theme
           </h3>
-          <p className="text-white text-lg font-medium">{data.pilotEpisodeTheme}</p>
+          <p className="text-white text-lg font-medium">
+            {data.pilotEpisodeTheme}
+          </p>
         </div>
       </div>
     </div>
   )
 }
-

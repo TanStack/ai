@@ -38,9 +38,7 @@ export function EmptyReportState({ onSuggestionClick }: EmptyReportStateProps) {
       </div>
 
       {/* Text */}
-      <h2 className="text-2xl font-bold text-white mb-3">
-        Create a Report
-      </h2>
+      <h2 className="text-2xl font-bold text-white mb-3">Create a Report</h2>
       <p className="text-gray-400 max-w-md mb-8 leading-relaxed">
         Ask the AI to create interactive reports with charts, metrics, and data
         tables. Watch as components build up in real-time!

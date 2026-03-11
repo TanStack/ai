@@ -1,6 +1,12 @@
 'use client'
 
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react'
 import type { UIUpdate } from '@/lib/reports/types'
 
 type ToastVariant = 'default' | 'success' | 'error'
@@ -17,7 +23,9 @@ interface ReportRuntimeContextValue {
   pushToast: (message: string, variant?: ToastVariant) => void
 }
 
-const ReportRuntimeContext = createContext<ReportRuntimeContextValue | null>(null)
+const ReportRuntimeContext = createContext<ReportRuntimeContextValue | null>(
+  null,
+)
 
 export function ReportRuntimeProvider({
   reportId,
@@ -30,13 +38,16 @@ export function ReportRuntimeProvider({
 }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
-  const pushToast = useCallback((message: string, variant: ToastVariant = 'default') => {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    setToasts((prev) => [...prev, { id, message, variant }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id))
-    }, 3000)
-  }, [])
+  const pushToast = useCallback(
+    (message: string, variant: ToastVariant = 'default') => {
+      const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      setToasts((prev) => [...prev, { id, message, variant }])
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((toast) => toast.id !== id))
+      }, 3000)
+    },
+    [],
+  )
 
   const value = useMemo(
     () => ({
@@ -75,7 +86,9 @@ export function ReportRuntimeProvider({
 export function useReportRuntime() {
   const context = useContext(ReportRuntimeContext)
   if (!context) {
-    throw new Error('useReportRuntime must be used within ReportRuntimeProvider')
+    throw new Error(
+      'useReportRuntime must be used within ReportRuntimeProvider',
+    )
   }
   return context
 }

@@ -14,7 +14,9 @@ function createMockServerTool(name: string, description = 'A test tool') {
     inputSchema: z.object({ query: z.string() }),
     outputSchema: z.object({ result: z.string() }),
   })
-  return def.server(async (input: any) => ({ result: `response to ${input.query}` }))
+  return def.server(async (input: any) => ({
+    result: `response to ${input.query}`,
+  }))
 }
 
 describe('toolToBinding', () => {
@@ -65,7 +67,9 @@ describe('toolsToBindings', () => {
       'external_fetchWeather',
       'external_dbQuery',
     ])
-    expect(bindings['external_fetchWeather']!.name).toBe('external_fetchWeather')
+    expect(bindings['external_fetchWeather']!.name).toBe(
+      'external_fetchWeather',
+    )
     expect(bindings['external_dbQuery']!.name).toBe('external_dbQuery')
   })
 

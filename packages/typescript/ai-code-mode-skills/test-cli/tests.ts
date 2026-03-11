@@ -28,7 +28,10 @@ export interface TestDefinition {
   /** Whether this test requires a real LLM adapter */
   requiresAdapter: boolean
   /** Function to run the test */
-  run: (adapter: AnyTextAdapter | null, verbose: boolean) => Promise<TestOutcome>
+  run: (
+    adapter: AnyTextAdapter | null,
+    verbose: boolean,
+  ) => Promise<TestOutcome>
 }
 
 /**
@@ -106,7 +109,8 @@ export const TESTS: Array<TestDefinition> = [
   {
     id: 'SIM',
     name: 'Simulated',
-    description: 'Deterministic test with mock adapter (skill creation + reuse)',
+    description:
+      'Deterministic test with mock adapter (skill creation + reuse)',
     requiresAdapter: false,
     run: runSimulatedWrapper,
   },
@@ -153,4 +157,3 @@ export function getTestIds(): Array<string> {
 export function getDefaultTests(): Array<TestDefinition> {
   return TESTS
 }
-

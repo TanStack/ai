@@ -14,11 +14,7 @@
  */
 
 import { wrapCode } from './wrap-code'
-import type {
-  ExecuteRequest,
-  ExecuteResponse,
-  ToolCallRequest,
-} from '../types'
+import type { ExecuteRequest, ExecuteResponse, ToolCallRequest } from '../types'
 
 /**
  * UnsafeEval binding type

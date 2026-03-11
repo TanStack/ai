@@ -3,10 +3,7 @@
  * Extracted for testability without UNSAFE_EVAL.
  */
 
-import type {
-  ToolResultPayload,
-  ToolSchema,
-} from '../types'
+import type { ToolResultPayload, ToolSchema } from '../types'
 
 /**
  * Generate tool wrapper code that collects calls or returns cached results.

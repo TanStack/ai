@@ -94,9 +94,8 @@ export async function codeModeWithSkills({
           execute: async (input: unknown) => {
             // This is a simplified execution - the full skillToTool handles events
             const wrappedCode = `const input = ${JSON.stringify(input)};\n${skill.code}`
-            const { stripTypeScript, createEventAwareBindings } = await import(
-              '@tanstack/ai-code-mode'
-            )
+            const { stripTypeScript, createEventAwareBindings } =
+              await import('@tanstack/ai-code-mode')
             const strippedCode = await stripTypeScript(wrappedCode)
             const context = await config.driver.createContext({
               bindings: createEventAwareBindings(baseBindings, () => {}),
@@ -106,7 +105,9 @@ export async function codeModeWithSkills({
             try {
               const result = await context.execute(strippedCode)
               if (!result.success) {
-                throw new Error(result.error?.message || 'Skill execution failed')
+                throw new Error(
+                  result.error?.message || 'Skill execution failed',
+                )
               }
               return result.value
             } finally {
@@ -201,4 +202,3 @@ export function createCodeModeWithSkillsConfig({
     selectedSkills,
   }
 }
-

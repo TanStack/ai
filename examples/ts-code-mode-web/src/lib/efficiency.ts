@@ -75,7 +75,7 @@ export interface EfficiencyMetrics {
  */
 function calculateCompoundedTokens(
   toolCalls: number,
-  C: typeof EFFICIENCY_CONSTANTS
+  C: typeof EFFICIENCY_CONSTANTS,
 ): number {
   const baseTokens = C.BASE_CONTEXT_BYTES / C.BYTES_PER_TOKEN
   const toolResultTokens = C.AVG_TOOL_RESULT_BYTES / C.BYTES_PER_TOKEN
@@ -103,7 +103,7 @@ function calculateCompoundedTokens(
  */
 function calculateCost(
   tokens: number,
-  pricing: { input: number; output: number }
+  pricing: { input: number; output: number },
 ): number {
   // Assume 80% input, 20% output
   const inputTokens = tokens * 0.8
@@ -138,7 +138,7 @@ export function calculateEfficiency(input: EfficiencyInput): EfficiencyMetrics {
   const toolCallBytes = C.AVG_TOOL_RESULT_BYTES + C.AVG_ASSISTANT_OVERHEAD
   const estimatedToolCalls = Math.max(
     1,
-    Math.round((theoreticalBytes - C.BASE_CONTEXT_BYTES) / toolCallBytes)
+    Math.round((theoreticalBytes - C.BASE_CONTEXT_BYTES) / toolCallBytes),
   )
 
   // Without Code Mode: each tool call = 1 round-trip
@@ -177,9 +177,7 @@ export function calculateEfficiency(input: EfficiencyInput): EfficiencyMetrics {
   const costTheoretical = calculateCost(theoreticalTokens, pricing)
   const costSaved = costTheoretical - costActual
   const costSavedPercent =
-    costTheoretical > 0
-      ? Math.round((costSaved / costTheoretical) * 100)
-      : 0
+    costTheoretical > 0 ? Math.round((costSaved / costTheoretical) * 100) : 0
 
   return {
     contextActual: actualBytes,
