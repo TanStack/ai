@@ -2,12 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { chat } from '../src/activities/chat/index'
 import { contentGuardMiddleware } from '../src/middlewares/content-guard'
 import type { StreamChunk } from '../src/types'
-import {
-  ev,
-  createMockAdapter,
-  collectChunks,
-  getDeltas,
-} from './test-utils'
+import { ev, createMockAdapter, collectChunks, getDeltas } from './test-utils'
 
 describe('contentGuardMiddleware', () => {
   describe('delta strategy', () => {

@@ -118,7 +118,6 @@ export type {
   RealtimeError,
 } from './realtime/index'
 
-
 // Message converters
 export {
   convertMessagesToModelMessages,
