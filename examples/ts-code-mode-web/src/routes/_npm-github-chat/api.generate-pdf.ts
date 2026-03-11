@@ -143,11 +143,19 @@ blockquote { border-left: 4px solid #0ea5e9; margin: 1em 0; padding-left: 1em; c
             await page.setContent(html, { waitUntil: 'networkidle0' })
             const pdfBuffer = await page.pdf({
               format: 'A4',
-              margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '20mm' },
+              margin: {
+                top: '20mm',
+                right: '20mm',
+                bottom: '20mm',
+                left: '20mm',
+              },
               printBackground: true,
             })
 
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+            const timestamp = new Date()
+              .toISOString()
+              .replace(/[:.]/g, '-')
+              .slice(0, 19)
             const filename = `conversation-${timestamp}.pdf`
 
             return new Response(new Uint8Array(pdfBuffer), {
