@@ -5,6 +5,7 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
+import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import { streamToText } from '../../stream-to-response.js'
 import {
   MiddlewareAbortError,
@@ -19,7 +20,6 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { convertMessagesToModelMessages } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
-import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import type {
   ApprovalRequest,
   ClientToolRequest,

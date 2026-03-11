@@ -158,106 +158,128 @@ function createBufferedStrategy(
   onFiltered?: (info: ContentFilteredInfo) => void,
 ): ChatMiddleware {
   let rawAccumulated = ''
-  let emittedLength = 0
+  let emittedFilteredLength = 0
   let lastMessageId = ''
+
+  function resetState() {
+    rawAccumulated = ''
+    emittedFilteredLength = 0
+    lastMessageId = ''
+  }
+
+  function flushBuffer(): StreamChunk | null {
+    if (rawAccumulated.length === 0) return null
+
+    const filtered = applyRules(rawAccumulated, rules)
+
+    if (blockOnMatch && filtered !== rawAccumulated) {
+      if (onFiltered) {
+        onFiltered({
+          messageId: lastMessageId,
+          original: rawAccumulated,
+          filtered,
+          strategy: 'buffered',
+        })
+      }
+      resetState()
+      return null
+    }
+
+    const remaining = filtered.slice(emittedFilteredLength)
+    if (remaining.length > 0) {
+      if (filtered !== rawAccumulated && onFiltered) {
+        onFiltered({
+          messageId: lastMessageId,
+          original: rawAccumulated,
+          filtered,
+          strategy: 'buffered',
+        })
+      }
+
+      const flushed = {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: lastMessageId,
+        delta: remaining,
+        content: filtered,
+        timestamp: Date.now(),
+      } as StreamChunk
+
+      resetState()
+      return flushed
+    }
+
+    resetState()
+    return null
+  }
 
   return {
     name: 'content-guard',
 
+    onStart() {
+      resetState()
+    },
+
     onChunk(_ctx: ChatMiddlewareContext, chunk: StreamChunk) {
       // Flush buffer on stream end events
       if (chunk.type === 'TEXT_MESSAGE_END' || chunk.type === 'RUN_FINISHED') {
-        if (rawAccumulated.length === 0) return // nothing buffered
-
-        const filtered = applyRules(rawAccumulated, rules)
-
-        if (blockOnMatch && filtered !== rawAccumulated) {
-          if (onFiltered) {
-            onFiltered({
-              messageId: lastMessageId,
-              original: rawAccumulated,
-              filtered,
-              strategy: 'buffered',
-            })
-          }
-          rawAccumulated = ''
-          emittedLength = 0
-          return // pass through end event, content was blocked
-        }
-
-        const remaining = filtered.slice(emittedLength)
-        if (remaining.length > 0) {
-          if (filtered !== rawAccumulated && onFiltered) {
-            onFiltered({
-              messageId: lastMessageId,
-              original: rawAccumulated,
-              filtered,
-              strategy: 'buffered',
-            })
-          }
-
-          const flushChunk: StreamChunk = {
-            type: 'TEXT_MESSAGE_CONTENT',
-            messageId: lastMessageId,
-            delta: remaining,
-            content: filtered,
-            timestamp: Date.now(),
-          } as StreamChunk
-
-          rawAccumulated = ''
-          emittedLength = 0
-          return [flushChunk, chunk]
-        }
-
-        rawAccumulated = ''
-        emittedLength = 0
+        const flushed = flushBuffer()
+        if (flushed) return [flushed, chunk]
         return // pass through end event
       }
 
       if (chunk.type !== 'TEXT_MESSAGE_CONTENT') return // pass through
 
+      // Flush buffer on message boundary change
+      const pending: Array<StreamChunk> = []
+      if (lastMessageId && chunk.messageId !== lastMessageId) {
+        const flushed = flushBuffer()
+        if (flushed) pending.push(flushed)
+      }
+
       rawAccumulated += chunk.delta
       lastMessageId = chunk.messageId
 
-      // Compute the safe raw boundary
-      const safeRawEnd = rawAccumulated.length - bufferSize
-      if (safeRawEnd <= 0) return null // still buffering
+      // Apply rules to full accumulated text, buffer in filtered space
+      const filtered = applyRules(rawAccumulated, rules)
+      const safeFilteredEnd = Math.max(0, filtered.length - bufferSize)
 
-      // Apply rules to the settled portion only
-      const settledRaw = rawAccumulated.slice(0, safeRawEnd)
-      const settledFiltered = applyRules(settledRaw, rules)
+      if (safeFilteredEnd <= emittedFilteredLength) {
+        return pending.length > 0 ? pending : null
+      }
 
-      if (blockOnMatch && settledFiltered !== settledRaw) {
+      if (blockOnMatch && filtered !== rawAccumulated) {
         if (onFiltered) {
           onFiltered({
             messageId: chunk.messageId,
-            original: settledRaw,
-            filtered: settledFiltered,
+            original: rawAccumulated,
+            filtered,
             strategy: 'buffered',
           })
         }
-        return null // drop — content was modified
+        return pending.length > 0 ? pending : null
       }
 
-      if (settledFiltered.length <= emittedLength) return null // no new content
+      const newDelta = filtered.slice(emittedFilteredLength, safeFilteredEnd)
 
-      const newDelta = settledFiltered.slice(emittedLength)
-      emittedLength = settledFiltered.length
-
-      if (settledFiltered !== settledRaw && onFiltered) {
+      if (filtered !== rawAccumulated && onFiltered) {
         onFiltered({
           messageId: chunk.messageId,
-          original: settledRaw,
-          filtered: settledFiltered,
+          original: rawAccumulated,
+          filtered,
           strategy: 'buffered',
         })
       }
 
-      return {
+      emittedFilteredLength = safeFilteredEnd
+
+      const emitChunk = {
         ...chunk,
         delta: newDelta,
-        content: settledFiltered,
+        content: filtered.slice(0, safeFilteredEnd),
       } as StreamChunk
+
+      pending.push(emitChunk)
+      return pending.length === 1 ? pending[0]! : pending
     },
   }
 }

@@ -1,9 +1,9 @@
 import { aiEventClient } from './index.js'
-import type { ModelMessage } from '@tanstack/ai'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
   IterationInfo,
+  ModelMessage,
   ToolPhaseCompleteInfo,
 } from '@tanstack/ai'
 

@@ -429,5 +429,112 @@ describe('contentGuardMiddleware', () => {
       const toolChunks = chunks.filter((c) => c.type === 'TOOL_CALL_START')
       expect(toolChunks).toHaveLength(1)
     })
+
+    it('should handle length-changing replacements correctly', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textContent('aaa bbb aaa', 'msg-1'),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [
+          contentGuardMiddleware({
+            rules: [{ pattern: /aaa/g, replacement: 'X' }],
+            strategy: 'buffered',
+            bufferSize: 5,
+          }),
+        ],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+      const deltas = getDeltas(chunks)
+      expect(deltas.join('')).toBe('X bbb X')
+    })
+
+    it('should flush buffer on message boundary change', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textContent('hello secret', 'msg-1'),
+            ev.textContent('new message', 'msg-2'),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [
+          contentGuardMiddleware({
+            rules: [{ pattern: /secret/g, replacement: '***' }],
+            strategy: 'buffered',
+            bufferSize: 50,
+          }),
+        ],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+      const deltas = getDeltas(chunks)
+      expect(deltas.join('')).toBe('hello ***new message')
+    })
+  })
+
+  describe('middleware reuse', () => {
+    it('should reset state between chat() calls', async () => {
+      const guard = contentGuardMiddleware({
+        rules: [{ pattern: /secret/g, replacement: '***' }],
+        strategy: 'buffered',
+        bufferSize: 50,
+      })
+
+      // First call
+      const { adapter: adapter1 } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textContent('my secret data', 'msg-1'),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream1 = chat({
+        adapter: adapter1,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [guard],
+      })
+
+      const chunks1 = await collectChunks(stream1 as AsyncIterable<StreamChunk>)
+      expect(getDeltas(chunks1).join('')).toBe('my *** data')
+
+      // Second call with same middleware instance
+      const { adapter: adapter2 } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textContent('another secret here', 'msg-2'),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream2 = chat({
+        adapter: adapter2,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [guard],
+      })
+
+      const chunks2 = await collectChunks(stream2 as AsyncIterable<StreamChunk>)
+      expect(getDeltas(chunks2).join('')).toBe('another *** here')
+    })
   })
 })

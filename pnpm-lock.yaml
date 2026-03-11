@@ -787,13 +787,13 @@ importers:
 
   packages/typescript/ai-event-client:
     dependencies:
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../ai
       '@tanstack/devtools-event-client':
         specifier: ^0.4.1
         version: 0.4.1
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.18(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
