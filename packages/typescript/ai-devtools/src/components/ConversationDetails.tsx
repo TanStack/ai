@@ -4,7 +4,6 @@ import { useAIStore } from '../store/ai-context'
 import {
   ActivityEventsTab,
   ChunksTab,
-  CodeModeTab,
   ConversationHeader,
   ConversationTabs,
   MessagesTab,
@@ -141,9 +140,6 @@ export const ConversationDetails: Component = () => {
                 title="Video Activity"
                 events={conv().videoEvents ?? []}
               />
-            </Show>
-            <Show when={activeTab() === 'code-mode'}>
-              <CodeModeTab sessions={conv().codeModeSessions ?? []} />
             </Show>
           </div>
         </div>
