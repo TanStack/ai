@@ -20,6 +20,10 @@
     "./adapters": {
       "types": "./dist/esm/activities/index.d.ts",
       "import": "./dist/esm/activities/index.js"
+    },
+    "./middlewares": {
+      "types": "./dist/esm/middlewares/index.d.ts",
+      "import": "./dist/esm/middlewares/index.js"
     }
   },
   "sideEffects": false,

@@ -15,10 +15,3 @@ export type {
 } from './types'
 
 export { MiddlewareRunner } from './compose'
-
-export { toolCacheMiddleware } from './tool-cache-middleware'
-export type {
-  ToolCacheMiddlewareOptions,
-  ToolCacheStorage,
-  ToolCacheEntry,
-} from './tool-cache-middleware'

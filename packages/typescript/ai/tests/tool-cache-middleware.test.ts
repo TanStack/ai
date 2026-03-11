@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { chat } from '../src/activities/chat/index'
-import { toolCacheMiddleware } from '../src/activities/chat/middleware/tool-cache-middleware'
+import { toolCacheMiddleware } from '../src/middlewares/tool-cache'
 import type {
   ToolCacheEntry,
   ToolCacheStorage,
-} from '../src/activities/chat/middleware/tool-cache-middleware'
+} from '../src/middlewares/tool-cache'
 import type { StreamChunk } from '../src/types'
 import { ev, createMockAdapter, collectChunks, serverTool } from './test-utils'
 
