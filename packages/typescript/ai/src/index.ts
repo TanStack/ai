@@ -101,6 +101,32 @@ export * from './types'
 // Utility functions
 export { detectImageMimeType } from './utils'
 
+// Realtime
+export { realtimeToken } from './realtime/index'
+export type {
+  RealtimeToken,
+  RealtimeTokenAdapter,
+  RealtimeTokenOptions,
+  RealtimeSessionConfig,
+  VADConfig,
+  RealtimeMessage,
+  RealtimeMessagePart,
+  RealtimeTextPart,
+  RealtimeAudioPart,
+  RealtimeToolCallPart,
+  RealtimeToolResultPart,
+  RealtimeImagePart,
+  RealtimeStatus,
+  RealtimeMode,
+  AudioVisualization,
+  RealtimeEvent,
+  RealtimeEventPayloads,
+  RealtimeEventHandler,
+  RealtimeErrorCode,
+  RealtimeError,
+} from './realtime/index'
+
+
 // Message converters
 export {
   convertMessagesToModelMessages,
