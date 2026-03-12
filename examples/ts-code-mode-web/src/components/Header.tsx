@@ -68,6 +68,18 @@ export default function Header({ children }: HeaderProps) {
             <span className="font-medium">Product Demo</span>
           </Link>
           <Link
+            to="/database-demo"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 transition-colors mb-2',
+            }}
+          >
+            <Database size={20} />
+            <span className="font-medium">Database Demo</span>
+          </Link>
+          <Link
             to="/npm-github-chat"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
@@ -114,18 +126,6 @@ export default function Header({ children }: HeaderProps) {
           >
             <Landmark size={20} />
             <span className="font-medium">Dynamic UI</span>
-          </Link>
-          <Link
-            to="/database-demo"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-            activeProps={{
-              className:
-                'flex items-center gap-3 p-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 transition-colors mb-2',
-            }}
-          >
-            <Database size={20} />
-            <span className="font-medium">Database Tools</span>
           </Link>
         </nav>
 

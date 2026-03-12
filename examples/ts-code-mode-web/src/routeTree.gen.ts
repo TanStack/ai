@@ -32,6 +32,7 @@ import { Route as NpmGithubChatApiCodemodeRouteImport } from './routes/_npm-gith
 import { Route as HomeApiSkillsRouteImport } from './routes/_home/api.skills'
 import { Route as HomeApiProductRegularRouteImport } from './routes/_home/api.product-regular'
 import { Route as HomeApiProductCodemodeRouteImport } from './routes/_home/api.product-codemode'
+import { Route as DatabaseDemoApiJudgeRouteImport } from './routes/_database-demo/api.judge'
 import { Route as DatabaseDemoApiDbSkillsRouteImport } from './routes/_database-demo/api.db-skills'
 import { Route as DatabaseDemoApiDatabaseDemoRouteImport } from './routes/_database-demo/api.database-demo'
 import { Route as BankingDemoApiBankingInitRouteImport } from './routes/_banking-demo/api.banking-init'
@@ -152,6 +153,11 @@ const HomeApiProductCodemodeRoute = HomeApiProductCodemodeRouteImport.update({
   path: '/api/product-codemode',
   getParentRoute: () => HomeRouteRoute,
 } as any)
+const DatabaseDemoApiJudgeRoute = DatabaseDemoApiJudgeRouteImport.update({
+  id: '/api/judge',
+  path: '/api/judge',
+  getParentRoute: () => DatabaseDemoRouteRoute,
+} as any)
 const DatabaseDemoApiDbSkillsRoute = DatabaseDemoApiDbSkillsRouteImport.update({
   id: '/api/db-skills',
   path: '/api/db-skills',
@@ -187,6 +193,7 @@ export interface FileRoutesByFullPath {
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
+  '/api/judge': typeof DatabaseDemoApiJudgeRoute
   '/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/api/product-regular': typeof HomeApiProductRegularRoute
   '/api/skills': typeof HomeApiSkillsRoute
@@ -210,6 +217,7 @@ export interface FileRoutesByTo {
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
+  '/api/judge': typeof DatabaseDemoApiJudgeRoute
   '/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/api/product-regular': typeof HomeApiProductRegularRoute
   '/api/skills': typeof HomeApiSkillsRoute
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/_banking-demo/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/_database-demo/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/_database-demo/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
+  '/_database-demo/api/judge': typeof DatabaseDemoApiJudgeRoute
   '/_home/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/_home/api/product-regular': typeof HomeApiProductRegularRoute
   '/_home/api/skills': typeof HomeApiSkillsRoute
@@ -265,6 +274,7 @@ export interface FileRouteTypes {
     | '/api/banking-init'
     | '/api/database-demo'
     | '/api/db-skills'
+    | '/api/judge'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/skills'
@@ -288,6 +298,7 @@ export interface FileRouteTypes {
     | '/api/banking-init'
     | '/api/database-demo'
     | '/api/db-skills'
+    | '/api/judge'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/skills'
@@ -317,6 +328,7 @@ export interface FileRouteTypes {
     | '/_banking-demo/api/banking-init'
     | '/_database-demo/api/database-demo'
     | '/_database-demo/api/db-skills'
+    | '/_database-demo/api/judge'
     | '/_home/api/product-codemode'
     | '/_home/api/product-regular'
     | '/_home/api/skills'
@@ -502,6 +514,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeApiProductCodemodeRouteImport
       parentRoute: typeof HomeRouteRoute
     }
+    '/_database-demo/api/judge': {
+      id: '/_database-demo/api/judge'
+      path: '/api/judge'
+      fullPath: '/api/judge'
+      preLoaderRoute: typeof DatabaseDemoApiJudgeRouteImport
+      parentRoute: typeof DatabaseDemoRouteRoute
+    }
     '/_database-demo/api/db-skills': {
       id: '/_database-demo/api/db-skills'
       path: '/api/db-skills'
@@ -552,12 +571,14 @@ interface DatabaseDemoRouteRouteChildren {
   DatabaseDemoDatabaseDemoRoute: typeof DatabaseDemoDatabaseDemoRoute
   DatabaseDemoApiDatabaseDemoRoute: typeof DatabaseDemoApiDatabaseDemoRoute
   DatabaseDemoApiDbSkillsRoute: typeof DatabaseDemoApiDbSkillsRoute
+  DatabaseDemoApiJudgeRoute: typeof DatabaseDemoApiJudgeRoute
 }
 
 const DatabaseDemoRouteRouteChildren: DatabaseDemoRouteRouteChildren = {
   DatabaseDemoDatabaseDemoRoute: DatabaseDemoDatabaseDemoRoute,
   DatabaseDemoApiDatabaseDemoRoute: DatabaseDemoApiDatabaseDemoRoute,
   DatabaseDemoApiDbSkillsRoute: DatabaseDemoApiDbSkillsRoute,
+  DatabaseDemoApiJudgeRoute: DatabaseDemoApiJudgeRoute,
 }
 
 const DatabaseDemoRouteRouteWithChildren =

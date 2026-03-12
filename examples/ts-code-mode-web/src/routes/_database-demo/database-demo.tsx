@@ -8,6 +8,7 @@ import type { UIMessage } from '@tanstack/ai-react'
 import {
   ChevronDown,
   ChevronRight,
+  Download,
   Sparkles,
   Trash2,
   X,
@@ -642,12 +643,34 @@ const EXAMPLE_QUERIES = [
   'Compare average order value across cities and product categories — which city-category combination has the highest spend?',
 ]
 
+// Map gold-standard prompts to their file numbers
+const GOLD_PROMPT_MAP: Record<string, number> = {
+  'Which customers have purchased from all three product categories? Show their names, cities, and total spend per category': 1,
+  'Show a monthly breakdown of purchases with total revenue, average order value, and the number of distinct products sold each month': 2,
+  'Rank every customer by total spending and show what percentage of their purchases were electronics vs furniture vs office products': 3,
+  'For each city, show the total revenue, number of unique customers, and the most purchased product category': 4,
+}
+
+function extractReportText(messages: Array<UIMessage>): string {
+  return messages
+    .filter((m) => m.role === 'assistant')
+    .flatMap((m) => m.parts.filter((p) => p.type === 'text').map((p) => p.content))
+    .join('\n\n')
+}
+
+interface JudgeResult {
+  accuracy: number
+  comprehensiveness: number
+  summary: string
+}
+
 interface MessageMetrics {
   query: string
   codeMode: boolean
   llmCalls: number
   toolCalls: number
   durationMs: number | null
+  judging?: 'pending' | JudgeResult
 }
 
 function MetricsSidebar({ entries }: { entries: Array<MessageMetrics> }) {
@@ -705,6 +728,33 @@ function MetricsSidebar({ entries }: { entries: Array<MessageMetrics> }) {
                 </div>
               </div>
             </div>
+            {entry.judging === 'pending' && (
+              <div className="mt-2 pt-2 border-t border-gray-700/50 flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                <span className="text-[10px] text-cyan-300">Judging against gold standard...</span>
+              </div>
+            )}
+            {entry.judging && entry.judging !== 'pending' && (
+              <div className="mt-2 pt-2 border-t border-gray-700/50">
+                <div className="grid grid-cols-2 gap-2 text-center mb-2">
+                  <div>
+                    <div className="text-gray-500 text-[10px]">Accuracy</div>
+                    <div className={`font-mono font-semibold ${entry.judging.accuracy >= 8 ? 'text-green-400' : entry.judging.accuracy >= 5 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {entry.judging.accuracy}/10
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500 text-[10px]">Comprehensive</div>
+                    <div className={`font-mono font-semibold ${entry.judging.comprehensiveness >= 8 ? 'text-green-400' : entry.judging.comprehensiveness >= 5 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {entry.judging.comprehensiveness}/10
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-400 leading-relaxed">
+                  {entry.judging.summary}
+                </p>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -887,6 +937,9 @@ function DatabaseDemoPage() {
         ? lastAssistantMessage.parts.filter((p) => p.type === 'tool-call').length
         : 0
 
+      const goldFileNum = GOLD_PROMPT_MAP[query]
+      const candidateReport = extractReportText(messages)
+
       setMetricsEntries((prev) => [
         ...prev,
         {
@@ -895,16 +948,81 @@ function DatabaseDemoPage() {
           llmCalls: pending.llmCalls,
           toolCalls,
           durationMs: pending.durationMs,
+          judging: goldFileNum ? 'pending' : undefined,
         },
       ])
+
+      // If there's a gold standard, kick off judging
+      if (goldFileNum) {
+        const entryIndex = metricsEntries.length // index of the entry we just pushed
+        ;(async () => {
+          try {
+            const goldRes = await fetch(
+              `/gold-results/db-gold-messages-${goldFileNum}.json`,
+            )
+            const goldData = await goldRes.json()
+            const goldReport = extractReportText(goldData.messages)
+
+            const judgeRes = await fetch('/api/judge', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query,
+                goldReport,
+                candidateReport,
+              }),
+            })
+            const judgeResult: JudgeResult = await judgeRes.json()
+
+            setMetricsEntries((prev) =>
+              prev.map((e, i) =>
+                i === entryIndex ? { ...e, judging: judgeResult } : e,
+              ),
+            )
+          } catch (error) {
+            console.error('Judging failed:', error)
+            setMetricsEntries((prev) =>
+              prev.map((e, i) =>
+                i === entryIndex
+                  ? {
+                      ...e,
+                      judging: {
+                        accuracy: 0,
+                        comprehensiveness: 0,
+                        summary: 'Judging failed — could not reach the judge API.',
+                      },
+                    }
+                  : e,
+              ),
+            )
+          }
+        })()
+      }
     }
     wasLoadingRef.current = isLoading
-  }, [isLoading, messages])
+  }, [isLoading, messages, metricsEntries.length])
 
   const clearMessages = useCallback(() => {
     setMessages([])
     setToolCallEvents(new Map())
   }, [setMessages])
+
+  const exportMessages = useCallback(() => {
+    if (messages.length === 0) return
+    const firstUserMessage = messages.find((m) => m.role === 'user')
+    const prompt =
+      firstUserMessage?.parts.find((p) => p.type === 'text')?.content ?? ''
+    const blob = new Blob(
+      [JSON.stringify({ prompt, messages }, null, 2)],
+      { type: 'application/json' },
+    )
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `chat-export-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [messages])
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
@@ -972,13 +1090,23 @@ function DatabaseDemoPage() {
                 </button>
               )}
             </div>
-            <button
-              onClick={clearMessages}
-              disabled={isLoading || messages.length === 0}
-              className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Clear Chat
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={clearMessages}
+                disabled={isLoading || messages.length === 0}
+                className="flex-1 text-xs px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Clear Chat
+              </button>
+              <button
+                onClick={exportMessages}
+                disabled={messages.length === 0}
+                title="Export messages as JSON"
+                className="text-xs px-2 py-1.5 rounded-lg border border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
         </div>

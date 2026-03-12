@@ -1,0 +1,152 @@
+{
+  "prompt": "Show a monthly breakdown of purchases with total revenue, average order value, and the number of distinct products sold each month",
+  "messages": [
+    {
+      "id": "msg-1773358111166-fgkrra",
+      "role": "user",
+      "parts": [
+        {
+          "type": "text",
+          "content": "Show a monthly breakdown of purchases with total revenue, average order value, and the number of distinct products sold each month"
+        }
+      ],
+      "createdAt": "2026-03-12T23:28:31.166Z"
+    },
+    {
+      "id": "msg-1773358111583-aurhoko",
+      "role": "assistant",
+      "parts": [
+        {
+          "type": "text",
+          "content": "I'll help you get a monthly breakdown of purchases. Let me start by checking the schema and then querying the purchase data."
+        },
+        {
+          "type": "tool-call",
+          "id": "toolu_012er8u979E7P3BjoS6rJzer",
+          "name": "getSchemaInfo",
+          "arguments": "{\"table\": \"purchases\"}",
+          "state": "input-complete",
+          "output": {
+            "schemas": {
+              "purchases": {
+                "id": "number",
+                "customer_id": "number",
+                "product_id": "number",
+                "quantity": "number",
+                "total": "number",
+                "purchased_at": "string (date)"
+              }
+            },
+            "rowCounts": {
+              "purchases": 25
+            }
+          }
+        },
+        {
+          "type": "tool-result",
+          "toolCallId": "toolu_012er8u979E7P3BjoS6rJzer",
+          "content": "{\"schemas\":{\"purchases\":{\"id\":\"number\",\"customer_id\":\"number\",\"product_id\":\"number\",\"quantity\":\"number\",\"total\":\"number\",\"purchased_at\":\"string (date)\"}},\"rowCounts\":{\"purchases\":25}}",
+          "state": "complete"
+        },
+        {
+          "type": "text",
+          "content": "Now let me query all purchases and process them to create a monthly breakdown:"
+        },
+        {
+          "type": "tool-call",
+          "id": "toolu_01V9L6TrzsAW91Mm9pezXR5S",
+          "name": "execute_typescript",
+          "arguments": "{\"typescriptCode\": \"\\nconst result = await external_queryTable({\\n  table: \\\"purchases\\\",\\n  columns: [\\\"purchased_at\\\", \\\"total\\\", \\\"product_id\\\", \\\"quantity\\\"]\\n});\\n\\nconst purchases = result.rows as Array<{\\n  purchased_at: string;\\n  total: number;\\n  product_id: number;\\n  quantity: number;\\n}>;\\n\\n// Group by month\\nconst monthlyStats = new Map<string, {\\n  totalRevenue: number;\\n  orderCount: number;\\n  productIds: Set<number>;\\n}>();\\n\\npurchases.forEach(purchase => {\\n  // Extract year-month from the date\\n  const monthKey = purchase.purchased_at.substring(0, 7); // YYYY-MM format\\n  \\n  if (!monthlyStats.has(monthKey)) {\\n    monthlyStats.set(monthKey, {\\n      totalRevenue: 0,\\n      orderCount: 0,\\n      productIds: new Set()\\n    });\\n  }\\n  \\n  const monthData = monthlyStats.get(monthKey)!;\\n  monthData.totalRevenue += purchase.total;\\n  monthData.orderCount += 1;\\n  monthData.productIds.add(purchase.product_id);\\n});\\n\\n// Convert to sorted array and calculate metrics\\nconst monthlyBreakdown = Array.from(monthlyStats.entries())\\n  .sort((a, b) => a[0].localeCompare(b[0]))\\n  .map(([month, stats]) => ({\\n    month,\\n    totalRevenue: parseFloat(stats.totalRevenue.toFixed(2)),\\n    orderCount: stats.orderCount,\\n    averageOrderValue: parseFloat((stats.totalRevenue / stats.orderCount).toFixed(2)),\\n    distinctProductsSold: stats.productIds.size\\n  }));\\n\\nreturn monthlyBreakdown;\\n\"}",
+          "state": "input-complete",
+          "output": {
+            "success": true,
+            "result": [
+              {
+                "month": "2024-03",
+                "totalRevenue": 189.97,
+                "orderCount": 2,
+                "averageOrderValue": 94.98,
+                "distinctProductsSold": 2
+              },
+              {
+                "month": "2024-04",
+                "totalRevenue": 389.96,
+                "orderCount": 2,
+                "averageOrderValue": 194.98,
+                "distinctProductsSold": 2
+              },
+              {
+                "month": "2024-05",
+                "totalRevenue": 499.95,
+                "orderCount": 2,
+                "averageOrderValue": 249.97,
+                "distinctProductsSold": 2
+              },
+              {
+                "month": "2024-06",
+                "totalRevenue": 194.93,
+                "orderCount": 2,
+                "averageOrderValue": 97.47,
+                "distinctProductsSold": 2
+              },
+              {
+                "month": "2024-07",
+                "totalRevenue": 114.98,
+                "orderCount": 2,
+                "averageOrderValue": 57.49,
+                "distinctProductsSold": 2
+              },
+              {
+                "month": "2024-08",
+                "totalRevenue": 209.97,
+                "orderCount": 2,
+                "averageOrderValue": 104.98,
+                "distinctProductsSold": 2
+              },
+              {
+                "month": "2024-09",
+                "totalRevenue": 449.98,
+                "orderCount": 2,
+                "averageOrderValue": 224.99,
+                "distinctProductsSold": 2
+              },
+              {
+                "month": "2024-10",
+                "totalRevenue": 529.94,
+                "orderCount": 3,
+                "averageOrderValue": 176.65,
+                "distinctProductsSold": 3
+              },
+              {
+                "month": "2024-11",
+                "totalRevenue": 249.96,
+                "orderCount": 3,
+                "averageOrderValue": 83.32,
+                "distinctProductsSold": 3
+              },
+              {
+                "month": "2024-12",
+                "totalRevenue": 899.83,
+                "orderCount": 5,
+                "averageOrderValue": 179.97,
+                "distinctProductsSold": 5
+              }
+            ],
+            "logs": []
+          }
+        },
+        {
+          "type": "tool-result",
+          "toolCallId": "toolu_01V9L6TrzsAW91Mm9pezXR5S",
+          "content": "{\"success\":true,\"result\":[{\"month\":\"2024-03\",\"totalRevenue\":189.97,\"orderCount\":2,\"averageOrderValue\":94.98,\"distinctProductsSold\":2},{\"month\":\"2024-04\",\"totalRevenue\":389.96,\"orderCount\":2,\"averageOrderValue\":194.98,\"distinctProductsSold\":2},{\"month\":\"2024-05\",\"totalRevenue\":499.95,\"orderCount\":2,\"averageOrderValue\":249.97,\"distinctProductsSold\":2},{\"month\":\"2024-06\",\"totalRevenue\":194.93,\"orderCount\":2,\"averageOrderValue\":97.47,\"distinctProductsSold\":2},{\"month\":\"2024-07\",\"totalRevenue\":114.98,\"orderCount\":2,\"averageOrderValue\":57.49,\"distinctProductsSold\":2},{\"month\":\"2024-08\",\"totalRevenue\":209.97,\"orderCount\":2,\"averageOrderValue\":104.98,\"distinctProductsSold\":2},{\"month\":\"2024-09\",\"totalRevenue\":449.98,\"orderCount\":2,\"averageOrderValue\":224.99,\"distinctProductsSold\":2},{\"month\":\"2024-10\",\"totalRevenue\":529.94,\"orderCount\":3,\"averageOrderValue\":176.65,\"distinctProductsSold\":3},{\"month\":\"2024-11\",\"totalRevenue\":249.96,\"orderCount\":3,\"averageOrderValue\":83.32,\"distinctProductsSold\":3},{\"month\":\"2024-12\",\"totalRevenue\":899.83,\"orderCount\":5,\"averageOrderValue\":179.97,\"distinctProductsSold\":5}],\"logs\":[]}",
+          "state": "complete"
+        },
+        {
+          "type": "text",
+          "content": "Perfect! Here's your monthly breakdown of purchases:\n\n| Month | Total Revenue | Order Count | Average Order Value | Distinct Products Sold |\n|-------|---------------|-------------|---------------------|------------------------|\n| 2024-03 | $189.97 | 2 | $94.98 | 2 |\n| 2024-04 | $389.96 | 2 | $194.98 | 2 |\n| 2024-05 | $499.95 | 2 | $249.97 | 2 |\n| 2024-06 | $194.93 | 2 | $97.47 | 2 |\n| 2024-07 | $114.98 | 2 | $57.49 | 2 |\n| 2024-08 | $209.97 | 2 | $104.98 | 2 |\n| 2024-09 | $449.98 | 2 | $224.99 | 2 |\n| 2024-10 | $529.94 | 3 | $176.65 | 3 |\n| 2024-11 | $249.96 | 3 | $83.32 | 3 |\n| 2024-12 | $899.83 | 5 | $179.97 | 5 |\n\n**Key Insights:**\n- **Best Month:** December 2024 had the highest revenue ($899.83) with 5 orders\n- **Highest Average Order Value:** May 2024 ($249.97 per order)\n- **Lowest Revenue Month:** July 2024 ($114.98)\n- **Trend:** Strong momentum in Q4 2024, with December showing significant growth in both order volume and product variety\n- **Overall:** Total of 25 purchases across 10 months with a wide range of average order values from $57.49 to $249.97"
+        }
+      ],
+      "createdAt": "2026-03-12T23:28:31.583Z"
+    }
+  ]
+}
