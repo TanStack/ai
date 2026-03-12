@@ -440,10 +440,7 @@ export class OpenRouterTextAdapter<
 
     if (finishReason) {
       // Emit all completed tool calls when finish reason indicates tool usage
-      if (
-        finishReason === 'tool_calls' ||
-        toolCallBuffers.size > 0
-      ) {
+      if (finishReason === 'tool_calls' || toolCallBuffers.size > 0) {
         for (const [, tc] of toolCallBuffers.entries()) {
           // Parse arguments for TOOL_CALL_END
           let parsedInput: unknown = {}
@@ -468,8 +465,10 @@ export class OpenRouterTextAdapter<
       }
 
       const computedFinishReason =
-        finishReason === 'tool_calls' ? 'tool_calls'
-          : finishReason === 'length' ? 'length'
+        finishReason === 'tool_calls'
+          ? 'tool_calls'
+          : finishReason === 'length'
+            ? 'length'
             : 'stop'
 
       // Emit TEXT_MESSAGE_END if we had text content
