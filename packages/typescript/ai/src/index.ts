@@ -70,14 +70,53 @@ export {
   combineStrategies,
 } from './activities/chat/agent-loop-strategies'
 
+// Chat middleware
+export type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+  ChatMiddlewarePhase,
+  ChatMiddlewareConfig,
+  ToolCallHookContext,
+  BeforeToolCallDecision,
+  AfterToolCallInfo,
+  IterationInfo,
+  ToolPhaseCompleteInfo,
+  UsageInfo,
+  FinishInfo,
+  AbortInfo,
+  ErrorInfo,
+} from './activities/chat/middleware/index'
+
 // All types
 export * from './types'
 
 // Utility functions
 export { detectImageMimeType } from './utils'
 
-// Event client + event types
-export * from './event-client'
+// Realtime
+export { realtimeToken } from './realtime/index'
+export type {
+  RealtimeToken,
+  RealtimeTokenAdapter,
+  RealtimeTokenOptions,
+  RealtimeSessionConfig,
+  VADConfig,
+  RealtimeMessage,
+  RealtimeMessagePart,
+  RealtimeTextPart,
+  RealtimeAudioPart,
+  RealtimeToolCallPart,
+  RealtimeToolResultPart,
+  RealtimeImagePart,
+  RealtimeStatus,
+  RealtimeMode,
+  AudioVisualization,
+  RealtimeEvent,
+  RealtimeEventPayloads,
+  RealtimeEventHandler,
+  RealtimeErrorCode,
+  RealtimeError,
+} from './realtime/index'
 
 // Message converters
 export {

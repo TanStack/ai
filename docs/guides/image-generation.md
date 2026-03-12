@@ -1,7 +1,7 @@
 ---
 title: Image Generation
 id: image-generation
-order: 15
+order: 16
 ---
 
 # Image Generation
@@ -253,6 +253,194 @@ try {
   //  Supported sizes: 1024x1024, 1792x1024, 1024x1792"
 }
 ```
+
+## Full-Stack Usage
+
+TanStack AI provides React hooks and server-side streaming helpers to build full-stack image generation with minimal boilerplate.
+
+### Streaming Mode (Server Route + Client Hook)
+
+**Server** — Create an API route that wraps `generateImage` as a streaming response:
+
+```typescript
+// routes/api/generate/image.ts
+import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/api/generate/image')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
+        const { prompt, size, model, numberOfImages } = body.data
+
+        const stream = generateImage({
+          adapter: openaiImage(model ?? 'dall-e-3'),
+          prompt,
+          size,
+          numberOfImages,
+          stream: true,
+        })
+
+        return toServerSentEventsResponse(stream)
+      },
+    },
+  },
+})
+```
+
+**Client** — Use the `useGenerateImage` hook with a connection adapter:
+
+```tsx
+import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function ImageGenerator() {
+  const { generate, result, isLoading, error, reset } = useGenerateImage({
+    connection: fetchServerSentEvents('/api/generate/image'),
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() => generate({ prompt: 'A sunset over mountains' })}
+        disabled={isLoading}
+      >
+        {isLoading ? 'Generating...' : 'Generate'}
+      </button>
+      {error && <p>Error: {error.message}</p>}
+      {result?.images.map((img, i) => (
+        <img
+          key={i}
+          src={img.url || `data:image/png;base64,${img.b64Json}`}
+          alt={img.revisedPrompt || 'Generated image'}
+        />
+      ))}
+      {result && <button onClick={reset}>Clear</button>}
+    </div>
+  )
+}
+```
+
+### Direct Mode (Server Function + Fetcher)
+
+For non-streaming usage with TanStack Start server functions:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+export const generateImageFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { prompt: string; model?: string }) => data)
+  .handler(async ({ data }) => {
+    return generateImage({
+      adapter: openaiImage(data.model ?? 'dall-e-3'),
+      prompt: data.prompt,
+    })
+  })
+```
+
+```tsx
+// components/ImageGenerator.tsx
+import { useGenerateImage } from '@tanstack/ai-react'
+import { generateImageFn } from '../lib/server-functions'
+
+function ImageGenerator() {
+  const { generate, result, isLoading } = useGenerateImage({
+    fetcher: (data) => generateImageFn({ data }),
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() => generate({ prompt: 'A sunset over mountains' })}
+        disabled={isLoading}
+      >
+        Generate
+      </button>
+      {result?.images.map((img, i) => (
+        <img key={i} src={img.url || `data:image/png;base64,${img.b64Json}`} />
+      ))}
+    </div>
+  )
+}
+```
+
+### Server Function Streaming (Fetcher + Response)
+
+For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+export const generateImageStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { prompt: string; model?: string }) => data)
+  .handler(({ data }) => {
+    return toServerSentEventsResponse(
+      generateImage({
+        adapter: openaiImage(data.model ?? 'dall-e-3'),
+        prompt: data.prompt,
+        stream: true,
+      }),
+    )
+  })
+```
+
+```tsx
+import { useGenerateImage } from '@tanstack/ai-react'
+import { generateImageStreamFn } from '../lib/server-functions'
+
+function ImageGenerator() {
+  const { generate, result, isLoading } = useGenerateImage({
+    fetcher: (input) => generateImageStreamFn({ data: input }),
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() => generate({ prompt: 'A sunset over mountains' })}
+        disabled={isLoading}
+      >
+        Generate
+      </button>
+      {result?.images.map((img, i) => (
+        <img key={i} src={img.url || `data:image/png;base64,${img.b64Json}`} />
+      ))}
+    </div>
+  )
+}
+```
+
+### Hook API
+
+The `useGenerateImage` hook accepts:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
+| `fetcher` | `(input) => Promise<ImageGenerationResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
+| `id` | `string` | Unique identifier for this instance |
+| `body` | `Record<string, any>` | Additional body parameters (connection mode) |
+| `onResult` | `(result) => void` | Callback when images are generated |
+| `onError` | `(error) => void` | Callback on error |
+| `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
+
+And returns:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `generate` | `(input: ImageGenerateInput) => Promise<void>` | Trigger generation |
+| `result` | `ImageGenerationResult \| null` | The result, or null |
+| `isLoading` | `boolean` | Whether generation is in progress |
+| `error` | `Error \| undefined` | Current error, if any |
+| `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
+| `stop` | `() => void` | Abort the current generation |
+| `reset` | `() => void` | Clear result, error, and return to idle |
 
 ## Environment Variables
 

@@ -1,7 +1,7 @@
 ---
 title: Video Generation
 id: video-generation
-order: 16
+order: 17
 ---
 
 # Video Generation (Experimental)
@@ -139,6 +139,219 @@ async function generateVideo(prompt: string) {
 const videoUrl = await generateVideo('A cat playing piano in a jazz bar')
 console.log('Video ready:', videoUrl)
 ```
+
+## Full-Stack Usage
+
+TanStack AI's `generateVideo` function supports a `stream: true` flag that handles the job creation and polling loop server-side, streaming status updates to the client in real-time.
+
+### Streaming Mode (Server Route + Client Hook)
+
+**Server** — The server handles the entire polling lifecycle and streams events to the client:
+
+```typescript
+// routes/api/generate/video.ts
+import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/api/generate/video')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
+        const { prompt, size, duration, model } = body.data
+
+        const stream = generateVideo({
+          adapter: openaiVideo(model ?? 'sora-2'),
+          prompt,
+          size,
+          duration,
+          stream: true,
+          pollingInterval: 3000, // Check status every 3 seconds
+          maxDuration: 600_000, // Timeout after 10 minutes
+        })
+
+        return toServerSentEventsResponse(stream)
+      },
+    },
+  },
+})
+```
+
+**Client** — Use the `useGenerateVideo` hook which tracks job status automatically:
+
+```tsx
+import { useGenerateVideo, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function VideoGenerator() {
+  const {
+    generate,
+    result,
+    jobId,
+    videoStatus,
+    isLoading,
+    error,
+    stop,
+    reset,
+  } = useGenerateVideo({
+    connection: fetchServerSentEvents('/api/generate/video'),
+    onJobCreated: (id) => console.log('Job created:', id),
+    onStatusUpdate: (status) => console.log('Status:', status.status),
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() =>
+          generate({ prompt: 'A golden retriever playing in sunflowers' })
+        }
+        disabled={isLoading}
+      >
+        {isLoading ? 'Generating...' : 'Generate Video'}
+      </button>
+
+      {isLoading && (
+        <div>
+          {jobId && <p>Job: {jobId}</p>}
+          {videoStatus?.progress != null && (
+            <progress value={videoStatus.progress} max={100} />
+          )}
+          <p>Status: {videoStatus?.status ?? 'starting...'}</p>
+          <button onClick={stop}>Cancel</button>
+        </div>
+      )}
+
+      {error && <p>Error: {error.message}</p>}
+
+      {result && (
+        <div>
+          <video src={result.url} controls width={640} />
+          <button onClick={reset}>Clear</button>
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+### Direct Mode (Server Function + Fetcher)
+
+For cases where the server handles the full polling loop and returns a completed result:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+export const generateVideoFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { prompt: string }) => data)
+  .handler(async ({ data }) => {
+    const adapter = openaiVideo('sora-2')
+
+    // Create the job
+    const { jobId } = await generateVideo({
+      adapter,
+      prompt: data.prompt,
+    })
+
+    // Poll until complete
+    let status = await getVideoJobStatus({ adapter, jobId })
+    while (status.status !== 'completed' && status.status !== 'failed') {
+      await new Promise((r) => setTimeout(r, 5000))
+      status = await getVideoJobStatus({ adapter, jobId })
+    }
+
+    if (status.status === 'failed') {
+      throw new Error(status.error || 'Video generation failed')
+    }
+
+    return {
+      jobId,
+      status: 'completed' as const,
+      url: status.url!,
+    }
+  })
+```
+
+```tsx
+import { useGenerateVideo } from '@tanstack/ai-react'
+import { generateVideoFn } from '../lib/server-functions'
+
+function VideoGenerator() {
+  const { generate, result, isLoading } = useGenerateVideo({
+    fetcher: (input) => generateVideoFn({ data: input }),
+  })
+  // ... same UI as above (note: jobId and videoStatus won't update in fetcher mode)
+}
+```
+
+> **Note:** In direct fetcher mode, `jobId` and `videoStatus` won't receive real-time updates since there's no streaming. Use the streaming connection mode or server function streaming for progress tracking.
+
+### Server Function Streaming (Fetcher + Response)
+
+For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically. This gives you both type safety and real-time `jobId`/`videoStatus` updates:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+export const generateVideoStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { prompt: string; size?: string; duration?: number }) => data)
+  .handler(({ data }) => {
+    return toServerSentEventsResponse(
+      generateVideo({
+        adapter: openaiVideo('sora-2'),
+        prompt: data.prompt,
+        size: data.size as any,
+        duration: data.duration,
+        stream: true,
+      }),
+    )
+  })
+```
+
+```tsx
+import { useGenerateVideo } from '@tanstack/ai-react'
+import { generateVideoStreamFn } from '../lib/server-functions'
+
+function VideoGenerator() {
+  const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
+    fetcher: (input) => generateVideoStreamFn({ data: input }),
+  })
+  // ... same UI as streaming mode (jobId and videoStatus update in real-time)
+}
+```
+
+### Hook API
+
+The `useGenerateVideo` hook accepts all common options plus video-specific callbacks:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
+| `fetcher` | `(input) => Promise<VideoGenerateResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
+| `onResult` | `(result) => void` | Callback when video is ready |
+| `onError` | `(error) => void` | Callback on error |
+| `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
+| `onJobCreated` | `(jobId: string) => void` | Callback when the job is created |
+| `onStatusUpdate` | `(status: VideoStatusInfo) => void` | Callback on each polling update |
+
+And returns:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `generate` | `(input: VideoGenerateInput) => Promise<void>` | Trigger generation |
+| `result` | `VideoGenerateResult \| null` | The result with video URL, or null |
+| `jobId` | `string \| null` | The current job ID |
+| `videoStatus` | `VideoStatusInfo \| null` | Latest polling status (progress, status) |
+| `isLoading` | `boolean` | Whether generation is in progress |
+| `error` | `Error \| undefined` | Current error, if any |
+| `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
+| `stop` | `() => void` | Abort the current generation |
+| `reset` | `() => void` | Clear all state and return to idle |
 
 ## Options
 

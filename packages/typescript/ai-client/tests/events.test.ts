@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { aiEventClient } from '@tanstack/ai/event-client'
+import { aiEventClient } from '@tanstack/ai-event-client'
 import { DefaultChatClientEventEmitter } from '../src/events'
 import type { UIMessage } from '../src/types'
 
 // Mock the event client
-vi.mock('@tanstack/ai/event-client', () => ({
+vi.mock('@tanstack/ai-event-client', () => ({
   aiEventClient: {
     emit: vi.fn(),
   },

@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { ImagePlus, Send, Square, X } from 'lucide-react'
+import { Link, createFileRoute } from '@tanstack/react-router'
+import {
+  FileAudio,
+  FileText,
+  Image,
+  ImagePlus,
+  Mic,
+  Send,
+  Square,
+  Video,
+  X,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
@@ -89,7 +99,57 @@ function Messages({
   }, [messages])
 
   if (!messages.length) {
-    return null
+    return (
+      <div className="flex-1 overflow-y-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-white mb-2">
+              Welcome to TanStack AI
+            </h2>
+            <p className="text-gray-400 text-sm">
+              Start a conversation below, or explore generation demos:
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Link
+              to="/generations/image"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Image size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Image</span>
+            </Link>
+            <Link
+              to="/generations/speech"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <FileAudio size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Speech</span>
+            </Link>
+            <Link
+              to="/generations/transcription"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Mic size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Transcription</span>
+            </Link>
+            <Link
+              to="/generations/summarize"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <FileText size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Summarize</span>
+            </Link>
+            <Link
+              to="/generations/video"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Video size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Video</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -413,6 +473,13 @@ function ChatPage() {
                 ))}
               </select>
             </div>
+            <Link
+              to="/image-gen"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
+            >
+              <Image className="w-4 h-4" />
+              Image Gen
+            </Link>
           </div>
         </div>
 

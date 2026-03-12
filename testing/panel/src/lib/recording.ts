@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { aiEventClient as baseAiEventClient } from '@tanstack/ai/event-client'
-import type { AIDevtoolsEventMap } from '../../../../packages/typescript/ai/src/event-client'
+import { aiEventClient as baseAiEventClient } from '@tanstack/ai-event-client'
+import type { AIDevtoolsEventMap } from '@tanstack/ai-event-client'
 import type { StreamChunk } from '@tanstack/ai'
 
 /**

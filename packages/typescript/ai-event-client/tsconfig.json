@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "paths": {
+      "@tanstack/ai": ["../ai/src/index.ts"],
+      "@tanstack/ai-event-client": ["./src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "vite.config.ts"],
+  "exclude": ["node_modules", "dist", "**/*.config.ts", "eslint.config.js"]
+}
