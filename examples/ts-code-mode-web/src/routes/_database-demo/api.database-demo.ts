@@ -4,7 +4,7 @@ import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
 import { databaseTools } from '@/lib/tools/database-tools'
 
@@ -66,6 +66,88 @@ async function getCodeModeTools() {
   return codeModeCache
 }
 
+// --- Instrumentation helpers ---
+
+function instrumentAdapter(adapter: AnyTextAdapter): {
+  adapter: AnyTextAdapter
+} {
+  const baseChatStream = adapter.chatStream.bind(adapter)
+  let llmCallCount = 0
+  let totalContextBytes = 0
+  const textEncoder = new TextEncoder()
+
+  const instrumented: AnyTextAdapter = {
+    ...adapter,
+    chatStream: (options) => {
+      llmCallCount += 1
+      let contextBytes = 0
+      try {
+        contextBytes = textEncoder.encode(
+          JSON.stringify(options.messages ?? []),
+        ).length
+      } catch {
+        contextBytes = 0
+      }
+      totalContextBytes += contextBytes
+      const averageContextBytes =
+        llmCallCount > 0 ? Math.round(totalContextBytes / llmCallCount) : 0
+      const stream = baseChatStream(options)
+      async function* instrumentedStream(): AsyncGenerator<StreamChunk> {
+        yield {
+          type: 'CUSTOM',
+          model: adapter.model,
+          timestamp: Date.now(),
+          name: 'db_demo:llm_call',
+          value: {
+            count: llmCallCount,
+            contextBytes,
+            totalContextBytes,
+            averageContextBytes,
+          },
+        } as StreamChunk
+        for await (const chunk of stream) {
+          yield chunk
+        }
+      }
+      return instrumentedStream()
+    },
+  }
+
+  return { adapter: instrumented }
+}
+
+function wrapWithTimingEvents(
+  stream: AsyncGenerator<StreamChunk>,
+  adapter: AnyTextAdapter,
+): AsyncGenerator<StreamChunk> {
+  const requestStartTimeMs = Date.now()
+  return (async function* (): AsyncGenerator<StreamChunk> {
+    yield {
+      type: 'CUSTOM',
+      model: adapter.model,
+      timestamp: requestStartTimeMs,
+      name: 'db_demo:chat_start',
+      value: { startTimeMs: requestStartTimeMs },
+    } as StreamChunk
+    for await (const chunk of stream) {
+      if (chunk.type === 'RUN_FINISHED') {
+        const endTimeMs = Date.now()
+        yield {
+          type: 'CUSTOM',
+          model: adapter.model,
+          timestamp: endTimeMs,
+          name: 'db_demo:chat_end',
+          value: {
+            endTimeMs,
+            durationMs: endTimeMs - requestStartTimeMs,
+          },
+        } as StreamChunk
+      }
+      yield chunk
+    }
+  })()
+}
+
 export const Route = createFileRoute(
   '/_database-demo/api/database-demo' as any,
 )({
@@ -85,7 +167,8 @@ export const Route = createFileRoute(
         const model: string | undefined = data?.model
         const useCodeMode: boolean = data?.useCodeMode !== false
 
-        const adapter = getAdapter(provider, model)
+        const rawAdapter = getAdapter(provider, model)
+        const { adapter: instrumentedAdapter } = instrumentAdapter(rawAdapter)
 
         try {
           let tools
@@ -101,7 +184,7 @@ export const Route = createFileRoute(
           }
 
           const stream = chat({
-            adapter,
+            adapter: instrumentedAdapter,
             messages,
             tools,
             systemPrompts,
@@ -110,7 +193,8 @@ export const Route = createFileRoute(
             maxTokens: 8192,
           })
 
-          const sseStream = toServerSentEventsStream(stream, abortController)
+          const instrumentedStream = wrapWithTimingEvents(stream, rawAdapter)
+          const sseStream = toServerSentEventsStream(instrumentedStream, abortController)
 
           return new Response(sseStream, {
             headers: {

@@ -2,13 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { parsePartialJSON } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
+import type { VMEvent } from '@/components'
+import {
+  CodeBlock,
+  ExecutionResult,
+  JavaScriptVM,
+  Header,
+} from '@/components'
 import ChatInput from '@/components/ChatInput'
-import { Header } from '@/components'
+import { formatDuration } from '@/lib/efficiency'
 
 export const Route = createFileRoute('/_database-demo/database-demo' as any)({
   component: DatabaseDemoPage,
@@ -183,7 +194,13 @@ function ToolCallDisplay({
   )
 }
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({
+  messages,
+  toolCallEvents,
+}: {
+  messages: Array<UIMessage>
+  toolCallEvents: Map<string, Array<VMEvent>>
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -237,17 +254,106 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
                 {message.parts.map((part, index) => {
                   if (part.type === 'text' && part.content) {
                     return (
-                      <div
-                        key={`text-${index}`}
-                        className="prose prose-invert prose-sm max-w-none"
-                      >
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <div key={`text-${index}`} className="markdown-content">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[
+                            rehypeRaw,
+                            rehypeSanitize,
+                            rehypeHighlight,
+                          ]}
+                        >
                           {part.content}
                         </ReactMarkdown>
                       </div>
                     )
                   }
 
+                  // execute_typescript — use shared CodeBlock/ExecutionResult/JavaScriptVM
+                  if (
+                    part.type === 'tool-call' &&
+                    part.name === 'execute_typescript'
+                  ) {
+                    let code = ''
+                    const parsedArgs = parsePartialJSON(part.arguments)
+                    if (parsedArgs?.typescriptCode) {
+                      code = parsedArgs.typescriptCode
+                    }
+
+                    const toolResult = toolResults.get(part.id)
+                    const hasOutput =
+                      part.output !== undefined || toolResult !== undefined
+
+                    let parsedOutput = part.output
+                    if (!parsedOutput && toolResult?.content) {
+                      try {
+                        parsedOutput = JSON.parse(toolResult.content)
+                      } catch {
+                        parsedOutput = { result: toolResult.content }
+                      }
+                    }
+
+                    const isAwaitingInput = part.state === 'awaiting-input'
+                    const isInputStreaming = part.state === 'input-streaming'
+                    const isInputComplete = part.state === 'input-complete'
+                    const isStillGenerating =
+                      isAwaitingInput || isInputStreaming
+                    const isExecuting = isInputComplete && !hasOutput
+                    const hasError =
+                      parsedOutput?.success === false ||
+                      toolResult?.error !== undefined
+
+                    const codeStatus =
+                      isStillGenerating || isExecuting
+                        ? 'running'
+                        : hasError
+                          ? 'error'
+                          : 'success'
+
+                    const executionStatus = isExecuting
+                      ? 'running'
+                      : hasError
+                        ? 'error'
+                        : 'success'
+
+                    const events = toolCallEvents.get(part.id) || []
+
+                    return (
+                      <div key={part.id} className="mt-3 space-y-2">
+                        {!code && isStillGenerating ? (
+                          <div className="rounded-lg border border-blue-700 bg-blue-900/30 overflow-hidden">
+                            <div className="flex items-center gap-3 px-4 py-3">
+                              <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                              <span className="text-blue-300 font-medium">
+                                LLM is generating the TypeScript code...
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <CodeBlock code={code} status={codeStatus} />
+                        )}
+                        {isInputComplete &&
+                          (events.length > 0 || isExecuting) && (
+                            <JavaScriptVM
+                              events={events}
+                              isExecuting={isExecuting}
+                            />
+                          )}
+                        {isInputComplete && (
+                          <ExecutionResult
+                            status={executionStatus}
+                            result={parsedOutput?.result}
+                            error={
+                              parsedOutput?.error?.message || toolResult?.error
+                            }
+                            logs={parsedOutput?.logs}
+                          />
+                        )}
+                      </div>
+                    )
+                  }
+
+                  // Other tool calls — generic display
                   if (part.type === 'tool-call') {
                     const toolResult = toolResults.get(part.id)
                     const effectiveOutput =
@@ -362,19 +468,104 @@ function SchemaPanel() {
 }
 
 const EXAMPLE_QUERIES = [
-  'Who are the top 3 customers by total spending?',
-  'What is the most popular product by quantity sold?',
-  'Show me all purchases from customers in New York',
-  'What is the average order value by product category?',
-  'Which customers have bought electronics products?',
-  'Show monthly purchase totals over time',
+  'For each city, show the total revenue, number of unique customers, and the most purchased product category',
+  'Rank every customer by total spending and show what percentage of their purchases were electronics vs furniture vs office products',
+  'Show a monthly breakdown of purchases with total revenue, average order value, and the number of distinct products sold each month',
+  'Which customers have purchased from all three product categories? Show their names, cities, and total spend per category',
+  'Find the top 3 products by revenue and for each one list every customer who bought it, their city, and how many units they ordered',
+  'Compare average order value across cities and product categories — which city-category combination has the highest spend?',
 ]
+
+interface MessageMetrics {
+  query: string
+  codeMode: boolean
+  llmCalls: number
+  toolCalls: number
+  durationMs: number | null
+}
+
+function MetricsSidebar({ entries }: { entries: Array<MessageMetrics> }) {
+  return (
+    <div className="w-72 flex flex-col border-l border-gray-800 bg-gray-900/50">
+      <div className="p-4 border-b border-gray-800">
+        <div className="text-sm font-semibold text-white">Metrics</div>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {entries.length === 0 && (
+          <div className="text-xs text-gray-500">
+            Metrics will appear here after each response.
+          </div>
+        )}
+        {entries.map((entry, i) => (
+          <div
+            key={i}
+            className={`rounded-lg border p-3 text-xs ${
+              entry.codeMode
+                ? 'border-purple-500/30 bg-purple-900/10'
+                : 'border-amber-500/30 bg-amber-900/10'
+            }`}
+          >
+            <div className="text-gray-300 font-medium mb-2 line-clamp-2">
+              {entry.query}
+            </div>
+            <div
+              className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded mb-2 ${
+                entry.codeMode
+                  ? 'bg-purple-600/50 text-purple-200'
+                  : 'bg-amber-600/50 text-amber-200'
+              }`}
+            >
+              {entry.codeMode ? 'Code Mode' : 'Direct Tools'}
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <div className="text-gray-500">LLM Calls</div>
+                <div className="text-white font-mono font-semibold">
+                  {entry.llmCalls}
+                </div>
+              </div>
+              <div>
+                <div className="text-gray-500">Tool Calls</div>
+                <div className="text-white font-mono font-semibold">
+                  {entry.toolCalls}
+                </div>
+              </div>
+              <div>
+                <div className="text-gray-500">Time</div>
+                <div className="text-white font-mono font-semibold">
+                  {entry.durationMs !== null
+                    ? formatDuration(entry.durationMs)
+                    : '...'}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function DatabaseDemoPage() {
   const [selectedModel, setSelectedModel] = useState<ModelOption>(
     MODEL_OPTIONS[0],
   )
   const [useCodeMode, setUseCodeMode] = useState(true)
+  const [toolCallEvents, setToolCallEvents] = useState<
+    Map<string, Array<VMEvent>>
+  >(new Map())
+  const eventIdCounter = useRef(0)
+
+  // Per-message metrics tracking
+  const [metricsEntries, setMetricsEntries] = useState<Array<MessageMetrics>>([])
+  const pendingMetricsRef = useRef<{
+    llmCalls: number
+    durationMs: number | null
+    codeMode: boolean
+  } | null>(null)
+  const wasLoadingRef = useRef(false)
+  const useCodeModeRef = useRef(useCodeMode)
+  useCodeModeRef.current = useCodeMode
 
   const body = useMemo(
     () => ({
@@ -385,10 +576,104 @@ function DatabaseDemoPage() {
     [selectedModel.provider, selectedModel.model, useCodeMode],
   )
 
-  const { messages, sendMessage, isLoading } = useChat({
+  const handleCustomEvent = useCallback(
+    (eventType: string, data: unknown, context: { toolCallId?: string }) => {
+      // Track metrics events
+      if (eventType === 'db_demo:chat_start') {
+        pendingMetricsRef.current = {
+          llmCalls: 0,
+          durationMs: null,
+          codeMode: useCodeModeRef.current,
+        }
+        return
+      }
+
+      if (eventType === 'db_demo:llm_call') {
+        if (pendingMetricsRef.current && data && typeof data === 'object' && 'count' in data) {
+          const count = (data as { count?: number }).count
+          if (typeof count === 'number') {
+            pendingMetricsRef.current.llmCalls = count
+          }
+        }
+        return
+      }
+
+      if (eventType === 'db_demo:chat_end') {
+        if (pendingMetricsRef.current && data && typeof data === 'object' && 'durationMs' in data) {
+          const dur = (data as { durationMs?: number }).durationMs
+          if (typeof dur === 'number') {
+            pendingMetricsRef.current.durationMs = dur
+          }
+        }
+        return
+      }
+
+      // VM events for tool call display
+      const toolCallId = context.toolCallId
+      if (!toolCallId) return
+
+      const event: VMEvent = {
+        id: `event-${eventIdCounter.current++}`,
+        eventType,
+        data,
+        timestamp: Date.now(),
+      }
+
+      setToolCallEvents((prev) => {
+        const newMap = new Map(prev)
+        const events = newMap.get(toolCallId) || []
+        newMap.set(toolCallId, [...events, event])
+        return newMap
+      })
+    },
+    [],
+  )
+
+  const { messages, sendMessage, setMessages, isLoading } = useChat({
     connection: fetchServerSentEvents('/api/database-demo'),
     body,
+    onCustomEvent: handleCustomEvent,
   })
+
+  // Finalize metrics entry when isLoading transitions from true → false
+  useEffect(() => {
+    if (wasLoadingRef.current && !isLoading && pendingMetricsRef.current) {
+      const pending = pendingMetricsRef.current
+      pendingMetricsRef.current = null
+
+      // Find the user message that triggered this response
+      const userMessages = messages.filter((m) => m.role === 'user')
+      const lastUserMessage = userMessages[userMessages.length - 1]
+      const query =
+        lastUserMessage?.parts.find((p) => p.type === 'text')?.content ||
+        'Unknown query'
+
+      // Count tool calls from the latest assistant message
+      const lastAssistantMessage = [...messages]
+        .reverse()
+        .find((m) => m.role === 'assistant')
+      const toolCalls = lastAssistantMessage
+        ? lastAssistantMessage.parts.filter((p) => p.type === 'tool-call').length
+        : 0
+
+      setMetricsEntries((prev) => [
+        ...prev,
+        {
+          query,
+          codeMode: pending.codeMode,
+          llmCalls: pending.llmCalls,
+          toolCalls,
+          durationMs: pending.durationMs,
+        },
+      ])
+    }
+    wasLoadingRef.current = isLoading
+  }, [isLoading, messages])
+
+  const clearMessages = useCallback(() => {
+    setMessages([])
+    setToolCallEvents(new Map())
+  }, [setMessages])
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
@@ -426,7 +711,7 @@ function DatabaseDemoPage() {
                 </option>
               ))}
             </select>
-            <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+            <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer mb-2">
               <input
                 type="checkbox"
                 checked={useCodeMode}
@@ -436,6 +721,13 @@ function DatabaseDemoPage() {
               />
               Code Mode
             </label>
+            <button
+              onClick={clearMessages}
+              disabled={isLoading || messages.length === 0}
+              className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Clear Chat
+            </button>
           </div>
 
           <div className="p-4 flex-1 overflow-y-auto">
@@ -489,7 +781,7 @@ function DatabaseDemoPage() {
               </div>
             </div>
           ) : (
-            <Messages messages={messages} />
+            <Messages messages={messages} toolCallEvents={toolCallEvents} />
           )}
 
           <ChatInput
@@ -501,6 +793,9 @@ function DatabaseDemoPage() {
             }
           />
         </div>
+
+        {/* Right sidebar — Metrics */}
+        <MetricsSidebar entries={metricsEntries} />
       </div>
     </div>
   )

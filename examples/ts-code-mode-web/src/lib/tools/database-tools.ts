@@ -117,13 +117,13 @@ export const queryTableTool = toolDefinition({
   inputSchema: z.object({
     table: z.enum(['customers', 'products', 'purchases']).describe('The table to query'),
     columns: z.array(z.string()).optional().describe('Columns to return. If omitted, all columns are returned.'),
-    where: z.record(z.unknown()).optional().describe('Filter conditions as key-value pairs (exact match). Example: { "city": "New York" }'),
+    where: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().describe('Filter conditions as key-value pairs (exact match). Example: { "city": "New York" }'),
     orderBy: z.string().optional().describe('Column name to sort results by'),
     orderDirection: z.enum(['asc', 'desc']).optional().describe('Sort direction, defaults to asc'),
     limit: z.number().optional().describe('Maximum number of rows to return'),
   }),
   outputSchema: z.object({
-    rows: z.array(z.record(z.unknown())),
+    rows: z.array(z.record(z.string(), z.any())),
     totalMatchingRows: z.number(),
   }),
 }).server(async ({ table, columns, where, orderBy, orderDirection, limit }) => {
@@ -179,8 +179,8 @@ export const getSchemaInfoTool = toolDefinition({
     table: z.enum(['customers', 'products', 'purchases']).optional().describe('Specific table to get schema for. If omitted, returns all table schemas.'),
   }),
   outputSchema: z.object({
-    schemas: z.record(z.record(z.string())),
-    rowCounts: z.record(z.number()),
+    schemas: z.record(z.string(), z.record(z.string(), z.string())),
+    rowCounts: z.record(z.string(), z.number()),
   }),
 }).server(async ({ table }) => {
   const tables: Array<Table> = table ? [table] : ['customers', 'products', 'purchases']

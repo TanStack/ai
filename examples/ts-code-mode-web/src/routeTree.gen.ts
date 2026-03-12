@@ -82,11 +82,12 @@ const NpmGithubChatNpmGithubChatRoute =
     path: '/npm-github-chat',
     getParentRoute: () => NpmGithubChatRouteRoute,
   } as any)
-const DatabaseDemoDatabaseDemoRoute = DatabaseDemoDatabaseDemoRouteImport.update({
-  id: '/database-demo',
-  path: '/database-demo',
-  getParentRoute: () => DatabaseDemoRouteRoute,
-} as any)
+const DatabaseDemoDatabaseDemoRoute =
+  DatabaseDemoDatabaseDemoRouteImport.update({
+    id: '/database-demo',
+    path: '/database-demo',
+    getParentRoute: () => DatabaseDemoRouteRoute,
+  } as any)
 const BankingDemoBankingDemoRoute = BankingDemoBankingDemoRouteImport.update({
   id: '/banking-demo',
   path: '/banking-demo',
@@ -171,14 +172,14 @@ const BankingDemoApiBankingDemoRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof HomeIndexRoute
-  '/database-demo': typeof DatabaseDemoDatabaseDemoRoute
   '/banking-demo': typeof BankingDemoBankingDemoRoute
+  '/database-demo': typeof DatabaseDemoDatabaseDemoRoute
   '/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/reporting-agent': typeof ReportingReportingAgentRoute
   '/structured-output': typeof StructuredOutputStructuredOutputRoute
-  '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
+  '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/api/product-regular': typeof HomeApiProductRegularRoute
   '/api/skills': typeof HomeApiSkillsRoute
@@ -193,14 +194,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof HomeIndexRoute
-  '/database-demo': typeof DatabaseDemoDatabaseDemoRoute
   '/banking-demo': typeof BankingDemoBankingDemoRoute
+  '/database-demo': typeof DatabaseDemoDatabaseDemoRoute
   '/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/reporting-agent': typeof ReportingReportingAgentRoute
   '/structured-output': typeof StructuredOutputStructuredOutputRoute
-  '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
+  '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/api/product-regular': typeof HomeApiProductRegularRoute
   '/api/skills': typeof HomeApiSkillsRoute
@@ -215,21 +216,21 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/_database-demo': typeof DatabaseDemoRouteRouteWithChildren
   '/_banking-demo': typeof BankingDemoRouteRouteWithChildren
+  '/_database-demo': typeof DatabaseDemoRouteRouteWithChildren
   '/_home': typeof HomeRouteRouteWithChildren
   '/_npm-github-chat': typeof NpmGithubChatRouteRouteWithChildren
   '/_reporting': typeof ReportingRouteRouteWithChildren
   '/_structured-output': typeof StructuredOutputRouteRouteWithChildren
-  '/_database-demo/database-demo': typeof DatabaseDemoDatabaseDemoRoute
   '/_banking-demo/banking-demo': typeof BankingDemoBankingDemoRoute
+  '/_database-demo/database-demo': typeof DatabaseDemoDatabaseDemoRoute
   '/_npm-github-chat/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/_reporting/reporting-agent': typeof ReportingReportingAgentRoute
   '/_structured-output/structured-output': typeof StructuredOutputStructuredOutputRoute
   '/_home/': typeof HomeIndexRoute
-  '/_database-demo/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/_banking-demo/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/_banking-demo/api/banking-init': typeof BankingDemoApiBankingInitRoute
+  '/_database-demo/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/_home/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/_home/api/product-regular': typeof HomeApiProductRegularRoute
   '/_home/api/skills': typeof HomeApiSkillsRoute
@@ -246,14 +247,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/database-demo'
     | '/banking-demo'
+    | '/database-demo'
     | '/npm-github-chat'
     | '/reporting-agent'
     | '/structured-output'
-    | '/api/database-demo'
     | '/api/banking-demo'
     | '/api/banking-init'
+    | '/api/database-demo'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/skills'
@@ -268,14 +269,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/database-demo'
     | '/banking-demo'
+    | '/database-demo'
     | '/npm-github-chat'
     | '/reporting-agent'
     | '/structured-output'
-    | '/api/database-demo'
     | '/api/banking-demo'
     | '/api/banking-init'
+    | '/api/database-demo'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/skills'
@@ -289,21 +290,21 @@ export interface FileRouteTypes {
     | '/api/structured-output'
   id:
     | '__root__'
-    | '/_database-demo'
     | '/_banking-demo'
+    | '/_database-demo'
     | '/_home'
     | '/_npm-github-chat'
     | '/_reporting'
     | '/_structured-output'
-    | '/_database-demo/database-demo'
     | '/_banking-demo/banking-demo'
+    | '/_database-demo/database-demo'
     | '/_npm-github-chat/npm-github-chat'
     | '/_reporting/reporting-agent'
     | '/_structured-output/structured-output'
     | '/_home/'
-    | '/_database-demo/api/database-demo'
     | '/_banking-demo/api/banking-demo'
     | '/_banking-demo/api/banking-init'
+    | '/_database-demo/api/database-demo'
     | '/_home/api/product-codemode'
     | '/_home/api/product-regular'
     | '/_home/api/skills'
@@ -318,8 +319,8 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  DatabaseDemoRouteRoute: typeof DatabaseDemoRouteRouteWithChildren
   BankingDemoRouteRoute: typeof BankingDemoRouteRouteWithChildren
+  DatabaseDemoRouteRoute: typeof DatabaseDemoRouteRouteWithChildren
   HomeRouteRoute: typeof HomeRouteRouteWithChildren
   NpmGithubChatRouteRoute: typeof NpmGithubChatRouteRouteWithChildren
   ReportingRouteRoute: typeof ReportingRouteRouteWithChildren
@@ -489,19 +490,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeApiProductCodemodeRouteImport
       parentRoute: typeof HomeRouteRoute
     }
-    '/_banking-demo/api/banking-init': {
-      id: '/_banking-demo/api/banking-init'
-      path: '/api/banking-init'
-      fullPath: '/api/banking-init'
-      preLoaderRoute: typeof BankingDemoApiBankingInitRouteImport
-      parentRoute: typeof BankingDemoRouteRoute
-    }
     '/_database-demo/api/database-demo': {
       id: '/_database-demo/api/database-demo'
       path: '/api/database-demo'
       fullPath: '/api/database-demo'
       preLoaderRoute: typeof DatabaseDemoApiDatabaseDemoRouteImport
       parentRoute: typeof DatabaseDemoRouteRoute
+    }
+    '/_banking-demo/api/banking-init': {
+      id: '/_banking-demo/api/banking-init'
+      path: '/api/banking-init'
+      fullPath: '/api/banking-init'
+      preLoaderRoute: typeof BankingDemoApiBankingInitRouteImport
+      parentRoute: typeof BankingDemoRouteRoute
     }
     '/_banking-demo/api/banking-demo': {
       id: '/_banking-demo/api/banking-demo'
@@ -512,19 +513,6 @@ declare module '@tanstack/react-router' {
     }
   }
 }
-
-interface DatabaseDemoRouteRouteChildren {
-  DatabaseDemoDatabaseDemoRoute: typeof DatabaseDemoDatabaseDemoRoute
-  DatabaseDemoApiDatabaseDemoRoute: typeof DatabaseDemoApiDatabaseDemoRoute
-}
-
-const DatabaseDemoRouteRouteChildren: DatabaseDemoRouteRouteChildren = {
-  DatabaseDemoDatabaseDemoRoute: DatabaseDemoDatabaseDemoRoute,
-  DatabaseDemoApiDatabaseDemoRoute: DatabaseDemoApiDatabaseDemoRoute,
-}
-
-const DatabaseDemoRouteRouteWithChildren =
-  DatabaseDemoRouteRoute._addFileChildren(DatabaseDemoRouteRouteChildren)
 
 interface BankingDemoRouteRouteChildren {
   BankingDemoBankingDemoRoute: typeof BankingDemoBankingDemoRoute
@@ -540,6 +528,19 @@ const BankingDemoRouteRouteChildren: BankingDemoRouteRouteChildren = {
 
 const BankingDemoRouteRouteWithChildren =
   BankingDemoRouteRoute._addFileChildren(BankingDemoRouteRouteChildren)
+
+interface DatabaseDemoRouteRouteChildren {
+  DatabaseDemoDatabaseDemoRoute: typeof DatabaseDemoDatabaseDemoRoute
+  DatabaseDemoApiDatabaseDemoRoute: typeof DatabaseDemoApiDatabaseDemoRoute
+}
+
+const DatabaseDemoRouteRouteChildren: DatabaseDemoRouteRouteChildren = {
+  DatabaseDemoDatabaseDemoRoute: DatabaseDemoDatabaseDemoRoute,
+  DatabaseDemoApiDatabaseDemoRoute: DatabaseDemoApiDatabaseDemoRoute,
+}
+
+const DatabaseDemoRouteRouteWithChildren =
+  DatabaseDemoRouteRoute._addFileChildren(DatabaseDemoRouteRouteChildren)
 
 interface HomeRouteRouteChildren {
   HomeIndexRoute: typeof HomeIndexRoute
@@ -613,8 +614,8 @@ const StructuredOutputRouteRouteWithChildren =
   )
 
 const rootRouteChildren: RootRouteChildren = {
-  DatabaseDemoRouteRoute: DatabaseDemoRouteRouteWithChildren,
   BankingDemoRouteRoute: BankingDemoRouteRouteWithChildren,
+  DatabaseDemoRouteRoute: DatabaseDemoRouteRouteWithChildren,
   HomeRouteRoute: HomeRouteRouteWithChildren,
   NpmGithubChatRouteRoute: NpmGithubChatRouteRouteWithChildren,
   ReportingRouteRoute: ReportingRouteRouteWithChildren,
