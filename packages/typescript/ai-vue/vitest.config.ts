@@ -26,9 +26,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@tanstack/ai/event-client': resolve(
+      '@tanstack/ai-event-client': resolve(
         __dirname,
-        '../ai/src/event-client.ts',
+        '../ai-event-client/src/index.ts',
       ),
     },
   },

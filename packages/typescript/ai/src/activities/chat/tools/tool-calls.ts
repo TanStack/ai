@@ -10,6 +10,41 @@ import type {
   ToolCallStartEvent,
   ToolExecutionContext,
 } from '../../../types'
+import type {
+  AfterToolCallInfo,
+  BeforeToolCallDecision,
+} from '../middleware/types'
+
+function safeJsonParse(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
+/**
+ * Optional middleware hooks for tool execution.
+ * When provided, these callbacks are invoked before/after each tool execution.
+ */
+export interface ToolExecutionMiddlewareHooks {
+  onBeforeToolCall?: (
+    toolCall: ToolCall,
+    tool: Tool | undefined,
+    args: unknown,
+  ) => Promise<BeforeToolCallDecision>
+  onAfterToolCall?: (info: AfterToolCallInfo) => Promise<void>
+}
+
+/**
+ * Error thrown when middleware decides to abort the chat run during tool execution.
+ */
+export class MiddlewareAbortError extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'MiddlewareAbortError'
+  }
+}
 
 /**
  * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
@@ -290,6 +325,152 @@ async function* executeWithEventPolling<T>(
 }
 
 /**
+ * Apply a middleware onBeforeToolCall decision.
+ * Returns the (possibly transformed) input if execution should proceed,
+ * or undefined if the tool call was skipped (result already pushed).
+ * Throws MiddlewareAbortError if the decision is 'abort'.
+ */
+async function applyBeforeToolCallDecision(
+  toolCall: ToolCall,
+  tool: Tool,
+  input: unknown,
+  toolName: string,
+  middlewareHooks: ToolExecutionMiddlewareHooks,
+  results: Array<ToolResult>,
+): Promise<{ proceed: true; input: unknown } | { proceed: false }> {
+  if (!middlewareHooks.onBeforeToolCall) {
+    return { proceed: true, input }
+  }
+
+  const decision = await middlewareHooks.onBeforeToolCall(toolCall, tool, input)
+  if (!decision) {
+    return { proceed: true, input }
+  }
+
+  if (decision.type === 'abort') {
+    throw new MiddlewareAbortError(decision.reason || 'Aborted by middleware')
+  }
+
+  if (decision.type === 'skip') {
+    const skipResult = decision.result
+    results.push({
+      toolCallId: toolCall.id,
+      toolName,
+      result:
+        typeof skipResult === 'string'
+          ? safeJsonParse(skipResult)
+          : skipResult || null,
+      duration: 0,
+    })
+    if (middlewareHooks.onAfterToolCall) {
+      await middlewareHooks.onAfterToolCall({
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        ok: true,
+        duration: 0,
+        result: skipResult,
+      })
+    }
+    return { proceed: false }
+  }
+
+  return { proceed: true, input: decision.args }
+}
+
+/**
+ * Execute a server-side tool with event polling, output validation, and middleware hooks.
+ * Yields CustomEvent chunks during execution and pushes the result to the results array.
+ */
+async function* executeServerTool(
+  toolCall: ToolCall,
+  tool: Tool,
+  toolName: string,
+  input: unknown,
+  context: ToolExecutionContext,
+  pendingEvents: Array<CustomEvent>,
+  results: Array<ToolResult>,
+  middlewareHooks?: ToolExecutionMiddlewareHooks,
+): AsyncGenerator<CustomEvent, void, void> {
+  const startTime = Date.now()
+  try {
+    const executionPromise = Promise.resolve(tool.execute!(input, context))
+    let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
+    const duration = Date.now() - startTime
+
+    // Flush remaining events
+    while (pendingEvents.length > 0) {
+      yield pendingEvents.shift()!
+    }
+
+    // Validate output against outputSchema if provided
+    if (
+      tool.outputSchema &&
+      isStandardSchema(tool.outputSchema) &&
+      result !== undefined &&
+      result !== null
+    ) {
+      result = parseWithStandardSchema(tool.outputSchema, result)
+    }
+
+    const finalResult =
+      typeof result === 'string' ? safeJsonParse(result) : result || null
+
+    results.push({
+      toolCallId: toolCall.id,
+      toolName,
+      result: finalResult,
+      duration,
+    })
+
+    if (middlewareHooks?.onAfterToolCall) {
+      await middlewareHooks.onAfterToolCall({
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        ok: true,
+        duration,
+        result: finalResult,
+      })
+    }
+  } catch (error: unknown) {
+    const duration = Date.now() - startTime
+
+    // Flush remaining events
+    while (pendingEvents.length > 0) {
+      yield pendingEvents.shift()!
+    }
+
+    if (error instanceof MiddlewareAbortError) {
+      throw error
+    }
+
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    results.push({
+      toolCallId: toolCall.id,
+      toolName,
+      result: { error: message },
+      state: 'output-error',
+      duration,
+    })
+
+    if (middlewareHooks?.onAfterToolCall) {
+      await middlewareHooks.onAfterToolCall({
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        ok: false,
+        duration,
+        error,
+      })
+    }
+  }
+}
+
+/**
  * Execute tool calls based on their configuration.
  * Yields CustomEvent chunks during tool execution for real-time progress updates.
  *
@@ -313,6 +494,7 @@ export async function* executeToolCalls(
     eventName: string,
     value: Record<string, any>,
   ) => CustomEvent,
+  middlewareHooks?: ToolExecutionMiddlewareHooks,
 ): AsyncGenerator<CustomEvent, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -402,13 +584,6 @@ export async function* executeToolCalls(
       },
     }
 
-    // Helper to flush any pending events
-    function* flushEvents(): Generator<CustomEvent> {
-      while (pendingEvents.length > 0) {
-        yield pendingEvents.shift()!
-      }
-    }
-
     // CASE 1: Client-side tool (no execute function)
     if (!tool.execute) {
       // Check if tool needs approval
@@ -482,51 +657,30 @@ export async function* executeToolCalls(
         const approved = approvals.get(approvalId)
 
         if (approved) {
-          // Execute after approval
-          const startTime = Date.now()
-          try {
-            const executionPromise = Promise.resolve(
-              tool.execute(input, context),
-            )
-            let result = yield* executeWithEventPolling(
-              executionPromise,
-              pendingEvents,
-            )
-            const duration = Date.now() - startTime
-            yield* flushEvents()
-
-            // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
-            if (
-              tool.outputSchema &&
-              isStandardSchema(tool.outputSchema) &&
-              result !== undefined &&
-              result !== null
-            ) {
-              result = parseWithStandardSchema(tool.outputSchema, result)
-            }
-
-            results.push({
-              toolCallId: toolCall.id,
+          // Apply middleware before-hook for approved tools
+          if (middlewareHooks) {
+            const decision = await applyBeforeToolCallDecision(
+              toolCall,
+              tool,
+              input,
               toolName,
-              result:
-                typeof result === 'string'
-                  ? JSON.parse(result)
-                  : result || null,
-              duration,
-            })
-          } catch (error: unknown) {
-            const duration = Date.now() - startTime
-            yield* flushEvents()
-            const message =
-              error instanceof Error ? error.message : 'Unknown error'
-            results.push({
-              toolCallId: toolCall.id,
-              toolName,
-              result: { error: message },
-              state: 'output-error',
-              duration,
-            })
+              middlewareHooks,
+              results,
+            )
+            if (!decision.proceed) continue
+            input = decision.input
           }
+
+          yield* executeServerTool(
+            toolCall,
+            tool,
+            toolName,
+            input,
+            context,
+            pendingEvents,
+            results,
+            middlewareHooks,
+          )
         } else {
           // User declined
           results.push({
@@ -549,45 +703,29 @@ export async function* executeToolCalls(
     }
 
     // CASE 3: Normal server tool - execute immediately
-    const startTime = Date.now()
-    try {
-      const executionPromise = Promise.resolve(tool.execute(input, context))
-      let result = yield* executeWithEventPolling(
-        executionPromise,
-        pendingEvents,
+    if (middlewareHooks) {
+      const decision = await applyBeforeToolCallDecision(
+        toolCall,
+        tool,
+        input,
+        toolName,
+        middlewareHooks,
+        results,
       )
-      const duration = Date.now() - startTime
-      yield* flushEvents()
-
-      // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
-      if (
-        tool.outputSchema &&
-        isStandardSchema(tool.outputSchema) &&
-        result !== undefined &&
-        result !== null
-      ) {
-        result = parseWithStandardSchema(tool.outputSchema, result)
-      }
-
-      results.push({
-        toolCallId: toolCall.id,
-        toolName,
-        result:
-          typeof result === 'string' ? JSON.parse(result) : result || null,
-        duration,
-      })
-    } catch (error: unknown) {
-      const duration = Date.now() - startTime
-      yield* flushEvents()
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      results.push({
-        toolCallId: toolCall.id,
-        toolName,
-        result: { error: message },
-        state: 'output-error',
-        duration,
-      })
+      if (!decision.proceed) continue
+      input = decision.input
     }
+
+    yield* executeServerTool(
+      toolCall,
+      tool,
+      toolName,
+      input,
+      context,
+      pendingEvents,
+      results,
+      middlewareHooks,
+    )
   }
 
   return { results, needsApproval, needsClientExecution }

@@ -486,8 +486,8 @@ importers:
         specifier: ^0.8.10
         version: 0.8.10(solid-js@1.9.10)
       '@tanstack/devtools-event-client':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.4.1
+        version: 0.4.1
       '@tanstack/devtools-vite':
         specifier: ^0.5.3
         version: 0.5.3(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -677,9 +677,9 @@ importers:
 
   packages/typescript/ai:
     dependencies:
-      '@tanstack/devtools-event-client':
-        specifier: ^0.4.0
-        version: 0.4.0
+      '@tanstack/ai-event-client':
+        specifier: workspace:*
+        version: link:../ai-event-client
       partial-json:
         specifier: ^0.1.7
         version: 0.1.7
@@ -715,6 +715,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-event-client':
+        specifier: workspace:*
+        version: link:../ai-event-client
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
@@ -731,6 +734,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-event-client':
+        specifier: workspace:*
+        version: link:../ai-event-client
       '@tanstack/devtools-ui':
         specifier: ^0.5.0
         version: 0.5.0(csstype@3.2.3)(solid-js@1.9.10)
@@ -775,6 +781,19 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../ai-client
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.0.18(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+
+  packages/typescript/ai-event-client:
+    dependencies:
+      '@tanstack/devtools-event-client':
+        specifier: ^0.4.1
+        version: 0.4.1
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.18(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -1370,6 +1389,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-client
+      '@tanstack/ai-event-client':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-event-client
       '@tanstack/ai-gemini':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-gemini
@@ -3893,10 +3915,6 @@ packages:
 
   '@tanstack/devtools-event-bus@0.4.1':
     resolution: {integrity: sha512-cNnJ89Q021Zf883rlbBTfsaxTfi2r73/qejGtyTa7ksErF3hyDyAq1aTbo5crK9dAL7zSHh9viKY1BtMls1QOA==}
-    engines: {node: '>=18'}
-
-  '@tanstack/devtools-event-client@0.4.0':
-    resolution: {integrity: sha512-RPfGuk2bDZgcu9bAJodvO2lnZeHuz4/71HjZ0bGb/SPg8+lyTA+RLSKQvo7fSmPSi8/vcH3aKQ8EM9ywf1olaw==}
     engines: {node: '>=18'}
 
   '@tanstack/devtools-event-client@0.4.1':
@@ -9781,7 +9799,7 @@ snapshots:
       outdent: 0.5.0
       prettier: 2.8.8
       resolve-from: 5.0.0
-      semver: 7.7.3
+      semver: 7.7.4
 
   '@changesets/assemble-release-plan@6.0.9(patch_hash=1bc53c741da20baad9cdeb674c599225dcf9fe6aa7b0de16ff87e63f12a97b24)':
     dependencies:
@@ -9790,7 +9808,7 @@ snapshots:
       '@changesets/should-skip-package': 0.1.2
       '@changesets/types': 6.1.0
       '@manypkg/get-packages': 1.1.3
-      semver: 7.7.3
+      semver: 7.7.4
 
   '@changesets/changelog-git@0.2.1':
     dependencies:
@@ -9848,7 +9866,7 @@ snapshots:
       '@changesets/types': 6.1.0
       '@manypkg/get-packages': 1.1.3
       picocolors: 1.1.1
-      semver: 7.7.3
+      semver: 7.7.4
 
   '@changesets/get-github-info@0.6.0':
     dependencies:
@@ -11588,7 +11606,7 @@ snapshots:
 
   '@tanstack/devtools-client@0.0.5':
     dependencies:
-      '@tanstack/devtools-event-client': 0.4.0
+      '@tanstack/devtools-event-client': 0.4.1
 
   '@tanstack/devtools-client@0.0.6':
     dependencies:
@@ -11607,8 +11625,6 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
-
-  '@tanstack/devtools-event-client@0.4.0': {}
 
   '@tanstack/devtools-event-client@0.4.1': {}
 
@@ -14615,7 +14631,7 @@ snapshots:
       eslint-import-context: 0.1.9(unrs-resolver@1.11.1)
       is-glob: 4.0.3
       minimatch: 10.1.1
-      semver: 7.7.3
+      semver: 7.7.4
       stable-hash-x: 0.2.0
       unrs-resolver: 1.11.1
     optionalDependencies:
@@ -14633,7 +14649,7 @@ snapshots:
       globals: 15.15.0
       globrex: 0.1.2
       ignore: 5.3.2
-      semver: 7.7.3
+      semver: 7.7.4
       ts-declaration-location: 1.0.7(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
@@ -18975,7 +18991,7 @@ snapshots:
       eslint-visitor-keys: 4.2.1
       espree: 10.4.0
       esquery: 1.6.0
-      semver: 7.7.3
+      semver: 7.7.4
     transitivePeerDependencies:
       - supports-color
 

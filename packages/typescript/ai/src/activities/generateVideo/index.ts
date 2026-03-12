@@ -7,7 +7,7 @@
  * @experimental Video generation is an experimental feature and may change.
  */
 
-import { aiEventClient } from '../../event-client.js'
+import { aiEventClient } from '@tanstack/ai-event-client'
 import type { VideoAdapter } from './adapter'
 import type {
   StreamChunk,

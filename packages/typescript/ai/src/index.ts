@@ -70,14 +70,28 @@ export {
   combineStrategies,
 } from './activities/chat/agent-loop-strategies'
 
+// Chat middleware
+export type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+  ChatMiddlewarePhase,
+  ChatMiddlewareConfig,
+  ToolCallHookContext,
+  BeforeToolCallDecision,
+  AfterToolCallInfo,
+  IterationInfo,
+  ToolPhaseCompleteInfo,
+  UsageInfo,
+  FinishInfo,
+  AbortInfo,
+  ErrorInfo,
+} from './activities/chat/middleware/index'
+
 // All types
 export * from './types'
 
 // Utility functions
 export { detectImageMimeType } from './utils'
-
-// Event client + event types
-export * from './event-client'
 
 // Realtime
 export { realtimeToken } from './realtime/index'

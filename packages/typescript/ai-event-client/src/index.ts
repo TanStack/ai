@@ -1,5 +1,99 @@
 import { EventClient } from '@tanstack/devtools-event-client'
-import type { MessagePart, ToolCall } from './types'
+
+// ===========================
+// Types (locally defined to avoid circular dependency with @tanstack/ai)
+// These mirror the corresponding types in @tanstack/ai
+// ===========================
+
+export interface ContentPartDataSource {
+  type: 'data'
+  value: string
+  mimeType: string
+}
+
+export interface ContentPartUrlSource {
+  type: 'url'
+  value: string
+  mimeType?: string
+}
+
+export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+
+export interface TextPart {
+  type: 'text'
+  content: string
+  metadata?: unknown
+}
+
+export interface ImagePart {
+  type: 'image'
+  source: ContentPartSource
+  metadata?: unknown
+}
+
+export interface AudioPart {
+  type: 'audio'
+  source: ContentPartSource
+  metadata?: unknown
+}
+
+export interface VideoPart {
+  type: 'video'
+  source: ContentPartSource
+  metadata?: unknown
+}
+
+export interface DocumentPart {
+  type: 'document'
+  source: ContentPartSource
+  metadata?: unknown
+}
+
+export interface ToolCallPart {
+  type: 'tool-call'
+  id: string
+  name: string
+  arguments: string
+  state: ToolCallState
+  approval?: {
+    id: string
+    needsApproval: boolean
+    approved?: boolean
+  }
+  output?: any
+}
+
+export interface ToolResultPart {
+  type: 'tool-result'
+  toolCallId: string
+  content: string
+  state: ToolResultState
+  error?: string
+}
+
+export interface ThinkingPart {
+  type: 'thinking'
+  content: string
+}
+
+export type MessagePart =
+  | TextPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
+  | ToolCallPart
+  | ToolResultPart
+  | ThinkingPart
+
+export interface ToolCall {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string
+  }
+}
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -160,6 +254,65 @@ export interface TextUsageEvent extends BaseEventContext {
   messageId?: string
   model: string
   usage: TokenUsage
+}
+
+// ===========================
+// Iteration Events
+// ===========================
+
+/** Emitted when a new agent loop iteration begins, with a config snapshot. */
+export interface TextIterationStartedEvent extends BaseEventContext {
+  requestId: string
+  streamId: string
+  iteration: number
+  messageId: string
+  provider: string
+  model: string
+}
+
+/** Emitted when an agent loop iteration completes. */
+export interface TextIterationCompletedEvent extends BaseEventContext {
+  requestId: string
+  streamId: string
+  iteration: number
+  messageId?: string
+  duration: number
+  finishReason?: string
+  usage?: TokenUsage
+}
+
+// ===========================
+// Middleware Events
+// ===========================
+
+/** Emitted when a middleware hook completes execution. */
+export interface MiddlewareHookExecutedEvent extends BaseEventContext {
+  requestId: string
+  streamId: string
+  middlewareName: string
+  hookName: string
+  iteration: number
+  duration: number
+  hasTransform: boolean
+}
+
+/** Emitted when onConfig returns a non-void transform. */
+export interface MiddlewareConfigTransformedEvent extends BaseEventContext {
+  requestId: string
+  streamId: string
+  middlewareName: string
+  iteration: number
+  changes: Record<string, unknown>
+}
+
+/** Emitted when onChunk transforms, drops, or expands a chunk. */
+export interface MiddlewareChunkTransformedEvent extends BaseEventContext {
+  requestId: string
+  streamId: string
+  middlewareName: string
+  originalChunkType: string
+  resultCount: number
+  wasDropped: boolean
 }
 
 // ===========================
@@ -430,58 +583,67 @@ export interface ClientStoppedEvent {
 
 export interface AIDevtoolsEventMap {
   // Text events
-  'tanstack-ai-devtools:text:request:started': TextRequestStartedEvent
-  'tanstack-ai-devtools:text:request:completed': TextRequestCompletedEvent
-  'tanstack-ai-devtools:text:message:created': TextMessageCreatedEvent
-  'tanstack-ai-devtools:text:message:user': TextMessageUserEvent
-  'tanstack-ai-devtools:text:chunk:content': TextChunkContentEvent
-  'tanstack-ai-devtools:text:chunk:tool-call': TextChunkToolCallEvent
-  'tanstack-ai-devtools:text:chunk:tool-result': TextChunkToolResultEvent
-  'tanstack-ai-devtools:text:chunk:thinking': TextChunkThinkingEvent
-  'tanstack-ai-devtools:text:chunk:done': TextChunkDoneEvent
-  'tanstack-ai-devtools:text:chunk:error': TextChunkErrorEvent
-  'tanstack-ai-devtools:text:usage': TextUsageEvent
+  'text:request:started': TextRequestStartedEvent
+  'text:request:completed': TextRequestCompletedEvent
+  'text:message:created': TextMessageCreatedEvent
+  'text:message:user': TextMessageUserEvent
+  'text:chunk:content': TextChunkContentEvent
+  'text:chunk:tool-call': TextChunkToolCallEvent
+  'text:chunk:tool-result': TextChunkToolResultEvent
+  'text:chunk:thinking': TextChunkThinkingEvent
+  'text:chunk:done': TextChunkDoneEvent
+  'text:chunk:error': TextChunkErrorEvent
+  'text:usage': TextUsageEvent
+
+  // Iteration events
+  'text:iteration:started': TextIterationStartedEvent
+  'text:iteration:completed': TextIterationCompletedEvent
+
+  // Middleware events
+  'middleware:hook:executed': MiddlewareHookExecutedEvent
+  'middleware:config:transformed': MiddlewareConfigTransformedEvent
+  'middleware:chunk:transformed': MiddlewareChunkTransformedEvent
 
   // Tool events
-  'tanstack-ai-devtools:tools:approval:requested': ToolsApprovalRequestedEvent
-  'tanstack-ai-devtools:tools:approval:responded': ToolsApprovalRespondedEvent
-  'tanstack-ai-devtools:tools:input:available': ToolsInputAvailableEvent
-  'tanstack-ai-devtools:tools:call:completed': ToolsCallCompletedEvent
-  'tanstack-ai-devtools:tools:result:added': ToolsResultAddedEvent
-  'tanstack-ai-devtools:tools:call:updated': ToolsCallUpdatedEvent
+  'tools:approval:requested': ToolsApprovalRequestedEvent
+  'tools:approval:responded': ToolsApprovalRespondedEvent
+  'tools:input:available': ToolsInputAvailableEvent
+  'tools:call:completed': ToolsCallCompletedEvent
+  'tools:result:added': ToolsResultAddedEvent
+  'tools:call:updated': ToolsCallUpdatedEvent
 
   // Summarize events
-  'tanstack-ai-devtools:summarize:request:started': SummarizeRequestStartedEvent
-  'tanstack-ai-devtools:summarize:request:completed': SummarizeRequestCompletedEvent
-  'tanstack-ai-devtools:summarize:usage': SummarizeUsageEvent
+  'summarize:request:started': SummarizeRequestStartedEvent
+  'summarize:request:completed': SummarizeRequestCompletedEvent
+  'summarize:usage': SummarizeUsageEvent
 
   // Image events
-  'tanstack-ai-devtools:image:request:started': ImageRequestStartedEvent
-  'tanstack-ai-devtools:image:request:completed': ImageRequestCompletedEvent
-  'tanstack-ai-devtools:image:usage': ImageUsageEvent
+  'image:request:started': ImageRequestStartedEvent
+  'image:request:completed': ImageRequestCompletedEvent
+  'image:usage': ImageUsageEvent
 
   // Speech events
-  'tanstack-ai-devtools:speech:request:started': SpeechRequestStartedEvent
-  'tanstack-ai-devtools:speech:request:completed': SpeechRequestCompletedEvent
-  'tanstack-ai-devtools:speech:usage': SpeechUsageEvent
+  'speech:request:started': SpeechRequestStartedEvent
+  'speech:request:completed': SpeechRequestCompletedEvent
+  'speech:usage': SpeechUsageEvent
 
   // Transcription events
-  'tanstack-ai-devtools:transcription:request:started': TranscriptionRequestStartedEvent
-  'tanstack-ai-devtools:transcription:request:completed': TranscriptionRequestCompletedEvent
-  'tanstack-ai-devtools:transcription:usage': TranscriptionUsageEvent
+  'transcription:request:started': TranscriptionRequestStartedEvent
+  'transcription:request:completed': TranscriptionRequestCompletedEvent
+  'transcription:usage': TranscriptionUsageEvent
 
   // Video events
-  'tanstack-ai-devtools:video:request:started': VideoRequestStartedEvent
-  'tanstack-ai-devtools:video:request:completed': VideoRequestCompletedEvent
-  'tanstack-ai-devtools:video:usage': VideoUsageEvent
+  'video:request:started': VideoRequestStartedEvent
+  'video:request:completed': VideoRequestCompletedEvent
+  'video:usage': VideoUsageEvent
 
   // Client events
-  'tanstack-ai-devtools:client:created': ClientCreatedEvent
-  'tanstack-ai-devtools:client:loading:changed': ClientLoadingChangedEvent
-  'tanstack-ai-devtools:client:error:changed': ClientErrorChangedEvent
-  'tanstack-ai-devtools:client:messages:cleared': ClientMessagesClearedEvent
-  'tanstack-ai-devtools:client:reloaded': ClientReloadedEvent
-  'tanstack-ai-devtools:client:stopped': ClientStoppedEvent
+  'client:created': ClientCreatedEvent
+  'client:loading:changed': ClientLoadingChangedEvent
+  'client:error:changed': ClientErrorChangedEvent
+  'client:messages:cleared': ClientMessagesClearedEvent
+  'client:reloaded': ClientReloadedEvent
+  'client:stopped': ClientStoppedEvent
 }
 
 class AiEventClient extends EventClient<AIDevtoolsEventMap> {
@@ -495,3 +657,6 @@ class AiEventClient extends EventClient<AIDevtoolsEventMap> {
 const aiEventClient = new AiEventClient()
 
 export { aiEventClient }
+
+// Devtools middleware
+export { devtoolsMiddleware } from './devtools-middleware.js'
