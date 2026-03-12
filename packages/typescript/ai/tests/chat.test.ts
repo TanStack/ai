@@ -1,137 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { chat, createChatOptions } from '../src/activities/chat/index'
-import type { AnyTextAdapter } from '../src/activities/chat/adapter'
-import type { StreamChunk, Tool } from '../src/types'
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/** Create a typed StreamChunk with minimal boilerplate. */
-function chunk<T extends StreamChunk['type']>(
-  type: T,
-  fields: Omit<Extract<StreamChunk, { type: T }>, 'type' | 'timestamp'>,
-): StreamChunk {
-  return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
-}
-
-/** Shorthand chunk factories for common AG-UI events. */
-const ev = {
-  runStarted: (runId = 'run-1') => chunk('RUN_STARTED', { runId }),
-  textStart: (messageId = 'msg-1') =>
-    chunk('TEXT_MESSAGE_START', { messageId, role: 'assistant' as const }),
-  textContent: (delta: string, messageId = 'msg-1') =>
-    chunk('TEXT_MESSAGE_CONTENT', { messageId, delta }),
-  textEnd: (messageId = 'msg-1') => chunk('TEXT_MESSAGE_END', { messageId }),
-  toolStart: (toolCallId: string, toolName: string, index?: number) =>
-    chunk('TOOL_CALL_START', {
-      toolCallId,
-      toolName,
-      ...(index !== undefined ? { index } : {}),
-    }),
-  toolArgs: (toolCallId: string, delta: string) =>
-    chunk('TOOL_CALL_ARGS', { toolCallId, delta }),
-  toolEnd: (
-    toolCallId: string,
-    toolName: string,
-    opts?: { input?: unknown; result?: string },
-  ) => chunk('TOOL_CALL_END', { toolCallId, toolName, ...opts }),
-  runFinished: (
-    finishReason:
-      | 'stop'
-      | 'length'
-      | 'content_filter'
-      | 'tool_calls'
-      | null = 'stop',
-    runId = 'run-1',
-  ) => chunk('RUN_FINISHED', { runId, finishReason }),
-  runError: (message: string, runId = 'run-1') =>
-    chunk('RUN_ERROR', { runId, error: { message } }),
-  stepFinished: (delta: string, stepId = 'step-1') =>
-    chunk('STEP_FINISHED', { stepId, delta }),
-}
-
-/**
- * Create a mock adapter that satisfies AnyTextAdapter.
- * `chatStreamFn` receives the options and returns an AsyncIterable of chunks.
- * Multiple invocations can be tracked via the returned `calls` array.
- */
-function createMockAdapter(options: {
-  chatStreamFn?: (opts: any) => AsyncIterable<StreamChunk>
-  /** Array of chunk sequences: chatStream returns iterations[0] on first call, iterations[1] on second, etc. */
-  iterations?: Array<Array<StreamChunk>>
-  structuredOutput?: (opts: any) => Promise<{ data: unknown; rawText: string }>
-}) {
-  const calls: Array<any> = []
-  let callIndex = 0
-
-  const adapter: AnyTextAdapter = {
-    kind: 'text' as const,
-    name: 'mock',
-    model: 'test-model' as const,
-    '~types': {
-      providerOptions: {} as Record<string, any>,
-      inputModalities: ['text'] as readonly ['text'],
-      messageMetadataByModality: {
-        text: undefined as unknown,
-        image: undefined as unknown,
-        audio: undefined as unknown,
-        video: undefined as unknown,
-        document: undefined as unknown,
-      },
-    },
-    chatStream: (opts: any) => {
-      calls.push(opts)
-
-      if (options.chatStreamFn) {
-        return options.chatStreamFn(opts)
-      }
-
-      if (options.iterations) {
-        const chunks = options.iterations[callIndex] || []
-        callIndex++
-        return (async function* () {
-          for (const c of chunks) yield c
-        })()
-      }
-
-      return (async function* () {})()
-    },
-    structuredOutput:
-      options.structuredOutput ?? (async () => ({ data: {}, rawText: '{}' })),
-  }
-
-  return { adapter, calls }
-}
-
-/** Collect all chunks from an async iterable. */
-async function collectChunks(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const chunks: Array<StreamChunk> = []
-  for await (const c of stream) {
-    chunks.push(c)
-  }
-  return chunks
-}
-
-/** Simple server tool for testing. */
-function serverTool(name: string, executeFn: (args: any) => any): Tool {
-  return {
-    name,
-    description: `Test tool: ${name}`,
-    execute: executeFn,
-  }
-}
-
-/** Client tool (no execute function). */
-function clientTool(name: string, opts?: { needsApproval?: boolean }): Tool {
-  return {
-    name,
-    description: `Client tool: ${name}`,
-    needsApproval: opts?.needsApproval,
-  }
-}
+import type { StreamChunk } from '../src/types'
+import {
+  ev,
+  createMockAdapter,
+  collectChunks,
+  serverTool,
+  clientTool,
+} from './test-utils'
 
 // ============================================================================
 // Tests
@@ -187,8 +63,10 @@ describe('chat()', () => {
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       expect(calls).toHaveLength(1)
-      expect(calls[0].messages).toBeDefined()
-      expect(calls[0].messages[0].role).toBe('user')
+      expect(calls[0]!.messages).toBeDefined()
+      expect((calls[0]!.messages as Array<{ role: string }>)[0]!.role).toBe(
+        'user',
+      )
     })
 
     it('should pass systemPrompts to the adapter', async () => {
@@ -204,7 +82,7 @@ describe('chat()', () => {
 
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      expect(calls[0].systemPrompts).toEqual(['You are a helpful assistant'])
+      expect(calls[0]!.systemPrompts).toEqual(['You are a helpful assistant'])
     })
 
     it('should pass temperature, topP, maxTokens to the adapter', async () => {
@@ -222,9 +100,9 @@ describe('chat()', () => {
 
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      expect(calls[0].temperature).toBe(0.5)
-      expect(calls[0].topP).toBe(0.9)
-      expect(calls[0].maxTokens).toBe(100)
+      expect(calls[0]!.temperature).toBe(0.5)
+      expect(calls[0]!.topP).toBe(0.9)
+      expect(calls[0]!.maxTokens).toBe(100)
     })
   })
 
@@ -345,10 +223,8 @@ describe('chat()', () => {
       expect(calls).toHaveLength(2)
 
       // Second call should have tool result in messages
-      const secondCallMessages = calls[1].messages
-      const toolResultMsg = secondCallMessages.find(
-        (m: any) => m.role === 'tool',
-      )
+      const secondCallMessages = calls[1]!.messages as Array<{ role: string }>
+      const toolResultMsg = secondCallMessages.find((m) => m.role === 'tool')
       expect(toolResultMsg).toBeDefined()
     })
 
@@ -437,10 +313,8 @@ describe('chat()', () => {
       expect(timeSpy).toHaveBeenCalledTimes(1)
 
       // Second adapter call should have both tool results
-      const secondCallMessages = calls[1].messages
-      const toolResultMsgs = secondCallMessages.filter(
-        (m: any) => m.role === 'tool',
-      )
+      const secondCallMessages = calls[1]!.messages as Array<{ role: string }>
+      const toolResultMsgs = secondCallMessages.filter((m) => m.role === 'tool')
       expect(toolResultMsgs).toHaveLength(2)
     })
   })
@@ -725,8 +599,8 @@ describe('chat()', () => {
 
       // Adapter should have been called with the tool result in messages
       expect(calls).toHaveLength(1)
-      const adapterMessages = calls[0].messages
-      const toolMsg = adapterMessages.find((m: any) => m.role === 'tool')
+      const adapterMessages = calls[0]!.messages as Array<{ role: string }>
+      const toolMsg = adapterMessages.find((m) => m.role === 'tool')
       expect(toolMsg).toBeDefined()
     })
 
@@ -1172,7 +1046,7 @@ describe('chat()', () => {
       })
 
       await collectChunks(stream as AsyncIterable<StreamChunk>)
-      expect(calls[0].modelOptions).toEqual({ customParam: 'value' })
+      expect(calls[0]!.modelOptions).toEqual({ customParam: 'value' })
     })
 
     it('should handle TEXT_MESSAGE_CONTENT with content field', async () => {

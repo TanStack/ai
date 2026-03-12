@@ -1,4 +1,4 @@
-import { aiEventClient } from '@tanstack/ai/event-client'
+import { aiEventClient } from '@tanstack/ai-event-client'
 import type { ContentPart } from '@tanstack/ai'
 import type { UIMessage } from './types'
 

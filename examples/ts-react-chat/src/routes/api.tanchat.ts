@@ -11,8 +11,8 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
+import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import { groqText } from '@tanstack/ai-groq'
-import type { AnyTextAdapter } from '@tanstack/ai'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -70,6 +70,39 @@ const addToCartToolServer = addToCartToolDef.server((args, context) => {
     totalItems: args.quantity,
   }
 })
+
+const loggingMiddleware: ChatMiddleware = {
+  name: 'logging',
+  onConfig(ctx, config) {
+    console.log(
+      `[logging] onConfig iteration=${ctx.iteration} model=${ctx.model} tools=${config.tools.length}`,
+    )
+  },
+  onStart(ctx) {
+    console.log(`[logging] onStart requestId=${ctx.requestId}`)
+  },
+  onIteration(ctx, info) {
+    console.log(`[logging] onIteration iteration=${info.iteration}`)
+  },
+  onBeforeToolCall(ctx, toolCtx) {
+    console.log(`[logging] onBeforeToolCall tool=${toolCtx.toolName}`)
+  },
+  onAfterToolCall(ctx, info) {
+    console.log(
+      `[logging] onAfterToolCall tool=${info.toolName} result=${JSON.stringify(info.result).slice(0, 100)}`,
+    )
+  },
+  onFinish(ctx, info) {
+    console.log(
+      `[logging] onFinish reason=${info.finishReason} iterations=${ctx.iteration}`,
+    )
+  },
+  onUsage(ctx, usage) {
+    console.log(
+      `[logging] onUsage tokens=${usage.totalTokens} input=${usage.promptTokens} output=${usage.completionTokens}, total: ${usage.totalTokens}`,
+    )
+  },
+}
 
 export const Route = createFileRoute('/api/tanchat')({
   server: {
@@ -168,6 +201,7 @@ export const Route = createFileRoute('/api/tanchat')({
               addToWishListToolDef,
               getPersonalGuitarPreferenceToolDef,
             ],
+            middleware: [loggingMiddleware],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,
