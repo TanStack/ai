@@ -14,9 +14,7 @@ const skillStorage = createFileSkillStorage({
   trustStrategy,
 })
 
-export const Route = createFileRoute(
-  '/_database-demo/api/db-skills' as any,
-)({
+export const Route = createFileRoute('/_database-demo/api/db-skills' as any)({
   server: {
     handlers: {
       GET: async () => {

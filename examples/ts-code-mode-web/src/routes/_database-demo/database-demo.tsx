@@ -20,12 +20,7 @@ import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import type { VMEvent } from '@/components'
-import {
-  CodeBlock,
-  ExecutionResult,
-  JavaScriptVM,
-  Header,
-} from '@/components'
+import { CodeBlock, ExecutionResult, JavaScriptVM, Header } from '@/components'
 import ChatInput from '@/components/ChatInput'
 import { formatDuration } from '@/lib/efficiency'
 
@@ -299,11 +294,7 @@ function ToolCallDisplay({
             onClick={() => setInputOpen(!inputOpen)}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-white/5 transition-colors"
           >
-            {inputOpen ? (
-              <ChevronDown size={12} />
-            ) : (
-              <ChevronRight size={12} />
-            )}
+            {inputOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             <span>Code</span>
           </button>
           {inputOpen && (
@@ -318,11 +309,7 @@ function ToolCallDisplay({
             onClick={() => setInputOpen(!inputOpen)}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-white/5 transition-colors"
           >
-            {inputOpen ? (
-              <ChevronDown size={12} />
-            ) : (
-              <ChevronRight size={12} />
-            )}
+            {inputOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             <span>Input</span>
           </button>
           {inputOpen && (
@@ -654,7 +641,9 @@ const GOLD_PROMPT_MAP: Record<string, number> = {
 function extractReportText(messages: Array<UIMessage>): string {
   return messages
     .filter((m) => m.role === 'assistant')
-    .flatMap((m) => m.parts.filter((p) => p.type === 'text').map((p) => p.content))
+    .flatMap((m) =>
+      m.parts.filter((p) => p.type === 'text').map((p) => p.content),
+    )
     .join('\n\n')
 }
 
@@ -731,7 +720,9 @@ function MetricsSidebar({ entries }: { entries: Array<MessageMetrics> }) {
             {entry.judging === 'pending' && (
               <div className="mt-2 pt-2 border-t border-gray-700/50 flex items-center gap-2">
                 <div className="w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-                <span className="text-[10px] text-cyan-300">Judging against gold standard...</span>
+                <span className="text-[10px] text-cyan-300">
+                  Judging against gold standard...
+                </span>
               </div>
             )}
             {entry.judging && entry.judging !== 'pending' && (
@@ -739,13 +730,19 @@ function MetricsSidebar({ entries }: { entries: Array<MessageMetrics> }) {
                 <div className="grid grid-cols-2 gap-2 text-center mb-2">
                   <div>
                     <div className="text-gray-500 text-[10px]">Accuracy</div>
-                    <div className={`font-mono font-semibold ${entry.judging.accuracy >= 8 ? 'text-green-400' : entry.judging.accuracy >= 5 ? 'text-yellow-400' : 'text-red-400'}`}>
+                    <div
+                      className={`font-mono font-semibold ${entry.judging.accuracy >= 8 ? 'text-green-400' : entry.judging.accuracy >= 5 ? 'text-yellow-400' : 'text-red-400'}`}
+                    >
                       {entry.judging.accuracy}/10
                     </div>
                   </div>
                   <div>
-                    <div className="text-gray-500 text-[10px]">Comprehensive</div>
-                    <div className={`font-mono font-semibold ${entry.judging.comprehensiveness >= 8 ? 'text-green-400' : entry.judging.comprehensiveness >= 5 ? 'text-yellow-400' : 'text-red-400'}`}>
+                    <div className="text-gray-500 text-[10px]">
+                      Comprehensive
+                    </div>
+                    <div
+                      className={`font-mono font-semibold ${entry.judging.comprehensiveness >= 8 ? 'text-green-400' : entry.judging.comprehensiveness >= 5 ? 'text-yellow-400' : 'text-red-400'}`}
+                    >
                       {entry.judging.comprehensiveness}/10
                     </div>
                   </div>
@@ -779,7 +776,9 @@ function DatabaseDemoPage() {
   const [skillsDialogOpen, setSkillsDialogOpen] = useState(false)
 
   // Per-message metrics tracking
-  const [metricsEntries, setMetricsEntries] = useState<Array<MessageMetrics>>([])
+  const [metricsEntries, setMetricsEntries] = useState<Array<MessageMetrics>>(
+    [],
+  )
   const pendingMetricsRef = useRef<{
     llmCalls: number
     durationMs: number | null
@@ -865,7 +864,12 @@ function DatabaseDemoPage() {
       }
 
       if (eventType === 'db_demo:llm_call') {
-        if (pendingMetricsRef.current && data && typeof data === 'object' && 'count' in data) {
+        if (
+          pendingMetricsRef.current &&
+          data &&
+          typeof data === 'object' &&
+          'count' in data
+        ) {
           const count = (data as { count?: number }).count
           if (typeof count === 'number') {
             pendingMetricsRef.current.llmCalls = count
@@ -875,7 +879,12 @@ function DatabaseDemoPage() {
       }
 
       if (eventType === 'db_demo:chat_end') {
-        if (pendingMetricsRef.current && data && typeof data === 'object' && 'durationMs' in data) {
+        if (
+          pendingMetricsRef.current &&
+          data &&
+          typeof data === 'object' &&
+          'durationMs' in data
+        ) {
           const dur = (data as { durationMs?: number }).durationMs
           if (typeof dur === 'number') {
             pendingMetricsRef.current.durationMs = dur
@@ -934,7 +943,8 @@ function DatabaseDemoPage() {
         .reverse()
         .find((m) => m.role === 'assistant')
       const toolCalls = lastAssistantMessage
-        ? lastAssistantMessage.parts.filter((p) => p.type === 'tool-call').length
+        ? lastAssistantMessage.parts.filter((p) => p.type === 'tool-call')
+            .length
         : 0
 
       const goldFileNum = GOLD_PROMPT_MAP[query]
@@ -989,7 +999,8 @@ function DatabaseDemoPage() {
                       judging: {
                         accuracy: 0,
                         comprehensiveness: 0,
-                        summary: 'Judging failed — could not reach the judge API.',
+                        summary:
+                          'Judging failed — could not reach the judge API.',
                       },
                     }
                   : e,
@@ -1012,10 +1023,9 @@ function DatabaseDemoPage() {
     const firstUserMessage = messages.find((m) => m.role === 'user')
     const prompt =
       firstUserMessage?.parts.find((p) => p.type === 'text')?.content ?? ''
-    const blob = new Blob(
-      [JSON.stringify({ prompt, messages }, null, 2)],
-      { type: 'application/json' },
-    )
+    const blob = new Blob([JSON.stringify({ prompt, messages }, null, 2)], {
+      type: 'application/json',
+    })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -1108,7 +1118,6 @@ function DatabaseDemoPage() {
               </button>
             </div>
           </div>
-
         </div>
 
         {/* Main chat area */}

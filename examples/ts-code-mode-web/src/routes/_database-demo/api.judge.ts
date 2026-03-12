@@ -29,9 +29,7 @@ Rate the candidate on two dimensions, each on a scale from 1 to 10 (10 = best):
 
 Provide a two sentence summary of your evaluation.`
 
-export const Route = createFileRoute(
-  '/_database-demo/api/judge' as any,
-)({
+export const Route = createFileRoute('/_database-demo/api/judge' as any)({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -65,8 +63,7 @@ export const Route = createFileRoute(
           console.error('[API Judge] Error:', error)
           return new Response(
             JSON.stringify({
-              error:
-                error instanceof Error ? error.message : 'Judging failed',
+              error: error instanceof Error ? error.message : 'Judging failed',
             }),
             { status: 500, headers: { 'Content-Type': 'application/json' } },
           )
