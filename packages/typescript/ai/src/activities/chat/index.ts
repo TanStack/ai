@@ -6,7 +6,7 @@
  */
 
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
-import { streamToText } from '../../stream-to-response.js' 
+import { streamToText } from '../../stream-to-response.js'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
   MiddlewareAbortError,
