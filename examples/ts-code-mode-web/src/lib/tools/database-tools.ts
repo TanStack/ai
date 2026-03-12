@@ -87,9 +87,9 @@ const PURCHASES: Array<Purchase> = [
 type Table = 'customers' | 'products' | 'purchases'
 
 const TABLES: Record<Table, Array<Record<string, unknown>>> = {
-  customers: CUSTOMERS,
-  products: PRODUCTS,
-  purchases: PURCHASES,
+  customers: CUSTOMERS as unknown as Array<Record<string, unknown>>,
+  products: PRODUCTS as unknown as Array<Record<string, unknown>>,
+  purchases: PURCHASES as unknown as Array<Record<string, unknown>>,
 }
 
 function getTableSchema(table: Table): Record<string, string> {

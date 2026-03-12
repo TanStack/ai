@@ -5,7 +5,14 @@ import { createFileRoute } from '@tanstack/react-router'
 import { parsePartialJSON } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Sparkles,
+  Trash2,
+  X,
+  RefreshCw,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
@@ -51,6 +58,165 @@ const MODEL_OPTIONS: Array<ModelOption> = [
     label: 'Gemini 2.5 Flash',
   },
 ]
+
+interface SkillWithCode {
+  id: string
+  name: string
+  description: string
+  code: string
+  trustLevel: 'untrusted' | 'provisional' | 'trusted'
+  usageHints?: Array<string>
+  stats?: { executions: number; successRate: number }
+}
+
+function SkillsDialog({
+  open,
+  onClose,
+  skills,
+  onDelete,
+  onDeleteAll,
+  onRefresh,
+  isLoading,
+}: {
+  open: boolean
+  onClose: () => void
+  skills: Array<SkillWithCode>
+  onDelete: (name: string) => void
+  onDeleteAll: () => void
+  onRefresh: () => void
+  isLoading: boolean
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  if (!open) return null
+
+  const trustColors: Record<string, string> = {
+    untrusted: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    provisional: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    trusted: 'bg-green-500/20 text-green-400 border-green-500/30',
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl max-h-[80vh] flex flex-col bg-gray-900 border border-gray-700 rounded-xl shadow-2xl mx-4">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <h2 className="font-semibold text-white">
+              Database Skills
+              <span className="ml-2 text-sm text-gray-400 font-normal">
+                ({skills.length})
+              </span>
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onRefresh}
+              disabled={isLoading}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors disabled:opacity-50"
+              title="Refresh skills"
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
+              />
+            </button>
+            {skills.length > 0 && (
+              <button
+                onClick={() => {
+                  if (confirm(`Delete all ${skills.length} skills?`)) {
+                    onDeleteAll()
+                  }
+                }}
+                className="px-3 py-1.5 text-xs bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete All
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          {skills.length === 0 ? (
+            <div className="py-12 text-center text-gray-500">
+              <Sparkles className="w-8 h-8 mx-auto mb-3 text-gray-600" />
+              <p className="text-sm font-medium">No skills registered yet</p>
+              <p className="text-xs mt-1 text-gray-600">
+                Enable "With Skills" and the AI will create reusable skills as
+                it works.
+              </p>
+            </div>
+          ) : (
+            skills.map((skill) => {
+              const isExpanded = expandedId === skill.id
+              return (
+                <div
+                  key={skill.id}
+                  className="rounded-lg border border-gray-700 overflow-hidden"
+                >
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-800 transition-colors text-left"
+                    onClick={() => setExpandedId(isExpanded ? null : skill.id)}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <code className="text-sm font-mono text-purple-300">
+                          skill_{skill.name}
+                        </code>
+                        <span
+                          className={`text-xs px-1.5 py-0.5 rounded border ${trustColors[skill.trustLevel] ?? ''}`}
+                        >
+                          {skill.trustLevel}
+                        </span>
+                      </div>
+                      {skill.description && (
+                        <p className="text-xs text-gray-400 mt-0.5 truncate">
+                          {skill.description}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm(`Delete skill "${skill.name}"?`)) {
+                          onDelete(skill.name)
+                        }
+                      }}
+                      className="p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-400/10 transition-colors shrink-0"
+                      title="Delete skill"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-gray-700 bg-gray-950">
+                      <pre className="p-4 text-xs text-gray-300 overflow-x-auto max-h-64 overflow-y-auto font-mono leading-relaxed">
+                        {skill.code || '// No code available'}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function ToolCallDisplay({
   name,
@@ -486,7 +652,7 @@ interface MessageMetrics {
 
 function MetricsSidebar({ entries }: { entries: Array<MessageMetrics> }) {
   return (
-    <div className="w-72 flex flex-col border-l border-gray-800 bg-gray-900/50">
+    <div className="w-72 shrink-0 flex flex-col border-l border-gray-800 bg-gray-900/50">
       <div className="p-4 border-b border-gray-800">
         <div className="text-sm font-semibold text-white">Metrics</div>
       </div>
@@ -556,6 +722,12 @@ function DatabaseDemoPage() {
   >(new Map())
   const eventIdCounter = useRef(0)
 
+  // Skills state
+  const [withSkills, setWithSkills] = useState(false)
+  const [skills, setSkills] = useState<Array<SkillWithCode>>([])
+  const [isLoadingSkills, setIsLoadingSkills] = useState(false)
+  const [skillsDialogOpen, setSkillsDialogOpen] = useState(false)
+
   // Per-message metrics tracking
   const [metricsEntries, setMetricsEntries] = useState<Array<MessageMetrics>>([])
   const pendingMetricsRef = useRef<{
@@ -572,9 +744,63 @@ function DatabaseDemoPage() {
       provider: selectedModel.provider,
       model: selectedModel.model,
       useCodeMode,
+      withSkills,
     }),
-    [selectedModel.provider, selectedModel.model, useCodeMode],
+    [selectedModel.provider, selectedModel.model, useCodeMode, withSkills],
   )
+
+  const loadSkills = useCallback(async () => {
+    setIsLoadingSkills(true)
+    try {
+      const response = await fetch('/api/db-skills')
+      if (response.ok) {
+        const data = await response.json()
+        setSkills(data)
+      }
+    } catch (error) {
+      console.error('Failed to load skills:', error)
+    } finally {
+      setIsLoadingSkills(false)
+    }
+  }, [])
+
+  const deleteSkill = useCallback(async (name: string) => {
+    try {
+      const response = await fetch(
+        `/api/db-skills?name=${encodeURIComponent(name)}`,
+        { method: 'DELETE' },
+      )
+      if (response.ok) {
+        setSkills((prev) => prev.filter((s) => s.name !== name))
+      }
+    } catch (error) {
+      console.error('Failed to delete skill:', error)
+    }
+  }, [])
+
+  const deleteAllSkills = useCallback(async () => {
+    try {
+      const response = await fetch('/api/db-skills?all=true', {
+        method: 'DELETE',
+      })
+      if (response.ok) {
+        setSkills([])
+      }
+    } catch (error) {
+      console.error('Failed to delete all skills:', error)
+    }
+  }, [])
+
+  const handleNewSkill = useCallback(() => {
+    loadSkills()
+  }, [loadSkills])
+
+  // Load skills when "With Skills" is first enabled
+  useEffect(() => {
+    if (withSkills) {
+      loadSkills()
+    }
+  }, [withSkills, loadSkills])
 
   const handleCustomEvent = useCallback(
     (eventType: string, data: unknown, context: { toolCallId?: string }) => {
@@ -608,6 +834,11 @@ function DatabaseDemoPage() {
         return
       }
 
+      if (eventType === 'skill:registered') {
+        handleNewSkill()
+        return
+      }
+
       // VM events for tool call display
       const toolCallId = context.toolCallId
       if (!toolCallId) return
@@ -626,7 +857,7 @@ function DatabaseDemoPage() {
         return newMap
       })
     },
-    [],
+    [handleNewSkill],
   )
 
   const { messages, sendMessage, setMessages, isLoading } = useChat({
@@ -680,7 +911,7 @@ function DatabaseDemoPage() {
       <Header />
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar */}
-        <div className="w-64 flex flex-col border-r border-gray-800 bg-gray-900/50">
+        <div className="w-64 shrink-0 flex flex-col border-r border-gray-800 bg-gray-900/50">
           <div className="p-4 border-b border-gray-800">
             <div className="text-sm font-semibold text-white mb-3">
               Database Schema
@@ -721,6 +952,26 @@ function DatabaseDemoPage() {
               />
               Code Mode
             </label>
+            <div className="flex items-center gap-2 mb-2">
+              <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={withSkills}
+                  onChange={(e) => setWithSkills(e.target.checked)}
+                  disabled={isLoading || !useCodeMode}
+                  className="rounded border-gray-600 bg-gray-800 text-purple-500 focus:ring-purple-500/50"
+                />
+                <span className="text-[11px] text-gray-400">With Skills</span>
+              </label>
+              {withSkills && (
+                <button
+                  onClick={() => setSkillsDialogOpen(true)}
+                  className="text-[11px] px-2 py-0.5 rounded border border-purple-500/30 bg-purple-900/20 text-purple-300 hover:bg-purple-900/40 transition-colors"
+                >
+                  {skills.length} Skills
+                </button>
+              )}
+            </div>
             <button
               onClick={clearMessages}
               disabled={isLoading || messages.length === 0}
@@ -730,27 +981,10 @@ function DatabaseDemoPage() {
             </button>
           </div>
 
-          <div className="p-4 flex-1 overflow-y-auto">
-            <div className="text-sm font-semibold text-white mb-2">
-              Try These
-            </div>
-            <div className="flex flex-col gap-2">
-              {EXAMPLE_QUERIES.map((query) => (
-                <button
-                  key={query}
-                  onClick={() => sendMessage(query)}
-                  disabled={isLoading}
-                  className="text-left text-xs p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 text-gray-300 disabled:opacity-60 transition-colors"
-                >
-                  {query}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Main chat area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col">
           {messages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center px-8">
               <div className="text-center max-w-md">
@@ -797,6 +1031,17 @@ function DatabaseDemoPage() {
         {/* Right sidebar — Metrics */}
         <MetricsSidebar entries={metricsEntries} />
       </div>
+
+      {/* Skills Dialog */}
+      <SkillsDialog
+        open={skillsDialogOpen}
+        onClose={() => setSkillsDialogOpen(false)}
+        skills={skills}
+        onDelete={deleteSkill}
+        onDeleteAll={deleteAllSkills}
+        onRefresh={loadSkills}
+        isLoading={isLoadingSkills}
+      />
     </div>
   )
 }

@@ -32,6 +32,7 @@ import { Route as NpmGithubChatApiCodemodeRouteImport } from './routes/_npm-gith
 import { Route as HomeApiSkillsRouteImport } from './routes/_home/api.skills'
 import { Route as HomeApiProductRegularRouteImport } from './routes/_home/api.product-regular'
 import { Route as HomeApiProductCodemodeRouteImport } from './routes/_home/api.product-codemode'
+import { Route as DatabaseDemoApiDbSkillsRouteImport } from './routes/_database-demo/api.db-skills'
 import { Route as DatabaseDemoApiDatabaseDemoRouteImport } from './routes/_database-demo/api.database-demo'
 import { Route as BankingDemoApiBankingInitRouteImport } from './routes/_banking-demo/api.banking-init'
 import { Route as BankingDemoApiBankingDemoRouteImport } from './routes/_banking-demo/api.banking-demo'
@@ -151,6 +152,11 @@ const HomeApiProductCodemodeRoute = HomeApiProductCodemodeRouteImport.update({
   path: '/api/product-codemode',
   getParentRoute: () => HomeRouteRoute,
 } as any)
+const DatabaseDemoApiDbSkillsRoute = DatabaseDemoApiDbSkillsRouteImport.update({
+  id: '/api/db-skills',
+  path: '/api/db-skills',
+  getParentRoute: () => DatabaseDemoRouteRoute,
+} as any)
 const DatabaseDemoApiDatabaseDemoRoute =
   DatabaseDemoApiDatabaseDemoRouteImport.update({
     id: '/api/database-demo',
@@ -180,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
+  '/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
   '/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/api/product-regular': typeof HomeApiProductRegularRoute
   '/api/skills': typeof HomeApiSkillsRoute
@@ -202,6 +209,7 @@ export interface FileRoutesByTo {
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
+  '/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
   '/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/api/product-regular': typeof HomeApiProductRegularRoute
   '/api/skills': typeof HomeApiSkillsRoute
@@ -231,6 +239,7 @@ export interface FileRoutesById {
   '/_banking-demo/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/_banking-demo/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/_database-demo/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
+  '/_database-demo/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
   '/_home/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/_home/api/product-regular': typeof HomeApiProductRegularRoute
   '/_home/api/skills': typeof HomeApiSkillsRoute
@@ -255,6 +264,7 @@ export interface FileRouteTypes {
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/database-demo'
+    | '/api/db-skills'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/skills'
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/database-demo'
+    | '/api/db-skills'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/skills'
@@ -305,6 +316,7 @@ export interface FileRouteTypes {
     | '/_banking-demo/api/banking-demo'
     | '/_banking-demo/api/banking-init'
     | '/_database-demo/api/database-demo'
+    | '/_database-demo/api/db-skills'
     | '/_home/api/product-codemode'
     | '/_home/api/product-regular'
     | '/_home/api/skills'
@@ -490,6 +502,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeApiProductCodemodeRouteImport
       parentRoute: typeof HomeRouteRoute
     }
+    '/_database-demo/api/db-skills': {
+      id: '/_database-demo/api/db-skills'
+      path: '/api/db-skills'
+      fullPath: '/api/db-skills'
+      preLoaderRoute: typeof DatabaseDemoApiDbSkillsRouteImport
+      parentRoute: typeof DatabaseDemoRouteRoute
+    }
     '/_database-demo/api/database-demo': {
       id: '/_database-demo/api/database-demo'
       path: '/api/database-demo'
@@ -532,11 +551,13 @@ const BankingDemoRouteRouteWithChildren =
 interface DatabaseDemoRouteRouteChildren {
   DatabaseDemoDatabaseDemoRoute: typeof DatabaseDemoDatabaseDemoRoute
   DatabaseDemoApiDatabaseDemoRoute: typeof DatabaseDemoApiDatabaseDemoRoute
+  DatabaseDemoApiDbSkillsRoute: typeof DatabaseDemoApiDbSkillsRoute
 }
 
 const DatabaseDemoRouteRouteChildren: DatabaseDemoRouteRouteChildren = {
   DatabaseDemoDatabaseDemoRoute: DatabaseDemoDatabaseDemoRoute,
   DatabaseDemoApiDatabaseDemoRoute: DatabaseDemoApiDatabaseDemoRoute,
+  DatabaseDemoApiDbSkillsRoute: DatabaseDemoApiDbSkillsRoute,
 }
 
 const DatabaseDemoRouteRouteWithChildren =

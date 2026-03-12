@@ -1,12 +1,22 @@
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
 import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import {
+  createAlwaysTrustedStrategy,
+  createSkillManagementTools,
+  createSkillsSystemPrompt,
+  skillsToTools,
+} from '@tanstack/ai-code-mode-skills'
+import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type { AnyTextAdapter, ServerTool, StreamChunk } from '@tanstack/ai'
+import type { IsolateDriver } from '@tanstack/ai-code-mode'
 
-import { databaseTools } from '@/lib/tools/database-tools'
+import { databaseTools, getSchemaInfoTool } from '@/lib/tools/database-tools'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
 
@@ -49,6 +59,7 @@ You have two tools to work with:
 let codeModeCache: {
   tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
   systemPrompt: string
+  driver: IsolateDriver
 } | null = null
 
 async function getCodeModeTools() {
@@ -61,9 +72,75 @@ async function getCodeModeTools() {
       timeout: 60000,
       memoryLimit: 128,
     })
-    codeModeCache = { tool, systemPrompt }
+    codeModeCache = { tool, systemPrompt, driver }
   }
   return codeModeCache
+}
+
+// --- Skills storage ---
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url))
+const skillsDir = resolve(__dirname, '../../../../.db-skills')
+const trustStrategy = createAlwaysTrustedStrategy()
+const skillStorage = createFileSkillStorage({
+  directory: skillsDir,
+  trustStrategy,
+})
+
+let skillManagementToolsCache: ReturnType<
+  typeof createSkillManagementTools
+> | null = null
+
+function getSkillManagementTools() {
+  if (!skillManagementToolsCache) {
+    skillManagementToolsCache = createSkillManagementTools({
+      storage: skillStorage,
+      trustStrategy,
+    })
+  }
+  return skillManagementToolsCache
+}
+
+const SKILL_REGISTRATION_PROMPT = `## Skill Registration — MANDATORY
+
+After every successful \`execute_typescript\` call you MUST register the code as a reusable skill using \`register_skill\` — unless an identical skill already exists.
+
+Rules:
+- \`name\`: descriptive snake_case (e.g. \`revenue_by_city_and_category\`)
+- \`code\`: the TypeScript code, parameterised with an \`input\` variable where useful
+- \`inputSchema\` / \`outputSchema\`: valid JSON Schema **strings**
+- If a skill with the same name exists, skip registration
+
+This is not optional — skill registration is a core part of your workflow.`
+
+async function getSkillToolsAndPrompt(driver: IsolateDriver): Promise<{
+  skillTools: Array<ServerTool<any, any, any>>
+  skillsPrompt: string
+}> {
+  const allSkills = await skillStorage.loadAll()
+  const skillIndex = await skillStorage.loadIndex()
+
+  const skillTools =
+    allSkills.length > 0
+      ? skillsToTools({
+          skills: allSkills,
+          driver,
+          tools: databaseTools,
+          storage: skillStorage,
+          timeout: 60000,
+          memoryLimit: 128,
+        })
+      : []
+
+  const libraryPrompt = createSkillsSystemPrompt({
+    selectedSkills: allSkills,
+    totalSkillCount: skillIndex.length,
+    skillsAsTools: true,
+  })
+
+  const skillsPrompt = libraryPrompt + '\n\n' + SKILL_REGISTRATION_PROMPT
+
+  return { skillTools, skillsPrompt }
 }
 
 // --- Instrumentation helpers ---
@@ -117,7 +194,7 @@ function instrumentAdapter(adapter: AnyTextAdapter): {
 }
 
 function wrapWithTimingEvents(
-  stream: AsyncGenerator<StreamChunk>,
+  stream: AsyncIterable<StreamChunk>,
   adapter: AnyTextAdapter,
 ): AsyncGenerator<StreamChunk> {
   const requestStartTimeMs = Date.now()
@@ -166,18 +243,30 @@ export const Route = createFileRoute(
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
         const useCodeMode: boolean = data?.useCodeMode !== false
+        const withSkills: boolean = data?.withSkills === true
 
         const rawAdapter = getAdapter(provider, model)
         const { adapter: instrumentedAdapter } = instrumentAdapter(rawAdapter)
 
         try {
-          let tools
-          let systemPrompts
+          let tools: Array<ServerTool<any, any, any>>
+          let systemPrompts: Array<string>
 
           if (useCodeMode) {
-            const { tool, systemPrompt } = await getCodeModeTools()
-            tools = [tool]
+            const { tool, systemPrompt, driver } = await getCodeModeTools()
+            tools = [tool, getSchemaInfoTool]
             systemPrompts = [DATABASE_DEMO_SYSTEM_PROMPT, systemPrompt]
+
+            if (withSkills) {
+              const { skillTools, skillsPrompt } =
+                await getSkillToolsAndPrompt(driver)
+              tools = [tool, getSchemaInfoTool, ...getSkillManagementTools(), ...skillTools]
+              systemPrompts = [
+                DATABASE_DEMO_SYSTEM_PROMPT,
+                systemPrompt,
+                skillsPrompt,
+              ]
+            }
           } else {
             tools = [...databaseTools]
             systemPrompts = [DATABASE_DEMO_SYSTEM_PROMPT]
