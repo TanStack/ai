@@ -2,7 +2,7 @@
 '@tanstack/ai': minor
 '@tanstack/ai-event-client': minor
 '@tanstack/ai-client': patch
-'@tanstack/ai-devtools': patch
+'@tanstack/ai-devtools-core': patch
 ---
 
 feat: add middleware system and content guard middleware
