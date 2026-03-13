@@ -4,17 +4,22 @@ import {
   normalizeToUIMessage,
 } from '@tanstack/ai'
 import { DefaultChatClientEventEmitter } from './events'
+import { normalizeConnectionAdapter } from './connection-adapters'
 import type {
   AnyClientTool,
   ContentPart,
   ModelMessage,
   StreamChunk,
 } from '@tanstack/ai'
-import type { ConnectionAdapter } from './connection-adapters'
+import type {
+  ConnectionAdapter,
+  SubscribeConnectionAdapter,
+} from './connection-adapters'
 import type { ChatClientEventEmitter } from './events'
 import type {
   ChatClientOptions,
   ChatClientState,
+  ConnectionStatus,
   MessagePart,
   MultimodalContent,
   ToolCallPart,
@@ -23,13 +28,15 @@ import type {
 
 export class ChatClient {
   private processor: StreamProcessor
-  private connection: ConnectionAdapter
+  private connection: SubscribeConnectionAdapter
   private uniqueId: string
   private body: Record<string, any> = {}
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private isLoading = false
+  private isSubscribed = false
   private error: Error | undefined = undefined
   private status: ChatClientState = 'ready'
+  private connectionStatus: ConnectionStatus = 'disconnected'
   private abortController: AbortController | null = null
   private events: ChatClientEventEmitter
   private clientToolsRef: { current: Map<string, AnyClientTool> }
@@ -40,9 +47,15 @@ export class ChatClient {
   private pendingToolExecutions: Map<string, Promise<void>> = new Map()
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
+  private subscriptionAbortController: AbortController | null = null
+  private processingResolve: (() => void) | null = null
+  private errorReportedGeneration: number | null = null
+  private streamGeneration = 0
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
+  private sessionGenerating = false
+  private activeRunIds = new Set<string>()
 
   private callbacksRef: {
     current: {
@@ -54,6 +67,9 @@ export class ChatClient {
       onLoadingChange: (isLoading: boolean) => void
       onErrorChange: (error: Error | undefined) => void
       onStatusChange: (status: ChatClientState) => void
+      onSubscriptionChange: (isSubscribed: boolean) => void
+      onConnectionStatusChange: (status: ConnectionStatus) => void
+      onSessionGeneratingChange: (isGenerating: boolean) => void
       onCustomEvent: (
         eventType: string,
         data: unknown,
@@ -65,7 +81,7 @@ export class ChatClient {
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.body = options.body || {}
-    this.connection = options.connection
+    this.connection = normalizeConnectionAdapter(options.connection)
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
     // Build client tools map
@@ -86,6 +102,9 @@ export class ChatClient {
         onLoadingChange: options.onLoadingChange || (() => {}),
         onErrorChange: options.onErrorChange || (() => {}),
         onStatusChange: options.onStatusChange || (() => {}),
+        onSubscriptionChange: options.onSubscriptionChange || (() => {}),
+        onConnectionStatusChange: options.onConnectionStatusChange || (() => {}),
+        onSessionGeneratingChange: options.onSessionGeneratingChange || (() => {}),
         onCustomEvent: options.onCustomEvent || (() => {}),
       },
     }
@@ -100,15 +119,31 @@ export class ChatClient {
         },
         onStreamStart: () => {
           this.setStatus('streaming')
+          const assistantMessageId =
+            this.processor.getCurrentAssistantMessageId()
+          if (!assistantMessageId) {
+            return
+          }
+          const messages = this.processor.getMessages()
+          const assistantMessage = messages.find(
+            (m: UIMessage) => m.id === assistantMessageId,
+          )
+          if (assistantMessage) {
+            this.currentMessageId = assistantMessage.id
+            this.events.messageAppended(
+              assistantMessage,
+              this.currentStreamId || undefined,
+            )
+          }
         },
         onStreamEnd: (message: UIMessage) => {
           this.callbacksRef.current.onFinish(message)
           this.setStatus('ready')
+          // Resolve the processing-complete promise so streamResponse can continue
+          this.resolveProcessing()
         },
         onError: (error: Error) => {
-          this.setError(error)
-          this.setStatus('error')
-          this.callbacksRef.current.onError(error)
+          this.reportStreamError(error)
         },
         onTextUpdate: (messageId: string, content: string) => {
           // Emit text update to devtools
@@ -235,75 +270,168 @@ export class ChatClient {
     this.callbacksRef.current.onStatusChange(status)
   }
 
+  private setIsSubscribed(isSubscribed: boolean): void {
+    this.isSubscribed = isSubscribed
+    this.callbacksRef.current.onSubscriptionChange(isSubscribed)
+  }
+
+  private setConnectionStatus(status: ConnectionStatus): void {
+    this.connectionStatus = status
+    this.callbacksRef.current.onConnectionStatusChange(status)
+  }
+
+  private setSessionGenerating(isGenerating: boolean): void {
+    if (this.sessionGenerating === isGenerating) return
+    this.sessionGenerating = isGenerating
+    this.callbacksRef.current.onSessionGeneratingChange(isGenerating)
+  }
+
+  private resetSessionGenerating(): void {
+    this.activeRunIds.clear()
+    this.setSessionGenerating(false)
+  }
+
   private setError(error: Error | undefined): void {
     this.error = error
     this.callbacksRef.current.onErrorChange(error)
     this.events.errorChanged(error?.message || null)
   }
 
+  private abortSubscriptionLoop(): void {
+    this.subscriptionAbortController?.abort()
+    this.subscriptionAbortController = null
+  }
+
+  private resolveProcessing(): void {
+    this.processingResolve?.()
+    this.processingResolve = null
+  }
+
+  private cancelInFlightStream(options?: {
+    setReadyStatus?: boolean
+    abortSubscription?: boolean
+  }): void {
+    this.abortController?.abort()
+    this.abortController = null
+    if (options?.abortSubscription) {
+      this.abortSubscriptionLoop()
+    }
+    this.resolveProcessing()
+    this.setIsLoading(false)
+    if (options?.setReadyStatus) {
+      this.setStatus('ready')
+    }
+  }
+
+  private reportStreamError(error: Error): void {
+    const alreadyReported =
+      this.errorReportedGeneration === this.streamGeneration
+    this.setError(error)
+    // Preserve request-level error semantics even if a RUN_ERROR arrives
+    // slightly after loading flips false during stream teardown.
+    if (
+      this.isLoading ||
+      this.status === 'submitted' ||
+      this.status === 'streaming'
+    ) {
+      this.setStatus('error')
+    }
+    if (!alreadyReported) {
+      this.errorReportedGeneration = this.streamGeneration
+      this.callbacksRef.current.onError(error)
+    }
+  }
+
   /**
-   * Process a stream through the StreamProcessor
+   * Start the background subscription loop.
    */
-  private async processStream(
-    source: AsyncIterable<StreamChunk>,
-  ): Promise<UIMessage | null> {
-    // Generate a stream ID for this streaming operation
-    this.currentStreamId = this.generateUniqueId('stream')
+  private startSubscription(): void {
+    this.subscriptionAbortController = new AbortController()
+    const signal = this.subscriptionAbortController.signal
 
-    // Prepare for a new assistant message (created lazily on first content)
-    this.processor.prepareAssistantMessage()
-
-    // Process each chunk
-    for await (const chunk of source) {
-      this.callbacksRef.current.onChunk(chunk)
-      this.processor.processChunk(chunk)
-
-      // Track the message ID once the processor lazily creates it
-      if (!this.currentMessageId) {
-        const newMessageId =
-          this.processor.getCurrentAssistantMessageId() ?? null
-        if (newMessageId) {
-          this.currentMessageId = newMessageId
-          // Emit message appended event now that the assistant message exists
-          const assistantMessage = this.processor
-            .getMessages()
-            .find((m: UIMessage) => m.id === newMessageId)
-          if (assistantMessage) {
-            this.events.messageAppended(
-              assistantMessage,
-              this.currentStreamId || undefined,
-            )
-          }
+    this.consumeSubscription(signal).catch((err) => {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        this.setConnectionStatus('error')
+        this.resetSessionGenerating()
+        this.setIsSubscribed(false)
+        this.reportStreamError(err)
+      }
+      // Resolve pending processing so streamResponse doesn't hang
+      this.resolveProcessing()
+    }).finally(() => {
+      // Ignore stale loops that were superseded by a restart.
+      if (this.subscriptionAbortController?.signal !== signal) {
+        return
+      }
+      this.subscriptionAbortController = null
+      if (!signal.aborted && this.isSubscribed) {
+        this.setIsSubscribed(false)
+        if (this.connectionStatus !== 'error') {
+          this.setConnectionStatus('disconnected')
         }
       }
+    })
+  }
 
-      // Yield control back to event loop to allow UI updates
+  /**
+   * Consume chunks from the connection subscription.
+   */
+  private async consumeSubscription(signal: AbortSignal): Promise<void> {
+    const stream = this.connection.subscribe(signal)
+    for await (const chunk of stream) {
+      if (signal.aborted) break
+      if (this.connectionStatus === 'connecting') {
+        this.setConnectionStatus('connected')
+      }
+      this.callbacksRef.current.onChunk(chunk)
+      this.processor.processChunk(chunk)
+      if (chunk.type === 'RUN_STARTED') {
+        this.activeRunIds.add(chunk.runId)
+        this.setSessionGenerating(true)
+      }
+      // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
+      // (redundant if onStreamEnd already resolved it, harmless)
+      if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        if (chunk.runId) {
+          this.activeRunIds.delete(chunk.runId)
+        } else if (chunk.type === 'RUN_ERROR') {
+          // RUN_ERROR without runId is a session-level error; clear all runs
+          this.activeRunIds.clear()
+        }
+        this.setSessionGenerating(this.activeRunIds.size > 0)
+        this.resolveProcessing()
+      }
+      // Yield control back to event loop for UI updates
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
+  }
 
-    // Wait for all pending tool executions to complete before finalizing
-    // This ensures client tools finish before we check for continuation
-    if (this.pendingToolExecutions.size > 0) {
-      await Promise.all(this.pendingToolExecutions.values())
+  /**
+   * Ensure subscription loop is running, starting it if needed.
+   */
+  private ensureSubscription(): void {
+    if (!this.isSubscribed) {
+      this.subscribe()
+      return
     }
-
-    // Finalize the stream
-    this.processor.finalizeStream()
-
-    // Get the message ID (may be null if no content arrived)
-    const messageId = this.processor.getCurrentAssistantMessageId()
-
-    // Clear the current stream and message IDs
-    this.currentStreamId = null
-    this.currentMessageId = null
-
-    // Return the assistant message if one was created
-    if (messageId) {
-      const messages = this.processor.getMessages()
-      return messages.find((m: UIMessage) => m.id === messageId) || null
+    if (
+      !this.subscriptionAbortController ||
+      this.subscriptionAbortController.signal.aborted
+    ) {
+      this.subscribe({ restart: true })
     }
+  }
 
-    return null
+  /**
+   * Create a promise that resolves when onStreamEnd fires.
+   * Used by streamResponse to await processing completion.
+   */
+  private waitForProcessing(): Promise<void> {
+    // Resolve any stale promise (e.g., from a previous aborted request)
+    this.resolveProcessing()
+    return new Promise<void>((resolve) => {
+      this.processingResolve = resolve
+    })
   }
 
   /**
@@ -426,9 +554,13 @@ export class ChatClient {
       return false
     }
 
+    // Track generation so a superseded stream's cleanup doesn't clobber the new one
+    const generation = ++this.streamGeneration
+
     this.setIsLoading(true)
     this.setStatus('submitted')
     this.setError(undefined)
+    this.errorReportedGeneration = null
     this.abortController = new AbortController()
     // Reset pending tool executions for the new stream
     this.pendingToolExecutions.clear()
@@ -452,48 +584,124 @@ export class ChatClient {
       // Clear the pending message body after use
       this.pendingMessageBody = undefined
 
-      // Connect and stream
-      const stream = this.connection.connect(
+      // Generate stream ID — assistant message will be created by stream events
+      this.currentStreamId = this.generateUniqueId('stream')
+      this.currentMessageId = null
+
+      // Reset processor stream state for new response — prevents stale
+      // messageStates entries (from a previous stream) from blocking
+      // creation of a new assistant message (e.g. after reload).
+      this.processor.prepareAssistantMessage()
+
+      // Ensure subscription loop is running
+      this.ensureSubscription()
+
+      // Set up promise that resolves when onStreamEnd fires
+      const processingComplete = this.waitForProcessing()
+
+      // Send through normalized connection (pushes chunks to subscription queue)
+      await this.connection.send(
         messages,
         mergedBody,
         this.abortController.signal,
       )
 
-      await this.processStream(stream)
+      // Wait for subscription loop to finish processing all chunks
+      await processingComplete
+
+      // If this stream was superseded (e.g. by reload()), bail out —
+      // the new stream owns the processor and processingResolve now.
+      if (generation !== this.streamGeneration) {
+        return false
+      }
+
+      // A RUN_ERROR from the stream transitions status to error.
+      // Do not treat this stream as a successful completion.
+      if (this.status === 'error') {
+        return false
+      }
+
+      // Wait for pending client tool executions
+      if (this.pendingToolExecutions.size > 0) {
+        await Promise.all(this.pendingToolExecutions.values())
+      }
+
+      // Finalize (idempotent — may already be done by RUN_FINISHED handler)
+      this.processor.finalizeStream()
       streamCompletedSuccessfully = true
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
           return false
         }
-        this.setError(err)
-        this.setStatus('error')
-        this.callbacksRef.current.onError(err)
+        if (generation === this.streamGeneration) {
+          this.reportStreamError(err)
+        }
       }
     } finally {
-      this.abortController = null
-      this.setIsLoading(false)
-      this.pendingMessageBody = undefined // Ensure it's cleared even on error
+      // Only clean up if this is still the active stream.
+      // A superseded stream (e.g. reload() started a new one) must not
+      // clobber the new stream's abortController or isLoading state.
+      if (generation === this.streamGeneration) {
+        this.currentStreamId = null
+        this.currentMessageId = null
+        this.abortController = null
+        this.setIsLoading(false)
+        this.pendingMessageBody = undefined // Ensure it's cleared even on error
 
-      // Drain any actions that were queued while the stream was in progress
-      await this.drainPostStreamActions()
+        // Drain any actions that were queued while the stream was in progress
+        await this.drainPostStreamActions()
 
-      // Continue conversation if the stream ended with a tool result (server tool completed)
-      if (streamCompletedSuccessfully) {
-        const messages = this.processor.getMessages()
-        const lastPart = messages.at(-1)?.parts.at(-1)
+        // Continue conversation if the stream ended with a tool result (server tool completed)
+        if (streamCompletedSuccessfully) {
+          const messages = this.processor.getMessages()
+          const lastPart = messages.at(-1)?.parts.at(-1)
 
-        if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
-          try {
-            await this.checkForContinuation()
-          } catch (error) {
-            console.error('Failed to continue flow after tool result:', error)
+          if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
+            try {
+              await this.checkForContinuation()
+            } catch (error) {
+              console.error('Failed to continue flow after tool result:', error)
+            }
           }
         }
       }
     }
 
     return streamCompletedSuccessfully
+  }
+
+  /**
+   * Start the client subscription loop.
+   * This controls the connection lifecycle independently from request lifecycle.
+   */
+  subscribe(options?: { restart?: boolean }): void {
+    const restart = options?.restart === true
+    if (this.isSubscribed && !restart) {
+      return
+    }
+
+    if (this.isSubscribed && restart) {
+      this.abortSubscriptionLoop()
+    }
+
+    this.setIsSubscribed(true)
+    this.setConnectionStatus('connecting')
+    this.startSubscription()
+  }
+
+  /**
+   * Unsubscribe and fully tear down live behavior.
+   * This aborts an in-flight request and the subscription loop.
+   */
+  unsubscribe(): void {
+    this.cancelInFlightStream({
+      setReadyStatus: true,
+      abortSubscription: true,
+    })
+    this.resetSessionGenerating()
+    this.setIsSubscribed(false)
+    this.setConnectionStatus('disconnected')
   }
 
   /**
@@ -510,6 +718,11 @@ export class ChatClient {
 
     if (lastUserMessageIndex === -1) return
 
+    // Cancel any active stream before reloading
+    if (this.isLoading) {
+      this.cancelInFlightStream()
+    }
+
     this.events.reloaded(lastUserMessageIndex)
 
     // Remove all messages after the last user message
@@ -523,12 +736,7 @@ export class ChatClient {
    * Stop the current stream
    */
   stop(): void {
-    if (this.abortController) {
-      this.abortController.abort()
-      this.abortController = null
-    }
-    this.setIsLoading(false)
-    this.setStatus('ready')
+    this.cancelInFlightStream({ setReadyStatus: true })
     this.events.stopped()
   }
 
@@ -693,6 +901,30 @@ export class ChatClient {
   }
 
   /**
+   * Get whether the subscription loop is active
+   */
+  getIsSubscribed(): boolean {
+    return this.isSubscribed
+  }
+
+  /**
+   * Get current connection lifecycle status
+   */
+  getConnectionStatus(): ConnectionStatus {
+    return this.connectionStatus
+  }
+
+  /**
+   * Whether the shared session is actively generating.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `isLoading` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
+  getSessionGenerating(): boolean {
+    return this.sessionGenerating
+  }
+
+  /**
    * Get current error
    */
   getError(): Error | undefined {
@@ -717,6 +949,9 @@ export class ChatClient {
     onChunk?: (chunk: StreamChunk) => void
     onFinish?: (message: UIMessage) => void
     onError?: (error: Error) => void
+    onSubscriptionChange?: (isSubscribed: boolean) => void
+    onConnectionStatusChange?: (status: ConnectionStatus) => void
+    onSessionGeneratingChange?: (isGenerating: boolean) => void
     onCustomEvent?: (
       eventType: string,
       data: unknown,
@@ -724,7 +959,25 @@ export class ChatClient {
     ) => void
   }): void {
     if (options.connection !== undefined) {
-      this.connection = options.connection
+      const wasSubscribed = this.isSubscribed
+
+      if (this.isLoading) {
+        this.cancelInFlightStream({
+          setReadyStatus: true,
+          abortSubscription: true,
+        })
+      } else if (wasSubscribed) {
+        this.abortSubscriptionLoop()
+      }
+
+      this.resetSessionGenerating()
+      this.setIsSubscribed(false)
+      this.setConnectionStatus('disconnected')
+      this.connection = normalizeConnectionAdapter(options.connection)
+
+      if (wasSubscribed) {
+        this.subscribe()
+      }
     }
     if (options.body !== undefined) {
       this.body = options.body
@@ -746,6 +999,17 @@ export class ChatClient {
     }
     if (options.onError !== undefined) {
       this.callbacksRef.current.onError = options.onError
+    }
+    if (options.onSubscriptionChange !== undefined) {
+      this.callbacksRef.current.onSubscriptionChange = options.onSubscriptionChange
+    }
+    if (options.onConnectionStatusChange !== undefined) {
+      this.callbacksRef.current.onConnectionStatusChange =
+        options.onConnectionStatusChange
+    }
+    if (options.onSessionGeneratingChange !== undefined) {
+      this.callbacksRef.current.onSessionGeneratingChange =
+        options.onSessionGeneratingChange
     }
     if (options.onCustomEvent !== undefined) {
       this.callbacksRef.current.onCustomEvent = options.onCustomEvent

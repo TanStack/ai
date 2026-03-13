@@ -18,6 +18,20 @@ describe('createChat', () => {
     expect(chat.isLoading).toBe(false)
     expect(chat.error).toBeUndefined()
     expect(chat.status).toBe('ready')
+    expect(chat.isSubscribed).toBe(false)
+    expect(chat.connectionStatus).toBe('disconnected')
+    expect(chat.sessionGenerating).toBe(false)
+  })
+
+  it('should subscribe immediately when live is true', () => {
+    const mockConnection = createMockConnectionAdapter({ chunks: [] })
+    const chat = createChat({
+      connection: mockConnection,
+      live: true,
+    })
+
+    expect(chat.isSubscribed).toBe(true)
+    expect(['connecting', 'connected']).toContain(chat.connectionStatus)
   })
 
   it('should initialize with initial messages', () => {

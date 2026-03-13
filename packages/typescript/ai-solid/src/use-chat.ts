@@ -3,10 +3,11 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
+  onCleanup,
 } from 'solid-js'
 
 import { ChatClient } from '@tanstack/ai-client'
-import type { ChatClientState } from '@tanstack/ai-client'
+import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   MultimodalContent,
@@ -27,6 +28,10 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   const [isLoading, setIsLoading] = createSignal(false)
   const [error, setError] = createSignal<Error | undefined>(undefined)
   const [status, setStatus] = createSignal<ChatClientState>('ready')
+  const [isSubscribed, setIsSubscribed] = createSignal(false)
+  const [connectionStatus, setConnectionStatus] =
+    createSignal<ConnectionStatus>('disconnected')
+  const [sessionGenerating, setSessionGenerating] = createSignal(false)
 
   // Create ChatClient instance with callbacks to sync state
   // Note: Options are captured at client creation time.
@@ -61,6 +66,15 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       onErrorChange: (newError: Error | undefined) => {
         setError(newError)
       },
+      onSubscriptionChange: (nextIsSubscribed: boolean) => {
+        setIsSubscribed(nextIsSubscribed)
+      },
+      onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+        setConnectionStatus(nextStatus)
+      },
+      onSessionGeneratingChange: (isGenerating: boolean) => {
+        setSessionGenerating(isGenerating)
+      },
     })
     // Only recreate when clientId changes
     // Connection and other options are captured at creation time
@@ -85,12 +99,26 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     }
   }) // Only run on mount - initialMessages are handled by ChatClient constructor
 
-  // Cleanup on unmount: stop any in-flight requests
-  // Note: We use createEffect with a cleanup return to handle component unmount.
-  // The cleanup only runs on disposal (unmount), not on signal changes.
+  // Apply initial live mode immediately on hook creation.
+  if (options.live) {
+    client().subscribe()
+  } else {
+    client().unsubscribe()
+  }
+
   createEffect(() => {
-    return () => {
-      // Stop any active generation when component unmounts
+    if (options.live) {
+      client().subscribe()
+    } else {
+      client().unsubscribe()
+    }
+  })
+
+  // Cleanup on unmount: stop any in-flight requests.
+  onCleanup(() => {
+    if (options.live) {
+      client().unsubscribe()
+    } else {
       client().stop()
     }
   })
@@ -149,6 +177,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     isLoading,
     error,
     status,
+    isSubscribed,
+    connectionStatus,
+    sessionGenerating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,

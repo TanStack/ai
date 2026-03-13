@@ -20,6 +20,8 @@ describe('ChatClient', () => {
 
       expect(client.getMessages()).toEqual([])
       expect(client.getIsLoading()).toBe(false)
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('disconnected')
       expect(client.getError()).toBeUndefined()
     })
 
@@ -77,6 +79,709 @@ describe('ChatClient', () => {
 
       // Message IDs should be unique between clients
       expect(client1MessageId).not.toBe(client2MessageId)
+    })
+
+    it('should throw if connection is not provided', () => {
+      expect(() => new ChatClient({} as any)).toThrow(
+        'Connection adapter is required',
+      )
+    })
+  })
+
+  describe('subscribe/send connection mode', () => {
+    function createSubscribeAdapter(chunksToSend: Array<StreamChunk>) {
+      let hasPendingSend = false
+      let wakeSubscriber: (() => void) | null = null
+      let removeAbortListener: (() => void) | null = null
+
+      const subscribe = vi.fn((signal?: AbortSignal) => {
+        return (async function* () {
+          while (!signal?.aborted) {
+            if (!hasPendingSend) {
+              await new Promise<void>((resolve) => {
+                removeAbortListener?.()
+                removeAbortListener = null
+                wakeSubscriber = resolve
+                const onAbort = () => resolve()
+                signal?.addEventListener('abort', onAbort, { once: true })
+                removeAbortListener = () => {
+                  signal?.removeEventListener('abort', onAbort)
+                }
+              })
+              continue
+            }
+
+            hasPendingSend = false
+            for (const chunk of chunksToSend) {
+              yield chunk
+            }
+          }
+          removeAbortListener?.()
+          removeAbortListener = null
+        })()
+      })
+
+      const send = vi.fn(async () => {
+        removeAbortListener?.()
+        removeAbortListener = null
+        hasPendingSend = true
+        wakeSubscriber?.()
+        wakeSubscriber = null
+      })
+
+      return { subscribe, send }
+    }
+
+    it('should use subscribe/send adapter mode', async () => {
+      const adapter = createSubscribeAdapter(
+        createTextChunks('From subscribe/send mode'),
+      )
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage('Hello')
+
+      expect(adapter.subscribe).toHaveBeenCalled()
+      expect(adapter.send).toHaveBeenCalled()
+    })
+
+    it('stop should not unsubscribe an active subscription', async () => {
+      const adapter = createSubscribeAdapter([
+        {
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        },
+      ])
+      const client = new ChatClient({ connection: adapter })
+
+      client.subscribe()
+      expect(client.getIsSubscribed()).toBe(true)
+      expect(client.getConnectionStatus()).toBe('connecting')
+
+      const sendPromise = client.sendMessage('Hello')
+      client.stop()
+      await sendPromise
+
+      expect(client.getIsSubscribed()).toBe(true)
+      client.unsubscribe()
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('disconnected')
+    })
+
+    it('should re-subscribe on connection update when previously subscribed', () => {
+      const adapter1 = createSubscribeAdapter([])
+      const adapter2 = createSubscribeAdapter([])
+      const client = new ChatClient({ connection: adapter1 })
+
+      client.subscribe()
+      expect(client.getIsSubscribed()).toBe(true)
+      expect(adapter1.subscribe).toHaveBeenCalledTimes(1)
+
+      client.updateOptions({ connection: adapter2 })
+
+      expect(client.getIsSubscribed()).toBe(true)
+      expect(adapter2.subscribe).toHaveBeenCalledTimes(1)
+    })
+
+    it('should emit subscription and connection lifecycle callbacks', async () => {
+      const adapter = createSubscribeAdapter(createTextChunks('callback flow'))
+      const subscriptionChanges: Array<boolean> = []
+      const connectionStatuses: Array<string> = []
+      const client = new ChatClient({
+        connection: adapter,
+        onSubscriptionChange: (isSubscribed) => {
+          subscriptionChanges.push(isSubscribed)
+        },
+        onConnectionStatusChange: (status) => {
+          connectionStatuses.push(status)
+        },
+      })
+
+      client.subscribe()
+      await client.sendMessage('Hello')
+      client.unsubscribe()
+
+      expect(subscriptionChanges).toEqual([true, false])
+      expect(connectionStatuses[0]).toBe('connecting')
+      expect(connectionStatuses).toContain('connected')
+      expect(connectionStatuses[connectionStatuses.length - 1]).toBe(
+        'disconnected',
+      )
+    })
+
+    it('subscribe should be idempotent without restart', () => {
+      const adapter = createSubscribeAdapter([])
+      const client = new ChatClient({ connection: adapter })
+
+      client.subscribe()
+      client.subscribe()
+
+      expect(adapter.subscribe).toHaveBeenCalledTimes(1)
+      expect(client.getIsSubscribed()).toBe(true)
+
+      client.unsubscribe()
+    })
+
+    it('subscribe with restart should start a new subscription loop', () => {
+      const adapter = createSubscribeAdapter([])
+      const client = new ChatClient({ connection: adapter })
+
+      client.subscribe()
+      client.subscribe({ restart: true })
+
+      expect(adapter.subscribe).toHaveBeenCalledTimes(2)
+      expect(client.getIsSubscribed()).toBe(true)
+      expect(client.getConnectionStatus()).toBe('connecting')
+
+      client.unsubscribe()
+    })
+
+    it('unsubscribe should be idempotent', () => {
+      const adapter = createSubscribeAdapter([])
+      const client = new ChatClient({ connection: adapter })
+
+      client.unsubscribe()
+      client.unsubscribe()
+
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('disconnected')
+    })
+
+    it('unsubscribe should abort in-flight requests and disconnect', async () => {
+      const adapter = createSubscribeAdapter([
+        {
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'H',
+          content: 'H',
+        },
+      ])
+      const client = new ChatClient({ connection: adapter })
+
+      client.subscribe()
+      const sendPromise = client.sendMessage('Hello')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      client.unsubscribe()
+
+      const completed = await Promise.race([
+        sendPromise.then(() => true),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 500)),
+      ])
+
+      expect(completed).toBe(true)
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('disconnected')
+    })
+
+    it('should not re-subscribe on connection update when not subscribed', () => {
+      const adapter1 = createSubscribeAdapter([])
+      const adapter2 = createSubscribeAdapter([])
+      const client = new ChatClient({ connection: adapter1 })
+
+      client.updateOptions({ connection: adapter2 })
+
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('disconnected')
+      expect(adapter2.subscribe).not.toHaveBeenCalled()
+    })
+
+    it('should expose connectionStatus error for subscription loop failures', async () => {
+      const connection = {
+        subscribe: async function* () {
+          throw new Error('subscription failed')
+        },
+        send: async () => {},
+      }
+      const client = new ChatClient({ connection })
+
+      client.subscribe()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('error')
+    })
+
+    it('should remain pending without terminal run events', async () => {
+      const adapter = createSubscribeAdapter([
+        {
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'H',
+          content: 'H',
+        },
+      ])
+      const client = new ChatClient({ connection: adapter })
+
+      const sendPromise = client.sendMessage('Hello')
+      const completed = await Promise.race([
+        sendPromise.then(() => true),
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => resolve(false), 100),
+        ),
+      ])
+
+      expect(completed).toBe(false)
+
+      // Explicitly stop to unblock the in-flight request.
+      client.stop()
+      await sendPromise
+    })
+
+    describe('sessionGenerating', () => {
+      it('should be false initially', () => {
+        const adapter = createSubscribeAdapter([])
+        const client = new ChatClient({ connection: adapter })
+
+        expect(client.getSessionGenerating()).toBe(false)
+      })
+
+      it('should flip to true on RUN_STARTED and false on RUN_FINISHED', async () => {
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Hi',
+            content: 'Hi',
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+        ]
+        const adapter = createSubscribeAdapter(chunks)
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          connection: adapter,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        await client.sendMessage('Hello')
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toEqual([true, false])
+      })
+
+      it('should flip to false on RUN_ERROR', async () => {
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'RUN_ERROR',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            error: { message: 'something went wrong' },
+          },
+        ]
+        const adapter = createSubscribeAdapter(chunks)
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          connection: adapter,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        await client.sendMessage('Hello')
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toEqual([true, false])
+      })
+
+      it('should remain correct through subscribe/unsubscribe cycles', async () => {
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Hi',
+            content: 'Hi',
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+        ]
+        const adapter = createSubscribeAdapter(chunks)
+        const client = new ChatClient({ connection: adapter })
+
+        // First cycle
+        await client.sendMessage('Hello')
+        expect(client.getSessionGenerating()).toBe(false)
+
+        // Unsubscribe
+        client.unsubscribe()
+        expect(client.getSessionGenerating()).toBe(false)
+      })
+
+      it('should reset on unsubscribe while generating', async () => {
+        let yieldedStart = false
+        const connection = {
+          subscribe: async function* (signal?: AbortSignal) {
+            while (!signal?.aborted) {
+              if (!yieldedStart) {
+                yieldedStart = true
+                yield {
+                  type: 'RUN_STARTED' as const,
+                  runId: 'run-1',
+                  model: 'test',
+                  timestamp: Date.now(),
+                }
+              }
+              await new Promise<void>((resolve) => {
+                const onAbort = () => resolve()
+                signal?.addEventListener('abort', onAbort, { once: true })
+              })
+            }
+          },
+          send: async () => {
+            // no-op; the subscribe generator yields RUN_STARTED on its own
+          },
+        }
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          connection,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        client.subscribe()
+        await new Promise((resolve) => setTimeout(resolve, 20))
+
+        expect(client.getSessionGenerating()).toBe(true)
+
+        client.unsubscribe()
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toEqual([true, false])
+      })
+
+      it('should reset on connection adapter replacement', async () => {
+        let yieldedStart = false
+        const connection1 = {
+          subscribe: async function* (signal?: AbortSignal) {
+            while (!signal?.aborted) {
+              if (!yieldedStart) {
+                yieldedStart = true
+                yield {
+                  type: 'RUN_STARTED' as const,
+                  runId: 'run-1',
+                  model: 'test',
+                  timestamp: Date.now(),
+                }
+              }
+              await new Promise<void>((resolve) => {
+                const onAbort = () => resolve()
+                signal?.addEventListener('abort', onAbort, { once: true })
+              })
+            }
+          },
+          send: async () => {},
+        }
+        const connection2 = createSubscribeAdapter([])
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          connection: connection1,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        client.subscribe()
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        expect(client.getSessionGenerating()).toBe(true)
+
+        client.updateOptions({ connection: connection2 })
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toEqual([true, false])
+
+        client.unsubscribe()
+      })
+
+      it('should not emit duplicate callbacks on repeated same-state events', async () => {
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Hi',
+            content: 'Hi',
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+        ]
+        const adapter = createSubscribeAdapter(chunks)
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          connection: adapter,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        await client.sendMessage('Hello')
+
+        expect(generatingChanges).toEqual([true, false])
+      })
+
+      it('should handle interleaved multi-run events from durable subscription', async () => {
+        const chunks: Array<StreamChunk> = [
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'A',
+            content: 'A',
+          },
+          {
+            type: 'RUN_FINISHED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          },
+        ]
+        const adapter = createSubscribeAdapter(chunks)
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          connection: adapter,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        await client.sendMessage('First')
+        expect(generatingChanges).toEqual([true, false])
+
+        await client.sendMessage('Second')
+        expect(generatingChanges).toEqual([true, false, true, false])
+      })
+
+      it('should stay true during concurrent runs until all finish', async () => {
+        const wake = { fn: null as (() => void) | null }
+        const chunks: Array<StreamChunk> = []
+        const connection = {
+          subscribe: async function* (signal?: AbortSignal) {
+            while (!signal?.aborted) {
+              if (chunks.length > 0) {
+                const batch = chunks.splice(0)
+                for (const chunk of batch) {
+                  yield chunk
+                }
+              }
+              await new Promise<void>((resolve) => {
+                wake.fn = resolve
+                const onAbort = () => resolve()
+                signal?.addEventListener('abort', onAbort, { once: true })
+              })
+            }
+          },
+          send: async () => {
+            wake.fn?.()
+          },
+        }
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          connection,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        client.subscribe()
+        await new Promise((resolve) => setTimeout(resolve, 10))
+
+        // Simulate two concurrent runs starting
+        chunks.push(
+          { type: 'RUN_STARTED', runId: 'run-1', model: 'test', timestamp: Date.now() },
+          { type: 'RUN_STARTED', runId: 'run-2', model: 'test', timestamp: Date.now() },
+        )
+        wake.fn?.()
+        await new Promise((resolve) => setTimeout(resolve, 20))
+
+        expect(client.getSessionGenerating()).toBe(true)
+
+        // First run finishes — should still be generating because run-2 is active
+        chunks.push(
+          { type: 'RUN_FINISHED', runId: 'run-1', model: 'test', timestamp: Date.now(), finishReason: 'stop' },
+        )
+        wake.fn?.()
+        await new Promise((resolve) => setTimeout(resolve, 20))
+
+        expect(client.getSessionGenerating()).toBe(true)
+
+        // Second run finishes — now should be false
+        chunks.push(
+          { type: 'RUN_FINISHED', runId: 'run-2', model: 'test', timestamp: Date.now(), finishReason: 'stop' },
+        )
+        wake.fn?.()
+        await new Promise((resolve) => setTimeout(resolve, 20))
+
+        expect(client.getSessionGenerating()).toBe(false)
+        // Only two transitions: false→true at start, true→false when all done
+        expect(generatingChanges).toEqual([true, false])
+
+        client.unsubscribe()
+      })
+
+      it('should clear all runs on RUN_ERROR without runId', async () => {
+        const wake = { fn: null as (() => void) | null }
+        const chunks: Array<StreamChunk> = []
+        const connection = {
+          subscribe: async function* (signal?: AbortSignal) {
+            while (!signal?.aborted) {
+              if (chunks.length > 0) {
+                const batch = chunks.splice(0)
+                for (const chunk of batch) {
+                  yield chunk
+                }
+              }
+              await new Promise<void>((resolve) => {
+                wake.fn = resolve
+                const onAbort = () => resolve()
+                signal?.addEventListener('abort', onAbort, { once: true })
+              })
+            }
+          },
+          send: async () => {
+            wake.fn?.()
+          },
+        }
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          connection,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        client.subscribe()
+        await new Promise((resolve) => setTimeout(resolve, 10))
+
+        // Two runs active
+        chunks.push(
+          { type: 'RUN_STARTED', runId: 'run-1', model: 'test', timestamp: Date.now() },
+          { type: 'RUN_STARTED', runId: 'run-2', model: 'test', timestamp: Date.now() },
+        )
+        wake.fn?.()
+        await new Promise((resolve) => setTimeout(resolve, 20))
+
+        expect(client.getSessionGenerating()).toBe(true)
+
+        // Session-level error without runId clears everything
+        chunks.push(
+          { type: 'RUN_ERROR', model: 'test', timestamp: Date.now(), error: { message: 'session crashed' } },
+        )
+        wake.fn?.()
+        await new Promise((resolve) => setTimeout(resolve, 20))
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toEqual([true, false])
+
+        client.unsubscribe()
+      })
+
+      it('should reset on fatal subscription loop teardown', async () => {
+        let yieldedStart = false
+        const connection = {
+          subscribe: async function* (_signal?: AbortSignal) {
+            if (!yieldedStart) {
+              yieldedStart = true
+              yield {
+                type: 'RUN_STARTED' as const,
+                runId: 'run-1',
+                model: 'test',
+                timestamp: Date.now(),
+              }
+              await new Promise((resolve) => setTimeout(resolve, 10))
+            }
+            throw new Error('subscription failed')
+          },
+          send: async () => {},
+        }
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          connection,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        client.subscribe()
+        await new Promise((resolve) => setTimeout(resolve, 50))
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toContain(true)
+        expect(generatingChanges[generatingChanges.length - 1]).toBe(false)
+      })
     })
   })
 
@@ -391,8 +1096,12 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Hello')
 
-      expect(onError).toHaveBeenCalledWith(error)
-      expect(client.getError()).toBe(error)
+      expect(onError).toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0]![0]).toBeInstanceOf(Error)
+      expect(onError.mock.calls[0]![0].message).toBe('Connection failed')
+      expect(client.getError()).toBeInstanceOf(Error)
+      expect(client.getError()?.message).toBe('Connection failed')
     })
   })
 
@@ -504,7 +1213,8 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Hello')
 
-      expect(client.getError()).toBe(error)
+      expect(client.getError()).toBeInstanceOf(Error)
+      expect(client.getError()?.message).toBe('Network error')
       expect(client.getStatus()).toBe('error')
     })
 
@@ -529,6 +1239,58 @@ describe('ChatClient', () => {
       await client.sendMessage('Success')
       expect(client.getError()).toBeUndefined()
       expect(client.getStatus()).not.toBe('error')
+    })
+
+    it('should not hang when connection is updated during an active stream', async () => {
+      const noTerminalAdapter = createMockConnectionAdapter({
+        chunks: [
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'H',
+            content: 'H',
+          },
+        ],
+        chunkDelay: 50,
+      })
+      const replacementAdapter = createMockConnectionAdapter({
+        chunks: createTextChunks('replacement'),
+      })
+      const client = new ChatClient({ connection: noTerminalAdapter })
+
+      const sendPromise = client.sendMessage('Hello')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      client.updateOptions({ connection: replacementAdapter })
+
+      const completed = await Promise.race([
+        sendPromise.then(() => true),
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => resolve(false), 500),
+        ),
+      ])
+
+      expect(completed).toBe(true)
+      expect(client.getIsLoading()).toBe(false)
+    })
+
+    it('should surface subscription loop failures without hanging', async () => {
+      const connection = {
+        subscribe: async function* () {
+          throw new Error('subscription exploded')
+        },
+        send: async () => {},
+      }
+      const onError = vi.fn()
+      const client = new ChatClient({ connection, onError })
+
+      await client.sendMessage('Hello')
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0]?.[0]).toBeInstanceOf(Error)
+      expect(onError.mock.calls[0]?.[0].message).toBe('subscription exploded')
+      expect(client.getStatus()).toBe('error')
     })
   })
 
@@ -1222,6 +1984,239 @@ describe('ChatClient', () => {
         .find((m) => m.role === 'assistant')
       const textPart = lastAssistant?.parts.find((p) => p.type === 'text')
       expect(textPart?.content).toBe('All done!')
+    })
+  })
+
+  describe('concurrent runs and reconnect correctness', () => {
+    it('concurrent runs should not produce duplicate messages or corrupt content', async () => {
+      const wake = { fn: null as (() => void) | null }
+      const chunks: Array<StreamChunk> = []
+      const connection = {
+        subscribe: async function* (signal?: AbortSignal) {
+          while (!signal?.aborted) {
+            if (chunks.length > 0) {
+              const batch = chunks.splice(0)
+              for (const chunk of batch) {
+                yield chunk
+              }
+            }
+            await new Promise<void>((resolve) => {
+              wake.fn = resolve
+              const onAbort = () => resolve()
+              signal?.addEventListener('abort', onAbort, { once: true })
+            })
+          }
+        },
+        send: async () => {
+          wake.fn?.()
+        },
+      }
+
+      const messagesSnapshots: Array<Array<UIMessage>> = []
+      const client = new ChatClient({
+        connection,
+        onMessagesChange: (msgs) => {
+          messagesSnapshots.push(msgs.map((m) => ({ ...m })))
+        },
+      })
+
+      client.subscribe()
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // Run A starts with text message
+      chunks.push(
+        {
+          type: 'RUN_STARTED',
+          runId: 'run-a',
+          model: 'test',
+          timestamp: Date.now(),
+        },
+        {
+          type: 'TEXT_MESSAGE_START',
+          messageId: 'msg-a',
+          role: 'assistant',
+          model: 'test',
+          timestamp: Date.now(),
+        } as StreamChunk,
+        {
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-a',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Story: ',
+        } as StreamChunk,
+      )
+      wake.fn?.()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      // Run B starts concurrently
+      chunks.push(
+        {
+          type: 'RUN_STARTED',
+          runId: 'run-b',
+          model: 'test',
+          timestamp: Date.now(),
+        },
+        {
+          type: 'TEXT_MESSAGE_START',
+          messageId: 'msg-b',
+          role: 'assistant',
+          model: 'test',
+          timestamp: Date.now(),
+        } as StreamChunk,
+        {
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-b',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hi!',
+        } as StreamChunk,
+      )
+      wake.fn?.()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      // Run B finishes — Run A should still be active
+      chunks.push({
+        type: 'RUN_FINISHED',
+        runId: 'run-b',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      })
+      wake.fn?.()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      // Run A continues streaming
+      chunks.push({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-a',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'once upon a time',
+      } as StreamChunk)
+      wake.fn?.()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      // Verify msg-a still has correct content after run-b finished
+      const messages = client.getMessages()
+      const msgA = messages.find((m) => m.id === 'msg-a')
+      const msgB = messages.find((m) => m.id === 'msg-b')
+
+      expect(msgA).toBeDefined()
+      expect(msgB).toBeDefined()
+      expect(msgA!.parts[0]).toEqual({
+        type: 'text',
+        content: 'Story: once upon a time',
+      })
+      expect(msgB!.parts[0]).toEqual({ type: 'text', content: 'Hi!' })
+
+      // No duplicate messages
+      expect(messages.filter((m) => m.id === 'msg-a')).toHaveLength(1)
+      expect(messages.filter((m) => m.id === 'msg-b')).toHaveLength(1)
+
+      // Finish run A
+      chunks.push({
+        type: 'RUN_FINISHED',
+        runId: 'run-a',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      })
+      wake.fn?.()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      expect(client.getSessionGenerating()).toBe(false)
+      client.unsubscribe()
+    })
+
+    it('reconnect with initialMessages should not duplicate assistant message on content arrival', async () => {
+      const wake = { fn: null as (() => void) | null }
+      const chunks: Array<StreamChunk> = []
+      const connection = {
+        subscribe: async function* (signal?: AbortSignal) {
+          while (!signal?.aborted) {
+            if (chunks.length > 0) {
+              const batch = chunks.splice(0)
+              for (const chunk of batch) {
+                yield chunk
+              }
+            }
+            await new Promise<void>((resolve) => {
+              wake.fn = resolve
+              const onAbort = () => resolve()
+              signal?.addEventListener('abort', onAbort, { once: true })
+            })
+          }
+        },
+        send: async () => {
+          wake.fn?.()
+        },
+      }
+
+      // Simulate reconnect: client created with initialMessages (from SSR/snapshot)
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Tell me a story' }],
+          createdAt: new Date(),
+        },
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Once upon a ' }],
+          createdAt: new Date(),
+        },
+      ]
+
+      const client = new ChatClient({
+        connection,
+        initialMessages,
+      })
+
+      client.subscribe()
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // Resumed content for in-progress message (no TEXT_MESSAGE_START)
+      chunks.push(
+        {
+          type: 'RUN_STARTED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+        },
+        {
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'asst-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'time...',
+        } as StreamChunk,
+        {
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        },
+      )
+      wake.fn?.()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      const messages = client.getMessages()
+
+      // Should still have exactly 2 messages, not 3
+      expect(messages).toHaveLength(2)
+
+      // Content should be correctly appended
+      const asstMsg = messages.find((m) => m.id === 'asst-1')
+      expect(asstMsg).toBeDefined()
+      expect(asstMsg!.parts[0]).toEqual({
+        type: 'text',
+        content: 'Once upon a time...',
+      })
+
+      client.unsubscribe()
     })
   })
 })

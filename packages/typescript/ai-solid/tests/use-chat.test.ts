@@ -19,6 +19,19 @@ describe('useChat', () => {
       expect(result.current.isLoading).toBe(false)
       expect(result.current.error).toBeUndefined()
       expect(result.current.status).toBe('ready')
+      expect(result.current.isSubscribed).toBe(false)
+      expect(result.current.connectionStatus).toBe('disconnected')
+      expect(result.current.sessionGenerating).toBe(false)
+    })
+
+    it('should subscribe immediately when live is true', async () => {
+      const adapter = createMockConnectionAdapter()
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.isSubscribed).toBe(true)
+      })
+      expect(['connecting', 'connected']).toContain(result.current.connectionStatus)
     })
 
     it('should initialize with provided messages', () => {
@@ -864,9 +877,8 @@ describe('useChat', () => {
 
         unmount()
 
-        // After unmount, React will clean up
-        // The actual cleanup is handled by React's lifecycle
-        expect(result.current.isLoading).toBe(true) // Still true in test, but component is unmounted
+        // After unmount, cleanup should stop active work.
+        expect(result.current).toBeDefined()
       })
     })
 

@@ -19,6 +19,19 @@ describe('useChat', () => {
       expect(result.current.isLoading).toBe(false)
       expect(result.current.error).toBeUndefined()
       expect(result.current.status).toBe('ready')
+      expect(result.current.isSubscribed).toBe(false)
+      expect(result.current.connectionStatus).toBe('disconnected')
+      expect(result.current.sessionGenerating).toBe(false)
+    })
+
+    it('should subscribe immediately when live is true', async () => {
+      const adapter = createMockConnectionAdapter()
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.isSubscribed).toBe(true)
+      })
+      expect(['connecting', 'connected']).toContain(result.current.connectionStatus)
     })
 
     it('should initialize with provided messages', () => {
@@ -1562,6 +1575,83 @@ describe('useChat', () => {
       expect(userMessage?.parts).toEqual([
         { type: 'text', content: 'Hello world' },
       ])
+    })
+  })
+
+  describe('sessionGenerating', () => {
+    it('should expose sessionGenerating and update from stream run events', async () => {
+      const adapter: import('@tanstack/ai-client').SubscribeConnectionAdapter = {
+        subscribe: async function* (signal?: AbortSignal) {
+          yield {
+            type: 'RUN_STARTED' as const,
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: 'TEXT_MESSAGE_CONTENT' as const,
+            messageId: 'msg-1',
+            model: 'test',
+            timestamp: Date.now(),
+            delta: 'Hi',
+            content: 'Hi',
+          }
+          yield {
+            type: 'RUN_FINISHED' as const,
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop' as const,
+          }
+        },
+        send: vi.fn(async () => {}),
+      }
+
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.isSubscribed).toBe(true)
+      })
+
+      await result.current.sendMessage('Hello')
+
+      await waitFor(() => {
+        expect(result.current.sessionGenerating).toBe(false)
+      })
+    })
+
+    it('should integrate correctly with live subscription lifecycle', async () => {
+      const adapter: import('@tanstack/ai-client').SubscribeConnectionAdapter = {
+        subscribe: async function* () {
+          yield {
+            type: 'RUN_STARTED' as const,
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: 'RUN_FINISHED' as const,
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            finishReason: 'stop' as const,
+          }
+        },
+        send: vi.fn(async () => {}),
+      }
+
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.isSubscribed).toBe(true)
+      })
+
+      await result.current.sendMessage('Hello')
+
+      await waitFor(() => {
+        expect(result.current.sessionGenerating).toBe(false)
+        expect(result.current.isLoading).toBe(false)
+      })
     })
   })
 })

@@ -3,6 +3,7 @@ import type {
   ChatClientOptions,
   ChatClientState,
   ChatRequestBody,
+  ConnectionStatus,
   MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
@@ -29,8 +30,20 @@ export type { ChatRequestBody, MultimodalContent, UIMessage }
 export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
   Omit<
     ChatClientOptions<TTools>,
-    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange' | 'onStatusChange'
-  >
+    | 'onMessagesChange'
+    | 'onLoadingChange'
+    | 'onErrorChange'
+    | 'onStatusChange'
+    | 'onSubscriptionChange'
+    | 'onConnectionStatusChange'
+    | 'onSessionGeneratingChange'
+  > & {
+    /**
+     * Opt into mount-time live subscription behavior.
+     * When enabled, the hook subscribes on mount and unsubscribes on unmount.
+     */
+    live?: boolean
+  }
 
 export interface UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -94,6 +107,24 @@ export interface UseChatReturn<
    * Current status of the chat client
    */
   status: ChatClientState
+
+  /**
+   * Whether the subscription loop is currently active
+   */
+  isSubscribed: boolean
+
+  /**
+   * Current connection lifecycle status
+   */
+  connectionStatus: ConnectionStatus
+
+  /**
+   * Whether the shared session is actively generating.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `isLoading` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
+  sessionGenerating: boolean
 
   /**
    * Set messages manually
