@@ -46,6 +46,24 @@ export interface ChunkStrategy {
 }
 
 /**
+ * Per-message streaming state.
+ * Tracks the accumulation of text, tool calls, and thinking content
+ * for a single message in the stream.
+ */
+export interface MessageStreamState {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  totalTextContent: string
+  currentSegmentText: string
+  lastEmittedText: string
+  thinkingContent: string
+  toolCalls: Map<string, InternalToolCallState>
+  toolCallOrder: Array<string>
+  hasToolCallsSinceTextStart: boolean
+  isComplete: boolean
+}
+
+/**
  * Result from processing a stream
  */
 export interface ProcessorResult {

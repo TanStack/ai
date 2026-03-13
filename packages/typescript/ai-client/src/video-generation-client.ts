@@ -1,7 +1,7 @@
 import { GENERATION_EVENTS } from './generation-types'
 import { parseSSEResponse } from './sse-parser'
 import type { StreamChunk } from '@tanstack/ai'
-import type { ConnectionAdapter } from './connection-adapters'
+import type { ConnectConnectionAdapter } from './connection-adapters'
 import type {
   GenerationClientState,
   GenerationFetcher,
@@ -36,14 +36,14 @@ interface VideoCallbacks<TOutput> {
  * until completion. This client handles the full lifecycle.
  *
  * Supports two transport modes:
- * - **ConnectionAdapter** — Server handles the polling loop internally and
+ * - **ConnectConnectionAdapter** — Server handles the polling loop internally and
  *   streams status updates via CUSTOM events.
  * - **Fetcher** — Direct async function that returns a completed
  *   `VideoGenerateResult`.
  *
  * @example
  * ```typescript
- * // With ConnectionAdapter (server-driven polling)
+ * // With streaming connection adapter (server-driven polling)
  * const client = new VideoGenerationClient({
  *   connection: fetchServerSentEvents('/api/generate/video'),
  *   onResultChange: setResult,
@@ -65,7 +65,7 @@ interface VideoCallbacks<TOutput> {
  * ```
  */
 export class VideoGenerationClient<TOutput = VideoGenerateResult> {
-  private connection: ConnectionAdapter | undefined
+  private connection: ConnectConnectionAdapter | undefined
   private fetcher:
     | GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
     | undefined
@@ -83,7 +83,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   constructor(
     options: VideoGenerationClientOptions<TOutput> &
       (
-        | { connection: ConnectionAdapter; fetcher?: never }
+        | { connection: ConnectConnectionAdapter; fetcher?: never }
         | {
             fetcher: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
             connection?: never
@@ -174,7 +174,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   /**
-   * Process a stream of AG-UI events from the ConnectionAdapter.
+   * Process a stream of AG-UI events from the streaming connection adapter.
    * The server handles the polling loop and streams status updates.
    */
   private async processStream(
