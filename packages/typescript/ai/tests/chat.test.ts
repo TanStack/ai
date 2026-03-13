@@ -9,6 +9,16 @@ import {
   clientTool,
 } from './test-utils'
 
+/** Lazy server tool (has execute, lazy: true). */
+function lazyServerTool(name: string, executeFn: (args: any) => any): Tool {
+  return {
+    name,
+    description: `Lazy tool: ${name}`,
+    execute: executeFn,
+    lazy: true,
+  }
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -1076,6 +1086,201 @@ describe('chat()', () => {
       })
 
       expect(result).toBe('Hello')
+    })
+  })
+
+  // ==========================================================================
+  // Lazy tool discovery
+  // ==========================================================================
+  describe('lazy tool discovery', () => {
+    it('should create discovery tool when lazy tools are provided', async () => {
+      const weatherExecute = vi.fn().mockReturnValue({ temp: 72 })
+
+      let callCount = 0
+      const { adapter, calls } = createMockAdapter({
+        chatStreamFn: (opts: any) => {
+          callCount++
+          const toolNames = opts.tools?.map((t: any) => t.name) || []
+
+          if (callCount === 1) {
+            // First call: only discovery tool available, LLM discovers getWeather
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_disc', '__lazy__tool__discovery__')
+              yield ev.toolArgs(
+                'call_disc',
+                JSON.stringify({ toolNames: ['getWeather'] }),
+              )
+              yield ev.runFinished('tool_calls')
+            })()
+          } else if (callCount === 2 && toolNames.includes('getWeather')) {
+            // Second call: getWeather is now available, LLM calls it
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_weather', 'getWeather')
+              yield ev.toolArgs('call_weather', '{"city":"NYC"}')
+              yield ev.runFinished('tool_calls')
+            })()
+          } else {
+            // Third call: final text after tool execution
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.textStart()
+              yield ev.textContent('It is 72F in NYC.')
+              yield ev.textEnd()
+              yield ev.runFinished('stop')
+            })()
+          }
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather in NYC?' }],
+        tools: [lazyServerTool('getWeather', weatherExecute)],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // First adapter call should have __lazy__tool__discovery__ but NOT getWeather
+      const firstCallToolNames = calls[0].tools.map((t: any) => t.name)
+      expect(firstCallToolNames).toContain('__lazy__tool__discovery__')
+      expect(firstCallToolNames).not.toContain('getWeather')
+
+      // Second adapter call should have getWeather (after discovery)
+      const secondCallToolNames = calls[1].tools.map((t: any) => t.name)
+      expect(secondCallToolNames).toContain('getWeather')
+
+      // TOOL_CALL_END chunks should exist for both discovery and getWeather
+      const toolEndChunks = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+      expect(toolEndChunks.length).toBeGreaterThanOrEqual(2)
+
+      // getWeather should have been executed
+      expect(weatherExecute).toHaveBeenCalledTimes(1)
+    })
+
+    it('should work with mix of eager and lazy tools', async () => {
+      const eagerExecute = vi.fn().mockReturnValue({ result: 'eager' })
+      const lazyExecute = vi.fn().mockReturnValue({ result: 'lazy' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), ev.textContent('Hello'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [
+          serverTool('eagerTool', eagerExecute),
+          lazyServerTool('lazyTool', lazyExecute),
+        ],
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // First adapter call should have eager tool + discovery tool, but NOT lazyTool
+      const firstCallToolNames = calls[0].tools.map((t: any) => t.name)
+      expect(firstCallToolNames).toContain('eagerTool')
+      expect(firstCallToolNames).toContain('__lazy__tool__discovery__')
+      expect(firstCallToolNames).not.toContain('lazyTool')
+    })
+
+    it('should handle undiscovered lazy tool call with self-correcting error', async () => {
+      const weatherExecute = vi.fn().mockReturnValue({ temp: 72 })
+
+      let callCount = 0
+      const { adapter } = createMockAdapter({
+        chatStreamFn: (opts: any) => {
+          callCount++
+          const toolNames = opts.tools?.map((t: any) => t.name) || []
+
+          if (callCount === 1) {
+            // First call: LLM tries to call getWeather without discovering it
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_weather_bad', 'getWeather')
+              yield ev.toolArgs('call_weather_bad', '{"city":"NYC"}')
+              yield ev.runFinished('tool_calls')
+            })()
+          } else if (callCount === 2) {
+            // Second call: LLM discovers getWeather
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_disc', '__lazy__tool__discovery__')
+              yield ev.toolArgs(
+                'call_disc',
+                JSON.stringify({ toolNames: ['getWeather'] }),
+              )
+              yield ev.runFinished('tool_calls')
+            })()
+          } else if (callCount === 3 && toolNames.includes('getWeather')) {
+            // Third call: LLM now calls getWeather successfully
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_weather_ok', 'getWeather')
+              yield ev.toolArgs('call_weather_ok', '{"city":"NYC"}')
+              yield ev.runFinished('tool_calls')
+            })()
+          } else {
+            // Fourth call: final text
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.textStart()
+              yield ev.textContent('72F in NYC')
+              yield ev.textEnd()
+              yield ev.runFinished('stop')
+            })()
+          }
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather in NYC?' }],
+        tools: [lazyServerTool('getWeather', weatherExecute)],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // The first tool call result should contain a "must be discovered first" error
+      const toolEndChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END',
+      ) as Array<any>
+      const errorResult = toolEndChunks.find(
+        (c: any) =>
+          c.toolName === 'getWeather' &&
+          c.result &&
+          c.result.includes('must be discovered first'),
+      )
+      expect(errorResult).toBeDefined()
+
+      // Eventually getWeather should be executed successfully
+      expect(weatherExecute).toHaveBeenCalledTimes(1)
+    })
+
+    it('should not create discovery tool when no lazy tools exist', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ result: 'ok' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), ev.textContent('Hi'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [serverTool('normalTool', executeSpy)],
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // No __lazy__tool__discovery__ should appear in the tools sent to the adapter
+      const toolNames = calls[0].tools.map((t: any) => t.name)
+      expect(toolNames).not.toContain('__lazy__tool__discovery__')
+      expect(toolNames).toContain('normalTool')
     })
   })
 })

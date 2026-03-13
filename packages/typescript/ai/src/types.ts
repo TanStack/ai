@@ -493,6 +493,9 @@ export interface Tool<
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
 
+  /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat(). */
+  lazy?: boolean
+
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any>
 }
