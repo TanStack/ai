@@ -29,10 +29,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   )
   const isFirstMountRef = useRef(true)
 
-  // Update ref whenever messages change
-  useEffect(() => {
-    messagesRef.current = messages
-  }, [messages])
+  // Update ref synchronously during render so it's always current when useMemo runs.
+  // A useEffect here would be async and messagesRef could be stale on client recreation.
+  messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
   const optionsRef = useRef<UseChatOptions<TTools>>(options)
