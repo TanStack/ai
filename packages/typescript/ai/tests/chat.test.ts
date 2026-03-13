@@ -809,6 +809,79 @@ describe('chat()', () => {
         expect(argsIdx).toBeLessThan(endIdx)
       }
     })
+
+    it('should emit TOOL_CALL_START and TOOL_CALL_ARGS for the server tool in a mixed pending batch', async () => {
+      const weatherSpy = vi.fn().mockReturnValue({ temp: 72 })
+
+      const { adapter } = createMockAdapter({ iterations: [] })
+
+      const stream = chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'Weather and notify?' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_server',
+                type: 'function' as const,
+                function: { name: 'getWeather', arguments: '{"city":"NYC"}' },
+              },
+              {
+                id: 'call_client',
+                type: 'function' as const,
+                function: {
+                  name: 'showNotification',
+                  arguments: '{"message":"done"}',
+                },
+              },
+            ],
+          },
+          // No tool results -> both pending
+        ],
+        tools: [
+          serverTool('getWeather', weatherSpy),
+          clientTool('showNotification'),
+        ],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Server tool should have executed
+      expect(weatherSpy).toHaveBeenCalledTimes(1)
+
+      // The executed server tool should get the full START -> ARGS -> END
+      const starts = chunks.filter(
+        (c) =>
+          c.type === 'TOOL_CALL_START' &&
+          (c as any).toolCallId === 'call_server',
+      )
+      expect(starts).toHaveLength(1)
+      expect((starts[0] as any).toolName).toBe('getWeather')
+
+      const argChunks = chunks.filter(
+        (c) =>
+          c.type === 'TOOL_CALL_ARGS' &&
+          (c as any).toolCallId === 'call_server',
+      )
+      expect(argChunks).toHaveLength(1)
+      expect((argChunks[0] as any).delta).toBe('{"city":"NYC"}')
+
+      const ends = chunks.filter(
+        (c) =>
+          c.type === 'TOOL_CALL_END' &&
+          (c as any).toolCallId === 'call_server',
+      )
+      expect(ends).toHaveLength(1)
+
+      // Verify ordering
+      const startIdx = chunks.indexOf(starts[0]!)
+      const argsIdx = chunks.indexOf(argChunks[0]!)
+      const endIdx = chunks.indexOf(ends[0]!)
+      expect(startIdx).toBeLessThan(argsIdx)
+      expect(argsIdx).toBeLessThan(endIdx)
+    })
   })
 
   // ==========================================================================
