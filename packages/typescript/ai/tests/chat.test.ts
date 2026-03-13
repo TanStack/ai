@@ -704,24 +704,20 @@ describe('chat()', () => {
       // to store the tool call with empty arguments {}.
       const toolStartChunks = chunks.filter(
         (c) =>
-          c.type === 'TOOL_CALL_START' &&
-          (c as any).toolCallId === 'call_1',
+          c.type === 'TOOL_CALL_START' && (c as any).toolCallId === 'call_1',
       )
       expect(toolStartChunks).toHaveLength(1)
       expect((toolStartChunks[0] as any).toolName).toBe('getWeather')
 
       const toolArgsChunks = chunks.filter(
         (c) =>
-          c.type === 'TOOL_CALL_ARGS' &&
-          (c as any).toolCallId === 'call_1',
+          c.type === 'TOOL_CALL_ARGS' && (c as any).toolCallId === 'call_1',
       )
       expect(toolArgsChunks).toHaveLength(1)
       expect((toolArgsChunks[0] as any).delta).toBe('{"city":"NYC"}')
 
       const toolEndChunks = chunks.filter(
-        (c) =>
-          c.type === 'TOOL_CALL_END' &&
-          (c as any).toolCallId === 'call_1',
+        (c) => c.type === 'TOOL_CALL_END' && (c as any).toolCallId === 'call_1',
       )
       expect(toolEndChunks).toHaveLength(1)
 
