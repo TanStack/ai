@@ -66,7 +66,7 @@ export interface ToolCallPart {
 export interface ToolResultPart {
   type: 'tool-result'
   toolCallId: string
-  content: string
+  content: string | Array<any>
   state: ToolResultState
   error?: string
 }
@@ -644,6 +644,20 @@ export interface AIDevtoolsEventMap {
   'client:messages:cleared': ClientMessagesClearedEvent
   'client:reloaded': ClientReloadedEvent
   'client:stopped': ClientStoppedEvent
+}
+
+// Ensure a shared EventTarget exists on server environments (Node, Bun,
+// Cloudflare Workers, etc.) so that emit() and on() operate on the same
+// target.  In browsers, `window` is used automatically.
+// See https://github.com/TanStack/ai/issues/341
+if (
+  typeof globalThis !== 'undefined' &&
+  !globalThis.__TANSTACK_EVENT_TARGET__ &&
+  typeof window === 'undefined'
+) {
+  if (typeof EventTarget !== 'undefined') {
+    globalThis.__TANSTACK_EVENT_TARGET__ = new EventTarget()
+  }
 }
 
 class AiEventClient extends EventClient<AIDevtoolsEventMap> {

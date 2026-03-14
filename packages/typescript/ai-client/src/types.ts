@@ -143,7 +143,8 @@ export type ToolCallPart<TTools extends ReadonlyArray<AnyClientTool> = any> =
 export interface ToolResultPart {
   type: 'tool-result'
   toolCallId: string
-  content: string
+  /** Tool result content. String for text results, or an array for multimodal results. */
+  content: string | Array<any>
   state: ToolResultState
   error?: string // Error message if state is "error"
 }

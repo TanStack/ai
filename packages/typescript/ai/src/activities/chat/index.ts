@@ -1001,7 +1001,12 @@ class TextEngine<
     const chunks: Array<StreamChunk> = []
 
     for (const result of results) {
-      const content = JSON.stringify(result.result)
+      // Preserve arrays (e.g. multimodal content parts) and strings;
+      // stringify other values.
+      const content =
+        typeof result.result === 'string' || Array.isArray(result.result)
+          ? result.result
+          : JSON.stringify(result.result)
 
       chunks.push({
         type: 'TOOL_CALL_END',
