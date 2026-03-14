@@ -97,7 +97,7 @@ export function updateToolResultPart(
   messages: Array<UIMessage>,
   messageId: string,
   toolCallId: string,
-  content: string,
+  content: string | Array<any>,
   state: ToolResultState,
   error?: string,
 ): Array<UIMessage> {

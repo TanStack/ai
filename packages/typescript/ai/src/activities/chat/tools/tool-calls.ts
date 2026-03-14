@@ -161,7 +161,7 @@ export class ToolCallManager {
     for (const toolCall of toolCallsArray) {
       const tool = this.tools.find((t) => t.name === toolCall.function.name)
 
-      let toolResultContent: string
+      let toolResultContent: string | Array<any>
       if (tool?.execute) {
         try {
           // Parse arguments (normalize "null" to "{}" for empty tool_use blocks)
@@ -213,8 +213,12 @@ export class ToolCallManager {
             }
           }
 
+          // Preserve arrays (e.g. multimodal content parts) as-is;
+          // stringify other non-string values for the conversation history.
           toolResultContent =
-            typeof result === 'string' ? result : JSON.stringify(result)
+            typeof result === 'string' || Array.isArray(result)
+              ? result
+              : JSON.stringify(result)
         } catch (error: unknown) {
           // If tool execution fails, add error message
           const message =

@@ -1,7 +1,7 @@
 ---
 title: Quick Start
 id: quick-start
-order: 2
+order: 3
 ---
 
 Get started with TanStack AI in minutes. This guide will walk you through creating a simple chat application using the React integration and OpenAI adapter.
