@@ -1,12 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AnyTextAdapter } from '@tanstack/ai'
 import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
-import type { AnyTextAdapter } from '@tanstack/ai'
 import { cityTools } from '@/lib/tools/city-tools'
+import { structuredOutput } from '@/lib/structured-output-types'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
 
@@ -25,18 +24,6 @@ const JSON_SCHEMA_DESCRIPTION = `{
   },
   "nextSteps": ["string — practical follow-up actions"]
 }`
-
-const STRUCTURED_OUTPUT_SYSTEM_PROMPT = `You are a travel research assistant.
-
-RULES — follow these exactly:
-1. Do NOT produce any conversational text at any point. No greetings, no "let me", no narration, no status updates, no commentary. SILENCE except for tool calls and the final JSON.
-2. Immediately call execute_typescript to use the city data tools. Chain multiple tool calls if needed.
-3. After all tool calls are done, output ONLY a single raw JSON object (no code fences, no markdown, no prose before or after).
-4. The JSON must match this schema exactly:
-
-${JSON_SCHEMA_DESCRIPTION}
-
-5. Every field is required. Arrays must have at least one element.`
 
 function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
   switch (provider) {
@@ -78,55 +65,30 @@ export const Route = createFileRoute(
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (request.signal.aborted) {
-          return new Response(null, { status: 499 })
+        const body = await request.json()
+        const { prompt, provider, model } = body as {
+          prompt: string
+          provider?: Provider
+          model?: string
         }
 
-        const abortController = new AbortController()
-        const body = await request.json()
-        const { messages, data } = body
-
-        const provider: Provider = data?.provider || 'anthropic'
-        const model: string | undefined = data?.model
-
-        const adapter = getAdapter(provider, model)
+        const adapter = getAdapter(provider || 'anthropic', model)
 
         try {
-          const { tool, systemPrompt } = await getCodeModeTools()
+          const codeMode = await getCodeModeTools()
 
-          const stream = chat({
+          const result = await structuredOutput({
             adapter,
-            messages,
-            tools: [tool],
-            systemPrompts: [STRUCTURED_OUTPUT_SYSTEM_PROMPT, systemPrompt],
-            agentLoopStrategy: maxIterations(10),
-            abortController,
-            maxTokens: 8192,
+            prompt,
+            jsonSchemaDescription: JSON_SCHEMA_DESCRIPTION,
+            codeMode,
           })
 
-          const wrappedStream = extractJsonFromStream(stream, adapter)
-
-          const sseStream = toServerSentEventsStream(
-            wrappedStream,
-            abortController,
-          )
-
-          return new Response(sseStream, {
-            headers: {
-              'Content-Type': 'text/event-stream',
-              'Cache-Control': 'no-cache',
-              Connection: 'keep-alive',
-            },
+          return new Response(JSON.stringify(result), {
+            headers: { 'Content-Type': 'application/json' },
           })
         } catch (error: unknown) {
           console.error('[Structured Output API] Error:', error)
-
-          if (
-            (error instanceof Error && error.name === 'AbortError') ||
-            abortController.signal.aborted
-          ) {
-            return new Response(null, { status: 499 })
-          }
 
           return new Response(
             JSON.stringify({
@@ -143,58 +105,3 @@ export const Route = createFileRoute(
     },
   },
 })
-
-async function* extractJsonFromStream(
-  stream: AsyncIterable<StreamChunk>,
-  adapter: AnyTextAdapter,
-): AsyncIterable<StreamChunk> {
-  let lastAssistantText = ''
-  let currentText = ''
-
-  for await (const chunk of stream) {
-    yield chunk
-
-    if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-      currentText += chunk.delta
-    }
-
-    if (chunk.type === 'RUN_FINISHED') {
-      if (currentText.trim()) {
-        lastAssistantText = currentText
-      }
-      currentText = ''
-    }
-  }
-
-  let jsonText = lastAssistantText.trim()
-  if (!jsonText) return
-
-  // Strip markdown code fences if the model wrapped the JSON
-  jsonText = jsonText
-    .replace(/^```(?:json)?\s*\n?/i, '')
-    .replace(/\n?```\s*$/i, '')
-    .trim()
-
-  try {
-    const parsed = JSON.parse(jsonText)
-
-    yield {
-      type: 'CUSTOM',
-      model: adapter.model,
-      timestamp: Date.now(),
-      name: 'structured_output:result',
-      value: { result: parsed },
-    }
-  } catch {
-    yield {
-      type: 'CUSTOM',
-      model: adapter.model,
-      timestamp: Date.now(),
-      name: 'structured_output:error',
-      value: {
-        error: 'Model did not return valid JSON as its final message.',
-        raw: jsonText.slice(0, 500),
-      },
-    }
-  }
-}
