@@ -16,12 +16,12 @@ vi.mock('@openrouter/sdk', () => {
 })
 
 const createAdapter = () =>
-  createOpenRouterImage('google/gemini-2.5-flash-image-preview', 'test-key')
+  createOpenRouterImage('google/gemini-2.5-flash-image', 'test-key')
 
 function createMockImageResponse(images: Array<{ url: string }>) {
   return {
     id: 'gen-123',
-    model: 'google/gemini-2.5-flash-image-preview',
+    model: 'google/gemini-2.5-flash-image',
     choices: [
       {
         finishReason: 'stop',
@@ -56,15 +56,15 @@ describe('OpenRouter Image Adapter', () => {
     const adapter = createAdapter()
 
     const result = await adapter.generateImages({
-      model: 'google/gemini-2.5-flash-image-preview',
+      model: 'google/gemini-2.5-flash-image',
       prompt: 'A futuristic city at sunset',
     })
 
     expect(mockSend).toHaveBeenCalledTimes(1)
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatGenerationParams
     expect(callArgs).toMatchObject({
-      model: 'google/gemini-2.5-flash-image-preview',
+      model: 'google/gemini-2.5-flash-image',
       modalities: ['image'],
       messages: [
         {
@@ -77,7 +77,7 @@ describe('OpenRouter Image Adapter', () => {
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0]!.url).toBe('https://example.com/image1.png')
-    expect(result.model).toBe('google/gemini-2.5-flash-image-preview')
+    expect(result.model).toBe('google/gemini-2.5-flash-image')
   })
 
   it('generates multiple images', async () => {
@@ -91,12 +91,12 @@ describe('OpenRouter Image Adapter', () => {
     const adapter = createAdapter()
 
     const result = await adapter.generateImages({
-      model: 'google/gemini-2.5-flash-image-preview',
+      model: 'google/gemini-2.5-flash-image',
       prompt: 'A cute robot mascot',
       numberOfImages: 2,
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatGenerationParams
     expect(callArgs.imageConfig).toMatchObject({
       n: 2,
       numberOfImages: 2,
@@ -119,7 +119,7 @@ describe('OpenRouter Image Adapter', () => {
     const adapter = createAdapter()
 
     const result = await adapter.generateImages({
-      model: 'google/gemini-2.5-flash-image-preview',
+      model: 'google/gemini-2.5-flash-image',
       prompt: 'A simple test image',
     })
 
@@ -138,12 +138,12 @@ describe('OpenRouter Image Adapter', () => {
     const adapter = createAdapter()
 
     await adapter.generateImages({
-      model: 'google/gemini-2.5-flash-image-preview',
+      model: 'google/gemini-2.5-flash-image',
       prompt: 'A wide landscape',
       size: '1344x768', // 16:9
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatGenerationParams
     expect(callArgs.imageConfig).toMatchObject({
       aspect_ratio: '16:9',
     })
@@ -159,12 +159,12 @@ describe('OpenRouter Image Adapter', () => {
     const adapter = createAdapter()
 
     await adapter.generateImages({
-      model: 'google/gemini-2.5-flash-image-preview',
+      model: 'google/gemini-2.5-flash-image',
       prompt: 'A square image',
       size: '1024x1024',
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatGenerationParams
     expect(callArgs.imageConfig).toMatchObject({
       aspect_ratio: '1:1',
     })
@@ -194,7 +194,7 @@ describe('OpenRouter Image Adapter', () => {
 
     await expect(
       adapter.generateImages({
-        model: 'google/gemini-2.5-flash-image-preview',
+        model: 'google/gemini-2.5-flash-image',
         prompt: 'Inappropriate content',
       }),
     ).rejects.toThrow('Image generation failed: Content policy violation')
@@ -210,14 +210,14 @@ describe('OpenRouter Image Adapter', () => {
     const adapter = createAdapter()
 
     await adapter.generateImages({
-      model: 'google/gemini-2.5-flash-image-preview',
+      model: 'google/gemini-2.5-flash-image',
       prompt: 'Test',
       modelOptions: {
         image_size: '4K',
       },
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatGenerationParams
     expect(callArgs.imageConfig).toMatchObject({
       image_size: '4K',
     })

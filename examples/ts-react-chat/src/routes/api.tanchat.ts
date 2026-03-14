@@ -142,7 +142,7 @@ export const Route = createFileRoute('/api/tanchat')({
             createChatOptions({
               adapter: openRouterText('openai/gpt-5.1'),
               modelOptions: {
-                models: ['openai/chatgpt-4o-latest'],
+                models: ['openai/gpt-4o'],
                 route: 'fallback',
                 reasoning: {
                   effort: 'medium',
