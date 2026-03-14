@@ -691,6 +691,13 @@ class TextEngine<
       needsClientExecution: executionResult.needsClientExecution,
     })
 
+    // Build args lookup so buildToolResultChunks can emit TOOL_CALL_START +
+    // TOOL_CALL_ARGS before TOOL_CALL_END during continuation re-executions.
+    const argsMap = new Map<string, string>()
+    for (const tc of pendingToolCalls) {
+      argsMap.set(tc.id, tc.function.arguments)
+    }
+
     if (
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
@@ -699,6 +706,7 @@ class TextEngine<
         for (const chunk of this.buildToolResultChunks(
           executionResult.results,
           finishEvent,
+          argsMap,
         )) {
           yield chunk
         }
@@ -725,6 +733,7 @@ class TextEngine<
     const toolResultChunks = this.buildToolResultChunks(
       executionResult.results,
       finishEvent,
+      argsMap,
     )
 
     for (const chunk of toolResultChunks) {
@@ -997,11 +1006,33 @@ class TextEngine<
   private buildToolResultChunks(
     results: Array<ToolResult>,
     finishEvent: RunFinishedEvent,
+    argsMap?: Map<string, string>,
   ): Array<StreamChunk> {
     const chunks: Array<StreamChunk> = []
 
     for (const result of results) {
       const content = JSON.stringify(result.result)
+
+      // Emit TOOL_CALL_START + TOOL_CALL_ARGS before TOOL_CALL_END so that
+      // the client can reconstruct the full tool call during continuations.
+      if (argsMap) {
+        chunks.push({
+          type: 'TOOL_CALL_START',
+          timestamp: Date.now(),
+          model: finishEvent.model,
+          toolCallId: result.toolCallId,
+          toolName: result.toolName,
+        })
+
+        const args = argsMap.get(result.toolCallId) ?? '{}'
+        chunks.push({
+          type: 'TOOL_CALL_ARGS',
+          timestamp: Date.now(),
+          model: finishEvent.model,
+          toolCallId: result.toolCallId,
+          delta: args,
+        })
+      }
 
       chunks.push({
         type: 'TOOL_CALL_END',
