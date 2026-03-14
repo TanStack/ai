@@ -5,16 +5,16 @@ import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { createAlwaysTrustedStrategy } from '@tanstack/ai-code-mode-skills'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const skillsDir = resolve(__dirname, '../../../.db-skills')
-
+const skillsDir = resolve(__dirname, '../../../.structured-output-skills')
 const trustStrategy = createAlwaysTrustedStrategy()
-
 const skillStorage = createFileSkillStorage({
   directory: skillsDir,
   trustStrategy,
 })
 
-export const Route = createFileRoute('/_database-demo/api/db-skills' as any)({
+export const Route = createFileRoute(
+  '/_structured-output/api/structured-output-skills',
+)({
   server: {
     handlers: {
       GET: async () => {
@@ -40,7 +40,10 @@ export const Route = createFileRoute('/_database-demo/api/db-skills' as any)({
             headers: { 'Content-Type': 'application/json' },
           })
         } catch (error) {
-          console.error('[API DB Skills] Error loading skills:', error)
+          console.error(
+            '[API Structured Output Skills] Error loading skills:',
+            error,
+          )
           return new Response(
             JSON.stringify({ error: 'Failed to load skills' }),
             {
@@ -100,7 +103,10 @@ export const Route = createFileRoute('/_database-demo/api/db-skills' as any)({
             },
           )
         } catch (error) {
-          console.error('[API DB Skills] Error deleting skill:', error)
+          console.error(
+            '[API Structured Output Skills] Error deleting skill:',
+            error,
+          )
           return new Response(
             JSON.stringify({ error: 'Failed to delete skill' }),
             {

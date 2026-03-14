@@ -80,7 +80,7 @@ async function getCodeModeTools() {
 // --- Skills storage ---
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const skillsDir = resolve(__dirname, '../../../../.db-skills')
+const skillsDir = resolve(__dirname, '../../../.db-skills')
 const trustStrategy = createAlwaysTrustedStrategy()
 const skillStorage = createFileSkillStorage({
   directory: skillsDir,
@@ -260,7 +260,12 @@ export const Route = createFileRoute(
             if (withSkills) {
               const { skillTools, skillsPrompt } =
                 await getSkillToolsAndPrompt(driver)
-              tools = [tool, getSchemaInfoTool, ...getSkillManagementTools(), ...skillTools]
+              tools = [
+                tool,
+                getSchemaInfoTool,
+                ...getSkillManagementTools(),
+                ...skillTools,
+              ]
               systemPrompts = [
                 DATABASE_DEMO_SYSTEM_PROMPT,
                 systemPrompt,
@@ -283,7 +288,10 @@ export const Route = createFileRoute(
           })
 
           const instrumentedStream = wrapWithTimingEvents(stream, rawAdapter)
-          const sseStream = toServerSentEventsStream(instrumentedStream, abortController)
+          const sseStream = toServerSentEventsStream(
+            instrumentedStream,
+            abortController,
+          )
 
           return new Response(sseStream, {
             headers: {

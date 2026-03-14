@@ -21,6 +21,7 @@ import { Route as ReportingReportingAgentRouteImport } from './routes/_reporting
 import { Route as NpmGithubChatNpmGithubChatRouteImport } from './routes/_npm-github-chat/npm-github-chat'
 import { Route as DatabaseDemoDatabaseDemoRouteImport } from './routes/_database-demo/database-demo'
 import { Route as BankingDemoBankingDemoRouteImport } from './routes/_banking-demo/banking-demo'
+import { Route as StructuredOutputApiStructuredOutputSkillsRouteImport } from './routes/_structured-output/api.structured-output-skills'
 import { Route as StructuredOutputApiStructuredOutputRouteImport } from './routes/_structured-output/api.structured-output'
 import { Route as ReportingApiReportsRouteImport } from './routes/_reporting/api.reports'
 import { Route as ReportingApiReportSseRouteImport } from './routes/_reporting/api.report-sse'
@@ -95,6 +96,12 @@ const BankingDemoBankingDemoRoute = BankingDemoBankingDemoRouteImport.update({
   path: '/banking-demo',
   getParentRoute: () => BankingDemoRouteRoute,
 } as any)
+const StructuredOutputApiStructuredOutputSkillsRoute =
+  StructuredOutputApiStructuredOutputSkillsRouteImport.update({
+    id: '/api/structured-output-skills',
+    path: '/api/structured-output-skills',
+    getParentRoute: () => StructuredOutputRouteRoute,
+  } as any)
 const StructuredOutputApiStructuredOutputRoute =
   StructuredOutputApiStructuredOutputRouteImport.update({
     id: '/api/structured-output',
@@ -205,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/api/report-sse': typeof ReportingApiReportSseRoute
   '/api/reports': typeof ReportingApiReportsRoute
   '/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
+  '/api/structured-output-skills': typeof StructuredOutputApiStructuredOutputSkillsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof HomeIndexRoute
@@ -229,6 +237,7 @@ export interface FileRoutesByTo {
   '/api/report-sse': typeof ReportingApiReportSseRoute
   '/api/reports': typeof ReportingApiReportsRoute
   '/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
+  '/api/structured-output-skills': typeof StructuredOutputApiStructuredOutputSkillsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -260,6 +269,7 @@ export interface FileRoutesById {
   '/_reporting/api/report-sse': typeof ReportingApiReportSseRoute
   '/_reporting/api/reports': typeof ReportingApiReportsRoute
   '/_structured-output/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
+  '/_structured-output/api/structured-output-skills': typeof StructuredOutputApiStructuredOutputSkillsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | '/api/report-sse'
     | '/api/reports'
     | '/api/structured-output'
+    | '/api/structured-output-skills'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -310,6 +321,7 @@ export interface FileRouteTypes {
     | '/api/report-sse'
     | '/api/reports'
     | '/api/structured-output'
+    | '/api/structured-output-skills'
   id:
     | '__root__'
     | '/_banking-demo'
@@ -340,6 +352,7 @@ export interface FileRouteTypes {
     | '/_reporting/api/report-sse'
     | '/_reporting/api/reports'
     | '/_structured-output/api/structured-output'
+    | '/_structured-output/api/structured-output-skills'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -436,6 +449,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/banking-demo'
       preLoaderRoute: typeof BankingDemoBankingDemoRouteImport
       parentRoute: typeof BankingDemoRouteRoute
+    }
+    '/_structured-output/api/structured-output-skills': {
+      id: '/_structured-output/api/structured-output-skills'
+      path: '/api/structured-output-skills'
+      fullPath: '/api/structured-output-skills'
+      preLoaderRoute: typeof StructuredOutputApiStructuredOutputSkillsRouteImport
+      parentRoute: typeof StructuredOutputRouteRoute
     }
     '/_structured-output/api/structured-output': {
       id: '/_structured-output/api/structured-output'
@@ -642,12 +662,15 @@ const ReportingRouteRouteWithChildren = ReportingRouteRoute._addFileChildren(
 interface StructuredOutputRouteRouteChildren {
   StructuredOutputStructuredOutputRoute: typeof StructuredOutputStructuredOutputRoute
   StructuredOutputApiStructuredOutputRoute: typeof StructuredOutputApiStructuredOutputRoute
+  StructuredOutputApiStructuredOutputSkillsRoute: typeof StructuredOutputApiStructuredOutputSkillsRoute
 }
 
 const StructuredOutputRouteRouteChildren: StructuredOutputRouteRouteChildren = {
   StructuredOutputStructuredOutputRoute: StructuredOutputStructuredOutputRoute,
   StructuredOutputApiStructuredOutputRoute:
     StructuredOutputApiStructuredOutputRoute,
+  StructuredOutputApiStructuredOutputSkillsRoute:
+    StructuredOutputApiStructuredOutputSkillsRoute,
 }
 
 const StructuredOutputRouteRouteWithChildren =
