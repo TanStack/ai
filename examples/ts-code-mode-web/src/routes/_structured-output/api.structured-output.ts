@@ -7,30 +7,39 @@ import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
+import { z } from 'zod'
 
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 
 import { cityTools } from '@/lib/tools/city-tools'
-import { structuredOutput } from '@/lib/structured-output-types'
+import { structuredOutput } from '@/lib/structured-output'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
 
-const JSON_SCHEMA_DESCRIPTION = `{
-  "title": "string — short title for the report",
-  "summary": "string — one paragraph summary",
-  "keyFindings": ["string — each a key finding"],
-  "recommendedCities": [
-    { "name": "string", "country": "string", "reason": "string" }
-  ],
-  "comparison": {
-    "firstCity": "string",
-    "secondCity": "string",
-    "populationDifferenceMillions": number,
-    "highlights": ["string"]
-  },
-  "nextSteps": ["string — practical follow-up actions"]
-}`
+const TravelReportSchema = z.object({
+  title: z.string().describe('Short title for the report'),
+  summary: z.string().describe('One paragraph summary'),
+  keyFindings: z.array(z.string()).describe('Key findings'),
+  recommendedCities: z
+    .array(
+      z.object({
+        name: z.string(),
+        country: z.string(),
+        reason: z.string(),
+      }),
+    )
+    .describe('Recommended cities with reasons'),
+  comparison: z.object({
+    firstCity: z.string(),
+    secondCity: z.string(),
+    populationDifferenceMillions: z.number(),
+    highlights: z.array(z.string()),
+  }),
+  nextSteps: z
+    .array(z.string())
+    .describe('Practical follow-up actions'),
+})
 
 function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
   switch (provider) {
@@ -97,7 +106,7 @@ export const Route = createFileRoute(
           const result = await structuredOutput({
             adapter,
             prompt,
-            jsonSchemaDescription: JSON_SCHEMA_DESCRIPTION,
+            outputSchema: TravelReportSchema,
             codeMode: {
               tool,
               systemPrompt,
