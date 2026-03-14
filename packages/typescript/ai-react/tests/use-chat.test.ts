@@ -1,7 +1,9 @@
 import type { ModelMessage } from '@tanstack/ai'
-import { waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { UIMessage } from '../src/types'
+import type { UIMessage, UseChatOptions } from '../src/types'
+import { useChat } from '../src/use-chat'
 import {
   createMockConnectionAdapter,
   createTextChunks,
@@ -832,6 +834,64 @@ describe('useChat', () => {
 
         // Should not throw
         expect(result.current).toBeDefined()
+      })
+    })
+
+    describe('client recreation', () => {
+      it('should pass existing messages to new client when id changes in a batched update', async () => {
+        const connectSpy = vi.fn()
+        const chunks = createTextChunks('Reply')
+        const adapter = createMockConnectionAdapter({
+          chunks,
+          onConnect: connectSpy,
+        })
+
+        // Control id via state so setMessages and setId are both React
+        // state updates that get batched into a single render.
+        const { result } = renderHook(() => {
+          const [id, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, id })
+          return { ...chat, switchId: setId }
+        })
+
+        const messages: Array<UIMessage> = [
+          {
+            id: 'msg-1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Hello' }],
+            createdAt: new Date(),
+          },
+          {
+            id: 'msg-2',
+            role: 'assistant',
+            parts: [{ type: 'text', content: 'Hi there!' }],
+            createdAt: new Date(),
+          },
+        ]
+
+        // Batch: set messages AND change id in one render cycle.
+        // With the useEffect ref pattern, the new ChatClient is created
+        // with stale (empty) initialMessages because messagesRef hasn't
+        // been updated yet.
+        act(() => {
+          result.current.setMessages(messages)
+          result.current.switchId('client-B')
+        })
+
+        // Send a message through the new client. If the client lost the
+        // previous messages, the adapter only receives the new message.
+        await act(async () => {
+          await result.current.sendMessage('Follow-up')
+        })
+
+        await waitFor(() => {
+          expect(connectSpy).toHaveBeenCalled()
+        })
+
+        // The adapter should receive the previous conversation + new message.
+        const sentMessages = connectSpy.mock.calls[0]![0] as Array<any>
+        const userMessages = sentMessages.filter((m: any) => m.role === 'user')
+        expect(userMessages.length).toBeGreaterThanOrEqual(2)
       })
     })
 
