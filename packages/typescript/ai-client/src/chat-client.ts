@@ -572,6 +572,10 @@ export class ChatClient {
     this.setError(undefined)
     this.errorReportedGeneration = null
     this.abortController = new AbortController()
+    // Capture the signal immediately so that a concurrent stop() or
+    // sendMessage() that reassigns this.abortController cannot cause
+    // connect() to receive a stale or null signal.
+    const signal = this.abortController.signal
     // Reset pending tool executions for the new stream
     this.pendingToolExecutions.clear()
     let streamCompletedSuccessfully = false
@@ -613,7 +617,7 @@ export class ChatClient {
       await this.connection.send(
         messages,
         mergedBody,
-        this.abortController.signal,
+        signal,
       )
 
       // Wait for subscription loop to finish processing all chunks
