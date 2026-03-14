@@ -21,6 +21,7 @@ interface ModelMeta<
     extended_thinking?: boolean
     adaptive_thinking?: boolean
     priority_tier?: boolean
+    structured_output?: boolean
   }
   context_window?: number
   max_output_tokens?: number
@@ -66,6 +67,7 @@ const CLAUDE_OPUS_4_6 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    structured_output: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -96,6 +98,7 @@ const CLAUDE_OPUS_4_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    structured_output: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -126,6 +129,7 @@ const CLAUDE_SONNET_4_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    structured_output: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -156,6 +160,7 @@ const CLAUDE_HAIKU_4_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    structured_output: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -186,6 +191,7 @@ const CLAUDE_OPUS_4_1 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    structured_output: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -216,6 +222,7 @@ const CLAUDE_SONNET_4 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    structured_output: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -245,6 +252,7 @@ const CLAUDE_SONNET_3_7 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    structured_output: false,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -275,6 +283,7 @@ const CLAUDE_OPUS_4 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    structured_output: true,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -305,6 +314,7 @@ const CLAUDE_HAIKU_3_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: false,
     priority_tier: true,
+    structured_output: false,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -335,6 +345,7 @@ const CLAUDE_HAIKU_3 = {
     input: ['text', 'image', 'document'],
     extended_thinking: false,
     priority_tier: false,
+    structured_output: false,
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -404,6 +415,20 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_HAIKU_3_5.id,
   CLAUDE_HAIKU_3.id,
 ] as const
+
+/**
+ * Models that support Anthropic's native structured output API (output_config with json_schema).
+ * Only Claude 4+ models support this feature.
+ */
+export const ANTHROPIC_STRUCTURED_OUTPUT_MODELS: ReadonlySet<string> = new Set([
+  CLAUDE_OPUS_4_6.id,
+  CLAUDE_OPUS_4_5.id,
+  CLAUDE_SONNET_4_5.id,
+  CLAUDE_HAIKU_4_5.id,
+  CLAUDE_OPUS_4_1.id,
+  CLAUDE_SONNET_4.id,
+  CLAUDE_OPUS_4.id,
+])
 
 // const ANTHROPIC_IMAGE_MODELS = [] as const
 // const ANTHROPIC_EMBEDDING_MODELS = [] as const

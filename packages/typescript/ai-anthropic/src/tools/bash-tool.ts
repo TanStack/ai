@@ -1,10 +1,7 @@
-import type {
-  BetaToolBash20241022,
-  BetaToolBash20250124,
-} from '@anthropic-ai/sdk/resources/beta'
+import type { ToolBash20250124 } from '@anthropic-ai/sdk/resources/messages'
 import type { Tool } from '@tanstack/ai'
 
-export type BashTool = BetaToolBash20241022 | BetaToolBash20250124
+export type BashTool = ToolBash20250124
 
 export function convertBashToolToAdapterFormat(tool: Tool): BashTool {
   const metadata = tool.metadata as BashTool

@@ -6,11 +6,11 @@ import { convertMemoryToolToAdapterFormat } from './memory-tool'
 import { convertTextEditorToolToAdapterFormat } from './text-editor-tool'
 import { convertWebFetchToolToAdapterFormat } from './web-fetch-tool'
 import { convertWebSearchToolToAdapterFormat } from './web-search-tool'
-import type { AnthropicTool } from '.'
+import type { ToolUnion } from '@anthropic-ai/sdk/resources/messages'
 import type { Tool } from '@tanstack/ai'
 
 /**
- * Converts standard Tool format to Anthropic-specific tool format
+ * Converts standard Tool format to Anthropic-specific tool format.
  *
  * @param tools - Array of standard Tool objects
  * @returns Array of Anthropic-specific tool definitions
@@ -32,10 +32,14 @@ import type { Tool } from '@tanstack/ai'
  *
  * const anthropicTools = convertToolsToProviderFormat(tools);
  * ```
+ * 
+ * Returns Array<ToolUnion> for compatibility with the stable messages API.
+ * Beta-only tools (ComputerUse, CodeExecution, Memory, WebFetch) are
+ * structurally compatible at runtime but not part of the GA ToolUnion type.
  */
 export function convertToolsToProviderFormat<TTool extends Tool>(
   tools: Array<TTool>,
-): Array<AnthropicTool> {
+): Array<ToolUnion> {
   return tools.map((tool) => {
     const name = tool.name
 
@@ -57,5 +61,5 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
       default:
         return convertCustomToolToAdapterFormat(tool)
     }
-  })
+  }) as Array<ToolUnion>
 }
