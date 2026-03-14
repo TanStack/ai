@@ -349,6 +349,7 @@ describe('ChatClient - Abort Signal Handling', () => {
 
   it('should pass the original signal to connect() even if sendMessage() reassigns abortController during onResponse', async () => {
     const signalsPassedToConnect: Array<AbortSignal> = []
+    let secondAppendPromise: Promise<unknown> | undefined
 
     const adapter: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
@@ -376,7 +377,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           // This queues a new streamResponse that would create a new
           // AbortController, potentially overwriting this.abortController
           // before the first connect() call reads the signal.
-          client.append({
+          secondAppendPromise = client.append({
             id: 'user-2',
             role: 'user',
             parts: [{ type: 'text', content: 'Second message' }],
@@ -393,8 +394,8 @@ describe('ChatClient - Abort Signal Handling', () => {
       createdAt: new Date(),
     })
 
-    // Wait for the queued second stream to complete
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    // Deterministically wait for the queued second stream
+    await secondAppendPromise
 
     // Both calls should have received valid, distinct AbortSignal instances
     expect(signalsPassedToConnect.length).toBe(2)
