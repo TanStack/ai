@@ -4,7 +4,7 @@ import { z } from 'zod'
 // Output Format Types
 // ========================================
 
-export type OutputFormat = 'blog' | 'scifi' | 'gameshow' | 'country' | 'trivia'
+export type OutputFormat = 'blog' | 'gameshow' | 'trivia'
 
 export const OUTPUT_FORMAT_OPTIONS: Array<{
   value: OutputFormat
@@ -19,22 +19,10 @@ export const OUTPUT_FORMAT_OPTIONS: Array<{
     description: 'Professional article with SEO metadata',
   },
   {
-    value: 'scifi',
-    label: 'Sci-Fi Story',
-    icon: '🚀',
-    description: 'Three-act space opera with characters',
-  },
-  {
     value: 'gameshow',
     label: 'Game Show Pitch',
     icon: '🎮',
     description: 'TV show concept with rounds and prizes',
-  },
-  {
-    value: 'country',
-    label: 'Country Song',
-    icon: '🎸',
-    description: 'Nashville ballad with verses and chorus',
   },
   {
     value: 'trivia',
@@ -58,35 +46,6 @@ export const BlogPostSchema = z.object({
 })
 
 export type BlogPost = z.infer<typeof BlogPostSchema>
-
-// ========================================
-// Sci-Fi Story Schema
-// ========================================
-
-export const SciFiCharacterSchema = z.object({
-  name: z.string().describe('Character name'),
-  role: z
-    .string()
-    .describe('Role in the story (Protagonist, Antagonist, etc.)'),
-  description: z.string().describe('Brief character description'),
-})
-
-export const SciFiActSchema = z.object({
-  title: z.string().describe('Act title'),
-  content: z.string().describe('Act narrative content'),
-})
-
-export const SciFiStorySchema = z.object({
-  title: z.string().describe('Story title'),
-  setting: z.string().describe('Story setting and world description'),
-  characters: z.array(SciFiCharacterSchema).describe('Main characters'),
-  act1: SciFiActSchema.describe('First act - setup'),
-  act2: SciFiActSchema.describe('Second act - confrontation'),
-  act3: SciFiActSchema.describe('Third act - resolution'),
-  moral: z.string().describe('The moral or lesson of the story'),
-})
-
-export type SciFiStory = z.infer<typeof SciFiStorySchema>
 
 // ========================================
 // Game Show Pitch Schema
@@ -117,26 +76,6 @@ export const GameShowPitchSchema = z.object({
 export type GameShowPitch = z.infer<typeof GameShowPitchSchema>
 
 // ========================================
-// Country Song Schema
-// ========================================
-
-export const CountrySongSchema = z.object({
-  title: z.string().describe('Song title'),
-  artist: z.string().describe('Fictional artist name'),
-  album: z.string().describe('Album name'),
-  key: z.string().describe('Musical key (e.g., G Major)'),
-  tempo: z.string().describe('Tempo description'),
-  verse1: z.string().describe('First verse lyrics'),
-  chorus: z.string().describe('Chorus lyrics'),
-  verse2: z.string().describe('Second verse lyrics'),
-  bridge: z.string().describe('Bridge lyrics'),
-  outro: z.string().describe('Outro/ending'),
-  spotifyDescription: z.string().describe('Spotify-style song description'),
-})
-
-export type CountrySong = z.infer<typeof CountrySongSchema>
-
-// ========================================
 // Trivia Questions Schema
 // ========================================
 
@@ -162,9 +101,7 @@ export type TriviaSet = z.infer<typeof TriviaSetSchema>
 
 export type StructuredOutput =
   | { format: 'blog'; data: BlogPost }
-  | { format: 'scifi'; data: SciFiStory }
   | { format: 'gameshow'; data: GameShowPitch }
-  | { format: 'country'; data: CountrySong }
   | { format: 'trivia'; data: TriviaSet }
 
 // ========================================
@@ -175,12 +112,8 @@ export function getSchemaForFormat(format: OutputFormat) {
   switch (format) {
     case 'blog':
       return BlogPostSchema
-    case 'scifi':
-      return SciFiStorySchema
     case 'gameshow':
       return GameShowPitchSchema
-    case 'country':
-      return CountrySongSchema
     case 'trivia':
       return TriviaSetSchema
   }
@@ -197,20 +130,10 @@ export function getFormatPromptAddition(format: OutputFormat): string {
 Use the actual data and insights from your analysis to write an engaging, SEO-friendly article.
 The body should be in markdown format with proper headings, lists, and emphasis.`
 
-    case 'scifi':
-      return `After your analysis, transform your findings into an epic three-act science fiction story.
-Use the libraries/packages as characters or factions in a galactic struggle.
-Make the technical details into dramatic plot points. Be creative and entertaining while staying true to the data.`
-
     case 'gameshow':
       return `After your analysis, pitch a TV game show concept based on your findings.
 The show should test contestants on the knowledge you've gathered.
 Make it fun, energetic, and include creative rounds that reference the actual data.`
-
-    case 'country':
-      return `After your analysis, write a heartfelt country song about your findings.
-Use the technical data as metaphors for life, love, and loss.
-Include rhyming verses, a memorable chorus, and that classic country storytelling style.`
 
     case 'trivia':
       return `After your analysis, create a trivia quiz based on the facts you've discovered.

@@ -6,15 +6,37 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
 import type { AnyTextAdapter } from '@tanstack/ai'
-import { allTools } from '@/lib/tools'
-import { CODE_MODE_SYSTEM_PROMPT } from '@/lib/prompts'
-import {
-  getSchemaForFormat,
-  getFormatPromptAddition,
-  type OutputFormat,
-} from '@/lib/structured-output-types'
+import { cityTools } from '@/lib/tools/city-tools'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
+
+const JSON_SCHEMA_DESCRIPTION = `{
+  "title": "string — short title for the report",
+  "summary": "string — one paragraph summary",
+  "keyFindings": ["string — each a key finding"],
+  "recommendedCities": [
+    { "name": "string", "country": "string", "reason": "string" }
+  ],
+  "comparison": {
+    "firstCity": "string",
+    "secondCity": "string",
+    "populationDifferenceMillions": number,
+    "highlights": ["string"]
+  },
+  "nextSteps": ["string — practical follow-up actions"]
+}`
+
+const STRUCTURED_OUTPUT_SYSTEM_PROMPT = `You are a travel research assistant.
+
+RULES — follow these exactly:
+1. Do NOT produce any conversational text at any point. No greetings, no "let me", no narration, no status updates, no commentary. SILENCE except for tool calls and the final JSON.
+2. Immediately call execute_typescript to use the city data tools. Chain multiple tool calls if needed.
+3. After all tool calls are done, output ONLY a single raw JSON object (no code fences, no markdown, no prose before or after).
+4. The JSON must match this schema exactly:
+
+${JSON_SCHEMA_DESCRIPTION}
+
+5. Every field is required. Arrays must have at least one element.`
 
 function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
   switch (provider) {
@@ -30,7 +52,6 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
   }
 }
 
-// Lazy initialization to avoid loading native modules at module load time
 let codeModeCache: {
   tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
   systemPrompt: string
@@ -42,8 +63,8 @@ async function getCodeModeTools() {
     const driver = await createIsolateDriver('node')
     const { tool, systemPrompt } = createCodeModeToolAndPrompt({
       driver,
-      tools: allTools,
-      timeout: 60000,
+      tools: cityTools,
+      timeout: 30000,
       memoryLimit: 128,
     })
     codeModeCache = { tool, systemPrompt }
@@ -57,8 +78,7 @@ export const Route = createFileRoute(
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const requestSignal = request.signal
-        if (requestSignal.aborted) {
+        if (request.signal.aborted) {
           return new Response(null, { status: 499 })
         }
 
@@ -68,40 +88,26 @@ export const Route = createFileRoute(
 
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
-        const outputFormat: OutputFormat = data?.outputFormat || 'blog'
 
         const adapter = getAdapter(provider, model)
-        const outputSchema = getSchemaForFormat(outputFormat)
-        const formatPromptAddition = getFormatPromptAddition(outputFormat)
-
-        // Enhanced system prompt with format-specific instructions
-        const structuredOutputSystemPrompt = `${CODE_MODE_SYSTEM_PROMPT}
-
-## Output Format Instructions
-
-${formatPromptAddition}
-
-IMPORTANT: After completing your analysis using execute_typescript, your final structured output will be extracted automatically. Focus on thorough analysis first, then the system will format your insights according to the selected format.`
 
         try {
           const { tool, systemPrompt } = await getCodeModeTools()
 
-          // Phase 1: Run the agentic loop with Code Mode (streaming)
-          // Phase 2: Get structured output (non-streaming, appended at end)
-
-          // Create a custom stream that handles both phases
-          const combinedStream = createTwoPhaseStream({
+          const stream = chat({
             adapter,
             messages,
-            systemPrompts: [structuredOutputSystemPrompt, systemPrompt],
             tools: [tool],
-            outputSchema,
-            outputFormat,
+            systemPrompts: [STRUCTURED_OUTPUT_SYSTEM_PROMPT, systemPrompt],
+            agentLoopStrategy: maxIterations(10),
             abortController,
+            maxTokens: 8192,
           })
 
+          const wrappedStream = extractJsonFromStream(stream, adapter)
+
           const sseStream = toServerSentEventsStream(
-            combinedStream,
+            wrappedStream,
             abortController,
           )
 
@@ -138,133 +144,56 @@ IMPORTANT: After completing your analysis using execute_typescript, your final s
   },
 })
 
-interface TwoPhaseStreamOptions {
-  adapter: AnyTextAdapter
-  messages: Array<{ role: 'user' | 'assistant' | 'tool'; content: string }>
-  systemPrompts: Array<string>
-  tools: Array<ReturnType<typeof createCodeModeToolAndPrompt>['tool']>
-  outputSchema: ReturnType<typeof getSchemaForFormat>
-  outputFormat: OutputFormat
-  abortController: AbortController
-}
-
-async function* createTwoPhaseStream(
-  options: TwoPhaseStreamOptions,
+async function* extractJsonFromStream(
+  stream: AsyncIterable<StreamChunk>,
+  adapter: AnyTextAdapter,
 ): AsyncIterable<StreamChunk> {
-  const {
-    adapter,
-    messages,
-    systemPrompts,
-    tools,
-    outputSchema,
-    outputFormat,
-    abortController,
-  } = options
+  let lastAssistantText = ''
+  let currentText = ''
 
-  // Phase 1: Run the agentic Code Mode analysis (streaming)
-  const analysisStream = chat({
-    adapter,
-    messages,
-    tools,
-    systemPrompts,
-    agentLoopStrategy: maxIterations(15),
-    abortController,
-    maxTokens: 8192,
-  })
-
-  // Collect messages for phase 2 while streaming phase 1
-  const collectedMessages: Array<{
-    role: 'user' | 'assistant' | 'tool'
-    content: string
-  }> = [...messages]
-  let currentAssistantContent = ''
-
-  for await (const chunk of analysisStream) {
+  for await (const chunk of stream) {
     yield chunk
 
-    // Collect text content for phase 2
     if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-      currentAssistantContent += chunk.delta
+      currentText += chunk.delta
     }
 
-    // When we get a RUN_FINISHED chunk, save the assistant message
     if (chunk.type === 'RUN_FINISHED') {
-      if (currentAssistantContent) {
-        collectedMessages.push({
-          role: 'assistant',
-          content: currentAssistantContent,
-        })
+      if (currentText.trim()) {
+        lastAssistantText = currentText
       }
+      currentText = ''
     }
   }
 
-  // Phase 2: Get structured output using the conversation context
-  // Add a user message explicitly specifying the format
-  const formatNames: Record<OutputFormat, string> = {
-    blog: 'a professional blog post',
-    scifi: 'a three-act science fiction story',
-    gameshow: 'a TV game show pitch',
-    country: 'a country song with verses, chorus, and bridge',
-    trivia: 'a trivia quiz with multiple choice questions',
-  }
+  let jsonText = lastAssistantText.trim()
+  if (!jsonText) return
 
-  const structuredRequestMessages = [
-    ...collectedMessages,
-    {
-      role: 'user' as const,
-      content: `Now, based on your analysis above, transform the results into ${formatNames[outputFormat]}. Use the actual data and insights you gathered. Be creative and engaging while staying true to the numbers.`,
-    },
-  ]
+  // Strip markdown code fences if the model wrapped the JSON
+  jsonText = jsonText
+    .replace(/^```(?:json)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '')
+    .trim()
 
   try {
-    const structuredResult = await chat({
-      adapter,
-      messages: structuredRequestMessages,
-      systemPrompts,
-      outputSchema,
-      maxTokens: 8192,
-    })
+    const parsed = JSON.parse(jsonText)
 
-    // Emit a custom event with the structured output
     yield {
       type: 'CUSTOM',
       model: adapter.model,
       timestamp: Date.now(),
       name: 'structured_output:result',
-      value: {
-        format: outputFormat,
-        result: structuredResult,
-      },
+      value: { result: parsed },
     }
-
-    // Emit final done chunk
-    yield {
-      type: 'RUN_FINISHED',
-      runId: `done-structured-${Date.now()}`,
-      model: adapter.model,
-      timestamp: Date.now(),
-      finishReason: 'stop',
-      usage: {
-        promptTokens: 0,
-        completionTokens: 0,
-        totalTokens: 0,
-      },
-    } as StreamChunk
-  } catch (error) {
-    console.error('[Structured Output] Phase 2 error:', error)
-
-    // Emit error as custom event
+  } catch {
     yield {
       type: 'CUSTOM',
       model: adapter.model,
       timestamp: Date.now(),
       name: 'structured_output:error',
       value: {
-        format: outputFormat,
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to generate structured output',
+        error: 'Model did not return valid JSON as its final message.',
+        raw: jsonText.slice(0, 500),
       },
     }
   }
