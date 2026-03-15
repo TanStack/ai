@@ -269,7 +269,9 @@ describe('ChatClient', () => {
 
       const completed = await Promise.race([
         sendPromise.then(() => true),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 500)),
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => resolve(false), 500),
+        ),
       ])
 
       expect(completed).toBe(true)
@@ -661,8 +663,18 @@ describe('ChatClient', () => {
 
         // Simulate two concurrent runs starting
         chunks.push(
-          { type: 'RUN_STARTED', runId: 'run-1', model: 'test', timestamp: Date.now() },
-          { type: 'RUN_STARTED', runId: 'run-2', model: 'test', timestamp: Date.now() },
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-2',
+            model: 'test',
+            timestamp: Date.now(),
+          },
         )
         wake.fn?.()
         await new Promise((resolve) => setTimeout(resolve, 20))
@@ -670,18 +682,26 @@ describe('ChatClient', () => {
         expect(client.getSessionGenerating()).toBe(true)
 
         // First run finishes — should still be generating because run-2 is active
-        chunks.push(
-          { type: 'RUN_FINISHED', runId: 'run-1', model: 'test', timestamp: Date.now(), finishReason: 'stop' },
-        )
+        chunks.push({
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        })
         wake.fn?.()
         await new Promise((resolve) => setTimeout(resolve, 20))
 
         expect(client.getSessionGenerating()).toBe(true)
 
         // Second run finishes — now should be false
-        chunks.push(
-          { type: 'RUN_FINISHED', runId: 'run-2', model: 'test', timestamp: Date.now(), finishReason: 'stop' },
-        )
+        chunks.push({
+          type: 'RUN_FINISHED',
+          runId: 'run-2',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        })
         wake.fn?.()
         await new Promise((resolve) => setTimeout(resolve, 20))
 
@@ -728,8 +748,18 @@ describe('ChatClient', () => {
 
         // Two runs active
         chunks.push(
-          { type: 'RUN_STARTED', runId: 'run-1', model: 'test', timestamp: Date.now() },
-          { type: 'RUN_STARTED', runId: 'run-2', model: 'test', timestamp: Date.now() },
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+          },
+          {
+            type: 'RUN_STARTED',
+            runId: 'run-2',
+            model: 'test',
+            timestamp: Date.now(),
+          },
         )
         wake.fn?.()
         await new Promise((resolve) => setTimeout(resolve, 20))
@@ -737,9 +767,12 @@ describe('ChatClient', () => {
         expect(client.getSessionGenerating()).toBe(true)
 
         // Session-level error without runId clears everything
-        chunks.push(
-          { type: 'RUN_ERROR', model: 'test', timestamp: Date.now(), error: { message: 'session crashed' } },
-        )
+        chunks.push({
+          type: 'RUN_ERROR',
+          model: 'test',
+          timestamp: Date.now(),
+          error: { message: 'session crashed' },
+        })
         wake.fn?.()
         await new Promise((resolve) => setTimeout(resolve, 20))
 

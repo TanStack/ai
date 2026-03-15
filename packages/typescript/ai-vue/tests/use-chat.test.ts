@@ -30,7 +30,9 @@ describe('useChat', () => {
 
       await flushPromises()
       expect(result.current.isSubscribed).toBe(true)
-      expect(['connecting', 'connected']).toContain(result.current.connectionStatus)
+      expect(['connecting', 'connected']).toContain(
+        result.current.connectionStatus,
+      )
     })
 
     it('should initialize with provided messages', () => {

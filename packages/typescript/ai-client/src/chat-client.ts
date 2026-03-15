@@ -103,8 +103,10 @@ export class ChatClient {
         onErrorChange: options.onErrorChange || (() => {}),
         onStatusChange: options.onStatusChange || (() => {}),
         onSubscriptionChange: options.onSubscriptionChange || (() => {}),
-        onConnectionStatusChange: options.onConnectionStatusChange || (() => {}),
-        onSessionGeneratingChange: options.onSessionGeneratingChange || (() => {}),
+        onConnectionStatusChange:
+          options.onConnectionStatusChange || (() => {}),
+        onSessionGeneratingChange:
+          options.onSessionGeneratingChange || (() => {}),
         onCustomEvent: options.onCustomEvent || (() => {}),
       },
     }
@@ -349,28 +351,30 @@ export class ChatClient {
     this.subscriptionAbortController = new AbortController()
     const signal = this.subscriptionAbortController.signal
 
-    this.consumeSubscription(signal).catch((err) => {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        this.setConnectionStatus('error')
-        this.resetSessionGenerating()
-        this.setIsSubscribed(false)
-        this.reportStreamError(err)
-      }
-      // Resolve pending processing so streamResponse doesn't hang
-      this.resolveProcessing()
-    }).finally(() => {
-      // Ignore stale loops that were superseded by a restart.
-      if (this.subscriptionAbortController?.signal !== signal) {
-        return
-      }
-      this.subscriptionAbortController = null
-      if (!signal.aborted && this.isSubscribed) {
-        this.setIsSubscribed(false)
-        if (this.connectionStatus !== 'error') {
-          this.setConnectionStatus('disconnected')
+    this.consumeSubscription(signal)
+      .catch((err) => {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          this.setConnectionStatus('error')
+          this.resetSessionGenerating()
+          this.setIsSubscribed(false)
+          this.reportStreamError(err)
         }
-      }
-    })
+        // Resolve pending processing so streamResponse doesn't hang
+        this.resolveProcessing()
+      })
+      .finally(() => {
+        // Ignore stale loops that were superseded by a restart.
+        if (this.subscriptionAbortController?.signal !== signal) {
+          return
+        }
+        this.subscriptionAbortController = null
+        if (!signal.aborted && this.isSubscribed) {
+          this.setIsSubscribed(false)
+          if (this.connectionStatus !== 'error') {
+            this.setConnectionStatus('disconnected')
+          }
+        }
+      })
   }
 
   /**
@@ -1001,7 +1005,8 @@ export class ChatClient {
       this.callbacksRef.current.onError = options.onError
     }
     if (options.onSubscriptionChange !== undefined) {
-      this.callbacksRef.current.onSubscriptionChange = options.onSubscriptionChange
+      this.callbacksRef.current.onSubscriptionChange =
+        options.onSubscriptionChange
     }
     if (options.onConnectionStatusChange !== undefined) {
       this.callbacksRef.current.onConnectionStatusChange =

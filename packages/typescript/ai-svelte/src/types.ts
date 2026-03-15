@@ -38,7 +38,7 @@ export type CreateChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
-  > & {
+> & {
   live?: boolean
 }
 
