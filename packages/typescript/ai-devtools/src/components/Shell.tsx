@@ -1,16 +1,20 @@
+import { createSignal, onCleanup, onMount } from 'solid-js'
 import {
-  createSignal,
-  onCleanup,
-  onMount,
+  Header,
+  HeaderLogo,
+  MainPanel,
   ThemeContextProvider,
-} from 'solid-js'
-import { Header, HeaderLogo, MainPanel } from '@tanstack/devtools-ui'
+} from '@tanstack/devtools-ui'
 import { useStyles } from '../styles/use-styles'
 import { AIProvider } from '../store/ai-context'
 import { ConversationsList } from './ConversationsList'
 import { ConversationDetails } from './ConversationDetails'
 
-import type { DevtoolProps } from '@tanstack/devtools-utils/solid'
+import type { TanStackDevtoolsTheme } from '@tanstack/devtools-ui'
+
+interface DevtoolProps {
+  theme: TanStackDevtoolsTheme
+}
 
 export default function Devtools(props: DevtoolProps) {
   return (
