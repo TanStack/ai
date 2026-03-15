@@ -55,8 +55,10 @@ export {
   fetchHttpStream,
   stream,
   rpcStream,
+  type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type SubscribeConnectionAdapter,
 } from './connection-adapters'
 
 // Re-export message converters from @tanstack/ai

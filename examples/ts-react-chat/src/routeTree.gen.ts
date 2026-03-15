@@ -9,8 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as RealtimeRouteImport } from './routes/realtime'
+import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
 import { Route as GenerationsTranscriptionRouteImport } from './routes/generations.transcription'
@@ -19,22 +19,22 @@ import { Route as GenerationsSpeechRouteImport } from './routes/generations.spee
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
 import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
-import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 import { Route as ApiGenerateVideoRouteImport } from './routes/api.generate.video'
 import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.speech'
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 
-const ImageGenRoute = ImageGenRouteImport.update({
-  id: '/image-gen',
-  path: '/image-gen',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImageGenRoute = ImageGenRouteImport.update({
+  id: '/image-gen',
+  path: '/image-gen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -78,14 +78,14 @@ const ApiTanchatRoute = ApiTanchatRouteImport.update({
   path: '/api/tanchat',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiImageGenRoute = ApiImageGenRouteImport.update({
-  id: '/api/image-gen',
-  path: '/api/image-gen',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   id: '/api/summarize',
   path: '/api/summarize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImageGenRoute = ApiImageGenRouteImport.update({
+  id: '/api/image-gen',
+  path: '/api/image-gen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExampleGuitarsIndexRoute = ExampleGuitarsIndexRouteImport.update({
@@ -254,18 +254,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/image-gen': {
-      id: '/image-gen'
-      path: '/image-gen'
-      fullPath: '/image-gen'
-      preLoaderRoute: typeof ImageGenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/realtime': {
       id: '/realtime'
       path: '/realtime'
       fullPath: '/realtime'
       preLoaderRoute: typeof RealtimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/image-gen': {
+      id: '/image-gen'
+      path: '/image-gen'
+      fullPath: '/image-gen'
+      preLoaderRoute: typeof ImageGenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -324,18 +324,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTanchatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/image-gen': {
-      id: '/api/image-gen'
-      path: '/api/image-gen'
-      fullPath: '/api/image-gen'
-      preLoaderRoute: typeof ApiImageGenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/summarize': {
       id: '/api/summarize'
       path: '/api/summarize'
       fullPath: '/api/summarize'
       preLoaderRoute: typeof ApiSummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/image-gen': {
+      id: '/api/image-gen'
+      path: '/api/image-gen'
+      fullPath: '/api/image-gen'
+      preLoaderRoute: typeof ApiImageGenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/example/guitars/': {
