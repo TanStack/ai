@@ -1085,11 +1085,16 @@ export class StreamProcessor {
         approval: { id: string; needsApproval: boolean }
       }
 
-      // Update the tool call part with approval state
-      if (messageId) {
+      // Resolve the message containing this tool call. After RUN_FINISHED,
+      // activeMessageIds is cleared, so fall back to the toolCallToMessage map
+      // which is populated during TOOL_CALL_START and preserved across finalize.
+      const resolvedMessageId =
+        messageId ?? this.toolCallToMessage.get(toolCallId)
+
+      if (resolvedMessageId) {
         this.messages = updateToolCallApproval(
           this.messages,
-          messageId,
+          resolvedMessageId,
           toolCallId,
           approval.id,
         )
