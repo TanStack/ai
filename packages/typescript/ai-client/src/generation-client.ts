@@ -1,7 +1,7 @@
 import { GENERATION_EVENTS } from './generation-types'
 import { parseSSEResponse } from './sse-parser'
 import type { StreamChunk } from '@tanstack/ai'
-import type { ConnectionAdapter } from './connection-adapters'
+import type { ConnectConnectionAdapter } from './connection-adapters'
 import type {
   GenerationClientOptions,
   GenerationClientState,
@@ -27,7 +27,7 @@ interface GenerationCallbacks<TResult, TOutput> {
  * (image, speech, transcription, summarize).
  *
  * Supports two transport modes:
- * - **ConnectionAdapter** — Streaming transport (SSE, HTTP stream, custom).
+ * - **ConnectConnectionAdapter** — Streaming transport (SSE, HTTP stream, custom).
  *   Server wraps results in StreamChunk events with CUSTOM event names.
  * - **Fetcher** — Direct async function call. No streaming protocol needed.
  *
@@ -36,7 +36,7 @@ interface GenerationCallbacks<TResult, TOutput> {
  *
  * @example
  * ```typescript
- * // With ConnectionAdapter (streaming)
+ * // With streaming connection adapter
  * const client = new GenerationClient<ImageGenerateInput, ImageGenerationResult>({
  *   connection: fetchServerSentEvents('/api/generate/image'),
  *   onResultChange: setResult,
@@ -62,7 +62,7 @@ export class GenerationClient<
   TResult,
   TOutput = TResult,
 > {
-  private connection: ConnectionAdapter | undefined
+  private connection: ConnectConnectionAdapter | undefined
   private fetcher: GenerationFetcher<TInput, TResult> | undefined
   private body: Record<string, any>
   private result: TOutput | null = null
@@ -75,7 +75,7 @@ export class GenerationClient<
   constructor(
     options: GenerationClientOptions<TInput, TResult, TOutput> &
       (
-        | { connection: ConnectionAdapter; fetcher?: never }
+        | { connection: ConnectConnectionAdapter; fetcher?: never }
         | {
             fetcher: GenerationFetcher<TInput, TResult>
             connection?: never
@@ -127,7 +127,7 @@ export class GenerationClient<
           this.setStatus('success')
         }
       } else if (this.connection) {
-        // ConnectionAdapter streaming path
+        // Streaming adapter path
         const mergedData = { ...this.body, ...input }
         const stream = this.connection.connect([], mergedData, signal)
         await this.processStream(stream)
@@ -149,7 +149,7 @@ export class GenerationClient<
   }
 
   /**
-   * Process a stream of AG-UI events from the ConnectionAdapter.
+   * Process a stream of AG-UI events from the streaming connection adapter.
    */
   private async processStream(
     source: AsyncIterable<StreamChunk>,

@@ -2,7 +2,7 @@ import { VideoGenerationClient } from '@tanstack/ai-client'
 import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
-  ConnectionAdapter,
+  ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
   InferGenerationOutput,
@@ -18,13 +18,13 @@ import type { DeepReadonly, ShallowRef } from 'vue'
  * @template TOutput - The output type after optional transform (defaults to VideoGenerateResult)
  */
 export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
-  /** Connection adapter for streaming transport (server handles polling) */
-  connection?: ConnectionAdapter
+  /** Connect-based adapter for streaming transport (server handles polling) */
+  connection?: ConnectConnectionAdapter
   /** Direct async function for creating a video job */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
   /** Unique identifier for this generation instance */
   id?: string
-  /** Additional body parameters to send with ConnectionAdapter requests */
+  /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
@@ -42,7 +42,7 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   onJobCreated?: (jobId: string) => void
   /** Callback on each status update */
   onStatusUpdate?: (status: VideoStatusInfo) => void
-  /** Callback for each stream chunk (ConnectionAdapter mode only) */
+  /** Callback for each stream chunk (connect-based adapter mode only) */
   onChunk?: (chunk: StreamChunk) => void
 }
 

@@ -1,7 +1,7 @@
 import { useGeneration } from './use-generation'
 import type { StreamChunk, SummarizationResult } from '@tanstack/ai'
 import type {
-  ConnectionAdapter,
+  ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
   InferGenerationOutput,
@@ -15,13 +15,13 @@ import type { Accessor } from 'solid-js'
  * @template TOutput - The transformed output type (defaults to SummarizationResult)
  */
 export interface UseSummarizeOptions<TOutput = SummarizationResult> {
-  /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
-  connection?: ConnectionAdapter
+  /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
+  connection?: ConnectConnectionAdapter
   /** Direct async function for summarization */
   fetcher?: GenerationFetcher<SummarizeGenerateInput, SummarizationResult>
   /** Unique identifier for this generation instance */
   id?: string
-  /** Additional body parameters to send with ConnectionAdapter requests */
+  /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /**
    * Callback when summarization is complete. Can optionally return a transformed value.
@@ -35,7 +35,7 @@ export interface UseSummarizeOptions<TOutput = SummarizationResult> {
   onError?: (error: Error) => void
   /** Callback when progress is reported (0-100) */
   onProgress?: (progress: number, message?: string) => void
-  /** Callback for each stream chunk (ConnectionAdapter mode only) */
+  /** Callback for each stream chunk (connect-based adapter mode only) */
   onChunk?: (chunk: StreamChunk) => void
 }
 

@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import { VideoGenerationClient } from '../src/video-generation-client'
 import type { StreamChunk } from '@tanstack/ai'
-import type { ConnectionAdapter } from '../src/connection-adapters'
+import type { ConnectConnectionAdapter } from '../src/connection-adapters'
 
-// Helper to create a mock ConnectionAdapter from StreamChunks
-function createMockConnection(chunks: Array<StreamChunk>): ConnectionAdapter {
+// Helper to create a mock connect-based adapter from StreamChunks
+function createMockConnection(
+  chunks: Array<StreamChunk>,
+): ConnectConnectionAdapter {
   return {
     async *connect() {
       for (const chunk of chunks) {
@@ -388,7 +390,7 @@ describe('VideoGenerationClient', () => {
         }
       })
 
-      const connection: ConnectionAdapter = { connect: connectSpy }
+      const connection: ConnectConnectionAdapter = { connect: connectSpy }
 
       const client = new VideoGenerationClient({
         connection,
@@ -505,7 +507,7 @@ describe('VideoGenerationClient', () => {
         }
       })
 
-      const connection: ConnectionAdapter = { connect: connectSpy }
+      const connection: ConnectConnectionAdapter = { connect: connectSpy }
 
       const client = new VideoGenerationClient({
         connection,
@@ -528,7 +530,7 @@ describe('VideoGenerationClient', () => {
       const onResult = vi.fn()
       const onJobCreated = vi.fn()
 
-      const connection: ConnectionAdapter = {
+      const connection: ConnectConnectionAdapter = {
         async *connect(_msgs, _data, signal) {
           yield {
             type: 'RUN_STARTED' as const,

@@ -1,7 +1,7 @@
 import { createGeneration } from './create-generation.svelte'
 import type { ImageGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
-  ConnectionAdapter,
+  ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
   ImageGenerateInput,
@@ -14,13 +14,13 @@ import type {
  * @template TOutput - The output type after optional transform (defaults to ImageGenerationResult)
  */
 export interface CreateGenerateImageOptions<TOutput = ImageGenerationResult> {
-  /** Connection adapter for streaming transport (SSE, HTTP stream, custom) */
-  connection?: ConnectionAdapter
+  /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
+  connection?: ConnectConnectionAdapter
   /** Direct async function for image generation */
   fetcher?: GenerationFetcher<ImageGenerateInput, ImageGenerationResult>
   /** Unique identifier for this generation instance */
   id?: string
-  /** Additional body parameters to send with ConnectionAdapter requests */
+  /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /**
    * Callback when images are generated. Can optionally return a transformed value.
@@ -34,7 +34,7 @@ export interface CreateGenerateImageOptions<TOutput = ImageGenerationResult> {
   onError?: (error: Error) => void
   /** Callback when progress is reported (0-100) */
   onProgress?: (progress: number, message?: string) => void
-  /** Callback for each stream chunk (ConnectionAdapter mode only) */
+  /** Callback for each stream chunk (connect-based adapter mode only) */
   onChunk?: (chunk: StreamChunk) => void
 }
 
@@ -66,7 +66,7 @@ export interface CreateGenerateImageReturn<TOutput = ImageGenerationResult> {
  * Creates a reactive image generation instance for Svelte 5.
  *
  * Supports two transport modes:
- * - **ConnectionAdapter** -- Streaming transport (SSE, HTTP stream, custom)
+ * - **ConnectConnectionAdapter** -- Streaming transport (SSE, HTTP stream, custom)
  * - **Fetcher** -- Direct async function call
  *
  * @example
