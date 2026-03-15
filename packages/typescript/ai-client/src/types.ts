@@ -178,8 +178,9 @@ export interface ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > {
   /**
-   * Connection adapter for streaming
-   * Use fetchServerSentEvents(), fetchHttpStream(), or stream() to create adapters
+   * Connection adapter for streaming.
+   * Supports mutually exclusive modes: request-response via `connect()`, or
+   * subscribe/send mode via `subscribe()` + `send()`.
    */
   connection: ConnectionAdapter
 

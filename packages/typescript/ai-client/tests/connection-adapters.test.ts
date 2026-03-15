@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchHttpStream,
   fetchServerSentEvents,
+  normalizeConnectionAdapter,
   rpcStream,
   stream,
 } from '../src/connection-adapters'
@@ -825,6 +826,135 @@ describe('connection-adapters', () => {
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
       )
+    })
+  })
+
+  describe('normalizeConnectionAdapter', () => {
+    it('should throw when connection is not provided', () => {
+      expect(() => normalizeConnectionAdapter(undefined)).toThrow(
+        'Connection adapter is required',
+      )
+    })
+
+    it('should throw when subscribe/send are partially implemented', () => {
+      const invalidAdapters = [
+        { subscribe: async function* () {} },
+        { send: async () => {} },
+      ] as const
+
+      for (const adapter of invalidAdapters) {
+        expect(() => normalizeConnectionAdapter(adapter as any)).toThrow(
+          'Connection adapter must provide either connect or both subscribe and send',
+        )
+      }
+    })
+
+    it('should throw when both connection modes are provided', () => {
+      const invalidAdapter = {
+        connect: async function* () {},
+        subscribe: async function* () {},
+        send: async () => {},
+      }
+
+      expect(() => normalizeConnectionAdapter(invalidAdapter as any)).toThrow(
+        'Connection adapter must provide either connect or both subscribe and send, not both modes',
+      )
+    })
+
+    it('should synthesize RUN_FINISHED when wrapped connect stream has no terminal event', async () => {
+      const base = stream(async function* () {
+        yield {
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hi',
+          content: 'Hi',
+        }
+      })
+
+      const adapter = normalizeConnectionAdapter(base)
+      const abortController = new AbortController()
+      const receivedPromise = (async () => {
+        const received: Array<StreamChunk> = []
+        for await (const chunk of adapter.subscribe(abortController.signal)) {
+          received.push(chunk)
+          if (received.length === 2) {
+            abortController.abort()
+          }
+        }
+        return received
+      })()
+
+      await adapter.send([{ role: 'user', content: 'Hello' }])
+      const received = await receivedPromise
+
+      expect(received).toHaveLength(2)
+      expect(received[1]?.type).toBe('RUN_FINISHED')
+    })
+
+    it('should synthesize RUN_ERROR when wrapped connect stream throws', async () => {
+      const base = stream(async function* () {
+        throw new Error('connect exploded')
+      })
+
+      const adapter = normalizeConnectionAdapter(base)
+      const abortController = new AbortController()
+      const receivedPromise = (async () => {
+        const received: Array<StreamChunk> = []
+        for await (const chunk of adapter.subscribe(abortController.signal)) {
+          received.push(chunk)
+          if (received.length === 1) {
+            abortController.abort()
+          }
+        }
+        return received
+      })()
+
+      await expect(
+        adapter.send([{ role: 'user', content: 'Hello' }]),
+      ).rejects.toThrow('connect exploded')
+      const received = await receivedPromise
+
+      expect(received).toHaveLength(1)
+      expect(received[0]?.type).toBe('RUN_ERROR')
+    })
+
+    it('should not synthesize duplicate RUN_ERROR when stream already emitted one before throwing', async () => {
+      const base = stream(async function* () {
+        yield {
+          type: 'RUN_ERROR',
+          timestamp: Date.now(),
+          error: {
+            message: 'already failed',
+          },
+        }
+        throw new Error('connect exploded')
+      })
+
+      const adapter = normalizeConnectionAdapter(base)
+      const abortController = new AbortController()
+      const receivedPromise = (async () => {
+        const received: Array<StreamChunk> = []
+        for await (const chunk of adapter.subscribe(abortController.signal)) {
+          received.push(chunk)
+          if (received.length === 1) {
+            abortController.abort()
+          }
+        }
+        return received
+      })()
+
+      await expect(
+        adapter.send([{ role: 'user', content: 'Hello' }]),
+      ).rejects.toThrow('connect exploded')
+      const received = await receivedPromise
+
+      expect(received).toHaveLength(1)
+      expect(received[0]?.type).toBe('RUN_ERROR')
+      if (received[0]?.type === 'RUN_ERROR') {
+        expect(received[0].error.message).toBe('already failed')
+      }
     })
   })
 
