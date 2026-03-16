@@ -82,14 +82,14 @@ export function createEventRecording(
     delta: string | undefined,
     model: string,
     timestamp: number,
-    id: string,
+    messageId: string,
   ): StreamChunk => ({
-    type: 'content',
+    type: 'TEXT_MESSAGE_CONTENT',
+    messageId,
     content,
     delta: delta ?? '',
     model,
     timestamp,
-    id,
   })
 
   const createToolCallChunk = (
@@ -99,36 +99,45 @@ export function createEventRecording(
     arguments_: string,
     model: string,
     timestamp: number,
-    id: string,
-  ): StreamChunk => ({
-    type: 'tool_call',
-    toolCall: {
-      id: toolCallId,
-      type: 'function',
-      function: {
-        name: toolName,
-        arguments: arguments_,
-      },
-    },
-    index,
-    model,
-    timestamp,
-    id,
-  })
+    messageId: string,
+  ): StreamChunk => {
+    if (arguments_.length === 0) {
+      return {
+        type: 'TOOL_CALL_START',
+        toolCallId,
+        toolName,
+        parentMessageId: messageId,
+        index,
+        model,
+        timestamp,
+      }
+    }
+
+    return {
+      type: 'TOOL_CALL_ARGS',
+      toolCallId,
+      delta: arguments_,
+      args: arguments_,
+      model,
+      timestamp,
+    }
+  }
 
   const createToolResultChunk = (
     toolCallId: string,
+    toolName: string,
     result: string,
     model: string,
     timestamp: number,
-    id: string,
+    runId: string,
   ): StreamChunk => ({
-    type: 'tool_result',
+    type: 'TOOL_CALL_END',
     toolCallId,
-    content: result,
+    toolName,
+    result,
     model,
     timestamp,
-    id,
+    rawEvent: { runId },
   })
 
   type FinishReason = 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
@@ -146,6 +155,7 @@ export function createEventRecording(
   }
 
   const createDoneChunk = (
+    runId: string,
     finishReason: string | null,
     usage?: {
       promptTokens: number
@@ -154,44 +164,43 @@ export function createEventRecording(
     },
     model?: string,
     timestamp?: number,
-    id?: string,
   ): StreamChunk => ({
-    type: 'done',
+    type: 'RUN_FINISHED',
+    runId,
     finishReason: normalizeFinishReason(finishReason),
     usage,
     model: model ?? 'unknown',
     timestamp: timestamp ?? Date.now(),
-    id: id ?? `done-${Date.now()}`,
   })
 
   const createErrorChunk = (
+    runId: string,
     error: string,
     model: string,
     timestamp: number,
-    id: string,
   ): StreamChunk => ({
-    type: 'error',
+    type: 'RUN_ERROR',
+    runId,
     error: {
       message: error,
     },
     model,
     timestamp,
-    id,
   })
 
   const createThinkingChunk = (
+    streamId: string,
     content: string,
     delta: string | undefined,
     model: string,
     timestamp: number,
-    id: string,
   ): StreamChunk => ({
-    type: 'thinking',
+    type: 'STEP_FINISHED',
+    stepId: `step-${streamId}`,
     content,
     delta: delta ?? '',
     model,
     timestamp,
-    id,
   })
 
   type DevtoolsEventHandler<TEventName extends keyof AIDevtoolsEventMap> =
@@ -256,14 +265,14 @@ export function createEventRecording(
       if (stream) {
         stream.accumulatedContent = content
         const resolvedModel = model ?? 'unknown'
-        const chunkId = `chunk-${chunkIndex}`
+        const messageId = event.payload.messageId ?? `msg-${streamId}`
         stream.chunks.push({
           chunk: createContentChunk(
             content,
             delta,
             resolvedModel,
             timestamp,
-            chunkId,
+            messageId,
           ),
           timestamp,
           index: chunkIndex++,
@@ -290,7 +299,7 @@ export function createEventRecording(
       const stream = activeStreams.get(streamId)
       if (stream) {
         const resolvedModel = model ?? 'unknown'
-        const chunkId = `chunk-${chunkIndex}`
+        const messageId = event.payload.messageId ?? `msg-${streamId}`
         stream.chunks.push({
           chunk: createToolCallChunk(
             toolCallId,
@@ -299,7 +308,7 @@ export function createEventRecording(
             args,
             resolvedModel,
             timestamp,
-            chunkId,
+            messageId,
           ),
           timestamp,
           index: chunkIndex++,
@@ -330,14 +339,15 @@ export function createEventRecording(
       const stream = activeStreams.get(streamId)
       if (stream) {
         const resolvedModel = model ?? 'unknown'
-        const chunkId = `chunk-${chunkIndex}`
+        const toolName = stream.toolCalls.get(toolCallId)?.name ?? 'unknown-tool'
         stream.chunks.push({
           chunk: createToolResultChunk(
             toolCallId,
+            toolName,
             result,
             resolvedModel,
             timestamp,
-            chunkId,
+            `run-${streamId}`,
           ),
           timestamp,
           index: chunkIndex++,
@@ -357,14 +367,13 @@ export function createEventRecording(
       if (stream) {
         stream.finishReason = finishReason || null
         const resolvedModel = model ?? 'unknown'
-        const chunkId = `chunk-${chunkIndex}`
         stream.chunks.push({
           chunk: createDoneChunk(
+            `run-${streamId}`,
             finishReason,
             usage,
             resolvedModel,
             timestamp,
-            chunkId,
           ),
           timestamp,
           index: chunkIndex++,
@@ -383,9 +392,13 @@ export function createEventRecording(
       const stream = activeStreams.get(streamId)
       if (stream) {
         const resolvedModel = model ?? 'unknown'
-        const chunkId = `chunk-${chunkIndex}`
         stream.chunks.push({
-          chunk: createErrorChunk(error, resolvedModel, timestamp, chunkId),
+          chunk: createErrorChunk(
+            `run-${streamId}`,
+            error,
+            resolvedModel,
+            timestamp,
+          ),
           timestamp,
           index: chunkIndex++,
         })
@@ -403,14 +416,13 @@ export function createEventRecording(
       const stream = activeStreams.get(streamId)
       if (stream) {
         const resolvedModel = model ?? 'unknown'
-        const chunkId = `chunk-${chunkIndex}`
         stream.chunks.push({
           chunk: createThinkingChunk(
+            streamId,
             content,
             delta,
             resolvedModel,
             timestamp,
-            chunkId,
           ),
           timestamp,
           index: chunkIndex++,

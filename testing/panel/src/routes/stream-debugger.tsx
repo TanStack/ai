@@ -188,16 +188,7 @@ function TestPanel() {
             return res.json()
           })
           .then((traceData) => {
-            const chunkRecording: ChunkRecording = {
-              id: traceData.id,
-              timestamp: traceData.timestamp,
-              metadata: {
-                provider: traceData.provider,
-                model: traceData.model,
-                messages: traceData.messages,
-              },
-              chunks: traceData.chunks,
-            }
+            const chunkRecording: ChunkRecording = traceData
             loadRecording(chunkRecording)
           })
           .catch((error) => {
@@ -234,7 +225,9 @@ function TestPanel() {
       setCurrentChunkIndex(nextIndex)
 
       // Update result with current processor state
-      const state = processorRef.current.getState()
+      const processor = processorRef.current
+      if (!processor) return
+      const state = processor.getState()
 
       // Convert toolCalls Map to array
       const toolCallsArray = Array.from(state.toolCalls.values()).map((tc) => ({
@@ -407,17 +400,7 @@ ${JSON.stringify(report.processorState, null, 2)}
           return res.json()
         })
         .then((traceData) => {
-          // Convert trace data to ChunkRecording format
-          const chunkRecording: ChunkRecording = {
-            id: traceData.id,
-            timestamp: traceData.timestamp,
-            metadata: {
-              provider: traceData.provider,
-              model: traceData.model,
-              messages: traceData.messages,
-            },
-            chunks: traceData.chunks,
-          }
+          const chunkRecording: ChunkRecording = traceData
           setRecording(chunkRecording)
         })
         .catch((error) => {
@@ -640,30 +623,34 @@ function ChunkItem({
   isProcessed: boolean
 }) {
   const typeColors: Record<string, string> = {
-    content: 'text-green-400',
-    tool_call: 'text-blue-400',
-    tool_result: 'text-purple-400',
-    done: 'text-yellow-400',
-    error: 'text-red-400',
-    thinking: 'text-cyan-400',
-    'approval-requested': 'text-orange-400',
-    'tool-input-available': 'text-pink-400',
+    TEXT_MESSAGE_CONTENT: 'text-green-400',
+    TOOL_CALL_START: 'text-blue-400',
+    TOOL_CALL_ARGS: 'text-blue-300',
+    TOOL_CALL_END: 'text-purple-400',
+    RUN_FINISHED: 'text-yellow-400',
+    RUN_ERROR: 'text-red-400',
+    STEP_FINISHED: 'text-cyan-400',
+    CUSTOM: 'text-orange-400',
   }
 
   const getSummary = (chunk: StreamChunk): string => {
     switch (chunk.type) {
-      case 'content':
+      case 'TEXT_MESSAGE_CONTENT':
         return `δ="${chunk.delta?.slice(0, 30) ?? ''}${(chunk.delta?.length ?? 0) > 30 ? '...' : ''}"`
-      case 'tool_call':
-        return `${chunk.toolCall.function.name}[${chunk.index}]`
-      case 'tool_result':
-        return `${chunk.toolCallId}`
-      case 'done':
+      case 'TOOL_CALL_START':
+        return `${chunk.toolName}[${chunk.index ?? 0}]`
+      case 'TOOL_CALL_ARGS':
+        return `${chunk.toolCallId} δ="${chunk.delta.slice(0, 20)}${chunk.delta.length > 20 ? '...' : ''}"`
+      case 'TOOL_CALL_END':
+        return chunk.toolCallId
+      case 'RUN_FINISHED':
         return `${chunk.finishReason}`
-      case 'thinking':
+      case 'STEP_FINISHED':
         return `δ="${chunk.delta?.slice(0, 20) ?? ''}..."`
-      case 'error':
+      case 'RUN_ERROR':
         return chunk.error.message.slice(0, 30)
+      case 'CUSTOM':
+        return chunk.name
       default:
         return ''
     }

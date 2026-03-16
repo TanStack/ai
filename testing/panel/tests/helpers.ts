@@ -3,7 +3,7 @@
  */
 
 import type { Page, APIRequestContext } from '@playwright/test'
-import type { ProviderId, ProviderConfig } from './vendor-config'
+import type { ProviderId } from './vendor-config'
 
 /**
  * Select a provider/model from the model dropdown on the chat page
@@ -80,58 +80,53 @@ function getProviderDisplayName(provider: ProviderId): string {
 /**
  * Send a message in the chat UI
  */
-export async function sendMessage(page: Page, message: string): Promise<void> {
-  // Find the textarea input
+export async function sendMessage(
+  page: Page,
+  message: string,
+  waitTimeout: number = 30_000,
+): Promise<void> {
   const textarea = page.locator('textarea').first()
-  await textarea.waitFor({ state: 'visible' })
+  await textarea.waitFor({ state: 'visible', timeout: waitTimeout })
 
-  // Click to focus and clear any existing content
+  // Wait for the textarea to be enabled (not disabled by isLoading)
+  await page.waitForFunction(
+    () => {
+      const ta = document.querySelector('textarea')
+      return ta && !ta.disabled
+    },
+    { timeout: waitTimeout },
+  )
+
   await textarea.click()
   await textarea.fill('')
-
-  // Type the message character by character to properly trigger React state updates
   await textarea.pressSequentially(message, { delay: 10 })
-
-  // Verify the input has the message
   await textarea.waitFor({ state: 'visible' })
-
-  // Use keyboard Enter to send (more reliable than finding the button)
-  // The chat UI handles Enter key to send messages
   await textarea.press('Enter')
 }
 
 /**
- * Wait for the assistant response to complete
+ * Wait for the assistant response to complete.
+ * Confirms loading has actually stopped by checking both the stop button
+ * and the textarea's disabled state.
  */
 export async function waitForResponse(
   page: Page,
   timeout: number = 60_000,
 ): Promise<void> {
-  // Wait for loading to start - the stop button should appear or we see loading indicator
   const stopButton = page.locator('button:has-text("Stop")')
 
-  // First, wait a moment for loading to potentially start
   await page.waitForTimeout(1000)
 
-  // Check if loading started by looking for the stop button
   const loadingStarted = await stopButton.isVisible().catch(() => false)
 
   if (loadingStarted) {
-    // Wait for loading to complete (stop button to disappear)
     try {
-      await stopButton.waitFor({ state: 'hidden', timeout: timeout - 1000 })
+      await stopButton.waitFor({ state: 'hidden', timeout: timeout - 2000 })
     } catch {
-      // Stop button might still be visible if test times out
+      // Stop button might still be visible if provider is very slow
     }
   } else {
-    // Loading might have been too fast or there's an error
-    // Wait for either an assistant message or an error to appear
-    const messagesJson = page
-      .locator('pre')
-      .filter({ hasText: '"role"' })
-      .first()
     try {
-      // Wait for the messages JSON to contain an assistant message
       await page.waitForFunction(
         () => {
           const preElements = document.querySelectorAll('pre')
@@ -143,14 +138,26 @@ export async function waitForResponse(
           }
           return false
         },
-        { timeout: timeout - 1000 },
+        { timeout: timeout - 2000 },
       )
     } catch {
       // Timeout waiting for response
     }
   }
 
-  // Additional wait for message to fully render
+  // Confirm loading actually finished: textarea should be re-enabled
+  try {
+    await page.waitForFunction(
+      () => {
+        const ta = document.querySelector('textarea')
+        return ta && !ta.disabled
+      },
+      { timeout: 10_000 },
+    )
+  } catch {
+    // Textarea might still be disabled if the response never completed
+  }
+
   await page.waitForTimeout(500)
 }
 

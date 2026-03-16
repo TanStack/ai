@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
-import type { AIAdapter, ChatOptions, StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai'
 
 import {
   clientServerTool,
@@ -71,20 +71,35 @@ const VALID_TOOLS = new Set([
  * - Echoes messages back if no tool calls detected
  * - Parses tool call syntax and generates appropriate chunks
  */
-function createSimulatorAdapter(): AIAdapter {
+function createSimulatorAdapter() {
   return {
+    kind: 'text' as const,
     name: 'simulator',
-    models: ['simulator-v1'] as const,
-    _modelProviderOptionsByName: {},
+    model: 'simulator-v1' as const,
 
-    async *chatStream(options: ChatOptions): AsyncIterable<StreamChunk> {
+    async *chatStream(options: any): AsyncIterable<StreamChunk> {
       const messages = options.messages
       const lastMessage = messages[messages.length - 1]
+      const timestamp = Date.now()
+      const runId = `run-${timestamp}`
+      const messageId = `msg-${timestamp}`
 
       // Check if this is a tool result - if so, acknowledge it
       if (lastMessage?.role === 'tool') {
-        const timestamp = Date.now()
-        const id = `sim-${timestamp}`
+        yield {
+          type: 'RUN_STARTED',
+          runId,
+          model: 'simulator-v1',
+          timestamp,
+        }
+
+        yield {
+          type: 'TEXT_MESSAGE_START',
+          messageId,
+          role: 'assistant',
+          model: 'simulator-v1',
+          timestamp,
+        }
 
         // Generate acknowledgment response
         const content =
@@ -95,21 +110,27 @@ function createSimulatorAdapter(): AIAdapter {
         for (const char of content) {
           accumulated += char
           yield {
-            type: 'content',
-            id,
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId,
             model: 'simulator-v1',
             timestamp,
             delta: char,
             content: accumulated,
-            role: 'assistant',
           }
           // Small delay for streaming effect
           await new Promise((resolve) => setTimeout(resolve, 10))
         }
 
         yield {
-          type: 'done',
-          id,
+          type: 'TEXT_MESSAGE_END',
+          messageId,
+          model: 'simulator-v1',
+          timestamp: Date.now(),
+        }
+
+        yield {
+          type: 'RUN_FINISHED',
+          runId,
           model: 'simulator-v1',
           timestamp: Date.now(),
           finishReason: 'stop',
@@ -137,33 +158,51 @@ function createSimulatorAdapter(): AIAdapter {
       const toolCalls = parseToolCalls(userContent)
       const validToolCalls = toolCalls.filter((tc) => VALID_TOOLS.has(tc.name))
 
-      const timestamp = Date.now()
-      const id = `sim-${timestamp}`
+      yield {
+        type: 'RUN_STARTED',
+        runId,
+        model: 'simulator-v1',
+        timestamp,
+      }
 
       if (validToolCalls.length === 0) {
         // No tool calls - echo the message back
         const echoContent = `[Echo] ${userContent}`
+
+        yield {
+          type: 'TEXT_MESSAGE_START',
+          messageId,
+          role: 'assistant',
+          model: 'simulator-v1',
+          timestamp,
+        }
 
         // Stream content character by character
         let accumulated = ''
         for (const char of echoContent) {
           accumulated += char
           yield {
-            type: 'content',
-            id,
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId,
             model: 'simulator-v1',
             timestamp,
             delta: char,
             content: accumulated,
-            role: 'assistant',
           }
           // Small delay for streaming effect
           await new Promise((resolve) => setTimeout(resolve, 15))
         }
 
         yield {
-          type: 'done',
-          id,
+          type: 'TEXT_MESSAGE_END',
+          messageId,
+          model: 'simulator-v1',
+          timestamp: Date.now(),
+        }
+
+        yield {
+          type: 'RUN_FINISHED',
+          runId,
           model: 'simulator-v1',
           timestamp: Date.now(),
           finishReason: 'stop',
@@ -180,32 +219,30 @@ function createSimulatorAdapter(): AIAdapter {
           const toolCallId = `call-${timestamp}-${i}`
           const argsJson = JSON.stringify(tc.arguments)
 
-          // Stream tool call arguments character by character
-          // The arguments field contains the DELTA (incremental), not accumulated
-          for (const char of argsJson) {
+          yield {
+            type: 'TOOL_CALL_START',
+            toolCallId,
+            toolName: tc.name,
+            parentMessageId: messageId,
+            index: i,
+            model: 'simulator-v1',
+            timestamp,
+          }
+
+          for (const delta of argsJson) {
             yield {
-              type: 'tool_call',
-              id,
+              type: 'TOOL_CALL_ARGS',
+              toolCallId,
+              delta,
               model: 'simulator-v1',
               timestamp,
-              toolCall: {
-                id: toolCallId,
-                type: 'function',
-                function: {
-                  name: tc.name,
-                  arguments: char, // Delta only, not accumulated
-                },
-              },
-              index: i,
             }
-            // Small delay for streaming effect
-            await new Promise((resolve) => setTimeout(resolve, 5))
           }
         }
 
         yield {
-          type: 'done',
-          id,
+          type: 'RUN_FINISHED',
+          runId,
           model: 'simulator-v1',
           timestamp: Date.now(),
           finishReason: 'tool_calls',
@@ -214,12 +251,8 @@ function createSimulatorAdapter(): AIAdapter {
       }
     },
 
-    async summarize() {
-      throw new Error('Summarize not supported in simulator')
-    },
-
-    async createEmbeddings() {
-      throw new Error('Embeddings not supported in simulator')
+    async structuredOutput() {
+      throw new Error('Structured output not supported in simulator')
     },
   }
 }
@@ -241,7 +274,6 @@ export const Route = createFileRoute('/api/simulator-chat')({
 
           const stream = chat({
             adapter: adapter as any,
-            model: 'simulator-v1',
             tools: [
               // Server tools with implementations
               serverTool,

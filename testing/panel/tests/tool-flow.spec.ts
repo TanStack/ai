@@ -34,8 +34,9 @@ const toolProviders = PROVIDERS.filter((p) => p.supportsTools)
 
 for (const provider of toolProviders) {
   test.describe(`${provider.name} - Tool Flow`, () => {
-    // These tests are flaky due to LLM non-determinism - models may not always call tools
-    test.describe.configure({ retries: 2 })
+    // These tests are flaky due to LLM non-determinism - models may not always call tools.
+    // Timeout must exceed the longest waitForResponse call (120s) plus setup overhead.
+    test.describe.configure({ retries: 2, timeout: 150_000 })
 
     // Skip if provider is not available
     test.skip(

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateImage, createImageOptions } from '@tanstack/ai'
+import { generateImage } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 import { openaiImage } from '@tanstack/ai-openai'
 import { openRouterImage } from '@tanstack/ai-openrouter'
@@ -24,30 +24,19 @@ export const Route = createFileRoute('/api/image')({
           data.model || body.model || defaultModels[provider]
 
         try {
-          const adapterConfig = {
-            gemini: () =>
-              createImageOptions({
-                adapter: geminiImage(model as any),
-              }),
-            openai: () =>
-              createImageOptions({
-                adapter: openaiImage(model as any),
-              }),
-            openrouter: () =>
-              createImageOptions({
-                adapter: openRouterImage(model as any),
-              }),
-          }
-
-          // Get typed adapter options using createImageOptions pattern
-          const options = adapterConfig[provider]()
+          const adapterByProvider = {
+            gemini: geminiImage(model as any),
+            openai: openaiImage(model as any),
+            openrouter: openRouterImage(model as any),
+          } as const
+          const adapter = adapterByProvider[provider]
 
           console.log(
             `>> image generation with model: ${model} on provider: ${provider}`,
           )
 
           const result = await generateImage({
-            ...options,
+            adapter,
             prompt,
             numberOfImages,
             size,

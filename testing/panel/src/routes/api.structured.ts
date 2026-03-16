@@ -75,37 +75,16 @@ export const Route = createFileRoute('/api/structured')({
           // Determine the actual model being used
           const actualModel = model || defaultModels[provider]
 
-          // Pre-define typed adapter configurations with full type inference
-          // Model is passed to the adapter factory function for type-safe autocomplete
-          const adapterConfig = {
-            anthropic: () =>
-              createChatOptions({
-                adapter: anthropicText(actualModel as any),
-              }),
-            gemini: () =>
-              createChatOptions({
-                adapter: geminiText(actualModel as any),
-              }),
-            grok: () =>
-              createChatOptions({
-                adapter: grokText(actualModel as any),
-              }),
-            ollama: () =>
-              createChatOptions({
-                adapter: ollamaText(actualModel as any),
-              }),
-            openai: () =>
-              createChatOptions({
-                adapter: openaiText(actualModel as any),
-              }),
-            openrouter: () =>
-              createChatOptions({
-                adapter: openRouterText(actualModel as any),
-              }),
-          }
-
-          // Get typed adapter options using createChatOptions pattern
-          const options = adapterConfig[provider]()
+          const adapterByProvider = {
+            anthropic: anthropicText(actualModel as any),
+            gemini: geminiText(actualModel as any),
+            grok: grokText(actualModel as any),
+            ollama: ollamaText(actualModel as any),
+            openai: openaiText(actualModel as any),
+            openrouter: openRouterText(actualModel as any),
+          } as const
+          const adapter = adapterByProvider[provider]
+          const options = createChatOptions({ adapter })
 
           console.log(
             `>> ${mode} output with model: ${actualModel} on provider: ${provider}`,
