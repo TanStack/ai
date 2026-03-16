@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import { GenerationClient } from '../src/generation-client'
 import type { StreamChunk } from '@tanstack/ai'
-import type { ConnectionAdapter } from '../src/connection-adapters'
+import type { ConnectConnectionAdapter } from '../src/connection-adapters'
 
-// Helper to create a mock ConnectionAdapter from StreamChunks
-function createMockConnection(chunks: Array<StreamChunk>): ConnectionAdapter {
+// Helper to create a mock connect-based adapter from StreamChunks
+function createMockConnection(
+  chunks: Array<StreamChunk>,
+): ConnectConnectionAdapter {
   return {
     async *connect() {
       for (const chunk of chunks) {
@@ -261,7 +263,7 @@ describe('GenerationClient', () => {
         }
       })
 
-      const connection: ConnectionAdapter = {
+      const connection: ConnectConnectionAdapter = {
         connect: connectSpy,
       }
 
@@ -332,7 +334,7 @@ describe('GenerationClient', () => {
         }
       })
 
-      const connection: ConnectionAdapter = { connect: connectSpy }
+      const connection: ConnectConnectionAdapter = { connect: connectSpy }
 
       const client = new GenerationClient({
         connection,
@@ -354,7 +356,7 @@ describe('GenerationClient', () => {
     it('should not set result if aborted mid-stream', async () => {
       const onResult = vi.fn()
 
-      const connection: ConnectionAdapter = {
+      const connection: ConnectConnectionAdapter = {
         async *connect(_msgs, _data, signal) {
           yield {
             type: 'RUN_STARTED' as const,

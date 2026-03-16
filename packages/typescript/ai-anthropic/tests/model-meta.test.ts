@@ -43,6 +43,30 @@ type BaseOptions = AnthropicContainerOptions &
 
 describe('Anthropic Model Provider Options Type Assertions', () => {
   describe('Models WITH extended_thinking support', () => {
+    it('claude-sonnet-4-6 should support thinking options', () => {
+      type Options =
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
+
+      // Should have thinking options
+      expectTypeOf<Options>().toExtend<AnthropicThinkingOptions>()
+
+      // Should have service tier options (priority_tier support)
+      expectTypeOf<Options>().toExtend<AnthropicServiceTierOptions>()
+
+      // Should have base options
+      expectTypeOf<Options>().toExtend<BaseOptions>()
+
+      // Verify specific properties exist
+      expectTypeOf<Options>().toHaveProperty('thinking')
+      expectTypeOf<Options>().toHaveProperty('service_tier')
+      expectTypeOf<Options>().toHaveProperty('container')
+      expectTypeOf<Options>().toHaveProperty('context_management')
+      expectTypeOf<Options>().toHaveProperty('mcp_servers')
+      expectTypeOf<Options>().toHaveProperty('stop_sequences')
+      expectTypeOf<Options>().toHaveProperty('tool_choice')
+      expectTypeOf<Options>().toHaveProperty('top_k')
+    })
+
     it('claude-sonnet-4-5 should support thinking options', () => {
       type Options =
         AnthropicChatModelProviderOptionsByName['claude-sonnet-4-5']
@@ -177,6 +201,7 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
       type Keys = keyof AnthropicChatModelProviderOptionsByName
 
       expectTypeOf<'claude-opus-4-5'>().toExtend<Keys>()
+      expectTypeOf<'claude-sonnet-4-6'>().toExtend<Keys>()
       expectTypeOf<'claude-sonnet-4-5'>().toExtend<Keys>()
       expectTypeOf<'claude-haiku-4-5'>().toExtend<Keys>()
       expectTypeOf<'claude-opus-4-1'>().toExtend<Keys>()
@@ -192,6 +217,9 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     it('all models should have container options', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
+      >().toHaveProperty('container')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
       >().toHaveProperty('container')
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-sonnet-4-5']
@@ -224,6 +252,9 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
         AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
       >().toHaveProperty('context_management')
       expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
+      >().toHaveProperty('context_management')
+      expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-sonnet-4-5']
       >().toHaveProperty('context_management')
       expectTypeOf<
@@ -252,6 +283,9 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     it('all models should have MCP options', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
+      >().toHaveProperty('mcp_servers')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
       >().toHaveProperty('mcp_servers')
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-sonnet-4-5']
@@ -284,6 +318,9 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
         AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
       >().toHaveProperty('stop_sequences')
       expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
+      >().toHaveProperty('stop_sequences')
+      expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-sonnet-4-5']
       >().toHaveProperty('stop_sequences')
       expectTypeOf<
@@ -312,6 +349,9 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     it('all models should have tool choice options', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
+      >().toHaveProperty('tool_choice')
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
       >().toHaveProperty('tool_choice')
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-sonnet-4-5']
@@ -344,6 +384,9 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
         AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
       >().toHaveProperty('top_k')
       expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
+      >().toHaveProperty('top_k')
+      expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-sonnet-4-5']
       >().toHaveProperty('top_k')
       expectTypeOf<
@@ -374,6 +417,9 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     it('models with extended_thinking should extend AnthropicThinkingOptions', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
+      >().toExtend<AnthropicThinkingOptions>()
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
       >().toExtend<AnthropicThinkingOptions>()
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-sonnet-4-5']
@@ -409,6 +455,9 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
         AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
       >().toExtend<AnthropicServiceTierOptions>()
       expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
+      >().toExtend<AnthropicServiceTierOptions>()
+      expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-sonnet-4-5']
       >().toExtend<AnthropicServiceTierOptions>()
       expectTypeOf<
@@ -440,6 +489,9 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
     it('all models should extend base options', () => {
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-opus-4-5']
+      >().toExtend<BaseOptions>()
+      expectTypeOf<
+        AnthropicChatModelProviderOptionsByName['claude-sonnet-4-6']
       >().toExtend<BaseOptions>()
       expectTypeOf<
         AnthropicChatModelProviderOptionsByName['claude-sonnet-4-5']
@@ -484,6 +536,22 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
 
   describe('Claude Opus 4.5 (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-opus-4-5']
+    type Message = ConstrainedModelMessage<Modalities>
+
+    it('should allow TextPart, ImagePart, and DocumentPart', () => {
+      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+    })
+
+    it('should NOT allow AudioPart or VideoPart', () => {
+      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
+      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+    })
+  })
+
+  describe('Claude Sonnet 4.6 (text + image + document)', () => {
+    type Modalities = AnthropicModelInputModalitiesByName['claude-sonnet-4-6']
     type Message = ConstrainedModelMessage<Modalities>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {

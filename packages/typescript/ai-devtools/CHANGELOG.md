@@ -1,5 +1,27 @@
 # @tanstack/ai-devtools-core
 
+## 0.3.12
+
+### Patch Changes
+
+- Updated dependencies [[`64b9cba`](https://github.com/TanStack/ai/commit/64b9cba2ebf89162b809ba575c49ef12c0e87ee7), [`dc53e1b`](https://github.com/TanStack/ai/commit/dc53e1b89fddf6fc744e4788731e8ca64ec3d250)]:
+  - @tanstack/ai@0.8.1
+  - @tanstack/ai-event-client@0.1.1
+
+## 0.3.11
+
+### Patch Changes
+
+- feat: add middleware system and content guard middleware ([#367](https://github.com/TanStack/ai/pull/367))
+  - **@tanstack/ai**: New `@tanstack/ai/middlewares` subpath with composable chat middleware architecture. Includes `contentGuardMiddleware` (delta and buffered strategies) and `toolCacheMiddleware`. Middleware hooks: `onStart`, `onIteration`, `onChunk`, `onToolPhaseComplete`, `onFinish`.
+  - **@tanstack/ai-event-client**: Initial release. Extracted `devtoolsMiddleware` from `@tanstack/ai` core into a standalone package for tree-shaking. Emits all DevTools events as an observation-only middleware.
+  - **@tanstack/ai-client**: Updated event types for middleware integration.
+  - **@tanstack/ai-devtools**: Updated iteration timeline and conversation UI for middleware-aware event handling.
+
+- Updated dependencies [[`f62eeb0`](https://github.com/TanStack/ai/commit/f62eeb0d7efd002894435c7f2c8a9f2790f0b6d7)]:
+  - @tanstack/ai@0.8.0
+  - @tanstack/ai-event-client@0.1.0
+
 ## 0.3.10
 
 ### Patch Changes
