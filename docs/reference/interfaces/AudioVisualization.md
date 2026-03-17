@@ -5,73 +5,21 @@ title: AudioVisualization
 
 # Interface: AudioVisualization
 
-Defined in: [realtime/types.ts](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts)
+Defined in: [realtime/types.ts:200](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L200)
 
-Interface for accessing audio visualization data from a realtime connection. Provides volume levels, frequency data, and time-domain data for both input (microphone) and output (speaker) audio.
+Interface for accessing audio visualization data
 
 ## Properties
-
-### inputLevel
-
-```ts
-readonly inputLevel: number;
-```
-
-Input volume level (0-1 normalized).
-
-***
-
-### outputLevel
-
-```ts
-readonly outputLevel: number;
-```
-
-Output volume level (0-1 normalized).
-
-***
-
-### inputSampleRate
-
-```ts
-readonly inputSampleRate: number;
-```
-
-Input audio sample rate in Hz.
-
-***
-
-### outputSampleRate
-
-```ts
-readonly outputSampleRate: number;
-```
-
-Output audio sample rate in Hz.
-
-## Methods
 
 ### getInputFrequencyData()
 
 ```ts
-getInputFrequencyData(): Uint8Array;
+getInputFrequencyData: () => Uint8Array;
 ```
 
-Get frequency data for input audio visualization.
+Defined in: [realtime/types.ts:207](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L207)
 
-#### Returns
-
-`Uint8Array`
-
-***
-
-### getOutputFrequencyData()
-
-```ts
-getOutputFrequencyData(): Uint8Array;
-```
-
-Get frequency data for output audio visualization.
+Get frequency data for input audio visualization
 
 #### Returns
 
@@ -82,10 +30,28 @@ Get frequency data for output audio visualization.
 ### getInputTimeDomainData()
 
 ```ts
-getInputTimeDomainData(): Uint8Array;
+getInputTimeDomainData: () => Uint8Array;
 ```
 
-Get time domain data for input waveform visualization.
+Defined in: [realtime/types.ts:212](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L212)
+
+Get time domain data for input waveform
+
+#### Returns
+
+`Uint8Array`
+
+***
+
+### getOutputFrequencyData()
+
+```ts
+getOutputFrequencyData: () => Uint8Array;
+```
+
+Defined in: [realtime/types.ts:209](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L209)
+
+Get frequency data for output audio visualization
 
 #### Returns
 
@@ -96,10 +62,12 @@ Get time domain data for input waveform visualization.
 ### getOutputTimeDomainData()
 
 ```ts
-getOutputTimeDomainData(): Uint8Array;
+getOutputTimeDomainData: () => Uint8Array;
 ```
 
-Get time domain data for output waveform visualization.
+Defined in: [realtime/types.ts:214](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L214)
+
+Get time domain data for output waveform
 
 #### Returns
 
@@ -107,20 +75,104 @@ Get time domain data for output waveform visualization.
 
 ***
 
-### onInputAudio?
+### inputLevel
 
 ```ts
-optional onInputAudio: (callback: (samples: Float32Array, sampleRate: number) => void) => () => void;
+readonly inputLevel: number;
 ```
 
-Subscribe to raw input audio samples. Returns an unsubscribe function.
+Defined in: [realtime/types.ts:202](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L202)
+
+Input volume level (0-1 normalized)
 
 ***
 
-### onOutputAudio?
+### inputSampleRate
 
 ```ts
-optional onOutputAudio: (callback: (samples: Float32Array, sampleRate: number) => void) => () => void;
+readonly inputSampleRate: number;
 ```
 
-Subscribe to raw output audio samples. Returns an unsubscribe function.
+Defined in: [realtime/types.ts:217](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L217)
+
+Input sample rate
+
+***
+
+### onInputAudio()?
+
+```ts
+optional onInputAudio: (callback) => () => void;
+```
+
+Defined in: [realtime/types.ts:222](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L222)
+
+Subscribe to raw input audio samples
+
+#### Parameters
+
+##### callback
+
+(`samples`, `sampleRate`) => `void`
+
+#### Returns
+
+```ts
+(): void;
+```
+
+##### Returns
+
+`void`
+
+***
+
+### onOutputAudio()?
+
+```ts
+optional onOutputAudio: (callback) => () => void;
+```
+
+Defined in: [realtime/types.ts:226](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L226)
+
+Subscribe to raw output audio samples
+
+#### Parameters
+
+##### callback
+
+(`samples`, `sampleRate`) => `void`
+
+#### Returns
+
+```ts
+(): void;
+```
+
+##### Returns
+
+`void`
+
+***
+
+### outputLevel
+
+```ts
+readonly outputLevel: number;
+```
+
+Defined in: [realtime/types.ts:204](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L204)
+
+Output volume level (0-1 normalized)
+
+***
+
+### outputSampleRate
+
+```ts
+readonly outputSampleRate: number;
+```
+
+Defined in: [realtime/types.ts:219](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L219)
+
+Output sample rate

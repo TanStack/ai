@@ -5,7 +5,7 @@ title: ToolCallStartEvent
 
 # Interface: ToolCallStartEvent
 
-Defined in: [types.ts:838](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L838)
+Defined in: [types.ts:839](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L839)
 
 Emitted when a tool call starts.
 
@@ -21,7 +21,7 @@ Emitted when a tool call starts.
 optional index: number;
 ```
 
-Defined in: [types.ts:845](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L845)
+Defined in: [types.ts:848](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L848)
 
 Index for parallel tool calls
 
@@ -33,7 +33,7 @@ Index for parallel tool calls
 optional model: string;
 ```
 
-Defined in: [types.ts:750](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L750)
+Defined in: [types.ts:751](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L751)
 
 Model identifier for multi-model support
 
@@ -43,13 +43,25 @@ Model identifier for multi-model support
 
 ***
 
+### parentMessageId?
+
+```ts
+optional parentMessageId: string;
+```
+
+Defined in: [types.ts:846](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L846)
+
+ID of the parent message that initiated this tool call
+
+***
+
 ### rawEvent?
 
 ```ts
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:752](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L752)
+Defined in: [types.ts:753](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L753)
 
 Original provider event for debugging/advanced use cases
 
@@ -65,7 +77,7 @@ Original provider event for debugging/advanced use cases
 timestamp: number;
 ```
 
-Defined in: [types.ts:748](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L748)
+Defined in: [types.ts:749](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L749)
 
 #### Inherited from
 
@@ -79,7 +91,7 @@ Defined in: [types.ts:748](https://github.com/TanStack/ai/blob/main/packages/typ
 toolCallId: string;
 ```
 
-Defined in: [types.ts:841](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L841)
+Defined in: [types.ts:842](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L842)
 
 Unique identifier for this tool call
 
@@ -91,7 +103,7 @@ Unique identifier for this tool call
 toolName: string;
 ```
 
-Defined in: [types.ts:843](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L843)
+Defined in: [types.ts:844](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L844)
 
 Name of the tool being called
 
@@ -103,7 +115,7 @@ Name of the tool being called
 type: "TOOL_CALL_START";
 ```
 
-Defined in: [types.ts:839](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L839)
+Defined in: [types.ts:840](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L840)
 
 #### Overrides
 
