@@ -60,6 +60,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6.0.2
       - name: Setup Tools
-        uses: tanstack/config/.github/setup@main
+        uses: TanStack/config/.github/setup@main
       - name: Changeset Preview
-        uses: tanstack/config/.github/changeset-preview@main
+        uses: TanStack/config/.github/changeset-preview@main
