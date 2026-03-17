@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { chat, createChatOptions } from '../src/activities/chat/index'
-import type { StreamChunk } from '../src/types'
+import type { StreamChunk, Tool } from '../src/types'
 import {
   ev,
   createMockAdapter,
@@ -1143,12 +1143,12 @@ describe('chat()', () => {
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       // First adapter call should have __lazy__tool__discovery__ but NOT getWeather
-      const firstCallToolNames = calls[0].tools.map((t: any) => t.name)
+      const firstCallToolNames = (calls[0] as any).tools.map((t: any) => t.name)
       expect(firstCallToolNames).toContain('__lazy__tool__discovery__')
       expect(firstCallToolNames).not.toContain('getWeather')
 
       // Second adapter call should have getWeather (after discovery)
-      const secondCallToolNames = calls[1].tools.map((t: any) => t.name)
+      const secondCallToolNames = (calls[1] as any).tools.map((t: any) => t.name)
       expect(secondCallToolNames).toContain('getWeather')
 
       // TOOL_CALL_END chunks should exist for both discovery and getWeather
@@ -1181,7 +1181,7 @@ describe('chat()', () => {
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       // First adapter call should have eager tool + discovery tool, but NOT lazyTool
-      const firstCallToolNames = calls[0].tools.map((t: any) => t.name)
+      const firstCallToolNames = (calls[0] as any).tools.map((t: any) => t.name)
       expect(firstCallToolNames).toContain('eagerTool')
       expect(firstCallToolNames).toContain('__lazy__tool__discovery__')
       expect(firstCallToolNames).not.toContain('lazyTool')
@@ -1278,7 +1278,7 @@ describe('chat()', () => {
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       // No __lazy__tool__discovery__ should appear in the tools sent to the adapter
-      const toolNames = calls[0].tools.map((t: any) => t.name)
+      const toolNames = (calls[0] as any).tools.map((t: any) => t.name)
       expect(toolNames).not.toContain('__lazy__tool__discovery__')
       expect(toolNames).toContain('normalTool')
     })
