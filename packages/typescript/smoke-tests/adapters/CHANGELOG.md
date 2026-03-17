@@ -1,5 +1,18 @@
 # @tanstack/tests-adapters
 
+## 0.1.23
+
+### Patch Changes
+
+- Updated dependencies [[`842e119`](https://github.com/TanStack/ai/commit/842e119a07377307ba0834ccca0e224dcb5c46ea), [`842e119`](https://github.com/TanStack/ai/commit/842e119a07377307ba0834ccca0e224dcb5c46ea)]:
+  - @tanstack/ai@0.9.0
+  - @tanstack/ai-openrouter@0.6.7
+  - @tanstack/ai-anthropic@0.7.1
+  - @tanstack/ai-gemini@0.8.3
+  - @tanstack/ai-grok@0.6.3
+  - @tanstack/ai-ollama@0.6.3
+  - @tanstack/ai-openai@0.7.2
+
 ## 0.1.22
 
 ### Patch Changes

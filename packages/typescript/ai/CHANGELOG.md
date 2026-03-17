@@ -1,5 +1,18 @@
 # @tanstack/ai
 
+## 0.9.0
+
+### Minor Changes
+
+- feat: Add lazy tool discovery for `chat()` ([#360](https://github.com/TanStack/ai/pull/360))
+
+  Tools marked with `lazy: true` are not sent to the LLM upfront. Instead, a synthetic discovery tool lets the LLM selectively discover lazy tools by name, receiving their descriptions and schemas on demand. Discovered tools are dynamically injected as normal tools. This reduces token usage and improves response quality when applications have many tools.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.2
+
 ## 0.8.1
 
 ### Patch Changes
