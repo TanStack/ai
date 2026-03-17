@@ -196,6 +196,10 @@
         {
           "label": "Soniox",
           "to": "community-adapters/soniox"
+        },
+        {
+          "label": "Mynth",
+          "to": "community-adapters/mynth"
         }
       ]
     },
