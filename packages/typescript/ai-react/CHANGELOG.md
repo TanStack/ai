@@ -1,5 +1,11 @@
 # @tanstack/ai-react
 
+## 0.7.4
+
+### Patch Changes
+
+- Update messagesRef synchronously during render instead of in useEffect to prevent stale messages when ChatClient is recreated ([#373](https://github.com/TanStack/ai/pull/373))
+
 ## 0.7.3
 
 ### Patch Changes
