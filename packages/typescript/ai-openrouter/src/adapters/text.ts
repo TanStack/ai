@@ -22,10 +22,7 @@ import type {
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type {
-  ExternalTextProviderOptions,
-  InternalTextProviderOptions,
-} from '../text/text-provider-options'
+import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
   OpenRouterMessageMetadataByModality,
@@ -114,7 +111,7 @@ export class OpenRouterTextAdapter<
     try {
       const requestParams = this.mapTextOptionsToSDK(options)
       const stream = await this.client.chat.send(
-        { ...requestParams, stream: true },
+        { chatGenerationParams: { ...requestParams, stream: true } },
         { signal: options.request?.signal },
       )
 
@@ -218,58 +215,39 @@ export class OpenRouterTextAdapter<
 
     const requestParams = this.mapTextOptionsToSDK(chatOptions)
 
-    const structuredOutputTool = {
-      type: 'function' as const,
-      function: {
-        name: 'structured_output',
-        description:
-          'Use this tool to provide your response in the required structured format.',
-        parameters: outputSchema,
-      },
-    }
-
     try {
       const result = await this.client.chat.send(
         {
-          ...requestParams,
-          stream: false,
-          tools: [structuredOutputTool],
-          toolChoice: {
-            type: 'function',
-            function: { name: 'structured_output' },
+          chatGenerationParams: {
+            ...requestParams,
+            stream: false,
+            responseFormat: {
+              type: 'json_schema',
+              jsonSchema: {
+                name: 'structured_output',
+                schema: outputSchema,
+                strict: true,
+              },
+            },
           },
         },
         { signal: chatOptions.request?.signal },
       )
-
-      const message = result.choices[0]?.message
-      const toolCall = message?.toolCalls?.[0]
-
-      if (toolCall && toolCall.function.name === 'structured_output') {
-        const parsed = JSON.parse(toolCall.function.arguments || '{}')
-        return {
-          data: parsed,
-          rawText: toolCall.function.arguments || '',
-        }
+      const content = result.choices[0]?.message.content
+      const rawText = typeof content === 'string' ? content : ''
+      if (!rawText) {
+        throw new Error('Structured output response contained no content')
       }
-
-      const content = (message?.content as any) || ''
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(content)
-      } catch {
-        throw new Error(
-          `Failed to parse structured output as JSON. Content: ${content.slice(0, 200)}${content.length > 200 ? '...' : ''}`,
-        )
-      }
-
-      return {
-        data: parsed,
-        rawText: content,
-      }
+      const parsed = JSON.parse(rawText)
+      return { data: parsed, rawText }
     } catch (error: unknown) {
       if (error instanceof RequestAbortedError) {
         throw new Error('Structured output generation aborted')
+      }
+      if (error instanceof SyntaxError) {
+        throw new Error(
+          `Failed to parse structured output as JSON: ${error.message}`,
+        )
       }
       const err = error as Error
       throw new Error(
@@ -508,9 +486,7 @@ export class OpenRouterTextAdapter<
   private mapTextOptionsToSDK(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): ChatGenerationParams {
-    const modelOptions = options.modelOptions as
-      | Omit<InternalTextProviderOptions, 'model' | 'messages' | 'tools'>
-      | undefined
+    const modelOptions = options.modelOptions
 
     const messages = this.convertMessages(options.messages)
 
@@ -522,14 +498,18 @@ export class OpenRouterTextAdapter<
     }
 
     const request: ChatGenerationParams = {
+      ...modelOptions,
       model:
         options.model +
         (modelOptions?.variant ? `:${modelOptions.variant}` : ''),
       messages,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-      topP: options.topP,
-      ...modelOptions,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.maxTokens !== undefined && {
+        maxCompletionTokens: options.maxTokens,
+      }),
+      ...(options.topP !== undefined && { topP: options.topP }),
       tools: options.tools
         ? convertToolsToProviderFormat(options.tools)
         : undefined,
