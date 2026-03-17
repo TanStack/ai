@@ -1148,7 +1148,9 @@ describe('chat()', () => {
       expect(firstCallToolNames).not.toContain('getWeather')
 
       // Second adapter call should have getWeather (after discovery)
-      const secondCallToolNames = (calls[1] as any).tools.map((t: any) => t.name)
+      const secondCallToolNames = (calls[1] as any).tools.map(
+        (t: any) => t.name,
+      )
       expect(secondCallToolNames).toContain('getWeather')
 
       // TOOL_CALL_END chunks should exist for both discovery and getWeather
