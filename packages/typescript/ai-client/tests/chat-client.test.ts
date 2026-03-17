@@ -2032,6 +2032,10 @@ describe('ChatClient', () => {
               for (const chunk of batch) {
                 yield chunk
               }
+              // Re-check: new chunks may have been pushed while yielding
+              // (the consumer's setTimeout(0) between chunks allows the test
+              // to push more before we reach the await below)
+              if (chunks.length > 0) continue
             }
             await new Promise<void>((resolve) => {
               wake.fn = resolve
@@ -2128,7 +2132,7 @@ describe('ChatClient', () => {
         delta: 'once upon a time',
       } as StreamChunk)
       wake.fn?.()
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await new Promise((resolve) => setTimeout(resolve, 50))
 
       // Verify msg-a still has correct content after run-b finished
       const messages = client.getMessages()
@@ -2173,6 +2177,7 @@ describe('ChatClient', () => {
               for (const chunk of batch) {
                 yield chunk
               }
+              if (chunks.length > 0) continue
             }
             await new Promise<void>((resolve) => {
               wake.fn = resolve

@@ -31,7 +31,6 @@ import type {
   OpenRouterMessageMetadataByModality,
 } from '../message-types'
 import type {
-  ChatCompletionFinishReason,
   ChatGenerationParams,
   ChatGenerationTokenUsage,
   ChatMessageContentItem,
@@ -99,8 +98,6 @@ export class OpenRouterTextAdapter<
     let accumulatedContent = ''
     let responseId: string | null = null
     let currentModel = options.model
-    let lastFinishReason: ChatCompletionFinishReason | undefined
-
     // AG-UI lifecycle tracking
     const aguiState: AGUIState = {
       runId: this.generateId(),
@@ -149,9 +146,6 @@ export class OpenRouterTextAdapter<
         }
 
         for (const choice of chunk.choices) {
-          if (chunk.choices[0]?.finishReason) {
-            lastFinishReason = chunk.choices[0].finishReason
-          }
           yield* this.processChoice(
             choice,
             toolCallBuffers,
@@ -165,7 +159,6 @@ export class OpenRouterTextAdapter<
               accumulatedReasoning = r
               accumulatedContent = c
             },
-            lastFinishReason,
             chunk.usage,
             aguiState,
           )
@@ -288,7 +281,6 @@ export class OpenRouterTextAdapter<
     meta: { id: string; model: string; timestamp: number },
     accumulated: { reasoning: string; content: string },
     updateAccumulated: (reasoning: string, content: string) => void,
-    lastFinishReason: ChatCompletionFinishReason | undefined,
     usage: ChatGenerationTokenUsage | undefined,
     aguiState: AGUIState,
   ): Iterable<StreamChunk> {
@@ -447,7 +439,8 @@ export class OpenRouterTextAdapter<
     }
 
     if (finishReason) {
-      if (finishReason === 'tool_calls') {
+      // Emit all completed tool calls when finish reason indicates tool usage
+      if (finishReason === 'tool_calls' || toolCallBuffers.size > 0) {
         for (const [, tc] of toolCallBuffers.entries()) {
           // Parse arguments for TOOL_CALL_END
           let parsedInput: unknown = {}
@@ -470,12 +463,11 @@ export class OpenRouterTextAdapter<
 
         toolCallBuffers.clear()
       }
-    }
-    if (usage) {
+
       const computedFinishReason =
-        lastFinishReason === 'tool_calls'
+        finishReason === 'tool_calls'
           ? 'tool_calls'
-          : lastFinishReason === 'length'
+          : finishReason === 'length'
             ? 'length'
             : 'stop'
 
@@ -495,11 +487,13 @@ export class OpenRouterTextAdapter<
         runId: aguiState.runId,
         model: meta.model,
         timestamp: meta.timestamp,
-        usage: {
-          promptTokens: usage.promptTokens || 0,
-          completionTokens: usage.completionTokens || 0,
-          totalTokens: usage.totalTokens || 0,
-        },
+        usage: usage
+          ? {
+              promptTokens: usage.promptTokens || 0,
+              completionTokens: usage.completionTokens || 0,
+              totalTokens: usage.totalTokens || 0,
+            }
+          : undefined,
         finishReason: computedFinishReason,
       }
     }
