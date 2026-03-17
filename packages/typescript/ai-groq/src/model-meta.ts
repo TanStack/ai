@@ -1,4 +1,5 @@
 import type { GroqTextProviderOptions } from './text/text-provider-options'
+import type { GroqTTSProviderOptions } from './audio/tts-provider-options'
 
 /**
  * Internal metadata structure describing a Groq model's capabilities and pricing.
@@ -352,13 +353,22 @@ export type GroqChatModelProviderOptionsByName = {
 }
 
 /**
+ * Type-only map from Groq TTS model name to its provider options type.
+ */
+export type GroqTTSModelProviderOptionsByName = {
+  [K in GroqTTSModel]: GroqTTSProviderOptions
+}
+
+/**
  * Resolves the provider options type for a specific Groq model.
- * Falls back to generic GroqTextProviderOptions for unknown models.
+ * Checks TTS models first, then chat models, then falls back to generic options.
  */
 export type ResolveProviderOptions<TModel extends string> =
-  TModel extends keyof GroqChatModelProviderOptionsByName
-    ? GroqChatModelProviderOptionsByName[TModel]
-    : GroqTextProviderOptions
+  TModel extends GroqTTSModel
+    ? GroqTTSProviderOptions
+    : TModel extends keyof GroqChatModelProviderOptionsByName
+      ? GroqChatModelProviderOptionsByName[TModel]
+      : GroqTextProviderOptions
 
 /**
  * Resolve input modalities for a specific model.
@@ -368,3 +378,50 @@ export type ResolveInputModalities<TModel extends string> =
   TModel extends keyof GroqModelInputModalitiesByName
     ? GroqModelInputModalitiesByName[TModel]
     : readonly ['text']
+
+// ============================================================================
+// TTS Models
+// ============================================================================
+
+const ORPHEUS_V1_ENGLISH = {
+  name: 'canopylabs/orpheus-v1-english',
+  pricing: {
+    input: {
+      normal: 22,
+    },
+  },
+  supports: {
+    input: ['text'],
+    output: ['audio'],
+    endpoints: ['tts'],
+    features: [],
+  },
+} as const satisfies ModelMeta<GroqTTSProviderOptions>
+
+const ORPHEUS_ARABIC_SAUDI = {
+  name: 'canopylabs/orpheus-arabic-saudi',
+  pricing: {
+    input: {
+      normal: 40,
+    },
+  },
+  supports: {
+    input: ['text'],
+    output: ['audio'],
+    endpoints: ['tts'],
+    features: [],
+  },
+} as const satisfies ModelMeta<GroqTTSProviderOptions>
+
+/**
+ * All supported Groq TTS model identifiers.
+ */
+export const GROQ_TTS_MODELS = [
+  ORPHEUS_V1_ENGLISH.name,
+  ORPHEUS_ARABIC_SAUDI.name,
+] as const
+
+/**
+ * Union type of all supported Groq TTS model names.
+ */
+export type GroqTTSModel = (typeof GROQ_TTS_MODELS)[number]
