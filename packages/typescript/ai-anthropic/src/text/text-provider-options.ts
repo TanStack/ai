@@ -1,13 +1,11 @@
-import type {
-  BetaContextManagementConfig,
-  BetaToolChoiceAny,
-  BetaToolChoiceAuto,
-  BetaToolChoiceTool,
-} from '@anthropic-ai/sdk/resources/beta/messages/messages'
-import type { AnthropicTool } from '../tools'
+import type { BetaContextManagementConfig } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import type {
   MessageParam,
   TextBlockParam,
+  ToolChoiceAny,
+  ToolChoiceAuto,
+  ToolChoiceTool,
+  ToolUnion,
 } from '@anthropic-ai/sdk/resources/messages'
 
 export interface AnthropicContainerOptions {
@@ -38,8 +36,8 @@ export interface AnthropicContainerOptions {
 export interface AnthropicContextManagementOptions {
   /**
    * Context management configuration.
-
-This allows you to control how Claude manages context across multiple requests, such as whether to clear function results or not.
+   *
+   * This allows you to control how Claude manages context across multiple requests, such as whether to clear function results or not.
    */
   context_management?: BetaContextManagementConfig | null
 }
@@ -62,10 +60,10 @@ export interface AnthropicServiceTierOptions {
 export interface AnthropicStopSequencesOptions {
   /**
    * Custom text sequences that will cause the model to stop generating.
-
-Anthropic models will normally stop when they have naturally completed their turn, which will result in a response stop_reason of "end_turn".
-
-If you want the model to stop generating when it encounters custom strings of text, you can use the stop_sequences parameter. If the model encounters one of the custom sequences, the response stop_reason value will be "stop_sequence" and the response stop_sequence value will contain the matched stop sequence.
+   *
+   * Anthropic models will normally stop when they have naturally completed their turn, which will result in a response stop_reason of "end_turn".
+   *
+   * If you want the model to stop generating when it encounters custom strings of text, you can use the stop_sequences parameter. If the model encounters one of the custom sequences, the response stop_reason value will be "stop_sequence" and the response stop_sequence value will contain the matched stop sequence.
    */
   stop_sequences?: Array<string>
 }
@@ -73,15 +71,15 @@ If you want the model to stop generating when it encounters custom strings of te
 export interface AnthropicThinkingOptions {
   /**
      * Configuration for enabling Claude's extended thinking.
-
-When enabled, responses include thinking content blocks showing Claude's thinking process before the final answer. Requires a minimum budget of 1,024 tokens and counts towards your max_tokens limit.
+     *
+     * When enabled, responses include thinking content blocks showing Claude's thinking process before the final answer. Requires a minimum budget of 1,024 tokens and counts towards your max_tokens limit.
      */
   thinking?:
     | {
         /**
 * Determines how many tokens Claude can use for its internal reasoning process. Larger budgets can enable more thorough analysis for complex problems, improving response quality.
-
-Must be ≥1024 and less than max_tokens
+*
+* Must be ≥1024 and less than max_tokens
 */
         budget_tokens: number
 
@@ -129,17 +127,17 @@ export interface AnthropicEffortOptions {
 }
 
 export interface AnthropicToolChoiceOptions {
-  tool_choice?: BetaToolChoiceAny | BetaToolChoiceTool | BetaToolChoiceAuto
+  tool_choice?: ToolChoiceAny | ToolChoiceTool | ToolChoiceAuto
 }
 
 export interface AnthropicSamplingOptions {
   /**
    * Only sample from the top K options for each subsequent token.
-
-Used to remove "long tail" low probability responses.
-Recommended for advanced use cases only. You usually only need to use temperature.
-
-Required range: x >= 0
+   *
+   * Used to remove "long tail" low probability responses.
+   * Recommended for advanced use cases only. You usually only need to use temperature.
+   *
+   * Required range: x >= 0
    */
   top_k?: number
 }
@@ -170,10 +168,11 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    */
   stream?: boolean
   /**
-    * stem prompt.
- 
- A system prompt is a way of providing context and instructions to Claude, such as specifying a particular goal or role.
-    */
+   * System prompt.
+   *
+   * A system prompt is a way of providing context and instructions to Claude,
+   * such as specifying a particular goal or role.
+   */
   system?: string | Array<TextBlockParam>
   /**
    * Amount of randomness injected into the response.
@@ -183,12 +182,12 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    */
   temperature?: number
 
-  tools?: Array<AnthropicTool>
+  tools?: Array<ToolUnion>
 
   /**
    * Use nucleus sampling.
-
-In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by top_p. You should either alter temperature or top_p, but not both.
+   *
+   * In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by top_p. You should either alter temperature or top_p, but not both.
    */
   top_p?: number
 }

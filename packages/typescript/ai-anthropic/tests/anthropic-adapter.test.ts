@@ -5,28 +5,21 @@ import type { AnthropicTextProviderOptions } from '../src/adapters/text'
 import { z } from 'zod'
 
 const mocks = vi.hoisted(() => {
-  const betaMessagesCreate = vi.fn()
   const messagesCreate = vi.fn()
 
   const client = {
-    beta: {
-      messages: {
-        create: betaMessagesCreate,
-      },
-    },
     messages: {
       create: messagesCreate,
     },
   }
 
-  return { betaMessagesCreate, messagesCreate, client }
+  return { messagesCreate, client }
 })
 
 vi.mock('@anthropic-ai/sdk', () => {
   const { client } = mocks
 
   class MockAnthropic {
-    beta = client.beta
     messages = client.messages
 
     constructor(_: { apiKey: string }) {}
@@ -35,9 +28,8 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-const createAdapter = <TModel extends 'claude-3-7-sonnet-20250219'>(
-  model: TModel,
-) => new AnthropicTextAdapter({ apiKey: 'test-key' }, model)
+const createAdapter = <TModel extends string>(model: TModel) =>
+  new AnthropicTextAdapter({ apiKey: 'test-key' }, model as any)
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -77,7 +69,7 @@ describe('Anthropic adapter option mapping', () => {
       }
     })()
 
-    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+    mocks.messagesCreate.mockResolvedValueOnce(mockStream)
 
     const providerOptions = {
       container: {
@@ -132,8 +124,8 @@ describe('Anthropic adapter option mapping', () => {
       chunks.push(chunk)
     }
 
-    expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    expect(mocks.messagesCreate).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.messagesCreate.mock.calls[0]
 
     expect(payload).toMatchObject({
       model: 'claude-3-7-sonnet-20250219',
@@ -686,5 +678,140 @@ describe('Anthropic stream processing', () => {
     expect(runFinished[0]).toMatchObject({
       finishReason: 'tool_calls',
     })
+  })
+})
+
+describe('Anthropic structured output', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('sends output_config with json_schema and parses JSON response', async () => {
+    const mockResponse = {
+      content: [{ type: 'text', text: '{"name":"Alice","age":30}' }],
+    }
+    mocks.messagesCreate.mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter('claude-sonnet-4')
+
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'claude-sonnet-4',
+        messages: [{ role: 'user', content: 'Return a person object' }],
+        maxTokens: 1024,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+        },
+        required: ['name', 'age'],
+      },
+    })
+
+    expect(result).toEqual({
+      data: { name: 'Alice', age: 30 },
+      rawText: '{"name":"Alice","age":30}',
+    })
+
+    expect(mocks.messagesCreate).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.messagesCreate.mock.calls[0]
+    expect(payload.stream).toBe(false)
+    expect(payload.output_config).toEqual({
+      format: {
+        type: 'json_schema',
+        name: 'structured_output',
+        schema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            age: { type: 'number' },
+          },
+          required: ['name', 'age'],
+        },
+      },
+    })
+  })
+
+  it('throws when response is not valid JSON', async () => {
+    const mockResponse = {
+      content: [{ type: 'text', text: 'not valid json' }],
+    }
+    mocks.messagesCreate.mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter('claude-sonnet-4')
+
+    await expect(
+      adapter.structuredOutput({
+        chatOptions: {
+          model: 'claude-sonnet-4',
+          messages: [{ role: 'user', content: 'Return a person object' }],
+          maxTokens: 1024,
+        },
+        outputSchema: { type: 'object' },
+      }),
+    ).rejects.toThrow('Failed to parse structured output JSON')
+  })
+
+  it('falls back to tool-use for older models', async () => {
+    const mockResponse = {
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_123',
+          name: 'structured_output',
+          input: { name: 'Bob', age: 25 },
+        },
+      ],
+    }
+    mocks.messagesCreate.mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'claude-3-7-sonnet',
+        messages: [{ role: 'user', content: 'Return a person object' }],
+        maxTokens: 1024,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+        },
+        required: ['name', 'age'],
+      },
+    })
+
+    expect(result).toEqual({
+      data: { name: 'Bob', age: 25 },
+      rawText: '{"name":"Bob","age":25}',
+    })
+
+    expect(mocks.messagesCreate).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.messagesCreate.mock.calls[0]
+    expect(payload.stream).toBe(false)
+    expect(payload.output_config).toBeUndefined()
+    expect(payload.tool_choice).toEqual({
+      type: 'tool',
+      name: 'structured_output',
+    })
+    expect(payload.tools).toEqual([
+      {
+        name: 'structured_output',
+        description:
+          'Use this tool to provide your response in the required structured format.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            age: { type: 'number' },
+          },
+          required: ['name', 'age'],
+        },
+      },
+    ])
   })
 })
