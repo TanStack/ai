@@ -108,6 +108,37 @@ const CLAUDE_OPUS_4_5 = {
     AnthropicSamplingOptions
 >
 
+const CLAUDE_SONNET_4_6 = {
+  name: 'claude-sonnet-4-6',
+  id: 'claude-sonnet-4-6',
+  context_window: 1_000_000,
+  max_output_tokens: 64_000,
+  knowledge_cutoff: '2025-08-01',
+  pricing: {
+    input: {
+      normal: 3,
+    },
+    output: {
+      normal: 15,
+    },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    adaptive_thinking: true,
+    priority_tier: true,
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
 const CLAUDE_SONNET_4_5 = {
   name: 'claude-sonnet-4-5',
   id: 'claude-sonnet-4-5',
@@ -395,6 +426,7 @@ const CLAUDE_HAIKU_3 = {
 export const ANTHROPIC_MODELS = [
   CLAUDE_OPUS_4_6.id,
   CLAUDE_OPUS_4_5.id,
+  CLAUDE_SONNET_4_6.id,
   CLAUDE_SONNET_4_5.id,
   CLAUDE_HAIKU_4_5.id,
   CLAUDE_OPUS_4_1.id,
@@ -425,6 +457,14 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions
   [CLAUDE_OPUS_4_5.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_SONNET_4_6.id]: AnthropicContainerOptions &
     AnthropicContextManagementOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
@@ -513,6 +553,7 @@ export type AnthropicChatModelProviderOptionsByName = {
 export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_OPUS_4_6.id]: typeof CLAUDE_OPUS_4_6.supports.input
   [CLAUDE_OPUS_4_5.id]: typeof CLAUDE_OPUS_4_5.supports.input
+  [CLAUDE_SONNET_4_6.id]: typeof CLAUDE_SONNET_4_6.supports.input
   [CLAUDE_SONNET_4_5.id]: typeof CLAUDE_SONNET_4_5.supports.input
   [CLAUDE_HAIKU_4_5.id]: typeof CLAUDE_HAIKU_4_5.supports.input
   [CLAUDE_OPUS_4_1.id]: typeof CLAUDE_OPUS_4_1.supports.input

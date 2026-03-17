@@ -1,7 +1,7 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
-import type { ChatClientState } from '@tanstack/ai-client'
+import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
 import type {
   MultimodalContent,
   UIMessage,
@@ -21,6 +21,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   const isLoading = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<ChatClientState>('ready')
+  const isSubscribed = shallowRef(false)
+  const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
+  const sessionGenerating = shallowRef(false)
 
   // Create ChatClient instance with callbacks to sync state
   const client = new ChatClient({
@@ -51,6 +54,15 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     onErrorChange: (newError: Error | undefined) => {
       error.value = newError
     },
+    onSubscriptionChange: (nextIsSubscribed: boolean) => {
+      isSubscribed.value = nextIsSubscribed
+    },
+    onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+      connectionStatus.value = nextStatus
+    },
+    onSessionGeneratingChange: (isGenerating: boolean) => {
+      sessionGenerating.value = isGenerating
+    },
   })
 
   // Sync body changes to the client
@@ -62,10 +74,26 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     },
   )
 
+  watch(
+    () => options.live,
+    (live) => {
+      if (live) {
+        client.subscribe()
+      } else {
+        client.unsubscribe()
+      }
+    },
+    { immediate: true },
+  )
+
   // Cleanup on unmount: stop any in-flight requests
   // Note: client.stop() is safe to call even if nothing is in progress
   onScopeDispose(() => {
-    client.stop()
+    if (options.live) {
+      client.unsubscribe()
+    } else {
+      client.stop()
+    }
   })
 
   // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
@@ -122,6 +150,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     isLoading: readonly(isLoading),
     error: readonly(error),
     status: readonly(status),
+    isSubscribed: readonly(isSubscribed),
+    connectionStatus: readonly(connectionStatus),
+    sessionGenerating: readonly(sessionGenerating),
     setMessages: setMessagesManually,
     clear,
     addToolResult,

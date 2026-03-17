@@ -5,29 +5,21 @@ title: RealtimeToken
 
 # Interface: RealtimeToken
 
-Defined in: [realtime/types.ts](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts)
+Defined in: [realtime/types.ts:58](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L58)
 
-Token returned by the server for client authentication. Contains the ephemeral credentials, expiration time, and session configuration for a realtime connection.
+Token returned by the server for client authentication
 
 ## Properties
 
-### provider
+### config
 
 ```ts
-provider: string;
+config: RealtimeSessionConfig;
 ```
 
-Provider identifier (e.g., `'openai'`, `'elevenlabs'`).
+Defined in: [realtime/types.ts:66](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L66)
 
-***
-
-### token
-
-```ts
-token: string;
-```
-
-The ephemeral token value. For OpenAI, this is a client secret. For ElevenLabs, this is a signed URL.
+Session configuration embedded in the token
 
 ***
 
@@ -37,14 +29,30 @@ The ephemeral token value. For OpenAI, this is a client secret. For ElevenLabs, 
 expiresAt: number;
 ```
 
-Token expiration timestamp in milliseconds since epoch.
+Defined in: [realtime/types.ts:64](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L64)
+
+Token expiration timestamp (ms since epoch)
 
 ***
 
-### config
+### provider
 
 ```ts
-config: RealtimeSessionConfig;
+provider: string;
 ```
 
-Session configuration embedded in the token (model, voice, instructions, etc.).
+Defined in: [realtime/types.ts:60](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L60)
+
+Provider identifier
+
+***
+
+### token
+
+```ts
+token: string;
+```
+
+Defined in: [realtime/types.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L62)
+
+The ephemeral token value

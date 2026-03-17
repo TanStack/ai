@@ -18,6 +18,7 @@ type AGUIEventType =
   | "TOOL_CALL_END"
   | "STEP_STARTED"
   | "STEP_FINISHED"
+  | "MESSAGES_SNAPSHOT"
   | "STATE_SNAPSHOT"
   | "STATE_DELTA"
   | "CUSTOM";
