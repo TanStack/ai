@@ -168,7 +168,13 @@ export class GeminiImageAdapter<
       id: generateId(this.name),
       model,
       images,
-      usage: undefined,
+      usage: response.usageMetadata
+    ? {
+        inputTokens: response.usageMetadata.promptTokenCount,
+        outputTokens: response.usageMetadata.candidatesTokenCount,
+        totalTokens: response.usageMetadata.totalTokenCount,
+      }
+    : undefined,
     }
   }
 
