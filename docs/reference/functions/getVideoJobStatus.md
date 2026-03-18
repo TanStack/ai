@@ -14,7 +14,7 @@ function getVideoJobStatus<TAdapter>(options): Promise<{
 }>;
 ```
 
-Defined in: [activities/generateVideo/index.ts:217](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/index.ts#L217)
+Defined in: [activities/generateVideo/index.ts:381](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/index.ts#L381)
 
 **`Experimental`**
 

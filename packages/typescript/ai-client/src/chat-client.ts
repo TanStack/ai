@@ -19,6 +19,7 @@ import type { ChatClientEventEmitter } from './events'
 import type {
   ChatClientOptions,
   ChatClientState,
+  ConnectionStatus,
   MessagePart,
   MultimodalContent,
   ToolCallPart,
@@ -32,8 +33,10 @@ export class ChatClient {
   private body: Record<string, any> = {}
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private isLoading = false
+  private isSubscribed = false
   private error: Error | undefined = undefined
   private status: ChatClientState = 'ready'
+  private connectionStatus: ConnectionStatus = 'disconnected'
   private abortController: AbortController | null = null
   private events: ChatClientEventEmitter
   private clientToolsRef: { current: Map<string, AnyClientTool> }
@@ -51,6 +54,8 @@ export class ChatClient {
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
+  private sessionGenerating = false
+  private activeRunIds = new Set<string>()
 
   private callbacksRef: {
     current: {
@@ -62,6 +67,9 @@ export class ChatClient {
       onLoadingChange: (isLoading: boolean) => void
       onErrorChange: (error: Error | undefined) => void
       onStatusChange: (status: ChatClientState) => void
+      onSubscriptionChange: (isSubscribed: boolean) => void
+      onConnectionStatusChange: (status: ConnectionStatus) => void
+      onSessionGeneratingChange: (isGenerating: boolean) => void
       onCustomEvent: (
         eventType: string,
         data: unknown,
@@ -94,6 +102,11 @@ export class ChatClient {
         onLoadingChange: options.onLoadingChange || (() => {}),
         onErrorChange: options.onErrorChange || (() => {}),
         onStatusChange: options.onStatusChange || (() => {}),
+        onSubscriptionChange: options.onSubscriptionChange || (() => {}),
+        onConnectionStatusChange:
+          options.onConnectionStatusChange || (() => {}),
+        onSessionGeneratingChange:
+          options.onSessionGeneratingChange || (() => {}),
         onCustomEvent: options.onCustomEvent || (() => {}),
       },
     }
@@ -259,6 +272,27 @@ export class ChatClient {
     this.callbacksRef.current.onStatusChange(status)
   }
 
+  private setIsSubscribed(isSubscribed: boolean): void {
+    this.isSubscribed = isSubscribed
+    this.callbacksRef.current.onSubscriptionChange(isSubscribed)
+  }
+
+  private setConnectionStatus(status: ConnectionStatus): void {
+    this.connectionStatus = status
+    this.callbacksRef.current.onConnectionStatusChange(status)
+  }
+
+  private setSessionGenerating(isGenerating: boolean): void {
+    if (this.sessionGenerating === isGenerating) return
+    this.sessionGenerating = isGenerating
+    this.callbacksRef.current.onSessionGeneratingChange(isGenerating)
+  }
+
+  private resetSessionGenerating(): void {
+    this.activeRunIds.clear()
+    this.setSessionGenerating(false)
+  }
+
   private setError(error: Error | undefined): void {
     this.error = error
     this.callbacksRef.current.onErrorChange(error)
@@ -275,10 +309,15 @@ export class ChatClient {
     this.processingResolve = null
   }
 
-  private cancelInFlightStream(options?: { setReadyStatus?: boolean }): void {
+  private cancelInFlightStream(options?: {
+    setReadyStatus?: boolean
+    abortSubscription?: boolean
+  }): void {
     this.abortController?.abort()
     this.abortController = null
-    this.abortSubscriptionLoop()
+    if (options?.abortSubscription) {
+      this.abortSubscriptionLoop()
+    }
     this.resolveProcessing()
     this.setIsLoading(false)
     if (options?.setReadyStatus) {
@@ -290,7 +329,15 @@ export class ChatClient {
     const alreadyReported =
       this.errorReportedGeneration === this.streamGeneration
     this.setError(error)
-    this.setStatus('error')
+    // Preserve request-level error semantics even if a RUN_ERROR arrives
+    // slightly after loading flips false during stream teardown.
+    if (
+      this.isLoading ||
+      this.status === 'submitted' ||
+      this.status === 'streaming'
+    ) {
+      this.setStatus('error')
+    }
     if (!alreadyReported) {
       this.errorReportedGeneration = this.streamGeneration
       this.callbacksRef.current.onError(error)
@@ -304,13 +351,30 @@ export class ChatClient {
     this.subscriptionAbortController = new AbortController()
     const signal = this.subscriptionAbortController.signal
 
-    this.consumeSubscription(signal).catch((err) => {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        this.reportStreamError(err)
-      }
-      // Resolve pending processing so streamResponse doesn't hang
-      this.resolveProcessing()
-    })
+    this.consumeSubscription(signal)
+      .catch((err) => {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          this.setConnectionStatus('error')
+          this.resetSessionGenerating()
+          this.setIsSubscribed(false)
+          this.reportStreamError(err)
+        }
+        // Resolve pending processing so streamResponse doesn't hang
+        this.resolveProcessing()
+      })
+      .finally(() => {
+        // Ignore stale loops that were superseded by a restart.
+        if (this.subscriptionAbortController?.signal !== signal) {
+          return
+        }
+        this.subscriptionAbortController = null
+        if (!signal.aborted && this.isSubscribed) {
+          this.setIsSubscribed(false)
+          if (this.connectionStatus !== 'error') {
+            this.setConnectionStatus('disconnected')
+          }
+        }
+      })
   }
 
   /**
@@ -320,11 +384,25 @@ export class ChatClient {
     const stream = this.connection.subscribe(signal)
     for await (const chunk of stream) {
       if (signal.aborted) break
+      if (this.connectionStatus === 'connecting') {
+        this.setConnectionStatus('connected')
+      }
       this.callbacksRef.current.onChunk(chunk)
       this.processor.processChunk(chunk)
+      if (chunk.type === 'RUN_STARTED') {
+        this.activeRunIds.add(chunk.runId)
+        this.setSessionGenerating(true)
+      }
       // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
       // (redundant if onStreamEnd already resolved it, harmless)
       if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        if (chunk.runId) {
+          this.activeRunIds.delete(chunk.runId)
+        } else if (chunk.type === 'RUN_ERROR') {
+          // RUN_ERROR without runId is a session-level error; clear all runs
+          this.activeRunIds.clear()
+        }
+        this.setSessionGenerating(this.activeRunIds.size > 0)
         this.resolveProcessing()
       }
       // Yield control back to event loop for UI updates
@@ -336,11 +414,15 @@ export class ChatClient {
    * Ensure subscription loop is running, starting it if needed.
    */
   private ensureSubscription(): void {
+    if (!this.isSubscribed) {
+      this.subscribe()
+      return
+    }
     if (
       !this.subscriptionAbortController ||
       this.subscriptionAbortController.signal.aborted
     ) {
-      this.startSubscription()
+      this.subscribe({ restart: true })
     }
   }
 
@@ -594,6 +676,39 @@ export class ChatClient {
   }
 
   /**
+   * Start the client subscription loop.
+   * This controls the connection lifecycle independently from request lifecycle.
+   */
+  subscribe(options?: { restart?: boolean }): void {
+    const restart = options?.restart === true
+    if (this.isSubscribed && !restart) {
+      return
+    }
+
+    if (this.isSubscribed && restart) {
+      this.abortSubscriptionLoop()
+    }
+
+    this.setIsSubscribed(true)
+    this.setConnectionStatus('connecting')
+    this.startSubscription()
+  }
+
+  /**
+   * Unsubscribe and fully tear down live behavior.
+   * This aborts an in-flight request and the subscription loop.
+   */
+  unsubscribe(): void {
+    this.cancelInFlightStream({
+      setReadyStatus: true,
+      abortSubscription: true,
+    })
+    this.resetSessionGenerating()
+    this.setIsSubscribed(false)
+    this.setConnectionStatus('disconnected')
+  }
+
+  /**
    * Reload the last assistant message
    */
   async reload(): Promise<void> {
@@ -790,6 +905,30 @@ export class ChatClient {
   }
 
   /**
+   * Get whether the subscription loop is active
+   */
+  getIsSubscribed(): boolean {
+    return this.isSubscribed
+  }
+
+  /**
+   * Get current connection lifecycle status
+   */
+  getConnectionStatus(): ConnectionStatus {
+    return this.connectionStatus
+  }
+
+  /**
+   * Whether the shared session is actively generating.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `isLoading` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
+  getSessionGenerating(): boolean {
+    return this.sessionGenerating
+  }
+
+  /**
    * Get current error
    */
   getError(): Error | undefined {
@@ -814,6 +953,9 @@ export class ChatClient {
     onChunk?: (chunk: StreamChunk) => void
     onFinish?: (message: UIMessage) => void
     onError?: (error: Error) => void
+    onSubscriptionChange?: (isSubscribed: boolean) => void
+    onConnectionStatusChange?: (status: ConnectionStatus) => void
+    onSessionGeneratingChange?: (isGenerating: boolean) => void
     onCustomEvent?: (
       eventType: string,
       data: unknown,
@@ -821,13 +963,25 @@ export class ChatClient {
     ) => void
   }): void {
     if (options.connection !== undefined) {
-      // Cancel any in-flight stream to avoid hanging on stale processing promises
+      const wasSubscribed = this.isSubscribed
+
       if (this.isLoading) {
-        this.cancelInFlightStream({ setReadyStatus: true })
-      } else {
+        this.cancelInFlightStream({
+          setReadyStatus: true,
+          abortSubscription: true,
+        })
+      } else if (wasSubscribed) {
         this.abortSubscriptionLoop()
       }
+
+      this.resetSessionGenerating()
+      this.setIsSubscribed(false)
+      this.setConnectionStatus('disconnected')
       this.connection = normalizeConnectionAdapter(options.connection)
+
+      if (wasSubscribed) {
+        this.subscribe()
+      }
     }
     if (options.body !== undefined) {
       this.body = options.body
@@ -849,6 +1003,18 @@ export class ChatClient {
     }
     if (options.onError !== undefined) {
       this.callbacksRef.current.onError = options.onError
+    }
+    if (options.onSubscriptionChange !== undefined) {
+      this.callbacksRef.current.onSubscriptionChange =
+        options.onSubscriptionChange
+    }
+    if (options.onConnectionStatusChange !== undefined) {
+      this.callbacksRef.current.onConnectionStatusChange =
+        options.onConnectionStatusChange
+    }
+    if (options.onSessionGeneratingChange !== undefined) {
+      this.callbacksRef.current.onSessionGeneratingChange =
+        options.onSessionGeneratingChange
     }
     if (options.onCustomEvent !== undefined) {
       this.callbacksRef.current.onCustomEvent = options.onCustomEvent

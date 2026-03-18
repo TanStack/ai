@@ -51,6 +51,10 @@
           "to": "guides/tool-approval"
         },
         {
+          "label": "Lazy Tool Discovery",
+          "to": "guides/lazy-tool-discovery"
+        },
+        {
           "label": "Agentic Cycle",
           "to": "guides/agentic-cycle"
         },
@@ -200,6 +204,10 @@
         {
           "label": "Soniox",
           "to": "community-adapters/soniox"
+        },
+        {
+          "label": "Mynth",
+          "to": "community-adapters/mynth"
         }
       ]
     },

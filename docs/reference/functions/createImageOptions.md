@@ -6,10 +6,10 @@ title: createImageOptions
 # Function: createImageOptions()
 
 ```ts
-function createImageOptions<TAdapter>(options): ImageActivityOptions<TAdapter>;
+function createImageOptions<TAdapter, TStream>(options): ImageActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: [activities/generateImage/index.ts:205](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/index.ts#L205)
+Defined in: [activities/generateImage/index.ts:244](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/index.ts#L244)
 
 Create typed options for the generateImage() function without executing.
 
@@ -19,12 +19,16 @@ Create typed options for the generateImage() function without executing.
 
 `TAdapter` *extends* [`ImageAdapter`](../interfaces/ImageAdapter.md)\<`string`, `any`, `any`, `any`\>
 
+### TStream
+
+`TStream` *extends* `boolean` = `false`
+
 ## Parameters
 
 ### options
 
-`ImageActivityOptions`\<`TAdapter`\>
+`ImageActivityOptions`\<`TAdapter`, `TStream`\>
 
 ## Returns
 
-`ImageActivityOptions`\<`TAdapter`\>
+`ImageActivityOptions`\<`TAdapter`, `TStream`\>

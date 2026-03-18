@@ -6,17 +6,9 @@ title: RealtimeStatus
 # Type Alias: RealtimeStatus
 
 ```ts
-type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+type RealtimeStatus = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 ```
 
-Defined in: [realtime/types.ts](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts)
+Defined in: [realtime/types.ts:181](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L181)
 
-Connection status of the realtime client.
-
-| Value | Description |
-|-------|-------------|
-| `'idle'` | Not connected |
-| `'connecting'` | Establishing connection |
-| `'connected'` | Active session |
-| `'reconnecting'` | Reconnecting after interruption |
-| `'error'` | Connection error occurred |
+Connection status of the realtime client

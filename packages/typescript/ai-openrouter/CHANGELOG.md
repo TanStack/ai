@@ -1,5 +1,21 @@
 # @tanstack/ai-openrouter
 
+## 0.6.7
+
+### Patch Changes
+
+- Fix issue with tool calling ([#360](https://github.com/TanStack/ai/pull/360))
+
+- Updated dependencies [[`842e119`](https://github.com/TanStack/ai/commit/842e119a07377307ba0834ccca0e224dcb5c46ea)]:
+  - @tanstack/ai@0.9.0
+
+## 0.6.6
+
+### Patch Changes
+
+- Updated dependencies [[`64b9cba`](https://github.com/TanStack/ai/commit/64b9cba2ebf89162b809ba575c49ef12c0e87ee7), [`dc53e1b`](https://github.com/TanStack/ai/commit/dc53e1b89fddf6fc744e4788731e8ca64ec3d250)]:
+  - @tanstack/ai@0.8.1
+
 ## 0.6.5
 
 ### Patch Changes
