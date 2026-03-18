@@ -60,6 +60,7 @@ test-results
 
 STATUS_*.md
 
+.skills
 # Only .claude.settings.json should be committed
 .claude/settings.local.json
 .claude/worktrees/*
