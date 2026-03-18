@@ -248,7 +248,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
       messageList.push({
         role: 'tool',
-        content: JSON.stringify(part.output),
+        content: Array.isArray(part.output)
+          ? part.output
+          : JSON.stringify(part.output),
         toolCallId: part.id,
       })
       emittedToolResultIds.add(part.id)

@@ -298,7 +298,8 @@ export interface ToolCallPart {
 export interface ToolResultPart {
   type: 'tool-result'
   toolCallId: string
-  content: string
+  /** Tool result content. String for text results, or an array for multimodal results (e.g. images). */
+  content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
 }
@@ -875,8 +876,8 @@ export interface ToolCallEndEvent extends BaseAGUIEvent {
   toolName: string
   /** Final parsed input arguments */
   input?: unknown
-  /** Tool execution result (if executed) */
-  result?: string
+  /** Tool execution result (if executed). String for text, array for multimodal content. */
+  result?: string | Array<ContentPart>
 }
 
 /**

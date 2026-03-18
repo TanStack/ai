@@ -706,11 +706,14 @@ export class OpenAITextAdapter<
         result.push({
           type: 'function_call_output',
           call_id: message.toolCallId || '',
+          // Support multimodal tool outputs (OpenAI Responses API accepts
+          // string or array of content parts for function_call_output).
           output:
-            typeof message.content === 'string'
+            typeof message.content === 'string' ||
+            Array.isArray(message.content)
               ? message.content
               : JSON.stringify(message.content),
-        })
+        } as any)
         continue
       }
 

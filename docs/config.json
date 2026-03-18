@@ -14,6 +14,10 @@
           "to": "getting-started/overview"
         },
         {
+          "label": "Installation",
+          "to": "getting-started/installation"
+        },
+        {
           "label": "Quick Start",
           "to": "getting-started/quick-start"
         },
