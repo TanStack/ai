@@ -743,18 +743,20 @@ function CodeModePanel({
     return { toolCalls: count, toolCallsByName: byName }
   }, [messages])
 
+  const toolCallsByNameRef = useRef(toolCallsByName)
+  toolCallsByNameRef.current = toolCallsByName
+
   useEffect(() => {
     onStatsChange({
       llmCalls: llmCallsBase.current + llmCallsCurrent,
       toolCalls,
-      toolCallsByName,
+      toolCallsByName: toolCallsByNameRef.current,
       contextBytes: contextBytesBase.current + contextBytesCurrent,
       durationMs: totalTimeMs,
     })
   }, [
     llmCallsCurrent,
     toolCalls,
-    toolCallsByName,
     contextBytesCurrent,
     totalTimeMs,
     onStatsChange,
@@ -1037,18 +1039,20 @@ function RegularToolsPanel({
     return { toolCalls: count, toolCallsByName: byName }
   }, [messages])
 
+  const toolCallsByNameRef = useRef(toolCallsByName)
+  toolCallsByNameRef.current = toolCallsByName
+
   useEffect(() => {
     onStatsChange({
       llmCalls: llmCallsBase.current + llmCallsCurrent,
       toolCalls,
-      toolCallsByName,
+      toolCallsByName: toolCallsByNameRef.current,
       contextBytes: contextBytesBase.current + contextBytesCurrent,
       durationMs: totalTimeMs,
     })
   }, [
     llmCallsCurrent,
     toolCalls,
-    toolCallsByName,
     contextBytesCurrent,
     totalTimeMs,
     onStatsChange,
