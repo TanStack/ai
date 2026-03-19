@@ -38,7 +38,7 @@
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
     "generate:models": "tsx scripts/convert-openrouter-models.ts",
     "sync-docs-config": "node scripts/sync-docs-config.ts",
-    "copy:readme": "cp README.md packages/typescript/ai/README.md && cp README.md packages/typescript/ai-devtools/README.md && cp README.md packages/typescript/preact-ai-devtools/README.md && cp README.md packages/typescript/ai-client/README.md && cp README.md packages/typescript/ai-gemini/README.md && cp README.md packages/typescript/ai-ollama/README.md && cp README.md packages/typescript/ai-openai/README.md && cp README.md packages/typescript/ai-react/README.md && cp README.md packages/typescript/ai-react-ui/README.md && cp README.md packages/typescript/react-ai-devtools/README.md && cp README.md packages/typescript/solid-ai-devtools/README.md",
+    "copy:readme": "cp README.md packages/typescript/ai/README.md && cp README.md packages/typescript/ai-devtools/README.md && cp README.md packages/typescript/preact-ai-devtools/README.md && cp README.md packages/typescript/ai-client/README.md && cp README.md packages/typescript/ai-gemini/README.md && cp README.md packages/typescript/ai-ollama/README.md && cp README.md packages/typescript/ai-openai/README.md && cp README.md packages/typescript/ai-react/README.md && cp README.md packages/typescript/ai-react-ui/README.md && cp README.md packages/typescript/react-ai-devtools/README.md && cp README.md packages/typescript/solid-ai-devtools/README.md && cp README.md packages/typescript/ai-bedrock/README.md",
     "changeset": "changeset",
     "changeset:publish": "changeset publish",
     "changeset:version": "changeset version && pnpm install --no-frozen-lockfile && pnpm format"
