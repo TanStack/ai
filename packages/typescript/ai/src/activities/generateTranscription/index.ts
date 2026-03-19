@@ -5,9 +5,10 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
-import { aiEventClient } from '../../event-client.js'
+import { aiEventClient } from '@tanstack/ai-event-client'
+import { streamGenerationResult } from '../stream-generation-result.js'
 import type { TranscriptionAdapter } from './adapter'
-import type { TranscriptionResult } from '../../types'
+import type { StreamChunk, TranscriptionResult } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -37,9 +38,11 @@ export type TranscriptionProviderOptions<TAdapter> =
  * The model is extracted from the adapter's model property.
  *
  * @template TAdapter - The transcription adapter type
+ * @template TStream - Whether to stream the output
  */
 export interface TranscriptionActivityOptions<
   TAdapter extends TranscriptionAdapter<string, object>,
+  TStream extends boolean = false,
 > {
   /** The transcription adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -53,14 +56,29 @@ export interface TranscriptionActivityOptions<
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Provider-specific options for transcription */
   modelOptions?: TranscriptionProviderOptions<TAdapter>
+  /**
+   * Whether to stream the transcription result.
+   * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
+   * When false or not provided, returns a Promise<TranscriptionResult>.
+   *
+   * @default false
+   */
+  stream?: TStream
 }
 
 // ===========================
 // Activity Result Type
 // ===========================
 
-/** Result type for the transcription activity */
-export type TranscriptionActivityResult = Promise<TranscriptionResult>
+/**
+ * Result type for the transcription activity.
+ * - If stream is true: AsyncIterable<StreamChunk>
+ * - Otherwise: Promise<TranscriptionResult>
+ */
+export type TranscriptionActivityResult<TStream extends boolean = false> =
+  TStream extends true
+    ? AsyncIterable<StreamChunk>
+    : Promise<TranscriptionResult>
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -101,13 +119,44 @@ function createId(prefix: string): string {
  *   console.log(`[${segment.start}s - ${segment.end}s]: ${segment.text}`)
  * })
  * ```
+ *
+ * @example Streaming transcription result
+ * ```ts
+ * for await (const chunk of generateTranscription({
+ *   adapter: openaiTranscription('whisper-1'),
+ *   audio: audioFile,
+ *   stream: true
+ * })) {
+ *   console.log(chunk)
+ * }
+ * ```
  */
-export async function generateTranscription<
+export function generateTranscription<
+  TAdapter extends TranscriptionAdapter<string, object>,
+  TStream extends boolean = false,
+>(
+  options: TranscriptionActivityOptions<TAdapter, TStream>,
+): TranscriptionActivityResult<TStream> {
+  if (options.stream) {
+    return streamGenerationResult(() =>
+      runGenerateTranscription(options),
+    ) as TranscriptionActivityResult<TStream>
+  }
+
+  return runGenerateTranscription(
+    options,
+  ) as TranscriptionActivityResult<TStream>
+}
+
+/**
+ * Run non-streaming transcription
+ */
+async function runGenerateTranscription<
   TAdapter extends TranscriptionAdapter<string, object>,
 >(
-  options: TranscriptionActivityOptions<TAdapter>,
-): TranscriptionActivityResult {
-  const { adapter, ...rest } = options
+  options: TranscriptionActivityOptions<TAdapter, boolean>,
+): Promise<TranscriptionResult> {
+  const { adapter, stream: _stream, ...rest } = options
   const model = adapter.model
   const requestId = createId('transcription')
   const startTime = Date.now()
@@ -149,9 +198,10 @@ export async function generateTranscription<
  */
 export function createTranscriptionOptions<
   TAdapter extends TranscriptionAdapter<string, object>,
+  TStream extends boolean = false,
 >(
-  options: TranscriptionActivityOptions<TAdapter>,
-): TranscriptionActivityOptions<TAdapter> {
+  options: TranscriptionActivityOptions<TAdapter, TStream>,
+): TranscriptionActivityOptions<TAdapter, TStream> {
   return options
 }
 

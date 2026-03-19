@@ -131,6 +131,37 @@ describe('toolDefinition', () => {
     expect(clientTool.needsApproval).toBe(true)
   })
 
+  it('should preserve lazy flag', () => {
+    const tool = toolDefinition({
+      name: 'discoverableWeather',
+      description: 'Get weather (lazy)',
+      lazy: true,
+      inputSchema: z.object({
+        location: z.string(),
+      }),
+    })
+
+    expect(tool.lazy).toBe(true)
+
+    const serverTool = tool.server(async (_args) => ({ temp: 72 }))
+    expect(serverTool.lazy).toBe(true)
+
+    const clientTool = tool.client()
+    expect(clientTool.lazy).toBe(true)
+  })
+
+  it('should default lazy to undefined when not specified', () => {
+    const tool = toolDefinition({
+      name: 'eagerTool',
+      description: 'A normal tool',
+    })
+
+    expect(tool.lazy).toBeUndefined()
+
+    const serverTool = tool.server(async () => ({}))
+    expect(serverTool.lazy).toBeUndefined()
+  })
+
   it('should preserve metadata', () => {
     const tool = toolDefinition({
       name: 'customTool',

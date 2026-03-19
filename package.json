@@ -10,6 +10,9 @@
   "pnpm": {
     "overrides": {
       "abbrev": "^3.0.0"
+    },
+    "patchedDependencies": {
+      "@changesets/assemble-release-plan@6.0.9": "patches/@changesets__assemble-release-plan@6.0.9.patch"
     }
   },
   "scripts": {
@@ -48,7 +51,7 @@
     ]
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.8",
+    "@changesets/cli": "^2.30.0",
     "@faker-js/faker": "^10.1.0",
     "@svitejs/changesets-changelog-github-compact": "^1.2.0",
     "@tanstack/eslint-config": "0.3.3",

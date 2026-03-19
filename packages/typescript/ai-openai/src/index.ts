@@ -100,3 +100,19 @@ export type {
   OpenAIMessageMetadataByModality,
 } from './message-types'
 export type { OpenAIClientConfig } from './utils/client'
+
+// ============================================================================
+// Realtime (Voice) Adapters
+// ============================================================================
+
+export { openaiRealtimeToken, openaiRealtime } from './realtime/index'
+
+export type {
+  OpenAIRealtimeVoice,
+  OpenAIRealtimeModel,
+  OpenAIRealtimeTokenOptions,
+  OpenAIRealtimeOptions,
+  OpenAITurnDetection,
+  OpenAISemanticVADConfig,
+  OpenAIServerVADConfig,
+} from './realtime/index'

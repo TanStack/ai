@@ -6,3 +6,6 @@ export { MessagesTab } from './MessagesTab'
 export { ChunksTab } from './ChunksTab'
 export { SummariesTab } from './SummariesTab'
 export { ActivityEventsTab } from './ActivityEventsTab'
+
+export { IterationTimeline } from './IterationTimeline'
+export { IterationCard } from './IterationCard'

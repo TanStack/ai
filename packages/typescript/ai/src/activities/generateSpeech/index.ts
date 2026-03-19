@@ -5,9 +5,10 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
-import { aiEventClient } from '../../event-client.js'
+import { aiEventClient } from '@tanstack/ai-event-client'
+import { streamGenerationResult } from '../stream-generation-result.js'
 import type { TTSAdapter } from './adapter'
-import type { TTSResult } from '../../types'
+import type { StreamChunk, TTSResult } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -37,9 +38,11 @@ export type TTSProviderOptions<TAdapter> =
  * The model is extracted from the adapter's model property.
  *
  * @template TAdapter - The TTS adapter type
+ * @template TStream - Whether to stream the output
  */
 export interface TTSActivityOptions<
   TAdapter extends TTSAdapter<string, object>,
+  TStream extends boolean = false,
 > {
   /** The TTS adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -53,14 +56,27 @@ export interface TTSActivityOptions<
   speed?: number
   /** Provider-specific options for TTS generation */
   modelOptions?: TTSProviderOptions<TAdapter>
+  /**
+   * Whether to stream the generation result.
+   * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
+   * When false or not provided, returns a Promise<TTSResult>.
+   *
+   * @default false
+   */
+  stream?: TStream
 }
 
 // ===========================
 // Activity Result Type
 // ===========================
 
-/** Result type for the TTS activity */
-export type TTSActivityResult = Promise<TTSResult>
+/**
+ * Result type for the TTS activity.
+ * - If stream is true: AsyncIterable<StreamChunk>
+ * - Otherwise: Promise<TTSResult>
+ */
+export type TTSActivityResult<TStream extends boolean = false> =
+  TStream extends true ? AsyncIterable<StreamChunk> : Promise<TTSResult>
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -100,10 +116,25 @@ function createId(prefix: string): string {
  * })
  * ```
  */
-export async function generateSpeech<
+export function generateSpeech<
   TAdapter extends TTSAdapter<string, object>,
->(options: TTSActivityOptions<TAdapter>): TTSActivityResult {
-  const { adapter, ...rest } = options
+  TStream extends boolean = false,
+>(options: TTSActivityOptions<TAdapter, TStream>): TTSActivityResult<TStream> {
+  if (options.stream) {
+    return streamGenerationResult(() =>
+      runGenerateSpeech(options),
+    ) as TTSActivityResult<TStream>
+  }
+  return runGenerateSpeech(options) as TTSActivityResult<TStream>
+}
+
+/**
+ * Run the core TTS generation logic (non-streaming).
+ */
+async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
+  options: TTSActivityOptions<TAdapter, boolean>,
+): Promise<TTSResult> {
+  const { adapter, stream: _stream, ...rest } = options
   const model = adapter.model
   const requestId = createId('speech')
   const startTime = Date.now()
@@ -149,7 +180,10 @@ export async function generateSpeech<
  */
 export function createSpeechOptions<
   TAdapter extends TTSAdapter<string, object>,
->(options: TTSActivityOptions<TAdapter>): TTSActivityOptions<TAdapter> {
+  TStream extends boolean = false,
+>(
+  options: TTSActivityOptions<TAdapter, TStream>,
+): TTSActivityOptions<TAdapter, TStream> {
   return options
 }
 

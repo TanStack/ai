@@ -1,7 +1,7 @@
 ---
 title: Text-to-Speech
 id: text-to-speech
-order: 13
+order: 14
 ---
 
 # Text-to-Speech (TTS)
@@ -176,6 +176,226 @@ const result = await generateSpeech({
 
 await saveAudio(result, 'output.mp3')
 ```
+
+## Full-Stack Usage
+
+TanStack AI provides React hooks and server-side streaming helpers to build full-stack text-to-speech with minimal boilerplate.
+
+### Streaming Mode (Server Route + Client Hook)
+
+**Server** — Create an API route that wraps `generateSpeech` as a streaming response:
+
+```typescript
+// routes/api/generate/speech.ts
+import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiTTS } from '@tanstack/ai-openai'
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/api/generate/speech')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
+        const { text, voice, format, model } = body.data
+
+        const stream = generateSpeech({
+          adapter: openaiTTS(model ?? 'tts-1'),
+          text,
+          voice,
+          format,
+          stream: true,
+        })
+
+        return toServerSentEventsResponse(stream)
+      },
+    },
+  },
+})
+```
+
+**Client** — Use the `useGenerateSpeech` hook with a connection adapter:
+
+```tsx
+import { useGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function SpeechGenerator() {
+  const { generate, result, isLoading, error } = useGenerateSpeech({
+    connection: fetchServerSentEvents('/api/generate/speech'),
+  })
+
+  const playAudio = () => {
+    if (!result) return
+    const audioData = atob(result.audio)
+    const bytes = new Uint8Array(audioData.length)
+    for (let i = 0; i < audioData.length; i++) {
+      bytes[i] = audioData.charCodeAt(i)
+    }
+    const blob = new Blob([bytes], { type: result.contentType })
+    const url = URL.createObjectURL(blob)
+    const audio = new Audio(url)
+    audio.play()
+    audio.onended = () => URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => generate({ text: 'Hello, welcome to TanStack AI!' })}
+        disabled={isLoading}
+      >
+        {isLoading ? 'Generating...' : 'Generate Speech'}
+      </button>
+      {error && <p>Error: {error.message}</p>}
+      {result && <button onClick={playAudio}>Play Audio</button>}
+    </div>
+  )
+}
+```
+
+### Direct Mode (Server Function + Fetcher)
+
+For non-streaming usage with TanStack Start server functions:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateSpeech } from '@tanstack/ai'
+import { openaiTTS } from '@tanstack/ai-openai'
+
+export const generateSpeechFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { text: string; voice?: string }) => data)
+  .handler(async ({ data }) => {
+    return generateSpeech({
+      adapter: openaiTTS('tts-1'),
+      text: data.text,
+      voice: data.voice,
+    })
+  })
+```
+
+```tsx
+import { useGenerateSpeech } from '@tanstack/ai-react'
+import { generateSpeechFn } from '../lib/server-functions'
+
+function SpeechGenerator() {
+  const { generate, result, isLoading } = useGenerateSpeech({
+    fetcher: (input) => generateSpeechFn({ data: input }),
+  })
+  // ... same UI as above
+}
+```
+
+### Server Function Streaming (Fetcher + Response)
+
+For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiTTS } from '@tanstack/ai-openai'
+
+export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { text: string; voice?: string }) => data)
+  .handler(({ data }) => {
+    return toServerSentEventsResponse(
+      generateSpeech({
+        adapter: openaiTTS('tts-1'),
+        text: data.text,
+        voice: data.voice,
+        stream: true,
+      }),
+    )
+  })
+```
+
+```tsx
+import { useGenerateSpeech } from '@tanstack/ai-react'
+import { generateSpeechStreamFn } from '../lib/server-functions'
+
+function SpeechGenerator() {
+  const { generate, result, isLoading } = useGenerateSpeech({
+    fetcher: (input) => generateSpeechStreamFn({ data: input }),
+  })
+  // ... same UI as above
+}
+```
+
+### Hook API
+
+The `useGenerateSpeech` hook accepts:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
+| `fetcher` | `(input) => Promise<TTSResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
+| `onResult` | `(result) => TOutput \| null \| void` | Callback when audio is generated. Optionally return a transformed value (see [Result Transform](#result-transform)) |
+| `onError` | `(error) => void` | Callback on error |
+| `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
+
+And returns:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `generate` | `(input: SpeechGenerateInput) => Promise<void>` | Trigger generation |
+| `result` | `TOutput \| null` | The result (or transformed result), or null |
+| `isLoading` | `boolean` | Whether generation is in progress |
+| `error` | `Error \| undefined` | Current error, if any |
+| `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
+| `stop` | `() => void` | Abort the current generation |
+| `reset` | `() => void` | Clear result, error, and return to idle |
+
+### Result Transform
+
+The `onResult` callback can optionally return a transformed value that replaces the stored `result`. This is useful for converting raw API responses into a more convenient format for your components.
+
+**Transform behavior:**
+- Return a **non-null value** to replace the stored result with the transformed value
+- Return **`null`** to keep the previous result unchanged (useful for filtering)
+- Return **nothing** (`void`) to store the raw result as-is (backward compatible)
+
+**Example: Convert base64 audio to a playable Audio element**
+
+```tsx
+import { useGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function SpeechPlayer() {
+  const { generate, result, isLoading } = useGenerateSpeech({
+    connection: fetchServerSentEvents('/api/generate/speech'),
+    onResult: (raw) => {
+      const audioData = atob(raw.audio)
+      const bytes = new Uint8Array(audioData.length)
+      for (let i = 0; i < audioData.length; i++) {
+        bytes[i] = audioData.charCodeAt(i)
+      }
+      const blob = new Blob([bytes], { type: raw.contentType })
+      const url = URL.createObjectURL(blob)
+      return {
+        audio: new Audio(url),
+        duration: raw.duration,
+      }
+    },
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() => generate({ text: 'Hello world!', voice: 'alloy' })}
+        disabled={isLoading}
+      >
+        Generate
+      </button>
+      {result && (
+        <button onClick={() => result.audio.play()}>
+          Play Audio
+        </button>
+      )}
+    </div>
+  )
+}
+```
+
+TypeScript automatically infers the result type from your `onResult` return value — no explicit generic parameter needed. In this example, `result` is inferred as `{ audio: HTMLAudioElement; duration?: number } | null`, so `result.audio.play()` is fully type-safe.
 
 ## Model Availability
 

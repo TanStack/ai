@@ -1,5 +1,70 @@
 # @tanstack/react-ai-devtools
 
+## 0.2.17
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.13
+
+## 0.2.16
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.12
+
+## 0.2.15
+
+### Patch Changes
+
+- Updated dependencies [[`f62eeb0`](https://github.com/TanStack/ai/commit/f62eeb0d7efd002894435c7f2c8a9f2790f0b6d7)]:
+  - @tanstack/ai-devtools-core@0.3.11
+
+## 0.2.14
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.10
+
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.9
+
+## 0.2.12
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.8
+
+## 0.2.11
+
+### Patch Changes
+
+- Bump up package versions ([#334](https://github.com/TanStack/ai/pull/334))
+
+- Updated dependencies [[`d40adfe`](https://github.com/TanStack/ai/commit/d40adfed2dc2964eb77f8f192e74c3e0aae08460), [`d40adfe`](https://github.com/TanStack/ai/commit/d40adfed2dc2964eb77f8f192e74c3e0aae08460)]:
+  - @tanstack/ai-devtools-core@0.3.7
+
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.6
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-devtools-core@0.3.5
+
 ## 0.2.8
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 ---
 title: Transcription
 id: transcription
-order: 14
+order: 15
 ---
 
 # Audio Transcription
@@ -282,6 +282,181 @@ export async function POST(request: Request) {
   return Response.json(result)
 }
 ```
+
+## Full-Stack Usage
+
+TanStack AI provides React hooks and server-side streaming helpers to build full-stack audio transcription with minimal boilerplate.
+
+### Streaming Mode (Server Route + Client Hook)
+
+**Server** — Create an API route that wraps `generateTranscription` as a streaming response:
+
+```typescript
+// routes/api/transcribe.ts
+import {
+  generateTranscription,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiTranscription } from '@tanstack/ai-openai'
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/api/transcribe')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
+        const { audio, language, model } = body.data
+
+        const stream = generateTranscription({
+          adapter: openaiTranscription(model ?? 'whisper-1'),
+          audio,
+          language,
+          stream: true,
+        })
+
+        return toServerSentEventsResponse(stream)
+      },
+    },
+  },
+})
+```
+
+> **Note:** For browser-recorded audio, you'll typically send the audio as a base64 string in the JSON body. For file uploads, use a FormData-based endpoint instead (see [Browser Usage](#browser-usage) above).
+
+**Client** — Use the `useTranscription` hook with a connection adapter:
+
+```tsx
+import { useTranscription, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function AudioTranscriber() {
+  const { generate, result, isLoading, error } = useTranscription({
+    connection: fetchServerSentEvents('/api/transcribe'),
+  })
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Convert to base64 for JSON transport
+    const buffer = await file.arrayBuffer()
+    const base64 = btoa(
+      new Uint8Array(buffer).reduce((s, b) => s + String.fromCharCode(b), ''),
+    )
+    const dataUrl = `data:${file.type};base64,${base64}`
+
+    await generate({ audio: dataUrl, language: 'en' })
+  }
+
+  return (
+    <div>
+      <input type="file" accept="audio/*" onChange={handleFileUpload} />
+      {isLoading && <p>Transcribing...</p>}
+      {error && <p>Error: {error.message}</p>}
+      {result && (
+        <div>
+          <p>{result.text}</p>
+          {result.duration && <p>Duration: {result.duration}s</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+### Direct Mode (Server Function + Fetcher)
+
+For non-streaming usage with TanStack Start server functions:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateTranscription } from '@tanstack/ai'
+import { openaiTranscription } from '@tanstack/ai-openai'
+
+export const transcribeFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { audio: string; language?: string }) => data)
+  .handler(async ({ data }) => {
+    return generateTranscription({
+      adapter: openaiTranscription('whisper-1'),
+      audio: data.audio,
+      language: data.language,
+    })
+  })
+```
+
+```tsx
+import { useTranscription } from '@tanstack/ai-react'
+import { transcribeFn } from '../lib/server-functions'
+
+function AudioTranscriber() {
+  const { generate, result, isLoading } = useTranscription({
+    fetcher: (input) => transcribeFn({ data: input }),
+  })
+  // ... same UI as above
+}
+```
+
+### Server Function Streaming (Fetcher + Response)
+
+For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically:
+
+```typescript
+// lib/server-functions.ts
+import { createServerFn } from '@tanstack/react-start'
+import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiTranscription } from '@tanstack/ai-openai'
+
+export const transcribeStreamFn = createServerFn({ method: 'POST' })
+  .inputValidator((data: { audio: string; language?: string }) => data)
+  .handler(({ data }) => {
+    return toServerSentEventsResponse(
+      generateTranscription({
+        adapter: openaiTranscription('whisper-1'),
+        audio: data.audio,
+        language: data.language,
+        stream: true,
+      }),
+    )
+  })
+```
+
+```tsx
+import { useTranscription } from '@tanstack/ai-react'
+import { transcribeStreamFn } from '../lib/server-functions'
+
+function AudioTranscriber() {
+  const { generate, result, isLoading } = useTranscription({
+    fetcher: (input) => transcribeStreamFn({
+      data: { ...input, audio: input.audio as string },
+    }),
+  })
+  // ... same UI as above
+}
+```
+
+### Hook API
+
+The `useTranscription` hook accepts:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
+| `fetcher` | `(input) => Promise<TranscriptionResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
+| `onResult` | `(result) => void` | Callback when transcription completes |
+| `onError` | `(error) => void` | Callback on error |
+| `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
+
+And returns:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `generate` | `(input: TranscriptionGenerateInput) => Promise<void>` | Trigger transcription |
+| `result` | `TranscriptionResult \| null` | The result with text and segments, or null |
+| `isLoading` | `boolean` | Whether transcription is in progress |
+| `error` | `Error \| undefined` | Current error, if any |
+| `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
+| `stop` | `() => void` | Abort the current transcription |
+| `reset` | `() => void` | Clear result, error, and return to idle |
 
 ## Error Handling
 

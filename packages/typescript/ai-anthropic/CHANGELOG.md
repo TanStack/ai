@@ -1,5 +1,44 @@
 # @tanstack/ai-anthropic
 
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [[`842e119`](https://github.com/TanStack/ai/commit/842e119a07377307ba0834ccca0e224dcb5c46ea)]:
+  - @tanstack/ai@0.9.0
+
+## 0.7.0
+
+### Minor Changes
+
+- Add `claude-sonnet-4-6` model metadata to the Anthropic adapter, including 1M native context window and adaptive thinking support. ([#378](https://github.com/TanStack/ai/pull/378))
+
+### Patch Changes
+
+- Updated dependencies [[`64b9cba`](https://github.com/TanStack/ai/commit/64b9cba2ebf89162b809ba575c49ef12c0e87ee7), [`dc53e1b`](https://github.com/TanStack/ai/commit/dc53e1b89fddf6fc744e4788731e8ca64ec3d250)]:
+  - @tanstack/ai@0.8.1
+
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [[`f62eeb0`](https://github.com/TanStack/ai/commit/f62eeb0d7efd002894435c7f2c8a9f2790f0b6d7)]:
+  - @tanstack/ai@0.8.0
+
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [[`86be1c8`](https://github.com/TanStack/ai/commit/86be1c8262bb3176ea786aa0af115b38c3e3f51a)]:
+  - @tanstack/ai@0.7.0
+
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [[`5aa6acc`](https://github.com/TanStack/ai/commit/5aa6acc1a4faea5346f750322e80984abf2d7059), [`1f800aa`](https://github.com/TanStack/ai/commit/1f800aacf57081f37a075bc8d08ff397cb33cbe9)]:
+  - @tanstack/ai@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes

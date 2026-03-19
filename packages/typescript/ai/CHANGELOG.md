@@ -1,5 +1,106 @@
 # @tanstack/ai
 
+## 0.9.0
+
+### Minor Changes
+
+- feat: Add lazy tool discovery for `chat()` ([#360](https://github.com/TanStack/ai/pull/360))
+
+  Tools marked with `lazy: true` are not sent to the LLM upfront. Instead, a synthetic discovery tool lets the LLM selectively discover lazy tools by name, receiving their descriptions and schemas on demand. Discovered tools are dynamically injected as normal tools. This reduces token usage and improves response quality when applications have many tools.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.2
+
+## 0.8.1
+
+### Patch Changes
+
+- Add an explicit subscription lifecycle to `ChatClient` with `subscribe()`/`unsubscribe()`, `isSubscribed`, `connectionStatus`, and `sessionGenerating`, while keeping request lifecycle state separate from long-lived connection state for durable chat sessions. ([#356](https://github.com/TanStack/ai/pull/356))
+
+  Update the React, Preact, Solid, Svelte, and Vue chat bindings with `live` mode plus reactive subscription/session state, and improve `StreamProcessor` handling for concurrent runs and reconnects so active sessions do not finalize early or duplicate resumed assistant messages.
+
+- Add durable `subscribe()`/`send()` transport support to `ChatClient` while preserving compatibility with existing `connect()` adapters. This also introduces shared generation clients for one-shot streaming tasks and updates the framework wrappers to use the new generation transport APIs. ([#286](https://github.com/TanStack/ai/pull/286))
+
+  Improve core stream processing to better handle concurrent runs and resumed streams so shared sessions stay consistent during reconnects and overlapping generations.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.1
+
+## 0.8.0
+
+### Minor Changes
+
+- feat: add middleware system and content guard middleware ([#367](https://github.com/TanStack/ai/pull/367))
+  - **@tanstack/ai**: New `@tanstack/ai/middlewares` subpath with composable chat middleware architecture. Includes `contentGuardMiddleware` (delta and buffered strategies) and `toolCacheMiddleware`. Middleware hooks: `onStart`, `onIteration`, `onChunk`, `onToolPhaseComplete`, `onFinish`.
+  - **@tanstack/ai-event-client**: Initial release. Extracted `devtoolsMiddleware` from `@tanstack/ai` core into a standalone package for tree-shaking. Emits all DevTools events as an observation-only middleware.
+  - **@tanstack/ai-client**: Updated event types for middleware integration.
+  - **@tanstack/ai-devtools**: Updated iteration timeline and conversation UI for middleware-aware event handling.
+
+### Patch Changes
+
+- Updated dependencies [[`f62eeb0`](https://github.com/TanStack/ai/commit/f62eeb0d7efd002894435c7f2c8a9f2790f0b6d7)]:
+  - @tanstack/ai-event-client@0.1.0
+
+## 0.7.0
+
+### Minor Changes
+
+- feat: add realtime voice chat with OpenAI and ElevenLabs adapters ([#300](https://github.com/TanStack/ai/pull/300))
+
+  Adds realtime voice/text chat capabilities:
+  - **@tanstack/ai**: `realtimeToken()` function and shared realtime types (`RealtimeToken`, `RealtimeMessage`, `RealtimeSessionConfig`, `RealtimeStatus`, `RealtimeMode`, `AudioVisualization`, events, and error types)
+  - **@tanstack/ai-client**: Framework-agnostic `RealtimeClient` class with connection lifecycle, audio I/O, message state management, tool execution, and `RealtimeAdapter`/`RealtimeConnection` interfaces
+  - **@tanstack/ai-openai**: `openaiRealtime()` client adapter (WebRTC) and `openaiRealtimeToken()` server token adapter with support for semantic VAD, multiple voices, and all realtime models
+  - **@tanstack/ai-elevenlabs**: `elevenlabsRealtime()` client adapter (WebSocket) and `elevenlabsRealtimeToken()` server token adapter for ElevenLabs conversational AI agents
+  - **@tanstack/ai-react**: `useRealtimeChat()` hook with reactive state for status, mode, messages, pending transcripts, audio visualization levels, VAD control, text/image input, and interruptions
+  - **Docs**: Realtime Voice Chat guide and full API reference for all realtime classes, interfaces, functions, and type aliases
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.0.2
+
+## 0.6.3
+
+### Patch Changes
+
+- feat: pass abort signal to generation fetchers and extract GenerationFetcher utility type ([#327](https://github.com/TanStack/ai/pull/327))
+  - Generation clients now forward an `AbortSignal` to fetcher functions via an optional `options` parameter, enabling cancellation support when `stop()` is called
+  - Introduced `GenerationFetcher<TInput, TResult>` utility type in `@tanstack/ai-client` to centralize the fetcher function signature across all framework integrations
+  - All framework hooks/composables (React, Solid, Vue, Svelte) now use the shared `GenerationFetcher` type instead of inline definitions
+
+## 0.6.2
+
+### Patch Changes
+
+- Fix tool approval flow: output priority over approval metadata, preserve approval/output fields in updateToolCallPart, batch-gate execution until all approvals are resolved ([#352](https://github.com/TanStack/ai/pull/352))
+
+## 0.6.1
+
+### Patch Changes
+
+- Fix chat stall when server and client tools are called in the same turn. ([#323](https://github.com/TanStack/ai/pull/323))
+
+  When the LLM requested both a server tool and a client tool in the same response, the server tool's result was silently dropped. The `processToolCalls` and `checkForPendingToolCalls` methods returned early to wait for the client tool, skipping the `emitToolResults` call entirely — so the server result was never emitted or added to the message history, causing the session to stall indefinitely.
+
+  The fix emits completed server tool results before yielding the early return for client tool / approval waiting.
+
+  Also fixes the smoke-test harness and test fixtures to use `chunk.value` instead of `chunk.data` for CUSTOM events, following the rename introduced in #307.
+
+## 0.6.0
+
+### Minor Changes
+
+- feat: add custom event dispatch support for tools ([#293](https://github.com/TanStack/ai/pull/293))
+
+  Tools can now emit custom events during execution via `dispatchEvent()`. Custom events are streamed to clients as `custom_event` stream chunks and surfaced through the client chat hook's `onCustomEvent` callback. This enables tools to send progress updates, intermediate results, or any structured data back to the UI during long-running operations.
+
+### Patch Changes
+
+- Refactor CustomEvent property from 'data' to 'value' for AG-UI compliance ([#307](https://github.com/TanStack/ai/pull/307))
+
 ## 0.5.1
 
 ### Patch Changes

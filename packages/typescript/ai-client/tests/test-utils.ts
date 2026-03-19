@@ -1,4 +1,4 @@
-import type { ConnectionAdapter } from '../src/connection-adapters'
+import type { ConnectConnectionAdapter } from '../src/connection-adapters'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '../src/types'
 /**
@@ -55,7 +55,7 @@ interface MockConnectionAdapterOptions {
  */
 export function createMockConnectionAdapter(
   options: MockConnectionAdapterOptions = {},
-): ConnectionAdapter {
+): ConnectConnectionAdapter {
   const {
     chunks = [],
     chunkDelay = 0,
@@ -146,7 +146,7 @@ export function createTextChunks(
  * Helper to create custom event chunks
  */
 export function createCustomEventChunks(
-  events: Array<{ name: string; data?: unknown }>,
+  events: Array<{ name: string; value?: unknown }>,
   model: string = 'test',
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
@@ -157,7 +157,7 @@ export function createCustomEventChunks(
       model,
       timestamp: Date.now(),
       name: event.name,
-      data: event.data,
+      value: event.value,
     })
   }
 
@@ -221,13 +221,83 @@ export function createToolCallChunks(
         model,
         timestamp: Date.now(),
         name: 'tool-input-available',
-        data: {
+        value: {
           toolCallId: toolCall.id,
           toolName: toolCall.name,
           input: parsedInput,
         },
       })
     }
+  }
+
+  chunks.push({
+    type: 'RUN_FINISHED',
+    runId,
+    model,
+    timestamp: Date.now(),
+    finishReason: 'tool_calls',
+  })
+
+  return chunks
+}
+
+/**
+ * Helper to create tool call chunks with approval requests (AG-UI format)
+ * Tools will be in 'input-complete' state with pending approval
+ */
+export function createApprovalToolCallChunks(
+  toolCalls: Array<{
+    id: string
+    name: string
+    arguments: string
+    approvalId: string
+  }>,
+  messageId: string = 'msg-1',
+  model: string = 'test',
+): Array<StreamChunk> {
+  const chunks: Array<StreamChunk> = []
+  const runId = `run-${messageId}`
+
+  for (let i = 0; i < toolCalls.length; i++) {
+    const toolCall = toolCalls[i]!
+
+    chunks.push({
+      type: 'TOOL_CALL_START',
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      model,
+      timestamp: Date.now(),
+      index: i,
+    })
+
+    chunks.push({
+      type: 'TOOL_CALL_ARGS',
+      toolCallId: toolCall.id,
+      model,
+      timestamp: Date.now(),
+      delta: toolCall.arguments,
+    })
+
+    chunks.push({
+      type: 'TOOL_CALL_END',
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      model,
+      timestamp: Date.now(),
+    })
+
+    chunks.push({
+      type: 'CUSTOM',
+      model,
+      timestamp: Date.now(),
+      name: 'approval-requested',
+      value: {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        input: JSON.parse(toolCall.arguments),
+        approval: { id: toolCall.approvalId, needsApproval: true },
+      },
+    })
   }
 
   chunks.push({

@@ -1,6 +1,6 @@
 import { batch, createContext, onCleanup, onMount, useContext } from 'solid-js'
 import { createStore, produce } from 'solid-js/store'
-import { aiEventClient } from '@tanstack/ai/event-client'
+import { aiEventClient } from '@tanstack/ai-event-client'
 import type { ContentPartSource } from '@tanstack/ai'
 import type { ParentComponent } from 'solid-js'
 
@@ -60,6 +60,8 @@ export interface Message {
   thinkingContent?: string
   /** Source of the message: 'client' for aggregated client-side data, 'server' for individual server chunks */
   source?: 'client' | 'server'
+  /** The requestId this message belongs to (for scoping usage calculations) */
+  requestId?: string
 }
 
 /**
@@ -100,6 +102,38 @@ export interface Chunk {
   isClientTool?: boolean
 }
 
+export interface MiddlewareEvent {
+  id: string
+  middlewareName: string
+  hookName: string
+  timestamp: number
+  duration?: number
+  hasTransform: boolean
+  configChanges?: Record<string, unknown>
+  originalChunkType?: string
+  resultCount?: number
+  wasDropped?: boolean
+}
+
+export interface Iteration {
+  /** The requestId this iteration belongs to (unique per chat() call) */
+  requestId?: string
+  index: number
+  messageId: string
+  startedAt: number
+  completedAt?: number
+  model?: string
+  provider?: string
+  systemPrompts?: Array<string>
+  toolNames?: Array<string>
+  options?: Record<string, unknown>
+  modelOptions?: Record<string, unknown>
+  finishReason?: string
+  usage?: TokenUsage
+  middlewareEvents: Array<MiddlewareEvent>
+  messageIds: Array<string>
+}
+
 export interface SummarizeOperation {
   id: string
   model: string
@@ -129,6 +163,7 @@ export interface Conversation {
   startedAt: number
   completedAt?: number
   usage?: TokenUsage
+  iterations: Array<Iteration>
   iterationCount?: number
   toolNames?: Array<string>
   options?: Record<string, unknown>
@@ -178,6 +213,8 @@ export const AIProvider: ParentComponent = (props) => {
 
   const streamToConversation = new Map<string, string>()
   const requestToConversation = new Map<string, string>()
+  /** Track max cumulative usage per requestId per conversation for correct totals */
+  const requestUsageByConversation = new Map<string, Map<string, TokenUsage>>()
 
   // Batching system for high-frequency chunk updates with consolidated chunk merging
   // Stores: conversationId -> { chunks to merge, totalNewChunks count }
@@ -366,6 +403,7 @@ export const AIProvider: ParentComponent = (props) => {
         label,
         messages: [],
         chunks: [],
+        iterations: [],
         imageEvents: [],
         speechEvents: [],
         transcriptionEvents: [],
@@ -441,6 +479,7 @@ export const AIProvider: ParentComponent = (props) => {
     conversationId: string,
     messageId: string | undefined,
     cumulativeUsage: TokenUsage,
+    requestId?: string,
   ): void {
     const conv = state.conversations[conversationId]
     if (!conv) return
@@ -467,10 +506,12 @@ export const AIProvider: ParentComponent = (props) => {
 
     if (targetMessageIndex === -1) return
 
-    // Sum up usage from all previous assistant messages
+    // Sum up usage from previous assistant messages in the SAME request only.
+    // Cumulative usage is per-request, so mixing requests gives wrong deltas.
     for (let i = 0; i < targetMessageIndex; i++) {
       const msg = conv.messages[i]
       if (msg?.role === 'assistant' && msg.usage) {
+        if (requestId && msg.requestId !== requestId) continue
         previousPromptTokens += msg.usage.promptTokens
         previousCompletionTokens += msg.usage.completionTokens
       }
@@ -501,12 +542,50 @@ export const AIProvider: ParentComponent = (props) => {
     )
   }
 
+  /**
+   * Update conversation-level usage by tracking max cumulative per request.
+   * Usage events report cumulative totals per-request, so we keep the highest
+   * value seen for each requestId and sum across all requests for the total.
+   */
+  function updateConversationUsage(
+    conversationId: string,
+    requestId: string | undefined,
+    usage: TokenUsage,
+  ): void {
+    if (!state.conversations[conversationId]) return
+    const key = requestId || '__default__'
+    let requestMap = requestUsageByConversation.get(conversationId)
+    if (!requestMap) {
+      requestMap = new Map()
+      requestUsageByConversation.set(conversationId, requestMap)
+    }
+    const existing = requestMap.get(key)
+    if (!existing || usage.totalTokens > existing.totalTokens) {
+      requestMap.set(key, usage)
+    }
+    // Sum across all requests
+    let prompt = 0
+    let completion = 0
+    for (const v of requestMap.values()) {
+      prompt += v.promptTokens
+      completion += v.completionTokens
+    }
+    updateConversation(conversationId, {
+      usage: {
+        promptTokens: prompt,
+        completionTokens: completion,
+        totalTokens: prompt + completion,
+      },
+    })
+  }
+
   // Public actions
   function clearAllConversations() {
     setState('conversations', {})
     setState('activeConversationId', null)
     streamToConversation.clear()
     requestToConversation.clear()
+    requestUsageByConversation.clear()
     pendingConversationChunks.clear()
     pendingMessageChunks.clear()
   }
@@ -671,8 +750,15 @@ export const AIProvider: ParentComponent = (props) => {
 
     cleanupFns.push(
       aiEventClient.on('text:message:created', (e) => {
-        const { clientId, streamId, messageId, role, content, timestamp } =
-          e.payload
+        const {
+          clientId,
+          streamId,
+          messageId,
+          role,
+          content,
+          timestamp,
+          requestId,
+        } = e.payload
         const conversationId =
           clientId ||
           (streamId ? streamToConversation.get(streamId) : undefined)
@@ -781,6 +867,7 @@ export const AIProvider: ParentComponent = (props) => {
           parts,
           toolCalls,
           source,
+          requestId,
         }
 
         if (existingIndex >= 0) {
@@ -789,13 +876,46 @@ export const AIProvider: ParentComponent = (props) => {
           addMessage(conversationId, messagePayload)
         }
 
+        // Track messageId in the correct iteration (scoped by requestId)
+        if (conv.iterations.length > 0) {
+          let iterIndex = -1
+          if (requestId) {
+            // Find the latest iteration for this specific request
+            for (let i = conv.iterations.length - 1; i >= 0; i--) {
+              if (conv.iterations[i]?.requestId === requestId) {
+                iterIndex = i
+                break
+              }
+            }
+          } else {
+            // Fallback: use latest iteration
+            iterIndex = conv.iterations.length - 1
+          }
+          if (iterIndex >= 0) {
+            const iter = conv.iterations[iterIndex]
+            if (iter && !iter.messageIds.includes(messageId)) {
+              setState(
+                'conversations',
+                conversationId,
+                'iterations',
+                iterIndex,
+                'messageIds',
+                produce((arr: Array<string>) => {
+                  arr.push(messageId)
+                }),
+              )
+            }
+          }
+        }
+
         updateConversation(conversationId, { status: 'active', hasChat: true })
       }),
     )
 
     cleanupFns.push(
       aiEventClient.on('text:message:user', (e) => {
-        const { clientId, streamId, messageId, content, timestamp } = e.payload
+        const { clientId, streamId, messageId, content, timestamp, requestId } =
+          e.payload
         const conversationId =
           clientId ||
           (streamId ? streamToConversation.get(streamId) : undefined)
@@ -822,6 +942,7 @@ export const AIProvider: ParentComponent = (props) => {
           content,
           timestamp,
           source,
+          requestId,
         })
       }),
     )
@@ -1312,17 +1433,6 @@ export const AIProvider: ParentComponent = (props) => {
         const conv = state.conversations[conversationId]
         if (conv?.type === 'client') {
           addChunkToMessage(conversationId, chunk)
-
-          if (e.payload.messageId) {
-            const messageIndex = conv.messages.findIndex(
-              (msg) => msg.id === e.payload.messageId,
-            )
-            if (messageIndex !== -1) {
-              updateMessage(conversationId, messageIndex, {
-                thinkingContent: e.payload.content,
-              })
-            }
-          }
         } else {
           ensureMessageForChunk(
             conversationId,
@@ -1330,6 +1440,18 @@ export const AIProvider: ParentComponent = (props) => {
             e.payload.timestamp,
           )
           addChunk(conversationId, chunk)
+        }
+
+        // Update thinkingContent on the message for all conversation types
+        if (e.payload.messageId && conv) {
+          const messageIndex = conv.messages.findIndex(
+            (msg) => msg.id === e.payload.messageId,
+          )
+          if (messageIndex !== -1) {
+            updateMessage(conversationId, messageIndex, {
+              thinkingContent: e.payload.content,
+            })
+          }
         }
       }),
     )
@@ -1350,11 +1472,16 @@ export const AIProvider: ParentComponent = (props) => {
         }
 
         if (e.payload.usage) {
-          updateConversation(conversationId, { usage: e.payload.usage })
+          updateConversationUsage(
+            conversationId,
+            e.payload.requestId,
+            e.payload.usage,
+          )
           updateMessageUsage(
             conversationId,
             e.payload.messageId,
             e.payload.usage,
+            e.payload.requestId,
           )
         }
 
@@ -1368,6 +1495,41 @@ export const AIProvider: ParentComponent = (props) => {
             e.payload.timestamp,
           )
           addChunk(conversationId, chunk)
+        }
+
+        // Mark the current iteration as completed when the LLM finishes generating.
+        // This is critical for iterations that end with tool_calls — the
+        // text:iteration:completed event only fires when the NEXT iteration starts,
+        // so without this the iteration appears stuck in "streaming" during tool execution.
+        if (e.payload.finishReason) {
+          const convForIter = state.conversations[conversationId]
+          if (convForIter) {
+            for (let i = convForIter.iterations.length - 1; i >= 0; i--) {
+              const iter = convForIter.iterations[i]
+              const msgId = e.payload.messageId
+              if (
+                iter &&
+                !iter.completedAt &&
+                msgId &&
+                (iter.messageId === msgId || iter.messageIds.includes(msgId))
+              ) {
+                const iterIdx = i
+                setState(
+                  'conversations',
+                  conversationId,
+                  'iterations',
+                  iterIdx,
+                  produce((it: Iteration) => {
+                    it.completedAt = e.payload.timestamp
+                    if (!it.finishReason)
+                      it.finishReason = e.payload.finishReason || undefined
+                    if (e.payload.usage && !it.usage) it.usage = e.payload.usage
+                  }),
+                )
+                break
+              }
+            }
+          }
         }
 
         updateConversation(conversationId, {
@@ -1402,6 +1564,37 @@ export const AIProvider: ParentComponent = (props) => {
             e.payload.timestamp,
           )
           addChunk(conversationId, chunk)
+        }
+
+        // Mark any active iterations as completed with error
+        const convForError = state.conversations[conversationId]
+        if (convForError) {
+          const errorRequestId = e.payload.requestId
+          const errorMsgId = e.payload.messageId
+          for (let i = convForError.iterations.length - 1; i >= 0; i--) {
+            const iter = convForError.iterations[i]
+            if (iter && !iter.completedAt) {
+              // Scope to matching requestId or messageId when available
+              const matchesRequest =
+                !errorRequestId || iter.requestId === errorRequestId
+              const matchesMessage =
+                !errorMsgId ||
+                iter.messageId === errorMsgId ||
+                iter.messageIds.includes(errorMsgId)
+              if (matchesRequest || matchesMessage) {
+                setState(
+                  'conversations',
+                  conversationId,
+                  'iterations',
+                  i,
+                  produce((it: Iteration) => {
+                    it.completedAt = e.payload.timestamp
+                    if (!it.finishReason) it.finishReason = 'error'
+                  }),
+                )
+              }
+            }
+          }
         }
 
         updateConversation(conversationId, {
@@ -1541,16 +1734,47 @@ export const AIProvider: ParentComponent = (props) => {
 
         const conversationId = requestToConversation.get(requestId)
         if (conversationId && state.conversations[conversationId]) {
-          const updates: Partial<Conversation> = {
+          updateConversation(conversationId, {
             status: 'completed',
             completedAt: e.payload.timestamp,
-          }
+          })
           if (usage) {
-            updates.usage = usage
+            updateConversationUsage(conversationId, requestId, usage)
+            updateMessageUsage(
+              conversationId,
+              e.payload.messageId,
+              usage,
+              requestId,
+            )
           }
-          updateConversation(conversationId, updates)
-          if (usage) {
-            updateMessageUsage(conversationId, e.payload.messageId, usage)
+
+          // Failsafe: mark any remaining active iterations FOR THIS REQUEST as completed.
+          // Only scope to this requestId to avoid touching other requests' iterations.
+          const conv = state.conversations[conversationId]
+          for (let i = 0; i < conv.iterations.length; i++) {
+            const iter = conv.iterations[i]
+            if (
+              iter &&
+              !iter.completedAt &&
+              (!requestId || iter.requestId === requestId)
+            ) {
+              const iterIdx = i
+              setState(
+                'conversations',
+                conversationId,
+                'iterations',
+                iterIdx,
+                produce((it: Iteration) => {
+                  it.completedAt = e.payload.timestamp
+                  if (!it.finishReason) {
+                    it.finishReason = e.payload.finishReason || 'stop'
+                  }
+                  if (!it.usage && usage) {
+                    it.usage = usage
+                  }
+                }),
+              )
+            }
           }
         }
       }),
@@ -1562,9 +1786,245 @@ export const AIProvider: ParentComponent = (props) => {
 
         const conversationId = requestToConversation.get(requestId)
         if (conversationId && state.conversations[conversationId]) {
-          updateConversation(conversationId, { usage })
-          updateMessageUsage(conversationId, messageId, usage)
+          updateConversationUsage(conversationId, requestId, usage)
+          updateMessageUsage(conversationId, messageId, usage, requestId)
         }
+      }),
+    )
+
+    // ============= Iteration Events =============
+
+    cleanupFns.push(
+      aiEventClient.on('text:iteration:started', (e) => {
+        const { requestId, streamId, clientId, iteration, messageId } =
+          e.payload
+
+        const conversationId =
+          clientId ||
+          (streamId ? streamToConversation.get(streamId) : undefined) ||
+          requestToConversation.get(requestId)
+        if (!conversationId || !state.conversations[conversationId]) return
+
+        // Failsafe: when a new iteration starts, any previous uncompleted
+        // iterations for the same request must have ended (with tool_calls).
+        // This covers edge cases where text:chunk:done didn't match by messageId.
+        const convForFailsafe = state.conversations[conversationId]
+        for (let i = 0; i < convForFailsafe.iterations.length; i++) {
+          const iter = convForFailsafe.iterations[i]
+          if (iter && !iter.completedAt && iter.requestId === requestId) {
+            setState(
+              'conversations',
+              conversationId,
+              'iterations',
+              i,
+              produce((it: Iteration) => {
+                it.completedAt = e.payload.timestamp
+                if (!it.finishReason) it.finishReason = 'tool_calls'
+              }),
+            )
+          }
+        }
+
+        // Guard against duplicate iteration events (e.g. middleware registered twice)
+        const existingConv = state.conversations[conversationId]
+        if (
+          existingConv.iterations.some(
+            (it) => it.index === iteration && it.requestId === requestId,
+          )
+        ) {
+          return
+        }
+
+        const newIteration: Iteration = {
+          requestId,
+          index: iteration,
+          messageId,
+          startedAt: e.payload.timestamp,
+          model: e.payload.model,
+          provider: e.payload.provider,
+          systemPrompts: e.payload.systemPrompts,
+          toolNames: e.payload.toolNames,
+          options: e.payload.options,
+          modelOptions: e.payload.modelOptions,
+          middlewareEvents: [],
+          messageIds: [messageId],
+        }
+
+        setState(
+          'conversations',
+          conversationId,
+          'iterations',
+          produce((arr: Array<Iteration>) => {
+            arr.push(newIteration)
+          }),
+        )
+        setState(
+          'conversations',
+          conversationId,
+          'iterationCount',
+          iteration + 1,
+        )
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('text:iteration:completed', (e) => {
+        const { requestId, streamId, clientId, iteration } = e.payload
+
+        const conversationId =
+          clientId ||
+          (streamId ? streamToConversation.get(streamId) : undefined) ||
+          requestToConversation.get(requestId)
+        if (!conversationId || !state.conversations[conversationId]) return
+
+        const conv = state.conversations[conversationId]
+        // Find the iteration by BOTH requestId and index to avoid cross-request pollution.
+        // Without requestId scoping, request 2's iteration 0 would match request 1's iteration 0.
+        const iterIndex = conv.iterations.findIndex(
+          (it) =>
+            it.index === iteration &&
+            (!requestId || it.requestId === requestId),
+        )
+        if (iterIndex === -1) return
+
+        setState(
+          'conversations',
+          conversationId,
+          'iterations',
+          iterIndex,
+          produce((it: Iteration) => {
+            it.completedAt = e.payload.timestamp
+            it.finishReason = e.payload.finishReason
+            if (e.payload.usage) {
+              it.usage = e.payload.usage
+            }
+          }),
+        )
+      }),
+    )
+
+    // ============= Middleware Events =============
+
+    /** Find the latest iteration for a given requestId, or the very latest iteration as fallback */
+    function findLatestIterationIndex(
+      conv: Conversation,
+      reqId?: string,
+    ): number {
+      if (reqId) {
+        for (let i = conv.iterations.length - 1; i >= 0; i--) {
+          if (conv.iterations[i]?.requestId === reqId) return i
+        }
+      }
+      return conv.iterations.length - 1
+    }
+
+    cleanupFns.push(
+      aiEventClient.on('middleware:hook:executed', (e) => {
+        const { requestId, streamId, clientId } = e.payload
+
+        const conversationId =
+          clientId ||
+          (streamId ? streamToConversation.get(streamId) : undefined) ||
+          requestToConversation.get(requestId)
+        if (!conversationId || !state.conversations[conversationId]) return
+
+        const conv = state.conversations[conversationId]
+        const iterIndex = findLatestIterationIndex(conv, requestId)
+        if (iterIndex < 0) return
+
+        const mwEvent: MiddlewareEvent = {
+          id: `mw-${Date.now()}-${Math.random()}`,
+          middlewareName: e.payload.middlewareName,
+          hookName: e.payload.hookName,
+          timestamp: e.payload.timestamp,
+          duration: e.payload.duration,
+          hasTransform: e.payload.hasTransform,
+        }
+
+        setState(
+          'conversations',
+          conversationId,
+          'iterations',
+          iterIndex,
+          'middlewareEvents',
+          produce((arr: Array<MiddlewareEvent>) => {
+            arr.push(mwEvent)
+          }),
+        )
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('middleware:config:transformed', (e) => {
+        const { requestId, streamId, clientId } = e.payload
+
+        const conversationId =
+          clientId ||
+          (streamId ? streamToConversation.get(streamId) : undefined) ||
+          requestToConversation.get(requestId)
+        if (!conversationId || !state.conversations[conversationId]) return
+
+        const conv = state.conversations[conversationId]
+        const iterIndex = findLatestIterationIndex(conv, requestId)
+        if (iterIndex < 0) return
+
+        const mwEvent: MiddlewareEvent = {
+          id: `mw-cfg-${Date.now()}-${Math.random()}`,
+          middlewareName: e.payload.middlewareName,
+          hookName: 'onConfig',
+          timestamp: e.payload.timestamp,
+          hasTransform: true,
+          configChanges: e.payload.changes,
+        }
+
+        setState(
+          'conversations',
+          conversationId,
+          'iterations',
+          iterIndex,
+          'middlewareEvents',
+          produce((arr: Array<MiddlewareEvent>) => {
+            arr.push(mwEvent)
+          }),
+        )
+      }),
+    )
+
+    cleanupFns.push(
+      aiEventClient.on('middleware:chunk:transformed', (e) => {
+        const { requestId, streamId, clientId } = e.payload
+
+        const conversationId =
+          clientId ||
+          (streamId ? streamToConversation.get(streamId) : undefined) ||
+          requestToConversation.get(requestId)
+        if (!conversationId || !state.conversations[conversationId]) return
+
+        const conv = state.conversations[conversationId]
+        const iterIndex = findLatestIterationIndex(conv, requestId)
+        if (iterIndex < 0) return
+
+        const mwEvent: MiddlewareEvent = {
+          id: `mw-chunk-${Date.now()}-${Math.random()}`,
+          middlewareName: e.payload.middlewareName,
+          hookName: 'onChunk',
+          timestamp: e.payload.timestamp,
+          hasTransform: true,
+          originalChunkType: e.payload.originalChunkType,
+          resultCount: e.payload.resultCount,
+          wasDropped: e.payload.wasDropped,
+        }
+
+        setState(
+          'conversations',
+          conversationId,
+          'iterations',
+          iterIndex,
+          'middlewareEvents',
+          produce((arr: Array<MiddlewareEvent>) => {
+            arr.push(mwEvent)
+          }),
+        )
       }),
     )
 

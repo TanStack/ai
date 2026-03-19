@@ -3,7 +3,7 @@
   "defaultBase": "main",
   "nxCloudId": "6928ccd60a2e27ab22f38ad0",
   "useInferencePlugins": false,
-  "parallel": 5,
+  "parallel": 15,
   "tui": {
     "enabled": false
   },

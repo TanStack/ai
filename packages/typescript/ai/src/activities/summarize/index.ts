@@ -5,7 +5,8 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
-import { aiEventClient } from '../../event-client.js'
+import { aiEventClient } from '@tanstack/ai-event-client'
+import { streamGenerationResult } from '../stream-generation-result.js'
 import type { SummarizeAdapter } from './adapter'
 import type {
   StreamChunk,
@@ -239,28 +240,8 @@ async function* runStreamingSummarize(
     return
   }
 
-  // Fall back to non-streaming and yield as a single chunk
-  const result = await adapter.summarize(summarizeOptions)
-
-  // Yield TEXT_MESSAGE_CONTENT event with the summary
-  yield {
-    type: 'TEXT_MESSAGE_CONTENT',
-    messageId: result.id,
-    model: result.model,
-    timestamp: Date.now(),
-    delta: result.summary,
-    content: result.summary,
-  }
-
-  // Yield RUN_FINISHED event
-  yield {
-    type: 'RUN_FINISHED',
-    runId: result.id,
-    model: result.model,
-    timestamp: Date.now(),
-    finishReason: 'stop',
-    usage: result.usage,
-  }
+  // Fall back to non-streaming — wrap result with streamGenerationResult
+  yield* streamGenerationResult(() => adapter.summarize(summarizeOptions))
 }
 
 // ===========================

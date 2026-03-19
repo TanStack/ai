@@ -302,7 +302,7 @@ const weatherTool = toolDefinition({
   name: "getWeather",
   description: "Get the current weather for a city",
   inputSchema: z.object({
-    city: z.string().describe("City name"),
+    city: z.string().meta({ description: "City name" }),
   }),
 }).server(async ({ city }) => {
   // Implementation that fetches weather info

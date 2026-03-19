@@ -18,12 +18,13 @@ type AGUIEventType =
   | "TOOL_CALL_END"
   | "STEP_STARTED"
   | "STEP_FINISHED"
+  | "MESSAGES_SNAPSHOT"
   | "STATE_SNAPSHOT"
   | "STATE_DELTA"
   | "CUSTOM";
 ```
 
-Defined in: [types.ts:693](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L693)
+Defined in: [types.ts:721](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L721)
 
 AG-UI Protocol event types.
 Based on the AG-UI specification for agent-user interaction.

@@ -67,7 +67,7 @@ const ev = {
     chunk('RUN_ERROR', { runId, error: { message } }),
   stepFinished: (delta: string, stepId = 'step-1') =>
     chunk('STEP_FINISHED', { stepId, delta }),
-  custom: (name: string, data?: unknown) => chunk('CUSTOM', { name, data }),
+  custom: (name: string, value?: unknown) => chunk('CUSTOM', { name, value }),
 }
 
 /** Events object with vi.fn() mocks for assertions. */
@@ -622,8 +622,8 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.textContent('First segment'))
       processor.processChunk(ev.toolStart('tc-1', 'search'))
       processor.processChunk(ev.toolEnd('tc-1', 'search', { input: {} }))
-      processor.processChunk(ev.textStart('msg-2'))
-      processor.processChunk(ev.textContent('Second segment', 'msg-2'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('Second segment'))
       processor.processChunk(ev.runFinished('stop'))
       processor.finalizeStream()
 
@@ -650,10 +650,10 @@ describe('StreamProcessor', () => {
         ev.toolEnd('call_1', 'getWeather', { result: '{"temp":"72F"}' }),
       )
 
-      // Second adapter stream: more text
-      processor.processChunk(ev.textStart('msg-2'))
-      processor.processChunk(ev.textContent("It's 72F in NYC.", 'msg-2'))
-      processor.processChunk(ev.textEnd('msg-2'))
+      // Second adapter stream: more text (same message)
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent("It's 72F in NYC."))
+      processor.processChunk(ev.textEnd())
       processor.processChunk(ev.runFinished('stop'))
 
       processor.finalizeStream()
@@ -686,9 +686,9 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.textEnd())
       processor.processChunk(ev.toolStart('tc-1', 'tool'))
       processor.processChunk(ev.toolEnd('tc-1', 'tool'))
-      processor.processChunk(ev.textStart('msg-2'))
-      processor.processChunk(ev.textContent('After', 'msg-2'))
-      processor.processChunk(ev.textEnd('msg-2'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('After'))
+      processor.processChunk(ev.textEnd())
       processor.processChunk(ev.runFinished('stop'))
       processor.finalizeStream()
 
@@ -1508,11 +1508,11 @@ describe('StreamProcessor', () => {
       expect(resultPart).toBeDefined()
     })
 
-    it('ignored event types (RUN_STARTED, TEXT_MESSAGE_END, STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA) should not crash', () => {
+    it('non-content event types (RUN_STARTED, TEXT_MESSAGE_END, STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA) should not create messages', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
-      // These should all be silently ignored
+      // These should not create any messages
       processor.processChunk(chunk('RUN_STARTED', { runId: 'run-1' }))
       processor.processChunk(chunk('TEXT_MESSAGE_END', { messageId: 'msg-1' }))
       processor.processChunk(chunk('STEP_STARTED', { stepId: 'step-1' }))
@@ -1934,6 +1934,979 @@ describe('StreamProcessor', () => {
       const state2 = processor.getState()
       expect(state2.toolCalls.size).toBe(1)
       expect(state2.toolCallOrder).toEqual(['tc-1'])
+    })
+  })
+
+  describe('TEXT_MESSAGE_START', () => {
+    it('should create a message with correct role and messageId', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('msg-1')
+      expect(messages[0]?.role).toBe('assistant')
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello',
+      })
+    })
+
+    it('should create a user message via TEXT_MESSAGE_START', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'user-msg-1',
+        role: 'user',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'user-msg-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('user-msg-1')
+      expect(messages[0]?.role).toBe('user')
+    })
+
+    it('should emit onStreamStart when a new message arrives', () => {
+      const onStreamStart = vi.fn()
+      const processor = new StreamProcessor({ events: { onStreamStart } })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      expect(onStreamStart).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('TEXT_MESSAGE_END', () => {
+    it('should not emit onStreamEnd (that happens in finalizeStream)', () => {
+      const onStreamEnd = vi.fn()
+      const processor = new StreamProcessor({ events: { onStreamEnd } })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'Hello world',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // TEXT_MESSAGE_END means "text segment done", not "message done"
+      // onStreamEnd fires from finalizeStream(), not TEXT_MESSAGE_END
+      expect(onStreamEnd).not.toHaveBeenCalled()
+
+      processor.finalizeStream()
+
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+      const endMessage = onStreamEnd.mock.calls[0]![0] as UIMessage
+      expect(endMessage.id).toBe('msg-1')
+      expect(endMessage.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello world',
+      })
+    })
+
+    it('should emit pending text on TEXT_MESSAGE_END', () => {
+      const onTextUpdate = vi.fn()
+      // Use a strategy that never emits during streaming
+      const processor = new StreamProcessor({
+        events: { onTextUpdate },
+        chunkStrategy: {
+          shouldEmit: () => false,
+        },
+      })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Text not emitted yet due to strategy
+      expect(onTextUpdate).not.toHaveBeenCalled()
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // TEXT_MESSAGE_END should flush pending text
+      expect(onTextUpdate).toHaveBeenCalledWith('msg-1', 'Hello')
+    })
+  })
+
+  describe('interleaved messages', () => {
+    it('should handle two interleaved assistant messages', () => {
+      const onMessagesChange = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onMessagesChange },
+      })
+
+      // Start two messages
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-a',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-b',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Interleave content
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-a',
+        delta: 'Hello from A',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-b',
+        delta: 'Hello from B',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // End both
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-a',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-b',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+
+      expect(messages[0]?.id).toBe('msg-a')
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello from A',
+      })
+
+      expect(messages[1]?.id).toBe('msg-b')
+      expect(messages[1]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello from B',
+      })
+    })
+
+    it('should emit onStreamEnd on finalizeStream (not on TEXT_MESSAGE_END)', () => {
+      const onStreamEnd = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onStreamEnd },
+      })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-a',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-b',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-a',
+        delta: 'A',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-a',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // TEXT_MESSAGE_END does not fire onStreamEnd
+      expect(onStreamEnd).not.toHaveBeenCalled()
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-b',
+        delta: 'B',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-b',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Still not fired
+      expect(onStreamEnd).not.toHaveBeenCalled()
+
+      // finalizeStream fires onStreamEnd for the last assistant message
+      processor.finalizeStream()
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('startAssistantMessage + TEXT_MESSAGE_START dedup', () => {
+    it('should associate TEXT_MESSAGE_START with pending manual message (different ID)', () => {
+      const processor = new StreamProcessor()
+      processor.startAssistantMessage()
+
+      // Server sends TEXT_MESSAGE_START with a different ID
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'server-msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Should have only one message (not two)
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+
+      // The message should have been updated to the server's ID
+      expect(messages[0]?.id).toBe('server-msg-1')
+      expect(messages[0]?.role).toBe('assistant')
+
+      // Content should route to the correct message
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'server-msg-1',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.finalizeStream()
+
+      expect(processor.getMessages()[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello',
+      })
+    })
+
+    it('should associate TEXT_MESSAGE_START with pending manual message (same ID)', () => {
+      const processor = new StreamProcessor()
+      processor.startAssistantMessage('my-msg-id')
+
+      // Server sends TEXT_MESSAGE_START with the same ID
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'my-msg-id',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Should still have only one message
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('my-msg-id')
+    })
+
+    it('should work when TEXT_MESSAGE_START arrives without startAssistantMessage', () => {
+      const onStreamStart = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onStreamStart },
+      })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      expect(onStreamStart).toHaveBeenCalledTimes(1)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('msg-1')
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello',
+      })
+    })
+  })
+
+  describe('backward compat: ensureAssistantMessage auto-creation', () => {
+    it('should emit onStreamStart when auto-creating a message from content event', () => {
+      const onStreamStart = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onStreamStart },
+      })
+
+      // No TEXT_MESSAGE_START or startAssistantMessage — content arrives directly
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'auto-msg',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      expect(onStreamStart).toHaveBeenCalledTimes(1)
+      expect(processor.getMessages()).toHaveLength(1)
+      expect(processor.getMessages()[0]?.role).toBe('assistant')
+    })
+  })
+
+  describe('backward compat: startAssistantMessage without TEXT_MESSAGE_START', () => {
+    it('should still work when only startAssistantMessage is used', () => {
+      const processor = new StreamProcessor()
+      const msgId = processor.startAssistantMessage()
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'some-other-id',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'some-other-id',
+        delta: ' world',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe(msgId)
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello world',
+      })
+    })
+  })
+
+  describe('MESSAGES_SNAPSHOT', () => {
+    it('should hydrate messages and emit onMessagesChange', () => {
+      const onMessagesChange = vi.fn()
+      const processor = new StreamProcessor({
+        events: { onMessagesChange },
+      })
+
+      const snapshotMessages: Array<UIMessage> = [
+        {
+          id: 'snap-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+          createdAt: new Date(),
+        },
+        {
+          id: 'snap-2',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Hi there!' }],
+          createdAt: new Date(),
+        },
+      ]
+
+      processor.processChunk({
+        type: 'MESSAGES_SNAPSHOT',
+        messages: snapshotMessages,
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+      expect(messages[0]?.id).toBe('snap-1')
+      expect(messages[0]?.role).toBe('user')
+      expect(messages[1]?.id).toBe('snap-2')
+      expect(messages[1]?.role).toBe('assistant')
+      expect(onMessagesChange).toHaveBeenCalled()
+    })
+
+    it('should replace existing messages (not append)', () => {
+      const processor = new StreamProcessor()
+
+      // Add an initial message
+      processor.addUserMessage('First message')
+      expect(processor.getMessages()).toHaveLength(1)
+
+      // Snapshot replaces all messages
+      processor.processChunk({
+        type: 'MESSAGES_SNAPSHOT',
+        messages: [
+          {
+            id: 'snap-1',
+            role: 'assistant',
+            parts: [{ type: 'text', content: 'Snapshot content' }],
+            createdAt: new Date(),
+          },
+        ],
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('snap-1')
+      expect(messages[0]?.role).toBe('assistant')
+    })
+  })
+
+  describe('per-message tool calls', () => {
+    it('should route tool calls to the correct message via parentMessageId', () => {
+      const processor = new StreamProcessor()
+
+      // Create two messages
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-a',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Tool call on msg-a
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'myTool',
+        parentMessageId: 'msg-a',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TOOL_CALL_ARGS',
+        toolCallId: 'tc-1',
+        delta: '{"arg": "val"}',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+
+      const toolCallPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-call',
+      )
+      expect(toolCallPart).toBeDefined()
+      expect(toolCallPart?.type).toBe('tool-call')
+      if (toolCallPart?.type === 'tool-call') {
+        expect(toolCallPart.name).toBe('myTool')
+        expect(toolCallPart.state).toBe('input-complete')
+      }
+    })
+  })
+
+  describe('double onStreamEnd guard', () => {
+    it('should fire onStreamEnd exactly once when RUN_FINISHED arrives before TEXT_MESSAGE_END', () => {
+      const onStreamEnd = vi.fn()
+      const processor = new StreamProcessor({ events: { onStreamEnd } })
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'Hello',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // RUN_FINISHED fires first — calls finalizeStream which sets isComplete and fires onStreamEnd
+      processor.processChunk({
+        type: 'RUN_FINISHED',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      } as StreamChunk)
+
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+
+      // TEXT_MESSAGE_END arrives after — should NOT fire onStreamEnd again
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('MESSAGES_SNAPSHOT resets transient state', () => {
+    it('should reset stale state and process subsequent stream events correctly', () => {
+      const onStreamEnd = vi.fn()
+      const processor = new StreamProcessor({ events: { onStreamEnd } })
+
+      // Simulate an active streaming session
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-old',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-old',
+        delta: 'Old content',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-old',
+        toolName: 'oldTool',
+        parentMessageId: 'msg-old',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // MESSAGES_SNAPSHOT replaces everything (e.g., on reconnection)
+      processor.processChunk({
+        type: 'MESSAGES_SNAPSHOT',
+        messages: [
+          {
+            id: 'snap-user',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Hello' }],
+            createdAt: new Date(),
+          },
+        ],
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Verify old messages are replaced
+      const messagesAfterSnapshot = processor.getMessages()
+      expect(messagesAfterSnapshot).toHaveLength(1)
+      expect(messagesAfterSnapshot[0]?.id).toBe('snap-user')
+
+      // New stream events should be processed correctly without stale state
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-new',
+        role: 'assistant',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-new',
+        delta: 'New content',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      processor.processChunk({
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-new',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      const finalMessages = processor.getMessages()
+      expect(finalMessages).toHaveLength(2)
+      expect(finalMessages[1]?.id).toBe('msg-new')
+      expect(finalMessages[1]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'New content',
+      })
+
+      // onStreamEnd fires from finalizeStream, not TEXT_MESSAGE_END
+      expect(onStreamEnd).not.toHaveBeenCalled()
+      processor.finalizeStream()
+      expect(onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(onStreamEnd.mock.calls[0]![0].id).toBe('msg-new')
+    })
+  })
+
+  // ==========================================================================
+  // Concurrent runs (run-aware finalization)
+  // ==========================================================================
+  describe('concurrent runs', () => {
+    it('RUN_FINISHED for one run should not finalize a still-active run', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      // Run A starts
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(ev.textContent('A text', 'msg-a'))
+
+      // Run B starts while A is still active
+      processor.processChunk(ev.runStarted('run-b'))
+      processor.processChunk(ev.textStart('msg-b'))
+      processor.processChunk(ev.textContent('B text', 'msg-b'))
+
+      // Run B finishes — should NOT finalize run A
+      processor.processChunk(ev.runFinished('stop', 'run-b'))
+
+      // onStreamEnd should NOT have fired yet (run A still active)
+      expect(events.onStreamEnd).not.toHaveBeenCalled()
+
+      // Run A should still be able to receive content
+      processor.processChunk(ev.textContent(' more A', 'msg-a'))
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+      expect(messages[0]?.id).toBe('msg-a')
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'A text more A',
+      })
+      expect(messages[1]?.id).toBe('msg-b')
+      expect(messages[1]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'B text',
+      })
+
+      // Finish run A — now everything should finalize
+      processor.processChunk(ev.runFinished('stop', 'run-a'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('should not set isDone until all concurrent runs finish', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(ev.textContent('A', 'msg-a'))
+
+      processor.processChunk(ev.runStarted('run-b'))
+      processor.processChunk(ev.textStart('msg-b'))
+      processor.processChunk(ev.textContent('B', 'msg-b'))
+
+      // Finish run B
+      processor.processChunk(ev.runFinished('stop', 'run-b'))
+      expect(processor.getState().done).toBe(false)
+
+      // Finish run A
+      processor.processChunk(ev.runFinished('stop', 'run-a'))
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('single run should finalize normally (backward compat)', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('Hello'))
+      processor.processChunk(ev.textEnd())
+      processor.processChunk(ev.runFinished('stop'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('RUN_FINISHED without prior RUN_STARTED should finalize normally (backward compat)', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.textContent('Hello'))
+      processor.processChunk(ev.runFinished('stop'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('tool calls in one run should not be force-completed when another run finishes', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(ev.toolStart('tc-a', 'toolA'))
+      processor.processChunk(ev.toolArgs('tc-a', '{"q":'))
+
+      processor.processChunk(ev.runStarted('run-b'))
+      processor.processChunk(ev.textStart('msg-b'))
+      processor.processChunk(ev.textContent('B done', 'msg-b'))
+
+      // Run B finishes — tool call in run A should NOT be force-completed
+      processor.processChunk(ev.runFinished('stop', 'run-b'))
+
+      const tcState = processor.getState().toolCalls.get('tc-a')
+      expect(tcState?.state).toBe('input-streaming')
+
+      // Continue and finish the tool call normally
+      processor.processChunk(ev.toolArgs('tc-a', '"val"}'))
+      processor.processChunk(ev.toolEnd('tc-a', 'toolA'))
+      processor.processChunk(ev.runFinished('tool_calls', 'run-a'))
+
+      expect(processor.getState().toolCalls.get('tc-a')?.state).toBe(
+        'input-complete',
+      )
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('RUN_ERROR for one run should not affect other active runs', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(ev.textContent('A text', 'msg-a'))
+
+      processor.processChunk(ev.runStarted('run-b'))
+      processor.processChunk(ev.textStart('msg-b'))
+
+      // Run B errors
+      processor.processChunk(ev.runError('Something failed', 'run-b'))
+
+      // Run A should still be active
+      processor.processChunk(ev.textContent(' more A', 'msg-a'))
+
+      const messages = processor.getMessages()
+      const msgA = messages.find((m) => m.id === 'msg-a')
+      expect(msgA?.parts[0]).toEqual({
+        type: 'text',
+        content: 'A text more A',
+      })
+
+      // Run A finishes normally
+      processor.processChunk(ev.runFinished('stop', 'run-a'))
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // ==========================================================================
+  // Reconnect dedupe (ensureAssistantMessage hydration)
+  // ==========================================================================
+  describe('reconnect dedupe', () => {
+    it('TEXT_MESSAGE_CONTENT for existing message should not create a duplicate', () => {
+      const existingMessages: Array<UIMessage> = [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+        },
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Hello wor' }],
+        },
+      ]
+
+      const processor = new StreamProcessor({
+        initialMessages: existingMessages,
+      })
+
+      // Simulate reconnect: stream state was reset but messages preserved
+      processor.prepareAssistantMessage()
+
+      // Content arrives for existing message without TEXT_MESSAGE_START
+      processor.processChunk(ev.textContent('ld!', 'asst-1'))
+
+      const messages = processor.getMessages()
+      // Should still have exactly 2 messages, not 3
+      expect(messages).toHaveLength(2)
+      expect(messages[1]!.id).toBe('asst-1')
+      expect(messages[1]!.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello world!',
+      })
+    })
+
+    it('should correctly append delta to existing text on reconnect', () => {
+      const existingMessages: Array<UIMessage> = [
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'The quick brown ' }],
+        },
+      ]
+
+      const processor = new StreamProcessor({
+        initialMessages: existingMessages,
+      })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.textContent('fox', 'asst-1'))
+      processor.processChunk(ev.textContent(' jumps', 'asst-1'))
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]!.parts[0]).toEqual({
+        type: 'text',
+        content: 'The quick brown fox jumps',
+      })
+    })
+
+    it('should handle reconnect when existing message has no text parts', () => {
+      const existingMessages: Array<UIMessage> = [
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool-call',
+              id: 'tc-1',
+              name: 'search',
+              arguments: '{}',
+              state: 'input-complete',
+            },
+          ],
+        },
+      ]
+
+      const processor = new StreamProcessor({
+        initialMessages: existingMessages,
+      })
+      processor.prepareAssistantMessage()
+
+      // New text content arrives after tool call
+      processor.processChunk(ev.textContent('Result: found it', 'asst-1'))
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      // Should have tool-call + new text part
+      expect(messages[0]!.parts).toHaveLength(2)
+      expect(messages[0]!.parts[0]!.type).toBe('tool-call')
+      expect(messages[0]!.parts[1]).toEqual({
+        type: 'text',
+        content: 'Result: found it',
+      })
+    })
+
+    it('should handle MESSAGES_SNAPSHOT followed by content for existing message', () => {
+      const processor = new StreamProcessor()
+
+      // Simulate reconnect: snapshot arrives first
+      const snapshotMessages: Array<UIMessage> = [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Tell me a story' }],
+          createdAt: new Date(),
+        },
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Once upon a ' }],
+          createdAt: new Date(),
+        },
+      ]
+
+      processor.processChunk({
+        type: 'MESSAGES_SNAPSHOT',
+        messages: snapshotMessages,
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Resumed content for the in-progress message
+      processor.processChunk(ev.textContent('time...', 'asst-1'))
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+      expect(messages[1]!.id).toBe('asst-1')
+      expect(messages[1]!.parts[0]).toEqual({
+        type: 'text',
+        content: 'Once upon a time...',
+      })
+    })
+
+    it('should not fire onStreamStart when hydrating existing message', () => {
+      const events = spyEvents()
+      const existingMessages: Array<UIMessage> = [
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'existing' }],
+        },
+      ]
+
+      const processor = new StreamProcessor({
+        initialMessages: existingMessages,
+        events,
+      })
+      processor.prepareAssistantMessage()
+
+      // Content for existing message
+      processor.processChunk(ev.textContent(' text', 'asst-1'))
+
+      // Should NOT fire onStreamStart (message already existed)
+      expect(events.onStreamStart).not.toHaveBeenCalled()
     })
   })
 })

@@ -1,135 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 import { chat, createChatOptions } from '../src/activities/chat/index'
-import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 import type { StreamChunk, Tool } from '../src/types'
+import {
+  ev,
+  createMockAdapter,
+  collectChunks,
+  serverTool,
+  clientTool,
+} from './test-utils'
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/** Create a typed StreamChunk with minimal boilerplate. */
-function chunk<T extends StreamChunk['type']>(
-  type: T,
-  fields: Omit<Extract<StreamChunk, { type: T }>, 'type' | 'timestamp'>,
-): StreamChunk {
-  return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
-}
-
-/** Shorthand chunk factories for common AG-UI events. */
-const ev = {
-  runStarted: (runId = 'run-1') => chunk('RUN_STARTED', { runId }),
-  textStart: (messageId = 'msg-1') =>
-    chunk('TEXT_MESSAGE_START', { messageId, role: 'assistant' as const }),
-  textContent: (delta: string, messageId = 'msg-1') =>
-    chunk('TEXT_MESSAGE_CONTENT', { messageId, delta }),
-  textEnd: (messageId = 'msg-1') => chunk('TEXT_MESSAGE_END', { messageId }),
-  toolStart: (toolCallId: string, toolName: string, index?: number) =>
-    chunk('TOOL_CALL_START', {
-      toolCallId,
-      toolName,
-      ...(index !== undefined ? { index } : {}),
-    }),
-  toolArgs: (toolCallId: string, delta: string) =>
-    chunk('TOOL_CALL_ARGS', { toolCallId, delta }),
-  toolEnd: (
-    toolCallId: string,
-    toolName: string,
-    opts?: { input?: unknown; result?: string },
-  ) => chunk('TOOL_CALL_END', { toolCallId, toolName, ...opts }),
-  runFinished: (
-    finishReason:
-      | 'stop'
-      | 'length'
-      | 'content_filter'
-      | 'tool_calls'
-      | null = 'stop',
-    runId = 'run-1',
-  ) => chunk('RUN_FINISHED', { runId, finishReason }),
-  runError: (message: string, runId = 'run-1') =>
-    chunk('RUN_ERROR', { runId, error: { message } }),
-  stepFinished: (delta: string, stepId = 'step-1') =>
-    chunk('STEP_FINISHED', { stepId, delta }),
-}
-
-/**
- * Create a mock adapter that satisfies AnyTextAdapter.
- * `chatStreamFn` receives the options and returns an AsyncIterable of chunks.
- * Multiple invocations can be tracked via the returned `calls` array.
- */
-function createMockAdapter(options: {
-  chatStreamFn?: (opts: any) => AsyncIterable<StreamChunk>
-  /** Array of chunk sequences: chatStream returns iterations[0] on first call, iterations[1] on second, etc. */
-  iterations?: Array<Array<StreamChunk>>
-  structuredOutput?: (opts: any) => Promise<{ data: unknown; rawText: string }>
-}) {
-  const calls: Array<any> = []
-  let callIndex = 0
-
-  const adapter: AnyTextAdapter = {
-    kind: 'text' as const,
-    name: 'mock',
-    model: 'test-model' as const,
-    '~types': {
-      providerOptions: {} as Record<string, any>,
-      inputModalities: ['text'] as readonly ['text'],
-      messageMetadataByModality: {
-        text: undefined as unknown,
-        image: undefined as unknown,
-        audio: undefined as unknown,
-        video: undefined as unknown,
-        document: undefined as unknown,
-      },
-    },
-    chatStream: (opts: any) => {
-      calls.push(opts)
-
-      if (options.chatStreamFn) {
-        return options.chatStreamFn(opts)
-      }
-
-      if (options.iterations) {
-        const chunks = options.iterations[callIndex] || []
-        callIndex++
-        return (async function* () {
-          for (const c of chunks) yield c
-        })()
-      }
-
-      return (async function* () {})()
-    },
-    structuredOutput:
-      options.structuredOutput ?? (async () => ({ data: {}, rawText: '{}' })),
-  }
-
-  return { adapter, calls }
-}
-
-/** Collect all chunks from an async iterable. */
-async function collectChunks(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const chunks: Array<StreamChunk> = []
-  for await (const c of stream) {
-    chunks.push(c)
-  }
-  return chunks
-}
-
-/** Simple server tool for testing. */
-function serverTool(name: string, executeFn: (args: any) => any): Tool {
+/** Lazy server tool (has execute, lazy: true). */
+function lazyServerTool(name: string, executeFn: (args: any) => any): Tool {
   return {
     name,
-    description: `Test tool: ${name}`,
+    description: `Lazy tool: ${name}`,
     execute: executeFn,
-  }
-}
-
-/** Client tool (no execute function). */
-function clientTool(name: string, opts?: { needsApproval?: boolean }): Tool {
-  return {
-    name,
-    description: `Client tool: ${name}`,
-    needsApproval: opts?.needsApproval,
+    lazy: true,
   }
 }
 
@@ -187,8 +73,10 @@ describe('chat()', () => {
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       expect(calls).toHaveLength(1)
-      expect(calls[0].messages).toBeDefined()
-      expect(calls[0].messages[0].role).toBe('user')
+      expect(calls[0]!.messages).toBeDefined()
+      expect((calls[0]!.messages as Array<{ role: string }>)[0]!.role).toBe(
+        'user',
+      )
     })
 
     it('should pass systemPrompts to the adapter', async () => {
@@ -204,7 +92,7 @@ describe('chat()', () => {
 
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      expect(calls[0].systemPrompts).toEqual(['You are a helpful assistant'])
+      expect(calls[0]!.systemPrompts).toEqual(['You are a helpful assistant'])
     })
 
     it('should pass temperature, topP, maxTokens to the adapter', async () => {
@@ -222,9 +110,9 @@ describe('chat()', () => {
 
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      expect(calls[0].temperature).toBe(0.5)
-      expect(calls[0].topP).toBe(0.9)
-      expect(calls[0].maxTokens).toBe(100)
+      expect(calls[0]!.temperature).toBe(0.5)
+      expect(calls[0]!.topP).toBe(0.9)
+      expect(calls[0]!.maxTokens).toBe(100)
     })
   })
 
@@ -345,10 +233,8 @@ describe('chat()', () => {
       expect(calls).toHaveLength(2)
 
       // Second call should have tool result in messages
-      const secondCallMessages = calls[1].messages
-      const toolResultMsg = secondCallMessages.find(
-        (m: any) => m.role === 'tool',
-      )
+      const secondCallMessages = calls[1]!.messages as Array<{ role: string }>
+      const toolResultMsg = secondCallMessages.find((m) => m.role === 'tool')
       expect(toolResultMsg).toBeDefined()
     })
 
@@ -437,10 +323,8 @@ describe('chat()', () => {
       expect(timeSpy).toHaveBeenCalledTimes(1)
 
       // Second adapter call should have both tool results
-      const secondCallMessages = calls[1].messages
-      const toolResultMsgs = secondCallMessages.filter(
-        (m: any) => m.role === 'tool',
-      )
+      const secondCallMessages = calls[1]!.messages as Array<{ role: string }>
+      const toolResultMsgs = secondCallMessages.filter((m) => m.role === 'tool')
       expect(toolResultMsgs).toHaveLength(2)
     })
   })
@@ -476,10 +360,134 @@ describe('chat()', () => {
       )
       expect(customChunks).toHaveLength(1)
 
-      const data = (customChunks[0] as any).data
-      expect(data.toolCallId).toBe('call_1')
-      expect(data.toolName).toBe('clientSearch')
-      expect(data.input).toEqual({ query: 'test' })
+      const value = (customChunks[0] as any).value
+      expect(value.toolCallId).toBe('call_1')
+      expect(value.toolName).toBe('clientSearch')
+      expect(value.input).toEqual({ query: 'test' })
+    })
+  })
+
+  // ==========================================================================
+  // Mixed server + client tools (regression: server results were dropped)
+  // ==========================================================================
+  describe('mixed server + client tools', () => {
+    it('processToolCalls: emits server tool result before waiting for client tool', async () => {
+      const searchExecute = vi.fn().mockReturnValue({ results: ['a', 'b'] })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_server', 'searchTools'),
+            ev.toolArgs('call_server', '{"query":"hello"}'),
+            ev.toolStart('call_client', 'showNotification'),
+            ev.toolArgs('call_client', '{"message":"done"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Search and notify' }],
+        tools: [
+          serverTool('searchTools', searchExecute),
+          clientTool('showNotification'),
+        ],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Server tool should have executed
+      expect(searchExecute).toHaveBeenCalledTimes(1)
+
+      // TOOL_CALL_END with a result should be emitted for the server tool
+      const toolEndWithResult = chunks.filter(
+        (c) =>
+          c.type === 'TOOL_CALL_END' &&
+          (c as any).toolName === 'searchTools' &&
+          'result' in c &&
+          (c as any).result,
+      )
+      expect(toolEndWithResult).toHaveLength(1)
+
+      // Client tool should get a tool-input-available event
+      const customChunks = chunks.filter(
+        (c) =>
+          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+      )
+      expect(customChunks).toHaveLength(1)
+      expect((customChunks[0] as any).value.toolName).toBe('showNotification')
+
+      // Adapter called once (waiting for client result, not looping)
+      expect(calls).toHaveLength(1)
+    })
+
+    it('checkForPendingToolCalls: emits server result before waiting for pending client tool', async () => {
+      const weatherExecute = vi.fn().mockReturnValue({ temp: 72 })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          // This should NOT be called because we're still waiting for the client tool
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'Weather and notify?' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_server',
+                type: 'function' as const,
+                function: { name: 'getWeather', arguments: '{"city":"NYC"}' },
+              },
+              {
+                id: 'call_client',
+                type: 'function' as const,
+                function: {
+                  name: 'showNotification',
+                  arguments: '{"message":"done"}',
+                },
+              },
+            ],
+          },
+          // No tool result messages -> both are pending
+        ],
+        tools: [
+          serverTool('getWeather', weatherExecute),
+          clientTool('showNotification'),
+        ],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // Server tool should have executed
+      expect(weatherExecute).toHaveBeenCalledTimes(1)
+
+      // TOOL_CALL_END with a result should be emitted for the server tool
+      const toolEndWithResult = chunks.filter(
+        (c) =>
+          c.type === 'TOOL_CALL_END' &&
+          (c as any).toolName === 'getWeather' &&
+          'result' in c &&
+          (c as any).result,
+      )
+      expect(toolEndWithResult).toHaveLength(1)
+
+      // Client tool should get a tool-input-available event
+      const customChunks = chunks.filter(
+        (c) =>
+          c.type === 'CUSTOM' && (c as any).name === 'tool-input-available',
+      )
+      expect(customChunks).toHaveLength(1)
+      expect((customChunks[0] as any).value.toolName).toBe('showNotification')
+
+      // Adapter should NOT be called (still waiting for client result)
+      expect(calls).toHaveLength(0)
     })
   })
 
@@ -515,10 +523,10 @@ describe('chat()', () => {
       )
       expect(approvalChunks).toHaveLength(1)
 
-      const data = (approvalChunks[0] as any).data
-      expect(data.toolCallId).toBe('call_1')
-      expect(data.toolName).toBe('dangerousTool')
-      expect(data.approval.needsApproval).toBe(true)
+      const value = (approvalChunks[0] as any).value
+      expect(value.toolCallId).toBe('call_1')
+      expect(value.toolName).toBe('dangerousTool')
+      expect(value.approval.needsApproval).toBe(true)
     })
 
     it('should yield CUSTOM approval-requested for client tools with needsApproval', async () => {
@@ -601,8 +609,8 @@ describe('chat()', () => {
 
       // Adapter should have been called with the tool result in messages
       expect(calls).toHaveLength(1)
-      const adapterMessages = calls[0].messages
-      const toolMsg = adapterMessages.find((m: any) => m.role === 'tool')
+      const adapterMessages = calls[0]!.messages as Array<{ role: string }>
+      const toolMsg = adapterMessages.find((m) => m.role === 'tool')
       expect(toolMsg).toBeDefined()
     })
 
@@ -1048,7 +1056,7 @@ describe('chat()', () => {
       })
 
       await collectChunks(stream as AsyncIterable<StreamChunk>)
-      expect(calls[0].modelOptions).toEqual({ customParam: 'value' })
+      expect(calls[0]!.modelOptions).toEqual({ customParam: 'value' })
     })
 
     it('should handle TEXT_MESSAGE_CONTENT with content field', async () => {
@@ -1078,6 +1086,203 @@ describe('chat()', () => {
       })
 
       expect(result).toBe('Hello')
+    })
+  })
+
+  // ==========================================================================
+  // Lazy tool discovery
+  // ==========================================================================
+  describe('lazy tool discovery', () => {
+    it('should create discovery tool when lazy tools are provided', async () => {
+      const weatherExecute = vi.fn().mockReturnValue({ temp: 72 })
+
+      let callCount = 0
+      const { adapter, calls } = createMockAdapter({
+        chatStreamFn: (opts: any) => {
+          callCount++
+          const toolNames = opts.tools?.map((t: any) => t.name) || []
+
+          if (callCount === 1) {
+            // First call: only discovery tool available, LLM discovers getWeather
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_disc', '__lazy__tool__discovery__')
+              yield ev.toolArgs(
+                'call_disc',
+                JSON.stringify({ toolNames: ['getWeather'] }),
+              )
+              yield ev.runFinished('tool_calls')
+            })()
+          } else if (callCount === 2 && toolNames.includes('getWeather')) {
+            // Second call: getWeather is now available, LLM calls it
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_weather', 'getWeather')
+              yield ev.toolArgs('call_weather', '{"city":"NYC"}')
+              yield ev.runFinished('tool_calls')
+            })()
+          } else {
+            // Third call: final text after tool execution
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.textStart()
+              yield ev.textContent('It is 72F in NYC.')
+              yield ev.textEnd()
+              yield ev.runFinished('stop')
+            })()
+          }
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather in NYC?' }],
+        tools: [lazyServerTool('getWeather', weatherExecute)],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // First adapter call should have __lazy__tool__discovery__ but NOT getWeather
+      const firstCallToolNames = (calls[0] as any).tools.map((t: any) => t.name)
+      expect(firstCallToolNames).toContain('__lazy__tool__discovery__')
+      expect(firstCallToolNames).not.toContain('getWeather')
+
+      // Second adapter call should have getWeather (after discovery)
+      const secondCallToolNames = (calls[1] as any).tools.map(
+        (t: any) => t.name,
+      )
+      expect(secondCallToolNames).toContain('getWeather')
+
+      // TOOL_CALL_END chunks should exist for both discovery and getWeather
+      const toolEndChunks = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+      expect(toolEndChunks.length).toBeGreaterThanOrEqual(2)
+
+      // getWeather should have been executed
+      expect(weatherExecute).toHaveBeenCalledTimes(1)
+    })
+
+    it('should work with mix of eager and lazy tools', async () => {
+      const eagerExecute = vi.fn().mockReturnValue({ result: 'eager' })
+      const lazyExecute = vi.fn().mockReturnValue({ result: 'lazy' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), ev.textContent('Hello'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [
+          serverTool('eagerTool', eagerExecute),
+          lazyServerTool('lazyTool', lazyExecute),
+        ],
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // First adapter call should have eager tool + discovery tool, but NOT lazyTool
+      const firstCallToolNames = (calls[0] as any).tools.map((t: any) => t.name)
+      expect(firstCallToolNames).toContain('eagerTool')
+      expect(firstCallToolNames).toContain('__lazy__tool__discovery__')
+      expect(firstCallToolNames).not.toContain('lazyTool')
+    })
+
+    it('should handle undiscovered lazy tool call with self-correcting error', async () => {
+      const weatherExecute = vi.fn().mockReturnValue({ temp: 72 })
+
+      let callCount = 0
+      const { adapter } = createMockAdapter({
+        chatStreamFn: (opts: any) => {
+          callCount++
+          const toolNames = opts.tools?.map((t: any) => t.name) || []
+
+          if (callCount === 1) {
+            // First call: LLM tries to call getWeather without discovering it
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_weather_bad', 'getWeather')
+              yield ev.toolArgs('call_weather_bad', '{"city":"NYC"}')
+              yield ev.runFinished('tool_calls')
+            })()
+          } else if (callCount === 2) {
+            // Second call: LLM discovers getWeather
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_disc', '__lazy__tool__discovery__')
+              yield ev.toolArgs(
+                'call_disc',
+                JSON.stringify({ toolNames: ['getWeather'] }),
+              )
+              yield ev.runFinished('tool_calls')
+            })()
+          } else if (callCount === 3 && toolNames.includes('getWeather')) {
+            // Third call: LLM now calls getWeather successfully
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.toolStart('call_weather_ok', 'getWeather')
+              yield ev.toolArgs('call_weather_ok', '{"city":"NYC"}')
+              yield ev.runFinished('tool_calls')
+            })()
+          } else {
+            // Fourth call: final text
+            return (async function* () {
+              yield ev.runStarted()
+              yield ev.textStart()
+              yield ev.textContent('72F in NYC')
+              yield ev.textEnd()
+              yield ev.runFinished('stop')
+            })()
+          }
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather in NYC?' }],
+        tools: [lazyServerTool('getWeather', weatherExecute)],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // The first tool call result should contain a "must be discovered first" error
+      const toolEndChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_END',
+      ) as Array<any>
+      const errorResult = toolEndChunks.find(
+        (c: any) =>
+          c.toolName === 'getWeather' &&
+          c.result &&
+          c.result.includes('must be discovered first'),
+      )
+      expect(errorResult).toBeDefined()
+
+      // Eventually getWeather should be executed successfully
+      expect(weatherExecute).toHaveBeenCalledTimes(1)
+    })
+
+    it('should not create discovery tool when no lazy tools exist', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ result: 'ok' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), ev.textContent('Hi'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [serverTool('normalTool', executeSpy)],
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // No __lazy__tool__discovery__ should appear in the tools sent to the adapter
+      const toolNames = (calls[0] as any).tools.map((t: any) => t.name)
+      expect(toolNames).not.toContain('__lazy__tool__discovery__')
+      expect(toolNames).toContain('normalTool')
     })
   })
 })

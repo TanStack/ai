@@ -243,12 +243,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   for (const part of uiMessage.parts) {
     if (part.type !== 'tool-call') continue
 
-    // Client tool with output - add as tool result (if not already emitted)
-    if (
-      part.output !== undefined &&
-      !part.approval &&
-      !emittedToolResultIds.has(part.id)
-    ) {
+    // Output takes priority — if the tool has already produced a result,
+    // emit the concrete output regardless of approval metadata.
+    if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
       messageList.push({
         role: 'tool',
         content: JSON.stringify(part.output),
@@ -257,8 +254,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
       emittedToolResultIds.add(part.id)
     }
 
-    // Approval response - add as tool result for iteration tracking
+    // Approval response without output — emit approval status for iteration tracking
     if (
+      part.output === undefined &&
       part.state === 'approval-responded' &&
       part.approval?.approved !== undefined &&
       !emittedToolResultIds.has(part.id)

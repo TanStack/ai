@@ -5,9 +5,10 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
-import { aiEventClient } from '../../event-client.js'
+import { aiEventClient } from '@tanstack/ai-event-client'
+import { streamGenerationResult } from '../stream-generation-result.js'
 import type { ImageAdapter } from './adapter'
-import type { ImageGenerationResult } from '../../types'
+import type { ImageGenerationResult, StreamChunk } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -60,9 +61,11 @@ export type ImageSizeForModel<TAdapter, TModel extends string> =
  * The model is extracted from the adapter's model property.
  *
  * @template TAdapter - The image adapter type
+ * @template TStream - Whether to stream the output
  */
 export type ImageActivityOptions<
   TAdapter extends ImageAdapter<string, any, any, any>,
+  TStream extends boolean = false,
 > = {
   /** The image adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -72,6 +75,14 @@ export type ImageActivityOptions<
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: ImageSizeForModel<TAdapter, TAdapter['model']>
+  /**
+   * Whether to stream the image generation result.
+   * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
+   * When false or not provided, returns a Promise<ImageGenerationResult>.
+   *
+   * @default false
+   */
+  stream?: TStream
 } & ({} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
   ? {
       /** Provider-specific options for image generation */ modelOptions?: ImageProviderOptionsForModel<
@@ -90,8 +101,15 @@ export type ImageActivityOptions<
 // Activity Result Type
 // ===========================
 
-/** Result type for the image activity */
-export type ImageActivityResult = Promise<ImageGenerationResult>
+/**
+ * Result type for the image activity.
+ * - If stream is true: AsyncIterable<StreamChunk>
+ * - Otherwise: Promise<ImageGenerationResult>
+ */
+export type ImageActivityResult<TStream extends boolean = false> =
+  TStream extends true
+    ? AsyncIterable<StreamChunk>
+    : Promise<ImageGenerationResult>
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -146,10 +164,31 @@ function createId(prefix: string): string {
  * })
  * ```
  */
-export async function generateImage<
+export function generateImage<
   TAdapter extends ImageAdapter<string, any, any, any>,
->(options: ImageActivityOptions<TAdapter>): ImageActivityResult {
-  const { adapter, ...rest } = options
+  TStream extends boolean = false,
+>(
+  options: ImageActivityOptions<TAdapter, TStream>,
+): ImageActivityResult<TStream> {
+  if (options.stream) {
+    return streamGenerationResult(() =>
+      runGenerateImage(options),
+    ) as ImageActivityResult<TStream>
+  }
+
+  return runGenerateImage(options) as ImageActivityResult<TStream>
+}
+
+/**
+ * Internal implementation of image generation (always non-streaming).
+ * Contains all devtools event emission logic.
+ */
+async function runGenerateImage<
+  TAdapter extends ImageAdapter<string, any, any, any>,
+>(
+  options: ImageActivityOptions<TAdapter, boolean>,
+): Promise<ImageGenerationResult> {
+  const { adapter, stream: _stream, ...rest } = options
   const model = adapter.model
   const requestId = createId('image')
   const startTime = Date.now()
@@ -204,7 +243,10 @@ export async function generateImage<
  */
 export function createImageOptions<
   TAdapter extends ImageAdapter<string, any, any, any>,
->(options: ImageActivityOptions<TAdapter>): ImageActivityOptions<TAdapter> {
+  TStream extends boolean = false,
+>(
+  options: ImageActivityOptions<TAdapter, TStream>,
+): ImageActivityOptions<TAdapter, TStream> {
   return options
 }
 

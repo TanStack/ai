@@ -18,11 +18,12 @@ type AGUIEvent =
   | ToolCallEndEvent
   | StepStartedEvent
   | StepFinishedEvent
+  | MessagesSnapshotEvent
   | StateSnapshotEvent
   | StateDeltaEvent
   | CustomEvent;
 ```
 
-Defined in: [types.ts:904](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L904)
+Defined in: [types.ts:948](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L948)
 
 Union of all AG-UI events.

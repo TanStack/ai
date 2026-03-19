@@ -1,7 +1,7 @@
 ---
 title: Tree-Shaking
 id: tree-shaking
-order: 17
+order: 18
 ---
 
 # Tree-Shaking & Bundle Optimization
