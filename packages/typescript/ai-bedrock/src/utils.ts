@@ -1,10 +1,18 @@
 
 
+/**
+ * Resolved AWS configuration used to initialise the Bedrock client.
+ */
 export interface BedrockClientConfig {
+    /** AWS region (e.g. `'us-east-1'`). */
     region?: string
+    /** AWS credentials. */
     credentials?: {
+        /** AWS access key ID. */
         accessKeyId: string
+        /** AWS secret access key. */
         secretAccessKey: string
+        /** Temporary session token (for STS / assumed roles). */
         sessionToken?: string
     }
 }

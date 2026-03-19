@@ -22,7 +22,7 @@ export interface BedrockImageMetadata {
 /**
  * Metadata for Bedrock text content parts.
  */
-export interface BedrockTextMetadata { }
+export type BedrockTextMetadata = Record<string, never>
 
 /**
  * Metadata for Bedrock document content parts.

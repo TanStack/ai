@@ -28,16 +28,44 @@ import type {
 } from '@tanstack/ai'
 import type { BedrockTextProviderOptions } from '../text/text-provider-options'
 
+/**
+ * Configuration for the AWS Bedrock client.
+ */
 export interface BedrockTextConfig {
+    /** AWS region where Bedrock is accessed (e.g. `'us-east-1'`). */
     region: string
+    /** AWS credentials used to authenticate requests. */
     credentials: {
+        /** AWS access key ID. */
         accessKeyId: string
+        /** AWS secret access key. */
         secretAccessKey: string
     }
 }
 
+/**
+ * Supported input modalities for Bedrock text adapters.
+ * Nova Micro only supports `'text'`; other models support the full set.
+ */
 export type BedrockInputModalities = readonly ['text', 'image', 'video', 'document']
 
+/**
+ * Text adapter for Amazon Bedrock using the unified ConverseStream API.
+ *
+ * Supports Amazon Nova and Anthropic Claude models with streaming, tool calling,
+ * multimodal inputs (text, image, video, document), and extended thinking.
+ *
+ * @example
+ * ```typescript
+ * import { bedrockText } from '@tanstack/ai-bedrock'
+ * import { chat } from '@tanstack/ai'
+ *
+ * const stream = chat({
+ *   adapter: bedrockText('amazon.nova-pro-v1:0'),
+ *   messages: [{ role: 'user', content: 'Hello!' }],
+ * })
+ * ```
+ */
 export class BedrockTextAdapter<
     TModel extends BedrockModelId = BedrockModelId,
 > extends BaseTextAdapter<
@@ -51,6 +79,10 @@ export class BedrockTextAdapter<
 
     private client: BedrockRuntimeClient
 
+    /**
+     * @param config - AWS region and credentials for the Bedrock client.
+     * @param model - The Bedrock model ID to use for requests.
+     */
     constructor(config: BedrockTextConfig, model: TModel) {
         super({}, model)
         this.client = new BedrockRuntimeClient({
@@ -59,6 +91,12 @@ export class BedrockTextAdapter<
         })
     }
 
+    /**
+     * Streams a chat completion from the Bedrock ConverseStream API.
+     * Yields {@link StreamChunk} events including `content`, `thinking`, `tool_call`, `done`, and `error`.
+     *
+     * @param options - Text generation options (messages, tools, modelOptions, etc.)
+     */
     async *chatStream(
         options: TextOptions<BedrockTextProviderOptions>,
     ): AsyncIterable<StreamChunk> {
@@ -131,6 +169,10 @@ export class BedrockTextAdapter<
         }
     }
 
+    /**
+     * Structured output is not yet supported for the Bedrock ConverseStream API.
+     * @throws Always rejects with a not-implemented error.
+     */
     structuredOutput(
         _options: StructuredOutputOptions<BedrockTextProviderOptions>,
     ): Promise<StructuredOutputResult<unknown>> {
@@ -267,7 +309,6 @@ export class BedrockTextAdapter<
         let currentToolUseId = ''
         let lastStopReason: string | undefined
         let lastUsage: any | undefined
-        let doneEmitted = false
 
         // Universal <thinking> tag parsing for any model that emits them
         // (Claude with showThinking, Nova with reasoningConfig or when using tools, etc.)
@@ -341,6 +382,17 @@ export class BedrockTextAdapter<
 
                 }
 
+                // Claude native reasoning via Bedrock Converse API.
+                // Streamed as delta.reasoningContent.text (NOT <thinking> tags).
+                // The final chunk carries a delta.reasoningContent.signature — skip it,
+                // it's a tamper-proof token needed only when passing reasoning back in
+                // multi-turn conversations.
+                if (delta?.reasoningContent?.text !== undefined) {
+                    const reasoningDelta = delta.reasoningContent.text
+                    accumulatedThinking += reasoningDelta
+                    yield { type: 'thinking', id, model: this.model, timestamp, delta: reasoningDelta, content: accumulatedThinking }
+                }
+
                 // Tool input (arguments) - comes as partial JSON string chunks
                 if (delta?.toolUse?.input) {
                     // Input is already a string, don't JSON.stringify it!
@@ -399,21 +451,18 @@ export class BedrockTextAdapter<
         }
 
         // Emit final consolidated done event
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (!doneEmitted) {
-            yield {
-                type: 'done',
-                id,
-                model: this.model,
-                timestamp,
-                finishReason: lastStopReason === 'tool_use' ? 'tool_calls' : 'stop',
-                usage: lastUsage ? {
-                    promptTokens: lastUsage.inputTokens || 0,
-                    completionTokens: lastUsage.outputTokens || 0,
-                    totalTokens: lastUsage.totalTokens || 0,
-                } : undefined
-            }
-            doneEmitted = true
+        yield {
+            type: 'done',
+            id,
+            model: this.model,
+            timestamp,
+            finishReason: lastStopReason === 'tool_use' ? 'tool_calls' : 'stop',
+            usage: lastUsage ? {
+                promptTokens: lastUsage.inputTokens ?? 0,
+                completionTokens: lastUsage.outputTokens ?? 0,
+                // Use SDK-provided totalTokens when available; fall back to sum of parts
+                totalTokens: lastUsage.totalTokens ?? ((lastUsage.inputTokens ?? 0) + (lastUsage.outputTokens ?? 0)),
+            } : undefined
         }
     }
 }
