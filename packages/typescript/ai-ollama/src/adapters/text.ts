@@ -452,6 +452,9 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       options: ollamaOptions,
       messages: this.formatMessages(options.messages),
       tools: this.convertToolsToOllamaFormat(options.tools),
+      ...(options.systemPrompts?.length
+        ? { system: options.systemPrompts.join('\n') }
+        : {}),
     }
   }
 }
