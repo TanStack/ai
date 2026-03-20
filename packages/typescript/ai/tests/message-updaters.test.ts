@@ -820,12 +820,7 @@ describe('message-updaters', () => {
           { type: 'text', content: 'Some text' },
         ]),
       ]
-      const result = updateThinkingPart(
-        messages,
-        'msg-1',
-        'step-2',
-        'Second',
-      )
+      const result = updateThinkingPart(messages, 'msg-1', 'step-2', 'Second')
 
       expect(result[0]?.parts).toHaveLength(3)
       expect(result[0]?.parts[0]).toEqual({

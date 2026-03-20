@@ -90,7 +90,11 @@ export interface StreamProcessorEvents {
     state: ToolCallState,
     args: string,
   ) => void
-  onThinkingUpdate?: (messageId: string, stepId: string, content: string) => void
+  onThinkingUpdate?: (
+    messageId: string,
+    stepId: string,
+    content: string,
+  ) => void
 }
 
 /**

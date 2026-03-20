@@ -281,7 +281,8 @@ class TextEngine<
   private totalChunkCount = 0
   private currentMessageId: string | null = null
   private accumulatedContent = ''
-  private accumulatedThinking: Array<{ content: string; signature?: string }> = []
+  private accumulatedThinking: Array<{ content: string; signature?: string }> =
+    []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
   private eventOptions?: Record<string, unknown>
