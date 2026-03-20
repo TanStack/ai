@@ -90,7 +90,7 @@ export interface StreamProcessorEvents {
     state: ToolCallState,
     args: string,
   ) => void
-  onThinkingUpdate?: (messageId: string, content: string) => void
+  onThinkingUpdate?: (messageId: string, stepId: string, content: string) => void
 }
 
 /**
@@ -139,6 +139,7 @@ export class StreamProcessor {
   private activeMessageIds: Set<string> = new Set()
   private toolCallToMessage: Map<string, string> = new Map()
   private pendingManualMessageId: string | null = null
+  private pendingThinkingStepId: string | null = null
 
   // Run tracking (for concurrent run safety)
   private activeRuns = new Set<string>()
@@ -541,8 +542,12 @@ export class StreamProcessor {
         )
         break
 
+      case 'STEP_STARTED':
+        this.handleStepStartedEvent(chunk)
+        break
+
       default:
-        // STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA - no special handling needed
+        // STATE_SNAPSHOT, STATE_DELTA - no special handling needed
         break
     }
   }
@@ -564,8 +569,11 @@ export class StreamProcessor {
       totalTextContent: '',
       currentSegmentText: '',
       lastEmittedText: '',
-      thinkingContent: '',
       hasSeenReasoningEvents: false,
+      thinkingSteps: new Map(),
+      thinkingStepSignatures: new Map(),
+      thinkingStepOrder: [],
+      currentThinkingStepId: null,
       toolCalls: new Map(),
       toolCallOrder: [],
       hasToolCallsSinceTextStart: false,
@@ -1156,10 +1164,37 @@ export class StreamProcessor {
   }
 
   /**
+   * Handle STEP_STARTED event (for thinking/reasoning content).
+   *
+   * Records the stepId so that subsequent STEP_FINISHED deltas accumulate
+   * into their own ThinkingPart. Does not create a message — the message
+   * is lazily created when the first STEP_FINISHED content arrives.
+   */
+  private handleStepStartedEvent(
+    chunk: Extract<StreamChunk, { type: 'STEP_STARTED' }>,
+  ): void {
+    const activeId = this.getActiveAssistantMessageId()
+    if (activeId) {
+      const state = this.getMessageState(activeId)
+      if (state) {
+        state.currentThinkingStepId = chunk.stepId
+        if (!state.thinkingSteps.has(chunk.stepId)) {
+          state.thinkingSteps.set(chunk.stepId, '')
+          state.thinkingStepOrder.push(chunk.stepId)
+        }
+        return
+      }
+    }
+
+    // No active message yet — defer until ensureAssistantMessage in STEP_FINISHED
+    this.pendingThinkingStepId = chunk.stepId
+  }
+
+  /**
    * Handle STEP_FINISHED event (for thinking/reasoning content).
    *
-   * Accumulates delta into thinkingContent and updates a single ThinkingPart
-   * in the UIMessage (replaced in-place, not appended).
+   * Accumulates delta into the current thinking step's content and updates
+   * the corresponding ThinkingPart in the UIMessage.
    *
    * @see docs/chat-architecture.md#thinkingreasoning-content — Thinking flow
    */
@@ -1178,7 +1213,26 @@ export class StreamProcessor {
       return
     }
 
-    const previous = state.thinkingContent
+    // Consume pending stepId from STEP_STARTED that arrived before the message existed
+    if (this.pendingThinkingStepId) {
+      state.currentThinkingStepId = this.pendingThinkingStepId
+      if (!state.thinkingSteps.has(this.pendingThinkingStepId)) {
+        state.thinkingSteps.set(this.pendingThinkingStepId, '')
+        state.thinkingStepOrder.push(this.pendingThinkingStepId)
+      }
+      this.pendingThinkingStepId = null
+    }
+
+    const stepId = state.currentThinkingStepId ?? chunk.stepId
+
+    // Auto-initialize if no prior STEP_STARTED (backward compat)
+    if (!state.thinkingSteps.has(stepId)) {
+      state.thinkingSteps.set(stepId, '')
+      state.thinkingStepOrder.push(stepId)
+      state.currentThinkingStepId = stepId
+    }
+
+    const previous = state.thinkingSteps.get(stepId)!
     let nextThinking = previous
 
     // Prefer delta over content
@@ -1194,24 +1248,31 @@ export class StreamProcessor {
       }
     }
 
-    state.thinkingContent = nextThinking
+    state.thinkingSteps.set(stepId, nextThinking)
+
+    if (chunk.signature) {
+      state.thinkingStepSignatures.set(stepId, chunk.signature)
+    }
 
     // Update UIMessage
     this.messages = updateThinkingPart(
       this.messages,
       messageId,
-      state.thinkingContent,
+      stepId,
+      nextThinking,
+      state.thinkingStepSignatures.get(stepId),
     )
     this.emitMessagesChange()
 
     // Emit granular event
-    this.events.onThinkingUpdate?.(messageId, state.thinkingContent)
+    this.events.onThinkingUpdate?.(messageId, stepId, nextThinking)
   }
 
   /**
    * Handle REASONING_MESSAGE_CONTENT event (AG-UI reasoning protocol).
    *
-   * Accumulates reasoning delta into thinkingContent and updates the ThinkingPart
+   * Accumulates reasoning delta into thinking content and updates the
+   * corresponding ThinkingPart in the UIMessage.
    * in the UIMessage.
    */
   private handleReasoningMessageContentEvent(
@@ -1223,16 +1284,36 @@ export class StreamProcessor {
 
     state.hasSeenReasoningEvents = true
     const delta = chunk.delta || ''
-    state.thinkingContent = state.thinkingContent + delta
+
+    if (this.pendingThinkingStepId) {
+      state.currentThinkingStepId = this.pendingThinkingStepId
+      if (!state.thinkingSteps.has(this.pendingThinkingStepId)) {
+        state.thinkingSteps.set(this.pendingThinkingStepId, '')
+        state.thinkingStepOrder.push(this.pendingThinkingStepId)
+      }
+      this.pendingThinkingStepId = null
+    }
+
+    const stepId = state.currentThinkingStepId ?? 'reasoning'
+    if (!state.thinkingSteps.has(stepId)) {
+      state.thinkingSteps.set(stepId, '')
+      state.thinkingStepOrder.push(stepId)
+      state.currentThinkingStepId = stepId
+    }
+
+    const nextThinking = (state.thinkingSteps.get(stepId) ?? '') + delta
+    state.thinkingSteps.set(stepId, nextThinking)
 
     this.messages = updateThinkingPart(
       this.messages,
       messageId,
-      state.thinkingContent,
+      stepId,
+      nextThinking,
+      state.thinkingStepSignatures.get(stepId),
     )
     this.emitMessagesChange()
 
-    this.events.onThinkingUpdate?.(messageId, state.thinkingContent)
+    this.events.onThinkingUpdate?.(messageId, stepId, nextThinking)
   }
 
   /**
@@ -1518,7 +1599,9 @@ export class StreamProcessor {
 
     for (const state of this.messageStates.values()) {
       content += state.totalTextContent
-      thinking += state.thinkingContent
+      for (const stepId of state.thinkingStepOrder) {
+        thinking += state.thinkingSteps.get(stepId) ?? ''
+      }
     }
 
     return {
@@ -1540,7 +1623,9 @@ export class StreamProcessor {
 
     for (const state of this.messageStates.values()) {
       content += state.totalTextContent
-      thinking += state.thinkingContent
+      for (const stepId of state.thinkingStepOrder) {
+        thinking += state.thinkingSteps.get(stepId) ?? ''
+      }
       for (const [id, tc] of state.toolCalls) {
         toolCalls.set(id, tc)
       }
