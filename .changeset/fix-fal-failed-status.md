@@ -1,7 +1,8 @@
 ---
 '@tanstack/ai-fal': patch
+'@tanstack/ai': patch
 ---
 
-fix: handle FAILED queue status from fal.ai to prevent infinite polling
+fix: handle errors from fal result fetch on completed jobs
 
-Added `FAILED` to `FalQueueStatus` type and mapped it to `'failed'` status. Changed the default case in status mapping from `'processing'` to `'failed'` so unknown statuses don't cause infinite polling. Error details from the fal response are now surfaced in `VideoStatusResult.error`.
+fal.ai does not return a FAILED queue status — invalid jobs report COMPLETED, and the real error (e.g. 422 validation) only surfaces when fetching results. `getVideoUrl()` now catches these errors and extracts detailed validation messages. `getVideoJobStatus()` returns `status: 'failed'` when the result fetch throws on a "completed" job.
