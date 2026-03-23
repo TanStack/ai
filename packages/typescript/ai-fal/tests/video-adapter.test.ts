@@ -200,21 +200,7 @@ describe('Fal Video Adapter', () => {
       expect(result.status).toBe('completed')
     })
 
-    it('returns failed status with error for failed jobs', async () => {
-      mockQueueStatus.mockResolvedValueOnce({
-        status: 'FAILED',
-        error: 'Validation error: invalid input',
-      })
-
-      const adapter = createAdapter()
-
-      const result = await adapter.getVideoStatus('job-failed')
-
-      expect(result.status).toBe('failed')
-      expect(result.error).toBe('Validation error: invalid input')
-    })
-
-    it('returns failed status for unknown statuses', async () => {
+    it('returns processing for unknown statuses', async () => {
       mockQueueStatus.mockResolvedValueOnce({
         status: 'UNKNOWN_STATUS',
       })
@@ -223,7 +209,7 @@ describe('Fal Video Adapter', () => {
 
       const result = await adapter.getVideoStatus('job-unknown')
 
-      expect(result.status).toBe('failed')
+      expect(result.status).toBe('processing')
     })
   })
 
@@ -260,6 +246,29 @@ describe('Fal Video Adapter', () => {
       const result = await adapter.getVideoUrl('job-456')
 
       expect(result.url).toBe('https://fal.media/files/video2.mp4')
+    })
+
+    it('throws detailed error when result fetch returns validation error', async () => {
+      mockQueueResult.mockRejectedValueOnce({
+        name: 'ValidationError',
+        status: 422,
+        message: 'Unprocessable Entity',
+        body: {
+          detail: [
+            {
+              type: 'string_too_long',
+              loc: ['body', 'prompt'],
+              msg: 'String should have at most 2500 characters',
+            },
+          ],
+        },
+      })
+
+      const adapter = createAdapter()
+
+      await expect(adapter.getVideoUrl('job-failed')).rejects.toThrow(
+        'Video generation failed: body.prompt: String should have at most 2500 characters',
+      )
     })
 
     it('throws error when video URL is not found', async () => {
