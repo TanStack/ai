@@ -199,6 +199,32 @@ describe('Fal Video Adapter', () => {
 
       expect(result.status).toBe('completed')
     })
+
+    it('returns failed status with error for failed jobs', async () => {
+      mockQueueStatus.mockResolvedValueOnce({
+        status: 'FAILED',
+        error: 'Validation error: invalid input',
+      })
+
+      const adapter = createAdapter()
+
+      const result = await adapter.getVideoStatus('job-failed')
+
+      expect(result.status).toBe('failed')
+      expect(result.error).toBe('Validation error: invalid input')
+    })
+
+    it('returns failed status for unknown statuses', async () => {
+      mockQueueStatus.mockResolvedValueOnce({
+        status: 'UNKNOWN_STATUS',
+      })
+
+      const adapter = createAdapter()
+
+      const result = await adapter.getVideoStatus('job-unknown')
+
+      expect(result.status).toBe('failed')
+    })
   })
 
   describe('getVideoUrl', () => {

@@ -16,12 +16,13 @@ import type {
 } from '../model-meta'
 import type { FalClientConfig } from '../utils'
 
-type FalQueueStatus = 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED'
+type FalQueueStatus = 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
 
 interface FalStatusResponse {
   status: FalQueueStatus
   queue_position?: number
   logs?: Array<{ message: string }>
+  error?: string
 }
 
 interface FalVideoResultData {
@@ -42,8 +43,10 @@ function mapFalStatusToVideoStatus(
       return 'processing'
     case 'COMPLETED':
       return 'completed'
+    case 'FAILED':
+      return 'failed'
     default:
-      return 'processing'
+      return 'failed'
   }
 }
 
@@ -110,6 +113,7 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
         statusResponse.queue_position != null
           ? Math.max(0, 100 - statusResponse.queue_position * 10)
           : undefined,
+      error: statusResponse.error,
     }
   }
 
