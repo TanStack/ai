@@ -14,11 +14,7 @@ export interface CustomTool {
   /**
    * This defines the shape of the input that your tool accepts and that the model will produce.
    */
-  input_schema: {
-    type: 'object'
-    properties: Record<string, any> | null
-    required?: Array<string> | null
-  }
+  input_schema: JSONSchema & { type: 'object' }
 
   cache_control?: CacheControl | null
 }
@@ -27,17 +23,12 @@ export function convertCustomToolToAdapterFormat(tool: Tool): CustomTool {
   const metadata =
     (tool.metadata as { cacheControl?: CacheControl | null } | undefined) || {}
 
-  // Tool schemas are already converted to JSON Schema in the ai layer
-  const jsonSchema = (tool.inputSchema ?? {
+  // Pass through the full JSON Schema (including oneOf/anyOf for discriminated unions)
+  // instead of destructuring only properties/required.
+  // type: 'object' is forced last since the Anthropic API requires it at the top level.
+  const inputSchema: JSONSchema & { type: 'object' } = {
+    ...tool.inputSchema,
     type: 'object',
-    properties: {},
-    required: [],
-  }) as JSONSchema
-
-  const inputSchema = {
-    type: 'object' as const,
-    properties: jsonSchema.properties || null,
-    required: jsonSchema.required || null,
   }
 
   return {
