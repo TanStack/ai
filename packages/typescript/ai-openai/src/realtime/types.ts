@@ -1,4 +1,5 @@
 import type { VADConfig } from '@tanstack/ai'
+import type { OpenAIRealtimeModel as CatalogRealtimeModel } from '../meta/realtime'
 
 /**
  * OpenAI realtime voice options
@@ -18,13 +19,7 @@ export type OpenAIRealtimeVoice =
 /**
  * OpenAI realtime model options
  */
-export type OpenAIRealtimeModel =
-  | 'gpt-4o-realtime-preview'
-  | 'gpt-4o-realtime-preview-2024-10-01'
-  | 'gpt-4o-mini-realtime-preview'
-  | 'gpt-4o-mini-realtime-preview-2024-12-17'
-  | 'gpt-realtime'
-  | 'gpt-realtime-mini'
+export type OpenAIRealtimeModel = CatalogRealtimeModel
 
 /**
  * OpenAI semantic VAD configuration
@@ -54,7 +49,7 @@ export type OpenAITurnDetection =
  * Options for the OpenAI realtime token adapter
  */
 export interface OpenAIRealtimeTokenOptions {
-  /** Model to use (default: 'gpt-4o-realtime-preview') */
+  /** Model to use (default: 'gpt-realtime-1.5') */
   model?: OpenAIRealtimeModel
 }
 

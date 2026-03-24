@@ -1,3 +1,4 @@
+import { getTextModelSpec } from '../models/text'
 import type OpenAI from 'openai'
 import type { ApplyPatchTool } from '../tools/apply-patch-tool'
 import type { CodeInterpreterTool } from '../tools/code-interpreter-tool'
@@ -126,14 +127,26 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
 
 // Feature fragments that can be stitched per-model
 
-// Shared base types for reasoning options
-type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high'
-type ReasoningSummary = 'auto' | 'detailed'
+export type OpenAIReasoningEffort =
+  | 'none'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+export type OpenAIReasoningSummary = 'auto' | 'detailed'
+export type OpenAIReasoningSummaryWithConcise =
+  | OpenAIReasoningSummary
+  | 'concise'
 
 /**
- * Reasoning options for most models (excludes 'concise' summary).
+ * Generic reasoning options fragment. Exact model unions should be derived from
+ * the model registry, not from this broad helper alone.
  */
-export interface OpenAIReasoningOptions {
+export type OpenAIReasoningOptions<
+  TEffort extends OpenAIReasoningEffort = OpenAIReasoningEffort,
+  TSummary extends OpenAIReasoningSummaryWithConcise = OpenAIReasoningSummary,
+> = {
   /**
    * Reasoning controls for models that support it.
    * Lets you guide how much chain-of-thought computation to spend.
@@ -146,40 +159,21 @@ export interface OpenAIReasoningOptions {
      * All models before gpt-5.1 default to medium reasoning effort, and do not support none.
      * The gpt-5-pro model defaults to (and only supports) high reasoning effort.
      */
-    effort?: ReasoningEffort
+    effort?: TEffort
     /**
      * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process.
      * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
      */
-    summary?: ReasoningSummary
+    summary?: TSummary
   }
 }
 
 /**
- * Reasoning options for computer-use-preview model (includes 'concise' summary).
+ * Backwards-compatible alias for the variant that can include `concise`.
  */
-export interface OpenAIReasoningOptionsWithConcise {
-  /**
-   * Reasoning controls for models that support it.
-   * Lets you guide how much chain-of-thought computation to spend.
-   * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning
-   * https://platform.openai.com/docs/guides/reasoning
-   */
-  reasoning?: {
-    /**
-     * gpt-5.1 defaults to none, which does not perform reasoning. The supported reasoning values for gpt-5.1 are none, low, medium, and high. Tool calls are supported for all reasoning values in gpt-5.1.
-     * All models before gpt-5.1 default to medium reasoning effort, and do not support none.
-     * The gpt-5-pro model defaults to (and only supports) high reasoning effort.
-     */
-    effort?: ReasoningEffort
-    /**
-     * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process.
-     * `concise` is only supported for `computer-use-preview` models.
-     * https://platform.openai.com/docs/api-reference/responses/create#responses_create-reasoning-summary
-     */
-    summary?: ReasoningSummary | 'concise'
-  }
-}
+export type OpenAIReasoningOptionsWithConcise<
+  TEffort extends OpenAIReasoningEffort = OpenAIReasoningEffort,
+> = OpenAIReasoningOptions<TEffort, OpenAIReasoningSummaryWithConcise>
 
 export interface OpenAIStructuredOutputOptions {
   /**
@@ -234,8 +228,10 @@ https://platform.openai.com/docs/api-reference/responses/create#responses_create
   metadata?: Record<string, string>
 }
 
+type AnyReasoningOptions = OpenAIReasoningOptionsWithConcise
+
 export type ExternalTextProviderOptions = OpenAIBaseOptions &
-  OpenAIReasoningOptions &
+  AnyReasoningOptions &
   OpenAIStructuredOutputOptions &
   OpenAIToolsOptions &
   OpenAIStreamingOptions &
@@ -322,6 +318,43 @@ export const validateTextProviderOptions = (
 ) => {
   validateMetadata(options)
   validateConversationAndPreviousResponseId(options)
+  validateReasoningOptions(options)
+}
+
+const validateReasoningOptions = (options: InternalTextProviderOptions) => {
+  const reasoning = options.reasoning
+  if (!reasoning) {
+    return
+  }
+
+  const modelSpec = getTextModelSpec(options.model)
+  const modelReasoning =
+    modelSpec && 'reasoning' in modelSpec ? modelSpec.reasoning : undefined
+
+  if (!modelReasoning) {
+    throw new Error(`Model "${options.model}" does not support reasoning options.`)
+  }
+
+  const allowedEfforts = modelReasoning.efforts as ReadonlyArray<OpenAIReasoningEffort>
+  const allowedSummaries = modelReasoning.summaries as ReadonlyArray<OpenAIReasoningSummaryWithConcise>
+
+  if (
+    reasoning.effort !== undefined &&
+    !allowedEfforts.includes(reasoning.effort)
+  ) {
+    throw new Error(
+      `Model "${options.model}" does not support reasoning.effort "${reasoning.effort}".`,
+    )
+  }
+
+  if (
+    reasoning.summary !== undefined &&
+    !allowedSummaries.includes(reasoning.summary)
+  ) {
+    throw new Error(
+      `Model "${options.model}" does not support reasoning.summary "${reasoning.summary}".`,
+    )
+  }
 }
 
 const validateMetadata = (options: InternalTextProviderOptions) => {

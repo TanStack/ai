@@ -1,3 +1,5 @@
+import { IMAGE_MODELS } from '../models/image'
+
 /**
  * OpenAI Image Generation Provider Options
  *
@@ -177,27 +179,6 @@ export type OpenAIImageProviderOptions =
   | DallE2ProviderOptions
 
 /**
- * Type-only map from model name to its specific provider options.
- * Used by the core AI types to narrow providerOptions based on the selected model.
- */
-export type OpenAIImageModelProviderOptionsByName = {
-  'gpt-image-1': GptImage1ProviderOptions
-  'gpt-image-1-mini': GptImage1MiniProviderOptions
-  'dall-e-3': DallE3ProviderOptions
-  'dall-e-2': DallE2ProviderOptions
-}
-
-/**
- * Type-only map from model name to its supported sizes.
- */
-export type OpenAIImageModelSizeByName = {
-  'gpt-image-1': GptImageSize
-  'gpt-image-1-mini': GptImageSize
-  'dall-e-3': DallE3Size
-  'dall-e-2': DallE2Size
-}
-
-/**
  * Internal options interface for validation
  */
 interface ImageValidationOptions {
@@ -216,19 +197,14 @@ export function validateImageSize(
 ): void {
   if (!size || size === 'auto') return
 
-  const validSizes: Record<string, Array<string>> = {
-    'gpt-image-1': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
-    'gpt-image-1-mini': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
-    'dall-e-3': ['1024x1024', '1792x1024', '1024x1792'],
-    'dall-e-2': ['256x256', '512x512', '1024x1024'],
-  }
-
-  const modelSizes = validSizes[model]
-  if (!modelSizes) {
+  if (!Object.hasOwn(IMAGE_MODELS, model)) {
     throw new Error(`Unknown image model: ${model}`)
   }
 
-  if (!modelSizes.includes(size)) {
+  const modelMeta = IMAGE_MODELS[model as keyof typeof IMAGE_MODELS]
+  const modelSizes = modelMeta.sizes
+
+  if (!(modelSizes as ReadonlyArray<string>).includes(size)) {
     throw new Error(
       `Size "${size}" is not supported by model "${model}". ` +
         `Supported sizes: ${modelSizes.join(', ')}`,
@@ -245,26 +221,27 @@ export function validateNumberOfImages(
 ): void {
   if (numberOfImages === undefined) return
 
-  // dall-e-3 only supports n=1
-  if (model === 'dall-e-3' && numberOfImages !== 1) {
-    throw new Error(
-      `Model "dall-e-3" only supports generating 1 image at a time. ` +
-        `Requested: ${numberOfImages}`,
-    )
+  if (!Object.hasOwn(IMAGE_MODELS, model)) {
+    throw new Error(`Unknown image model: ${model}`)
   }
 
-  // Other models support 1-10
-  if (numberOfImages < 1 || numberOfImages > 10) {
+  const modelMeta = IMAGE_MODELS[model as keyof typeof IMAGE_MODELS]
+
+  if (numberOfImages < 1 || numberOfImages > modelMeta.maxImages) {
     throw new Error(
-      `Number of images must be between 1 and 10. Requested: ${numberOfImages}`,
+      `Number of images must be between 1 and ${modelMeta.maxImages}. Requested: ${numberOfImages}`,
     )
   }
 }
 
 export const validateBackground = (options: ImageValidationOptions) => {
-  if (options.background) {
-    const supportedModels = ['gpt-image-1', 'gpt-image-1-mini']
-    if (!supportedModels.includes(options.model)) {
+  if (options.background != null) {
+    if (!Object.hasOwn(IMAGE_MODELS, options.model)) {
+      throw new Error(`Unknown image model: ${options.model}`)
+    }
+
+    const modelMeta = IMAGE_MODELS[options.model as keyof typeof IMAGE_MODELS]
+    if (!('supportsBackground' in modelMeta)) {
       throw new Error(
         `The model ${options.model} does not support background option.`,
       )
@@ -276,22 +253,11 @@ export const validatePrompt = (options: ImageValidationOptions) => {
   if (options.prompt.length === 0) {
     throw new Error('Prompt cannot be empty.')
   }
-  if (
-    (options.model === 'gpt-image-1' || options.model === 'gpt-image-1-mini') &&
-    options.prompt.length > 32000
-  ) {
+  if (!Object.hasOwn(IMAGE_MODELS, options.model)) return
+  const modelMeta = IMAGE_MODELS[options.model as keyof typeof IMAGE_MODELS]
+  if (options.prompt.length > modelMeta.maxPromptLength) {
     throw new Error(
-      'For gpt-image-1/gpt-image-1-mini, prompt length must be less than or equal to 32000 characters.',
-    )
-  }
-  if (options.model === 'dall-e-2' && options.prompt.length > 1000) {
-    throw new Error(
-      'For dall-e-2, prompt length must be less than or equal to 1000 characters.',
-    )
-  }
-  if (options.model === 'dall-e-3' && options.prompt.length > 4000) {
-    throw new Error(
-      'For dall-e-3, prompt length must be less than or equal to 4000 characters.',
+      `For ${options.model}, prompt length must be less than or equal to ${modelMeta.maxPromptLength} characters.`,
     )
   }
 }
