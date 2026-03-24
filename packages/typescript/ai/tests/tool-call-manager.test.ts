@@ -792,12 +792,7 @@ describe('executeToolCalls', () => {
 
       const toolCalls = [makeToolCall('call_1', 'lookup_user', '{}')]
 
-      const gen = executeToolCalls(
-        toolCalls,
-        [tool],
-        new Map(),
-        new Map(),
-      )
+      const gen = executeToolCalls(toolCalls, [tool], new Map(), new Map())
 
       const chunks: Array<any> = []
       let next = await gen.next()
@@ -829,12 +824,7 @@ describe('executeToolCalls', () => {
 
       const toolCalls = [makeToolCall('call_1', 'failing_tool', '{}')]
 
-      const gen = executeToolCalls(
-        toolCalls,
-        [tool],
-        new Map(),
-        new Map(),
-      )
+      const gen = executeToolCalls(toolCalls, [tool], new Map(), new Map())
 
       const chunks: Array<any> = []
       let next = await gen.next()
@@ -864,12 +854,7 @@ describe('executeToolCalls', () => {
 
       const toolCalls = [makeToolCall('call_1', 'open_tool', '{}')]
 
-      const gen = executeToolCalls(
-        toolCalls,
-        [tool],
-        new Map(),
-        new Map(),
-      )
+      const gen = executeToolCalls(toolCalls, [tool], new Map(), new Map())
 
       const chunks: Array<any> = []
       let next = await gen.next()
