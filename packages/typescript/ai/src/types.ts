@@ -496,6 +496,9 @@ export interface Tool<
   /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat(). */
   lazy?: boolean
 
+  /** Optional transform to filter tool output before streaming to the client. The full result is always sent to the LLM. */
+  clientOutput?: (result: any) => any
+
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any>
 }

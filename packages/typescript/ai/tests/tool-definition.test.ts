@@ -286,4 +286,40 @@ describe('toolDefinition', () => {
     expect(tool.__toolSide).toBe('definition')
     expect(tool.inputSchema).toBeDefined()
   })
+
+  it('should preserve clientOutput on definition, server, and client tools', () => {
+    const filterFn = (result: { id: string; secret: string }) => ({
+      id: result.id,
+    })
+
+    const tool = toolDefinition({
+      name: 'lookupUser',
+      description: 'Look up a user',
+      outputSchema: z.object({
+        id: z.string(),
+        secret: z.string(),
+      }),
+      clientOutput: filterFn,
+    })
+
+    expect(tool.clientOutput).toBe(filterFn)
+
+    const serverTool = tool.server(async () => ({ id: '1', secret: 'shhh' }))
+    expect(serverTool.clientOutput).toBe(filterFn)
+
+    const clientTool = tool.client()
+    expect(clientTool.clientOutput).toBe(filterFn)
+  })
+
+  it('should default clientOutput to undefined when not specified', () => {
+    const tool = toolDefinition({
+      name: 'simpleTool',
+      description: 'No filtering',
+    })
+
+    expect(tool.clientOutput).toBeUndefined()
+
+    const serverTool = tool.server(async () => ({}))
+    expect(serverTool.clientOutput).toBeUndefined()
+  })
 })

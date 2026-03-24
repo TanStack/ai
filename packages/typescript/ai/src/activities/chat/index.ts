@@ -1084,7 +1084,14 @@ class TextEngine<
     const chunks: Array<StreamChunk> = []
 
     for (const result of results) {
-      const content = JSON.stringify(result.result)
+      const fullContent = JSON.stringify(result.result)
+
+      // Apply clientOutput filter if the tool defines one
+      const tool = this.tools.find((t) => t.name === result.toolName)
+      const clientContent =
+        tool?.clientOutput && result.state !== 'output-error'
+          ? JSON.stringify(tool.clientOutput(result.result))
+          : fullContent
 
       chunks.push({
         type: 'TOOL_CALL_END',
@@ -1092,14 +1099,14 @@ class TextEngine<
         model: finishEvent.model,
         toolCallId: result.toolCallId,
         toolName: result.toolName,
-        result: content,
+        result: clientContent,
       })
 
       this.messages = [
         ...this.messages,
         {
           role: 'tool',
-          content,
+          content: fullContent,
           toolCallId: result.toolCallId,
         },
       ]

@@ -375,6 +375,58 @@ describe('ToolCallManager', () => {
       expect(toolCalls[0]?.function.arguments).toBe('{"location":"New York"}')
     })
   })
+
+  it('should apply clientOutput filter to TOOL_CALL_END but keep full result in tool message', async () => {
+    const sensitiveWeatherTool: Tool = {
+      name: 'get_weather_sensitive',
+      description: 'Get weather with internal data',
+      execute: vi.fn(() => ({
+        temp: 72,
+        location: 'Paris',
+        internalStationId: 'SENSOR-42',
+      })),
+      clientOutput: (result: any) => ({
+        temp: result.temp,
+        location: result.location,
+      }),
+    }
+
+    const manager = new ToolCallManager([sensitiveWeatherTool])
+
+    manager.addToolCallStartEvent({
+      type: 'TOOL_CALL_START',
+      toolCallId: 'call_filtered',
+      toolName: 'get_weather_sensitive',
+      timestamp: Date.now(),
+      index: 0,
+    })
+
+    manager.addToolCallArgsEvent({
+      type: 'TOOL_CALL_ARGS',
+      toolCallId: 'call_filtered',
+      timestamp: Date.now(),
+      delta: '{}',
+    })
+
+    const { chunks, result: toolMessages } = await collectGeneratorOutput(
+      manager.executeTools(mockFinishedEvent),
+    )
+
+    // TOOL_CALL_END chunk should contain filtered result (no internalStationId)
+    expect(chunks).toHaveLength(1)
+    const clientResult = JSON.parse(chunks[0]!.result!)
+    expect(clientResult).toEqual({ temp: 72, location: 'Paris' })
+    expect(clientResult).not.toHaveProperty('internalStationId')
+
+    // Tool message for LLM should contain full result
+    expect(toolMessages).toHaveLength(1)
+    const llmResult = JSON.parse(toolMessages[0]!.content as string)
+    expect(llmResult).toEqual({
+      temp: 72,
+      location: 'Paris',
+      internalStationId: 'SENSOR-42',
+    })
+  })
 })
 
 describe('executeToolCalls', () => {
@@ -718,6 +770,120 @@ describe('executeToolCalls', () => {
         {},
         expect.objectContaining({ toolCallId: 'call_1' }),
       )
+    })
+  })
+
+  describe('clientOutput filtering', () => {
+    it('should filter tool result in TOOL_CALL_END but keep full result for LLM', async () => {
+      const tool: Tool = {
+        name: 'lookup_user',
+        description: 'Look up a user',
+        execute: vi.fn(() => ({
+          id: 'u1',
+          name: 'Alice',
+          ssn: '123-45-6789',
+          internalScore: 99,
+        })),
+        clientOutput: (result: any) => ({
+          id: result.id,
+          name: result.name,
+        }),
+      }
+
+      const toolCalls = [makeToolCall('call_1', 'lookup_user', '{}')]
+
+      const gen = executeToolCalls(
+        toolCalls,
+        [tool],
+        new Map(),
+        new Map(),
+      )
+
+      const chunks: Array<any> = []
+      let next = await gen.next()
+      while (!next.done) {
+        chunks.push(next.value)
+        next = await gen.next()
+      }
+      const result = next.value
+
+      // Full result goes to LLM
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0]?.result).toEqual({
+        id: 'u1',
+        name: 'Alice',
+        ssn: '123-45-6789',
+        internalScore: 99,
+      })
+    })
+
+    it('should not apply clientOutput when tool execution errors', async () => {
+      const tool: Tool = {
+        name: 'failing_tool',
+        description: 'A tool that fails',
+        execute: vi.fn(() => {
+          throw new Error('DB connection failed')
+        }),
+        clientOutput: (result: any) => ({ id: result.id }),
+      }
+
+      const toolCalls = [makeToolCall('call_1', 'failing_tool', '{}')]
+
+      const gen = executeToolCalls(
+        toolCalls,
+        [tool],
+        new Map(),
+        new Map(),
+      )
+
+      const chunks: Array<any> = []
+      let next = await gen.next()
+      while (!next.done) {
+        chunks.push(next.value)
+        next = await gen.next()
+      }
+      const result = next.value
+
+      // Error result should not be filtered
+      expect(result.results[0]?.result).toEqual({
+        error: 'DB connection failed',
+      })
+      expect(result.results[0]?.state).toBe('output-error')
+    })
+
+    it('should send full result to client when no clientOutput is defined', async () => {
+      const tool: Tool = {
+        name: 'open_tool',
+        description: 'No filtering',
+        execute: vi.fn(() => ({
+          id: 'u1',
+          secret: 'visible',
+        })),
+        // No clientOutput
+      }
+
+      const toolCalls = [makeToolCall('call_1', 'open_tool', '{}')]
+
+      const gen = executeToolCalls(
+        toolCalls,
+        [tool],
+        new Map(),
+        new Map(),
+      )
+
+      const chunks: Array<any> = []
+      let next = await gen.next()
+      while (!next.done) {
+        chunks.push(next.value)
+        next = await gen.next()
+      }
+      const result = next.value
+
+      // Full result in both places
+      expect(result.results[0]?.result).toEqual({
+        id: 'u1',
+        secret: 'visible',
+      })
     })
   })
 })
