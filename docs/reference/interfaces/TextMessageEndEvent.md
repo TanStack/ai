@@ -5,7 +5,7 @@ title: TextMessageEndEvent
 
 # Interface: TextMessageEndEvent
 
-Defined in: [types.ts:829](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L829)
+Defined in: [types.ts:830](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L830)
 
 Emitted when a text message completes.
 
@@ -21,7 +21,7 @@ Emitted when a text message completes.
 messageId: string;
 ```
 
-Defined in: [types.ts:832](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L832)
+Defined in: [types.ts:833](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L833)
 
 Message identifier
 
@@ -33,7 +33,7 @@ Message identifier
 optional model: string;
 ```
 
-Defined in: [types.ts:750](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L750)
+Defined in: [types.ts:751](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L751)
 
 Model identifier for multi-model support
 
@@ -49,7 +49,7 @@ Model identifier for multi-model support
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:752](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L752)
+Defined in: [types.ts:753](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L753)
 
 Original provider event for debugging/advanced use cases
 
@@ -65,7 +65,7 @@ Original provider event for debugging/advanced use cases
 timestamp: number;
 ```
 
-Defined in: [types.ts:748](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L748)
+Defined in: [types.ts:749](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L749)
 
 #### Inherited from
 
@@ -79,7 +79,7 @@ Defined in: [types.ts:748](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "TEXT_MESSAGE_END";
 ```
 
-Defined in: [types.ts:830](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L830)
+Defined in: [types.ts:831](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L831)
 
 #### Overrides
 

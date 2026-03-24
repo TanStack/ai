@@ -140,6 +140,9 @@ export class StreamProcessor {
   private toolCallToMessage: Map<string, string> = new Map()
   private pendingManualMessageId: string | null = null
 
+  // Run tracking (for concurrent run safety)
+  private activeRuns = new Set<string>()
+
   // Shared stream state
   private finishReason: string | null = null
   private hasError = false
@@ -488,8 +491,12 @@ export class StreamProcessor {
         this.handleCustomEvent(chunk)
         break
 
+      case 'RUN_STARTED':
+        this.handleRunStartedEvent(chunk)
+        break
+
       default:
-        // RUN_STARTED, STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA - no special handling needed
+        // STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA - no special handling needed
         break
     }
   }
@@ -548,6 +555,11 @@ export class StreamProcessor {
   /**
    * Ensure an active assistant message exists, creating one if needed.
    * Used for backward compat when events arrive without prior TEXT_MESSAGE_START.
+   *
+   * On reconnect/resume, a TEXT_MESSAGE_CONTENT may arrive for a message that
+   * already exists in this.messages (e.g. from initialMessages or a prior
+   * MESSAGES_SNAPSHOT) but whose transient state was cleared. In that case we
+   * hydrate state from the existing message rather than creating a duplicate.
    */
   private ensureAssistantMessage(preferredId?: string): {
     messageId: string
@@ -564,6 +576,31 @@ export class StreamProcessor {
     if (activeId) {
       const state = this.getMessageState(activeId)!
       return { messageId: activeId, state }
+    }
+
+    // Check if a message with preferredId already exists (reconnect/resume case).
+    // Hydrate transient state from the existing message instead of duplicating it.
+    if (preferredId) {
+      const existingMsg = this.messages.find((m) => m.id === preferredId)
+      if (existingMsg) {
+        const state = this.createMessageState(preferredId, existingMsg.role)
+        this.activeMessageIds.add(preferredId)
+
+        // Seed segment text from the existing last text part so that
+        // incoming deltas append correctly and updateTextPart produces
+        // the right content (existing text + new delta).
+        const lastPart =
+          existingMsg.parts.length > 0
+            ? existingMsg.parts[existingMsg.parts.length - 1]
+            : null
+        if (lastPart && lastPart.type === 'text') {
+          state.currentSegmentText = lastPart.content
+          state.lastEmittedText = lastPart.content
+          state.totalTextContent = lastPart.content
+        }
+
+        return { messageId: preferredId, state }
+      }
     }
 
     // Auto-create an assistant message (backward compat for process() without TEXT_MESSAGE_START)
@@ -969,11 +1006,23 @@ export class StreamProcessor {
   }
 
   /**
+   * Handle RUN_STARTED event.
+   *
+   * Registers the run so that RUN_FINISHED can determine whether other
+   * runs are still active before finalizing.
+   */
+  private handleRunStartedEvent(
+    chunk: Extract<StreamChunk, { type: 'RUN_STARTED' }>,
+  ): void {
+    this.activeRuns.add(chunk.runId)
+  }
+
+  /**
    * Handle RUN_FINISHED event.
    *
-   * Records the finishReason and calls completeAllToolCalls() as a safety net
-   * to force-complete any tool calls that didn't receive an explicit TOOL_CALL_END.
-   * This handles cases like aborted streams or adapter bugs.
+   * Records the finishReason and removes the run from activeRuns.
+   * Only finalizes when no more runs are active, so that concurrent
+   * runs don't interfere with each other.
    *
    * @see docs/chat-architecture.md#single-shot-tool-call-response — finishReason semantics
    * @see docs/chat-architecture.md#adapter-contract — Why RUN_FINISHED is mandatory
@@ -982,9 +1031,13 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
   ): void {
     this.finishReason = chunk.finishReason
-    this.isDone = true
-    this.completeAllToolCalls()
-    this.finalizeStream()
+    this.activeRuns.delete(chunk.runId)
+
+    if (this.activeRuns.size === 0) {
+      this.isDone = true
+      this.completeAllToolCalls()
+      this.finalizeStream()
+    }
   }
 
   /**
@@ -994,8 +1047,12 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.hasError = true
+    if (chunk.runId) {
+      this.activeRuns.delete(chunk.runId)
+    } else {
+      this.activeRuns.clear()
+    }
     this.ensureAssistantMessage()
-    // Emit error event
     this.events.onError?.(new Error(chunk.error.message || 'An error occurred'))
   }
 
@@ -1090,7 +1147,6 @@ export class StreamProcessor {
       // which is populated during TOOL_CALL_START and preserved across finalize.
       const resolvedMessageId =
         messageId ?? this.toolCallToMessage.get(toolCallId)
-
       if (resolvedMessageId) {
         this.messages = updateToolCallApproval(
           this.messages,
@@ -1393,6 +1449,7 @@ export class StreamProcessor {
   private resetStreamState(): void {
     this.messageStates.clear()
     this.activeMessageIds.clear()
+    this.activeRuns.clear()
     this.toolCallToMessage.clear()
     this.pendingManualMessageId = null
     this.finishReason = null

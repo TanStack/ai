@@ -1,5 +1,5 @@
 import { ChatClient } from '@tanstack/ai-client'
-import type { ChatClientState } from '@tanstack/ai-client'
+import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   CreateChatOptions,
@@ -51,6 +51,9 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   let isLoading = $state(false)
   let error = $state<Error | undefined>(undefined)
   let status = $state<ChatClientState>('ready')
+  let isSubscribed = $state(false)
+  let connectionStatus = $state<ConnectionStatus>('disconnected')
+  let sessionGenerating = $state(false)
 
   // Create ChatClient instance
   const client = new ChatClient({
@@ -81,7 +84,20 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     onErrorChange: (newError: Error | undefined) => {
       error = newError
     },
+    onSubscriptionChange: (nextIsSubscribed: boolean) => {
+      isSubscribed = nextIsSubscribed
+    },
+    onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+      connectionStatus = nextStatus
+    },
+    onSessionGeneratingChange: (isGenerating: boolean) => {
+      sessionGenerating = isGenerating
+    },
   })
+
+  if (options.live) {
+    client.subscribe()
+  }
 
   // Note: Cleanup is handled by calling stop() directly when needed.
   // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
@@ -148,6 +164,15 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     },
     get status() {
       return status
+    },
+    get isSubscribed() {
+      return isSubscribed
+    },
+    get connectionStatus() {
+      return connectionStatus
+    },
+    get sessionGenerating() {
+      return sessionGenerating
     },
     sendMessage,
     append,

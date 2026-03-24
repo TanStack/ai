@@ -15,6 +15,7 @@ export type {
   ChatRequestBody,
   InferChatMessages,
   ChatClientState,
+  ConnectionStatus,
   // Multimodal content input type
   MultimodalContent,
 } from './types'

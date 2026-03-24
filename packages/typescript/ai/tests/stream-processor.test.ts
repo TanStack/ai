@@ -1508,11 +1508,11 @@ describe('StreamProcessor', () => {
       expect(resultPart).toBeDefined()
     })
 
-    it('ignored event types (RUN_STARTED, TEXT_MESSAGE_END, STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA) should not crash', () => {
+    it('non-content event types (RUN_STARTED, TEXT_MESSAGE_END, STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA) should not create messages', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
-      // These should all be silently ignored
+      // These should not create any messages
       processor.processChunk(chunk('RUN_STARTED', { runId: 'run-1' }))
       processor.processChunk(chunk('TEXT_MESSAGE_END', { messageId: 'msg-1' }))
       processor.processChunk(chunk('STEP_STARTED', { stepId: 'step-1' }))
@@ -2588,6 +2588,325 @@ describe('StreamProcessor', () => {
       processor.finalizeStream()
       expect(onStreamEnd).toHaveBeenCalledTimes(1)
       expect(onStreamEnd.mock.calls[0]![0].id).toBe('msg-new')
+    })
+  })
+
+  // ==========================================================================
+  // Concurrent runs (run-aware finalization)
+  // ==========================================================================
+  describe('concurrent runs', () => {
+    it('RUN_FINISHED for one run should not finalize a still-active run', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      // Run A starts
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(ev.textContent('A text', 'msg-a'))
+
+      // Run B starts while A is still active
+      processor.processChunk(ev.runStarted('run-b'))
+      processor.processChunk(ev.textStart('msg-b'))
+      processor.processChunk(ev.textContent('B text', 'msg-b'))
+
+      // Run B finishes — should NOT finalize run A
+      processor.processChunk(ev.runFinished('stop', 'run-b'))
+
+      // onStreamEnd should NOT have fired yet (run A still active)
+      expect(events.onStreamEnd).not.toHaveBeenCalled()
+
+      // Run A should still be able to receive content
+      processor.processChunk(ev.textContent(' more A', 'msg-a'))
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+      expect(messages[0]?.id).toBe('msg-a')
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'A text more A',
+      })
+      expect(messages[1]?.id).toBe('msg-b')
+      expect(messages[1]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'B text',
+      })
+
+      // Finish run A — now everything should finalize
+      processor.processChunk(ev.runFinished('stop', 'run-a'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('should not set isDone until all concurrent runs finish', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(ev.textContent('A', 'msg-a'))
+
+      processor.processChunk(ev.runStarted('run-b'))
+      processor.processChunk(ev.textStart('msg-b'))
+      processor.processChunk(ev.textContent('B', 'msg-b'))
+
+      // Finish run B
+      processor.processChunk(ev.runFinished('stop', 'run-b'))
+      expect(processor.getState().done).toBe(false)
+
+      // Finish run A
+      processor.processChunk(ev.runFinished('stop', 'run-a'))
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('single run should finalize normally (backward compat)', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('Hello'))
+      processor.processChunk(ev.textEnd())
+      processor.processChunk(ev.runFinished('stop'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('RUN_FINISHED without prior RUN_STARTED should finalize normally (backward compat)', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.textContent('Hello'))
+      processor.processChunk(ev.runFinished('stop'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('tool calls in one run should not be force-completed when another run finishes', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(ev.toolStart('tc-a', 'toolA'))
+      processor.processChunk(ev.toolArgs('tc-a', '{"q":'))
+
+      processor.processChunk(ev.runStarted('run-b'))
+      processor.processChunk(ev.textStart('msg-b'))
+      processor.processChunk(ev.textContent('B done', 'msg-b'))
+
+      // Run B finishes — tool call in run A should NOT be force-completed
+      processor.processChunk(ev.runFinished('stop', 'run-b'))
+
+      const tcState = processor.getState().toolCalls.get('tc-a')
+      expect(tcState?.state).toBe('input-streaming')
+
+      // Continue and finish the tool call normally
+      processor.processChunk(ev.toolArgs('tc-a', '"val"}'))
+      processor.processChunk(ev.toolEnd('tc-a', 'toolA'))
+      processor.processChunk(ev.runFinished('tool_calls', 'run-a'))
+
+      expect(processor.getState().toolCalls.get('tc-a')?.state).toBe(
+        'input-complete',
+      )
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('RUN_ERROR for one run should not affect other active runs', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(ev.textContent('A text', 'msg-a'))
+
+      processor.processChunk(ev.runStarted('run-b'))
+      processor.processChunk(ev.textStart('msg-b'))
+
+      // Run B errors
+      processor.processChunk(ev.runError('Something failed', 'run-b'))
+
+      // Run A should still be active
+      processor.processChunk(ev.textContent(' more A', 'msg-a'))
+
+      const messages = processor.getMessages()
+      const msgA = messages.find((m) => m.id === 'msg-a')
+      expect(msgA?.parts[0]).toEqual({
+        type: 'text',
+        content: 'A text more A',
+      })
+
+      // Run A finishes normally
+      processor.processChunk(ev.runFinished('stop', 'run-a'))
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // ==========================================================================
+  // Reconnect dedupe (ensureAssistantMessage hydration)
+  // ==========================================================================
+  describe('reconnect dedupe', () => {
+    it('TEXT_MESSAGE_CONTENT for existing message should not create a duplicate', () => {
+      const existingMessages: Array<UIMessage> = [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+        },
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Hello wor' }],
+        },
+      ]
+
+      const processor = new StreamProcessor({
+        initialMessages: existingMessages,
+      })
+
+      // Simulate reconnect: stream state was reset but messages preserved
+      processor.prepareAssistantMessage()
+
+      // Content arrives for existing message without TEXT_MESSAGE_START
+      processor.processChunk(ev.textContent('ld!', 'asst-1'))
+
+      const messages = processor.getMessages()
+      // Should still have exactly 2 messages, not 3
+      expect(messages).toHaveLength(2)
+      expect(messages[1]!.id).toBe('asst-1')
+      expect(messages[1]!.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello world!',
+      })
+    })
+
+    it('should correctly append delta to existing text on reconnect', () => {
+      const existingMessages: Array<UIMessage> = [
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'The quick brown ' }],
+        },
+      ]
+
+      const processor = new StreamProcessor({
+        initialMessages: existingMessages,
+      })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.textContent('fox', 'asst-1'))
+      processor.processChunk(ev.textContent(' jumps', 'asst-1'))
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]!.parts[0]).toEqual({
+        type: 'text',
+        content: 'The quick brown fox jumps',
+      })
+    })
+
+    it('should handle reconnect when existing message has no text parts', () => {
+      const existingMessages: Array<UIMessage> = [
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool-call',
+              id: 'tc-1',
+              name: 'search',
+              arguments: '{}',
+              state: 'input-complete',
+            },
+          ],
+        },
+      ]
+
+      const processor = new StreamProcessor({
+        initialMessages: existingMessages,
+      })
+      processor.prepareAssistantMessage()
+
+      // New text content arrives after tool call
+      processor.processChunk(ev.textContent('Result: found it', 'asst-1'))
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      // Should have tool-call + new text part
+      expect(messages[0]!.parts).toHaveLength(2)
+      expect(messages[0]!.parts[0]!.type).toBe('tool-call')
+      expect(messages[0]!.parts[1]).toEqual({
+        type: 'text',
+        content: 'Result: found it',
+      })
+    })
+
+    it('should handle MESSAGES_SNAPSHOT followed by content for existing message', () => {
+      const processor = new StreamProcessor()
+
+      // Simulate reconnect: snapshot arrives first
+      const snapshotMessages: Array<UIMessage> = [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Tell me a story' }],
+          createdAt: new Date(),
+        },
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Once upon a ' }],
+          createdAt: new Date(),
+        },
+      ]
+
+      processor.processChunk({
+        type: 'MESSAGES_SNAPSHOT',
+        messages: snapshotMessages,
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      // Resumed content for the in-progress message
+      processor.processChunk(ev.textContent('time...', 'asst-1'))
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(2)
+      expect(messages[1]!.id).toBe('asst-1')
+      expect(messages[1]!.parts[0]).toEqual({
+        type: 'text',
+        content: 'Once upon a time...',
+      })
+    })
+
+    it('should not fire onStreamStart when hydrating existing message', () => {
+      const events = spyEvents()
+      const existingMessages: Array<UIMessage> = [
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'existing' }],
+        },
+      ]
+
+      const processor = new StreamProcessor({
+        initialMessages: existingMessages,
+        events,
+      })
+      processor.prepareAssistantMessage()
+
+      // Content for existing message
+      processor.processChunk(ev.textContent(' text', 'asst-1'))
+
+      // Should NOT fire onStreamStart (message already existed)
+      expect(events.onStreamStart).not.toHaveBeenCalled()
     })
   })
 })

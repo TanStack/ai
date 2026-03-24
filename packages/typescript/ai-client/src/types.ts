@@ -37,6 +37,15 @@ export type ToolResultState =
 export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
 
 /**
+ * Connection lifecycle state for the subscription loop.
+ */
+export type ConnectionStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'error'
+
+/**
  * Multimodal content input for sending messages with rich media.
  * Allows sending text, images, audio, video, and documents to the LLM.
  *
@@ -239,6 +248,25 @@ export interface ChatClientOptions<
    * Callback when chat status changes
    */
   onStatusChange?: (status: ChatClientState) => void
+
+  /**
+   * Callback when subscription lifecycle changes.
+   * This is independent from request lifecycle (`isLoading`, `status`).
+   */
+  onSubscriptionChange?: (isSubscribed: boolean) => void
+
+  /**
+   * Callback when connection lifecycle changes.
+   */
+  onConnectionStatusChange?: (status: ConnectionStatus) => void
+
+  /**
+   * Callback when session generation activity changes.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `onLoadingChange` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
+  onSessionGeneratingChange?: (isGenerating: boolean) => void
 
   /**
    * Callback when a custom event is received from a server-side tool.

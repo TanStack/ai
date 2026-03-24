@@ -1,7 +1,9 @@
 import type { ModelMessage } from '@tanstack/ai'
-import { waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { UIMessage } from '../src/types'
+import type { UIMessage, UseChatOptions } from '../src/types'
+import { useChat } from '../src/use-chat'
 import {
   createMockConnectionAdapter,
   createTextChunks,
@@ -19,6 +21,21 @@ describe('useChat', () => {
       expect(result.current.isLoading).toBe(false)
       expect(result.current.error).toBeUndefined()
       expect(result.current.status).toBe('ready')
+      expect(result.current.isSubscribed).toBe(false)
+      expect(result.current.connectionStatus).toBe('disconnected')
+      expect(result.current.sessionGenerating).toBe(false)
+    })
+
+    it('should subscribe immediately when live is true', async () => {
+      const adapter = createMockConnectionAdapter()
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.isSubscribed).toBe(true)
+      })
+      expect(['connecting', 'connected']).toContain(
+        result.current.connectionStatus,
+      )
     })
 
     it('should initialize with provided messages', () => {
@@ -835,6 +852,64 @@ describe('useChat', () => {
       })
     })
 
+    describe('client recreation', () => {
+      it('should pass existing messages to new client when id changes in a batched update', async () => {
+        const connectSpy = vi.fn()
+        const chunks = createTextChunks('Reply')
+        const adapter = createMockConnectionAdapter({
+          chunks,
+          onConnect: connectSpy,
+        })
+
+        // Control id via state so setMessages and setId are both React
+        // state updates that get batched into a single render.
+        const { result } = renderHook(() => {
+          const [id, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, id })
+          return { ...chat, switchId: setId }
+        })
+
+        const messages: Array<UIMessage> = [
+          {
+            id: 'msg-1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Hello' }],
+            createdAt: new Date(),
+          },
+          {
+            id: 'msg-2',
+            role: 'assistant',
+            parts: [{ type: 'text', content: 'Hi there!' }],
+            createdAt: new Date(),
+          },
+        ]
+
+        // Batch: set messages AND change id in one render cycle.
+        // With the useEffect ref pattern, the new ChatClient is created
+        // with stale (empty) initialMessages because messagesRef hasn't
+        // been updated yet.
+        act(() => {
+          result.current.setMessages(messages)
+          result.current.switchId('client-B')
+        })
+
+        // Send a message through the new client. If the client lost the
+        // previous messages, the adapter only receives the new message.
+        await act(async () => {
+          await result.current.sendMessage('Follow-up')
+        })
+
+        await waitFor(() => {
+          expect(connectSpy).toHaveBeenCalled()
+        })
+
+        // The adapter should receive the previous conversation + new message.
+        const sentMessages = connectSpy.mock.calls[0]![0] as Array<any>
+        const userMessages = sentMessages.filter((m: any) => m.role === 'user')
+        expect(userMessages.length).toBeGreaterThanOrEqual(2)
+      })
+    })
+
     describe('unmount behavior', () => {
       it('should not update state after unmount', async () => {
         const chunks = createTextChunks('Response')
@@ -1562,6 +1637,85 @@ describe('useChat', () => {
       expect(userMessage?.parts).toEqual([
         { type: 'text', content: 'Hello world' },
       ])
+    })
+  })
+
+  describe('sessionGenerating', () => {
+    it('should expose sessionGenerating and update from stream run events', async () => {
+      const adapter: import('@tanstack/ai-client').SubscribeConnectionAdapter =
+        {
+          subscribe: async function* (signal?: AbortSignal) {
+            yield {
+              type: 'RUN_STARTED' as const,
+              runId: 'run-1',
+              model: 'test',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: 'TEXT_MESSAGE_CONTENT' as const,
+              messageId: 'msg-1',
+              model: 'test',
+              timestamp: Date.now(),
+              delta: 'Hi',
+              content: 'Hi',
+            }
+            yield {
+              type: 'RUN_FINISHED' as const,
+              runId: 'run-1',
+              model: 'test',
+              timestamp: Date.now(),
+              finishReason: 'stop' as const,
+            }
+          },
+          send: vi.fn(async () => {}),
+        }
+
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.isSubscribed).toBe(true)
+      })
+
+      await result.current.sendMessage('Hello')
+
+      await waitFor(() => {
+        expect(result.current.sessionGenerating).toBe(false)
+      })
+    })
+
+    it('should integrate correctly with live subscription lifecycle', async () => {
+      const adapter: import('@tanstack/ai-client').SubscribeConnectionAdapter =
+        {
+          subscribe: async function* () {
+            yield {
+              type: 'RUN_STARTED' as const,
+              runId: 'run-1',
+              model: 'test',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: 'RUN_FINISHED' as const,
+              runId: 'run-1',
+              model: 'test',
+              timestamp: Date.now(),
+              finishReason: 'stop' as const,
+            }
+          },
+          send: vi.fn(async () => {}),
+        }
+
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.isSubscribed).toBe(true)
+      })
+
+      await result.current.sendMessage('Hello')
+
+      await waitFor(() => {
+        expect(result.current.sessionGenerating).toBe(false)
+        expect(result.current.isLoading).toBe(false)
+      })
     })
   })
 })

@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'preact/hooks'
-import type { ChatClientState } from '@tanstack/ai-client'
+import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 
 import type {
@@ -29,6 +29,10 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [status, setStatus] = useState<ChatClientState>('ready')
+  const [isSubscribed, setIsSubscribed] = useState(false)
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>('disconnected')
+  const [sessionGenerating, setSessionGenerating] = useState(false)
 
   // Track current messages in a ref to preserve them when client is recreated
   const messagesRef = useRef<Array<UIMessage<TTools>>>(
@@ -78,6 +82,15 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       onErrorChange: (newError: Error | undefined) => {
         setError(newError)
       },
+      onSubscriptionChange: (nextIsSubscribed: boolean) => {
+        setIsSubscribed(nextIsSubscribed)
+      },
+      onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+        setConnectionStatus(nextStatus)
+      },
+      onSessionGeneratingChange: (isGenerating: boolean) => {
+        setSessionGenerating(isGenerating)
+      },
     })
   }, [clientId])
 
@@ -100,15 +113,27 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     }
   }, [])
 
+  useEffect(() => {
+    if (options.live) {
+      client.subscribe()
+    } else {
+      client.unsubscribe()
+    }
+  }, [client, options.live])
+
   // Cleanup on unmount: stop any in-flight requests
   // Note: We only cleanup when client changes or component unmounts.
   // DO NOT include isLoading in dependencies - that would cause the cleanup
   // to run when isLoading changes, aborting continuation requests.
   useEffect(() => {
     return () => {
-      client.stop()
+      if (options.live) {
+        client.unsubscribe()
+      } else {
+        client.stop()
+      }
     }
-  }, [client])
+  }, [client, options.live])
 
   // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
   // are captured at client creation time. Changes to these callbacks require
@@ -175,6 +200,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     isLoading,
     error,
     status,
+    isSubscribed,
+    connectionStatus,
+    sessionGenerating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,
