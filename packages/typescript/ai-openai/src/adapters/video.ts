@@ -6,12 +6,12 @@ import {
   validateVideoSize,
 } from '../video/video-provider-options'
 import type { VideoModel } from 'openai/resources'
-import type { OpenAIVideoModel } from '../model-meta'
 import type {
+  OpenAIVideoModel,
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoModelSizeByName,
-  OpenAIVideoProviderOptions,
-} from '../video/video-provider-options'
+} from '../model-meta'
+import type { OpenAIVideoProviderOptions } from '../video/video-provider-options'
 import type {
   VideoGenerationOptions,
   VideoJobResult,
@@ -53,9 +53,11 @@ export class OpenAIVideoAdapter<
   readonly name = 'openai' as const
 
   private client: OpenAI_SDK
+  private readonly clientConfig: OpenAIVideoConfig
 
   constructor(config: OpenAIVideoConfig, model: TModel) {
     super(config, model)
+    this.clientConfig = config
     this.client = createOpenAIClient(config)
   }
 
@@ -212,8 +214,9 @@ export class OpenAIVideoAdapter<
         // Option 3: Return a proxy URL through our server
 
         // Let's try fetching and returning a data URL for now
-        const baseUrl = this.config.baseUrl || 'https://api.openai.com/v1'
-        const apiKey = this.config.apiKey
+        const baseUrl =
+          this.clientConfig.baseURL || 'https://api.openai.com/v1'
+        const apiKey = this.clientConfig.apiKey
 
         const contentResponse = await fetch(
           `${baseUrl}/videos/${jobId}/content`,

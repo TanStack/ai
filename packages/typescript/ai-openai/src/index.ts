@@ -29,7 +29,6 @@ export {
 } from './adapters/image'
 export type {
   OpenAIImageProviderOptions,
-  OpenAIImageModelProviderOptionsByName,
 } from './image/image-provider-options'
 
 // Video adapter - for video generation (experimental)
@@ -44,9 +43,7 @@ export {
 } from './adapters/video'
 export type {
   OpenAIVideoProviderOptions,
-  OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoSize,
-  // OpenAIVideoDuration,
 } from './video/video-provider-options'
 
 // TTS adapter - for text-to-speech
@@ -80,7 +77,11 @@ export type {
   OpenAIModelInputModalitiesByName,
   OpenAIChatModel,
   OpenAIImageModel,
+  OpenAIImageModelProviderOptionsByName,
+  OpenAIImageModelSizeByName,
   OpenAIVideoModel,
+  OpenAIVideoModelProviderOptionsByName,
+  OpenAIVideoModelSizeByName,
   OpenAITTSModel,
   OpenAITranscriptionModel,
 } from './model-meta'
@@ -90,7 +91,19 @@ export {
   OPENAI_TRANSCRIPTION_MODELS,
   OPENAI_VIDEO_MODELS,
   OPENAI_CHAT_MODELS,
+  OPENAI_CURRENT_CHAT_MODELS,
+  OPENAI_DEPRECATED_CHAT_MODELS,
+  OPENAI_PREVIEW_CHAT_MODELS,
+  OPENAI_CHAT_SNAPSHOT_MODELS,
+  OPENAI_CURRENT_IMAGE_MODELS,
+  OPENAI_IMAGE_SNAPSHOT_MODELS,
+  OPENAI_CURRENT_TTS_MODELS,
+  OPENAI_TTS_SNAPSHOT_MODELS,
+  OPENAI_CURRENT_TRANSCRIPTION_MODELS,
+  OPENAI_TRANSCRIPTION_SNAPSHOT_MODELS,
+  OPENAI_CURRENT_VIDEO_MODELS,
 } from './model-meta'
+export { OPENAI_REALTIME_MODELS, OPENAI_REALTIME_SNAPSHOT_MODELS } from './meta/realtime'
 export type {
   OpenAITextMetadata,
   OpenAIImageMetadata,
