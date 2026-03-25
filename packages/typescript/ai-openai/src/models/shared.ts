@@ -149,6 +149,9 @@ function getSnapshots(meta: unknown): Array<string> {
   return []
 }
 
+/**
+ * Returns every supported model identifier in the registry, including snapshots.
+ */
 export function supportedIds<const TRegistry extends Record<string, unknown>>(
   registry: TRegistry,
 ): ReadonlyArray<RegistryModelId<TRegistry>> {
@@ -158,6 +161,9 @@ export function supportedIds<const TRegistry extends Record<string, unknown>>(
   ]) as unknown as ReadonlyArray<RegistryModelId<TRegistry>>
 }
 
+/**
+ * Returns only snapshot identifiers from the registry.
+ */
 export function snapshotIds<const TRegistry extends Record<string, unknown>>(
   registry: TRegistry,
 ): ReadonlyArray<RegistrySnapshotId<TRegistry>> {
@@ -166,6 +172,9 @@ export function snapshotIds<const TRegistry extends Record<string, unknown>>(
   ) as unknown as ReadonlyArray<RegistrySnapshotId<TRegistry>>
 }
 
+/**
+ * Returns registry ids whose lifecycle matches the requested status.
+ */
 export function idsByStatus<
   const TRegistry extends Record<string, { lifecycle: OpenAIRegistryLifecycle }>,
   TStatus extends OpenAIRegistryStatus,

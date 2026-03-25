@@ -127,6 +127,12 @@ describe('OpenAI Image Adapter', () => {
         validatePrompt({ prompt: 'A cat', model: 'gpt-image-1' }),
       ).not.toThrow()
     })
+
+    it('throws for an unknown model', () => {
+      expect(() =>
+        validatePrompt({ prompt: 'A cat', model: 'not-a-real-model' }),
+      ).toThrow('Unknown image model: not-a-real-model')
+    })
   })
 
   describe('generateImages', () => {

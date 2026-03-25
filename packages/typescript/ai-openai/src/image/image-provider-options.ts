@@ -234,6 +234,9 @@ export function validateNumberOfImages(
   }
 }
 
+/**
+ * Validates that the selected image model supports background control.
+ */
 export const validateBackground = (options: ImageValidationOptions) => {
   if (options.background != null) {
     if (!Object.hasOwn(IMAGE_MODELS, options.model)) {
@@ -249,11 +252,16 @@ export const validateBackground = (options: ImageValidationOptions) => {
   }
 }
 
+/**
+ * Validates prompt presence and model-specific prompt length limits.
+ */
 export const validatePrompt = (options: ImageValidationOptions) => {
   if (options.prompt.length === 0) {
     throw new Error('Prompt cannot be empty.')
   }
-  if (!Object.hasOwn(IMAGE_MODELS, options.model)) return
+  if (!Object.hasOwn(IMAGE_MODELS, options.model)) {
+    throw new Error(`Unknown image model: ${options.model}`)
+  }
   const modelMeta = IMAGE_MODELS[options.model as keyof typeof IMAGE_MODELS]
   if (options.prompt.length > modelMeta.maxPromptLength) {
     throw new Error(
