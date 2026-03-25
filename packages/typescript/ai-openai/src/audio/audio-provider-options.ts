@@ -48,8 +48,16 @@ export interface AudioProviderOptions {
   stream_format?: 'sse' | 'audio'
 }
 
+/**
+ * Validates the requested stream format against the selected TTS model.
+ */
 export const validateStreamFormat = (options: AudioProviderOptions) => {
   if (!Object.hasOwn(TTS_MODELS, options.model)) {
+    if (options.stream_format) {
+      console.warn(
+        `Unknown TTS model: ${options.model}. stream_format may not be supported.`,
+      )
+    }
     return
   }
 
@@ -59,6 +67,9 @@ export const validateStreamFormat = (options: AudioProviderOptions) => {
   }
 }
 
+/**
+ * Validates that the requested speech speed falls within OpenAI's supported range.
+ */
 export const validateSpeed = (options: AudioProviderOptions) => {
   if (options.speed) {
     if (options.speed < 0.25 || options.speed > 4.0) {
@@ -67,9 +78,12 @@ export const validateSpeed = (options: AudioProviderOptions) => {
   }
 }
 
+/**
+ * Validates that the selected TTS model supports voice instructions.
+ */
 export const validateInstructions = (options: AudioProviderOptions) => {
   if (!Object.hasOwn(TTS_MODELS, options.model)) {
-    return
+    throw new Error(`Unknown TTS model: ${options.model}`)
   }
 
   const modelMeta = TTS_MODELS[options.model as keyof typeof TTS_MODELS]
@@ -78,6 +92,9 @@ export const validateInstructions = (options: AudioProviderOptions) => {
   }
 }
 
+/**
+ * Validates the maximum input length for text-to-speech requests.
+ */
 export const validateAudioInput = (options: AudioProviderOptions) => {
   if (options.input.length > 4096) {
     throw new Error('Input text exceeds maximum length of 4096 characters.')

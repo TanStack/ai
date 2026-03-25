@@ -752,6 +752,9 @@ export const TEXT_MODELS = {
   >
 >
 
+/**
+ * Resolves a text model id or snapshot id to its registry entry.
+ */
 export function getTextModelSpec(model: string) {
   if (model in TEXT_MODELS) {
     return TEXT_MODELS[model as keyof typeof TEXT_MODELS]

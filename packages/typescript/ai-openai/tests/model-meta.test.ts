@@ -20,6 +20,7 @@ import {
   OPENAI_CHAT_SNAPSHOT_MODELS,
   OPENAI_CURRENT_CHAT_MODELS,
   OPENAI_CURRENT_IMAGE_MODELS,
+  OPENAI_PREVIEW_CHAT_MODELS,
   OPENAI_CURRENT_TRANSCRIPTION_MODELS,
   OPENAI_CURRENT_TTS_MODELS,
   OPENAI_CURRENT_VIDEO_MODELS,
@@ -39,7 +40,16 @@ import {
   type OpenAIImageModelSizeByName,
   type OpenAIModelInputModalitiesByName,
   type OpenAIRealtimeModel,
+  type OpenAITTSModel,
+  type OpenAITranscriptionModel,
+  type OpenAIVideoModel,
+  type OpenAIVideoModelProviderOptionsByName,
+  type OpenAIVideoModelSizeByName,
 } from '../src/model-meta'
+import type {
+  DallE3ProviderOptions,
+  GptImage1ProviderOptions,
+} from '../src/image/image-provider-options'
 import type {
   OpenAIReasoningOptions,
   OpenAIReasoningOptionsWithConcise,
@@ -47,7 +57,10 @@ import type {
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
 } from '../src/text/text-provider-options'
-import { validateTextProviderOptions } from '../src/text/text-provider-options'
+import type {
+  OpenAIVideoProviderOptions,
+  OpenAIVideoSize,
+} from '../src/video/video-provider-options'
 
 describe('OpenAI registries', () => {
   it('derives public arrays from the keyed registries', () => {
@@ -64,6 +77,7 @@ describe('OpenAI registries', () => {
     expect(OPENAI_DEPRECATED_CHAT_MODELS).toEqual(
       idsByStatus(TEXT_MODELS, 'deprecated'),
     )
+    expect(OPENAI_PREVIEW_CHAT_MODELS).toEqual(idsByStatus(TEXT_MODELS, 'preview'))
     expect(OPENAI_CURRENT_IMAGE_MODELS).toEqual(idsByStatus(IMAGE_MODELS, 'active'))
     expect(OPENAI_CURRENT_VIDEO_MODELS).toEqual(idsByStatus(VIDEO_MODELS, 'active'))
     expect(OPENAI_CURRENT_TTS_MODELS).toEqual(idsByStatus(TTS_MODELS, 'active'))
@@ -214,23 +228,37 @@ describe('OpenAI registries', () => {
   it('derives modalities and size maps from the registries', () => {
     type TextIds = RegistryModelId<typeof TEXT_MODELS>
     type ImageIds = RegistryModelId<typeof IMAGE_MODELS>
+    type VideoIds = RegistryModelId<typeof VIDEO_MODELS>
+    type TTSIds = RegistryModelId<typeof TTS_MODELS>
+    type TranscriptionIds = RegistryModelId<typeof TRANSCRIPTION_MODELS>
 
     expectTypeOf<OpenAIChatModel>().toEqualTypeOf<TextIds>()
     expectTypeOf<keyof OpenAIChatModelProviderOptionsByName>().toEqualTypeOf<TextIds>()
     expectTypeOf<keyof OpenAIModelInputModalitiesByName>().toEqualTypeOf<TextIds>()
+    expectTypeOf<OpenAITTSModel>().toEqualTypeOf<TTSIds>()
+    expectTypeOf<OpenAITranscriptionModel>().toEqualTypeOf<TranscriptionIds>()
+    expectTypeOf<OpenAIVideoModel>().toEqualTypeOf<VideoIds>()
     expectTypeOf<keyof OpenAIImageModelProviderOptionsByName>().toEqualTypeOf<
       ImageIds
     >()
     expectTypeOf<keyof OpenAIImageModelSizeByName>().toEqualTypeOf<ImageIds>()
+    expectTypeOf<keyof OpenAIVideoModelProviderOptionsByName>().toEqualTypeOf<
+      VideoIds
+    >()
+    expectTypeOf<keyof OpenAIVideoModelSizeByName>().toEqualTypeOf<VideoIds>()
   })
 
   it('keeps modality spot checks on the registry-backed maps', () => {
     type GPT54Modalities = OpenAIModelInputModalitiesByName['gpt-5.4']
     type Audio15Modalities = OpenAIModelInputModalitiesByName['gpt-audio-1.5']
     type ImageSizes = OpenAIImageModelSizeByName['gpt-image-1.5']
+    type Sora2Sizes = OpenAIVideoModelSizeByName['sora-2']
     type O1PreviewModalities = OpenAIModelInputModalitiesByName['o1-preview']
     type O1MiniModalities = OpenAIModelInputModalitiesByName['o1-mini']
     type O3MiniModalities = OpenAIModelInputModalitiesByName['o3-mini']
+    type GPTImageOptions = OpenAIImageModelProviderOptionsByName['gpt-image-1.5']
+    type DallE3Options = OpenAIImageModelProviderOptionsByName['dall-e-3']
+    type Sora2Options = OpenAIVideoModelProviderOptionsByName['sora-2']
 
     expectTypeOf<GPT54Modalities>().toEqualTypeOf<readonly ['text', 'image']>()
     expectTypeOf<Audio15Modalities>().toEqualTypeOf<
@@ -242,6 +270,10 @@ describe('OpenAI registries', () => {
     expectTypeOf<ImageSizes>().toEqualTypeOf<
       '1024x1024' | '1536x1024' | '1024x1536' | 'auto'
     >()
+    expectTypeOf<Sora2Sizes>().toEqualTypeOf<OpenAIVideoSize>()
+    expectTypeOf<GPTImageOptions>().toEqualTypeOf<GptImage1ProviderOptions>()
+    expectTypeOf<DallE3Options>().toEqualTypeOf<DallE3ProviderOptions>()
+    expectTypeOf<Sora2Options>().toEqualTypeOf<OpenAIVideoProviderOptions>()
   })
 
   it('widens the realtime union with supported snapshot-style ids', () => {
@@ -271,57 +303,5 @@ describe('OpenAI registries', () => {
     expect(OPENAI_IMAGE_MODELS).toContain('gpt-image-1.5')
     expect(OPENAI_TTS_MODELS).toContain('gpt-4o-mini-tts')
     expect(OPENAI_REALTIME_MODELS).toContain('gpt-realtime-1.5')
-  })
-
-  it('rejects unsupported reasoning values at runtime', () => {
-    expect(() =>
-      validateTextProviderOptions({
-        input: 'hi',
-        model: 'gpt-5',
-        reasoning: { effort: 'none' },
-      }),
-    ).toThrow('does not support reasoning.effort "none"')
-
-    expect(() =>
-      validateTextProviderOptions({
-        input: 'hi',
-        model: 'gpt-5.4',
-        reasoning: { summary: 'concise' },
-      }),
-    ).toThrow('does not support reasoning.summary "concise"')
-
-    expect(() =>
-      validateTextProviderOptions({
-        input: 'hi',
-        model: 'gpt-4o',
-        reasoning: { effort: 'low' },
-      }),
-    ).toThrow('does not support reasoning options')
-  })
-
-  it('accepts supported reasoning values at runtime', () => {
-    expect(() =>
-      validateTextProviderOptions({
-        input: 'hi',
-        model: 'gpt-5.1',
-        reasoning: { effort: 'none', summary: 'auto' },
-      }),
-    ).not.toThrow()
-
-    expect(() =>
-      validateTextProviderOptions({
-        input: 'hi',
-        model: 'gpt-5.4-pro',
-        reasoning: { effort: 'xhigh' },
-      }),
-    ).not.toThrow()
-
-    expect(() =>
-      validateTextProviderOptions({
-        input: 'hi',
-        model: 'computer-use-preview',
-        reasoning: { summary: 'concise' },
-      }),
-    ).not.toThrow()
   })
 })

@@ -1,4 +1,3 @@
-import { getTextModelSpec } from '../models/text'
 import type OpenAI from 'openai'
 import type { ApplyPatchTool } from '../tools/apply-patch-tool'
 import type { CodeInterpreterTool } from '../tools/code-interpreter-tool'
@@ -313,48 +312,14 @@ const validateConversationAndPreviousResponseId = (
   }
 }
 
+/**
+ * Runs the shared validation rules for OpenAI text provider options.
+ */
 export const validateTextProviderOptions = (
   options: InternalTextProviderOptions,
 ) => {
   validateMetadata(options)
   validateConversationAndPreviousResponseId(options)
-  validateReasoningOptions(options)
-}
-
-const validateReasoningOptions = (options: InternalTextProviderOptions) => {
-  const reasoning = options.reasoning
-  if (!reasoning) {
-    return
-  }
-
-  const modelSpec = getTextModelSpec(options.model)
-  const modelReasoning =
-    modelSpec && 'reasoning' in modelSpec ? modelSpec.reasoning : undefined
-
-  if (!modelReasoning) {
-    throw new Error(`Model "${options.model}" does not support reasoning options.`)
-  }
-
-  const allowedEfforts = modelReasoning.efforts as ReadonlyArray<OpenAIReasoningEffort>
-  const allowedSummaries = modelReasoning.summaries as ReadonlyArray<OpenAIReasoningSummaryWithConcise>
-
-  if (
-    reasoning.effort !== undefined &&
-    !allowedEfforts.includes(reasoning.effort)
-  ) {
-    throw new Error(
-      `Model "${options.model}" does not support reasoning.effort "${reasoning.effort}".`,
-    )
-  }
-
-  if (
-    reasoning.summary !== undefined &&
-    !allowedSummaries.includes(reasoning.summary)
-  ) {
-    throw new Error(
-      `Model "${options.model}" does not support reasoning.summary "${reasoning.summary}".`,
-    )
-  }
 }
 
 const validateMetadata = (options: InternalTextProviderOptions) => {
