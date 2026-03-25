@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
@@ -9,6 +9,15 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import ChatInput from '@/components/ChatInput'
 import { Header } from '@/components'
+import { INITIAL_MANIFEST } from '@/lib/dashboard/manifest'
+import {
+  DashboardPanel,
+  dashboardReducer,
+  createInitialState,
+  TILE_COLORS,
+  ORCHESTRATOR_COLORS,
+} from '@/components/dashboard'
+import type { AgentActivityEvent } from '@/components/dashboard'
 
 export const Route = createFileRoute('/_dashboard-demo/dashboard-demo' as any)({
   component: DashboardDemoPage,
@@ -36,164 +45,6 @@ const MODEL_OPTIONS: Array<ModelOption> = [
   { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o' },
   { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
 ]
-
-// ─── Agent Activity Types ──────────────────────────────────────────────────
-
-interface AgentActivityEvent {
-  id: string
-  type: string
-  tileId?: string
-  tileName?: string
-  agentName: string
-  message: string
-  data?: unknown
-  timestamp: number
-}
-
-// Color mapping for tiles
-const TILE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  revenue_by_region: {
-    bg: 'bg-emerald-900/20',
-    text: 'text-emerald-300',
-    border: 'border-emerald-500/30',
-  },
-  product_performance: {
-    bg: 'bg-amber-900/20',
-    text: 'text-amber-300',
-    border: 'border-amber-500/30',
-  },
-  customer_overview: {
-    bg: 'bg-sky-900/20',
-    text: 'text-sky-300',
-    border: 'border-sky-500/30',
-  },
-  support_health: {
-    bg: 'bg-rose-900/20',
-    text: 'text-rose-300',
-    border: 'border-rose-500/30',
-  },
-}
-
-const ORCHESTRATOR_COLORS = {
-  bg: 'bg-violet-900/20',
-  text: 'text-violet-300',
-  border: 'border-violet-500/30',
-}
-
-// ─── Agent Activity Panel ──────────────────────────────────────────────────
-
-function AgentActivityPanel({ events }: { events: AgentActivityEvent[] }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight
-    }
-  }, [events])
-
-  if (events.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-gray-500">
-        <div className="text-center">
-          <p className="text-sm">Agent activity will appear here</p>
-          <p className="text-xs mt-1 text-gray-600">
-            Ask a question to see the orchestrator and tile agents in action
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5"
-    >
-      {events.map((event) => {
-        const colors = event.tileId
-          ? TILE_COLORS[event.tileId] || ORCHESTRATOR_COLORS
-          : ORCHESTRATOR_COLORS
-
-        const isMemoryUpdate = event.type.includes('memory')
-        const isComplete = event.type.includes('complete')
-
-        return (
-          <EventEntry
-            key={event.id}
-            event={event}
-            colors={colors}
-            isMemoryUpdate={isMemoryUpdate}
-            isComplete={isComplete}
-          />
-        )
-      })}
-    </div>
-  )
-}
-
-function EventEntry({
-  event,
-  colors,
-  isMemoryUpdate,
-  isComplete,
-}: {
-  event: AgentActivityEvent
-  colors: { bg: string; text: string; border: string }
-  isMemoryUpdate: boolean
-  isComplete: boolean
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const hasData = event.data !== undefined
-
-  const time = new Date(event.timestamp).toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-
-  return (
-    <div
-      className={`rounded-md border ${colors.border} ${colors.bg} px-2.5 py-1.5 text-xs`}
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-gray-500 font-mono text-[10px] shrink-0">
-          {time}
-        </span>
-        {event.tileName ? (
-          <span
-            className={`${colors.text} font-medium text-[10px] px-1.5 py-0.5 rounded-full ${colors.bg} border ${colors.border} shrink-0`}
-          >
-            {event.tileName}
-          </span>
-        ) : (
-          <span className="text-violet-300 font-medium text-[10px] px-1.5 py-0.5 rounded-full bg-violet-900/20 border border-violet-500/30 shrink-0">
-            Orchestrator
-          </span>
-        )}
-        <span
-          className={`${isMemoryUpdate ? 'text-yellow-300' : isComplete ? 'text-green-300' : 'text-gray-300'} flex-1 truncate`}
-        >
-          {isMemoryUpdate ? '💾 ' : ''}
-          {event.message}
-        </span>
-        {hasData && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-gray-500 hover:text-gray-300 shrink-0"
-          >
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          </button>
-        )}
-      </div>
-      {expanded && hasData && (
-        <pre className="mt-1.5 text-[10px] text-gray-400 overflow-x-auto max-h-24 overflow-y-auto font-mono whitespace-pre-wrap border-t border-gray-700/50 pt-1.5">
-          {JSON.stringify(event.data, null, 2)}
-        </pre>
-      )}
-    </div>
-  )
-}
 
 // ─── Tool Call Display ─────────────────────────────────────────────────────
 
@@ -398,7 +249,11 @@ function DashboardDemoPage() {
   const [selectedModel, setSelectedModel] = useState<ModelOption>(
     MODEL_OPTIONS[0],
   )
-  const [activityEvents, setActivityEvents] = useState<AgentActivityEvent[]>([])
+  const [dashboardState, dispatch] = useReducer(
+    dashboardReducer,
+    INITIAL_MANIFEST,
+    createInitialState,
+  )
 
   const body = useMemo(
     () => ({
@@ -410,27 +265,55 @@ function DashboardDemoPage() {
 
   const handleCustomEvent = useCallback(
     (eventType: string, data: unknown) => {
-      if (eventType.startsWith('dashboard:')) {
-        const eventData = data as {
-          type: string
-          agentName: string
-          message: string
-          data?: unknown
-          timestamp: number
-          tileId?: string
-          tileName?: string
+      if (!eventType.startsWith('dashboard:')) return
+
+      const eventData = data as {
+        type: string
+        agentName: string
+        message: string
+        data?: unknown
+        timestamp: number
+        tileId?: string
+        tileName?: string
+      }
+      const event: AgentActivityEvent = {
+        id: `${eventData.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+        type: eventData.type,
+        tileId: eventData.tileId,
+        tileName: eventData.tileName,
+        agentName: eventData.agentName,
+        message: eventData.message,
+        data: eventData.data,
+        timestamp: eventData.timestamp,
+      }
+
+      const tileId = eventData.tileId
+
+      if (eventData.type === 'agent:start' && tileId) {
+        dispatch({ type: 'TILE_LOADING', tileId, event })
+      } else if (eventData.type === 'memory:update' && tileId) {
+        dispatch({ type: 'TILE_MEMORY_UPDATE', tileId, event })
+      } else if (eventData.type === 'session:updated' && tileId) {
+        const sessionData = eventData.data as { memory: Record<string, unknown>; name: string; createdAt: number; lastUsedAt: number } | undefined
+        if (sessionData) {
+          dispatch({
+            type: 'TILE_SESSION_UPDATED',
+            tileId,
+            session: {
+              name: sessionData.name,
+              memory: sessionData.memory,
+              createdAt: sessionData.createdAt,
+              lastUsedAt: sessionData.lastUsedAt,
+            },
+            event,
+          })
+        } else {
+          dispatch({ type: 'ADD_EVENT', event, tileId })
         }
-        const event: AgentActivityEvent = {
-          id: `${eventData.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
-          type: eventData.type,
-          tileId: eventData.tileId,
-          tileName: eventData.tileName,
-          agentName: eventData.agentName,
-          message: eventData.message,
-          data: eventData.data,
-          timestamp: eventData.timestamp,
-        }
-        setActivityEvents((prev) => [...prev, event])
+      } else if (eventData.type === 'agent:complete' && tileId) {
+        dispatch({ type: 'TILE_COMPLETE', tileId, data: eventData.data, event })
+      } else {
+        dispatch({ type: 'ADD_EVENT', event, tileId })
       }
     },
     [],
@@ -446,8 +329,8 @@ function DashboardDemoPage() {
     <div className="flex flex-col h-screen bg-gray-900">
       <Header />
       <div className="flex flex-1 overflow-hidden">
-        {/* Left panel — Chat (1/3 width) */}
-        <div className="w-1/3 flex flex-col border-r border-gray-800">
+        {/* Left panel — Chat (fixed width sidebar) */}
+        <div className="w-80 shrink-0 flex flex-col border-r border-gray-800">
           <div className="p-4 border-b border-gray-800 bg-gray-850">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -525,57 +408,11 @@ function DashboardDemoPage() {
           />
         </div>
 
-        {/* Right panel — Agent Activity (2/3 width) */}
-        <div className="w-2/3 flex flex-col">
-          <div className="px-4 py-3 border-b border-gray-800 bg-gray-850">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-semibold text-white">
-                  Agent Activity
-                </div>
-                <div className="text-xs text-gray-400">
-                  Real-time pipeline events from orchestrator and tile agents
-                </div>
-              </div>
-              <div className="flex items-center gap-3 text-[10px]">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-violet-400"></span>
-                  <span className="text-gray-400">Orchestrator</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                  <span className="text-gray-400">Revenue</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                  <span className="text-gray-400">Products</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-sky-400"></span>
-                  <span className="text-gray-400">Customers</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-rose-400"></span>
-                  <span className="text-gray-400">Support</span>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <AgentActivityPanel events={activityEvents} />
-
-          {activityEvents.length > 0 && (
-            <div className="px-4 py-2 border-t border-gray-800 text-xs text-gray-500 flex items-center justify-between">
-              <span>{activityEvents.length} events</span>
-              <button
-                onClick={() => setActivityEvents([])}
-                className="text-gray-500 hover:text-gray-300"
-              >
-                Clear
-              </button>
-            </div>
-          )}
-        </div>
+        {/* Right panel — Dashboard tiles + Activity drawer */}
+        <DashboardPanel
+          state={dashboardState}
+          onClearEvents={() => dispatch({ type: 'CLEAR_EVENTS' })}
+        />
       </div>
     </div>
   )

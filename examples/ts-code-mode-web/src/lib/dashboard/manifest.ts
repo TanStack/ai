@@ -10,6 +10,17 @@ export interface DashboardManifest {
   tiles: TileManifest[]
 }
 
+const DISPLAY_HINT = `
+When returning results, structure your JSON as:
+{
+  "data": <the actual data array or object>,
+  "display": "table" | "bar_chart" | "line_chart" | "metric" | "list",
+  "title": "Short descriptive title",
+  "summary": "One sentence explaining the key insight",
+  "columns": ["col1", "col2"]
+}
+Choose "metric" for single KPIs, "bar_chart" for comparisons, "line_chart" for trends, "table" for breakdowns.`
+
 export const INITIAL_MANIFEST: DashboardManifest = {
   tiles: [
     {
@@ -21,7 +32,7 @@ export const INITIAL_MANIFEST: DashboardManifest = {
 Your specialty is analyzing revenue data across regions (APAC, EMEA, NA, LATAM) and quarters.
 Focus on: revenue totals, growth rates, YoY comparisons, and regional anomalies.
 Use memory_set to store schemas, baselines, and insights you discover for faster future queries.
-Return JSON with a "display" field suggesting how to render: "table", "metric", "bar_chart", or "list".`,
+${DISPLAY_HINT}`,
       agentName: '',
     },
     {
@@ -33,7 +44,7 @@ Return JSON with a "display" field suggesting how to render: "table", "metric", 
 Your specialty is analyzing product data across categories and tracking performance metrics.
 Focus on: top sellers, category breakdowns, pricing analysis, units sold rankings.
 Use memory_set to store schemas, baselines, and insights you discover for faster future queries.
-Return JSON with a "display" field suggesting how to render: "table", "metric", "bar_chart", or "list".`,
+${DISPLAY_HINT}`,
       agentName: '',
     },
     {
@@ -45,7 +56,7 @@ Return JSON with a "display" field suggesting how to render: "table", "metric", 
 Your specialty is analyzing customer data across tiers (enterprise, pro, starter) and regions.
 Focus on: customer counts by tier, LTV analysis, signup trends, regional distribution.
 Use memory_set to store schemas, baselines, and insights you discover for faster future queries.
-Return JSON with a "display" field suggesting how to render: "table", "metric", "bar_chart", or "list".`,
+${DISPLAY_HINT}`,
       agentName: '',
     },
     {
@@ -57,7 +68,7 @@ Return JSON with a "display" field suggesting how to render: "table", "metric", 
 Your specialty is analyzing support ticket data and identifying operational health issues.
 Focus on: ticket volumes, resolution times, open/closed ratios, priority distributions, regional backlogs.
 Use memory_set to store schemas, baselines, and insights you discover for faster future queries.
-Return JSON with a "display" field suggesting how to render: "table", "metric", "bar_chart", or "list".`,
+${DISPLAY_HINT}`,
       agentName: '',
     },
   ],

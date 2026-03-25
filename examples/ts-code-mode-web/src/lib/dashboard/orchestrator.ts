@@ -59,7 +59,8 @@ When you get results back from tiles, synthesize them into a clear, coherent ans
 Important:
 - Always use query_tile to get fresh data — don't make up numbers.
 - For follow-up questions about a specific domain, route to that tile (it will have memory from previous queries).
-- If a question spans multiple domains, make multiple query_tile calls.`
+- If a question spans multiple domains, make multiple query_tile calls.
+- When querying multiple tiles, make all query_tile calls at once rather than sequentially.`
 
 export async function handleDashboardChat(
   messages: Array<{ role: string; content: string }>,

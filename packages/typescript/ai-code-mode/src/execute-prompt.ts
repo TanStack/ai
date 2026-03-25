@@ -200,6 +200,13 @@ export async function executePrompt(
   if (agentStore && session) {
     session.lastUsedAt = Date.now()
     await agentStore.set(agentName, session)
+    onEvent?.({
+      type: 'session:updated',
+      agentName,
+      message: 'Session updated',
+      data: { memory: session.memory, name: session.name, createdAt: session.createdAt, lastUsedAt: session.lastUsedAt },
+      timestamp: Date.now(),
+    })
   }
 
   let data: unknown
