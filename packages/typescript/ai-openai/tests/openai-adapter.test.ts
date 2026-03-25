@@ -129,4 +129,63 @@ describe('OpenAI adapter option mapping', () => {
     expect(Array.isArray(payload.tools)).toBe(true)
     expect(payload.tools.length).toBeGreaterThan(0)
   })
+
+  it('passes reasoning options through to the Responses API payload', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-456',
+          model: 'gpt-5.4',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.done',
+        response: {
+          id: 'resp-456',
+          model: 'gpt-5.4',
+          status: 'completed',
+          created_at: 1234567891,
+          usage: {
+            input_tokens: 12,
+            output_tokens: 4,
+          },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+
+    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.4')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    for await (const _chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Think carefully' }],
+      modelOptions: {
+        reasoning: {
+          effort: 'low',
+          summary: 'detailed',
+        },
+      },
+    })) {
+      // Exhaust the stream so the request is issued.
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]
+    expect(payload).toMatchObject({
+      model: 'gpt-5.4',
+      reasoning: {
+        effort: 'low',
+        summary: 'detailed',
+      },
+      stream: true,
+    })
+  })
 })

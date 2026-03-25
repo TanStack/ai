@@ -63,6 +63,10 @@ import type {
 } from '../src/video/video-provider-options'
 
 describe('OpenAI registries', () => {
+  const expectUnique = (ids: ReadonlyArray<string>) => {
+    expect(new Set(ids).size).toBe(ids.length)
+  }
+
   it('derives public arrays from the keyed registries', () => {
     expect(OPENAI_CHAT_MODELS).toEqual(supportedIds(TEXT_MODELS))
     expect(OPENAI_IMAGE_MODELS).toEqual(supportedIds(IMAGE_MODELS))
@@ -93,23 +97,36 @@ describe('OpenAI registries', () => {
     expect(OPENAI_TRANSCRIPTION_SNAPSHOT_MODELS).toEqual(
       snapshotIds(TRANSCRIPTION_MODELS),
     )
-    expect(OPENAI_CHAT_MODELS).toContain('gpt-5.4-2026-03-05')
-    expect(OPENAI_CHAT_MODELS).toContain('gpt-audio-2025-08-28')
-    expect(OPENAI_CHAT_MODELS).toContain('gpt-4o-audio-preview-2025-06-03')
-    expect(OPENAI_CHAT_MODELS).toContain('gpt-4o-search-preview-2025-03-11')
-    expect(OPENAI_CHAT_MODELS).toContain(
-      'gpt-4o-mini-search-preview-2025-03-11',
-    )
-    expect(OPENAI_CHAT_MODELS).toContain('computer-use-preview-2025-03-11')
-    expect(OPENAI_TTS_MODELS).toContain('gpt-4o-mini-tts-2025-12-15')
-    expect(OPENAI_TTS_MODELS).toContain('gpt-4o-mini-tts-2025-03-20')
-    expect(OPENAI_TRANSCRIPTION_MODELS).toContain(
-      'gpt-4o-mini-transcribe-2025-12-15',
-    )
-    expect(OPENAI_TRANSCRIPTION_MODELS).toContain(
-      'gpt-4o-mini-transcribe-2025-03-20',
-    )
-    expect(OPENAI_IMAGE_MODELS).toContain('gpt-image-1.5-2025-12-16')
+    for (const id of OPENAI_CHAT_SNAPSHOT_MODELS) {
+      expect(OPENAI_CHAT_MODELS).toContain(id)
+      expect(TEXT_MODELS).not.toHaveProperty(id)
+    }
+    for (const id of OPENAI_IMAGE_SNAPSHOT_MODELS) {
+      expect(OPENAI_IMAGE_MODELS).toContain(id)
+      expect(IMAGE_MODELS).not.toHaveProperty(id)
+    }
+    for (const id of OPENAI_TTS_SNAPSHOT_MODELS) {
+      expect(OPENAI_TTS_MODELS).toContain(id)
+      expect(TTS_MODELS).not.toHaveProperty(id)
+    }
+    for (const id of OPENAI_TRANSCRIPTION_SNAPSHOT_MODELS) {
+      expect(OPENAI_TRANSCRIPTION_MODELS).toContain(id)
+      expect(TRANSCRIPTION_MODELS).not.toHaveProperty(id)
+    }
+  })
+
+  it('exports deduplicated model lists', () => {
+    expectUnique(OPENAI_CHAT_MODELS)
+    expectUnique(OPENAI_CHAT_SNAPSHOT_MODELS)
+    expectUnique(OPENAI_IMAGE_MODELS)
+    expectUnique(OPENAI_IMAGE_SNAPSHOT_MODELS)
+    expectUnique(OPENAI_VIDEO_MODELS)
+    expectUnique(OPENAI_TTS_MODELS)
+    expectUnique(OPENAI_TTS_SNAPSHOT_MODELS)
+    expectUnique(OPENAI_TRANSCRIPTION_MODELS)
+    expectUnique(OPENAI_TRANSCRIPTION_SNAPSHOT_MODELS)
+    expectUnique(OPENAI_REALTIME_MODELS)
+    expectUnique(OPENAI_REALTIME_SNAPSHOT_MODELS)
   })
 
   it('keeps dead aliases out of the text union', () => {
@@ -281,27 +298,30 @@ describe('OpenAI registries', () => {
 
     expectTypeOf<OpenAIRealtimeModel>().toEqualTypeOf<RealtimeIds>()
     expectTypeOf<'gpt-realtime-1.5'>().toExtend<OpenAIRealtimeModel>()
+    expect(OPENAI_REALTIME_MODELS).toEqual(supportedIds(REALTIME_MODELS))
+    expect(OPENAI_REALTIME_SNAPSHOT_MODELS).toEqual(snapshotIds(REALTIME_MODELS))
+    for (const id of OPENAI_REALTIME_SNAPSHOT_MODELS) {
+      expect(OPENAI_REALTIME_MODELS).toContain(id)
+      expect(REALTIME_MODELS).not.toHaveProperty(id)
+    }
     expect(OPENAI_REALTIME_MODELS).not.toContain('gpt-4o-realtime')
-    expect(OPENAI_REALTIME_SNAPSHOT_MODELS).toContain(
-      'gpt-realtime-mini-2025-10-06',
-    )
-    expect(OPENAI_REALTIME_SNAPSHOT_MODELS).toContain(
-      'gpt-4o-realtime-preview-2025-06-03',
-    )
-    expect(OPENAI_REALTIME_SNAPSHOT_MODELS).toContain(
-      'gpt-4o-realtime-preview-2024-10-01',
-    )
   })
 
-  it('keeps newer official ids on the expected surfaces', () => {
+  it('keeps a few anchor ids on the expected public surfaces', () => {
     expect(OPENAI_CHAT_MODELS).toContain('gpt-5.4')
-    expect(OPENAI_CHAT_MODELS).toContain('gpt-5.4-mini')
-    expect(OPENAI_CHAT_MODELS).toContain('gpt-5.4-nano')
     expect(OPENAI_CHAT_MODELS).toContain('gpt-5.3-codex')
     expect(OPENAI_CHAT_MODELS).toContain('gpt-4o-audio-preview')
-    expect(OPENAI_CHAT_MODELS).toContain('gpt-oss-120b')
     expect(OPENAI_IMAGE_MODELS).toContain('gpt-image-1.5')
     expect(OPENAI_TTS_MODELS).toContain('gpt-4o-mini-tts')
     expect(OPENAI_REALTIME_MODELS).toContain('gpt-realtime-1.5')
+    expect(OPENAI_CURRENT_CHAT_MODELS).toContain('gpt-5.4')
+    expect(OPENAI_DEPRECATED_CHAT_MODELS).toContain('gpt-4.5-preview')
+    expect(OPENAI_PREVIEW_CHAT_MODELS).toContain('gpt-4o-search-preview')
+    expect(OPENAI_CURRENT_IMAGE_MODELS).toContain('gpt-image-1.5')
+    expect(OPENAI_CURRENT_TTS_MODELS).toContain('gpt-4o-mini-tts')
+    expect(OPENAI_CURRENT_TRANSCRIPTION_MODELS).toContain(
+      'gpt-4o-transcribe',
+    )
+    expect(OPENAI_CURRENT_VIDEO_MODELS).toContain('sora-2')
   })
 })

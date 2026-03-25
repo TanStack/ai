@@ -187,6 +187,14 @@ interface ImageValidationOptions {
   background?: 'transparent' | 'opaque' | 'auto' | null
 }
 
+function getImageModelMeta(model: string) {
+  if (!Object.hasOwn(IMAGE_MODELS, model)) {
+    throw new Error(`Unknown image model: ${model}`)
+  }
+
+  return IMAGE_MODELS[model as keyof typeof IMAGE_MODELS]
+}
+
 /**
  * Validates that the provided size is supported by the model.
  * Throws a descriptive error if the size is not supported.
@@ -197,11 +205,7 @@ export function validateImageSize(
 ): void {
   if (!size || size === 'auto') return
 
-  if (!Object.hasOwn(IMAGE_MODELS, model)) {
-    throw new Error(`Unknown image model: ${model}`)
-  }
-
-  const modelMeta = IMAGE_MODELS[model as keyof typeof IMAGE_MODELS]
+  const modelMeta = getImageModelMeta(model)
   const modelSizes = modelMeta.sizes
 
   if (!(modelSizes as ReadonlyArray<string>).includes(size)) {
@@ -221,11 +225,7 @@ export function validateNumberOfImages(
 ): void {
   if (numberOfImages === undefined) return
 
-  if (!Object.hasOwn(IMAGE_MODELS, model)) {
-    throw new Error(`Unknown image model: ${model}`)
-  }
-
-  const modelMeta = IMAGE_MODELS[model as keyof typeof IMAGE_MODELS]
+  const modelMeta = getImageModelMeta(model)
 
   if (numberOfImages < 1 || numberOfImages > modelMeta.maxImages) {
     throw new Error(
@@ -239,11 +239,7 @@ export function validateNumberOfImages(
  */
 export const validateBackground = (options: ImageValidationOptions) => {
   if (options.background != null) {
-    if (!Object.hasOwn(IMAGE_MODELS, options.model)) {
-      throw new Error(`Unknown image model: ${options.model}`)
-    }
-
-    const modelMeta = IMAGE_MODELS[options.model as keyof typeof IMAGE_MODELS]
+    const modelMeta = getImageModelMeta(options.model)
     if (!('supportsBackground' in modelMeta)) {
       throw new Error(
         `The model ${options.model} does not support background option.`,
@@ -259,10 +255,7 @@ export const validatePrompt = (options: ImageValidationOptions) => {
   if (options.prompt.length === 0) {
     throw new Error('Prompt cannot be empty.')
   }
-  if (!Object.hasOwn(IMAGE_MODELS, options.model)) {
-    throw new Error(`Unknown image model: ${options.model}`)
-  }
-  const modelMeta = IMAGE_MODELS[options.model as keyof typeof IMAGE_MODELS]
+  const modelMeta = getImageModelMeta(options.model)
   if (options.prompt.length > modelMeta.maxPromptLength) {
     throw new Error(
       `For ${options.model}, prompt length must be less than or equal to ${modelMeta.maxPromptLength} characters.`,

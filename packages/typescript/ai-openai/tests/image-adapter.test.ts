@@ -189,6 +189,42 @@ describe('OpenAI Image Adapter', () => {
       })
     })
 
+    it('passes modelOptions through to the OpenAI images.generate API', async () => {
+      const mockGenerate = vi.fn().mockResolvedValueOnce({
+        data: [{ b64_json: 'base64encodedimage' }],
+      })
+
+      const adapter = createOpenaiImage('gpt-image-1', 'test-api-key')
+      ;(
+        adapter as unknown as { client: { images: { generate: unknown } } }
+      ).client = {
+        images: {
+          generate: mockGenerate,
+        },
+      }
+
+      await adapter.generateImages({
+        model: 'gpt-image-1',
+        prompt: 'A cat wearing a hat',
+        size: '1024x1024',
+        modelOptions: {
+          background: 'transparent',
+          output_format: 'webp',
+        },
+      })
+
+      expect(mockGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'gpt-image-1',
+          prompt: 'A cat wearing a hat',
+          size: '1024x1024',
+          background: 'transparent',
+          output_format: 'webp',
+          stream: false,
+        }),
+      )
+    })
+
     it('generates a unique ID for each response', async () => {
       const mockResponse = {
         data: [{ b64_json: 'base64' }],
