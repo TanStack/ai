@@ -751,22 +751,3 @@ export const TEXT_MODELS = {
     ReadonlyArray<OpenAIRegistryOutput>
   >
 >
-
-/**
- * Resolves a text model id or snapshot id to its registry entry.
- */
-export function getTextModelSpec(model: string) {
-  if (model in TEXT_MODELS) {
-    return TEXT_MODELS[model as keyof typeof TEXT_MODELS]
-  }
-
-  for (const spec of Object.values(TEXT_MODELS)) {
-    const snapshots: ReadonlyArray<string> | undefined =
-      'snapshots' in spec ? spec.snapshots : undefined
-    if (snapshots?.includes(model)) {
-      return spec
-    }
-  }
-
-  return undefined
-}

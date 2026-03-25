@@ -41,7 +41,7 @@ describe('OpenAI video adapter', () => {
     expect(result.url).toMatch(/^data:video\/mp4;base64,/)
   })
 
-  it('maps request options into create payloads', async () => {
+  it('lets duration override modelOptions.seconds in create payloads', async () => {
     const create = vi.fn().mockResolvedValueOnce({ id: 'video_123' })
 
     const adapter = createOpenaiVideo('sora-2', 'test-api-key')
@@ -71,6 +71,34 @@ describe('OpenAI video adapter', () => {
     expect(result).toEqual({
       jobId: 'video_123',
       model: 'sora-2',
+    })
+  })
+
+  it('uses modelOptions.seconds when duration is absent', async () => {
+    const create = vi.fn().mockResolvedValueOnce({ id: 'video_456' })
+
+    const adapter = createOpenaiVideo('sora-2', 'test-api-key')
+    ;(adapter as unknown as { client: { videos: { create: unknown } } }).client =
+      {
+        videos: {
+          create,
+        },
+      }
+
+    await adapter.createVideoJob({
+      model: 'sora-2',
+      prompt: 'A calm lake at sunrise',
+      modelOptions: {
+        size: '720x1280',
+        seconds: '4',
+      },
+    })
+
+    expect(create).toHaveBeenCalledWith({
+      model: 'sora-2',
+      prompt: 'A calm lake at sunrise',
+      size: '720x1280',
+      seconds: '4',
     })
   })
 })

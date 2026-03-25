@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createOpenaiTranscription } from '../src/adapters/transcription'
 
 describe('OpenAI transcription adapter', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('defaults non-whisper models to verbose_json and maps rich responses', async () => {
     const create = vi.fn().mockResolvedValueOnce({
       text: 'hello world',
@@ -88,5 +92,73 @@ describe('OpenAI transcription adapter', () => {
     )
     expect(result.text).toBe('plain transcript')
     expect(result.language).toBe('en')
+  })
+
+  it('falls back to an empty string when a non-verbose response has no text field', async () => {
+    const create = vi.fn().mockResolvedValueOnce({ segments: [] })
+
+    const adapter = createOpenaiTranscription('gpt-4o-transcribe', 'test-api-key')
+    ;(adapter as unknown as { client: { audio: { transcriptions: { create: unknown } } } }).client =
+      {
+        audio: {
+          transcriptions: {
+            create,
+          },
+        },
+      }
+
+    const result = await adapter.transcribe({
+      model: 'gpt-4o-transcribe',
+      audio: new ArrayBuffer(8),
+      responseFormat: 'json',
+    })
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'gpt-4o-transcribe',
+        response_format: 'json',
+        stream: false,
+      }),
+    )
+    expect(result.text).toBe('')
+  })
+
+  it('passes modelOptions through to verbose transcription requests', async () => {
+    const create = vi.fn().mockResolvedValueOnce({
+      text: 'hello world',
+      language: 'en',
+      duration: 1.25,
+      segments: [],
+      words: [],
+    })
+
+    const adapter = createOpenaiTranscription('gpt-4o-transcribe', 'test-api-key')
+    ;(adapter as unknown as { client: { audio: { transcriptions: { create: unknown } } } }).client =
+      {
+        audio: {
+          transcriptions: {
+            create,
+          },
+        },
+      }
+
+    await adapter.transcribe({
+      model: 'gpt-4o-transcribe',
+      audio: new ArrayBuffer(8),
+      modelOptions: {
+        temperature: 0.3,
+        timestamp_granularities: ['word', 'segment'],
+      },
+    })
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'gpt-4o-transcribe',
+        response_format: 'verbose_json',
+        stream: false,
+        temperature: 0.3,
+        timestamp_granularities: ['word', 'segment'],
+      }),
+    )
   })
 })
