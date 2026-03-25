@@ -51,7 +51,6 @@ import type {
   GptImage1ProviderOptions,
 } from '../src/image/image-provider-options'
 import type {
-  OpenAIReasoningOptions,
   OpenAIReasoningOptionsWithConcise,
   OpenAIStreamingOptions,
   OpenAIStructuredOutputOptions,
@@ -66,6 +65,8 @@ describe('OpenAI registries', () => {
   const expectUnique = (ids: ReadonlyArray<string>) => {
     expect(new Set(ids).size).toBe(ids.length)
   }
+  const hasOwn = (object: object, key: PropertyKey) =>
+    Object.prototype.hasOwnProperty.call(object, key)
 
   it('derives public arrays from the keyed registries', () => {
     expect(OPENAI_CHAT_MODELS).toEqual(supportedIds(TEXT_MODELS))
@@ -99,19 +100,19 @@ describe('OpenAI registries', () => {
     )
     for (const id of OPENAI_CHAT_SNAPSHOT_MODELS) {
       expect(OPENAI_CHAT_MODELS).toContain(id)
-      expect(TEXT_MODELS).not.toHaveProperty(id)
+      expect(hasOwn(TEXT_MODELS, id)).toBe(false)
     }
     for (const id of OPENAI_IMAGE_SNAPSHOT_MODELS) {
       expect(OPENAI_IMAGE_MODELS).toContain(id)
-      expect(IMAGE_MODELS).not.toHaveProperty(id)
+      expect(hasOwn(IMAGE_MODELS, id)).toBe(false)
     }
     for (const id of OPENAI_TTS_SNAPSHOT_MODELS) {
       expect(OPENAI_TTS_MODELS).toContain(id)
-      expect(TTS_MODELS).not.toHaveProperty(id)
+      expect(hasOwn(TTS_MODELS, id)).toBe(false)
     }
     for (const id of OPENAI_TRANSCRIPTION_SNAPSHOT_MODELS) {
       expect(OPENAI_TRANSCRIPTION_MODELS).toContain(id)
-      expect(TRANSCRIPTION_MODELS).not.toHaveProperty(id)
+      expect(hasOwn(TRANSCRIPTION_MODELS, id)).toBe(false)
     }
   })
 
