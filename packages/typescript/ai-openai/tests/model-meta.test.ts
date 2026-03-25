@@ -155,28 +155,34 @@ describe('OpenAI registries', () => {
 
   it('keeps gpt-5.4 and computer-use-preview on the intended feature sets', () => {
     type GPT54Options = OpenAIChatModelProviderOptionsByName['gpt-5.4']
+    type GPT54HasReasoning = Extract<keyof GPT54Options, 'reasoning'>
     type GPT53ChatOptions =
       OpenAIChatModelProviderOptionsByName['gpt-5.3-chat-latest']
+    type GPT53ChatHasReasoning = Extract<keyof GPT53ChatOptions, 'reasoning'>
     type GPT5ProOptions = OpenAIChatModelProviderOptionsByName['gpt-5-pro']
     type GPT41Options = OpenAIChatModelProviderOptionsByName['gpt-4.1']
+    type GPT41HasReasoning = Extract<keyof GPT41Options, 'reasoning'>
     type GPT4TurboOptions = OpenAIChatModelProviderOptionsByName['gpt-4-turbo']
     type GPT35TurboOptions =
       OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
     type SearchPreviewOptions =
       OpenAIChatModelProviderOptionsByName['gpt-4o-search-preview']
     type O1MiniOptions = OpenAIChatModelProviderOptionsByName['o1-mini']
+    type O1MiniHasReasoning = Extract<keyof O1MiniOptions, 'reasoning'>
     type O3ProOptions = OpenAIChatModelProviderOptionsByName['o3-pro']
+    type O3ProHasReasoning = Extract<keyof O3ProOptions, 'reasoning'>
     type ComputerUseOptions =
       OpenAIChatModelProviderOptionsByName['computer-use-preview']
+    type ComputerUseHasReasoning = Extract<keyof ComputerUseOptions, 'reasoning'>
 
-    expectTypeOf<GPT54Options>().toExtend<OpenAIReasoningOptions>()
+    expectTypeOf<GPT54HasReasoning>().toEqualTypeOf<'reasoning'>()
     expectTypeOf<GPT54Options>().toExtend<OpenAIStructuredOutputOptions>()
     expectTypeOf<GPT54Options>().toExtend<OpenAIToolsOptions>()
-    expectTypeOf<GPT53ChatOptions>().not.toExtend<OpenAIReasoningOptions>()
+    expectTypeOf<GPT53ChatHasReasoning>().toEqualTypeOf<never>()
     expectTypeOf<GPT53ChatOptions>().toExtend<OpenAIStructuredOutputOptions>()
     expectTypeOf<GPT53ChatOptions>().toExtend<OpenAIToolsOptions>()
     expectTypeOf<GPT5ProOptions>().toExtend<OpenAIStructuredOutputOptions>()
-    expectTypeOf<GPT41Options>().not.toExtend<OpenAIReasoningOptions>()
+    expectTypeOf<GPT41HasReasoning>().toEqualTypeOf<never>()
     expectTypeOf<GPT41Options>().toExtend<OpenAIStructuredOutputOptions>()
     expectTypeOf<GPT41Options>().toExtend<OpenAIToolsOptions>()
     expectTypeOf<GPT4TurboOptions>().not.toExtend<OpenAIStructuredOutputOptions>()
@@ -187,16 +193,15 @@ describe('OpenAI registries', () => {
       OpenAIStructuredOutputOptions
     >()
     expectTypeOf<SearchPreviewOptions>().not.toExtend<OpenAIToolsOptions>()
-    expectTypeOf<O1MiniOptions>().toExtend<OpenAIReasoningOptions>()
+    expectTypeOf<O1MiniHasReasoning>().toEqualTypeOf<'reasoning'>()
     expectTypeOf<O1MiniOptions>().not.toExtend<OpenAIStructuredOutputOptions>()
     expectTypeOf<O1MiniOptions>().not.toExtend<OpenAIToolsOptions>()
-    expectTypeOf<O3ProOptions>().toExtend<OpenAIReasoningOptions>()
+    expectTypeOf<O3ProHasReasoning>().toEqualTypeOf<'reasoning'>()
     expectTypeOf<O3ProOptions>().toExtend<OpenAIStructuredOutputOptions>()
     expectTypeOf<O3ProOptions>().toExtend<OpenAIToolsOptions>()
     expectTypeOf<O3ProOptions>().not.toExtend<OpenAIStreamingOptions>()
-    expectTypeOf<ComputerUseOptions>().toExtend<
-      OpenAIReasoningOptionsWithConcise
-    >()
+    expectTypeOf<ComputerUseHasReasoning>().toEqualTypeOf<'reasoning'>()
+    expectTypeOf<ComputerUseOptions>().toExtend<OpenAIReasoningOptionsWithConcise>()
     expectTypeOf<ComputerUseOptions>().not.toExtend<OpenAIStreamingOptions>()
   })
 
