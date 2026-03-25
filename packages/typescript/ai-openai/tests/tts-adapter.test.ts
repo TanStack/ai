@@ -1,6 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createOpenaiSpeech } from '../src/adapters/tts'
 
+const stubAdapterClient = (
+  adapter: ReturnType<typeof createOpenaiSpeech>,
+  create: unknown,
+) => {
+  ;(adapter as unknown as {
+    client: { audio: { speech: { create: unknown } } }
+  }).client = {
+    audio: {
+      speech: {
+        create,
+      },
+    },
+  }
+}
+
 describe('OpenAI TTS adapter', () => {
   it('passes supported instructions through and returns mp3 output metadata', async () => {
     const create = vi
@@ -8,14 +23,7 @@ describe('OpenAI TTS adapter', () => {
       .mockResolvedValueOnce(new Response(Uint8Array.from([1, 2, 3])))
 
     const adapter = createOpenaiSpeech('gpt-4o-mini-tts', 'test-api-key')
-    ;(adapter as unknown as { client: { audio: { speech: { create: unknown } } } }).client =
-      {
-        audio: {
-          speech: {
-            create,
-          },
-        },
-      }
+    stubAdapterClient(adapter, create)
 
     const result = await adapter.generateSpeech({
       model: 'gpt-4o-mini-tts',
@@ -43,14 +51,7 @@ describe('OpenAI TTS adapter', () => {
     const create = vi.fn()
 
     const adapter = createOpenaiSpeech('tts-1', 'test-api-key')
-    ;(adapter as unknown as { client: { audio: { speech: { create: unknown } } } }).client =
-      {
-        audio: {
-          speech: {
-            create,
-          },
-        },
-      }
+    stubAdapterClient(adapter, create)
 
     await expect(
       adapter.generateSpeech({

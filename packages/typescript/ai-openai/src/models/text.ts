@@ -36,20 +36,39 @@ export interface TextProviderFeatureMap {
   streaming: OpenAIStreamingOptions
 }
 
-type NonReasoningTextProviderFeatureMap = Omit<
-  TextProviderFeatureMap,
+type TextProviderFeature = keyof TextProviderFeatureMap
+type TextProviderNonReasoningFeature = Exclude<
+  TextProviderFeature,
   'reasoning' | 'reasoningConcise'
 >
+type TextProviderNonBaseFeature = Exclude<TextProviderNonReasoningFeature, 'base'>
+type NonReasoningTextProviderFeatures = readonly [
+  'base',
+  ...ReadonlyArray<TextProviderNonBaseFeature>,
+]
+type ReasoningTextProviderFeatures = readonly [
+  'base',
+  'reasoning',
+  ...ReadonlyArray<TextProviderNonBaseFeature>,
+]
+type ReasoningConciseTextProviderFeatures = readonly [
+  'base',
+  'reasoningConcise',
+  ...ReadonlyArray<TextProviderNonBaseFeature>,
+]
 
-type TextProviderFeature = keyof TextProviderFeatureMap
-
-interface TextReasoningSpec {
+interface TextReasoningSpec<
+  TSummary extends OpenAIReasoningSummaryWithConcise = OpenAIReasoningSummaryWithConcise,
+> {
   efforts: ReadonlyArray<OpenAIReasoningEffort>
-  summaries: ReadonlyArray<OpenAIReasoningSummaryWithConcise>
+  summaries: ReadonlyArray<TSummary>
 }
 
-interface TextModelSpec<
-  TFeatures extends ReadonlyArray<TextProviderFeature>,
+interface TextModelSpecBase<
+  TFeatures extends
+    | NonReasoningTextProviderFeatures
+    | ReasoningTextProviderFeatures
+    | ReasoningConciseTextProviderFeatures,
   TInput extends ReadonlyArray<OpenAIRegistryInput>,
   TOutput extends ReadonlyArray<OpenAIRegistryOutput>,
 > {
@@ -64,6 +83,54 @@ interface TextModelSpec<
   snapshots?: ReadonlyArray<string>
   docs?: OpenAIRegistryDocs
 }
+
+type NonReasoningTextModelSpec<
+  TFeatures extends NonReasoningTextProviderFeatures,
+  TInput extends ReadonlyArray<OpenAIRegistryInput>,
+  TOutput extends ReadonlyArray<OpenAIRegistryOutput>,
+> = TextModelSpecBase<TFeatures, TInput, TOutput> & {
+  reasoning?: never
+}
+
+type ReasoningTextModelSpec<
+  TFeatures extends ReasoningTextProviderFeatures,
+  TInput extends ReadonlyArray<OpenAIRegistryInput>,
+  TOutput extends ReadonlyArray<OpenAIRegistryOutput>,
+> = TextModelSpecBase<TFeatures, TInput, TOutput> & {
+  reasoning: TextReasoningSpec<OpenAIReasoningSummary>
+}
+
+type ReasoningConciseTextModelSpec<
+  TFeatures extends ReasoningConciseTextProviderFeatures,
+  TInput extends ReadonlyArray<OpenAIRegistryInput>,
+  TOutput extends ReadonlyArray<OpenAIRegistryOutput>,
+> = TextModelSpecBase<TFeatures, TInput, TOutput> & {
+  reasoning: TextReasoningSpec<OpenAIReasoningSummaryWithConcise>
+}
+
+type TextModelSpec<
+  TFeatures extends
+    | NonReasoningTextProviderFeatures
+    | ReasoningTextProviderFeatures
+    | ReasoningConciseTextProviderFeatures,
+  TInput extends ReadonlyArray<OpenAIRegistryInput>,
+  TOutput extends ReadonlyArray<OpenAIRegistryOutput>,
+> =
+  | NonReasoningTextModelSpec<
+      Extract<TFeatures, NonReasoningTextProviderFeatures>,
+      TInput,
+      TOutput
+    >
+  | ReasoningTextModelSpec<
+      Extract<TFeatures, ReasoningTextProviderFeatures>,
+      TInput,
+      TOutput
+    >
+  | ReasoningConciseTextModelSpec<
+      Extract<TFeatures, ReasoningConciseTextProviderFeatures>,
+      TInput,
+      TOutput
+    >
 
 const COMMON_TOOLS = [
   'web_search',
@@ -107,8 +174,8 @@ export type TextProviderOptionsForEntry<
   TEntry extends { features: ReadonlyArray<string> },
 > =
   UnionToIntersection<
-    NonReasoningTextProviderFeatureMap[
-      Extract<TEntry['features'][number], keyof NonReasoningTextProviderFeatureMap>
+    TextProviderFeatureMap[
+      Extract<TEntry['features'][number], TextProviderNonReasoningFeature>
     ]
   > &
     TextReasoningOptionsForEntry<TEntry>
@@ -746,7 +813,9 @@ export const TEXT_MODELS = {
 } as const satisfies Record<
   string,
   TextModelSpec<
-    ReadonlyArray<TextProviderFeature>,
+    | NonReasoningTextProviderFeatures
+    | ReasoningTextProviderFeatures
+    | ReasoningConciseTextProviderFeatures,
     ReadonlyArray<OpenAIRegistryInput>,
     ReadonlyArray<OpenAIRegistryOutput>
   >

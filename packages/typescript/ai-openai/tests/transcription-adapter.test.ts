@@ -1,6 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createOpenaiTranscription } from '../src/adapters/transcription'
 
+const stubAdapterClient = (
+  adapter: ReturnType<typeof createOpenaiTranscription>,
+  create: unknown,
+) => {
+  ;(adapter as unknown as {
+    client: { audio: { transcriptions: { create: unknown } } }
+  }).client = {
+    audio: {
+      transcriptions: {
+        create,
+      },
+    },
+  }
+}
+
 describe('OpenAI transcription adapter', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -24,14 +39,7 @@ describe('OpenAI transcription adapter', () => {
     })
 
     const adapter = createOpenaiTranscription('gpt-4o-transcribe', 'test-api-key')
-    ;(adapter as unknown as { client: { audio: { transcriptions: { create: unknown } } } }).client =
-      {
-        audio: {
-          transcriptions: {
-            create,
-          },
-        },
-      }
+    stubAdapterClient(adapter, create)
 
     const result = await adapter.transcribe({
       model: 'gpt-4o-transcribe',
@@ -64,14 +72,7 @@ describe('OpenAI transcription adapter', () => {
     const create = vi.fn().mockResolvedValueOnce('plain transcript')
 
     const adapter = createOpenaiTranscription('whisper-1', 'test-api-key')
-    ;(adapter as unknown as { client: { audio: { transcriptions: { create: unknown } } } }).client =
-      {
-        audio: {
-          transcriptions: {
-            create,
-          },
-        },
-      }
+    stubAdapterClient(adapter, create)
 
     const result = await adapter.transcribe({
       model: 'whisper-1',
@@ -98,14 +99,7 @@ describe('OpenAI transcription adapter', () => {
     const create = vi.fn().mockResolvedValueOnce({ segments: [] })
 
     const adapter = createOpenaiTranscription('gpt-4o-transcribe', 'test-api-key')
-    ;(adapter as unknown as { client: { audio: { transcriptions: { create: unknown } } } }).client =
-      {
-        audio: {
-          transcriptions: {
-            create,
-          },
-        },
-      }
+    stubAdapterClient(adapter, create)
 
     const result = await adapter.transcribe({
       model: 'gpt-4o-transcribe',
@@ -133,14 +127,7 @@ describe('OpenAI transcription adapter', () => {
     })
 
     const adapter = createOpenaiTranscription('gpt-4o-transcribe', 'test-api-key')
-    ;(adapter as unknown as { client: { audio: { transcriptions: { create: unknown } } } }).client =
-      {
-        audio: {
-          transcriptions: {
-            create,
-          },
-        },
-      }
+    stubAdapterClient(adapter, create)
 
     await adapter.transcribe({
       model: 'gpt-4o-transcribe',
