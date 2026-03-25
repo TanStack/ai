@@ -308,7 +308,8 @@ describe('OpenAI registries', () => {
     expect(OPENAI_REALTIME_SNAPSHOT_MODELS).toEqual(snapshotIds(REALTIME_MODELS))
     for (const id of OPENAI_REALTIME_SNAPSHOT_MODELS) {
       expect(OPENAI_REALTIME_MODELS).toContain(id)
-      expect(REALTIME_MODELS).not.toHaveProperty(id)
+      expect(hasOwn(REALTIME_MODELS, id)).toBe(false)
+    }
     }
     expect(OPENAI_REALTIME_MODELS).not.toContain('gpt-4o-realtime')
   })
