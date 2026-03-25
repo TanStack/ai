@@ -30,6 +30,7 @@ const scenarios: Record<ScenarioName, MockScenario> = {
       {
         type: 'TEXT_MESSAGE_START',
         messageId: 'mock-msg-1',
+        role: 'assistant',
         model: 'mock-model',
         timestamp: Date.now(),
       },
@@ -221,6 +222,7 @@ const scenarios: Record<ScenarioName, MockScenario> = {
       {
         type: 'TEXT_MESSAGE_START',
         messageId: 'mock-msg-1',
+        role: 'assistant',
         model: 'mock-model',
         timestamp: Date.now(),
       },

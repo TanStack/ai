@@ -6,10 +6,10 @@ title: generateImage
 # Function: generateImage()
 
 ```ts
-function generateImage<TAdapter>(options): ImageActivityResult;
+function generateImage<TAdapter, TStream>(options): ImageActivityResult<TStream>;
 ```
 
-Defined in: [activities/generateImage/index.ts:149](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/index.ts#L149)
+Defined in: [activities/generateImage/index.ts:167](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/index.ts#L167)
 
 Image activity - generates images from text prompts.
 
@@ -21,15 +21,19 @@ Uses AI image generation models to create images based on natural language descr
 
 `TAdapter` *extends* [`ImageAdapter`](../interfaces/ImageAdapter.md)\<`string`, `any`, `any`, `any`\>
 
+### TStream
+
+`TStream` *extends* `boolean` = `false`
+
 ## Parameters
 
 ### options
 
-`ImageActivityOptions`\<`TAdapter`\>
+`ImageActivityOptions`\<`TAdapter`, `TStream`\>
 
 ## Returns
 
-`ImageActivityResult`
+`ImageActivityResult`\<`TStream`\>
 
 ## Examples
 

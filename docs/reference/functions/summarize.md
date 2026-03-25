@@ -9,7 +9,7 @@ title: summarize
 function summarize<TAdapter, TStream>(options): SummarizeActivityResult<TStream>;
 ```
 
-Defined in: [activities/summarize/index.ts:146](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/index.ts#L146)
+Defined in: [activities/summarize/index.ts:147](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/index.ts#L147)
 
 Summarize activity - generates summaries from text.
 

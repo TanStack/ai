@@ -1,5 +1,5 @@
 import type { StreamChunk } from '@tanstack/ai'
-import type { ConnectionAdapter } from './connection-adapters'
+import type { ConnectConnectionAdapter } from './connection-adapters'
 
 // ===========================
 // Inference Utilities
@@ -81,10 +81,10 @@ export type GenerationFetcher<TInput, TResult> = (
 
 /**
  * Transport configuration for generation clients.
- * Supports either a ConnectionAdapter (streaming) or a direct fetcher function.
+ * Supports either a connect-based streaming adapter or a direct fetcher function.
  */
 export type GenerationTransport<TInput, TResult> =
-  | { connection: ConnectionAdapter; fetcher?: never }
+  | { connection: ConnectConnectionAdapter; fetcher?: never }
   | { fetcher: GenerationFetcher<TInput, TResult>; connection?: never }
 
 // ===========================
@@ -103,7 +103,7 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   /** Unique identifier for this generation client instance */
   id?: string
 
-  /** Additional body parameters to send with ConnectionAdapter requests */
+  /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
 
   /**
@@ -119,7 +119,7 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   onError?: (error: Error) => void
   /** Callback when progress is reported (0-100) */
   onProgress?: (progress: number, message?: string) => void
-  /** Callback for each stream chunk (ConnectionAdapter mode only) */
+  /** Callback for each stream chunk (connect-based adapter mode only) */
   onChunk?: (chunk: StreamChunk) => void
 
   // Framework state callbacks (set by hooks, not users)

@@ -32,6 +32,7 @@ export interface ClientTool<
   inputSchema?: TInput
   outputSchema?: TOutput
   needsApproval?: boolean
+  lazy?: boolean
   metadata?: Record<string, unknown>
   execute?: (
     args: InferSchemaType<TInput>,
@@ -96,6 +97,7 @@ export interface ToolDefinitionConfig<
   inputSchema?: TInput
   outputSchema?: TOutput
   needsApproval?: boolean
+  lazy?: boolean
   metadata?: Record<string, unknown>
 }
 

@@ -22,6 +22,11 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Anthropic
   {
     provider: 'anthropic',
+    model: 'claude-sonnet-4-6',
+    label: 'Anthropic - Claude Sonnet 4.6',
+  },
+  {
+    provider: 'anthropic',
     model: 'claude-sonnet-4-5-20250929',
     label: 'Anthropic - Claude Sonnet 4.5',
   },
