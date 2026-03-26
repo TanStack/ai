@@ -87,6 +87,8 @@ export type {
   ErrorInfo,
 } from './activities/chat/middleware/index'
 
+export type { ToolExecutionContext } from './types'
+
 // All types
 export * from './types'
 

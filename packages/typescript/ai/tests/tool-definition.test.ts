@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '../src/activities/chat/tools/tool-definition'
 
@@ -46,7 +46,7 @@ describe('toolDefinition', () => {
       }),
     })
 
-    const executeFn = vi.fn(async (_args: { location: string }) => {
+    const executeFn = vi.fn((_args: { location: string }, _options?: unknown) => {
       return {
         temperature: 72,
         conditions: 'sunny',
@@ -60,9 +60,9 @@ describe('toolDefinition', () => {
     expect(serverTool.execute).toBeDefined()
 
     if (serverTool.execute) {
-      const result = await serverTool.execute({ location: 'Paris' })
+      const result = await serverTool.execute({ location: 'Paris' }, undefined)
       expect(result).toEqual({ temperature: 72, conditions: 'sunny' })
-      expect(executeFn).toHaveBeenCalledWith({ location: 'Paris' })
+      expect(executeFn).toHaveBeenCalledWith({ location: 'Paris' }, undefined)
     }
   })
 
@@ -79,7 +79,7 @@ describe('toolDefinition', () => {
       }),
     })
 
-    const executeFn = vi.fn(async (_args: { key: string; value: string }) => {
+    const executeFn = vi.fn(async (_args: { key: string; value: string }, _options?: unknown) => {
       return { success: true }
     })
 
@@ -90,9 +90,9 @@ describe('toolDefinition', () => {
     expect(clientTool.execute).toBeDefined()
 
     if (clientTool.execute) {
-      const result = await clientTool.execute({ key: 'test', value: 'data' })
+      const result = await clientTool.execute({ key: 'test', value: 'data' }, undefined)
       expect(result).toEqual({ success: true })
-      expect(executeFn).toHaveBeenCalledWith({ key: 'test', value: 'data' })
+      expect(executeFn).toHaveBeenCalledWith({ key: 'test', value: 'data' }, undefined)
     }
   })
 
@@ -207,7 +207,7 @@ describe('toolDefinition', () => {
     })
 
     if (serverTool.execute) {
-      const result = serverTool.execute({ value: 5 })
+      const result = serverTool.execute({ value: 5 }, undefined)
       expect(result).toEqual({ doubled: 10 })
     }
   })
@@ -253,7 +253,7 @@ describe('toolDefinition', () => {
       orderId: '123',
       items: [],
       shipping: { address: '123 Main St', method: 'standard' },
-    })
+    }, undefined)
 
     expect(serverTool.__toolSide).toBe('server')
   })
@@ -285,5 +285,110 @@ describe('toolDefinition', () => {
     expect(tool.description).toBe('Can be used directly')
     expect(tool.__toolSide).toBe('definition')
     expect(tool.inputSchema).toBeDefined()
+  })
+
+  it('should pass context to server tool execute function', async () => {
+    const tool = toolDefinition({
+      name: 'getContextValue',
+      description: 'Get a value from context',
+      inputSchema: z.object({
+        key: z.string(),
+      }),
+      outputSchema: z.object({
+        exists: z.boolean(),
+        value: z.string().optional(),
+      }),
+    })
+
+    const contextValue = 'test-value'
+    const context = { testData: contextValue }
+
+    const serverTool = tool.server(
+      (_: unknown, ctx) => {
+        const userCtx = ctx?.userContext as typeof context | undefined
+        const exists = userCtx?.testData !== undefined
+        const value = exists ? userCtx.testData : undefined
+        return { exists, value }
+      }
+    )
+
+    if (serverTool.execute) {
+      const result = await serverTool.execute(
+        { key: 'testData' },
+        { userContext: context, emitCustomEvent: () => {} }
+      )
+      
+      expect(result.exists).toBe(true)
+      expect(result.value).toBe(contextValue)
+    }
+  })
+
+  it('should pass context to client tool execute function', async () => {
+    const tool = toolDefinition({
+      name: 'getContextValue',
+      description: 'Get a value from context',
+      inputSchema: z.object({
+        key: z.string(),
+      }),
+      outputSchema: z.object({
+        exists: z.boolean(),
+        value: z.string().optional(),
+      }),
+    })
+
+    const contextValue = 'test-value'
+    const context = { testData: contextValue }
+
+    const clientTool = tool.client(
+      (_: unknown, ctx) => {
+        const userCtx = ctx?.userContext as typeof context | undefined
+        const exists = userCtx?.testData !== undefined
+        const value = exists ? userCtx.testData : undefined
+        return { exists, value }
+      }
+    )
+
+    if (clientTool.execute) {
+      const result = await clientTool.execute(
+        { key: 'testData' },
+        { userContext: context }
+      )
+      
+      expect(result.exists).toBe(true)
+      expect(result.value).toBe(contextValue)
+    }
+  })
+
+  it('should handle missing context gracefully', async () => {
+    const tool = toolDefinition({
+      name: 'getContextValue',
+      description: 'Get a value from context',
+      inputSchema: z.object({
+        key: z.string(),
+      }),
+      outputSchema: z.object({
+        exists: z.boolean(),
+        value: z.string().optional(),
+      }),
+    })
+
+    const serverTool = tool.server(
+      (_: unknown, ctx) => {
+        const userCtx = ctx?.userContext as { testData?: string } | undefined
+        const exists = userCtx?.testData !== undefined
+        const value = exists ? userCtx.testData : undefined
+        return { exists, value }
+      }
+    )
+
+    if (serverTool.execute) {
+      const result = await serverTool.execute(
+        { key: 'testData' },
+        { userContext: {} } // Empty context
+      )
+      
+      expect(result.exists).toBe(false)
+      expect(result.value).toBeUndefined()
+    }
   })
 })
