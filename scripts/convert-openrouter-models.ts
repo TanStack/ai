@@ -52,7 +52,11 @@ function generateChatModelsArray(): string {
   if (modelIds.length === 0) {
     return ''
   }
-  if (!modelIds.some((id) => id.includes('openrouter/auto') || id === 'OPENROUTER_AUTO.id')) {
+  if (
+    !modelIds.some(
+      (id) => id.includes('openrouter/auto') || id === 'OPENROUTER_AUTO.id',
+    )
+  ) {
     modelIds.push(`"openrouter/auto"`)
   }
   return `export const OPENROUTER_CHAT_MODELS = [\n${modelIds
@@ -84,7 +88,11 @@ function createPerModelModelOptions(): string {
   const entries = Object.entries(perModelProviderOptions).map(
     ([modelId, typeStr]) => `  [${modelId}]: ${typeStr};`,
   )
-  if (!Object.keys(perModelProviderOptions).some((k) => k.includes('OPENROUTER_AUTO'))) {
+  if (
+    !Object.keys(perModelProviderOptions).some((k) =>
+      k.includes('OPENROUTER_AUTO'),
+    )
+  ) {
     entries.push(
       `  "openrouter/auto": OpenRouterCommonOptions & OpenRouterBaseOptions;`,
     )
@@ -101,7 +109,11 @@ function createPerModelInputModalities(): string {
       `  [${modelId}]: ReadonlyArray<${modalitiesStr}>;`,
   )
 
-  if (!Object.keys(perModelInputModalities).some((k) => k.includes('OPENROUTER_AUTO'))) {
+  if (
+    !Object.keys(perModelInputModalities).some((k) =>
+      k.includes('OPENROUTER_AUTO'),
+    )
+  ) {
     entries.push(
       `  "openrouter/auto": ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>;`,
     )
