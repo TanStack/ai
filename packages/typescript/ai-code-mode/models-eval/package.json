@@ -12,15 +12,15 @@
   },
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-code-mode": "workspace:*",
-    "@tanstack/ai-isolate-node": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-code-mode": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-groq": "workspace:*",
+    "@tanstack/ai-isolate-node": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
-    "dotenv": "^16.4.7",
+    "dotenv": "^17.2.3",
     "zod": "^4.2.0"
   },
   "devDependencies": {
