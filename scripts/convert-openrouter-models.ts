@@ -196,7 +196,7 @@ function generateModelMetaString(model: OpenRouterModel): string {
     `      output: [${outputModalities.map((m) => `'${m}'`).join(', ')}],`,
   )
   lines.push(
-    `      supports: [${model.supported_parameters?.map((p) => `'${paramNameMap[p] ?? p}'`).join(', ') || ''}],`,
+    `      supports: [${model.supported_parameters?.filter((p) => !excludedParams.has(p)).map((p) => `'${paramNameMap[p] ?? p}'`).join(', ') || ''}],`,
   )
   lines.push(`    },`)
 
