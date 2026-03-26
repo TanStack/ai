@@ -58,7 +58,13 @@ test-traces
 playwright-report
 test-results
 
+solo.yml
+.structured-output-skills
+
 STATUS_*.md
+
+# models-eval run artifacts (full candidate/gold text per model)
+packages/typescript/ai-code-mode/models-eval/log/
 
 .skills
 # Only .claude.settings.json should be committed

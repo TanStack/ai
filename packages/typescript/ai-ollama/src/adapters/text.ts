@@ -231,7 +231,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           })
         }
 
-        // Parse input
+        // Serialize arguments to a string for the TOOL_CALL_ARGS event
         let parsedInput: unknown = {}
         const argsStr =
           typeof actualToolCall.function.arguments === 'string'
@@ -241,6 +241,19 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           parsedInput = JSON.parse(argsStr)
         } catch {
           parsedInput = actualToolCall.function.arguments
+        }
+
+        // Emit TOOL_CALL_ARGS so the stream processor accumulates the
+        // arguments string (matches OpenAI/Anthropic adapter behavior)
+        if (argsStr) {
+          events.push({
+            type: 'TOOL_CALL_ARGS',
+            toolCallId,
+            model: chunk.model,
+            timestamp,
+            delta: argsStr,
+            args: argsStr,
+          })
         }
 
         // Emit TOOL_CALL_END
@@ -282,6 +295,12 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           model: chunk.model,
           timestamp,
           finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
+          usage: {
+            promptTokens: chunk.prompt_eval_count || 0,
+            completionTokens: chunk.eval_count || 0,
+            totalTokens:
+              (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
+          },
         }
         continue
       }

@@ -52,6 +52,7 @@
     "zod": "^3.0.0 || ^4.0.0"
   },
   "devDependencies": {
+    "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "zod": "^4.2.0"
   }

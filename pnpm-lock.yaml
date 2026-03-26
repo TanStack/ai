@@ -861,13 +861,13 @@ importers:
 
   packages/typescript/ai-code-mode:
     dependencies:
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../ai
       esbuild:
         specifier: ^0.25.12
         version: 0.25.12
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.18(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -911,6 +911,46 @@ importers:
       zod:
         specifier: ^4.2.0
         version: 4.3.6
+
+  packages/typescript/ai-code-mode/models-eval:
+    dependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../../ai
+      '@tanstack/ai-anthropic':
+        specifier: workspace:*
+        version: link:../../ai-anthropic
+      '@tanstack/ai-code-mode':
+        specifier: workspace:*
+        version: link:..
+      '@tanstack/ai-gemini':
+        specifier: workspace:*
+        version: link:../../ai-gemini
+      '@tanstack/ai-grok':
+        specifier: workspace:*
+        version: link:../../ai-grok
+      '@tanstack/ai-groq':
+        specifier: workspace:*
+        version: link:../../ai-groq
+      '@tanstack/ai-isolate-node':
+        specifier: workspace:*
+        version: link:../../ai-isolate-node
+      '@tanstack/ai-ollama':
+        specifier: workspace:*
+        version: link:../../ai-ollama
+      '@tanstack/ai-openai':
+        specifier: workspace:*
+        version: link:../../ai-openai
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+    devDependencies:
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
 
   packages/typescript/ai-devtools:
     dependencies:
@@ -970,13 +1010,13 @@ importers:
 
   packages/typescript/ai-event-client:
     dependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@tanstack/devtools-event-client':
         specifier: ^0.4.1
         version: 0.4.1
     devDependencies:
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.18(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))

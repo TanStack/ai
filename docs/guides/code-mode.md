@@ -232,6 +232,85 @@ Code Mode emits custom events during execution that you can observe through the 
 | `code_mode:external_result` | After a successful `external_*` call | `{ function, result, duration }` |
 | `code_mode:external_error` | When an `external_*` call fails | `{ function, error, duration }` |
 
+## Model Evaluation
+
+Code Mode includes a development benchmark package at `packages/typescript/ai-code-mode/models-eval`.
+
+Recommended workflow:
+
+1. Capture raw model outputs and telemetry (no judge call):
+
+```bash
+pnpm --filter @tanstack/ai-code-mode-models-eval eval:capture
+```
+
+2. Judge the latest captured session from logs (no model rerun):
+
+```bash
+pnpm --filter @tanstack/ai-code-mode-models-eval eval:judge
+```
+
+3. Canonical benchmark output is written to:
+
+`packages/typescript/ai-code-mode/models-eval/results.json`
+
+### Evaluation methodology
+
+Metrics:
+
+- `accuracy` (1-10): factual correctness vs gold reference
+- `comprehensiveness` (1-10): how fully the response answers the user request
+- `typescriptQuality` (1-10): quality/readability/type-safety of generated TypeScript
+- `codeModeEfficiency` (1-10): how efficiently the model reaches the solution in code mode
+- `speedTier` (1-5): relative wall-clock speed within `local` and `cloud` groups
+- `tokenEfficiencyTier` (1-5): relative tokens-per-successful-execution within `local` and `cloud` groups
+- `stabilityTier` (1-5): consistency over latest 5 logged runs per model
+- `stars` (1-3): weighted rollup score
+
+Stability definition:
+
+- A run is considered stable when it has:
+  - no top-level run error
+  - non-empty final candidate report
+  - at least one successful `execute_typescript` call
+
+Star rollup weights:
+
+- accuracy: 25%
+- comprehensiveness: 15%
+- typescriptQuality: 15%
+- codeModeEfficiency (with compile/runtime failure penalty): 10%
+- speedTier: 10%
+- tokenEfficiencyTier: 10%
+- stabilityTier: 15%
+
+### Canonical model results
+
+The canonical source of truth is:
+
+- `packages/typescript/ai-code-mode/models-eval/results.json`
+
+Current human-readable snapshot (session `2026-03-26T15:38:44.006Z`):
+
+- **Top overall (★★★):** GPT-OSS 20B, Claude Haiku 4.5, GPT-4o Mini, Gemini 2.5 Flash, Grok 4.1 Fast, Llama 3.3 70B (Groq)
+- **Strong but below top tier (★★☆):** Nemotron Cascade 2, Qwen3 32B (Groq)
+- **Notable caveat:** Llama 3.3 70B shows high quality when it works, but lower stability (`stabilityTier: 4`) versus most models at `5`
+
+| Model | Stars | Accuracy | Code-Mode | Speed | Token Eff. | Stability |
+|---|---:|---:|---:|---:|---:|---:|
+| GPT-OSS 20B | ★★★ | 10 | 5 | 5 | 5 | 5 |
+| Nemotron Cascade 2 | ★★☆ | 3 | 5 | 1 | 5 | 5 |
+| Claude Haiku 4.5 | ★★★ | 10 | 7 | 3 | 2 | 5 |
+| GPT-4o Mini | ★★★ | 10 | 9 | 3 | 1 | 5 |
+| Gemini 2.5 Flash | ★★★ | 10 | 10 | 4 | 2 | 5 |
+| Grok 4.1 Fast | ★★★ | 10 | 10 | 4 | 5 | 5 |
+| Llama 3.3 70B (Groq) | ★★★ | 10 | 9 | 5 | 3 | 4 |
+| Qwen3 32B (Groq) | ★★☆ | 10 | 4 | 1 | 2 | 5 |
+
+For full details (including comprehensiveness, TypeScript quality, token counts, and judge summaries), use:
+
+- `packages/typescript/ai-code-mode/README.md`
+
 ## Tips
 
 - **Start simple.** Give the model 2-3 tools and a clear task. Code Mode works best when the model has a focused set of capabilities.
