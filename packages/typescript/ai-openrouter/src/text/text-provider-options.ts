@@ -307,6 +307,7 @@ export interface OpenRouterBaseOptions {
 
   /**
    * Whether to allow the model to make multiple tool calls in parallel.
+   * @default true
    */
   parallelToolCalls?: boolean
 
