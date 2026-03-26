@@ -91,6 +91,8 @@ export interface ToolCall {
     name: string
     arguments: string // JSON string
   }
+  /** Provider-specific metadata to carry through the tool call lifecycle */
+  providerMetadata?: Record<string, unknown>
 }
 
 // ============================================================================
@@ -849,6 +851,8 @@ export interface ToolCallStartEvent extends BaseAGUIEvent {
   parentMessageId?: string
   /** Index for parallel tool calls */
   index?: number
+  /** Provider-specific metadata to carry into the ToolCall */
+  providerMetadata?: Record<string, unknown>
 }
 
 /**
