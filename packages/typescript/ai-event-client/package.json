@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-event-client",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Event client for TanStack AI devtools integration",
   "author": "",
   "license": "MIT",
