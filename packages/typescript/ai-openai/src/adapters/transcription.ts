@@ -54,12 +54,14 @@ export class OpenAITranscriptionAdapter<
     const file = this.prepareAudioFile(audio)
 
     // Build request
-    const request: OpenAI_SDK.Audio.TranscriptionCreateParams = {
+    const requestBase: Omit<
+      OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming,
+      'response_format'
+    > = {
       model,
       file,
       language,
       prompt,
-      response_format: this.mapResponseFormat(responseFormat),
       ...modelOptions,
     }
 
@@ -69,9 +71,14 @@ export class OpenAITranscriptionAdapter<
       (!responseFormat && model !== 'whisper-1')
 
     if (useVerbose) {
+      const verboseRequest: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming<'verbose_json'> =
+        {
+          ...requestBase,
+          response_format: 'verbose_json',
+          stream: false,
+        }
       const response = await this.client.audio.transcriptions.create({
-        ...request,
-        response_format: 'verbose_json',
+        ...verboseRequest,
       })
 
       return {
@@ -96,12 +103,23 @@ export class OpenAITranscriptionAdapter<
         })),
       }
     } else {
+      const request: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming =
+        {
+          ...requestBase,
+          response_format: this.mapResponseFormat(responseFormat),
+          stream: false,
+        }
       const response = await this.client.audio.transcriptions.create(request)
 
       return {
         id: generateId(this.name),
         model,
-        text: typeof response === 'string' ? response : response.text,
+        text:
+          typeof response === 'string'
+            ? response
+            : 'text' in response
+              ? response.text
+              : '',
         language,
       }
     }
@@ -157,9 +175,9 @@ export class OpenAITranscriptionAdapter<
 
   private mapResponseFormat(
     format?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt',
-  ): OpenAI_SDK.Audio.TranscriptionCreateParams['response_format'] {
+  ): OpenAI_SDK.Audio.AudioResponseFormat {
     if (!format) return 'json'
-    return format as OpenAI_SDK.Audio.TranscriptionCreateParams['response_format']
+    return format
   }
 }
 

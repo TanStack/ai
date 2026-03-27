@@ -13,6 +13,7 @@ import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { OpenAIRealtimeOptions } from './types'
 
 const OPENAI_REALTIME_URL = 'https://api.openai.com/v1/realtime'
+type SessionToolConfig = NonNullable<RealtimeSessionConfig['tools']>[number]
 
 /**
  * Creates an OpenAI realtime adapter for client-side use.
@@ -59,7 +60,7 @@ export function openaiRealtime(
 async function createWebRTCConnection(
   token: RealtimeToken,
 ): Promise<RealtimeConnection> {
-  const model = token.config.model ?? 'gpt-4o-realtime-preview'
+  const model = token.config.model ?? 'gpt-realtime-1.5'
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
   // WebRTC peer connection
@@ -548,7 +549,7 @@ async function createWebRTCConnection(
       }
 
       if (config.tools !== undefined) {
-        sessionUpdate.tools = config.tools.map((t) => ({
+        sessionUpdate.tools = config.tools.map((t: SessionToolConfig) => ({
           type: 'function',
           name: t.name,
           description: t.description,
