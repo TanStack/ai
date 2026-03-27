@@ -80,7 +80,7 @@ async function getCodeModeTools() {
 // --- Skills storage ---
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const skillsDir = resolve(__dirname, '../../../../.db-skills')
+const skillsDir = resolve(__dirname, '../../../.db-skills')
 const trustStrategy = createAlwaysTrustedStrategy()
 const skillStorage = createFileSkillStorage({
   directory: skillsDir,

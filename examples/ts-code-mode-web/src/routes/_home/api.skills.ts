@@ -6,7 +6,7 @@ import { createAlwaysTrustedStrategy } from '@tanstack/ai-code-mode-skills'
 
 // Resolve skills directory relative to project root
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const skillsDir = resolve(__dirname, '../../../../.skills')
+const skillsDir = resolve(__dirname, '../../../.skills')
 
 // Use the same trust strategy as the main skills endpoint
 const trustStrategy = createAlwaysTrustedStrategy()

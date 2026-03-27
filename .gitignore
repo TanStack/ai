@@ -70,3 +70,4 @@ packages/typescript/ai-code-mode/models-eval/log/
 # Only .claude.settings.json should be committed
 .claude/settings.local.json
 .claude/worktrees/*
+solo.yml
