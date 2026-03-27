@@ -306,6 +306,12 @@ export interface OpenRouterBaseOptions {
       }
 
   /**
+   * Whether to allow the model to make multiple tool calls in parallel.
+   * @default true
+   */
+  parallelToolCalls?: boolean
+
+  /**
    * Web search options for controlling search behavior.
    * This is separate from the plugins array and provides additional control over search context.
    * https://openrouter.ai/docs/guides/features/plugins/web-search
