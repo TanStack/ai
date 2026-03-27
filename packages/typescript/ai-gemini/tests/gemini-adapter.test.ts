@@ -521,7 +521,11 @@ describe('GeminiAdapter through AI', () => {
             finishReason: 'STOP',
           },
         ],
-        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5, totalTokenCount: 15 },
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
       },
     ]
 
@@ -534,7 +538,11 @@ describe('GeminiAdapter through AI', () => {
             finishReason: 'STOP',
           },
         ],
-        usageMetadata: { promptTokenCount: 20, candidatesTokenCount: 5, totalTokenCount: 25 },
+        usageMetadata: {
+          promptTokenCount: 20,
+          candidatesTokenCount: 5,
+          totalTokenCount: 25,
+        },
       },
     ]
 
@@ -547,14 +555,18 @@ describe('GeminiAdapter through AI', () => {
     const sumTool: Tool = {
       name: 'sum_tool',
       description: 'Sums an array of numbers.',
-      execute: async (input: any) => ({ result: input.numbers.reduce((a: number, b: number) => a + b, 0) }),
+      execute: async (input: any) => ({
+        result: input.numbers.reduce((a: number, b: number) => a + b, 0),
+      }),
     }
 
     for await (const _ of chat({
       adapter,
       tools: [sumTool],
       messages: [{ role: 'user', content: 'What is 1 + 2 + 5?' }],
-      modelOptions: { thinkingConfig: { includeThoughts: true, thinkingLevel: 'LOW' } },
+      modelOptions: {
+        thinkingConfig: { includeThoughts: true, thinkingLevel: 'LOW' },
+      },
     })) {
       /* consume stream */
     }
@@ -563,7 +575,9 @@ describe('GeminiAdapter through AI', () => {
 
     // Inspect the second call's payload (the turn that includes history)
     const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]
-    const modelTurn = secondPayload.contents.find((c: any) => c.role === 'model')
+    const modelTurn = secondPayload.contents.find(
+      (c: any) => c.role === 'model',
+    )
     expect(modelTurn).toBeDefined()
 
     const functionCallPart = modelTurn.parts.find((p: any) => p.functionCall)
@@ -593,7 +607,11 @@ describe('GeminiAdapter through AI', () => {
             finishReason: 'STOP',
           },
         ],
-        usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 3, totalTokenCount: 8 },
+        usageMetadata: {
+          promptTokenCount: 5,
+          candidatesTokenCount: 3,
+          totalTokenCount: 8,
+        },
       },
     ]
 
@@ -605,7 +623,11 @@ describe('GeminiAdapter through AI', () => {
             finishReason: 'STOP',
           },
         ],
-        usageMetadata: { promptTokenCount: 15, candidatesTokenCount: 4, totalTokenCount: 19 },
+        usageMetadata: {
+          promptTokenCount: 15,
+          candidatesTokenCount: 4,
+          totalTokenCount: 19,
+        },
       },
     ]
 

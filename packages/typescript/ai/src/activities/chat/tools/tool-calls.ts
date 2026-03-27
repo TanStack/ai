@@ -100,7 +100,9 @@ export class ToolCallManager {
         name: event.toolName,
         arguments: '',
       },
-      ...(event.providerMetadata && { providerMetadata: event.providerMetadata }),
+      ...(event.providerMetadata && {
+        providerMetadata: event.providerMetadata,
+      }),
     })
   }
 

@@ -198,7 +198,13 @@ export class GeminiTextAdapter<
     let accumulatedThinking = ''
     const toolCallMap = new Map<
       string,
-      { name: string; args: string; index: number; started: boolean; thoughtSignature?: string }
+      {
+        name: string
+        args: string
+        index: number
+        started: boolean
+        thoughtSignature?: string
+      }
     >()
     let nextToolIndex = 0
 
@@ -293,7 +299,8 @@ export class GeminiTextAdapter<
                     : JSON.stringify(functionArgs),
                 index: nextToolIndex++,
                 started: false,
-                thoughtSignature: (functionCall as any).thoughtSignature || undefined,
+                thoughtSignature:
+                  (functionCall as any).thoughtSignature || undefined,
               }
               toolCallMap.set(toolCallId, toolCallData)
             } else {
@@ -324,7 +331,9 @@ export class GeminiTextAdapter<
                 timestamp,
                 index: toolCallData.index,
                 ...(toolCallData.thoughtSignature && {
-                  providerMetadata: { thoughtSignature: toolCallData.thoughtSignature },
+                  providerMetadata: {
+                    thoughtSignature: toolCallData.thoughtSignature,
+                  },
                 }),
               }
             }
@@ -574,7 +583,8 @@ export class GeminiTextAdapter<
             >
           }
 
-          const thoughtSignature = toolCall.providerMetadata?.thoughtSignature as string | undefined
+          const thoughtSignature = toolCall.providerMetadata
+            ?.thoughtSignature as string | undefined
           parts.push({
             functionCall: {
               id: toolCall.id,
@@ -587,7 +597,8 @@ export class GeminiTextAdapter<
       }
 
       if (msg.role === 'tool' && msg.toolCallId) {
-        const functionName = toolCallIdToName.get(msg.toolCallId) || msg.toolCallId
+        const functionName =
+          toolCallIdToName.get(msg.toolCallId) || msg.toolCallId
         parts.push({
           functionResponse: {
             id: msg.toolCallId,
