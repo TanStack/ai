@@ -34,6 +34,7 @@ export interface ClientTool<
   needsApproval?: boolean
   lazy?: boolean
   metadata?: Record<string, unknown>
+  clientOutput?: (result: InferSchemaType<TOutput>) => unknown
   execute?: (
     args: InferSchemaType<TInput>,
   ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
@@ -99,6 +100,7 @@ export interface ToolDefinitionConfig<
   needsApproval?: boolean
   lazy?: boolean
   metadata?: Record<string, unknown>
+  clientOutput?: (result: InferSchemaType<TOutput>) => unknown
 }
 
 /**
