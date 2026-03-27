@@ -805,7 +805,9 @@ export const AIProvider: ParentComponent = (props) => {
               return {
                 type: 'tool-result',
                 toolCallId: part.toolCallId,
-                content: part.content,
+                content: Array.isArray(part.content)
+                  ? JSON.stringify(part.content)
+                  : part.content,
                 state: part.state,
                 error: part.error,
               }

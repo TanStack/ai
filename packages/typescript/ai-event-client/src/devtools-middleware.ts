@@ -195,7 +195,10 @@ export function devtoolsMiddleware(): ChatMiddleware {
             ...base,
             messageId: localMessageId || undefined,
             toolCallId: chunk.toolCallId,
-            result: chunk.result || '',
+            result:
+              typeof chunk.result === 'string'
+                ? chunk.result
+                : JSON.stringify(chunk.result ?? ''),
             timestamp: Date.now(),
           })
           break
