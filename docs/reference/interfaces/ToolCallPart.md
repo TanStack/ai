@@ -5,7 +5,7 @@ title: ToolCallPart
 
 # Interface: ToolCallPart
 
-Defined in: [types.ts:282](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L282)
+Defined in: [types.ts:284](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L284)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:282](https://github.com/TanStack/ai/blob/main/packages/typ
 optional approval: object;
 ```
 
-Defined in: [types.ts:289](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L289)
+Defined in: [types.ts:291](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L291)
 
 Approval metadata if tool requires user approval
 
@@ -45,7 +45,7 @@ needsApproval: boolean;
 arguments: string;
 ```
 
-Defined in: [types.ts:286](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L286)
+Defined in: [types.ts:288](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L288)
 
 ***
 
@@ -55,7 +55,7 @@ Defined in: [types.ts:286](https://github.com/TanStack/ai/blob/main/packages/typ
 id: string;
 ```
 
-Defined in: [types.ts:284](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L284)
+Defined in: [types.ts:286](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L286)
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: [types.ts:284](https://github.com/TanStack/ai/blob/main/packages/typ
 name: string;
 ```
 
-Defined in: [types.ts:285](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L285)
+Defined in: [types.ts:287](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L287)
 
 ***
 
@@ -75,7 +75,7 @@ Defined in: [types.ts:285](https://github.com/TanStack/ai/blob/main/packages/typ
 optional output: any;
 ```
 
-Defined in: [types.ts:295](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L295)
+Defined in: [types.ts:297](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L297)
 
 Tool execution output (for client tools or after approval)
 
@@ -87,7 +87,7 @@ Tool execution output (for client tools or after approval)
 state: ToolCallState;
 ```
 
-Defined in: [types.ts:287](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L287)
+Defined in: [types.ts:289](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L289)
 
 ***
 
@@ -97,4 +97,4 @@ Defined in: [types.ts:287](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "tool-call";
 ```
 
-Defined in: [types.ts:283](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L283)
+Defined in: [types.ts:285](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L285)
