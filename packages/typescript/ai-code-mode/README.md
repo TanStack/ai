@@ -132,6 +132,7 @@ The benchmark lives in a **separate workspace package** so `@tanstack/ai-code-mo
 6. `pnpm --filter @tanstack/ai-code-mode-models-eval eval -- --ollama-only --models qwen3-coder` — one or more model ids (comma-separated)
 
 Judge-phase flags:
+
 - `--judge-latest` judge latest captured session
 - `--rejudge` re-run judging even if logs already contain judge fields
 
@@ -173,18 +174,19 @@ Canonical output is written to `packages/typescript/ai-code-mode/models-eval/res
 
 The table below is transcribed from canonical `models-eval/results.json` (session `2026-03-26T15:38:44.006Z`).
 
-| Provider | Model | Category | Stars | Accuracy | Comprehensiveness | TypeScript | Code-Mode | Speed Tier | Token Tier | Stability Tier |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Ollama | `gpt-oss:20b` | local | ★★★ | 10 | 8 | 5 | 5 | 5 | 5 | 5 |
-| Ollama | `nemotron-cascade-2` | local | ★★☆ | 3 | 5 | 6 | 5 | 1 | 5 | 5 |
-| Anthropic | `claude-haiku-4-5` | cloud | ★★★ | 10 | 10 | 6 | 7 | 3 | 2 | 5 |
-| OpenAI | `gpt-4o-mini` | cloud | ★★★ | 10 | 8 | 7 | 9 | 3 | 1 | 5 |
-| Gemini | `gemini-2.5-flash` | cloud | ★★★ | 10 | 8 | 7 | 10 | 4 | 2 | 5 |
-| xAI | `grok-4-1-fast-non-reasoning` | cloud | ★★★ | 10 | 8 | 6 | 10 | 4 | 5 | 5 |
-| Groq | `llama-3.3-70b-versatile` | cloud | ★★★ | 10 | 7 | 6 | 9 | 5 | 3 | 4 |
-| Groq | `qwen/qwen3-32b` | cloud | ★★☆ | 10 | 8 | 5 | 4 | 1 | 2 | 5 |
+| Provider  | Model                         | Category | Stars | Accuracy | Comprehensiveness | TypeScript | Code-Mode | Speed Tier | Token Tier | Stability Tier |
+| --------- | ----------------------------- | -------- | ----- | -------- | ----------------- | ---------- | --------- | ---------- | ---------- | -------------- |
+| Ollama    | `gpt-oss:20b`                 | local    | ★★★   | 10       | 8                 | 5          | 5         | 5          | 5          | 5              |
+| Ollama    | `nemotron-cascade-2`          | local    | ★★☆   | 3        | 5                 | 6          | 5         | 1          | 5          | 5              |
+| Anthropic | `claude-haiku-4-5`            | cloud    | ★★★   | 10       | 10                | 6          | 7         | 3          | 2          | 5              |
+| OpenAI    | `gpt-4o-mini`                 | cloud    | ★★★   | 10       | 8                 | 7          | 9         | 3          | 1          | 5              |
+| Gemini    | `gemini-2.5-flash`            | cloud    | ★★★   | 10       | 8                 | 7          | 10        | 4          | 2          | 5              |
+| xAI       | `grok-4-1-fast-non-reasoning` | cloud    | ★★★   | 10       | 8                 | 6          | 10        | 4          | 5          | 5              |
+| Groq      | `llama-3.3-70b-versatile`     | cloud    | ★★★   | 10       | 7                 | 6          | 9         | 5          | 3          | 4              |
+| Groq      | `qwen/qwen3-32b`              | cloud    | ★★☆   | 10       | 8                 | 5          | 4         | 1          | 2          | 5              |
 
 Suggested interpretation:
+
 - **Local-first**: favor `stars >= 2` with high speed tier.
 - **Cloud-first quality**: favor high `accuracy` + `typescriptQuality`, then compare stars.
 - **Cost-sensitive**: prioritize `tokenEfficiencyTier` and `speedTier` together.

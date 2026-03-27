@@ -82,10 +82,7 @@ export interface DevtoolsChatMiddleware {
    * Chunk typing intentionally mirrors `StreamChunk` from `@tanstack/ai` as `any`
    * so we avoid importing `@tanstack/ai` here (see file-top comment).
    */
-  onChunk?: (
-    ctx: DevtoolsMiddlewareContext,
-    chunk: any,
-  ) => any
+  onChunk?: (ctx: DevtoolsMiddlewareContext, chunk: any) => any
   onToolPhaseComplete?: (
     ctx: DevtoolsMiddlewareContext,
     info: DevtoolsToolPhaseCompleteInfo,
@@ -341,10 +338,7 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
       // Return void — observation only, pass through unchanged
     },
 
-    onToolPhaseComplete(
-      ctx,
-      info: DevtoolsToolPhaseCompleteInfo,
-    ) {
+    onToolPhaseComplete(ctx, info: DevtoolsToolPhaseCompleteInfo) {
       const base = buildEventContext(ctx)
 
       // Emit text:message:created for assistant message with tool calls
