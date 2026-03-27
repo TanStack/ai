@@ -11,6 +11,9 @@
     "overrides": {
       "abbrev": "^3.0.0"
     },
+    "ignoredBuiltDependencies": [
+      "isolated-vm"
+    ],
     "patchedDependencies": {
       "@changesets/assemble-release-plan@6.0.9": "patches/@changesets__assemble-release-plan@6.0.9.patch"
     }
@@ -32,7 +35,7 @@
     "test:docs": "node scripts/verify-links.ts",
     "build": "nx affected --skip-nx-cache --targets=build --exclude=examples/**",
     "build:all": "nx run-many --targets=build --exclude=examples/**",
-    "watch": "pnpm run build:all && nx watch --all -- pnpm run build:all",
+    "watch": "pnpm run build:all && env NX_DAEMON=true nx watch --all -- pnpm run build:all",
     "dev": "pnpm run watch",
     "format": "prettier --experimental-cli --ignore-unknown '**/*' --write",
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",

@@ -967,6 +967,13 @@ export class StreamProcessor {
     // Transition the tool call to input-complete (the authoritative completion signal)
     const existingToolCall = msgState.toolCalls.get(chunk.toolCallId)
     if (existingToolCall && existingToolCall.state !== 'input-complete') {
+      // If TOOL_CALL_END provides parsed input and no TOOL_CALL_ARGS were
+      // received, back-fill the arguments string so the UIMessage ToolCallPart
+      // carries the correct value (defensive against adapters that skip ARGS).
+      if (chunk.input !== undefined && !existingToolCall.arguments) {
+        existingToolCall.arguments = JSON.stringify(chunk.input)
+      }
+
       const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)
       this.completeToolCall(messageId, index, existingToolCall)
       // If TOOL_CALL_END provides parsed input, use it as the canonical parsed

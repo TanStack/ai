@@ -1,16 +1,102 @@
 import { aiEventClient } from './index.js'
-import type {
-  ChatMiddleware,
-  ChatMiddlewareContext,
-  IterationInfo,
-  ModelMessage,
-  ToolPhaseCompleteInfo,
-} from '@tanstack/ai'
+
+/**
+ * Local mirrors of @tanstack/ai middleware types. Do not import from `@tanstack/ai`
+ * here — during `@tanstack/ai`'s own build that resolves to `dist/*.d.ts` while the
+ * engine compiles from `src/`, producing incompatible duplicate types.
+ */
+
+interface DevtoolsModelMessage {
+  role: string
+  content: unknown
+  toolCalls?: unknown
+}
+
+interface DevtoolsMiddlewareContext {
+  requestId: string
+  streamId: string
+  conversationId?: string
+  provider: string
+  model: string
+  source: 'client' | 'server'
+  systemPrompts: Array<string>
+  toolNames?: Array<string>
+  options?: Record<string, unknown>
+  modelOptions?: Record<string, unknown>
+  messageCount: number
+  hasTools: boolean
+  streaming: boolean
+  messages: ReadonlyArray<DevtoolsModelMessage>
+  createId: (prefix: string) => string
+}
+
+interface DevtoolsIterationInfo {
+  iteration: number
+  messageId: string
+}
+
+interface DevtoolsToolPhaseCompleteInfo {
+  toolCalls: Array<unknown>
+  needsApproval: Array<{
+    toolCallId: string
+    toolName: string
+    input: unknown
+    approvalId: string
+  }>
+  needsClientExecution: Array<{
+    toolCallId: string
+    toolName: string
+    input: unknown
+  }>
+  results: Array<{
+    toolCallId: string
+    toolName: string
+    result: unknown
+    duration?: number
+  }>
+}
+
+interface DevtoolsFinishInfo {
+  content: string
+  finishReason: string | null
+  duration: number
+  usage?: {
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+  }
+}
+
+/**
+ * Observation-only middleware returned by {@link devtoolsMiddleware}.
+ * Structurally compatible with `ChatMiddleware` from `@tanstack/ai`.
+ */
+export interface DevtoolsChatMiddleware {
+  name?: string
+  onStart?: (ctx: DevtoolsMiddlewareContext) => void | Promise<void>
+  onIteration?: (
+    ctx: DevtoolsMiddlewareContext,
+    info: DevtoolsIterationInfo,
+  ) => void | Promise<void>
+  /**
+   * Chunk typing intentionally mirrors `StreamChunk` from `@tanstack/ai` as `any`
+   * so we avoid importing `@tanstack/ai` here (see file-top comment).
+   */
+  onChunk?: (ctx: DevtoolsMiddlewareContext, chunk: any) => any
+  onToolPhaseComplete?: (
+    ctx: DevtoolsMiddlewareContext,
+    info: DevtoolsToolPhaseCompleteInfo,
+  ) => void | Promise<void>
+  onFinish?: (
+    ctx: DevtoolsMiddlewareContext,
+    info: DevtoolsFinishInfo,
+  ) => void | Promise<void>
+}
 
 /**
  * Build the common event context object used by all devtools events.
  */
-function buildEventContext(ctx: ChatMiddlewareContext) {
+function buildEventContext(ctx: DevtoolsMiddlewareContext) {
   return {
     requestId: ctx.requestId,
     streamId: ctx.streamId,
@@ -31,11 +117,18 @@ function buildEventContext(ctx: ChatMiddlewareContext) {
 /**
  * Extract text content from a ModelMessage content field.
  */
-function getContentString(content: ModelMessage['content']): string {
+function getContentString(content: DevtoolsModelMessage['content']): string {
   if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
   return (
     content
-      ?.map((part) => (part.type === 'text' ? part.content : ''))
+      .map((part) =>
+        part &&
+        typeof part === 'object' &&
+        (part as { type?: string }).type === 'text'
+          ? String((part as { content?: unknown }).content ?? '')
+          : '',
+      )
       .join('') || ''
   )
 }
@@ -47,7 +140,7 @@ function getContentString(content: ModelMessage['content']): string {
  * All hooks are observation-only — `onChunk` returns void to pass through
  * without transforming chunks.
  */
-export function devtoolsMiddleware(): ChatMiddleware {
+export function devtoolsMiddleware(): DevtoolsChatMiddleware {
   // Local mutable state — tracked here because the devtools middleware
   // runs first, before the engine updates ctx.currentMessageId / ctx.accumulatedContent
   let localMessageId: string | null = null
@@ -81,9 +174,9 @@ export function devtoolsMiddleware(): ChatMiddleware {
         aiEventClient.emit('text:message:created', {
           ...base,
           messageId,
-          role: message.role,
+          role: message.role as 'user' | 'assistant' | 'system' | 'tool',
           content,
-          toolCalls: message.toolCalls,
+          toolCalls: message.toolCalls as never,
           messageIndex,
           timestamp: Date.now(),
         })
@@ -101,7 +194,7 @@ export function devtoolsMiddleware(): ChatMiddleware {
       })
     },
 
-    onIteration(ctx: ChatMiddlewareContext, info: IterationInfo) {
+    onIteration(ctx: DevtoolsMiddlewareContext, info: DevtoolsIterationInfo) {
       const now = Date.now()
 
       // Emit completed for previous iteration (it ended with tool_calls if we got here)
@@ -219,10 +312,11 @@ export function devtoolsMiddleware(): ChatMiddleware {
           break
         }
         case 'RUN_ERROR': {
+          const err = chunk.error as { message?: string } | undefined
           aiEventClient.emit('text:chunk:error', {
             ...base,
             messageId: localMessageId || undefined,
-            error: chunk.error.message,
+            error: err?.message ?? String(chunk.error),
             timestamp: Date.now(),
           })
           break
@@ -244,7 +338,7 @@ export function devtoolsMiddleware(): ChatMiddleware {
       // Return void — observation only, pass through unchanged
     },
 
-    onToolPhaseComplete(ctx, info: ToolPhaseCompleteInfo) {
+    onToolPhaseComplete(ctx, info: DevtoolsToolPhaseCompleteInfo) {
       const base = buildEventContext(ctx)
 
       // Emit text:message:created for assistant message with tool calls
@@ -254,7 +348,7 @@ export function devtoolsMiddleware(): ChatMiddleware {
           messageId: localMessageId ?? ctx.createId('msg'),
           role: 'assistant' as const,
           content: localAccumulatedContent || '',
-          toolCalls: info.toolCalls,
+          toolCalls: info.toolCalls as never,
           timestamp: Date.now(),
         })
       }

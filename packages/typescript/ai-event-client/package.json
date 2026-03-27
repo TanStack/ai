@@ -40,7 +40,6 @@
     "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
-    "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14"
   }
 }

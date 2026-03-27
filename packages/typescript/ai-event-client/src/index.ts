@@ -659,4 +659,7 @@ const aiEventClient = new AiEventClient()
 export { aiEventClient }
 
 // Devtools middleware
-export { devtoolsMiddleware } from './devtools-middleware.js'
+export {
+  devtoolsMiddleware,
+  type DevtoolsChatMiddleware,
+} from './devtools-middleware.js'
