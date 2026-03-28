@@ -450,7 +450,7 @@ importers:
         version: 1.141.1(@tanstack/router-core@1.159.4)(@tanstack/solid-router@1.141.1(solid-js@1.9.10))(csstype@3.2.3)(solid-js@1.9.10)
       '@tanstack/solid-router-ssr-query':
         specifier: ^1.139.10
-        version: 1.141.1(@tanstack/query-core@5.90.12)(@tanstack/router-core@1.159.4)(@tanstack/solid-query@5.90.15(solid-js@1.9.10))(@tanstack/solid-router@1.141.1(solid-js@1.9.10))(eslint@9.39.2(jiti@2.6.1))(solid-js@1.9.10)(typescript@5.9.3)
+        version: 1.141.1(@tanstack/query-core@5.90.12)(@tanstack/router-core@1.159.4)(@tanstack/solid-query@5.90.15(solid-js@1.9.10))(@tanstack/solid-router@1.141.1(solid-js@1.9.10))(eslint@9.39.3(jiti@2.6.1))(solid-js@1.9.10)(typescript@5.9.3)
       '@tanstack/solid-start':
         specifier: ^1.139.10
         version: 1.141.1(@tanstack/react-router@1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(crossws@0.4.4(srvx@0.11.2))(solid-js@1.9.10)(vite-plugin-solid@2.11.10(solid-js@1.9.10)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -801,8 +801,8 @@ importers:
   packages/typescript/ai-fal:
     dependencies:
       '@fal-ai/client':
-        specifier: ^1.9.1
-        version: 1.9.1
+        specifier: ^1.9.4
+        version: 1.9.4
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -909,8 +909,8 @@ importers:
   packages/typescript/ai-openrouter:
     dependencies:
       '@openrouter/sdk':
-        specifier: 0.3.15
-        version: 0.3.15
+        specifier: 0.9.11
+        version: 0.9.11
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
@@ -2447,12 +2447,16 @@ packages:
     resolution: {integrity: sha512-Kr+LPIUVKz2qkx1HAMH8q1q6azbqBAsXJUxBl/ODDuVPX45Z9DfwB8tPjTi6nNZ8BuM3nbJxC5zCAg5elnBUTQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@eslint/eslintrc@3.3.4':
+    resolution: {integrity: sha512-4h4MVF8pmBsncB60r0wSJiIeUKTSD4m7FmTFThG8RHlsg9ajqckLm9OraguFGZE4vVdpiI1Q4+hFnisopmG6gQ==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
   '@eslint/js@9.39.1':
     resolution: {integrity: sha512-S26Stp4zCy88tH94QbBv3XCuzRQiZ9yXofEILmglYTh/Ug/a9/umqvgFtYBAo3Lp0nsI/5/qH1CCrbdK3AP1Tw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@eslint/js@9.39.2':
-    resolution: {integrity: sha512-q1mjIoW1VX4IvSocvM/vbTiveKC4k9eLrajNEuSsmjymSDEbpGddtpfOoN7YGAqBK3NG+uqo8ia4PDTt8buCYA==}
+  '@eslint/js@9.39.3':
+    resolution: {integrity: sha512-1B1VkCq6FuUNlQvlBYb+1jDu/gV297TIs/OeiaSR9l1H27SVW55ONE1e1Vp16NqP683+xEGzxYtv4XCiDPaQiw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@eslint/object-schema@2.1.7':
@@ -2467,8 +2471,8 @@ packages:
     resolution: {integrity: sha512-C3mrr3b5dRVlKPJdfrAXS8+dq+rq8Qm5SNRazca0JKgw1HQERFmrVb0towvMmw5uu8hHKNiQasMaR/tydf3Zsg==}
     engines: {node: ^20.19.0 || ^22.13.0 || ^23.5.0 || >=24.0.0, npm: '>=10'}
 
-  '@fal-ai/client@1.9.1':
-    resolution: {integrity: sha512-Z6+n9/2sKlDam1wWDfRWmMkLS09e2WhTU9w+2eWL7PuoGmHK43IhwKirk4b3kPC/QPp1g+ymfvhrSiS1SpDr6g==}
+  '@fal-ai/client@1.9.4':
+    resolution: {integrity: sha512-mDjF2QDq+oficSSxzmErNkseQeRXnvUBEhJy39n4PPe7jRPZeSqM2SNb27SW50rDtCtay+stwFU8zRZehlt1Qg==}
     engines: {node: '>=18.0.0'}
 
   '@gerrit0/mini-shiki@3.19.0':
@@ -2707,8 +2711,8 @@ packages:
     resolution: {integrity: sha512-T8TbSnGsxo6TDBJx/Sgv/BlVJL3tshxZP7Aq5R1mSnM5OcHY2dQaxLMu2+E8u3gN0MLOzdjurqN4ZRVuzQycOQ==}
     engines: {node: '>=8.0'}
 
-  '@openrouter/sdk@0.3.15':
-    resolution: {integrity: sha512-tmiMQGu6L1fHD9NpIABN9LALEZitqM27CFebSVyJTQDcxCcR3m1F6v1O1MnOlLmedCFU+/BojniRGFAXo1F3Bw==}
+  '@openrouter/sdk@0.9.11':
+    resolution: {integrity: sha512-BgFu6NcIJO4a9aVjr04y3kZ8pyM71j15I+bzfVAGEvxnj+KQNIkBYQGgwrG3D+aT1QpDKLki8btcQmpaxUas6A==}
 
   '@oxc-minify/binding-android-arm-eabi@0.110.0':
     resolution: {integrity: sha512-43fMTO8/5bMlqfOiNSZNKUzIqeLIYuB9Hr1Ohyf58B1wU11S2dPGibTXOGNaWsfgHy99eeZ1bSgeIHy/fEYqbw==}
@@ -4985,6 +4989,9 @@ packages:
   ajv@6.12.6:
     resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
 
+  ajv@6.14.0:
+    resolution: {integrity: sha512-IWrosm/yrn43eiKqkfkHis7QioDleaXQHdDVPKg0FSwwd/DuvyX79TZnFOnYpB7dcsFAMmtFztZuXPDvSePkFw==}
+
   ajv@8.12.0:
     resolution: {integrity: sha512-sRu1kpcO9yLtYxBKvqfTeh9KzZEwO3STyX1HT+4CaDzC6HpTGYhIhPIzj9XuKU7KYDwnaeh5hcOwjy1QuJzBPA==}
 
@@ -5926,8 +5933,8 @@ packages:
       jiti:
         optional: true
 
-  eslint@9.39.2:
-    resolution: {integrity: sha512-LEyamqS7W5HB3ujJyvi0HQK/dtVINZvd5mAAp9eT5S/ujByGjiZLCzPcHVzuXbpJDJF/cxwHlfceVUDZ2lnSTw==}
+  eslint@9.39.3:
+    resolution: {integrity: sha512-VmQ+sifHUbI/IcSopBCF/HO3YiHQx/AVd3UVyYL6weuwW+HvON9VYn5l6Zl1WZzPWXPNZrSQpxwkkZ/VuvJZzg==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     hasBin: true
     peerDependencies:
@@ -7310,6 +7317,9 @@ packages:
 
   minimatch@3.1.2:
     resolution: {integrity: sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==}
+
+  minimatch@3.1.5:
+    resolution: {integrity: sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==}
 
   minimatch@5.1.6:
     resolution: {integrity: sha512-lKwV/1brpG6mBUFHtb7NUmtABCb2WZZmm2wNiOA5hAb8VdCS4B3dtMWyvcoViccwAW/COERjXLt0zP1zXUN26g==}
@@ -10308,14 +10318,14 @@ snapshots:
       eslint: 9.39.1(jiti@2.6.1)
       eslint-visitor-keys: 3.4.3
 
-  '@eslint-community/eslint-utils@4.9.0(eslint@9.39.2(jiti@2.6.1))':
+  '@eslint-community/eslint-utils@4.9.0(eslint@9.39.3(jiti@2.6.1))':
     dependencies:
-      eslint: 9.39.2(jiti@2.6.1)
+      eslint: 9.39.3(jiti@2.6.1)
       eslint-visitor-keys: 3.4.3
 
-  '@eslint-community/eslint-utils@4.9.1(eslint@9.39.2(jiti@2.6.1))':
+  '@eslint-community/eslint-utils@4.9.1(eslint@9.39.3(jiti@2.6.1))':
     dependencies:
-      eslint: 9.39.2(jiti@2.6.1)
+      eslint: 9.39.3(jiti@2.6.1)
       eslint-visitor-keys: 3.4.3
 
   '@eslint-community/regexpp@4.12.2': {}
@@ -10350,9 +10360,23 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@eslint/eslintrc@3.3.4':
+    dependencies:
+      ajv: 6.14.0
+      debug: 4.4.3
+      espree: 10.4.0
+      globals: 14.0.0
+      ignore: 5.3.2
+      import-fresh: 3.3.1
+      js-yaml: 4.1.1
+      minimatch: 3.1.5
+      strip-json-comments: 3.1.1
+    transitivePeerDependencies:
+      - supports-color
+
   '@eslint/js@9.39.1': {}
 
-  '@eslint/js@9.39.2': {}
+  '@eslint/js@9.39.3': {}
 
   '@eslint/object-schema@2.1.7': {}
 
@@ -10363,7 +10387,7 @@ snapshots:
 
   '@faker-js/faker@10.1.0': {}
 
-  '@fal-ai/client@1.9.1':
+  '@fal-ai/client@1.9.4':
     dependencies:
       '@msgpack/msgpack': 3.1.3
       eventsource-parser: 1.1.2
@@ -10668,7 +10692,7 @@ snapshots:
 
   '@oozcitak/util@8.3.8': {}
 
-  '@openrouter/sdk@0.3.15':
+  '@openrouter/sdk@0.9.11':
     dependencies:
       zod: 4.3.6
 
@@ -12358,13 +12382,13 @@ snapshots:
     transitivePeerDependencies:
       - csstype
 
-  '@tanstack/solid-router-ssr-query@1.141.1(@tanstack/query-core@5.90.12)(@tanstack/router-core@1.159.4)(@tanstack/solid-query@5.90.15(solid-js@1.9.10))(@tanstack/solid-router@1.141.1(solid-js@1.9.10))(eslint@9.39.2(jiti@2.6.1))(solid-js@1.9.10)(typescript@5.9.3)':
+  '@tanstack/solid-router-ssr-query@1.141.1(@tanstack/query-core@5.90.12)(@tanstack/router-core@1.159.4)(@tanstack/solid-query@5.90.15(solid-js@1.9.10))(@tanstack/solid-router@1.141.1(solid-js@1.9.10))(eslint@9.39.3(jiti@2.6.1))(solid-js@1.9.10)(typescript@5.9.3)':
     dependencies:
       '@tanstack/query-core': 5.90.12
       '@tanstack/router-ssr-query-core': 1.141.1(@tanstack/query-core@5.90.12)(@tanstack/router-core@1.159.4)
       '@tanstack/solid-query': 5.90.15(solid-js@1.9.10)
       '@tanstack/solid-router': 1.141.1(solid-js@1.9.10)
-      eslint-plugin-solid: 0.14.5(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      eslint-plugin-solid: 0.14.5(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.3)
       solid-js: 1.9.10
     transitivePeerDependencies:
       - '@tanstack/router-core'
@@ -13164,13 +13188,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@8.49.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
+  '@typescript-eslint/utils@8.49.0(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.0(eslint@9.39.2(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.0(eslint@9.39.3(jiti@2.6.1))
       '@typescript-eslint/scope-manager': 8.49.0
       '@typescript-eslint/types': 8.49.0
       '@typescript-eslint/typescript-estree': 8.49.0(typescript@5.9.3)
-      eslint: 9.39.2(jiti@2.6.1)
+      eslint: 9.39.3(jiti@2.6.1)
       typescript: 5.9.3
     transitivePeerDependencies:
       - supports-color
@@ -13656,6 +13680,13 @@ snapshots:
       ajv: 8.13.0
 
   ajv@6.12.6:
+    dependencies:
+      fast-deep-equal: 3.1.3
+      fast-json-stable-stringify: 2.1.0
+      json-schema-traverse: 0.4.1
+      uri-js: 4.4.1
+
+  ajv@6.14.0:
     dependencies:
       fast-deep-equal: 3.1.3
       fast-json-stable-stringify: 2.1.0
@@ -14655,10 +14686,10 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  eslint-plugin-solid@0.14.5(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3):
+  eslint-plugin-solid@0.14.5(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.3):
     dependencies:
-      '@typescript-eslint/utils': 8.49.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
-      eslint: 9.39.2(jiti@2.6.1)
+      '@typescript-eslint/utils': 8.49.0(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.3)
+      eslint: 9.39.3(jiti@2.6.1)
       estraverse: 5.3.0
       is-html: 2.0.0
       kebab-case: 1.0.2
@@ -14724,21 +14755,21 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint@9.39.2(jiti@2.6.1):
+  eslint@9.39.3(jiti@2.6.1):
     dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.2(jiti@2.6.1))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.3(jiti@2.6.1))
       '@eslint-community/regexpp': 4.12.2
       '@eslint/config-array': 0.21.1
       '@eslint/config-helpers': 0.4.2
       '@eslint/core': 0.17.0
-      '@eslint/eslintrc': 3.3.3
-      '@eslint/js': 9.39.2
+      '@eslint/eslintrc': 3.3.4
+      '@eslint/js': 9.39.3
       '@eslint/plugin-kit': 0.4.1
       '@humanfs/node': 0.16.7
       '@humanwhocodes/module-importer': 1.0.1
       '@humanwhocodes/retry': 0.4.3
       '@types/estree': 1.0.8
-      ajv: 6.12.6
+      ajv: 6.14.0
       chalk: 4.1.2
       cross-spawn: 7.0.6
       debug: 4.4.3
@@ -14757,7 +14788,7 @@ snapshots:
       is-glob: 4.0.3
       json-stable-stringify-without-jsonify: 1.0.1
       lodash.merge: 4.6.2
-      minimatch: 3.1.2
+      minimatch: 3.1.5
       natural-compare: 1.4.0
       optionator: 0.9.4
     optionalDependencies:
@@ -16459,6 +16490,10 @@ snapshots:
       brace-expansion: 1.1.12
 
   minimatch@3.1.2:
+    dependencies:
+      brace-expansion: 1.1.12
+
+  minimatch@3.1.5:
     dependencies:
       brace-expansion: 1.1.12
 

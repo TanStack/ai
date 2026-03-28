@@ -41,7 +41,7 @@
     "video-generation"
   ],
   "dependencies": {
-    "@fal-ai/client": "^1.9.1"
+    "@fal-ai/client": "^1.9.4"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",

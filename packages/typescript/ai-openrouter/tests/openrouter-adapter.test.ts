@@ -3,6 +3,7 @@ import { chat } from '@tanstack/ai'
 import { createOpenRouterText } from '../src/adapters/text'
 import type { OpenRouterTextModelOptions } from '../src/adapters/text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
+import { ChatGenerationParams$outboundSchema } from '@openrouter/sdk/models'
 // Declare mockSend at module level
 let mockSend: any
 
@@ -52,7 +53,7 @@ function setupMockSdkClient(
   nonStreamResponse?: Record<string, unknown>,
 ) {
   mockSend = vi.fn().mockImplementation((params) => {
-    if (params.stream) {
+    if (params.chatGenerationParams?.stream) {
       return Promise.resolve(createAsyncIterable(streamChunks))
     }
     return Promise.resolve(nonStreamResponse)
@@ -131,12 +132,13 @@ describe('OpenRouter adapter option mapping', () => {
 
     expect(mockSend).toHaveBeenCalledTimes(1)
 
-    const [params] = mockSend.mock.calls[0]!
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
 
     expect(params.model).toBe('openai/gpt-4o-mini')
     expect(params.temperature).toBe(0.25)
     expect(params.topP).toBe(0.6)
-    expect(params.maxTokens).toBe(1024)
+    expect(params.maxCompletionTokens).toBe(1024)
     expect(params.stream).toBe(true)
     expect(params.toolChoice).toBe('auto')
 
@@ -146,6 +148,18 @@ describe('OpenRouter adapter option mapping', () => {
     expect(params.tools).toBeDefined()
     expect(Array.isArray(params.tools)).toBe(true)
     expect(params.tools.length).toBeGreaterThan(0)
+
+    // Check how the paramaters are serialized through to the openrouter endpoint
+    // Openrouter runs the params through an outbound Zod schema that expects camelCase
+    const serialized = ChatGenerationParams$outboundSchema.parse(params)
+
+    // keys and remaps them to snake_case for the wire format.
+    expect(serialized).toHaveProperty('model', 'openai/gpt-4o-mini')
+    expect(serialized).toHaveProperty('temperature', 0.25)
+    expect(serialized).toHaveProperty('top_p', 0.6)
+    expect(serialized).toHaveProperty('max_completion_tokens', 1024)
+    expect(serialized).toHaveProperty('stream', true)
+    expect(serialized).toHaveProperty('tool_choice', 'auto')
   })
 
   it('streams chat chunks with content and usage', async () => {
@@ -349,7 +363,8 @@ describe('OpenRouter adapter option mapping', () => {
     })) {
     }
 
-    const [params] = mockSend.mock.calls[0]!
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
 
     const contentParts = params.messages[0].content
     expect(contentParts[0]).toMatchObject({
@@ -380,7 +395,7 @@ describe('OpenRouter adapter option mapping', () => {
     const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(errorChunk).toBeDefined()
 
-    if (errorChunk && errorChunk.type === 'RUN_ERROR') {
+    if (errorChunk) {
       expect(errorChunk.error.message).toBe('Invalid API key')
     }
   })
@@ -744,6 +759,34 @@ describe('OpenRouter AG-UI event emission', () => {
     }
   })
 
+  it('emits RUN_ERROR on inline error chunk', async () => {
+    const streamChunks = [
+      {
+        id: 'chatcmpl-err',
+        model: 'openai/gpt-4o-mini',
+        choices: [] as Array<unknown>,
+        error: { message: 'Rate limit exceeded', code: 429 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runErrorChunk).toBeDefined()
+    if (runErrorChunk?.type === 'RUN_ERROR') {
+      expect(runErrorChunk.error.message).toBe('Rate limit exceeded')
+    }
+  })
+
   it('emits STEP_STARTED and STEP_FINISHED for reasoning content', async () => {
     const streamChunks = [
       {
@@ -820,6 +863,153 @@ describe('OpenRouter AG-UI event emission', () => {
   })
 })
 
+describe('OpenRouter structured output', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('sends responseFormat with json_schema instead of tools', async () => {
+    const nonStreamResponse = {
+      choices: [
+        {
+          message: {
+            content: '{"name":"Alice","age":30}',
+          },
+        },
+      ],
+    }
+
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    const outputSchema = {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        age: { type: 'number' },
+      },
+      required: ['name', 'age'],
+    }
+
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Give me a person' }],
+      },
+      outputSchema,
+    })
+
+    expect(result.data).toEqual({ name: 'Alice', age: 30 })
+    expect(result.rawText).toBe('{"name":"Alice","age":30}')
+
+    // Verify SDK was called with responseFormat, not tools
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
+    expect(params.responseFormat).toEqual({
+      type: 'json_schema',
+      jsonSchema: {
+        name: 'structured_output',
+        schema: outputSchema,
+        strict: true,
+      },
+    })
+    expect(params.tools).toBeUndefined()
+    expect(params.toolChoice).toBeUndefined()
+    expect(params.stream).toBe(false)
+  })
+
+  it('parses JSON response content correctly', async () => {
+    const nonStreamResponse = {
+      choices: [
+        {
+          message: {
+            content: '{"items":[1,2,3],"total":3}',
+          },
+        },
+      ],
+    }
+
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'List items' }],
+      },
+      outputSchema: { type: 'object' },
+    })
+
+    expect(result.data).toEqual({ items: [1, 2, 3], total: 3 })
+  })
+
+  it('throws on malformed JSON response', async () => {
+    const nonStreamResponse = {
+      choices: [
+        {
+          message: {
+            content: 'not valid json{',
+          },
+        },
+      ],
+    }
+
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    await expect(
+      adapter.structuredOutput({
+        chatOptions: {
+          model: 'openai/gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Give me data' }],
+        },
+        outputSchema: { type: 'object' },
+      }),
+    ).rejects.toThrow('Failed to parse structured output as JSON')
+  })
+
+  it('throws on SDK error', async () => {
+    mockSend = vi.fn().mockRejectedValueOnce(new Error('Server error'))
+
+    const adapter = createAdapter()
+
+    await expect(
+      adapter.structuredOutput({
+        chatOptions: {
+          model: 'openai/gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Give me data' }],
+        },
+        outputSchema: { type: 'object' },
+      }),
+    ).rejects.toThrow('Structured output generation failed: Server error')
+  })
+
+  it('handles empty content gracefully', async () => {
+    const nonStreamResponse = {
+      choices: [
+        {
+          message: {
+            content: '',
+          },
+        },
+      ],
+    }
+
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    await expect(
+      adapter.structuredOutput({
+        chatOptions: {
+          model: 'openai/gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Give me data' }],
+        },
+        outputSchema: { type: 'object' },
+      }),
+    ).rejects.toThrow('Structured output response contained no content')
+  })
+})
+
 describe('OpenRouter modelOptions pass-through', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -863,7 +1053,8 @@ describe('OpenRouter modelOptions pass-through', () => {
       // consume
     }
 
-    const [params] = mockSend.mock.calls[0]!
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
     expect(params.frequencyPenalty).toBe(0.5)
     expect(params.presencePenalty).toBe(0.3)
     expect(params.maxCompletionTokens).toBe(2048)
@@ -875,15 +1066,17 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.responseFormat).toEqual({ type: 'json_object' })
   })
 
-  it('forwards API-only params (topK, repetitionPenalty, minP, topA) to the SDK request', async () => {
+  it('forwards common options (provider, plugins, etc.) to the SDK request', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
 
     const modelOptions: OpenRouterTextModelOptions = {
-      topK: 40,
-      repetitionPenalty: 1.1,
-      minP: 0.05,
-      topA: 0.3,
+      provider: { order: ['openai'], allowFallbacks: false },
+      plugins: [{ id: 'web', maxResults: 5 }],
+      user: 'test-user-123',
+      metadata: { env: 'test' },
+      debug: { echoUpstreamBody: true },
+      sessionId: 'session-abc',
     }
 
     for await (const _ of chat({
@@ -894,11 +1087,44 @@ describe('OpenRouter modelOptions pass-through', () => {
       // consume
     }
 
-    const [params] = mockSend.mock.calls[0]!
-    expect(params.topK).toBe(40)
-    expect(params.repetitionPenalty).toBe(1.1)
-    expect(params.minP).toBe(0.05)
-    expect(params.topA).toBe(0.3)
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
+    expect(params.provider).toEqual({
+      order: ['openai'],
+      allowFallbacks: false,
+    })
+    expect(params.plugins).toEqual([{ id: 'web', maxResults: 5 }])
+    expect(params.user).toBe('test-user-123')
+    expect(params.metadata).toEqual({ env: 'test' })
+    expect(params.debug).toEqual({ echoUpstreamBody: true })
+    expect(params.sessionId).toBe('session-abc')
+  })
+
+  it('does not allow modelOptions to override top-level temperature/topP/maxTokens', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      temperature: 0.5,
+      topP: 0.8,
+      maxTokens: 500,
+      modelOptions: {
+        temperature: 0.9,
+        topP: 0.1,
+        maxCompletionTokens: 9999,
+      } as OpenRouterTextModelOptions,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
+    // Top-level values should win because modelOptions has those keys Omitted
+    expect(params.temperature).toBe(0.5)
+    expect(params.topP).toBe(0.8)
+    expect(params.maxCompletionTokens).toBe(500)
   })
 
   it('appends variant to model name instead of passing it as a separate property', async () => {
@@ -913,7 +1139,8 @@ describe('OpenRouter modelOptions pass-through', () => {
       // consume
     }
 
-    const [params] = mockSend.mock.calls[0]!
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
     expect(params.model).toBe('openai/gpt-4o-mini:free')
   })
 
@@ -934,7 +1161,8 @@ describe('OpenRouter modelOptions pass-through', () => {
       // consume
     }
 
-    const [params] = mockSend.mock.calls[0]!
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatGenerationParams
     expect(params.toolChoice).toBe('required')
   })
 })

@@ -71,28 +71,30 @@ export class OpenRouterImageAdapter<
 
     try {
       const response = await this.client.chat.send({
-        model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
+        chatGenerationParams: {
+          model,
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          modalities: ['image'],
+          stream: false,
+          // OpenRouter filters out invalid config per provider specifications
+          imageConfig: {
+            ...(numberOfImages ? { n: numberOfImages, numberOfImages } : {}),
+            ...(aspectRatio
+              ? {
+                  aspect_ratio: aspectRatio,
+                }
+              : {}),
+            ...(modelOptions?.image_size
+              ? {
+                  image_size: modelOptions.image_size,
+                }
+              : {}),
           },
-        ],
-        modalities: ['image'],
-        stream: false,
-        // OpenRouter filters out invalid config per provider specifications
-        imageConfig: {
-          ...(numberOfImages ? { n: numberOfImages, numberOfImages } : {}),
-          ...(aspectRatio
-            ? {
-                aspect_ratio: aspectRatio,
-              }
-            : {}),
-          ...(modelOptions?.image_size
-            ? {
-                image_size: modelOptions.image_size,
-              }
-            : {}),
         },
       })
 

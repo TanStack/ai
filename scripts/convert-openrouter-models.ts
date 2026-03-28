@@ -40,6 +40,32 @@ function finalPrice(price: number): number {
   // Round to a reasonable number of decimal places
   return Math.round(result * 1e10) / 1e10
 }
+function snakeToCamel(s: string): string {
+  return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+}
+
+const API_PARAM_OVERRIDES: Record<string, string> = {
+  max_tokens: 'maxCompletionTokens',
+  structured_outputs: 'responseFormat',
+  reasoning_effort: 'reasoning',
+}
+
+function mapApiParam(p: string): string {
+  return API_PARAM_OVERRIDES[p] ?? snakeToCamel(p)
+}
+
+const SKIPPED_PARAMS = new Set([
+  'tools',
+  'parallel_tool_calls',
+  'top_k',
+  'min_p',
+  'top_a',
+  'repetition_penalty',
+  'include_reasoning',
+  'web_search_options',
+  'verbosity',
+])
+
 const perModelProviderOptions: Record<string, string> = {}
 const perModelInputModalities: Record<string, string> = {}
 
@@ -48,18 +74,17 @@ const chatModels = new Set<string>([])
 const videoModels = new Set<string>([])
 
 function generateChatModelsArray(): string {
-  const modelIds = Array.from(chatModels)
+  const modelIds = Array.from(chatModels).sort()
   if (modelIds.length === 0) {
     return ''
   }
-  modelIds.push(`"openrouter/auto"`)
   return `export const OPENROUTER_CHAT_MODELS = [\n${modelIds
     .map((id) => `  ${id},`)
     .join('\n')}\n] as const`
 }
 
 function generateImageModelsArray(): string {
-  const modelIds = Array.from(imageModels)
+  const modelIds = Array.from(imageModels).sort()
   if (modelIds.length === 0) {
     return ''
   }
@@ -69,7 +94,7 @@ function generateImageModelsArray(): string {
 }
 
 function generateVideoModelsArray(): string {
-  const modelIds = Array.from(videoModels)
+  const modelIds = Array.from(videoModels).sort()
   if (modelIds.length === 0) {
     return ''
   }
@@ -79,27 +104,22 @@ function generateVideoModelsArray(): string {
 }
 
 function createPerModelModelOptions(): string {
-  const entries = Object.entries(perModelProviderOptions).map(
-    ([modelId, typeStr]) => `  [${modelId}]: ${typeStr};`,
-  )
-  entries.push(
-    `  "openrouter/auto": OpenRouterCommonOptions & OpenRouterBaseOptions;`,
-  )
-
+  const entries = Object.entries(perModelProviderOptions)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([modelId, typeStr]) => `  [${modelId}]: ${typeStr};`)
   return `\nexport type OpenRouterModelOptionsByName  = {\n${entries.join(
     '\n',
   )}\n}`
 }
 
 function createPerModelInputModalities(): string {
-  const entries = Object.entries(perModelInputModalities).map(
-    ([modelId, modalitiesStr]) =>
-      `  [${modelId}]: ReadonlyArray<${modalitiesStr}>;`,
-  )
+  const entries = Object.entries(perModelInputModalities)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(
+      ([modelId, modalitiesStr]) =>
+        `  [${modelId}]: ReadonlyArray<${modalitiesStr}>;`,
+    )
 
-  entries.push(
-    `  "openrouter/auto": ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>;`,
-  )
   return `\nexport type OpenRouterModelInputModalitiesByName  = {\n${entries.join(
     '\n',
   )}\n}`
@@ -184,12 +204,8 @@ function generateModelMetaString(model: OpenRouterModel): string {
 
   const supportedParams =
     model.supported_parameters
-      ?.map((p) =>
-        p === 'tools' || p === 'reasoning_effort' || p === 'structured_outputs'
-          ? ''
-          : `'${p === 'max_tokens' ? 'max_completion_tokens' : p}'`,
-      )
-      .filter(Boolean) ?? []
+      ?.filter((p) => !SKIPPED_PARAMS.has(p))
+      .map((p) => `'${mapApiParam(p)}'`) ?? []
   perModelProviderOptions[`${constName}.id`] =
     supportedParams.length > 0
       ? `OpenRouterCommonOptions & Pick<OpenRouterBaseOptions,${
@@ -202,8 +218,9 @@ function generateModelMetaString(model: OpenRouterModel): string {
   return lines.join('\n')
 }
 
-function convertModels(models: Array<OpenRouterModel>): string {
-  const modelStrings = models.map(generateModelMetaString)
+function convertModels(modelsInput: Array<OpenRouterModel>): string {
+  const sorted = [...modelsInput].sort((a, b) => a.id.localeCompare(b.id))
+  const modelStrings = sorted.map(generateModelMetaString)
   return modelStrings.join('\n')
 }
 
