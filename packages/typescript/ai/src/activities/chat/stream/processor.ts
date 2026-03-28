@@ -856,6 +856,9 @@ export class StreamProcessor {
         state: initialState,
         parsedArguments: undefined,
         index: chunk.index ?? state.toolCalls.size,
+        ...(chunk.providerMetadata && {
+          providerMetadata: chunk.providerMetadata,
+        }),
       }
 
       state.toolCalls.set(toolCallId, newToolCall)
@@ -870,6 +873,9 @@ export class StreamProcessor {
         name: chunk.toolName,
         arguments: '',
         state: initialState,
+        ...(chunk.providerMetadata && {
+          providerMetadata: chunk.providerMetadata,
+        }),
       })
       this.emitMessagesChange()
 
@@ -1367,6 +1373,9 @@ export class StreamProcessor {
               name: tc.name,
               arguments: tc.arguments,
             },
+            ...(tc.providerMetadata && {
+              providerMetadata: tc.providerMetadata,
+            }),
           })
         }
       }
