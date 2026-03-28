@@ -25,6 +25,8 @@ export interface InternalToolCallState {
   state: ToolCallState
   parsedArguments?: any
   index: number
+  /** Provider-specific metadata (e.g. Gemini thoughtSignature) */
+  providerMetadata?: Record<string, unknown>
 }
 
 /**

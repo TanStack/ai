@@ -55,6 +55,7 @@ export function updateToolCallPart(
     name: string
     arguments: string
     state: ToolCallState
+    providerMetadata?: Record<string, unknown>
   },
 ): Array<UIMessage> {
   return messages.map((msg) => {
@@ -67,6 +68,10 @@ export function updateToolCallPart(
       (p): p is ToolCallPart => p.type === 'tool-call' && p.id === toolCall.id,
     )
 
+    // Carry forward providerMetadata from either the new toolCall or the existing part
+    const providerMetadata =
+      toolCall.providerMetadata ?? existing?.providerMetadata
+
     const toolCallPart: ToolCallPart = {
       type: 'tool-call',
       id: toolCall.id,
@@ -76,6 +81,7 @@ export function updateToolCallPart(
       // Carry forward approval and output from the existing part
       ...(existing?.approval && { approval: { ...existing.approval } }),
       ...(existing?.output !== undefined && { output: existing.output }),
+      ...(providerMetadata && { providerMetadata }),
     }
 
     if (existing) {
