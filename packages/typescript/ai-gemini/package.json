@@ -50,6 +50,6 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7"
+    "vite": "^7.3.1"
   }
 }
