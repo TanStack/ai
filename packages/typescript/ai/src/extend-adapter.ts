@@ -88,7 +88,7 @@ type ExtractCustomModelNames<TDefs extends ReadonlyArray<ExtendedModelDef>> =
  * For generic functions like `<T extends Union>(model: T)`, this gets `T` which
  * TypeScript treats as the constraint union when used in parameter position.
  */
-export type InferFactoryModels<TFactory> = TFactory extends (
+type InferFactoryModels<TFactory> = TFactory extends (
   model: infer TModel,
   ...args: Array<any>
 ) => any
@@ -97,15 +97,6 @@ export type InferFactoryModels<TFactory> = TFactory extends (
     : string
   : string
 
-/**
- * Infer the config parameter type from an adapter factory function.
- */
-export type InferConfig<TFactory> = TFactory extends (
-  model: any,
-  config?: infer TConfig,
-) => any
-  ? TConfig
-  : undefined
 
 /**
  * Infer the adapter return type from a factory function.
