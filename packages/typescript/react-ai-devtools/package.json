@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/react-ai-devtools",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "description": "React Devtools for TanStack AI.",
   "author": "tannerlinsley",
   "license": "MIT",

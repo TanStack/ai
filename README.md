@@ -49,6 +49,10 @@ A powerful, type-safe AI SDK for building AI-powered applications.
 
 ### <a href="https://tanstack.com/ai">Read the docs →</a>
 
+## Requirements
+
+- **Node.js v24+** is required to avoid compatibility issues with `isolated-vm`.
+
 ## Tree-Shakeable Adapters
 
 Import only the functionality you need for smaller bundle sizes:
