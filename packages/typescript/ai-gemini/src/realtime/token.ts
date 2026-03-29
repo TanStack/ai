@@ -1,7 +1,7 @@
-import { GoogleGenAI, Modality } from "@google/genai";
-import { getGeminiApiKeyFromEnv } from "../utils";
-import type { RealtimeToken, RealtimeTokenAdapter } from "@tanstack/ai";
-import type { GeminiRealtimeModel, GeminiRealtimeTokenOptions } from "./types";
+import { GoogleGenAI, Modality } from '@google/genai'
+import { getGeminiApiKeyFromEnv } from '../utils'
+import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
+import type { GeminiRealtimeModel, GeminiRealtimeTokenOptions } from './types'
 
 /**
  * Creates a Google Gemini realtime token adapter.
@@ -30,16 +30,16 @@ export function geminiRealtimeToken(
 
   const client = new GoogleGenAI({
     apiKey,
-  });
+  })
 
   // Defaults to 30 minutes
-  const expireTime = options.expiresAt ?? Date.now() + 30 * 60 * 1000;
+  const expireTime = options.expiresAt ?? Date.now() + 30 * 60 * 1000
 
   return {
     provider: 'gemini',
     async generateToken(): Promise<RealtimeToken> {
       const model: GeminiRealtimeModel =
-        options.model ?? "gemini-live-2.5-flash-native-audio"
+        options.model ?? 'gemini-live-2.5-flash-native-audio'
 
       const token = await client.authTokens.create({
         config: {
@@ -50,14 +50,14 @@ export function geminiRealtimeToken(
             config: {
               sessionResumption: {},
               maxOutputTokens: options.maxOutputTokens,
-              responseModalities: [Modality.AUDIO]
-            }
+              responseModalities: [Modality.AUDIO],
+            },
           },
           httpOptions: {
-            apiVersion: 'v1alpha'
-          }
-        }
-      });
+            apiVersion: 'v1alpha',
+          },
+        },
+      })
 
       if (!token.name) {
         throw new Error('Gemini realtime token creation failed')
@@ -70,10 +70,9 @@ export function geminiRealtimeToken(
         config: {
           model,
           maxOutputTokens: options.maxOutputTokens,
-          outputModalities: ["audio"],
-        }
+          outputModalities: ['audio'],
+        },
       }
-    }
+    },
   }
 }
-

@@ -1,6 +1,11 @@
-import type { AnyClientTool, RealtimeEvent, RealtimeEventHandler, RealtimeToken } from "@tanstack/ai"
-import type { RealtimeAdapter, RealtimeConnection } from "@tanstack/ai-client"
-import type { GeminiRealtimeOptions } from "./types"
+import type {
+  AnyClientTool,
+  RealtimeEvent,
+  RealtimeEventHandler,
+  RealtimeToken,
+} from '@tanstack/ai'
+import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
+import type { GeminiRealtimeOptions } from './types'
 
 /**
  * Creates a Gemini realtime adapter for client-side use.
@@ -20,17 +25,17 @@ import type { GeminiRealtimeOptions } from "./types"
  * ```
  */
 export function geminiRealtime(
-  options: GeminiRealtimeOptions = {}
+  options: GeminiRealtimeOptions = {},
 ): RealtimeAdapter {
   return {
     provider: 'gemini',
-    
+
     connect(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
       return createWebSocketConnection(token)
-    }
+    },
   }
 }
 
@@ -38,12 +43,10 @@ export function geminiRealtime(
  * Creates a WebSocket connection to Gemini's realtime API
  */
 function createWebSocketConnection(
-  token: RealtimeToken
+  token: RealtimeToken,
 ): Promise<RealtimeConnection> {
   const model = token.config.model ?? 'gemini-live-2.5-flash-native-audio'
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
-  return new Promise((resolve, reject) => {
-    
-  })
+  return new Promise((resolve, reject) => {})
 }

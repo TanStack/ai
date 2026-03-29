@@ -1,8 +1,7 @@
 /**
  * Gemini realtime model options
  */
-export type GeminiRealtimeModel =
-  | 'gemini-live-2.5-flash-native-audio'
+export type GeminiRealtimeModel = 'gemini-live-2.5-flash-native-audio'
 
 /**
  * Options for the Gemini realtime client adapter
@@ -25,6 +24,4 @@ export interface GeminiRealtimeTokenOptions {
 /**
  * Gemini Realtime session response from the API
  */
-export interface GeminiRealtimeSessionResponse {
-  
-}
+export interface GeminiRealtimeSessionResponse {}
