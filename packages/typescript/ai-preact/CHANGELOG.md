@@ -1,5 +1,13 @@
 # @tanstack/ai-preact
 
+## 0.6.9
+
+### Patch Changes
+
+- Updated dependencies [[`b8cc69e`](https://github.com/TanStack/ai/commit/b8cc69e15eda49ce68cc48848284b0d74a55a97c)]:
+  - @tanstack/ai@0.9.1
+  - @tanstack/ai-client@0.7.4
+
 ## 0.6.8
 
 ### Patch Changes
