@@ -88,7 +88,7 @@ type ExtractCustomModelNames<TDefs extends ReadonlyArray<ExtendedModelDef>> =
  * For generic functions like `<T extends Union>(model: T)`, this gets `T` which
  * TypeScript treats as the constraint union when used in parameter position.
  */
-type InferFactoryModels<TFactory> = TFactory extends (
+export type InferFactoryModels<TFactory> = TFactory extends (
   model: infer TModel,
   ...args: Array<any>
 ) => any
@@ -100,7 +100,7 @@ type InferFactoryModels<TFactory> = TFactory extends (
 /**
  * Infer the config parameter type from an adapter factory function.
  */
-type InferConfig<TFactory> = TFactory extends (
+export type InferConfig<TFactory> = TFactory extends (
   model: any,
   config?: infer TConfig,
 ) => any
@@ -115,6 +115,12 @@ type InferAdapterReturn<TFactory> = TFactory extends (
 ) => infer TReturn
   ? TReturn
   : never
+
+/**
+ * Extracts all parameter types after the first parameter from a function.
+ */
+type InferRestArgs<TFactory extends (...args: any) => any> =
+  Parameters<TFactory> extends [any, ...infer Rest] ? Rest : []
 
 // ===========================
 // extendAdapter Function
@@ -164,19 +170,17 @@ type InferAdapterReturn<TFactory> = TFactory extends (
  * ```
  */
 export function extendAdapter<
-  TFactory extends (...args: Array<any>) => any,
+  TFactory extends (model: any, ...args: Array<any>) => any,
   const TDefs extends ReadonlyArray<ExtendedModelDef>,
 >(
   factory: TFactory,
   _customModels: TDefs,
-): (
-  model: InferFactoryModels<TFactory> | ExtractCustomModelNames<TDefs>,
-  ...args: InferConfig<TFactory> extends undefined
-    ? []
-    : [config?: InferConfig<TFactory>]
-) => InferAdapterReturn<TFactory> {
+) {
   // At runtime, we simply pass through to the original factory.
   // The _customModels parameter is only used for type inference.
   // No runtime validation - users are trusted to pass valid model names.
-  return factory as any
+  return factory as unknown as (
+    model: InferFactoryModels<TFactory> | ExtractCustomModelNames<TDefs>,
+    ...args: InferRestArgs<TFactory>
+  ) => InferAdapterReturn<TFactory>
 }
