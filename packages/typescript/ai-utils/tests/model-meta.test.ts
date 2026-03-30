@@ -47,7 +47,7 @@ describe('defineModelMeta', () => {
           input: { normal: -1 },
           output: { normal: 1 },
         },
-      })
+      }),
     ).toThrow('pricing')
   })
 
@@ -60,7 +60,7 @@ describe('defineModelMeta', () => {
           output: ['text'] as Array<Modality>,
         },
         context_window: 0,
-      })
+      }),
     ).toThrow('context_window')
   })
 
@@ -72,7 +72,7 @@ describe('defineModelMeta', () => {
           input: [] as Array<Modality>,
           output: ['text'] as Array<Modality>,
         },
-      })
+      }),
     ).toThrow('input')
   })
 
@@ -84,7 +84,7 @@ describe('defineModelMeta', () => {
           input: ['text'] as Array<Modality>,
           output: [] as Array<Modality>,
         },
-      })
+      }),
     ).toThrow('output')
   })
 
@@ -100,7 +100,7 @@ describe('defineModelMeta', () => {
           input: { normal: 1 },
           output: { normal: -1 },
         },
-      })
+      }),
     ).toThrow('pricing')
   })
 })

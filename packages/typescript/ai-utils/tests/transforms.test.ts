@@ -18,7 +18,10 @@ describe('transformNullsToUndefined', () => {
 
   it('should handle arrays', () => {
     const result = transformNullsToUndefined({
-      items: [{ a: null, b: 1 }, { a: 'x', b: null }],
+      items: [
+        { a: null, b: 1 },
+        { a: 'x', b: null },
+      ],
     })
     expect(result).toEqual({
       items: [{ b: 1 }, { a: 'x' }],

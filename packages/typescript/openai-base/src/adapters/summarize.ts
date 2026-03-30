@@ -12,7 +12,9 @@ import type {
  * text adapter without tight coupling to a specific implementation.
  */
 export interface ChatStreamCapable<TProviderOptions extends object> {
-  chatStream: (options: TextOptions<TProviderOptions>) => AsyncIterable<StreamChunk>
+  chatStream: (
+    options: TextOptions<TProviderOptions>,
+  ) => AsyncIterable<StreamChunk>
 }
 
 /**

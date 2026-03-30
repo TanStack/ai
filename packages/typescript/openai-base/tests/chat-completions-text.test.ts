@@ -625,9 +625,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       const result = await adapter.structuredOutput({
         chatOptions: {
           model: 'test-model',
-          messages: [
-            { role: 'user', content: 'Give me a person object' },
-          ],
+          messages: [{ role: 'user', content: 'Give me a person object' }],
         },
         outputSchema: {
           type: 'object',
@@ -674,9 +672,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       const result = await adapter.structuredOutput({
         chatOptions: {
           model: 'test-model',
-          messages: [
-            { role: 'user', content: 'Give me a person object' },
-          ],
+          messages: [{ role: 'user', content: 'Give me a person object' }],
         },
         outputSchema: {
           type: 'object',
@@ -715,9 +711,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
         adapter.structuredOutput({
           chatOptions: {
             model: 'test-model',
-            messages: [
-              { role: 'user', content: 'Give me a person object' },
-            ],
+            messages: [{ role: 'user', content: 'Give me a person object' }],
           },
           outputSchema: {
             type: 'object',
@@ -735,7 +729,11 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
     it('allows subclassing with custom name', () => {
       class MyProviderAdapter extends OpenAICompatibleChatCompletionsTextAdapter<string> {
         constructor(apiKey: string, model: string) {
-          super({ apiKey, baseURL: 'https://my-provider.com/v1' }, model, 'my-provider')
+          super(
+            { apiKey, baseURL: 'https://my-provider.com/v1' },
+            model,
+            'my-provider',
+          )
         }
       }
 

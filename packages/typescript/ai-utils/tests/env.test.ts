@@ -21,6 +21,8 @@ describe('getApiKeyFromEnv', () => {
   })
 
   it('should include the env var name in the error message', () => {
-    expect(() => getApiKeyFromEnv('MY_PROVIDER_API_KEY')).toThrow('MY_PROVIDER_API_KEY')
+    expect(() => getApiKeyFromEnv('MY_PROVIDER_API_KEY')).toThrow(
+      'MY_PROVIDER_API_KEY',
+    )
   })
 })

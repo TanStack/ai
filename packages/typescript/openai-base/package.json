@@ -18,7 +18,10 @@
       "import": "./dist/esm/index.js"
     }
   },
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
@@ -29,7 +32,13 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
-  "keywords": ["ai", "openai", "tanstack", "adapter", "base"],
+  "keywords": [
+    "ai",
+    "openai",
+    "tanstack",
+    "adapter",
+    "base"
+  ],
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
     "openai": "^6.9.1"

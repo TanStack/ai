@@ -29,7 +29,11 @@ export interface OpenAICompatibleStructuredOutputOptions {
 export interface OpenAICompatibleToolsOptions {
   max_tool_calls?: number
   parallel_tool_calls?: boolean
-  tool_choice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } }
+  tool_choice?:
+    | 'auto'
+    | 'none'
+    | 'required'
+    | { type: 'function'; function: { name: string } }
 }
 
 export interface OpenAICompatibleStreamingOptions {

@@ -102,9 +102,7 @@ export class OpenAICompatibleTranscriptionAdapter<
     }
   }
 
-  protected prepareAudioFile(
-    audio: string | File | Blob | ArrayBuffer,
-  ): File {
+  protected prepareAudioFile(audio: string | File | Blob | ArrayBuffer): File {
     // If already a File, return it
     if (typeof File !== 'undefined' && audio instanceof File) {
       return audio

@@ -1059,8 +1059,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       expect(errorChunks.length).toBeGreaterThan(0)
       const incompleteError = errorChunks.find(
         (c) =>
-          c.type === 'RUN_ERROR' &&
-          c.error.message === 'max_output_tokens',
+          c.type === 'RUN_ERROR' && c.error.message === 'max_output_tokens',
       )
       expect(incompleteError).toBeDefined()
     })
@@ -1097,7 +1096,8 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       }
 
       const errorChunk = chunks.find(
-        (c) => c.type === 'RUN_ERROR' && c.error.message === 'Rate limit exceeded',
+        (c) =>
+          c.type === 'RUN_ERROR' && c.error.message === 'Rate limit exceeded',
       )
       expect(errorChunk).toBeDefined()
       if (errorChunk?.type === 'RUN_ERROR') {
@@ -1231,9 +1231,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         adapter.structuredOutput({
           chatOptions: {
             model: 'test-model',
-            messages: [
-              { role: 'user', content: 'Give me a person object' },
-            ],
+            messages: [{ role: 'user', content: 'Give me a person object' }],
           },
           outputSchema: {
             type: 'object',

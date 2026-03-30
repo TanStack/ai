@@ -148,8 +148,7 @@ export class OpenAICompatibleVideoAdapter<
         }
 
         // Fetch and return a data URL
-        const baseUrl =
-          this.clientConfig.baseURL || 'https://api.openai.com/v1'
+        const baseUrl = this.clientConfig.baseURL || 'https://api.openai.com/v1'
         const apiKey = this.clientConfig.apiKey
 
         const contentResponse = await fetch(

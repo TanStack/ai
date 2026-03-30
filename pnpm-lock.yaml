@@ -1058,6 +1058,12 @@ importers:
       '@tanstack/ai':
         specifier: workspace:^
         version: link:../ai
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
+      '@tanstack/openai-base':
+        specifier: workspace:*
+        version: link:../openai-base
       openai:
         specifier: ^6.9.1
         version: 6.10.0(ws@8.19.0)(zod@4.2.1)
@@ -1077,6 +1083,12 @@ importers:
       '@tanstack/ai':
         specifier: workspace:^
         version: link:../ai
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
+      '@tanstack/openai-base':
+        specifier: workspace:*
+        version: link:../openai-base
       groq-sdk:
         specifier: ^0.37.0
         version: 0.37.0
@@ -1141,6 +1153,9 @@ importers:
 
   packages/typescript/ai-ollama:
     dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
       ollama:
         specifier: ^0.6.3
         version: 0.6.3
@@ -1191,6 +1206,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14

@@ -46,8 +46,8 @@ export class OpenAICompatibleResponsesTextAdapter<
   TModel extends string,
   TProviderOptions extends Record<string, any> = Record<string, any>,
   TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
-  TMessageMetadata extends
-    DefaultMessageMetadataByModality = DefaultMessageMetadataByModality,
+  TMessageMetadata extends DefaultMessageMetadataByModality =
+    DefaultMessageMetadataByModality,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -316,13 +316,11 @@ export class OpenAICompatibleResponsesTextAdapter<
           }
         }
 
-        const handleContentPart = (
-          contentPart: {
-            type: string
-            text?: string
-            refusal?: string
-          },
-        ): StreamChunk => {
+        const handleContentPart = (contentPart: {
+          type: string
+          text?: string
+          refusal?: string
+        }): StreamChunk => {
           if (contentPart.type === 'output_text') {
             accumulatedContent += contentPart.text || ''
             return {
@@ -668,10 +666,7 @@ export class OpenAICompatibleResponsesTextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
-      console.log(
-        `[${this.name}] Stream ended with error:`,
-        err.message,
-      )
+      console.log(`[${this.name}] Stream ended with error:`, err.message)
       yield {
         type: 'RUN_ERROR',
         runId: aguiState.runId,

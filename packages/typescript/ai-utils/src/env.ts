@@ -10,7 +10,7 @@ export function getApiKeyFromEnv(envVarName: string): string {
 
   if (!apiKey) {
     throw new Error(
-      `${envVarName} is not set. Please set the ${envVarName} environment variable or pass the API key directly.`
+      `${envVarName} is not set. Please set the ${envVarName} environment variable or pass the API key directly.`,
     )
   }
 

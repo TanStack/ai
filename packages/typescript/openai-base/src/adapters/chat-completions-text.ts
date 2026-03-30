@@ -35,8 +35,8 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
   TModel extends string,
   TProviderOptions extends Record<string, any> = Record<string, any>,
   TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
-  TMessageMetadata extends
-    DefaultMessageMetadataByModality = DefaultMessageMetadataByModality,
+  TMessageMetadata extends DefaultMessageMetadataByModality =
+    DefaultMessageMetadataByModality,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -389,10 +389,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
-      console.log(
-        `[${this.name}] Stream ended with error:`,
-        err.message,
-      )
+      console.log(`[${this.name}] Stream ended with error:`, err.message)
 
       // Emit AG-UI RUN_ERROR
       yield {

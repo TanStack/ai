@@ -90,7 +90,7 @@ describe('Groq adapters', () => {
       vi.stubEnv('GROQ_API_KEY', '')
 
       expect(() => groqText('llama-3.3-70b-versatile')).toThrow(
-        'GROQ_API_KEY is required',
+        'GROQ_API_KEY',
       )
     })
 
