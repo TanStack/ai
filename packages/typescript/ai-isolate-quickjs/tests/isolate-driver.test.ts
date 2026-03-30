@@ -235,4 +235,90 @@ describe('createQuickJSIsolateDriver', () => {
       await ctx2.dispose()
     })
   })
+
+  describe('memoryLimit config', () => {
+    it('accepts memoryLimit via createContext and runs successfully', async () => {
+      const driver = createQuickJSIsolateDriver({ memoryLimit: 64 })
+      const context = await driver.createContext({
+        bindings: {},
+        memoryLimit: 64,
+      })
+
+      const result = await context.execute('return 1 + 1')
+
+      expect(result.success).toBe(true)
+      expect(result.value).toBe(2)
+      await context.dispose()
+    })
+
+    it('returns MemoryLimitError when allocation exceeds limit (does not crash)', async () => {
+      const driver = createQuickJSIsolateDriver({ memoryLimit: 1 })
+      const context = await driver.createContext({
+        bindings: {},
+        memoryLimit: 1,
+      })
+
+      const result = await context.execute(
+        `return "x".repeat(8 * 1024 * 1024);`,
+      )
+
+      expect(result.success).toBe(false)
+      expect(result.error?.name).toBe('MemoryLimitError')
+      expect(result.error?.message).toContain('memory limit')
+    })
+
+    it('dispose is safe after memory limit error', async () => {
+      const driver = createQuickJSIsolateDriver({ memoryLimit: 1 })
+      const context = await driver.createContext({
+        bindings: {},
+        memoryLimit: 1,
+      })
+
+      await context.execute(`return "x".repeat(8 * 1024 * 1024);`)
+
+      await expect(context.dispose()).resolves.toBeUndefined()
+    })
+  })
+
+  describe('maxStackSize config', () => {
+    it('returns StackOverflowError for deep recursion when stack is small', async () => {
+      const driver = createQuickJSIsolateDriver({
+        maxStackSize: 32 * 1024,
+        timeout: 30000,
+      })
+      const context = await driver.createContext({ bindings: {} })
+
+      const result = await context.execute(`
+        function f(n) {
+          if (n <= 0) return 0;
+          return 1 + f(n - 1);
+        }
+        return f(200000);
+      `)
+
+      expect(result.success).toBe(false)
+      expect(result.error?.name).toBe('StackOverflowError')
+      expect(result.error?.message).toContain('stack')
+      await context.dispose()
+    })
+  })
+
+  describe('execute after fatal memory limit', () => {
+    it('returns DisposedError on subsequent execute after OOM', async () => {
+      const driver = createQuickJSIsolateDriver({ memoryLimit: 1 })
+      const context = await driver.createContext({
+        bindings: {},
+        memoryLimit: 1,
+      })
+
+      const first = await context.execute(`return "x".repeat(8 * 1024 * 1024);`)
+      expect(first.success).toBe(false)
+      expect(first.error?.name).toBe('MemoryLimitError')
+
+      const second = await context.execute('return 42')
+      expect(second.success).toBe(false)
+      expect(second.error?.name).toBe('DisposedError')
+      expect(second.error?.message).toContain('disposed')
+    })
+  })
 })

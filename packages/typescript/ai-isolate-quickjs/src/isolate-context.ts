@@ -1,5 +1,8 @@
 import { wrapCode } from '@tanstack/ai-code-mode'
-import { normalizeError } from './error-normalizer'
+import {
+  isFatalQuickJSLimitError,
+  normalizeError,
+} from './error-normalizer'
 import type { QuickJSAsyncContext } from 'quickjs-emscripten'
 import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
 
@@ -65,6 +68,29 @@ export class QuickJSIsolateContext implements IsolateContext {
     this.executing = true
     this.logs.length = 0
 
+    const releaseVmAfterFatalLimit = () => {
+      if (this.disposed) return
+      try {
+        this.vm.runtime.setInterruptHandler(() => false)
+      } catch {
+        // ignore if runtime is already torn down
+      }
+      this.disposed = true
+      this.vm.dispose()
+    }
+
+    const fail = (error: unknown) => {
+      const normalized = normalizeError(error)
+      if (isFatalQuickJSLimitError(normalized)) {
+        releaseVmAfterFatalLimit()
+      }
+      return {
+        success: false as const,
+        error: normalized,
+        logs: [...this.logs],
+      }
+    }
+
     try {
       const wrappedCode = wrapCode(code)
 
@@ -73,54 +99,52 @@ export class QuickJSIsolateContext implements IsolateContext {
         return Date.now() > deadline
       })
 
-      const result = await this.vm.evalCodeAsync(wrappedCode)
-
-      this.vm.runtime.setInterruptHandler(() => false)
-
-      let parsedResult: T
       try {
-        const promiseHandle = this.vm.unwrapResult(result)
+        const result = await this.vm.evalCodeAsync(wrappedCode)
 
-        // evalCodeAsync returns a Promise handle (our wrapper is an async IIFE).
-        // Use resolvePromise + executePendingJobs to properly await the
-        // QuickJS promise without re-entering the WASM asyncify state.
-        const nativePromise = this.vm.resolvePromise(promiseHandle)
-        promiseHandle.dispose()
-        this.vm.runtime.executePendingJobs()
-        const resolvedResult = await nativePromise
+        let parsedResult: T
+        try {
+          const promiseHandle = this.vm.unwrapResult(result)
 
-        const valueHandle = this.vm.unwrapResult(resolvedResult)
-        const dumpedResult = this.vm.dump(valueHandle)
-        valueHandle.dispose()
+          // evalCodeAsync returns a Promise handle (our wrapper is an async IIFE).
+          // Use resolvePromise + executePendingJobs to properly await the
+          // QuickJS promise without re-entering the WASM asyncify state.
+          const nativePromise = this.vm.resolvePromise(promiseHandle)
+          promiseHandle.dispose()
+          this.vm.runtime.executePendingJobs()
+          const resolvedResult = await nativePromise
 
-        if (typeof dumpedResult === 'string') {
-          try {
-            parsedResult = JSON.parse(dumpedResult) as T
-          } catch {
+          const valueHandle = this.vm.unwrapResult(resolvedResult)
+          const dumpedResult = this.vm.dump(valueHandle)
+          valueHandle.dispose()
+
+          if (typeof dumpedResult === 'string') {
+            try {
+              parsedResult = JSON.parse(dumpedResult) as T
+            } catch {
+              parsedResult = dumpedResult as T
+            }
+          } else {
             parsedResult = dumpedResult as T
           }
-        } else {
-          parsedResult = dumpedResult as T
-        }
 
-        return {
-          success: true,
-          value: parsedResult,
-          logs: [...this.logs],
+          return {
+            success: true,
+            value: parsedResult,
+            logs: [...this.logs],
+          }
+        } catch (unwrapError) {
+          return fail(unwrapError)
         }
-      } catch (unwrapError) {
-        return {
-          success: false,
-          error: normalizeError(unwrapError),
-          logs: [...this.logs],
+      } finally {
+        // fail() may set disposed when releasing the VM after memory/stack limit errors
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- disposed set in fail()
+        if (!this.disposed) {
+          this.vm.runtime.setInterruptHandler(() => false)
         }
       }
     } catch (error) {
-      return {
-        success: false,
-        error: normalizeError(error),
-        logs: [...this.logs],
-      }
+      return fail(error)
     } finally {
       this.executing = false
       resolve()

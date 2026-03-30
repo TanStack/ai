@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { createCodeModeToolAndPrompt } from './create-code-mode-tool-and-prompt'
 import { generateAgentName } from './agent-store'
 import type { AnyTextAdapter } from '@tanstack/ai'
-import type { AgentStore, AgentSession } from './agent-store'
+import type { AgentSession, AgentStore } from './agent-store'
 import type { CodeModeTool, IsolateDriver, ToolBinding } from './types'
 
 export interface ExecutePromptEvent {
@@ -72,7 +72,7 @@ function createMemoryTools(session: AgentSession, onEvent?: (event: ExecutePromp
       found: z.boolean(),
       value: z.unknown().optional(),
     }),
-  }).server(async (input: { key: string }) => {
+  }).server((input: { key: string }) => {
     const value = session.memory[input.key]
     return { found: value !== undefined, value }
   })
@@ -85,7 +85,7 @@ function createMemoryTools(session: AgentSession, onEvent?: (event: ExecutePromp
       value: z.unknown().describe('The value to store'),
     }),
     outputSchema: z.object({ success: z.boolean() }),
-  }).server(async (input: { key: string; value: unknown }) => {
+  }).server((input: { key: string; value: unknown }) => {
     session.memory[input.key] = input.value
     onEvent?.({
       type: 'memory:update',
@@ -118,7 +118,7 @@ export async function executePrompt(
   } = options
 
   // Resolve agent name and session
-  let agentName = options.agentName || generateAgentName()
+  const agentName = options.agentName || generateAgentName()
   let session: AgentSession | null = null
   let memoryContext = ''
   const extraTools: Array<CodeModeTool> = []

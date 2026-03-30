@@ -1,418 +1,280 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import type { UIMessage } from '@tanstack/ai-react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import ChatInput from '@/components/ChatInput'
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { openaiRealtime } from '@tanstack/ai-openai'
+import type { RealtimeMessage } from '@tanstack/ai'
+import { Phone, PhoneOff, Send } from 'lucide-react'
 import { Header } from '@/components'
-import { INITIAL_MANIFEST } from '@/lib/dashboard/manifest'
-import {
-  DashboardPanel,
-  dashboardReducer,
-  createInitialState,
-  TILE_COLORS,
-  ORCHESTRATOR_COLORS,
-} from '@/components/dashboard'
-import type { AgentActivityEvent } from '@/components/dashboard'
+import { dashboardRealtimeTools } from '@/lib/dashboard-realtime-tools'
 
 export const Route = createFileRoute('/_dashboard-demo/dashboard-demo' as any)({
   component: DashboardDemoPage,
 })
 
-type Provider = 'anthropic' | 'openai' | 'gemini'
+const REALTIME_INSTRUCTIONS = `You are a helpful assistant for a shoe product catalog demo.
 
-interface ModelOption {
-  provider: Provider
-  model: string
-  label: string
-}
+When the user asks anything about shoes, prices, brands, categories, comparisons, or catalog data, you MUST use the execute_prompt tool. Pass a single clear natural-language prompt describing what to compute or retrieve (the backend runs code-mode analysis over the same product database as the home page).
 
-const MODEL_OPTIONS: Array<ModelOption> = [
-  {
-    provider: 'anthropic',
-    model: 'claude-haiku-4-5',
-    label: 'Claude Haiku 4.5',
-  },
-  {
-    provider: 'anthropic',
-    model: 'claude-haiku-4-20250514',
-    label: 'Claude Haiku 4',
-  },
-  { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o' },
-  { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-]
+After you receive tool results, summarize the findings clearly for the user in plain text.
 
-// ─── Tool Call Display ─────────────────────────────────────────────────────
+Do not invent catalog data — always use execute_prompt for factual product questions.`
 
-function ToolCallDisplay({
-  name,
-  arguments: args,
-  output,
-  state,
-  hasResult = false,
-}: {
-  name: string
-  arguments: string
-  output?: unknown
-  state: string
-  hasResult?: boolean
-}) {
-  const isInputStreaming = state === 'input-streaming'
-  const isInputComplete = state === 'input-complete'
-  const hasOutput = output !== undefined || hasResult
-  const isExecuting = isInputComplete && !hasOutput
-  const isRunning = isInputStreaming || isExecuting
-
-  const [inputOpen, setInputOpen] = useState(false)
-
-  let parsedArgs: unknown
-  try {
-    parsedArgs = JSON.parse(args)
-  } catch {
-    parsedArgs = args
-  }
-
-  const isTileQuery = name === 'query_tile'
-  const tileId =
-    isTileQuery && typeof parsedArgs === 'object' && parsedArgs !== null
-      ? (parsedArgs as { tileId?: string }).tileId
-      : undefined
-  const tileColors = tileId
-    ? TILE_COLORS[tileId] || ORCHESTRATOR_COLORS
-    : { bg: 'bg-violet-900/10', text: 'text-violet-300', border: 'border-violet-500/30' }
+function MessageBubble({ message }: { message: RealtimeMessage }) {
+  const isUser = message.role === 'user'
 
   return (
     <div
-      className={`mt-2 rounded-lg border ${tileColors.border} ${tileColors.bg} overflow-hidden text-sm`}
+      className={`p-3 rounded-lg mb-2 ${
+        isUser ? 'bg-gray-800/80 mr-8' : 'bg-violet-900/30 ml-8'
+      }`}
     >
-      <div
-        className={`flex items-center gap-2 px-3 py-1.5 ${tileColors.text}`}
-      >
-        {isRunning ? (
-          <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <div className="w-3 h-3 rounded-full bg-current opacity-50" />
-        )}
-        <span className="font-mono font-medium text-xs">
-          {isTileQuery && tileId ? `query: ${tileId}` : name}
-        </span>
-        {isRunning && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-current/20 animate-pulse">
-            Running...
-          </span>
-        )}
-      </div>
-
-      {typeof parsedArgs === 'object' && parsedArgs !== null && (
-        <div className={`border-t ${tileColors.border.replace('/30', '/20')}`}>
-          <button
-            onClick={() => setInputOpen(!inputOpen)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-white/5 transition-colors"
-          >
-            {inputOpen ? (
-              <ChevronDown size={12} />
-            ) : (
-              <ChevronRight size={12} />
-            )}
-            <span>
-              {isTileQuery
-                ? (parsedArgs as { question?: string }).question?.slice(0, 80) || 'Details'
-                : 'Input'}
-            </span>
-          </button>
-          {inputOpen && (
-            <pre className="px-3 pb-2 text-xs text-gray-300 overflow-x-auto max-h-32 overflow-y-auto font-mono whitespace-pre-wrap">
-              {JSON.stringify(parsedArgs, null, 2)}
-            </pre>
+      <div className="flex items-start gap-3">
+        <div
+          className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-xs font-medium text-white ${
+            isUser ? 'bg-gray-600' : 'bg-violet-600'
+          }`}
+        >
+          {isUser ? 'U' : 'AI'}
+        </div>
+        <div className="flex-1 min-w-0 text-sm text-gray-100 space-y-2">
+          {message.parts.map((part, idx) => {
+            if (part.type === 'text') {
+              return <p key={idx}>{part.content}</p>
+            }
+            if (part.type === 'audio') {
+              return (
+                <p key={idx} className="text-gray-300 italic">
+                  {part.transcript}
+                </p>
+              )
+            }
+            if (part.type === 'tool-call') {
+              let args: unknown = part.arguments
+              try {
+                args = JSON.parse(part.arguments)
+              } catch {
+                /* keep string */
+              }
+              return (
+                <div
+                  key={idx}
+                  className="rounded border border-violet-500/30 bg-violet-950/40 px-2 py-1.5 font-mono text-xs text-violet-200"
+                >
+                  <div className="text-violet-400 mb-1">{part.name}</div>
+                  <pre className="whitespace-pre-wrap break-words overflow-x-auto">
+                    {typeof args === 'string'
+                      ? args
+                      : JSON.stringify(args, null, 2)}
+                  </pre>
+                </div>
+              )
+            }
+            if (part.type === 'tool-result') {
+              let parsed: unknown = part.content
+              try {
+                parsed = JSON.parse(part.content)
+              } catch {
+                /* keep string */
+              }
+              return (
+                <div
+                  key={idx}
+                  className="rounded border border-emerald-500/30 bg-emerald-950/30 px-2 py-1.5 font-mono text-xs text-emerald-100"
+                >
+                  <div className="text-emerald-400 mb-1">result</div>
+                  <pre className="whitespace-pre-wrap break-words overflow-x-auto max-h-48 overflow-y-auto">
+                    {typeof parsed === 'string'
+                      ? parsed
+                      : JSON.stringify(parsed, null, 2)}
+                  </pre>
+                </div>
+              )
+            }
+            if (part.type === 'image') {
+              return (
+                <p key={idx} className="text-gray-400 text-xs">
+                  [image]
+                </p>
+              )
+            }
+            return null
+          })}
+          {message.interrupted && (
+            <span className="text-xs text-gray-500">(interrupted)</span>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
-
-// ─── Messages ──────────────────────────────────────────────────────────────
-
-function Messages({ messages }: { messages: Array<UIMessage> }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight
-    }
-  }, [messages])
-
-  if (!messages.length) return null
-
-  return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
-    >
-      {messages.map((message) => {
-        const toolResults = new Map<
-          string,
-          { content: string; state: string; error?: string }
-        >()
-        for (const p of message.parts) {
-          if (p.type === 'tool-result') {
-            toolResults.set(p.toolCallId, {
-              content: p.content,
-              state: p.state,
-              error: p.error,
-            })
-          }
-        }
-
-        return (
-          <div
-            key={message.id}
-            className={`rounded-lg p-3 ${
-              message.role === 'user'
-                ? 'bg-violet-900/30 text-violet-100 ml-6'
-                : 'bg-gray-800/60 text-gray-100 mr-6'
-            }`}
-          >
-            <div className="flex items-start gap-2">
-              <div
-                className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-medium shrink-0 ${
-                  message.role === 'assistant'
-                    ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white'
-                    : 'bg-gray-700 text-white'
-                }`}
-              >
-                {message.role === 'assistant' ? 'AI' : 'U'}
-              </div>
-              <div className="flex-1 min-w-0 text-sm">
-                {message.parts.map((part, index) => {
-                  if (part.type === 'text' && part.content) {
-                    return (
-                      <div
-                        key={`text-${index}`}
-                        className="prose prose-invert prose-sm max-w-none"
-                      >
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {part.content}
-                        </ReactMarkdown>
-                      </div>
-                    )
-                  }
-
-                  if (part.type === 'tool-call') {
-                    const toolResult = toolResults.get(part.id)
-                    const effectiveOutput =
-                      part.output ??
-                      (toolResult?.content
-                        ? (() => {
-                            try {
-                              return JSON.parse(toolResult.content)
-                            } catch {
-                              return toolResult.content
-                            }
-                          })()
-                        : undefined)
-
-                    return (
-                      <ToolCallDisplay
-                        key={part.id}
-                        name={part.name}
-                        arguments={part.arguments}
-                        output={effectiveOutput}
-                        state={part.state}
-                        hasResult={toolResult !== undefined}
-                      />
-                    )
-                  }
-
-                  if (part.type === 'tool-result') {
-                    return null
-                  }
-
-                  return null
-                })}
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ─── Main Page ─────────────────────────────────────────────────────────────
 
 function DashboardDemoPage() {
-  const [selectedModel, setSelectedModel] = useState<ModelOption>(
-    MODEL_OPTIONS[0],
-  )
-  const [dashboardState, dispatch] = useReducer(
-    dashboardReducer,
-    INITIAL_MANIFEST,
-    createInitialState,
-  )
+  const [textInput, setTextInput] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const body = useMemo(
-    () => ({
-      provider: selectedModel.provider,
-      model: selectedModel.model,
-    }),
-    [selectedModel.provider, selectedModel.model],
-  )
-
-  const handleCustomEvent = useCallback(
-    (eventType: string, data: unknown) => {
-      if (!eventType.startsWith('dashboard:')) return
-
-      const eventData = data as {
-        type: string
-        agentName: string
-        message: string
-        data?: unknown
-        timestamp: number
-        tileId?: string
-        tileName?: string
-      }
-      const event: AgentActivityEvent = {
-        id: `${eventData.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
-        type: eventData.type,
-        tileId: eventData.tileId,
-        tileName: eventData.tileName,
-        agentName: eventData.agentName,
-        message: eventData.message,
-        data: eventData.data,
-        timestamp: eventData.timestamp,
-      }
-
-      const tileId = eventData.tileId
-
-      if (eventData.type === 'agent:start' && tileId) {
-        dispatch({ type: 'TILE_LOADING', tileId, event })
-      } else if (eventData.type === 'memory:update' && tileId) {
-        dispatch({ type: 'TILE_MEMORY_UPDATE', tileId, event })
-      } else if (eventData.type === 'session:updated' && tileId) {
-        const sessionData = eventData.data as { memory: Record<string, unknown>; name: string; createdAt: number; lastUsedAt: number } | undefined
-        if (sessionData) {
-          dispatch({
-            type: 'TILE_SESSION_UPDATED',
-            tileId,
-            session: {
-              name: sessionData.name,
-              memory: sessionData.memory,
-              createdAt: sessionData.createdAt,
-              lastUsedAt: sessionData.lastUsedAt,
-            },
-            event,
+  const {
+    status,
+    mode,
+    messages,
+    pendingUserTranscript,
+    pendingAssistantTranscript,
+    error,
+    connect,
+    disconnect,
+    interrupt,
+    sendText,
+  } = useRealtimeChat({
+    getToken: () =>
+      fetch('/api/realtime-token', { method: 'POST' }).then((r) => {
+        if (!r.ok) {
+          return r.json().then((body) => {
+            throw new Error(
+              (body as { error?: string }).error || r.statusText,
+            )
           })
-        } else {
-          dispatch({ type: 'ADD_EVENT', event, tileId })
         }
-      } else if (eventData.type === 'agent:complete' && tileId) {
-        dispatch({ type: 'TILE_COMPLETE', tileId, data: eventData.data, event })
-      } else {
-        dispatch({ type: 'ADD_EVENT', event, tileId })
-      }
+        return r.json()
+      }),
+    adapter: openaiRealtime(),
+    instructions: REALTIME_INSTRUCTIONS,
+    tools: [...dashboardRealtimeTools],
+    voice: 'alloy',
+    outputModalities: ['text'],
+    autoCapture: false,
+    autoPlayback: false,
+    temperature: 0.8,
+    onError: (err) => {
+      console.error('Realtime error:', err)
     },
-    [],
-  )
-
-  const { messages, sendMessage, isLoading } = useChat({
-    connection: fetchServerSentEvents('/api/dashboard-chat'),
-    body,
-    onCustomEvent: handleCustomEvent,
   })
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, pendingUserTranscript, pendingAssistantTranscript])
+
+  const statusDot =
+    status === 'connected'
+      ? 'bg-green-500'
+      : status === 'connecting' || status === 'reconnecting'
+        ? 'bg-yellow-500'
+        : status === 'error'
+          ? 'bg-red-500'
+          : 'bg-gray-500'
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
       <Header />
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left panel — Chat (fixed width sidebar) */}
-        <div className="w-80 shrink-0 flex flex-col border-r border-gray-800">
-          <div className="p-4 border-b border-gray-800 bg-gray-850">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <div className="text-sm font-semibold text-white">
-                  Dashboard Chat
-                </div>
-                <div className="text-xs text-gray-400">
-                  Orchestrator + Tile Agents
-                </div>
-              </div>
-              <select
-                value={MODEL_OPTIONS.findIndex(
-                  (opt) =>
-                    opt.provider === selectedModel.provider &&
-                    opt.model === selectedModel.model,
-                )}
-                onChange={(e) => {
-                  const option = MODEL_OPTIONS[parseInt(e.target.value)]
-                  setSelectedModel(option)
-                }}
-                disabled={isLoading}
-                className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500/50 disabled:opacity-50"
-              >
-                {MODEL_OPTIONS.map((option, index) => (
-                  <option key={index} value={index}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+      <div className="flex-1 flex flex-col max-w-3xl w-full mx-auto px-4 py-4 min-h-0">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-white">
+            Dashboard — Realtime (text) + execute_prompt
+          </h2>
+          <p className="text-sm text-gray-400 mt-1">
+            Connect, then ask about the shoe catalog. The model calls{' '}
+            <code className="text-violet-300">execute_prompt</code> on the
+            server (same product data as the home page).
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <div className={`w-2 h-2 rounded-full ${statusDot}`} />
+            <span className="text-xs text-gray-400 capitalize">
+              {status}
+              {mode !== 'idle' ? ` · ${mode}` : ''}
+            </span>
           </div>
-
-          <div className="border-b border-gray-800 p-4">
-            <div className="text-sm font-semibold text-white mb-2">
-              Try These Prompts
-            </div>
-            <div className="flex flex-col gap-2">
-              {[
-                'How are sales looking?',
-                'What about APAC this year?',
-                'Which products are performing best?',
-                'Customer support health?',
-                'Compare enterprise vs starter customers',
-              ].map((prompt) => (
-                <button
-                  key={prompt}
-                  onClick={() => sendMessage(prompt)}
-                  disabled={isLoading}
-                  className="text-left text-sm p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 text-gray-200 disabled:opacity-60"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {messages.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center px-4">
-              <p className="text-sm text-gray-500 text-center">
-                Ask about your e-commerce data — revenue, products, customers,
-                or support
-              </p>
-            </div>
-          ) : (
-            <Messages messages={messages} />
-          )}
-
-          <ChatInput
-            onSend={(content) => sendMessage(content)}
-            disabled={isLoading}
-            placeholder="Ask about your dashboard..."
-            exampleQueries={
-              '"How are sales looking?" | "APAC revenue trends" | "Support ticket backlog"'
-            }
-          />
         </div>
 
-        {/* Right panel — Dashboard tiles + Activity drawer */}
-        <DashboardPanel
-          state={dashboardState}
-          onClearEvents={() => dispatch({ type: 'CLEAR_EVENTS' })}
-        />
+        <div className="flex-1 overflow-y-auto rounded-lg border border-gray-800 bg-gray-950/50 p-3 min-h-0">
+          {messages.length === 0 && status === 'idle' && (
+            <p className="text-sm text-gray-500 text-center py-12">
+              Connect to start. Try: &quot;What&apos;s the cheapest running
+              shoe?&quot; or &quot;Compare Nike vs Adidas average price.&quot;
+            </p>
+          )}
+          {messages.map((m) => (
+            <MessageBubble key={m.id} message={m} />
+          ))}
+          {pendingUserTranscript && (
+            <p className="text-sm text-gray-500 italic px-3">
+              {pendingUserTranscript}…
+            </p>
+          )}
+          {pendingAssistantTranscript && (
+            <p className="text-sm text-violet-300/80 italic px-3">
+              {pendingAssistantTranscript}…
+            </p>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {error && (
+          <div className="mt-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+            {error.message}
+          </div>
+        )}
+
+        {status === 'connected' && (
+          <form
+            className="mt-3 flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              const t = textInput.trim()
+              if (!t) return
+              sendText(t)
+              setTextInput('')
+            }}
+          >
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder="Ask about the shoe catalog…"
+              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+            />
+            <button
+              type="submit"
+              disabled={!textInput.trim()}
+              className="flex items-center justify-center w-11 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white"
+              aria-label="Send"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+        )}
+
+        <div className="mt-4 flex justify-center gap-3">
+          {status === 'idle' || status === 'error' ? (
+            <button
+              type="button"
+              onClick={() => void connect()}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-green-600 hover:bg-green-700 text-white text-sm font-medium"
+            >
+              <Phone className="w-4 h-4" />
+              Connect
+            </button>
+          ) : (
+            <>
+              {mode === 'speaking' && (
+                <button
+                  type="button"
+                  onClick={() => void interrupt()}
+                  className="px-4 py-2 rounded-lg bg-yellow-600/90 hover:bg-yellow-600 text-white text-sm"
+                >
+                  Interrupt
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void disconnect()}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white text-sm font-medium"
+              >
+                <PhoneOff className="w-4 h-4" />
+                Disconnect
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

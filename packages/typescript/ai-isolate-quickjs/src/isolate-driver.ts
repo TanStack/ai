@@ -6,6 +6,12 @@ import type {
   IsolateDriver,
 } from '@tanstack/ai-code-mode'
 
+/** Default memory limit in MB (matches Node isolate driver default). */
+const DEFAULT_MEMORY_LIMIT_MB = 128
+
+/** Default max stack size in bytes for QuickJS runtime. */
+const DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
+
 /**
  * Configuration for the QuickJS WASM isolate driver
  */
@@ -14,6 +20,18 @@ export interface QuickJSIsolateDriverConfig {
    * Default execution timeout in ms (default: 30000)
    */
   timeout?: number
+
+  /**
+   * Default memory limit in MB (default: 128).
+   * Applied via QuickJS `runtime.setMemoryLimit`.
+   */
+  memoryLimit?: number
+
+  /**
+   * Default max stack size in bytes (default: 512 KiB).
+   * Applied via QuickJS `runtime.setMaxStackSize`.
+   */
+  maxStackSize?: number
 }
 
 /**
@@ -54,13 +72,24 @@ export function createQuickJSIsolateDriver(
   config: QuickJSIsolateDriverConfig = {},
 ): IsolateDriver {
   const defaultTimeout = config.timeout ?? 30000
+  const defaultMemoryLimit = config.memoryLimit ?? DEFAULT_MEMORY_LIMIT_MB
+  const defaultMaxStackSize =
+    config.maxStackSize ?? DEFAULT_MAX_STACK_SIZE_BYTES
 
   return {
     async createContext(isolateConfig: IsolateConfig): Promise<IsolateContext> {
       const timeout = isolateConfig.timeout ?? defaultTimeout
+      const memoryLimitMb =
+        isolateConfig.memoryLimit ?? defaultMemoryLimit
+      const maxStackSizeBytes = defaultMaxStackSize
 
       // Create async QuickJS context (supports async host functions)
       const vm = await newAsyncContext()
+
+      // Enforce heap and stack limits so OOM/stack overflow surface as JS errors
+      // instead of growing WASM memory until the host process OOMs.
+      vm.runtime.setMemoryLimit(memoryLimitMb * 1024 * 1024)
+      vm.runtime.setMaxStackSize(maxStackSizeBytes)
 
       // Set up console.log capture
       const logs: Array<string> = []

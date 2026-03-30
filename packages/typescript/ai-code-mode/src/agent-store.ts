@@ -7,29 +7,31 @@ export interface AgentSession {
 }
 
 export interface AgentStore {
-  get(name: string): Promise<AgentSession | null>
-  set(name: string, session: AgentSession): Promise<void>
-  delete(name: string): Promise<void>
-  list(): Promise<string[]>
+  get: (name: string) => Promise<AgentSession | null>
+  set: (name: string, session: AgentSession) => Promise<void>
+  delete: (name: string) => Promise<void>
+  list: () => Promise<Array<string>>
 }
 
 export class InMemoryAgentStore implements AgentStore {
   private sessions = new Map<string, AgentSession>()
 
-  async get(name: string): Promise<AgentSession | null> {
-    return this.sessions.get(name) ?? null
+  get(name: string): Promise<AgentSession | null> {
+    return Promise.resolve(this.sessions.get(name) ?? null)
   }
 
-  async set(name: string, session: AgentSession): Promise<void> {
+  set(name: string, session: AgentSession): Promise<void> {
     this.sessions.set(name, session)
+    return Promise.resolve()
   }
 
-  async delete(name: string): Promise<void> {
+  delete(name: string): Promise<void> {
     this.sessions.delete(name)
+    return Promise.resolve()
   }
 
-  async list(): Promise<string[]> {
-    return Array.from(this.sessions.keys())
+  list(): Promise<Array<string>> {
+    return Promise.resolve(Array.from(this.sessions.keys()))
   }
 }
 
