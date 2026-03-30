@@ -4,22 +4,6 @@ import { createGrokImage, grokImage } from '../src/adapters/image'
 import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
-// Declare mockCreate at module level
-let mockCreate: ReturnType<typeof vi.fn>
-
-// Mock the OpenAI SDK
-vi.mock('openai', () => {
-  return {
-    default: class {
-      chat = {
-        completions: {
-          create: (...args: Array<unknown>) => mockCreate(...args),
-        },
-      }
-    },
-  }
-})
-
 // Helper to create async iterable from chunks
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   return {
@@ -37,17 +21,26 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   }
 }
 
-// Helper to setup the mock SDK client for streaming responses
-function setupMockSdkClient(
+// Helper to create a mock OpenAI client and inject it into an adapter
+function injectMockClient(
+  adapter: object,
   streamChunks: Array<Record<string, unknown>>,
   nonStreamResponse?: Record<string, unknown>,
-) {
-  mockCreate = vi.fn().mockImplementation((params) => {
+): ReturnType<typeof vi.fn> {
+  const mockCreate = vi.fn().mockImplementation((params) => {
     if (params.stream) {
       return Promise.resolve(createAsyncIterable(streamChunks))
     }
     return Promise.resolve(nonStreamResponse)
   })
+  ;(adapter as any).client = {
+    chat: {
+      completions: {
+        create: mockCreate,
+      },
+    },
+  }
+  return mockCreate
 }
 
 const weatherTool: Tool = {
@@ -188,8 +181,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -235,8 +228,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -293,8 +286,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -383,8 +376,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -450,9 +443,16 @@ describe('Grok AG-UI event emission', () => {
       },
     }
 
-    mockCreate = vi.fn().mockResolvedValue(errorIterable)
-
     const adapter = createGrokText('grok-3', 'test-api-key')
+    const mockCreate = vi.fn().mockResolvedValue(errorIterable)
+    ;(adapter as any).client = {
+      chat: {
+        completions: {
+          create: mockCreate,
+        },
+      },
+    }
+
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -499,8 +499,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
@@ -575,8 +575,8 @@ describe('Grok AG-UI event emission', () => {
       },
     ]
 
-    setupMockSdkClient(streamChunks)
     const adapter = createGrokText('grok-3', 'test-api-key')
+    injectMockClient(adapter, streamChunks)
     const chunks: Array<StreamChunk> = []
 
     for await (const chunk of adapter.chatStream({
