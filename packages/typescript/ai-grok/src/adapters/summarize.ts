@@ -31,7 +31,10 @@ export type GrokSummarizeModel = (typeof GROK_CHAT_MODELS)[number]
  */
 export class GrokSummarizeAdapter<
   TModel extends GrokSummarizeModel,
-> extends OpenAICompatibleSummarizeAdapter<TModel, GrokSummarizeProviderOptions> {
+> extends OpenAICompatibleSummarizeAdapter<
+  TModel,
+  GrokSummarizeProviderOptions
+> {
   readonly kind = 'summarize' as const
   readonly name = 'grok' as const
 

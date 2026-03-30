@@ -1,3 +1,1 @@
-export {
-  convertToolsToChatCompletionsFormat as convertToolsToProviderFormat,
-} from '@tanstack/openai-base'
+export { convertToolsToChatCompletionsFormat as convertToolsToProviderFormat } from '@tanstack/openai-base'

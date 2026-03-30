@@ -28,7 +28,11 @@ function removeEmptyRequired(schema: Record<string, any>): Record<string, any> {
     result.properties = properties
   }
 
-  if (result.items && typeof result.items === 'object' && !Array.isArray(result.items)) {
+  if (
+    result.items &&
+    typeof result.items === 'object' &&
+    !Array.isArray(result.items)
+  ) {
     result.items = removeEmptyRequired(result.items)
   }
 

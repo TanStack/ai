@@ -5,9 +5,7 @@ import type {
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
-import type {
-  GrokMessageMetadataByModality,
-} from '../message-types'
+import type { GrokMessageMetadataByModality } from '../message-types'
 import type { GrokClientConfig } from '../utils'
 
 /**
