@@ -1,10 +1,47 @@
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
-/**
- * Client tool for OpenAI Realtime: runs server-side executePrompt against the
- * shoe catalog (same data as the home page product demo).
- */
+export interface CodeExecution {
+  typescriptCode: string
+  success: boolean
+  result?: unknown
+  logs?: Array<string>
+  error?: { message: string; name?: string }
+}
+
+export interface ExecutePromptLogEntry {
+  id: string
+  timestamp: number
+  phase: 'request' | 'response' | 'error'
+  prompt: string
+  durationMs?: number
+  status?: number
+  data?: unknown
+  agentName?: string
+  error?: string
+  executions?: Array<CodeExecution>
+}
+
+type LogListener = (entry: ExecutePromptLogEntry) => void
+
+let listeners: Array<LogListener> = []
+
+export function onExecutePromptLog(fn: LogListener): () => void {
+  listeners.push(fn)
+  return () => {
+    listeners = listeners.filter((l) => l !== fn)
+  }
+}
+
+function emit(entry: ExecutePromptLogEntry) {
+  for (const fn of listeners) fn(entry)
+}
+
+let logSeq = 0
+function nextId() {
+  return `ep-${++logSeq}-${Date.now()}`
+}
+
 export const executePromptShoeCatalogTool = toolDefinition({
   name: 'execute_prompt',
   description:
@@ -22,20 +59,59 @@ export const executePromptShoeCatalogTool = toolDefinition({
   }),
 }).client(async (input) => {
   const prompt = resolveExecutePromptArg(input)
+  const id = nextId()
+  const startMs = Date.now()
+
+  emit({ id, timestamp: startMs, phase: 'request', prompt })
+
   const res = await fetch('/api/execute-prompt', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt }),
   })
+
+  const durationMs = Date.now() - startMs
+
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
     const msg =
       typeof errBody === 'object' && errBody !== null && 'error' in errBody
         ? String((errBody as { error?: string }).error)
         : res.statusText
-    throw new Error(msg || `execute_prompt failed (${res.status})`)
+    const errorStr = msg || `execute_prompt failed (${res.status})`
+
+    emit({
+      id,
+      timestamp: Date.now(),
+      phase: 'error',
+      prompt,
+      durationMs,
+      status: res.status,
+      error: errorStr,
+    })
+
+    throw new Error(errorStr)
   }
-  return res.json() as Promise<{ data: unknown; agentName: string }>
+
+  const result = (await res.json()) as {
+    data: unknown
+    agentName: string
+    executions?: Array<CodeExecution>
+  }
+
+  emit({
+    id,
+    timestamp: Date.now(),
+    phase: 'response',
+    prompt,
+    durationMs,
+    status: res.status,
+    data: result.data,
+    agentName: result.agentName,
+    executions: result.executions,
+  })
+
+  return { data: result.data, agentName: result.agentName }
 })
 
 export const dashboardRealtimeTools = [executePromptShoeCatalogTool] as const

@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/_dashboard-demo')({
+export const Route = createFileRoute('/_execute-prompt')({
   component: Outlet,
 })

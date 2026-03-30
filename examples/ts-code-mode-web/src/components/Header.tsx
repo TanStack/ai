@@ -129,7 +129,7 @@ export default function Header({ children }: HeaderProps) {
             <span className="font-medium">Dynamic UI</span>
           </Link>
           <Link
-            to="/dashboard-demo"
+            to="/execute-prompt"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
             activeProps={{
@@ -138,7 +138,7 @@ export default function Header({ children }: HeaderProps) {
             }}
           >
             <BarChart3 size={20} />
-            <span className="font-medium">Dashboard Demo</span>
+            <span className="font-medium">Execute Prompt</span>
           </Link>
         </nav>
 

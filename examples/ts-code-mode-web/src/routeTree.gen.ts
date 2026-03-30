@@ -13,15 +13,15 @@ import { Route as StructuredOutputRouteRouteImport } from './routes/_structured-
 import { Route as ReportingRouteRouteImport } from './routes/_reporting/route'
 import { Route as NpmGithubChatRouteRouteImport } from './routes/_npm-github-chat/route'
 import { Route as HomeRouteRouteImport } from './routes/_home/route'
+import { Route as ExecutePromptRouteRouteImport } from './routes/_execute-prompt/route'
 import { Route as DatabaseDemoRouteRouteImport } from './routes/_database-demo/route'
-import { Route as DashboardDemoRouteRouteImport } from './routes/_dashboard-demo/route'
 import { Route as BankingDemoRouteRouteImport } from './routes/_banking-demo/route'
 import { Route as HomeIndexRouteImport } from './routes/_home/index'
 import { Route as StructuredOutputStructuredOutputRouteImport } from './routes/_structured-output/structured-output'
 import { Route as ReportingReportingAgentRouteImport } from './routes/_reporting/reporting-agent'
 import { Route as NpmGithubChatNpmGithubChatRouteImport } from './routes/_npm-github-chat/npm-github-chat'
+import { Route as ExecutePromptExecutePromptRouteImport } from './routes/_execute-prompt/execute-prompt'
 import { Route as DatabaseDemoDatabaseDemoRouteImport } from './routes/_database-demo/database-demo'
-import { Route as DashboardDemoDashboardDemoRouteImport } from './routes/_dashboard-demo/dashboard-demo'
 import { Route as BankingDemoBankingDemoRouteImport } from './routes/_banking-demo/banking-demo'
 import { Route as StructuredOutputApiStructuredOutputSkillsRouteImport } from './routes/_structured-output/api.structured-output-skills'
 import { Route as StructuredOutputApiStructuredOutputRouteImport } from './routes/_structured-output/api.structured-output'
@@ -35,11 +35,11 @@ import { Route as NpmGithubChatApiCodemodeRouteImport } from './routes/_npm-gith
 import { Route as HomeApiSkillsRouteImport } from './routes/_home/api.skills'
 import { Route as HomeApiProductRegularRouteImport } from './routes/_home/api.product-regular'
 import { Route as HomeApiProductCodemodeRouteImport } from './routes/_home/api.product-codemode'
+import { Route as ExecutePromptApiRealtimeTokenRouteImport } from './routes/_execute-prompt/api.realtime-token'
+import { Route as ExecutePromptApiExecutePromptRouteImport } from './routes/_execute-prompt/api.execute-prompt'
 import { Route as DatabaseDemoApiJudgeRouteImport } from './routes/_database-demo/api.judge'
 import { Route as DatabaseDemoApiDbSkillsRouteImport } from './routes/_database-demo/api.db-skills'
 import { Route as DatabaseDemoApiDatabaseDemoRouteImport } from './routes/_database-demo/api.database-demo'
-import { Route as DashboardDemoApiRealtimeTokenRouteImport } from './routes/_dashboard-demo/api.realtime-token'
-import { Route as DashboardDemoApiExecutePromptRouteImport } from './routes/_dashboard-demo/api.execute-prompt'
 import { Route as BankingDemoApiBankingInitRouteImport } from './routes/_banking-demo/api.banking-init'
 import { Route as BankingDemoApiBankingDemoRouteImport } from './routes/_banking-demo/api.banking-demo'
 
@@ -59,12 +59,12 @@ const HomeRouteRoute = HomeRouteRouteImport.update({
   id: '/_home',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DatabaseDemoRouteRoute = DatabaseDemoRouteRouteImport.update({
-  id: '/_database-demo',
+const ExecutePromptRouteRoute = ExecutePromptRouteRouteImport.update({
+  id: '/_execute-prompt',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardDemoRouteRoute = DashboardDemoRouteRouteImport.update({
-  id: '/_dashboard-demo',
+const DatabaseDemoRouteRoute = DatabaseDemoRouteRouteImport.update({
+  id: '/_database-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BankingDemoRouteRoute = BankingDemoRouteRouteImport.update({
@@ -93,17 +93,17 @@ const NpmGithubChatNpmGithubChatRoute =
     path: '/npm-github-chat',
     getParentRoute: () => NpmGithubChatRouteRoute,
   } as any)
+const ExecutePromptExecutePromptRoute =
+  ExecutePromptExecutePromptRouteImport.update({
+    id: '/execute-prompt',
+    path: '/execute-prompt',
+    getParentRoute: () => ExecutePromptRouteRoute,
+  } as any)
 const DatabaseDemoDatabaseDemoRoute =
   DatabaseDemoDatabaseDemoRouteImport.update({
     id: '/database-demo',
     path: '/database-demo',
     getParentRoute: () => DatabaseDemoRouteRoute,
-  } as any)
-const DashboardDemoDashboardDemoRoute =
-  DashboardDemoDashboardDemoRouteImport.update({
-    id: '/dashboard-demo',
-    path: '/dashboard-demo',
-    getParentRoute: () => DashboardDemoRouteRoute,
   } as any)
 const BankingDemoBankingDemoRoute = BankingDemoBankingDemoRouteImport.update({
   id: '/banking-demo',
@@ -174,6 +174,18 @@ const HomeApiProductCodemodeRoute = HomeApiProductCodemodeRouteImport.update({
   path: '/api/product-codemode',
   getParentRoute: () => HomeRouteRoute,
 } as any)
+const ExecutePromptApiRealtimeTokenRoute =
+  ExecutePromptApiRealtimeTokenRouteImport.update({
+    id: '/api/realtime-token',
+    path: '/api/realtime-token',
+    getParentRoute: () => ExecutePromptRouteRoute,
+  } as any)
+const ExecutePromptApiExecutePromptRoute =
+  ExecutePromptApiExecutePromptRouteImport.update({
+    id: '/api/execute-prompt',
+    path: '/api/execute-prompt',
+    getParentRoute: () => ExecutePromptRouteRoute,
+  } as any)
 const DatabaseDemoApiJudgeRoute = DatabaseDemoApiJudgeRouteImport.update({
   id: '/api/judge',
   path: '/api/judge',
@@ -189,18 +201,6 @@ const DatabaseDemoApiDatabaseDemoRoute =
     id: '/api/database-demo',
     path: '/api/database-demo',
     getParentRoute: () => DatabaseDemoRouteRoute,
-  } as any)
-const DashboardDemoApiRealtimeTokenRoute =
-  DashboardDemoApiRealtimeTokenRouteImport.update({
-    id: '/api/realtime-token',
-    path: '/api/realtime-token',
-    getParentRoute: () => DashboardDemoRouteRoute,
-  } as any)
-const DashboardDemoApiExecutePromptRoute =
-  DashboardDemoApiExecutePromptRouteImport.update({
-    id: '/api/execute-prompt',
-    path: '/api/execute-prompt',
-    getParentRoute: () => DashboardDemoRouteRoute,
   } as any)
 const BankingDemoApiBankingInitRoute =
   BankingDemoApiBankingInitRouteImport.update({
@@ -218,18 +218,18 @@ const BankingDemoApiBankingDemoRoute =
 export interface FileRoutesByFullPath {
   '/': typeof HomeIndexRoute
   '/banking-demo': typeof BankingDemoBankingDemoRoute
-  '/dashboard-demo': typeof DashboardDemoDashboardDemoRoute
   '/database-demo': typeof DatabaseDemoDatabaseDemoRoute
+  '/execute-prompt': typeof ExecutePromptExecutePromptRoute
   '/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/reporting-agent': typeof ReportingReportingAgentRoute
   '/structured-output': typeof StructuredOutputStructuredOutputRoute
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
-  '/api/execute-prompt': typeof DashboardDemoApiExecutePromptRoute
-  '/api/realtime-token': typeof DashboardDemoApiRealtimeTokenRoute
   '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
   '/api/judge': typeof DatabaseDemoApiJudgeRoute
+  '/api/execute-prompt': typeof ExecutePromptApiExecutePromptRoute
+  '/api/realtime-token': typeof ExecutePromptApiRealtimeTokenRoute
   '/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/api/product-regular': typeof HomeApiProductRegularRoute
   '/api/skills': typeof HomeApiSkillsRoute
@@ -246,18 +246,18 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof HomeIndexRoute
   '/banking-demo': typeof BankingDemoBankingDemoRoute
-  '/dashboard-demo': typeof DashboardDemoDashboardDemoRoute
   '/database-demo': typeof DatabaseDemoDatabaseDemoRoute
+  '/execute-prompt': typeof ExecutePromptExecutePromptRoute
   '/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/reporting-agent': typeof ReportingReportingAgentRoute
   '/structured-output': typeof StructuredOutputStructuredOutputRoute
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
-  '/api/execute-prompt': typeof DashboardDemoApiExecutePromptRoute
-  '/api/realtime-token': typeof DashboardDemoApiRealtimeTokenRoute
   '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
   '/api/judge': typeof DatabaseDemoApiJudgeRoute
+  '/api/execute-prompt': typeof ExecutePromptApiExecutePromptRoute
+  '/api/realtime-token': typeof ExecutePromptApiRealtimeTokenRoute
   '/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/api/product-regular': typeof HomeApiProductRegularRoute
   '/api/skills': typeof HomeApiSkillsRoute
@@ -274,26 +274,26 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_banking-demo': typeof BankingDemoRouteRouteWithChildren
-  '/_dashboard-demo': typeof DashboardDemoRouteRouteWithChildren
   '/_database-demo': typeof DatabaseDemoRouteRouteWithChildren
+  '/_execute-prompt': typeof ExecutePromptRouteRouteWithChildren
   '/_home': typeof HomeRouteRouteWithChildren
   '/_npm-github-chat': typeof NpmGithubChatRouteRouteWithChildren
   '/_reporting': typeof ReportingRouteRouteWithChildren
   '/_structured-output': typeof StructuredOutputRouteRouteWithChildren
   '/_banking-demo/banking-demo': typeof BankingDemoBankingDemoRoute
-  '/_dashboard-demo/dashboard-demo': typeof DashboardDemoDashboardDemoRoute
   '/_database-demo/database-demo': typeof DatabaseDemoDatabaseDemoRoute
+  '/_execute-prompt/execute-prompt': typeof ExecutePromptExecutePromptRoute
   '/_npm-github-chat/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/_reporting/reporting-agent': typeof ReportingReportingAgentRoute
   '/_structured-output/structured-output': typeof StructuredOutputStructuredOutputRoute
   '/_home/': typeof HomeIndexRoute
   '/_banking-demo/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/_banking-demo/api/banking-init': typeof BankingDemoApiBankingInitRoute
-  '/_dashboard-demo/api/execute-prompt': typeof DashboardDemoApiExecutePromptRoute
-  '/_dashboard-demo/api/realtime-token': typeof DashboardDemoApiRealtimeTokenRoute
   '/_database-demo/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
   '/_database-demo/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
   '/_database-demo/api/judge': typeof DatabaseDemoApiJudgeRoute
+  '/_execute-prompt/api/execute-prompt': typeof ExecutePromptApiExecutePromptRoute
+  '/_execute-prompt/api/realtime-token': typeof ExecutePromptApiRealtimeTokenRoute
   '/_home/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/_home/api/product-regular': typeof HomeApiProductRegularRoute
   '/_home/api/skills': typeof HomeApiSkillsRoute
@@ -312,18 +312,18 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/banking-demo'
-    | '/dashboard-demo'
     | '/database-demo'
+    | '/execute-prompt'
     | '/npm-github-chat'
     | '/reporting-agent'
     | '/structured-output'
     | '/api/banking-demo'
     | '/api/banking-init'
-    | '/api/execute-prompt'
-    | '/api/realtime-token'
     | '/api/database-demo'
     | '/api/db-skills'
     | '/api/judge'
+    | '/api/execute-prompt'
+    | '/api/realtime-token'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/skills'
@@ -340,18 +340,18 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/banking-demo'
-    | '/dashboard-demo'
     | '/database-demo'
+    | '/execute-prompt'
     | '/npm-github-chat'
     | '/reporting-agent'
     | '/structured-output'
     | '/api/banking-demo'
     | '/api/banking-init'
-    | '/api/execute-prompt'
-    | '/api/realtime-token'
     | '/api/database-demo'
     | '/api/db-skills'
     | '/api/judge'
+    | '/api/execute-prompt'
+    | '/api/realtime-token'
     | '/api/product-codemode'
     | '/api/product-regular'
     | '/api/skills'
@@ -367,26 +367,26 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_banking-demo'
-    | '/_dashboard-demo'
     | '/_database-demo'
+    | '/_execute-prompt'
     | '/_home'
     | '/_npm-github-chat'
     | '/_reporting'
     | '/_structured-output'
     | '/_banking-demo/banking-demo'
-    | '/_dashboard-demo/dashboard-demo'
     | '/_database-demo/database-demo'
+    | '/_execute-prompt/execute-prompt'
     | '/_npm-github-chat/npm-github-chat'
     | '/_reporting/reporting-agent'
     | '/_structured-output/structured-output'
     | '/_home/'
     | '/_banking-demo/api/banking-demo'
     | '/_banking-demo/api/banking-init'
-    | '/_dashboard-demo/api/execute-prompt'
-    | '/_dashboard-demo/api/realtime-token'
     | '/_database-demo/api/database-demo'
     | '/_database-demo/api/db-skills'
     | '/_database-demo/api/judge'
+    | '/_execute-prompt/api/execute-prompt'
+    | '/_execute-prompt/api/realtime-token'
     | '/_home/api/product-codemode'
     | '/_home/api/product-regular'
     | '/_home/api/skills'
@@ -403,8 +403,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   BankingDemoRouteRoute: typeof BankingDemoRouteRouteWithChildren
-  DashboardDemoRouteRoute: typeof DashboardDemoRouteRouteWithChildren
   DatabaseDemoRouteRoute: typeof DatabaseDemoRouteRouteWithChildren
+  ExecutePromptRouteRoute: typeof ExecutePromptRouteRouteWithChildren
   HomeRouteRoute: typeof HomeRouteRouteWithChildren
   NpmGithubChatRouteRoute: typeof NpmGithubChatRouteRouteWithChildren
   ReportingRouteRoute: typeof ReportingRouteRouteWithChildren
@@ -441,18 +441,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_execute-prompt': {
+      id: '/_execute-prompt'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof ExecutePromptRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_database-demo': {
       id: '/_database-demo'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof DatabaseDemoRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_dashboard-demo': {
-      id: '/_dashboard-demo'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof DashboardDemoRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_banking-demo': {
@@ -490,19 +490,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NpmGithubChatNpmGithubChatRouteImport
       parentRoute: typeof NpmGithubChatRouteRoute
     }
+    '/_execute-prompt/execute-prompt': {
+      id: '/_execute-prompt/execute-prompt'
+      path: '/execute-prompt'
+      fullPath: '/execute-prompt'
+      preLoaderRoute: typeof ExecutePromptExecutePromptRouteImport
+      parentRoute: typeof ExecutePromptRouteRoute
+    }
     '/_database-demo/database-demo': {
       id: '/_database-demo/database-demo'
       path: '/database-demo'
       fullPath: '/database-demo'
       preLoaderRoute: typeof DatabaseDemoDatabaseDemoRouteImport
       parentRoute: typeof DatabaseDemoRouteRoute
-    }
-    '/_dashboard-demo/dashboard-demo': {
-      id: '/_dashboard-demo/dashboard-demo'
-      path: '/dashboard-demo'
-      fullPath: '/dashboard-demo'
-      preLoaderRoute: typeof DashboardDemoDashboardDemoRouteImport
-      parentRoute: typeof DashboardDemoRouteRoute
     }
     '/_banking-demo/banking-demo': {
       id: '/_banking-demo/banking-demo'
@@ -595,6 +595,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeApiProductCodemodeRouteImport
       parentRoute: typeof HomeRouteRoute
     }
+    '/_execute-prompt/api/realtime-token': {
+      id: '/_execute-prompt/api/realtime-token'
+      path: '/api/realtime-token'
+      fullPath: '/api/realtime-token'
+      preLoaderRoute: typeof ExecutePromptApiRealtimeTokenRouteImport
+      parentRoute: typeof ExecutePromptRouteRoute
+    }
+    '/_execute-prompt/api/execute-prompt': {
+      id: '/_execute-prompt/api/execute-prompt'
+      path: '/api/execute-prompt'
+      fullPath: '/api/execute-prompt'
+      preLoaderRoute: typeof ExecutePromptApiExecutePromptRouteImport
+      parentRoute: typeof ExecutePromptRouteRoute
+    }
     '/_database-demo/api/judge': {
       id: '/_database-demo/api/judge'
       path: '/api/judge'
@@ -615,20 +629,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/database-demo'
       preLoaderRoute: typeof DatabaseDemoApiDatabaseDemoRouteImport
       parentRoute: typeof DatabaseDemoRouteRoute
-    }
-    '/_dashboard-demo/api/realtime-token': {
-      id: '/_dashboard-demo/api/realtime-token'
-      path: '/api/realtime-token'
-      fullPath: '/api/realtime-token'
-      preLoaderRoute: typeof DashboardDemoApiRealtimeTokenRouteImport
-      parentRoute: typeof DashboardDemoRouteRoute
-    }
-    '/_dashboard-demo/api/execute-prompt': {
-      id: '/_dashboard-demo/api/execute-prompt'
-      path: '/api/execute-prompt'
-      fullPath: '/api/execute-prompt'
-      preLoaderRoute: typeof DashboardDemoApiExecutePromptRouteImport
-      parentRoute: typeof DashboardDemoRouteRoute
     }
     '/_banking-demo/api/banking-init': {
       id: '/_banking-demo/api/banking-init'
@@ -662,21 +662,6 @@ const BankingDemoRouteRouteChildren: BankingDemoRouteRouteChildren = {
 const BankingDemoRouteRouteWithChildren =
   BankingDemoRouteRoute._addFileChildren(BankingDemoRouteRouteChildren)
 
-interface DashboardDemoRouteRouteChildren {
-  DashboardDemoDashboardDemoRoute: typeof DashboardDemoDashboardDemoRoute
-  DashboardDemoApiExecutePromptRoute: typeof DashboardDemoApiExecutePromptRoute
-  DashboardDemoApiRealtimeTokenRoute: typeof DashboardDemoApiRealtimeTokenRoute
-}
-
-const DashboardDemoRouteRouteChildren: DashboardDemoRouteRouteChildren = {
-  DashboardDemoDashboardDemoRoute: DashboardDemoDashboardDemoRoute,
-  DashboardDemoApiExecutePromptRoute: DashboardDemoApiExecutePromptRoute,
-  DashboardDemoApiRealtimeTokenRoute: DashboardDemoApiRealtimeTokenRoute,
-}
-
-const DashboardDemoRouteRouteWithChildren =
-  DashboardDemoRouteRoute._addFileChildren(DashboardDemoRouteRouteChildren)
-
 interface DatabaseDemoRouteRouteChildren {
   DatabaseDemoDatabaseDemoRoute: typeof DatabaseDemoDatabaseDemoRoute
   DatabaseDemoApiDatabaseDemoRoute: typeof DatabaseDemoApiDatabaseDemoRoute
@@ -693,6 +678,21 @@ const DatabaseDemoRouteRouteChildren: DatabaseDemoRouteRouteChildren = {
 
 const DatabaseDemoRouteRouteWithChildren =
   DatabaseDemoRouteRoute._addFileChildren(DatabaseDemoRouteRouteChildren)
+
+interface ExecutePromptRouteRouteChildren {
+  ExecutePromptExecutePromptRoute: typeof ExecutePromptExecutePromptRoute
+  ExecutePromptApiExecutePromptRoute: typeof ExecutePromptApiExecutePromptRoute
+  ExecutePromptApiRealtimeTokenRoute: typeof ExecutePromptApiRealtimeTokenRoute
+}
+
+const ExecutePromptRouteRouteChildren: ExecutePromptRouteRouteChildren = {
+  ExecutePromptExecutePromptRoute: ExecutePromptExecutePromptRoute,
+  ExecutePromptApiExecutePromptRoute: ExecutePromptApiExecutePromptRoute,
+  ExecutePromptApiRealtimeTokenRoute: ExecutePromptApiRealtimeTokenRoute,
+}
+
+const ExecutePromptRouteRouteWithChildren =
+  ExecutePromptRouteRoute._addFileChildren(ExecutePromptRouteRouteChildren)
 
 interface HomeRouteRouteChildren {
   HomeIndexRoute: typeof HomeIndexRoute
@@ -770,8 +770,8 @@ const StructuredOutputRouteRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   BankingDemoRouteRoute: BankingDemoRouteRouteWithChildren,
-  DashboardDemoRouteRoute: DashboardDemoRouteRouteWithChildren,
   DatabaseDemoRouteRoute: DatabaseDemoRouteRouteWithChildren,
+  ExecutePromptRouteRoute: ExecutePromptRouteRouteWithChildren,
   HomeRouteRoute: HomeRouteRouteWithChildren,
   NpmGithubChatRouteRoute: NpmGithubChatRouteRouteWithChildren,
   ReportingRouteRoute: ReportingRouteRouteWithChildren,

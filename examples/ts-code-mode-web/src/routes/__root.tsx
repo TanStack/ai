@@ -1,6 +1,14 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import appCss from '../styles.css?url'
 
+const NotFound = () => {
+  return (
+    <div>
+      <h1>404 - Page Not Found</h1>
+    </div>
+  )
+}
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -22,7 +30,7 @@ export const Route = createRootRoute({
       },
     ],
   }),
-
+  notFoundComponent: NotFound,
   shellComponent: RootDocument,
 })
 
