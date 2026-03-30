@@ -1,17 +1,7 @@
-import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
-import {
-  createOpenAIClient,
-  generateId,
-  getOpenAIApiKeyFromEnv,
-} from '../utils/client'
+import { OpenAICompatibleTranscriptionAdapter } from '@tanstack/openai-base'
+import { getOpenAIApiKeyFromEnv, toCompatibleConfig } from '../utils/client'
 import type { OpenAITranscriptionModel } from '../model-meta'
 import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-provider-options'
-import type {
-  TranscriptionOptions,
-  TranscriptionResult,
-  TranscriptionSegment,
-} from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
 import type { OpenAIClientConfig } from '../utils/client'
 
 /**
@@ -34,132 +24,14 @@ export interface OpenAITranscriptionConfig extends OpenAIClientConfig {}
  */
 export class OpenAITranscriptionAdapter<
   TModel extends OpenAITranscriptionModel,
-> extends BaseTranscriptionAdapter<TModel, OpenAITranscriptionProviderOptions> {
+> extends OpenAICompatibleTranscriptionAdapter<
+  TModel,
+  OpenAITranscriptionProviderOptions
+> {
   readonly name = 'openai' as const
 
-  private client: OpenAI_SDK
-
   constructor(config: OpenAITranscriptionConfig, model: TModel) {
-    super(config, model)
-    this.client = createOpenAIClient(config)
-  }
-
-  async transcribe(
-    options: TranscriptionOptions<OpenAITranscriptionProviderOptions>,
-  ): Promise<TranscriptionResult> {
-    const { model, audio, language, prompt, responseFormat, modelOptions } =
-      options
-
-    // Convert audio input to File object
-    const file = this.prepareAudioFile(audio)
-
-    // Build request
-    const request: OpenAI_SDK.Audio.TranscriptionCreateParams = {
-      model,
-      file,
-      language,
-      prompt,
-      response_format: this.mapResponseFormat(responseFormat),
-      ...modelOptions,
-    }
-
-    // Call OpenAI API - use verbose_json to get timestamps when available
-    const useVerbose =
-      responseFormat === 'verbose_json' ||
-      (!responseFormat && model !== 'whisper-1')
-
-    if (useVerbose) {
-      const response = await this.client.audio.transcriptions.create({
-        ...request,
-        response_format: 'verbose_json',
-      })
-
-      return {
-        id: generateId(this.name),
-        model,
-        text: response.text,
-        language: response.language,
-        duration: response.duration,
-        segments: response.segments?.map(
-          (seg): TranscriptionSegment => ({
-            id: seg.id,
-            start: seg.start,
-            end: seg.end,
-            text: seg.text,
-            confidence: seg.avg_logprob ? Math.exp(seg.avg_logprob) : undefined,
-          }),
-        ),
-        words: response.words?.map((w) => ({
-          word: w.word,
-          start: w.start,
-          end: w.end,
-        })),
-      }
-    } else {
-      const response = await this.client.audio.transcriptions.create(request)
-
-      return {
-        id: generateId(this.name),
-        model,
-        text: typeof response === 'string' ? response : response.text,
-        language,
-      }
-    }
-  }
-
-  private prepareAudioFile(audio: string | File | Blob | ArrayBuffer): File {
-    // If already a File, return it
-    if (typeof File !== 'undefined' && audio instanceof File) {
-      return audio
-    }
-
-    // If Blob, convert to File
-    if (typeof Blob !== 'undefined' && audio instanceof Blob) {
-      return new File([audio], 'audio.mp3', {
-        type: audio.type || 'audio/mpeg',
-      })
-    }
-
-    // If ArrayBuffer, convert to File
-    if (audio instanceof ArrayBuffer) {
-      return new File([audio], 'audio.mp3', { type: 'audio/mpeg' })
-    }
-
-    // If base64 string, decode and convert to File
-    if (typeof audio === 'string') {
-      // Check if it's a data URL
-      if (audio.startsWith('data:')) {
-        const parts = audio.split(',')
-        const header = parts[0]
-        const base64Data = parts[1] || ''
-        const mimeMatch = header?.match(/data:([^;]+)/)
-        const mimeType = mimeMatch?.[1] || 'audio/mpeg'
-        const binaryStr = atob(base64Data)
-        const bytes = new Uint8Array(binaryStr.length)
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i)
-        }
-        const extension = mimeType.split('/')[1] || 'mp3'
-        return new File([bytes], `audio.${extension}`, { type: mimeType })
-      }
-
-      // Assume raw base64
-      const binaryStr = atob(audio)
-      const bytes = new Uint8Array(binaryStr.length)
-      for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i)
-      }
-      return new File([bytes], 'audio.mp3', { type: 'audio/mpeg' })
-    }
-
-    throw new Error('Invalid audio input type')
-  }
-
-  private mapResponseFormat(
-    format?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt',
-  ): OpenAI_SDK.Audio.TranscriptionCreateParams['response_format'] {
-    if (!format) return 'json'
-    return format as OpenAI_SDK.Audio.TranscriptionCreateParams['response_format']
+    super(toCompatibleConfig(config), model, 'openai')
   }
 }
 

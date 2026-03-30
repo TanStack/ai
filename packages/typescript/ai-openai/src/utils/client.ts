@@ -1,4 +1,6 @@
 import OpenAI_SDK from 'openai'
+import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
+import type { OpenAICompatibleClientConfig } from '@tanstack/openai-base'
 import type { ClientOptions } from 'openai'
 
 export interface OpenAIClientConfig extends ClientOptions {
@@ -17,26 +19,24 @@ export function createOpenAIClient(config: OpenAIClientConfig): OpenAI_SDK {
  * @throws Error if OPENAI_API_KEY is not found
  */
 export function getOpenAIApiKeyFromEnv(): string {
-  const env =
-    typeof globalThis !== 'undefined' && (globalThis as any).window?.env
-      ? (globalThis as any).window.env
-      : typeof process !== 'undefined'
-        ? process.env
-        : undefined
-  const key = env?.OPENAI_API_KEY
-
-  if (!key) {
-    throw new Error(
-      'OPENAI_API_KEY is required. Please set it in your environment variables or use the factory function with an explicit API key.',
-    )
-  }
-
-  return key
+  return getApiKeyFromEnv('OPENAI_API_KEY')
 }
 
 /**
  * Generates a unique ID with a prefix
  */
 export function generateId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  return _generateId(prefix)
+}
+
+/**
+ * Converts an OpenAIClientConfig to OpenAICompatibleClientConfig.
+ * This bridges the type gap between the local config type (which extends
+ * the local copy of ClientOptions) and the base package's config type
+ * (which extends its own copy of ClientOptions).
+ */
+export function toCompatibleConfig(
+  config: OpenAIClientConfig,
+): OpenAICompatibleClientConfig {
+  return config as unknown as OpenAICompatibleClientConfig
 }
