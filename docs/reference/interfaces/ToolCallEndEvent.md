@@ -5,7 +5,7 @@ title: ToolCallEndEvent
 
 # Interface: ToolCallEndEvent
 
-Defined in: [types.ts:867](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L867)
+Defined in: [types.ts:874](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L874)
 
 Emitted when a tool call completes.
 
@@ -21,7 +21,7 @@ Emitted when a tool call completes.
 optional input: unknown;
 ```
 
-Defined in: [types.ts:874](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L874)
+Defined in: [types.ts:881](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L881)
 
 Final parsed input arguments
 
@@ -33,7 +33,7 @@ Final parsed input arguments
 optional model: string;
 ```
 
-Defined in: [types.ts:751](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L751)
+Defined in: [types.ts:756](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L756)
 
 Model identifier for multi-model support
 
@@ -49,7 +49,7 @@ Model identifier for multi-model support
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:753](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L753)
+Defined in: [types.ts:758](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L758)
 
 Original provider event for debugging/advanced use cases
 
@@ -65,7 +65,7 @@ Original provider event for debugging/advanced use cases
 optional result: string;
 ```
 
-Defined in: [types.ts:876](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L876)
+Defined in: [types.ts:883](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L883)
 
 Tool execution result (if executed)
 
@@ -77,7 +77,7 @@ Tool execution result (if executed)
 timestamp: number;
 ```
 
-Defined in: [types.ts:749](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L749)
+Defined in: [types.ts:754](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L754)
 
 #### Inherited from
 
@@ -91,7 +91,7 @@ Defined in: [types.ts:749](https://github.com/TanStack/ai/blob/main/packages/typ
 toolCallId: string;
 ```
 
-Defined in: [types.ts:870](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L870)
+Defined in: [types.ts:877](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L877)
 
 Tool call identifier
 
@@ -103,7 +103,7 @@ Tool call identifier
 toolName: string;
 ```
 
-Defined in: [types.ts:872](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L872)
+Defined in: [types.ts:879](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L879)
 
 Name of the tool
 
@@ -115,7 +115,7 @@ Name of the tool
 type: "TOOL_CALL_END";
 ```
 
-Defined in: [types.ts:868](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L868)
+Defined in: [types.ts:875](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L875)
 
 #### Overrides
 

@@ -1,5 +1,23 @@
 # @tanstack/ai-fal
 
+## 0.6.9
+
+### Patch Changes
+
+- fix: handle errors from fal result fetch on completed jobs ([#396](https://github.com/TanStack/ai/pull/396))
+
+  fal.ai does not return a FAILED queue status — invalid jobs report COMPLETED, and the real error (e.g. 422 validation) only surfaces when fetching results. `getVideoUrl()` now catches these errors and extracts detailed validation messages. `getVideoJobStatus()` returns `status: 'failed'` when the result fetch throws on a "completed" job.
+
+- Updated dependencies [[`26d8243`](https://github.com/TanStack/ai/commit/26d8243bab564a547fed8adb5e129d981ba228ea)]:
+  - @tanstack/ai@0.9.2
+
+## 0.6.8
+
+### Patch Changes
+
+- Updated dependencies [[`b8cc69e`](https://github.com/TanStack/ai/commit/b8cc69e15eda49ce68cc48848284b0d74a55a97c)]:
+  - @tanstack/ai@0.9.1
+
 ## 0.6.7
 
 ### Patch Changes

@@ -31,6 +31,10 @@ interface FalVideoResultData {
 
 /**
  * Maps fal.ai queue status to TanStack AI video status.
+ *
+ * Note: fal.ai does not return a FAILED queue status. Errors surface
+ * as exceptions when fetching results from a COMPLETED job (e.g. 422
+ * validation errors). Those are handled in getVideoUrl().
  */
 function mapFalStatusToVideoStatus(
   falStatus: FalQueueStatus,
@@ -114,9 +118,26 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   }
 
   async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
-    const result = await fal.queue.result(this.model, {
-      requestId: jobId,
-    })
+    let result
+    try {
+      result = await fal.queue.result(this.model, {
+        requestId: jobId,
+      })
+    } catch (error: any) {
+      // fal.ai may report COMPLETED status but throw on result fetch
+      // (e.g. 422 validation errors). Extract the detailed error info.
+      const detail = error?.body?.detail
+      if (Array.isArray(detail)) {
+        const messages = detail.map(
+          (d: { msg?: string; loc?: Array<string> }) =>
+            d.loc ? `${d.loc.join('.')}: ${d.msg}` : d.msg,
+        )
+        throw new Error(`Video generation failed: ${messages.join('; ')}`)
+      }
+      throw new Error(
+        `Failed to retrieve video result: ${error.message || error}`,
+      )
+    }
 
     const data = result.data as FalVideoResultData
 

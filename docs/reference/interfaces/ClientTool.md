@@ -53,7 +53,7 @@ optional execute: (args) =>
 | Promise<InferSchemaType<TOutput>>;
 ```
 
-Defined in: [activities/chat/tools/tool-definition.ts:36](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L36)
+Defined in: [activities/chat/tools/tool-definition.ts:37](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L37)
 
 #### Parameters
 
@@ -78,13 +78,23 @@ Defined in: [activities/chat/tools/tool-definition.ts:32](https://github.com/Tan
 
 ***
 
+### lazy?
+
+```ts
+optional lazy: boolean;
+```
+
+Defined in: [activities/chat/tools/tool-definition.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L35)
+
+***
+
 ### metadata?
 
 ```ts
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [activities/chat/tools/tool-definition.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L35)
+Defined in: [activities/chat/tools/tool-definition.ts:36](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L36)
 
 ***
 

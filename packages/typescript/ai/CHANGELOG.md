@@ -1,5 +1,25 @@
 # @tanstack/ai
 
+## 0.9.2
+
+### Patch Changes
+
+- fix: handle errors from fal result fetch on completed jobs ([#396](https://github.com/TanStack/ai/pull/396))
+
+  fal.ai does not return a FAILED queue status — invalid jobs report COMPLETED, and the real error (e.g. 422 validation) only surfaces when fetching results. `getVideoUrl()` now catches these errors and extracts detailed validation messages. `getVideoJobStatus()` returns `status: 'failed'` when the result fetch throws on a "completed" job.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.4
+
+## 0.9.1
+
+### Patch Changes
+
+- Fix Gemini adapter tool call handling: preserve thoughtSignature for Gemini 3+ thinking models through the tool call lifecycle, use correct function name (instead of call ID) in functionResponse parts, and include the call ID in both functionCall and functionResponse for proper correlation. ([#401](https://github.com/TanStack/ai/pull/401))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.3
+
 ## 0.9.0
 
 ### Minor Changes
