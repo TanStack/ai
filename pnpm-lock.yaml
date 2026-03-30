@@ -870,7 +870,7 @@ importers:
         version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.0.14
-        version: 4.0.14(vitest@4.0.18(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+        version: 4.0.14(vitest@4.1.0(@types/node@25.0.1)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.6))(vite@7.3.1(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
       zod:
         specifier: ^4.2.0
         version: 4.3.6
@@ -898,7 +898,7 @@ importers:
         version: link:../ai-openai
       '@vitest/coverage-v8':
         specifier: 4.0.14
-        version: 4.0.14(vitest@4.0.18(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+        version: 4.0.14(vitest@4.1.0(@types/node@25.0.1)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.6))(vite@7.3.1(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
       commander:
         specifier: ^13.1.0
         version: 13.1.0
@@ -1102,7 +1102,7 @@ importers:
         version: 4.20260317.1
       '@vitest/coverage-v8':
         specifier: 4.0.14
-        version: 4.0.14(vitest@4.0.18(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+        version: 4.0.14(vitest@4.1.0(@types/node@25.0.1)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.6))(vite@7.3.1(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
       esbuild:
         specifier: ^0.25.12
         version: 0.25.12
@@ -1124,7 +1124,7 @@ importers:
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
-        version: 4.0.14(vitest@4.0.18(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+        version: 4.0.14(vitest@4.1.0(@types/node@25.0.1)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.6))(vite@7.3.1(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
 
   packages/typescript/ai-isolate-quickjs:
     dependencies:
@@ -1137,7 +1137,7 @@ importers:
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
-        version: 4.0.14(vitest@4.0.18(@types/node@25.0.1)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+        version: 4.0.14(vitest@4.1.0(@types/node@25.0.1)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.6))(vite@7.3.1(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
 
   packages/typescript/ai-ollama:
     dependencies:
@@ -14831,7 +14831,7 @@ snapshots:
       magicast: 0.5.2
       obug: 2.1.1
       std-env: 3.10.0
-      tinyrainbow: 3.0.3
+      tinyrainbow: 3.1.0
       vitest: 4.0.15(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.6))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
     transitivePeerDependencies:
       - supports-color
@@ -14848,7 +14848,7 @@ snapshots:
       magicast: 0.5.2
       obug: 2.1.1
       std-env: 3.10.0
-      tinyrainbow: 3.0.3
+      tinyrainbow: 3.1.0
       vitest: 4.1.0(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.6))(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
     transitivePeerDependencies:
       - supports-color
@@ -14865,7 +14865,7 @@ snapshots:
       magicast: 0.5.2
       obug: 2.1.1
       std-env: 3.10.0
-      tinyrainbow: 3.0.3
+      tinyrainbow: 3.1.0
       vitest: 4.1.0(@types/node@25.0.1)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.6))(vite@7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
     transitivePeerDependencies:
       - supports-color
@@ -14882,7 +14882,7 @@ snapshots:
       magicast: 0.5.2
       obug: 2.1.1
       std-env: 3.10.0
-      tinyrainbow: 3.0.3
+      tinyrainbow: 3.1.0
       vitest: 4.1.0(@types/node@25.0.1)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.6))(vite@7.3.1(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
     transitivePeerDependencies:
       - supports-color
@@ -14956,7 +14956,7 @@ snapshots:
 
   '@vitest/pretty-format@4.0.14':
     dependencies:
-      tinyrainbow: 3.0.3
+      tinyrainbow: 3.1.0
 
   '@vitest/pretty-format@4.0.15':
     dependencies:
@@ -15013,7 +15013,7 @@ snapshots:
   '@vitest/utils@4.0.14':
     dependencies:
       '@vitest/pretty-format': 4.0.14
-      tinyrainbow: 3.0.3
+      tinyrainbow: 3.1.0
 
   '@vitest/utils@4.0.15':
     dependencies:
