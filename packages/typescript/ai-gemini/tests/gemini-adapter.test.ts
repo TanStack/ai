@@ -498,6 +498,175 @@ describe('GeminiAdapter through AI', () => {
     expect(textParts).toHaveLength(1)
   })
 
+  it('preserves thoughtSignature in functionCall parts when sending history back to Gemini', async () => {
+    const thoughtSig = 'base64-encoded-thought-signature-xyz'
+
+    // First stream: model returns a function call with a thoughtSignature (thinking model)
+    const firstStream = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    id: 'fc_001',
+                    name: 'sum_tool',
+                    args: { numbers: [1, 2, 5] },
+                    thoughtSignature: thoughtSig,
+                  },
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
+      },
+    ]
+
+    // Second stream: model returns the final answer
+    const secondStream = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'The sum is 8.' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 20,
+          candidatesTokenCount: 5,
+          totalTokenCount: 25,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy
+      .mockResolvedValueOnce(createStream(firstStream))
+      .mockResolvedValueOnce(createStream(secondStream))
+
+    const adapter = createTextAdapter()
+
+    const sumTool: Tool = {
+      name: 'sum_tool',
+      description: 'Sums an array of numbers.',
+      execute: async (input: any) => ({
+        result: input.numbers.reduce((a: number, b: number) => a + b, 0),
+      }),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      tools: [sumTool],
+      messages: [{ role: 'user', content: 'What is 1 + 2 + 5?' }],
+      modelOptions: {
+        thinkingConfig: { includeThoughts: true, thinkingLevel: 'LOW' },
+      },
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+
+    // Inspect the second call's payload (the turn that includes history)
+    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]
+    const modelTurn = secondPayload.contents.find(
+      (c: any) => c.role === 'model',
+    )
+    expect(modelTurn).toBeDefined()
+
+    const functionCallPart = modelTurn.parts.find((p: any) => p.functionCall)
+    expect(functionCallPart).toBeDefined()
+    expect(functionCallPart.functionCall.name).toBe('sum_tool')
+    // The thoughtSignature must be preserved in the model turn's functionCall
+    expect(functionCallPart.functionCall.thoughtSignature).toBe(thoughtSig)
+  })
+
+  it('uses function name (not toolCallId) in functionResponse and preserves the call id', async () => {
+    // First stream: model returns a function call with an explicit id
+    const firstStream = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    id: 'fc_001',
+                    name: 'lookup_weather',
+                    args: { location: 'Madrid' },
+                  },
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 5,
+          candidatesTokenCount: 3,
+          totalTokenCount: 8,
+        },
+      },
+    ]
+
+    const secondStream = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'Sunny in Madrid!' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 15,
+          candidatesTokenCount: 4,
+          totalTokenCount: 19,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy
+      .mockResolvedValueOnce(createStream(firstStream))
+      .mockResolvedValueOnce(createStream(secondStream))
+
+    const adapter = createTextAdapter()
+
+    const executableWeatherTool: Tool = {
+      name: 'lookup_weather',
+      description: 'Return the weather for a location',
+      execute: async () => ({ temp: 28, condition: 'sunny' }),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      tools: [executableWeatherTool],
+      messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+
+    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]
+    const userTurn = secondPayload.contents.find((c: any) =>
+      c.parts?.some((p: any) => p.functionResponse),
+    )
+    expect(userTurn).toBeDefined()
+
+    const funcResponsePart = userTurn.parts.find((p: any) => p.functionResponse)
+    expect(funcResponsePart).toBeDefined()
+    // name must be the actual function name, not a generated ID
+    expect(funcResponsePart.functionResponse.name).toBe('lookup_weather')
+    // id must be the original function call id from the model
+    expect(funcResponsePart.functionResponse.id).toBe('fc_001')
+  })
+
   it('uses summarize function with models API', async () => {
     const summaryText = 'Short and sweet.'
     mocks.generateContentSpy.mockResolvedValueOnce({

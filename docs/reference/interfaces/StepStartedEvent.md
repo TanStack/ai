@@ -5,7 +5,7 @@ title: StepStartedEvent
 
 # Interface: StepStartedEvent
 
-Defined in: [types.ts:882](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L882)
+Defined in: [types.ts:889](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L889)
 
 Emitted when a thinking/reasoning step starts.
 
@@ -21,7 +21,7 @@ Emitted when a thinking/reasoning step starts.
 optional model: string;
 ```
 
-Defined in: [types.ts:751](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L751)
+Defined in: [types.ts:756](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L756)
 
 Model identifier for multi-model support
 
@@ -37,7 +37,7 @@ Model identifier for multi-model support
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:753](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L753)
+Defined in: [types.ts:758](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L758)
 
 Original provider event for debugging/advanced use cases
 
@@ -53,7 +53,7 @@ Original provider event for debugging/advanced use cases
 stepId: string;
 ```
 
-Defined in: [types.ts:885](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L885)
+Defined in: [types.ts:892](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L892)
 
 Unique identifier for this step
 
@@ -65,7 +65,7 @@ Unique identifier for this step
 optional stepType: string;
 ```
 
-Defined in: [types.ts:887](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L887)
+Defined in: [types.ts:894](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L894)
 
 Type of step (e.g., 'thinking', 'planning')
 
@@ -77,7 +77,7 @@ Type of step (e.g., 'thinking', 'planning')
 timestamp: number;
 ```
 
-Defined in: [types.ts:749](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L749)
+Defined in: [types.ts:754](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L754)
 
 #### Inherited from
 
@@ -91,7 +91,7 @@ Defined in: [types.ts:749](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "STEP_STARTED";
 ```
 
-Defined in: [types.ts:883](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L883)
+Defined in: [types.ts:890](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L890)
 
 #### Overrides
 
