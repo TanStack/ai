@@ -1,5 +1,16 @@
 # @tanstack/ai-openrouter
 
+## 0.7.0
+
+### Minor Changes
+
+- Update model catalog from OpenRouter API (+57 new models, -59 deprecated). Fix snake_case to camelCase parameter mapping in conversion script. Add parallelToolCalls to OpenRouterBaseOptions. ([#400](https://github.com/TanStack/ai/pull/400))
+
+### Patch Changes
+
+- Updated dependencies [[`26d8243`](https://github.com/TanStack/ai/commit/26d8243bab564a547fed8adb5e129d981ba228ea)]:
+  - @tanstack/ai@0.9.2
+
 ## 0.6.8
 
 ### Patch Changes
