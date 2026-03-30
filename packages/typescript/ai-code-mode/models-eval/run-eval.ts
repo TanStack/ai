@@ -166,9 +166,7 @@ function extractAssistantReportText(messages: Array<UIMessage>): string {
   return messages
     .filter((m) => m.role === 'assistant')
     .flatMap((m) =>
-      m.parts
-        .filter((p) => p.type === 'text')
-        .map((p) => p.content),
+      m.parts.filter((p) => p.type === 'text').map((p) => p.content),
     )
     .join('\n\n')
 }
@@ -192,7 +190,10 @@ function getCodeModeTools() {
   return codeModeCache
 }
 
-function getTextAdapter(provider: EvalProvider, modelId: string): AnyTextAdapter {
+function getTextAdapter(
+  provider: EvalProvider,
+  modelId: string,
+): AnyTextAdapter {
   switch (provider) {
     case 'ollama':
       return ollamaText(modelId)
@@ -266,7 +267,10 @@ function parseArgs(argv: Array<string>): {
       const raw = argv[i + 1]
       if (raw && !raw.startsWith('--')) {
         i += 1
-        const ids = raw.split(',').map((s) => s.trim()).filter(Boolean)
+        const ids = raw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
         modelFilter = new Set(ids)
       }
     }
@@ -459,7 +463,9 @@ function finalizeRows(rows: Array<EvalRow>, allLogs: Array<RunLogPayload>) {
 function listRunLogFiles(): Array<string> {
   if (!existsSync(LOG_DIR)) return []
   return readdirSync(LOG_DIR)
-    .filter((name) => name.endsWith('.json') && !name.startsWith('results-summary-'))
+    .filter(
+      (name) => name.endsWith('.json') && !name.startsWith('results-summary-'),
+    )
     .map((name) => join(LOG_DIR, name))
 }
 
@@ -476,7 +482,10 @@ async function judgeLatestSession(rejudge: boolean): Promise<void> {
   const files = listRunLogFiles()
   const payloads = files
     .map((path) => ({ path, payload: readRunLog(path) }))
-    .filter((entry): entry is { path: string; payload: RunLogPayload } => !!entry.payload)
+    .filter(
+      (entry): entry is { path: string; payload: RunLogPayload } =>
+        !!entry.payload,
+    )
 
   if (payloads.length === 0) {
     console.error('[models-eval] No run logs found to judge.')
@@ -530,12 +539,22 @@ async function judgeLatestSession(rejudge: boolean): Promise<void> {
   const summaryPath = writeResultsSummary(rows, latestSession)
   const canonicalPath = writeCanonicalResults(rows, latestSession)
   printTable(rows)
-  console.log(`[models-eval] Summary JSON → ${relative(process.cwd(), summaryPath) || summaryPath}`)
-  console.log(`[models-eval] Canonical results → ${relative(process.cwd(), canonicalPath) || canonicalPath}`)
+  console.log(
+    `[models-eval] Summary JSON → ${relative(process.cwd(), summaryPath) || summaryPath}`,
+  )
+  console.log(
+    `[models-eval] Canonical results → ${relative(process.cwd(), canonicalPath) || canonicalPath}`,
+  )
 }
 
-function writeResultsSummary(rows: Array<EvalRow>, sessionStartedAt: string): string {
-  const path = join(LOG_DIR, `results-summary-${sessionStartedAt.replace(/[:.]/g, '-')}.json`)
+function writeResultsSummary(
+  rows: Array<EvalRow>,
+  sessionStartedAt: string,
+): string {
+  const path = join(
+    LOG_DIR,
+    `results-summary-${sessionStartedAt.replace(/[:.]/g, '-')}.json`,
+  )
   writeFileSync(
     path,
     `${JSON.stringify(
@@ -614,7 +633,10 @@ function bucketedTiers(
     const bucket = rows.filter((r) => r.modelCategory === category)
     const values = bucket
       .map((r) => ({ row: r, value: getter(r) }))
-      .filter((r): r is { row: EvalRow; value: number } => typeof r.value === 'number')
+      .filter(
+        (r): r is { row: EvalRow; value: number } =>
+          typeof r.value === 'number',
+      )
 
     if (values.length === 0) continue
     const min = Math.min(...values.map((v) => v.value))
@@ -663,7 +685,9 @@ function printTable(rows: Array<EvalRow>) {
       r.judge?.codeModeEfficiency !== undefined
         ? String(r.judge.codeModeEfficiency)
         : '-'
-    const stars = r.stars ? `${'★'.repeat(r.stars)}${'☆'.repeat(3 - r.stars)}` : '-'
+    const stars = r.stars
+      ? `${'★'.repeat(r.stars)}${'☆'.repeat(3 - r.stars)}`
+      : '-'
     const err = r.error || ''
     const summary = r.judge?.summary
       ? r.judge.summary.replace(/\s+/g, ' ').slice(0, 120)
@@ -807,7 +831,9 @@ async function main() {
           query,
           goldReport,
           candidateReport,
-          typescriptEvidence: formatTypescriptEvidence(computed.typeScriptAttempts),
+          typescriptEvidence: formatTypescriptEvidence(
+            computed.typeScriptAttempts,
+          ),
         })
         console.log(
           `  ✓ judged: accuracy=${judge.accuracy} comprehensiveness=${judge.comprehensiveness} typescriptQuality=${judge.typescriptQuality} codeModeEfficiency=${judge.codeModeEfficiency} (${durationMs}ms)`,
@@ -899,8 +925,12 @@ async function main() {
   const summaryPath = writeResultsSummary(rows, sessionStartedAt)
   const canonicalPath = writeCanonicalResults(rows, sessionStartedAt)
   printTable(rows)
-  console.log(`[models-eval] Summary JSON → ${relative(process.cwd(), summaryPath) || summaryPath}`)
-  console.log(`[models-eval] Canonical results → ${relative(process.cwd(), canonicalPath) || canonicalPath}`)
+  console.log(
+    `[models-eval] Summary JSON → ${relative(process.cwd(), summaryPath) || summaryPath}`,
+  )
+  console.log(
+    `[models-eval] Canonical results → ${relative(process.cwd(), canonicalPath) || canonicalPath}`,
+  )
 }
 
 main().catch((e) => {
