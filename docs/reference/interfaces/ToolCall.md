@@ -41,6 +41,18 @@ Defined in: [types.ts:88](https://github.com/TanStack/ai/blob/main/packages/type
 
 ***
 
+### providerMetadata?
+
+```ts
+optional providerMetadata: Record<string, unknown>;
+```
+
+Defined in: [types.ts:95](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L95)
+
+Provider-specific metadata to carry through the tool call lifecycle
+
+***
+
 ### type
 
 ```ts
