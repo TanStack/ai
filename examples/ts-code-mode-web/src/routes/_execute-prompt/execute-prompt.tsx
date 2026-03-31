@@ -119,7 +119,13 @@ function formatTime(ts: number) {
   })
 }
 
-function CodeExecutionCard({ exec, index }: { exec: CodeExecution; index: number }) {
+function CodeExecutionCard({
+  exec,
+  index,
+}: {
+  exec: CodeExecution
+  index: number
+}) {
   const [codeOpen, setCodeOpen] = useState(true)
   const [resultOpen, setResultOpen] = useState(true)
 
@@ -140,9 +146,7 @@ function CodeExecutionCard({ exec, index }: { exec: CodeExecution; index: number
         <span className="text-[10px] uppercase tracking-wider text-cyan-400 font-semibold">
           TypeScript Code
         </span>
-        <span className="text-[10px] text-gray-600 ml-auto">
-          #{index + 1}
-        </span>
+        <span className="text-[10px] text-gray-600 ml-auto">#{index + 1}</span>
       </button>
       {codeOpen && (
         <pre className="px-2.5 pb-2 text-[11px] leading-relaxed text-gray-300 font-mono whitespace-pre-wrap break-words overflow-x-auto max-h-72 overflow-y-auto bg-black/40 mx-2 mb-2 rounded p-2">
@@ -226,7 +230,9 @@ function DebugLogGroup({ entries }: { entries: Array<ExecutePromptLogEntry> }) {
         : 'border-cyan-600/30'
 
   return (
-    <div className={`rounded-lg border ${borderColor} bg-gray-900/40 mb-3 overflow-hidden`}>
+    <div
+      className={`rounded-lg border ${borderColor} bg-gray-900/40 mb-3 overflow-hidden`}
+    >
       {/* Header */}
       <button
         type="button"
@@ -258,7 +264,10 @@ function DebugLogGroup({ entries }: { entries: Array<ExecutePromptLogEntry> }) {
         </span>
         {(resEntry?.durationMs ?? errEntry?.durationMs) != null && (
           <span className="text-[10px] text-gray-500 font-mono shrink-0">
-            {((resEntry?.durationMs ?? errEntry?.durationMs)! / 1000).toFixed(1)}s
+            {((resEntry?.durationMs ?? errEntry?.durationMs)! / 1000).toFixed(
+              1,
+            )}
+            s
           </span>
         )}
       </button>
@@ -370,9 +379,7 @@ function DashboardDemoPage() {
       fetch('/api/realtime-token', { method: 'POST' }).then((r) => {
         if (!r.ok) {
           return r.json().then((body) => {
-            throw new Error(
-              (body as { error?: string }).error || r.statusText,
-            )
+            throw new Error((body as { error?: string }).error || r.statusText)
           })
         }
         return r.json()
@@ -404,7 +411,10 @@ function DashboardDemoPage() {
           : 'bg-gray-500'
 
   // Group log entries by request id
-  const logGroups: Array<{ id: string; entries: Array<ExecutePromptLogEntry> }> = []
+  const logGroups: Array<{
+    id: string
+    entries: Array<ExecutePromptLogEntry>
+  }> = []
   const groupMap = new Map<string, Array<ExecutePromptLogEntry>>()
   for (const entry of logEntries) {
     let group = groupMap.get(entry.id)
@@ -427,9 +437,7 @@ function DashboardDemoPage() {
         {/* ── Left column: Chat ─────────────────────────────────── */}
         <div className="flex-1 flex flex-col min-w-0 border-r border-gray-800">
           <div className="px-4 pt-4 pb-2">
-            <h2 className="text-lg font-semibold text-white">
-              Execute Prompt
-            </h2>
+            <h2 className="text-lg font-semibold text-white">Execute Prompt</h2>
             <p className="text-xs text-gray-400 mt-1">
               Connect, then ask about the shoe catalog.
             </p>

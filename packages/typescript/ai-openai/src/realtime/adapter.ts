@@ -272,8 +272,7 @@ async function createWebRTCConnection(
 
       case 'response.function_call_arguments.done': {
         // Realtime payloads include both call_id and item_id; some sessions omit one.
-        const callId =
-          (event.call_id ?? event.item_id) as string | undefined
+        const callId = (event.call_id ?? event.item_id) as string | undefined
         const name = event.name as string
         const args = event.arguments as string
         if (!callId) {

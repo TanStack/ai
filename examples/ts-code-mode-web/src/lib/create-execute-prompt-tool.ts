@@ -40,9 +40,9 @@ const executePromptInputSchema = z.object({
 })
 
 const executePromptOutputSchema = z.object({
-  data: z.unknown().describe(
-    'Parsed JSON result from the inner agent, or raw text metadata',
-  ),
+  data: z
+    .unknown()
+    .describe('Parsed JSON result from the inner agent, or raw text metadata'),
 })
 
 export type ExecutePromptToolInput = z.infer<typeof executePromptInputSchema>

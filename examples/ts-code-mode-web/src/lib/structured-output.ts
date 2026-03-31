@@ -6,10 +6,7 @@ import {
 } from '@tanstack/ai-code-mode-skills'
 import type { AnyTextAdapter, SchemaInput, Tool } from '@tanstack/ai'
 import type { CodeModeTool, IsolateDriver } from '@tanstack/ai-code-mode'
-import type {
-  SkillStorage,
-  TrustStrategy,
-} from '@tanstack/ai-code-mode-skills'
+import type { SkillStorage, TrustStrategy } from '@tanstack/ai-code-mode-skills'
 
 export interface StructuredOutputOptions<TSchema extends SchemaInput> {
   adapter: AnyTextAdapter

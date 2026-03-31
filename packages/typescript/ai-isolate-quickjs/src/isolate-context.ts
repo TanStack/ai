@@ -1,8 +1,5 @@
 import { wrapCode } from '@tanstack/ai-code-mode'
-import {
-  isFatalQuickJSLimitError,
-  normalizeError,
-} from './error-normalizer'
+import { isFatalQuickJSLimitError, normalizeError } from './error-normalizer'
 import type { QuickJSAsyncContext } from 'quickjs-emscripten'
 import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
 

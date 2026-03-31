@@ -111,7 +111,9 @@ export const executePromptShoeCatalogTool = toolDefinition({
   return { data: result.data }
 })
 
-export const executePromptRealtimeTools = [executePromptShoeCatalogTool] as const
+export const executePromptRealtimeTools = [
+  executePromptShoeCatalogTool,
+] as const
 
 function resolveExecutePromptArg(input: unknown): string {
   if (typeof input === 'string') {
@@ -139,13 +141,7 @@ function resolveExecutePromptArg(input: unknown): string {
 
   if (input && typeof input === 'object') {
     const o = input as Record<string, unknown>
-    const p = firstString(
-      o.prompt,
-      o.query,
-      o.question,
-      o.instruction,
-      o.task,
-    )
+    const p = firstString(o.prompt, o.query, o.question, o.instruction, o.task)
     if (p) return p
   }
 

@@ -79,8 +79,7 @@ export function createQuickJSIsolateDriver(
   return {
     async createContext(isolateConfig: IsolateConfig): Promise<IsolateContext> {
       const timeout = isolateConfig.timeout ?? defaultTimeout
-      const memoryLimitMb =
-        isolateConfig.memoryLimit ?? defaultMemoryLimit
+      const memoryLimitMb = isolateConfig.memoryLimit ?? defaultMemoryLimit
       const maxStackSizeBytes = defaultMaxStackSize
 
       // Create async QuickJS context (supports async host functions)

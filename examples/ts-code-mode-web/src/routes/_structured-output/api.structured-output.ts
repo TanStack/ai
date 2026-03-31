@@ -36,9 +36,7 @@ const TravelReportSchema = z.object({
     populationDifferenceMillions: z.number(),
     highlights: z.array(z.string()),
   }),
-  nextSteps: z
-    .array(z.string())
-    .describe('Practical follow-up actions'),
+  nextSteps: z.array(z.string()).describe('Practical follow-up actions'),
 })
 
 function getAdapter(provider: Provider, model?: string): AnyTextAdapter {

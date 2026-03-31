@@ -23,7 +23,7 @@ const CITIES: Array<CityDetails> = [
     landmarks: ['Shibuya Crossing', 'Senso-ji Temple', 'Tokyo Skytree'],
     cuisine: ['Sushi', 'Ramen', 'Monjayaki'],
     funFacts: [
-      'Tokyo has the world\'s busiest train stations.',
+      "Tokyo has the world's busiest train stations.",
       'It hosts more Michelin-starred restaurants than any other city.',
     ],
   },
@@ -71,7 +71,7 @@ const CITIES: Array<CityDetails> = [
     landmarks: ['Marina Bay Sands', 'Gardens by the Bay', 'Merlion Park'],
     cuisine: ['Hainanese chicken rice', 'Laksa', 'Chili crab'],
     funFacts: [
-      'Singapore has one of the world\'s best airport transit systems.',
+      "Singapore has one of the world's best airport transit systems.",
       'It is often called a city in a garden.',
     ],
   },
