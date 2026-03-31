@@ -258,8 +258,11 @@ export class OpenAITextAdapter<
 
     // AG-UI lifecycle tracking
     const runId = genId()
+    const threadId = options.threadId || genId()
     const messageId = genId()
     let stepId: string | null = null
+    let reasoningMessageId: string | null = null
+    let hasClosedReasoning = false
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
     let hasEmittedStepStarted = false
@@ -274,6 +277,7 @@ export class OpenAITextAdapter<
           yield {
             type: 'RUN_STARTED',
             runId,
+            threadId,
             model: model || options.model,
             timestamp,
           }
@@ -299,9 +303,11 @@ export class OpenAITextAdapter<
 
           if (contentPart.type === 'reasoning_text') {
             accumulatedReasoning += contentPart.text
+            const currentStepId = stepId || genId()
             return {
               type: 'STEP_FINISHED',
-              stepId: stepId || genId(),
+              stepName: currentStepId,
+              stepId: currentStepId,
               model: model || options.model,
               timestamp,
               delta: contentPart.text,
@@ -311,6 +317,7 @@ export class OpenAITextAdapter<
           return {
             type: 'RUN_ERROR',
             runId,
+            message: contentPart.refusal,
             model: model || options.model,
             timestamp,
             error: {
@@ -330,25 +337,32 @@ export class OpenAITextAdapter<
           hasStreamedReasoningDeltas = false
           hasEmittedTextMessageStart = false
           hasEmittedStepStarted = false
+          reasoningMessageId = null
+          hasClosedReasoning = false
           accumulatedContent = ''
           accumulatedReasoning = ''
           if (chunk.response.error) {
             yield {
               type: 'RUN_ERROR',
               runId,
+              message: chunk.response.error.message,
+              code: chunk.response.error.code ?? undefined,
               model: chunk.response.model,
               timestamp,
               error: chunk.response.error,
             }
           }
           if (chunk.response.incomplete_details) {
+            const incompleteMessage =
+              chunk.response.incomplete_details.reason ?? ''
             yield {
               type: 'RUN_ERROR',
               runId,
+              message: incompleteMessage,
               model: chunk.response.model,
               timestamp,
               error: {
-                message: chunk.response.incomplete_details.reason ?? '',
+                message: incompleteMessage,
               },
             }
           }
@@ -364,6 +378,23 @@ export class OpenAITextAdapter<
               : ''
 
           if (textDelta) {
+            // Close reasoning events before text starts
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield {
+                type: 'REASONING_MESSAGE_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              }
+              yield {
+                type: 'REASONING_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              }
+            }
+
             // Emit TEXT_MESSAGE_START on first text content
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
@@ -400,12 +431,31 @@ export class OpenAITextAdapter<
               : ''
 
           if (reasoningDelta) {
-            // Emit STEP_STARTED on first reasoning content
+            // Emit STEP_STARTED and REASONING_START on first reasoning content
             if (!hasEmittedStepStarted) {
               hasEmittedStepStarted = true
               stepId = genId()
+              reasoningMessageId = genId()
+
+              // Spec REASONING events
+              yield {
+                type: 'REASONING_START',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              }
+              yield {
+                type: 'REASONING_MESSAGE_START',
+                messageId: reasoningMessageId,
+                role: 'reasoning' as const,
+                model: model || options.model,
+                timestamp,
+              }
+
+              // Legacy STEP events (kept during transition)
               yield {
                 type: 'STEP_STARTED',
+                stepName: stepId,
                 stepId,
                 model: model || options.model,
                 timestamp,
@@ -415,8 +465,20 @@ export class OpenAITextAdapter<
 
             accumulatedReasoning += reasoningDelta
             hasStreamedReasoningDeltas = true
+
+            // Spec REASONING content event
+            yield {
+              type: 'REASONING_MESSAGE_CONTENT',
+              messageId: reasoningMessageId!,
+              delta: reasoningDelta,
+              model: model || options.model,
+              timestamp,
+            }
+
+            // Legacy STEP event
             yield {
               type: 'STEP_FINISHED',
+              stepName: stepId || genId(),
               stepId: stepId || genId(),
               model: model || options.model,
               timestamp,
@@ -436,12 +498,31 @@ export class OpenAITextAdapter<
             typeof chunk.delta === 'string' ? chunk.delta : ''
 
           if (summaryDelta) {
-            // Emit STEP_STARTED on first reasoning content
+            // Emit STEP_STARTED and REASONING_START on first reasoning content
             if (!hasEmittedStepStarted) {
               hasEmittedStepStarted = true
               stepId = genId()
+              reasoningMessageId = genId()
+
+              // Spec REASONING events
+              yield {
+                type: 'REASONING_START',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              }
+              yield {
+                type: 'REASONING_MESSAGE_START',
+                messageId: reasoningMessageId,
+                role: 'reasoning' as const,
+                model: model || options.model,
+                timestamp,
+              }
+
+              // Legacy STEP events (kept during transition)
               yield {
                 type: 'STEP_STARTED',
+                stepName: stepId,
                 stepId,
                 model: model || options.model,
                 timestamp,
@@ -451,8 +532,20 @@ export class OpenAITextAdapter<
 
             accumulatedReasoning += summaryDelta
             hasStreamedReasoningDeltas = true
+
+            // Spec REASONING content event
+            yield {
+              type: 'REASONING_MESSAGE_CONTENT',
+              messageId: reasoningMessageId!,
+              delta: summaryDelta,
+              model: model || options.model,
+              timestamp,
+            }
+
+            // Legacy STEP event
             yield {
               type: 'STEP_FINISHED',
+              stepName: stepId || genId(),
               stepId: stepId || genId(),
               model: model || options.model,
               timestamp,
@@ -465,6 +558,25 @@ export class OpenAITextAdapter<
         // handle content_part added events for text, reasoning and refusals
         if (chunk.type === 'response.content_part.added') {
           const contentPart = chunk.part
+          // Close reasoning before text starts
+          if (contentPart.type === 'output_text') {
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield {
+                type: 'REASONING_MESSAGE_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              }
+              yield {
+                type: 'REASONING_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              }
+            }
+          }
+
           // Emit TEXT_MESSAGE_START if this is text content
           if (
             contentPart.type === 'output_text' &&
@@ -479,12 +591,31 @@ export class OpenAITextAdapter<
               role: 'assistant',
             }
           }
-          // Emit STEP_STARTED if this is reasoning content
+          // Emit STEP_STARTED and REASONING events if this is reasoning content
           if (contentPart.type === 'reasoning_text' && !hasEmittedStepStarted) {
             hasEmittedStepStarted = true
             stepId = genId()
+            reasoningMessageId = genId()
+
+            // Spec REASONING events
+            yield {
+              type: 'REASONING_START',
+              messageId: reasoningMessageId,
+              model: model || options.model,
+              timestamp,
+            }
+            yield {
+              type: 'REASONING_MESSAGE_START',
+              messageId: reasoningMessageId,
+              role: 'reasoning' as const,
+              model: model || options.model,
+              timestamp,
+            }
+
+            // Legacy STEP events (kept during transition)
             yield {
               type: 'STEP_STARTED',
+              stepName: stepId,
               stepId,
               model: model || options.model,
               timestamp,
@@ -531,6 +662,7 @@ export class OpenAITextAdapter<
             yield {
               type: 'TOOL_CALL_START',
               toolCallId: item.id,
+              toolCallName: item.name || '',
               toolName: item.name || '',
               model: model || options.model,
               timestamp,
@@ -574,6 +706,7 @@ export class OpenAITextAdapter<
           yield {
             type: 'TOOL_CALL_END',
             toolCallId: item_id,
+            toolCallName: name,
             toolName: name,
             model: model || options.model,
             timestamp,
@@ -582,6 +715,23 @@ export class OpenAITextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
+          // Close reasoning events if still open
+          if (reasoningMessageId && !hasClosedReasoning) {
+            hasClosedReasoning = true
+            yield {
+              type: 'REASONING_MESSAGE_END',
+              messageId: reasoningMessageId,
+              model: model || options.model,
+              timestamp,
+            }
+            yield {
+              type: 'REASONING_END',
+              messageId: reasoningMessageId,
+              model: model || options.model,
+              timestamp,
+            }
+          }
+
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
             yield {
@@ -602,6 +752,7 @@ export class OpenAITextAdapter<
           yield {
             type: 'RUN_FINISHED',
             runId,
+            threadId,
             model: model || options.model,
             timestamp,
             usage: {
@@ -617,6 +768,8 @@ export class OpenAITextAdapter<
           yield {
             type: 'RUN_ERROR',
             runId,
+            message: chunk.message,
+            code: chunk.code ?? undefined,
             model: model || options.model,
             timestamp,
             error: {
@@ -638,6 +791,8 @@ export class OpenAITextAdapter<
       yield {
         type: 'RUN_ERROR',
         runId,
+        message: err.message || 'Unknown error occurred',
+        code: err.code,
         model: options.model,
         timestamp,
         error: {
