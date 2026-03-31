@@ -254,15 +254,16 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
         }
         case 'TOOL_CALL_START': {
           const toolIndex = chunk.index ?? 0
+          const toolName = chunk.toolCallName ?? (chunk as any).toolName
           activeToolCalls.set(chunk.toolCallId, {
-            toolName: chunk.toolName,
+            toolName,
             index: toolIndex,
           })
           aiEventClient.emit('text:chunk:tool-call', {
             ...base,
             messageId: localMessageId || undefined,
             toolCallId: chunk.toolCallId,
-            toolName: chunk.toolName,
+            toolName,
             index: toolIndex,
             arguments: '',
             timestamp: Date.now(),
@@ -297,7 +298,7 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
           aiEventClient.emit('text:chunk:done', {
             ...base,
             messageId: localMessageId || undefined,
-            finishReason: chunk.finishReason,
+            finishReason: chunk.finishReason ?? null,
             usage: chunk.usage,
             timestamp: Date.now(),
           })

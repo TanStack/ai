@@ -257,7 +257,7 @@ export interface RealtimeEventPayloads {
     isFinal: boolean
   }
   audio_chunk: { data: ArrayBuffer; sampleRate: number }
-  tool_call: { toolCallId: string; toolName: string; input: unknown }
+  tool_call: { toolCallId: string; toolCallName: string; input: unknown }
   message_complete: { message: RealtimeMessage }
   interrupted: { messageId?: string }
   error: { error: Error }

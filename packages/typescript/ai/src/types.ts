@@ -913,12 +913,17 @@ export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {
  * Emitted when a tool call completes.
  *
  * @ag-ui/core provides: `toolCallId`
- * TanStack AI adds: `model?`, `toolName?`, `input?`, `result?`
+ * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `result?`
  */
 export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
   /** Model identifier for multi-model support */
   model?: string
-  /** Name of the tool (TanStack AI internal) */
+  /** Name of the tool that completed */
+  toolCallName?: string
+  /**
+   * @deprecated Use `toolCallName` instead.
+   * Kept for backward compatibility.
+   */
   toolName?: string
   /** Final parsed input arguments (TanStack AI internal) */
   input?: unknown

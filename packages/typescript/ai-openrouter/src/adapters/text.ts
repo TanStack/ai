@@ -64,8 +64,11 @@ interface ToolCallBuffer {
 // AG-UI lifecycle state tracking
 interface AGUIState {
   runId: string
+  threadId: string
   messageId: string
   stepId: string | null
+  reasoningMessageId: string | null
+  hasClosedReasoning: boolean
   hasEmittedRunStarted: boolean
   hasEmittedTextMessageStart: boolean
   hasEmittedStepStarted: boolean
@@ -101,8 +104,11 @@ export class OpenRouterTextAdapter<
     // AG-UI lifecycle tracking
     const aguiState: AGUIState = {
       runId: this.generateId(),
+      threadId: options.threadId || this.generateId(),
       messageId: this.generateId(),
       stepId: null,
+      reasoningMessageId: null,
+      hasClosedReasoning: false,
       hasEmittedRunStarted: false,
       hasEmittedTextMessageStart: false,
       hasEmittedStepStarted: false,
@@ -125,6 +131,7 @@ export class OpenRouterTextAdapter<
           yield {
             type: 'RUN_STARTED',
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: currentModel || options.model,
             timestamp,
           }
@@ -137,6 +144,8 @@ export class OpenRouterTextAdapter<
             runId: aguiState.runId,
             model: currentModel || options.model,
             timestamp,
+            message: chunk.error.message || 'Unknown error',
+            code: String(chunk.error.code),
             error: {
               message: chunk.error.message || 'Unknown error',
               code: String(chunk.error.code),
@@ -171,6 +180,7 @@ export class OpenRouterTextAdapter<
         yield {
           type: 'RUN_STARTED',
           runId: aguiState.runId,
+          threadId: aguiState.threadId,
           model: options.model,
           timestamp,
         }
@@ -183,6 +193,8 @@ export class OpenRouterTextAdapter<
           runId: aguiState.runId,
           model: options.model,
           timestamp,
+          message: 'Request aborted',
+          code: 'aborted',
           error: {
             message: 'Request aborted',
             code: 'aborted',
@@ -197,6 +209,7 @@ export class OpenRouterTextAdapter<
         runId: aguiState.runId,
         model: options.model,
         timestamp,
+        message: (error as Error).message || 'Unknown error',
         error: {
           message: (error as Error).message || 'Unknown error',
         },
@@ -288,6 +301,23 @@ export class OpenRouterTextAdapter<
     const finishReason = choice.finishReason
 
     if (delta.content) {
+      // Close reasoning before text starts
+      if (aguiState.reasoningMessageId && !aguiState.hasClosedReasoning) {
+        aguiState.hasClosedReasoning = true
+        yield {
+          type: 'REASONING_MESSAGE_END',
+          messageId: aguiState.reasoningMessageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+        }
+        yield {
+          type: 'REASONING_END',
+          messageId: aguiState.reasoningMessageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+        }
+      }
+
       // Emit TEXT_MESSAGE_START on first text content
       if (!aguiState.hasEmittedTextMessageStart) {
         aguiState.hasEmittedTextMessageStart = true
@@ -319,12 +349,31 @@ export class OpenRouterTextAdapter<
         if (detail.type === 'reasoning.text') {
           const text = detail.text || ''
 
-          // Emit STEP_STARTED on first reasoning content
+          // Emit STEP_STARTED and REASONING events on first reasoning content
           if (!aguiState.hasEmittedStepStarted) {
             aguiState.hasEmittedStepStarted = true
             aguiState.stepId = this.generateId()
+            aguiState.reasoningMessageId = this.generateId()
+
+            // Spec REASONING events
+            yield {
+              type: 'REASONING_START',
+              messageId: aguiState.reasoningMessageId,
+              model: meta.model,
+              timestamp: meta.timestamp,
+            }
+            yield {
+              type: 'REASONING_MESSAGE_START',
+              messageId: aguiState.reasoningMessageId,
+              role: 'reasoning' as const,
+              model: meta.model,
+              timestamp: meta.timestamp,
+            }
+
+            // Legacy STEP events (kept during transition)
             yield {
               type: 'STEP_STARTED',
+              stepName: aguiState.stepId,
               stepId: aguiState.stepId,
               model: meta.model,
               timestamp: meta.timestamp,
@@ -335,9 +384,19 @@ export class OpenRouterTextAdapter<
           accumulated.reasoning += text
           updateAccumulated(accumulated.reasoning, accumulated.content)
 
-          // Emit AG-UI STEP_FINISHED for reasoning delta
+          // Spec REASONING content event
+          yield {
+            type: 'REASONING_MESSAGE_CONTENT',
+            messageId: aguiState.reasoningMessageId!,
+            delta: text,
+            model: meta.model,
+            timestamp: meta.timestamp,
+          }
+
+          // Legacy STEP event
           yield {
             type: 'STEP_FINISHED',
+            stepName: aguiState.stepId!,
             stepId: aguiState.stepId!,
             model: meta.model,
             timestamp: meta.timestamp,
@@ -349,12 +408,31 @@ export class OpenRouterTextAdapter<
         if (detail.type === 'reasoning.summary') {
           const text = detail.summary || ''
 
-          // Emit STEP_STARTED on first reasoning content
+          // Emit STEP_STARTED and REASONING events on first reasoning content
           if (!aguiState.hasEmittedStepStarted) {
             aguiState.hasEmittedStepStarted = true
             aguiState.stepId = this.generateId()
+            aguiState.reasoningMessageId = this.generateId()
+
+            // Spec REASONING events
+            yield {
+              type: 'REASONING_START',
+              messageId: aguiState.reasoningMessageId,
+              model: meta.model,
+              timestamp: meta.timestamp,
+            }
+            yield {
+              type: 'REASONING_MESSAGE_START',
+              messageId: aguiState.reasoningMessageId,
+              role: 'reasoning' as const,
+              model: meta.model,
+              timestamp: meta.timestamp,
+            }
+
+            // Legacy STEP events (kept during transition)
             yield {
               type: 'STEP_STARTED',
+              stepName: aguiState.stepId,
               stepId: aguiState.stepId,
               model: meta.model,
               timestamp: meta.timestamp,
@@ -365,9 +443,19 @@ export class OpenRouterTextAdapter<
           accumulated.reasoning += text
           updateAccumulated(accumulated.reasoning, accumulated.content)
 
-          // Emit AG-UI STEP_FINISHED for reasoning delta
+          // Spec REASONING content event
+          yield {
+            type: 'REASONING_MESSAGE_CONTENT',
+            messageId: aguiState.reasoningMessageId!,
+            delta: text,
+            model: meta.model,
+            timestamp: meta.timestamp,
+          }
+
+          // Legacy STEP event
           yield {
             type: 'STEP_FINISHED',
+            stepName: aguiState.stepId!,
             stepId: aguiState.stepId!,
             model: meta.model,
             timestamp: meta.timestamp,
@@ -407,6 +495,7 @@ export class OpenRouterTextAdapter<
           yield {
             type: 'TOOL_CALL_START',
             toolCallId: buffer.id,
+            toolCallName: buffer.name,
             toolName: buffer.name,
             model: meta.model,
             timestamp: meta.timestamp,
@@ -434,6 +523,8 @@ export class OpenRouterTextAdapter<
         runId: aguiState.runId,
         model: meta.model,
         timestamp: meta.timestamp,
+        message: delta.refusal,
+        code: 'refusal',
         error: { message: delta.refusal, code: 'refusal' },
       }
     }
@@ -454,6 +545,7 @@ export class OpenRouterTextAdapter<
           yield {
             type: 'TOOL_CALL_END',
             toolCallId: tc.id,
+            toolCallName: tc.name,
             toolName: tc.name,
             model: meta.model,
             timestamp: meta.timestamp,
@@ -471,6 +563,23 @@ export class OpenRouterTextAdapter<
             ? 'length'
             : 'stop'
 
+      // Close reasoning events if still open
+      if (aguiState.reasoningMessageId && !aguiState.hasClosedReasoning) {
+        aguiState.hasClosedReasoning = true
+        yield {
+          type: 'REASONING_MESSAGE_END',
+          messageId: aguiState.reasoningMessageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+        }
+        yield {
+          type: 'REASONING_END',
+          messageId: aguiState.reasoningMessageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+        }
+      }
+
       // Emit TEXT_MESSAGE_END if we had text content
       if (aguiState.hasEmittedTextMessageStart) {
         yield {
@@ -485,6 +594,7 @@ export class OpenRouterTextAdapter<
       yield {
         type: 'RUN_FINISHED',
         runId: aguiState.runId,
+        threadId: aguiState.threadId,
         model: meta.model,
         timestamp: meta.timestamp,
         usage: usage

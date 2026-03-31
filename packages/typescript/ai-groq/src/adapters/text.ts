@@ -76,6 +76,7 @@ export class GroqTextAdapter<
 
     const aguiState = {
       runId: generateId(this.name),
+      threadId: options.threadId || generateId(this.name),
       messageId: generateId(this.name),
       timestamp,
       hasEmittedRunStarted: false,
@@ -96,6 +97,7 @@ export class GroqTextAdapter<
         yield {
           type: 'RUN_STARTED',
           runId: aguiState.runId,
+          threadId: aguiState.threadId,
           model: options.model,
           timestamp,
         }
@@ -106,6 +108,8 @@ export class GroqTextAdapter<
         runId: aguiState.runId,
         model: options.model,
         timestamp,
+        message: err.message || 'Unknown error',
+        code: err.code,
         error: {
           message: err.message || 'Unknown error',
           code: err.code,
@@ -190,6 +194,7 @@ export class GroqTextAdapter<
     options: TextOptions,
     aguiState: {
       runId: string
+      threadId: string
       messageId: string
       timestamp: number
       hasEmittedRunStarted: boolean
@@ -220,6 +225,7 @@ export class GroqTextAdapter<
           yield {
             type: 'RUN_STARTED',
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp,
           }
@@ -283,6 +289,7 @@ export class GroqTextAdapter<
               yield {
                 type: 'TOOL_CALL_START',
                 toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
@@ -324,6 +331,7 @@ export class GroqTextAdapter<
               yield {
                 type: 'TOOL_CALL_END',
                 toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
@@ -354,6 +362,7 @@ export class GroqTextAdapter<
           yield {
             type: 'RUN_FINISHED',
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp,
             usage: groqUsage
@@ -376,6 +385,8 @@ export class GroqTextAdapter<
         runId: aguiState.runId,
         model: options.model,
         timestamp,
+        message: err.message || 'Unknown error occurred',
+        code: err.code,
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code,

@@ -106,13 +106,17 @@ export class GeminiTextAdapter<
       const result =
         await this.client.models.generateContentStream(mappedOptions)
 
-      yield* this.processStreamChunks(result, options.model)
+      yield* this.processStreamChunks(result, options)
     } catch (error) {
       const timestamp = Date.now()
       yield {
         type: 'RUN_ERROR',
         model: options.model,
         timestamp,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'An unknown error occurred during the chat stream.',
         error: {
           message:
             error instanceof Error
@@ -191,8 +195,9 @@ export class GeminiTextAdapter<
 
   private async *processStreamChunks(
     result: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
-    model: string,
+    options: TextOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
+    const model = options.model
     const timestamp = Date.now()
     let accumulatedContent = ''
     let accumulatedThinking = ''
@@ -210,8 +215,11 @@ export class GeminiTextAdapter<
 
     // AG-UI lifecycle tracking
     const runId = generateId(this.name)
+    const threadId = options.threadId || generateId(this.name)
     const messageId = generateId(this.name)
     let stepId: string | null = null
+    let reasoningMessageId: string | null = null
+    let hasClosedReasoning = false
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
     let hasEmittedStepStarted = false
@@ -223,6 +231,7 @@ export class GeminiTextAdapter<
         yield {
           type: 'RUN_STARTED',
           runId,
+          threadId,
           model,
           timestamp,
         }
@@ -234,12 +243,31 @@ export class GeminiTextAdapter<
         for (const part of parts) {
           if (part.text) {
             if (part.thought) {
-              // Emit STEP_STARTED on first thinking content
+              // Emit STEP_STARTED and REASONING events on first thinking content
               if (!hasEmittedStepStarted) {
                 hasEmittedStepStarted = true
                 stepId = generateId(this.name)
+                reasoningMessageId = generateId(this.name)
+
+                // Spec REASONING events
+                yield {
+                  type: 'REASONING_START',
+                  messageId: reasoningMessageId,
+                  model,
+                  timestamp,
+                }
+                yield {
+                  type: 'REASONING_MESSAGE_START',
+                  messageId: reasoningMessageId,
+                  role: 'reasoning' as const,
+                  model,
+                  timestamp,
+                }
+
+                // Legacy STEP events (kept during transition)
                 yield {
                   type: 'STEP_STARTED',
+                  stepName: stepId,
                   stepId,
                   model,
                   timestamp,
@@ -248,8 +276,20 @@ export class GeminiTextAdapter<
               }
 
               accumulatedThinking += part.text
+
+              // Spec REASONING content event
+              yield {
+                type: 'REASONING_MESSAGE_CONTENT',
+                messageId: reasoningMessageId!,
+                delta: part.text,
+                model,
+                timestamp,
+              }
+
+              // Legacy STEP event
               yield {
                 type: 'STEP_FINISHED',
+                stepName: stepId || generateId(this.name),
                 stepId: stepId || generateId(this.name),
                 model,
                 timestamp,
@@ -257,6 +297,23 @@ export class GeminiTextAdapter<
                 content: accumulatedThinking,
               }
             } else if (part.text.trim()) {
+              // Close reasoning before text starts
+              if (reasoningMessageId && !hasClosedReasoning) {
+                hasClosedReasoning = true
+                yield {
+                  type: 'REASONING_MESSAGE_END',
+                  messageId: reasoningMessageId,
+                  model,
+                  timestamp,
+                }
+                yield {
+                  type: 'REASONING_END',
+                  messageId: reasoningMessageId,
+                  model,
+                  timestamp,
+                }
+              }
+
               // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
               // Emit TEXT_MESSAGE_START on first text content
               if (!hasEmittedTextMessageStart) {
@@ -326,6 +383,7 @@ export class GeminiTextAdapter<
               yield {
                 type: 'TOOL_CALL_START',
                 toolCallId,
+                toolCallName: toolCallData.name,
                 toolName: toolCallData.name,
                 model,
                 timestamp,
@@ -403,6 +461,7 @@ export class GeminiTextAdapter<
                 yield {
                   type: 'TOOL_CALL_START',
                   toolCallId,
+                  toolCallName: functionCall.name || '',
                   toolName: functionCall.name || '',
                   model,
                   timestamp,
@@ -423,6 +482,7 @@ export class GeminiTextAdapter<
                 yield {
                   type: 'TOOL_CALL_END',
                   toolCallId,
+                  toolCallName: functionCall.name || '',
                   toolName: functionCall.name || '',
                   model,
                   timestamp,
@@ -445,6 +505,7 @@ export class GeminiTextAdapter<
           yield {
             type: 'TOOL_CALL_END',
             toolCallId,
+            toolCallName: toolCallData.name,
             toolName: toolCallData.name,
             model,
             timestamp,
@@ -463,11 +524,31 @@ export class GeminiTextAdapter<
             runId,
             model,
             timestamp,
+            message:
+              'The response was cut off because the maximum token limit was reached.',
+            code: 'max_tokens',
             error: {
               message:
                 'The response was cut off because the maximum token limit was reached.',
               code: 'max_tokens',
             },
+          }
+        }
+
+        // Close reasoning events if still open
+        if (reasoningMessageId && !hasClosedReasoning) {
+          hasClosedReasoning = true
+          yield {
+            type: 'REASONING_MESSAGE_END',
+            messageId: reasoningMessageId,
+            model,
+            timestamp,
+          }
+          yield {
+            type: 'REASONING_END',
+            messageId: reasoningMessageId,
+            model,
+            timestamp,
           }
         }
 
@@ -484,6 +565,7 @@ export class GeminiTextAdapter<
         yield {
           type: 'RUN_FINISHED',
           runId,
+          threadId,
           model,
           timestamp,
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',

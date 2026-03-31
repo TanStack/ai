@@ -129,7 +129,7 @@ export class AnthropicTextAdapter<
         },
       )
 
-      yield* this.processAnthropicStream(stream, options.model, () =>
+      yield* this.processAnthropicStream(stream, options, () =>
         generateId(this.name),
       )
     } catch (error: unknown) {
@@ -138,6 +138,8 @@ export class AnthropicTextAdapter<
         type: 'RUN_ERROR',
         model: options.model,
         timestamp: Date.now(),
+        message: err.message || 'Unknown error occurred',
+        code: err.code || String(err.status),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
@@ -523,9 +525,10 @@ export class AnthropicTextAdapter<
 
   private async *processAnthropicStream(
     stream: AsyncIterable<Anthropic_SDK.Beta.BetaRawMessageStreamEvent>,
-    model: string,
+    options: TextOptions<AnthropicTextProviderOptions>,
     genId: () => string,
   ): AsyncIterable<StreamChunk> {
+    const model = options.model
     let accumulatedContent = ''
     let accumulatedThinking = ''
     const timestamp = Date.now()
@@ -537,8 +540,11 @@ export class AnthropicTextAdapter<
 
     // AG-UI lifecycle tracking
     const runId = genId()
+    const threadId = options.threadId || genId()
     const messageId = genId()
     let stepId: string | null = null
+    let reasoningMessageId: string | null = null
+    let hasClosedReasoning = false
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
     let hasEmittedRunFinished = false
@@ -553,6 +559,7 @@ export class AnthropicTextAdapter<
           yield {
             type: 'RUN_STARTED',
             runId,
+            threadId,
             model,
             timestamp,
           }
@@ -570,10 +577,29 @@ export class AnthropicTextAdapter<
             })
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
-            // Emit STEP_STARTED for thinking
+            // Emit REASONING and STEP_STARTED for thinking
             stepId = genId()
+            reasoningMessageId = genId()
+
+            // Spec REASONING events
+            yield {
+              type: 'REASONING_START',
+              messageId: reasoningMessageId,
+              model,
+              timestamp,
+            }
+            yield {
+              type: 'REASONING_MESSAGE_START',
+              messageId: reasoningMessageId,
+              role: 'reasoning' as const,
+              model,
+              timestamp,
+            }
+
+            // Legacy STEP events (kept during transition)
             yield {
               type: 'STEP_STARTED',
+              stepName: stepId,
               stepId,
               model,
               timestamp,
@@ -582,6 +608,23 @@ export class AnthropicTextAdapter<
           }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
+            // Close reasoning before text starts
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield {
+                type: 'REASONING_MESSAGE_END',
+                messageId: reasoningMessageId,
+                model,
+                timestamp,
+              }
+              yield {
+                type: 'REASONING_END',
+                messageId: reasoningMessageId,
+                model,
+                timestamp,
+              }
+            }
+
             // Emit TEXT_MESSAGE_START on first text content
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
@@ -607,8 +650,20 @@ export class AnthropicTextAdapter<
           } else if (event.delta.type === 'thinking_delta') {
             const delta = event.delta.thinking
             accumulatedThinking += delta
+
+            // Spec REASONING content event
+            yield {
+              type: 'REASONING_MESSAGE_CONTENT',
+              messageId: reasoningMessageId!,
+              delta,
+              model,
+              timestamp,
+            }
+
+            // Legacy STEP event
             yield {
               type: 'STEP_FINISHED',
+              stepName: stepId || genId(),
               stepId: stepId || genId(),
               model,
               timestamp,
@@ -624,6 +679,7 @@ export class AnthropicTextAdapter<
                 yield {
                   type: 'TOOL_CALL_START',
                   toolCallId: existing.id,
+                  toolCallName: existing.name,
                   toolName: existing.name,
                   model,
                   timestamp,
@@ -653,6 +709,7 @@ export class AnthropicTextAdapter<
                 yield {
                   type: 'TOOL_CALL_START',
                   toolCallId: existing.id,
+                  toolCallName: existing.name,
                   toolName: existing.name,
                   model,
                   timestamp,
@@ -672,6 +729,7 @@ export class AnthropicTextAdapter<
               yield {
                 type: 'TOOL_CALL_END',
                 toolCallId: existing.id,
+                toolCallName: existing.name,
                 toolName: existing.name,
                 model,
                 timestamp,
@@ -694,6 +752,23 @@ export class AnthropicTextAdapter<
           }
           currentBlockType = null
         } else if (event.type === 'message_stop') {
+          // Close reasoning events if still open
+          if (reasoningMessageId && !hasClosedReasoning) {
+            hasClosedReasoning = true
+            yield {
+              type: 'REASONING_MESSAGE_END',
+              messageId: reasoningMessageId,
+              model,
+              timestamp,
+            }
+            yield {
+              type: 'REASONING_END',
+              messageId: reasoningMessageId,
+              model,
+              timestamp,
+            }
+          }
+
           // Only emit RUN_FINISHED from message_stop if message_delta didn't already emit one.
           // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
           // while message_stop is just a completion signal.
@@ -701,6 +776,7 @@ export class AnthropicTextAdapter<
             yield {
               type: 'RUN_FINISHED',
               runId,
+              threadId,
               model,
               timestamp,
               finishReason: 'stop',
@@ -709,11 +785,30 @@ export class AnthropicTextAdapter<
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
             hasEmittedRunFinished = true
+
+            // Close reasoning events if still open
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield {
+                type: 'REASONING_MESSAGE_END',
+                messageId: reasoningMessageId,
+                model,
+                timestamp,
+              }
+              yield {
+                type: 'REASONING_END',
+                messageId: reasoningMessageId,
+                model,
+                timestamp,
+              }
+            }
+
             switch (event.delta.stop_reason) {
               case 'tool_use': {
                 yield {
                   type: 'RUN_FINISHED',
                   runId,
+                  threadId,
                   model,
                   timestamp,
                   finishReason: 'tool_calls',
@@ -733,6 +828,9 @@ export class AnthropicTextAdapter<
                   runId,
                   model,
                   timestamp,
+                  message:
+                    'The response was cut off because the maximum token limit was reached.',
+                  code: 'max_tokens',
                   error: {
                     message:
                       'The response was cut off because the maximum token limit was reached.',
@@ -745,6 +843,7 @@ export class AnthropicTextAdapter<
                 yield {
                   type: 'RUN_FINISHED',
                   runId,
+                  threadId,
                   model,
                   timestamp,
                   finishReason: 'stop',
@@ -769,6 +868,8 @@ export class AnthropicTextAdapter<
         runId,
         model,
         timestamp,
+        message: err.message || 'Unknown error occurred',
+        code: err.code || String(err.status),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),

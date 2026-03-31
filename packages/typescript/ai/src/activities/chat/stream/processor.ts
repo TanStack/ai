@@ -495,6 +495,21 @@ export class StreamProcessor {
         this.handleRunStartedEvent(chunk)
         break
 
+      case 'REASONING_START':
+      case 'REASONING_MESSAGE_START':
+      case 'REASONING_MESSAGE_END':
+      case 'REASONING_END':
+        // No special handling needed
+        break
+
+      case 'REASONING_MESSAGE_CONTENT':
+        this.handleReasoningMessageContentEvent(chunk)
+        break
+
+      case 'TOOL_CALL_RESULT':
+        // Tool result handled by chat activity
+        break
+
       default:
         // STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA - no special handling needed
         break
@@ -632,11 +647,11 @@ export class StreamProcessor {
   ): void {
     const { messageId, role } = chunk
 
-    // Map 'tool' role to 'assistant' for both UIMessage and MessageStreamState
-    // (UIMessage doesn't support 'tool' role, and lookups like
+    // Map 'tool' and 'developer' roles to 'assistant' for both UIMessage and MessageStreamState
+    // (UIMessage doesn't support 'tool'/'developer' role, and lookups like
     // getActiveAssistantMessageId() check state.role === 'assistant')
     const uiRole: 'system' | 'user' | 'assistant' =
-      role === 'tool' ? 'assistant' : role
+      role === 'user' || role === 'system' ? role : 'assistant'
 
     // Case 1: A manual message was created via startAssistantMessage()
     if (this.pendingManualMessageId) {
@@ -739,7 +754,8 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>,
   ): void {
     this.resetStreamState()
-    this.messages = [...chunk.messages]
+    // AG-UI Message[] is compatible with UIMessage[] at runtime
+    this.messages = [...chunk.messages] as unknown as UIMessage[]
     this.emitMessagesChange()
   }
 
@@ -849,9 +865,12 @@ export class StreamProcessor {
       // New tool call starting
       const initialState: ToolCallState = 'awaiting-input'
 
+      // Prefer spec field `toolCallName`; fall back to deprecated `toolName`
+      const toolName = chunk.toolCallName ?? (chunk as any).toolName
+
       const newToolCall: InternalToolCallState = {
         id: chunk.toolCallId,
-        name: chunk.toolName,
+        name: toolName,
         arguments: '',
         state: initialState,
         parsedArguments: undefined,
@@ -867,7 +886,7 @@ export class StreamProcessor {
       // Update UIMessage
       this.messages = updateToolCallPart(this.messages, messageId, {
         id: chunk.toolCallId,
-        name: chunk.toolName,
+        name: toolName,
         arguments: '',
         state: initialState,
       })
@@ -1037,7 +1056,7 @@ export class StreamProcessor {
   private handleRunFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
   ): void {
-    this.finishReason = chunk.finishReason
+    this.finishReason = chunk.finishReason ?? null
     this.activeRuns.delete(chunk.runId)
 
     if (this.activeRuns.size === 0) {
@@ -1054,13 +1073,17 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.hasError = true
-    if (chunk.runId) {
-      this.activeRuns.delete(chunk.runId)
+    const runId = (chunk as any).runId as string | undefined
+    if (runId) {
+      this.activeRuns.delete(runId)
     } else {
       this.activeRuns.clear()
     }
     this.ensureAssistantMessage()
-    this.events.onError?.(new Error(chunk.error.message || 'An error occurred'))
+    // Prefer spec field `message`; fall back to deprecated `error.message`
+    const errorMessage =
+      chunk.message || chunk.error?.message || 'An error occurred'
+    this.events.onError?.(new Error(errorMessage))
   }
 
   /**
@@ -1105,6 +1128,31 @@ export class StreamProcessor {
     this.emitMessagesChange()
 
     // Emit granular event
+    this.events.onThinkingUpdate?.(messageId, state.thinkingContent)
+  }
+
+  /**
+   * Handle REASONING_MESSAGE_CONTENT event (AG-UI reasoning protocol).
+   *
+   * Accumulates reasoning delta into thinkingContent and updates the ThinkingPart
+   * in the UIMessage.
+   */
+  private handleReasoningMessageContentEvent(
+    chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
+  ): void {
+    const { messageId, state } = this.ensureAssistantMessage(
+      this.getActiveAssistantMessageId() ?? undefined,
+    )
+
+    state.thinkingContent = state.thinkingContent + chunk.delta
+
+    this.messages = updateThinkingPart(
+      this.messages,
+      messageId,
+      state.thinkingContent,
+    )
+    this.emitMessagesChange()
+
     this.events.onThinkingUpdate?.(messageId, state.thinkingContent)
   }
 

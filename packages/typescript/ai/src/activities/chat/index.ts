@@ -6,7 +6,6 @@
  */
 
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
-import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
@@ -320,7 +319,11 @@ class TextEngine<
     this.runIdOverride = config.params.runId
 
     // Initialize middleware — devtools middleware is always first
-    const allMiddleware = [devtoolsMiddleware(), ...(config.middleware || []), stripToSpecMiddleware()]
+    // Note: stripToSpecMiddleware is NOT auto-applied here. The JS consumer
+    // (StreamProcessor, user code) needs TanStack-specific fields like
+    // finishReason, delta, content, toolName, etc. Strip-to-spec should be
+    // applied explicitly when sending events over the wire (SSE/HTTP transport).
+    const allMiddleware = [devtoolsMiddleware(), ...(config.middleware || [])]
     this.middlewareRunner = new MiddlewareRunner(allMiddleware)
     this.middlewareAbortController = new AbortController()
     this.middlewareCtx = {
@@ -555,14 +558,17 @@ class TextEngine<
 
       this.totalChunkCount++
 
-      // Pipe chunk through middleware (devtools middleware observes and emits events)
+      // Process the original (unstripped) chunk for internal state management
+      // BEFORE middleware, so fields like finishReason, delta, etc. are available
+      this.handleStreamChunk(chunk)
+
+      // Pipe chunk through middleware (devtools middleware observes; strip-to-spec cleans)
       const outputChunks = await this.middlewareRunner.runOnChunk(
         this.middlewareCtx,
         chunk,
       )
       for (const outputChunk of outputChunks) {
         yield outputChunk
-        this.handleStreamChunk(outputChunk)
         this.middlewareCtx.chunkIndex++
       }
 
@@ -602,6 +608,18 @@ class TextEngine<
         this.handleStepFinishedEvent(chunk)
         break
 
+      case 'TOOL_CALL_RESULT':
+        // Tool result is already added to messages in buildToolResultChunks
+        break
+
+      case 'REASONING_START':
+      case 'REASONING_MESSAGE_START':
+      case 'REASONING_MESSAGE_CONTENT':
+      case 'REASONING_MESSAGE_END':
+      case 'REASONING_END':
+        // Reasoning events are handled by StreamProcessor
+        break
+
       default:
         // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END, STEP_STARTED,
         // STATE_SNAPSHOT, STATE_DELTA, CUSTOM
@@ -637,7 +655,7 @@ class TextEngine<
 
   private handleRunFinishedEvent(chunk: RunFinishedEvent): void {
     this.finishedEvent = chunk
-    this.lastFinishReason = chunk.finishReason
+    this.lastFinishReason = chunk.finishReason ?? null
   }
 
   private handleRunErrorEvent(
@@ -1061,7 +1079,7 @@ class TextEngine<
             needsApproval: true,
           },
         },
-      })
+      } as StreamChunk)
     }
 
     return chunks
@@ -1084,7 +1102,7 @@ class TextEngine<
           toolName: clientTool.toolName,
           input: clientTool.input,
         },
-      })
+      } as StreamChunk)
     }
 
     return chunks
@@ -1104,9 +1122,21 @@ class TextEngine<
         timestamp: Date.now(),
         model: finishEvent.model,
         toolCallId: result.toolCallId,
+        toolCallName: result.toolName,
         toolName: result.toolName,
         result: content,
-      })
+      } as StreamChunk)
+
+      // AG-UI spec TOOL_CALL_RESULT event
+      chunks.push({
+        type: 'TOOL_CALL_RESULT',
+        timestamp: Date.now(),
+        model: finishEvent.model,
+        messageId: this.createId('tool-result'),
+        toolCallId: result.toolCallId,
+        content,
+        role: 'tool',
+      } as StreamChunk)
 
       this.messages = [
         ...this.messages,
@@ -1167,10 +1197,11 @@ class TextEngine<
     return {
       type: 'RUN_FINISHED',
       runId: this.createId('pending'),
+      threadId: this.params.threadId ?? this.createId('thread'),
       model: this.params.model,
       timestamp: Date.now(),
       finishReason: 'tool_calls',
-    }
+    } as RunFinishedEvent
   }
 
   private shouldContinue(): boolean {
@@ -1278,7 +1309,7 @@ class TextEngine<
       model: this.params.model,
       name: eventName,
       value,
-    }
+    } as CustomEvent
   }
 
   private createId(prefix: string): string {
