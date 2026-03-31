@@ -6,6 +6,7 @@
  */
 
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
+import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
@@ -309,7 +310,7 @@ class TextEngine<
     this.effectiveSignal = config.params.abortController?.signal
 
     // Initialize middleware — devtools middleware is always first
-    const allMiddleware = [devtoolsMiddleware(), ...(config.middleware || [])]
+    const allMiddleware = [devtoolsMiddleware(), ...(config.middleware || []), stripToSpecMiddleware()]
     this.middlewareRunner = new MiddlewareRunner(allMiddleware)
     this.middlewareAbortController = new AbortController()
     this.middlewareCtx = {
