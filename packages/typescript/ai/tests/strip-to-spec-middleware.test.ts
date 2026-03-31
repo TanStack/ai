@@ -6,7 +6,7 @@ import type { StreamChunk } from '../src/types'
  * Helper to create a StreamChunk with the given type and fields.
  */
 function makeChunk(
-  type: StreamChunk['type'],
+  type: string,
   fields: Record<string, unknown>,
 ): StreamChunk {
   return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
@@ -90,12 +90,14 @@ describe('stripToSpec', () => {
     const chunk = makeChunk('TOOL_CALL_END', {
       toolCallId: 'tc-1',
       toolName: 'getTodos',
+      toolCallName: 'getTodos',
       input: { userId: '123' },
       result: '[{"id":"1","title":"Buy milk"}]',
       model: 'gpt-4o',
     })
     const result = stripToSpec(chunk) as Record<string, unknown>
     expect(result).not.toHaveProperty('toolName')
+    expect(result).not.toHaveProperty('toolCallName')
     expect(result).not.toHaveProperty('input')
     expect(result).not.toHaveProperty('result')
     expect(result).not.toHaveProperty('model')

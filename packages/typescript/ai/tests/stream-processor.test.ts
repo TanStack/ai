@@ -17,9 +17,9 @@ import type {
 // ============================================================================
 
 /** Create a typed StreamChunk with minimal boilerplate. */
-function chunk<T extends StreamChunk['type']>(
-  type: T,
-  fields: Omit<Extract<StreamChunk, { type: T }>, 'type' | 'timestamp'>,
+function chunk(
+  type: string,
+  fields: Record<string, unknown> = {},
 ): StreamChunk {
   return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
 }
@@ -2426,7 +2426,7 @@ describe('StreamProcessor', () => {
           },
         ],
         timestamp: Date.now(),
-      } as StreamChunk)
+      } as unknown as StreamChunk)
 
       const messages = processor.getMessages()
       expect(messages).toHaveLength(1)
@@ -2570,7 +2570,7 @@ describe('StreamProcessor', () => {
           },
         ],
         timestamp: Date.now(),
-      } as StreamChunk)
+      } as unknown as StreamChunk)
 
       // Verify old messages are replaced
       const messagesAfterSnapshot = processor.getMessages()

@@ -710,7 +710,7 @@ class TextEngine<
         undiscoveredLazyResults,
         finishEvent,
       )) {
-        yield chunk
+        yield* this.pipeThroughMiddleware(chunk)
       }
     }
 
@@ -775,7 +775,7 @@ class TextEngine<
           executionResult.results,
           finishEvent,
         )) {
-          yield chunk
+          yield* this.pipeThroughMiddleware(chunk)
         }
       }
 
@@ -783,14 +783,14 @@ class TextEngine<
         executionResult.needsApproval,
         finishEvent,
       )) {
-        yield chunk
+        yield* this.pipeThroughMiddleware(chunk)
       }
 
       for (const chunk of this.buildClientToolChunks(
         executionResult.needsClientExecution,
         finishEvent,
       )) {
-        yield chunk
+        yield* this.pipeThroughMiddleware(chunk)
       }
 
       this.setToolPhase('wait')
@@ -803,7 +803,7 @@ class TextEngine<
     )
 
     for (const chunk of toolResultChunks) {
-      yield chunk
+      yield* this.pipeThroughMiddleware(chunk)
     }
 
     return 'continue'
@@ -850,7 +850,7 @@ class TextEngine<
         undiscoveredLazyResults,
         finishEvt,
       )) {
-        yield chunk
+        yield* this.pipeThroughMiddleware(chunk)
       }
     }
 
@@ -921,7 +921,7 @@ class TextEngine<
           executionResult.results,
           finishEvent,
         )) {
-          yield chunk
+          yield* this.pipeThroughMiddleware(chunk)
         }
       }
 
@@ -929,14 +929,14 @@ class TextEngine<
         executionResult.needsApproval,
         finishEvent,
       )) {
-        yield chunk
+        yield* this.pipeThroughMiddleware(chunk)
       }
 
       for (const chunk of this.buildClientToolChunks(
         executionResult.needsClientExecution,
         finishEvent,
       )) {
-        yield chunk
+        yield* this.pipeThroughMiddleware(chunk)
       }
 
       this.setToolPhase('wait')
@@ -949,7 +949,7 @@ class TextEngine<
     )
 
     for (const chunk of toolResultChunks) {
-      yield chunk
+      yield* this.pipeThroughMiddleware(chunk)
     }
 
     // Refresh tools if lazy tools were discovered in this batch
@@ -1273,8 +1273,25 @@ class TextEngine<
   }
 
   /**
+   * Pipe a single chunk through the middleware pipeline (strip-to-spec, devtools, etc.)
+   * and yield all resulting output chunks.
+   */
+  private async *pipeThroughMiddleware(
+    chunk: StreamChunk,
+  ): AsyncGenerator<StreamChunk, void, void> {
+    const outputChunks = await this.middlewareRunner.runOnChunk(
+      this.middlewareCtx,
+      chunk,
+    )
+    for (const outputChunk of outputChunks) {
+      yield outputChunk
+      this.middlewareCtx.chunkIndex++
+    }
+  }
+
+  /**
    * Drain an executeToolCalls async generator, yielding any CustomEvent chunks
-   * and returning the final ExecuteToolCallsResult.
+   * through the middleware pipeline and returning the final ExecuteToolCallsResult.
    */
   private async *drainToolCallGenerator(
     generator: AsyncGenerator<
@@ -1297,7 +1314,7 @@ class TextEngine<
   > {
     let next = await generator.next()
     while (!next.done) {
-      yield next.value
+      yield* this.pipeThroughMiddleware(next.value)
       next = await generator.next()
     }
     return next.value

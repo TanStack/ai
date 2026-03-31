@@ -223,11 +223,12 @@ describe('chat()', () => {
         expect.objectContaining({ toolCallId: 'call_1' }),
       )
 
-      // A TOOL_CALL_END chunk with result should have been yielded
-      const toolEndChunks = chunks.filter(
-        (c) => c.type === 'TOOL_CALL_END' && 'result' in c && c.result,
+      // A TOOL_CALL_RESULT chunk with content should have been yielded
+      // (TOOL_CALL_END is also emitted but `result` is stripped by strip-to-spec middleware)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT' && 'content' in c && c.content,
       )
-      expect(toolEndChunks.length).toBeGreaterThanOrEqual(1)
+      expect(toolResultChunks.length).toBeGreaterThanOrEqual(1)
 
       // Adapter was called twice (tool call iteration + final text)
       expect(calls).toHaveLength(2)
@@ -269,14 +270,15 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      // Should still complete and yield the error result
-      const toolEndChunks = chunks.filter(
-        (c) => c.type === 'TOOL_CALL_END' && 'result' in c,
+      // Should still complete and yield the error result via TOOL_CALL_RESULT
+      // (TOOL_CALL_END's `result` is stripped by strip-to-spec middleware)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT' && 'content' in c,
       )
-      expect(toolEndChunks.length).toBeGreaterThanOrEqual(1)
-      // Error should be in the result
-      const resultStr = (toolEndChunks[0] as any).result
-      expect(resultStr).toContain('error')
+      expect(toolResultChunks.length).toBeGreaterThanOrEqual(1)
+      // Error should be in the content
+      const contentStr = (toolResultChunks[0] as any).content
+      expect(contentStr).toContain('error')
     })
   })
 
@@ -401,15 +403,15 @@ describe('chat()', () => {
       // Server tool should have executed
       expect(searchExecute).toHaveBeenCalledTimes(1)
 
-      // TOOL_CALL_END with a result should be emitted for the server tool
-      const toolEndWithResult = chunks.filter(
+      // TOOL_CALL_RESULT with content should be emitted for the server tool
+      // (TOOL_CALL_END is also emitted but `result`/`toolName` are stripped by strip-to-spec middleware)
+      const toolResultChunks = chunks.filter(
         (c) =>
-          c.type === 'TOOL_CALL_END' &&
-          (c as any).toolName === 'searchTools' &&
-          'result' in c &&
-          (c as any).result,
+          c.type === 'TOOL_CALL_RESULT' &&
+          'content' in c &&
+          (c as any).content,
       )
-      expect(toolEndWithResult).toHaveLength(1)
+      expect(toolResultChunks).toHaveLength(1)
 
       // Client tool should get a tool-input-available event
       const customChunks = chunks.filter(
@@ -468,15 +470,15 @@ describe('chat()', () => {
       // Server tool should have executed
       expect(weatherExecute).toHaveBeenCalledTimes(1)
 
-      // TOOL_CALL_END with a result should be emitted for the server tool
-      const toolEndWithResult = chunks.filter(
+      // TOOL_CALL_RESULT with content should be emitted for the server tool
+      // (TOOL_CALL_END is also emitted but `result`/`toolName` are stripped by strip-to-spec middleware)
+      const toolResultChunks = chunks.filter(
         (c) =>
-          c.type === 'TOOL_CALL_END' &&
-          (c as any).toolName === 'getWeather' &&
-          'result' in c &&
-          (c as any).result,
+          c.type === 'TOOL_CALL_RESULT' &&
+          'content' in c &&
+          (c as any).content,
       )
-      expect(toolEndWithResult).toHaveLength(1)
+      expect(toolResultChunks).toHaveLength(1)
 
       // Client tool should get a tool-input-available event
       const customChunks = chunks.filter(
@@ -601,11 +603,12 @@ describe('chat()', () => {
       // Tool should have been executed as pending
       expect(executeSpy).toHaveBeenCalledTimes(1)
 
-      // TOOL_CALL_END with result should be in the stream
-      const toolEndChunks = chunks.filter(
-        (c) => c.type === 'TOOL_CALL_END' && 'result' in c && c.result,
+      // TOOL_CALL_RESULT with content should be in the stream
+      // (TOOL_CALL_END's `result` is stripped by strip-to-spec middleware)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT' && 'content' in c && c.content,
       )
-      expect(toolEndChunks.length).toBeGreaterThanOrEqual(1)
+      expect(toolResultChunks.length).toBeGreaterThanOrEqual(1)
 
       // Adapter should have been called with the tool result in messages
       expect(calls).toHaveLength(1)
@@ -1249,14 +1252,14 @@ describe('chat()', () => {
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       // The first tool call result should contain a "must be discovered first" error
-      const toolEndChunks = chunks.filter(
-        (c) => c.type === 'TOOL_CALL_END',
+      // TOOL_CALL_RESULT carries the content (TOOL_CALL_END's result is stripped by middleware)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT',
       ) as Array<any>
-      const errorResult = toolEndChunks.find(
+      const errorResult = toolResultChunks.find(
         (c: any) =>
-          c.toolName === 'getWeather' &&
-          c.result &&
-          c.result.includes('must be discovered first'),
+          c.content &&
+          c.content.includes('must be discovered first'),
       )
       expect(errorResult).toBeDefined()
 

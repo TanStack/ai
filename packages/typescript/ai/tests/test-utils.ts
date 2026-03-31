@@ -6,9 +6,9 @@ import type { StreamChunk, TextMessageContentEvent, Tool } from '../src/types'
 // ============================================================================
 
 /** Create a typed StreamChunk with minimal boilerplate. */
-export function chunk<T extends StreamChunk['type']>(
-  type: T,
-  fields: Omit<Extract<StreamChunk, { type: T }>, 'type' | 'timestamp'>,
+export function chunk(
+  type: string,
+  fields: Record<string, unknown> = {},
 ): StreamChunk {
   return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
 }

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '../src/activities/chat/tools/tool-definition'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
+import type { StreamChunk } from '../src/types'
 import { z } from 'zod'
+
+/** Cast a plain object to StreamChunk for test convenience. */
+const sc = (obj: Record<string, unknown>) => obj as unknown as StreamChunk
 
 describe('Custom Events Integration', () => {
   it('should emit custom events from tool execution context', async () => {
@@ -61,28 +65,28 @@ describe('Custom Events Integration', () => {
     processor.prepareAssistantMessage()
 
     // Simulate tool call sequence
-    processor.processChunk({
+    processor.processChunk(sc({
       type: 'TOOL_CALL_START',
       toolCallId: 'tc-1',
       toolName: 'testTool',
       timestamp: Date.now(),
       index: 0,
-    })
+    }))
 
-    processor.processChunk({
+    processor.processChunk(sc({
       type: 'TOOL_CALL_ARGS',
       toolCallId: 'tc-1',
       timestamp: Date.now(),
       delta: '{"message": "Hello World"}',
-    })
+    }))
 
-    processor.processChunk({
+    processor.processChunk(sc({
       type: 'TOOL_CALL_END',
       toolCallId: 'tc-1',
       toolName: 'testTool',
       timestamp: Date.now(),
       input: { message: 'Hello World' },
-    })
+    }))
 
     // Execute the tool manually (simulating what happens in real scenario)
     const toolExecuteFunc = (testTool as any).execute
@@ -91,12 +95,12 @@ describe('Custom Events Integration', () => {
         toolCallId: 'tc-1',
         emitCustomEvent: (eventName: string, data: any) => {
           // This simulates the real behavior where emitCustomEvent creates CUSTOM stream chunks
-          processor.processChunk({
+          processor.processChunk(sc({
             type: 'CUSTOM',
             name: eventName,
             value: { ...data, toolCallId: 'tc-1' },
             timestamp: Date.now(),
-          })
+          }))
         },
       }
 
@@ -157,12 +161,12 @@ describe('Custom Events Integration', () => {
     })
 
     // Emit custom event without toolCallId
-    processor.processChunk({
+    processor.processChunk(sc({
       type: 'CUSTOM',
       name: 'system:status',
       value: { status: 'ready', version: '1.0.0' },
       timestamp: Date.now(),
-    })
+    }))
 
     expect(onCustomEvent).toHaveBeenCalledWith(
       'system:status',
@@ -194,7 +198,7 @@ describe('Custom Events Integration', () => {
     processor.prepareAssistantMessage()
 
     // System event: tool-input-available
-    processor.processChunk({
+    processor.processChunk(sc({
       type: 'CUSTOM',
       name: 'tool-input-available',
       value: {
@@ -203,10 +207,10 @@ describe('Custom Events Integration', () => {
         input: { test: true },
       },
       timestamp: Date.now(),
-    })
+    }))
 
     // System event: approval-requested
-    processor.processChunk({
+    processor.processChunk(sc({
       type: 'CUSTOM',
       name: 'approval-requested',
       value: {
@@ -216,15 +220,15 @@ describe('Custom Events Integration', () => {
         approval: { id: 'approval-1', needsApproval: true },
       },
       timestamp: Date.now(),
-    })
+    }))
 
     // Custom event (should be forwarded)
-    processor.processChunk({
+    processor.processChunk(sc({
       type: 'CUSTOM',
       name: 'user:custom-event',
       value: { message: 'This should be forwarded' },
       timestamp: Date.now(),
-    })
+    }))
 
     // System events should trigger their specific handlers, not onCustomEvent
     expect(onToolCall).toHaveBeenCalledTimes(1)

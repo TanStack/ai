@@ -14,7 +14,7 @@ const STRIP_BY_TYPE: Record<string, Set<string>> = {
   TEXT_MESSAGE_CONTENT: new Set(['content']),
   TOOL_CALL_START: new Set(['toolName', 'index', 'providerMetadata']),
   TOOL_CALL_ARGS: new Set(['args']),
-  TOOL_CALL_END: new Set(['toolName', 'input', 'result']),
+  TOOL_CALL_END: new Set(['toolName', 'toolCallName', 'input', 'result']),
   RUN_FINISHED: new Set(['finishReason', 'usage']),
   RUN_ERROR: new Set(['error']),
   STEP_STARTED: new Set(['stepId', 'stepType']),
