@@ -140,7 +140,7 @@ const { tool, systemPrompt } = createCodeModeToolAndPrompt({
   driver,          // IsolateDriver — required
   tools,           // Array<ServerTool | ToolDefinition> — required, at least one
   timeout,         // number — execution timeout in ms (default: 30000)
-  memoryLimit,     // number — memory limit in MB (default: 128, Node driver only)
+  memoryLimit,     // number — memory limit in MB (default: 128, Node + QuickJS drivers)
   getSkillBindings, // () => Promise<Record<string, ToolBinding>> — optional dynamic bindings
 });
 ```
@@ -152,7 +152,7 @@ const { tool, systemPrompt } = createCodeModeToolAndPrompt({
 | `driver` | `IsolateDriver` | The sandbox runtime to execute code in |
 | `tools` | `Array<ServerTool \| ToolDefinition>` | Tools exposed as `external_*` functions. Must have `.server()` implementations |
 | `timeout` | `number` | Execution timeout in milliseconds (default: 30000) |
-| `memoryLimit` | `number` | Memory limit in MB (default: 128). Only supported by the Node driver |
+| `memoryLimit` | `number` | Memory limit in MB (default: 128). Supported by Node and QuickJS drivers |
 | `getSkillBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
 
 The tool returns a `CodeModeToolResult`:
@@ -215,7 +215,7 @@ These utilities are used internally and are exported for custom pipelines:
 | **Performance** | Fast (V8 JIT) | Slower (interpreted) | Fast (V8 on edge) |
 | **Native deps** | Yes (C++ addon) | None | None |
 | **Browser support** | No | Yes | N/A |
-| **Memory limit** | Configurable | Not supported | N/A |
+| **Memory limit** | Configurable | Configurable | N/A |
 | **Setup** | `pnpm add` | `pnpm add` | Deploy a Worker first |
 
 For server-side Node.js applications, the Node driver gives the best performance. For browser-based or portable applications, QuickJS avoids any native compilation step. The Cloudflare driver is ideal when you already deploy to Cloudflare Workers.

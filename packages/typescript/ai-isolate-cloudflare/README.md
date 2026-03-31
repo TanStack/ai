@@ -1,124 +1,118 @@
 # @tanstack/ai-isolate-cloudflare
 
-Cloudflare Workers driver for TanStack AI Code Mode. Execute LLM-generated code on Cloudflare's global edge network.
+Cloudflare Workers driver for TanStack AI Code Mode.
 
-## Important: Deployment Required
+This package runs generated JavaScript in a Worker and keeps `external_*` tool execution on your host process through a request/response loop.
 
-Due to Cloudflare Workers security model, the `unsafe_eval` binding required for dynamic code execution is **only available on Cloudflare's network**. This means:
-
-- **Production**: Works when deployed to Cloudflare Workers
-- **Local development**: Requires `wrangler dev --remote` (connects to Cloudflare's network)
-- **Fully local**: Not supported (eval is disabled for security)
-
-## Setup
-
-### 1. Install the package
+## Installation
 
 ```bash
 pnpm add @tanstack/ai-isolate-cloudflare
 ```
 
-### 2. Deploy the Worker
+## Environment Guidance (Conservative)
 
-```bash
-# Login to Cloudflare
-npx wrangler login
+- **Local development:** supported with the package's Miniflare dev server (`pnpm dev:worker`)
+- **Remote dev:** supported with `wrangler dev --remote`
+- **Production:** evaluate carefully before rollout; dynamic code execution with `unsafe_eval` has platform/security constraints and is often treated as an advanced or enterprise setup
 
-# Deploy the Worker
-cd node_modules/@tanstack/ai-isolate-cloudflare
-npx wrangler deploy
-```
+If you need a fully local setup without Cloudflare constraints, prefer `@tanstack/ai-isolate-node` or `@tanstack/ai-isolate-quickjs`.
 
-### 3. Use the driver
+## Quick Start
 
 ```typescript
+import { chat, toolDefinition } from '@tanstack/ai'
+import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
 import { createCloudflareIsolateDriver } from '@tanstack/ai-isolate-cloudflare'
-import { createCodeMode } from '@tanstack/ai-code-mode'
+import { z } from 'zod'
+
+const fetchWeather = toolDefinition({
+  name: 'fetchWeather',
+  description: 'Get weather for a city',
+  inputSchema: z.object({ location: z.string() }),
+  outputSchema: z.object({
+    temperature: z.number(),
+    condition: z.string(),
+  }),
+}).server(async ({ location }) => {
+  return { temperature: 72, condition: `sunny in ${location}` }
+})
 
 const driver = createCloudflareIsolateDriver({
-  workerUrl: 'https://tanstack-ai-code-mode.your-account.workers.dev',
+  workerUrl: 'http://localhost:8787', // local dev server URL
   authorization: 'Bearer your-secret-token', // optional
 })
 
-const codeMode = createCodeMode({
-  adapter: yourTextAdapter,
-  tools: yourTools,
+const { tool, systemPrompt } = createCodeModeToolAndPrompt({
   driver,
+  tools: [fetchWeather],
+  timeout: 30_000,
 })
 
-const result = await codeMode.execute('Calculate 5 + 3')
+const result = await chat({
+  adapter: yourTextAdapter,
+  model: 'gpt-4o-mini',
+  systemPrompts: ['You are a helpful assistant.', systemPrompt],
+  tools: [tool],
+  messages: [{ role: 'user', content: 'Compare weather in Tokyo and Paris' }],
+})
 ```
 
-## Local Development
+## Worker Setup
 
-For local development, you have two options:
+### Option 1: Local Miniflare server
 
-### Option 1: Use `--remote` (Recommended)
-
-This runs your Worker locally but connects to Cloudflare's network for bindings:
+From this package directory:
 
 ```bash
-npx wrangler dev --remote --config wrangler.toml
+pnpm dev:worker
 ```
 
-### Option 2: Use a different driver locally
+This starts a local Worker endpoint (default `http://localhost:8787`) with `UNSAFE_EVAL` configured for local testing.
 
-For local-only development, use the Node.js or QuickJS driver:
+### Option 2: Wrangler remote dev
 
-```typescript
-import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
-import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
-
-// For local development
-const driver =
-  process.env.NODE_ENV === 'production'
-    ? createCloudflareIsolateDriver({ workerUrl: 'https://...' })
-    : createNodeIsolateDriver()
+```bash
+wrangler dev --remote
 ```
 
-## Security
-
-The Worker uses the `unsafe_eval` binding which enables `eval()` within the Worker. This is required for executing dynamic code.
-
-**Important security considerations:**
-
-1. **Protect your Worker endpoint**: Use the `authorization` option and validate tokens
-2. **Add rate limiting**: Consider adding Cloudflare Rate Limiting
-3. **Use Cloudflare Access**: For additional authentication
-
-## Enterprise: Workers for Platforms
-
-For production deployments at scale, consider [Workers for Platforms](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/) which is designed for multi-tenant code execution.
+This runs through Cloudflare's network and can be useful when validating behavior against the hosted runtime.
 
 ## API
 
 ### `createCloudflareIsolateDriver(config)`
 
-Creates a Cloudflare Workers isolate driver.
+Creates a driver that delegates code execution to a Worker endpoint.
 
-#### Config options:
+- `workerUrl` (required): URL of the Worker endpoint
+- `authorization` (optional): value sent as `Authorization` header
+- `timeout` (optional): request timeout in ms (default: `30000`)
+- `maxToolRounds` (optional): max Worker <-> host tool callback rounds (default: `10`)
 
-- `workerUrl` (required): URL of the deployed Cloudflare Worker
-- `authorization` (optional): Authorization header value for protecting the endpoint
-- `timeout` (optional): Execution timeout in ms (default: 30000)
-- `maxToolRounds` (optional): Maximum tool callback rounds (default: 10)
+## Worker Entry Export
+
+The package also exports a Worker entrypoint:
+
+```typescript
+import worker from '@tanstack/ai-isolate-cloudflare/worker'
+```
+
+Use this when you want to bundle or compose the provided worker logic in your own Worker project.
+
+## Security Notes
+
+- Protect the worker endpoint if it is reachable outside trusted infrastructure.
+- Validate auth headers server-side if you set `authorization` in the driver.
+- Add rate limiting and request monitoring for untrusted traffic.
+- Treat generated code execution as a high-risk surface; keep strict input and network boundaries.
 
 ## Architecture
 
 ```
-┌─────────────┐         ┌──────────────────────┐
-│   Driver    │  POST   │  Cloudflare Worker   │
-│  (Host)     │────────>│  (Edge Network)      │
-│             │         │                      │
-│  - Tools    │         │  - Execute code      │
-│  - Results  │<────────│  - Request tools     │
-└─────────────┘         └──────────────────────┘
-
-Flow:
-1. Driver sends code + tool schemas to Worker
-2. Worker executes code, collects tool calls
-3. If tool calls needed, Worker returns them to Driver
-4. Driver executes tools locally, sends results back
-5. Worker continues execution with tool results
-6. Final result returned to Driver
+Host Driver                   Cloudflare Worker
+-----------                   ------------------
+1) send code + tool schemas -> execute until tool call or completion
+2) receive tool requests    <- need_tools payload
+3) execute tools locally    -> send toolResults
+4) receive final result     <- success/error payload
 ```

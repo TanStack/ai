@@ -7,12 +7,6 @@ export type {
 
 export { createCodeModeSystemPrompt } from './create-system-prompt'
 export { createCodeModeToolAndPrompt } from './create-code-mode-tool-and-prompt'
-export {
-  executePrompt,
-  type ExecutePromptOptions,
-  type ExecutePromptResult,
-  type ExecutePromptEvent,
-} from './execute-prompt'
 
 export {
   InMemoryAgentStore,

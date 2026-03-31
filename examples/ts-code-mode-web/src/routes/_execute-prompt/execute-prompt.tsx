@@ -21,13 +21,13 @@ import {
 } from 'lucide-react'
 import { Header } from '@/components'
 import {
-  dashboardRealtimeTools,
+  executePromptRealtimeTools,
   onExecutePromptLog,
-} from '@/lib/dashboard-realtime-tools'
+} from '@/lib/execute-prompt-realtime-tools'
 import type {
   ExecutePromptLogEntry,
   CodeExecution,
-} from '@/lib/dashboard-realtime-tools'
+} from '@/lib/execute-prompt-realtime-tools'
 
 export const Route = createFileRoute('/_execute-prompt/execute-prompt' as any)({
   component: DashboardDemoPage,
@@ -379,7 +379,7 @@ function DashboardDemoPage() {
       }),
     adapter: openaiRealtime(),
     instructions: REALTIME_INSTRUCTIONS,
-    tools: [...dashboardRealtimeTools],
+    tools: [...executePromptRealtimeTools],
     voice: 'alloy',
     outputModalities: ['text'],
     autoCapture: false,

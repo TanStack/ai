@@ -36,8 +36,8 @@ const codeModeConfig = {
   memoryLimit: 128,
 }
 
-// Get tools and system prompt with skills
-const { tools, systemPrompt, selectedSkills } = await codeModeWithSkills({
+// Build a dynamic registry and system prompt with skills
+const { registry, systemPrompt, selectedSkills } = await codeModeWithSkills({
   config: codeModeConfig,
   adapter: anthropic('claude-3-haiku'), // Cheap model for skill selection
   skills: {
@@ -50,7 +50,7 @@ const { tools, systemPrompt, selectedSkills } = await codeModeWithSkills({
 // Use in chat
 const stream = chat({
   adapter: anthropic('claude-sonnet-4-20250514'), // Main model
-  tools,
+  toolRegistry: registry,
   messages,
   systemPrompts: [basePrompt, systemPrompt],
 })
@@ -145,11 +145,19 @@ Creates Code Mode tools and system prompt with skills integration.
 
 **Returns:**
 
-- `tools` - Array of tools including execute_typescript, skill management, and skill tools
+- `registry` - Mutable `ToolRegistry` containing `execute_typescript`, skill management tools, and selected skill tools
 - `systemPrompt` - System prompt documenting available skills and external functions
 - `selectedSkills` - Skills that were selected for this request
 
 ### Storage
+
+Storage is available from both the root export and the explicit storage subpath:
+
+```typescript
+import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills'
+// or
+import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+```
 
 #### `createFileSkillStorage(options)`
 

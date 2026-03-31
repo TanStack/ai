@@ -35,9 +35,11 @@ const executeTypescript = createCodeModeTool({
 - `timeout` — Default execution timeout in milliseconds (default: 30000)
 - `memoryLimit` — V8 isolate memory limit in MB (default: 128)
 
+`createContext()` can override these defaults per execution context via `IsolateConfig` (`timeout`, `memoryLimit`).
+
 ## How It Works
 
-Each `execute_typescript` call creates a fresh V8 isolate via `isolated-vm`. Tool bindings are injected as global async functions. The isolate is disposed after execution completes, ensuring full cleanup.
+Each `execute_typescript` call creates a fresh V8 isolate via `isolated-vm`. Tool bindings are injected as global async functions. Console output is captured into execution logs, and the isolate is disposed after execution completes for full cleanup.
 
 ## License
 

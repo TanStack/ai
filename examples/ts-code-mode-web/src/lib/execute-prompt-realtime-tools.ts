@@ -17,7 +17,6 @@ export interface ExecutePromptLogEntry {
   durationMs?: number
   status?: number
   data?: unknown
-  agentName?: string
   error?: string
   executions?: Array<CodeExecution>
 }
@@ -42,6 +41,7 @@ function nextId() {
   return `ep-${++logSeq}-${Date.now()}`
 }
 
+/** Client tool calling POST /api/execute-prompt; server uses local createExecutePromptTool (see lib/create-execute-prompt-tool.ts). */
 export const executePromptShoeCatalogTool = toolDefinition({
   name: 'execute_prompt',
   description:
@@ -55,7 +55,6 @@ export const executePromptShoeCatalogTool = toolDefinition({
   }),
   outputSchema: z.object({
     data: z.unknown(),
-    agentName: z.string(),
   }),
 }).client(async (input) => {
   const prompt = resolveExecutePromptArg(input)
@@ -95,7 +94,6 @@ export const executePromptShoeCatalogTool = toolDefinition({
 
   const result = (await res.json()) as {
     data: unknown
-    agentName: string
     executions?: Array<CodeExecution>
   }
 
@@ -107,14 +105,13 @@ export const executePromptShoeCatalogTool = toolDefinition({
     durationMs,
     status: res.status,
     data: result.data,
-    agentName: result.agentName,
     executions: result.executions,
   })
 
-  return { data: result.data, agentName: result.agentName }
+  return { data: result.data }
 })
 
-export const dashboardRealtimeTools = [executePromptShoeCatalogTool] as const
+export const executePromptRealtimeTools = [executePromptShoeCatalogTool] as const
 
 function resolveExecutePromptArg(input: unknown): string {
   if (typeof input === 'string') {
