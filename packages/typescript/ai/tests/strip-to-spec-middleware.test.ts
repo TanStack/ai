@@ -5,10 +5,7 @@ import type { StreamChunk } from '../src/types'
 /**
  * Helper to create a StreamChunk with the given type and fields.
  */
-function makeChunk(
-  type: string,
-  fields: Record<string, unknown>,
-): StreamChunk {
+function makeChunk(type: string, fields: Record<string, unknown>): StreamChunk {
   return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
 }
 
