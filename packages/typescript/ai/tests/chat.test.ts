@@ -800,7 +800,7 @@ describe('chat()', () => {
       // RUN_ERROR should be in the chunks
       const errorChunks = chunks.filter((c) => c.type === 'RUN_ERROR')
       expect(errorChunks).toHaveLength(1)
-      expect((errorChunks[0] as any).error.message).toBe('API rate limited')
+      expect((errorChunks[0] as any).message).toBe('API rate limited')
     })
 
     it('should not continue the agent loop after RUN_ERROR', async () => {
@@ -936,8 +936,10 @@ describe('chat()', () => {
 
       const stepChunks = chunks.filter((c) => c.type === 'STEP_FINISHED')
       expect(stepChunks).toHaveLength(2)
-      expect((stepChunks[0] as any).delta).toBe('Let me think')
-      expect((stepChunks[1] as any).delta).toBe(' about this...')
+      // After strip-to-spec middleware, delta is removed from STEP_FINISHED (internal extension)
+      // Verify the events pass through with spec fields
+      expect((stepChunks[0] as any).stepName).toBeDefined()
+      expect((stepChunks[1] as any).stepName).toBeDefined()
     })
   })
 

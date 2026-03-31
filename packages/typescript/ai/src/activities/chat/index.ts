@@ -6,6 +6,7 @@
  */
 
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
+import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
@@ -318,12 +319,15 @@ class TextEngine<
     this.threadId = config.params.threadId || this.createId('thread')
     this.runIdOverride = config.params.runId
 
-    // Initialize middleware — devtools middleware is always first
-    // Note: stripToSpecMiddleware is NOT auto-applied here. The JS consumer
-    // (StreamProcessor, user code) needs TanStack-specific fields like
-    // finishReason, delta, content, toolName, etc. Strip-to-spec should be
-    // applied explicitly when sending events over the wire (SSE/HTTP transport).
-    const allMiddleware = [devtoolsMiddleware(), ...(config.middleware || [])]
+    // Initialize middleware — devtools first, strip-to-spec always last.
+    // handleStreamChunk processes raw chunks BEFORE middleware, so internal
+    // state management sees extended fields (finishReason, delta, toolName, etc.).
+    // The strip middleware ensures the yielded public stream is AG-UI spec-compliant.
+    const allMiddleware = [
+      devtoolsMiddleware(),
+      ...(config.middleware || []),
+      stripToSpecMiddleware(),
+    ]
     this.middlewareRunner = new MiddlewareRunner(allMiddleware)
     this.middlewareAbortController = new AbortController()
     this.middlewareCtx = {
