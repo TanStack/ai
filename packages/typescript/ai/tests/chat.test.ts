@@ -1312,11 +1312,11 @@ describe('chat()', () => {
 
       const runStarted = chunks.find((c) => c.type === 'RUN_STARTED')
       expect(runStarted).toBeDefined()
-      expect((runStarted as any).threadId).toBeDefined()
+      expect((runStarted as any).threadId).toBe('thread-1')
 
       const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
       expect(runFinished).toBeDefined()
-      expect((runFinished as any).threadId).toBeDefined()
+      expect((runFinished as any).threadId).toBe('thread-1')
     })
 
     it('should strip model field from yielded events', async () => {

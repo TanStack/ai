@@ -544,8 +544,8 @@ export class AnthropicTextAdapter<
     let currentToolIndex = -1
 
     // AG-UI lifecycle tracking
-    const runId = genId()
-    const threadId = options.threadId || genId()
+    const runId = options.runId ?? genId()
+    const threadId = options.threadId ?? genId()
     const messageId = genId()
     let stepId: string | null = null
     let reasoningMessageId: string | null = null

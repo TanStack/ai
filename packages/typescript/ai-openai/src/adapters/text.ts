@@ -262,8 +262,8 @@ export class OpenAITextAdapter<
     let model: string = options.model
 
     // AG-UI lifecycle tracking
-    const runId = genId()
-    const threadId = options.threadId || genId()
+    const runId = options.runId ?? genId()
+    const threadId = options.threadId ?? genId()
     const messageId = genId()
     let stepId: string | null = null
     let reasoningMessageId: string | null = null

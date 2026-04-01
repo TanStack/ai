@@ -219,8 +219,8 @@ export class GeminiTextAdapter<
     let nextToolIndex = 0
 
     // AG-UI lifecycle tracking
-    const runId = generateId(this.name)
-    const threadId = options.threadId || generateId(this.name)
+    const runId = options.runId ?? generateId(this.name)
+    const threadId = options.threadId ?? generateId(this.name)
     const messageId = generateId(this.name)
     let stepId: string | null = null
     let reasoningMessageId: string | null = null

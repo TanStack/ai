@@ -80,8 +80,8 @@ export class GroqTextAdapter<
     const timestamp = Date.now()
 
     const aguiState = {
-      runId: generateId(this.name),
-      threadId: options.threadId || generateId(this.name),
+      runId: options.runId ?? generateId(this.name),
+      threadId: options.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
       timestamp,
       hasEmittedRunStarted: false,

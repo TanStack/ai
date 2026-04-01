@@ -534,6 +534,7 @@ export class StreamProcessor {
       currentSegmentText: '',
       lastEmittedText: '',
       thinkingContent: '',
+      hasSeenReasoningEvents: false,
       toolCalls: new Map(),
       toolCallOrder: [],
       hasToolCallsSinceTextStart: false,
@@ -1100,6 +1101,14 @@ export class StreamProcessor {
       this.getActiveAssistantMessageId() ?? undefined,
     )
 
+    // During the transition period, adapters emit BOTH STEP_FINISHED and
+    // REASONING_MESSAGE_CONTENT with the same delta. If we've already processed
+    // REASONING_MESSAGE_CONTENT events for this message, skip the duplicate
+    // thinking content from STEP_FINISHED to avoid doubled content.
+    if (state.hasSeenReasoningEvents) {
+      return
+    }
+
     const previous = state.thinkingContent
     let nextThinking = previous
 
@@ -1143,6 +1152,7 @@ export class StreamProcessor {
       this.getActiveAssistantMessageId() ?? undefined,
     )
 
+    state.hasSeenReasoningEvents = true
     state.thinkingContent = state.thinkingContent + chunk.delta
 
     this.messages = updateThinkingPart(

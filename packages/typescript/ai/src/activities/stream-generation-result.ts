@@ -55,6 +55,8 @@ export async function* streamGenerationResult<TResult>(
   } catch (error: any) {
     yield {
       type: EventType.RUN_ERROR,
+      runId,
+      threadId,
       message: error.message || 'Generation failed',
       code: error.code,
       // Deprecated nested form for backward compatibility

@@ -108,8 +108,8 @@ export class OpenRouterTextAdapter<
     let currentModel = options.model
     // AG-UI lifecycle tracking
     const aguiState: AGUIState = {
-      runId: this.generateId(),
-      threadId: options.threadId || this.generateId(),
+      runId: options.runId ?? this.generateId(),
+      threadId: options.threadId ?? this.generateId(),
       messageId: this.generateId(),
       stepId: null,
       reasoningMessageId: null,
@@ -305,50 +305,6 @@ export class OpenRouterTextAdapter<
     const delta = choice.delta
     const finishReason = choice.finishReason
 
-    if (delta.content) {
-      // Close reasoning before text starts
-      if (aguiState.reasoningMessageId && !aguiState.hasClosedReasoning) {
-        aguiState.hasClosedReasoning = true
-        yield asChunk({
-          type: 'REASONING_MESSAGE_END',
-          messageId: aguiState.reasoningMessageId,
-          model: meta.model,
-          timestamp: meta.timestamp,
-        })
-        yield asChunk({
-          type: 'REASONING_END',
-          messageId: aguiState.reasoningMessageId,
-          model: meta.model,
-          timestamp: meta.timestamp,
-        })
-      }
-
-      // Emit TEXT_MESSAGE_START on first text content
-      if (!aguiState.hasEmittedTextMessageStart) {
-        aguiState.hasEmittedTextMessageStart = true
-        yield asChunk({
-          type: 'TEXT_MESSAGE_START',
-          messageId: aguiState.messageId,
-          model: meta.model,
-          timestamp: meta.timestamp,
-          role: 'assistant',
-        })
-      }
-
-      accumulated.content += delta.content
-      updateAccumulated(accumulated.reasoning, accumulated.content)
-
-      // Emit AG-UI TEXT_MESSAGE_CONTENT
-      yield asChunk({
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: aguiState.messageId,
-        model: meta.model,
-        timestamp: meta.timestamp,
-        delta: delta.content,
-        content: accumulated.content,
-      })
-    }
-
     if (delta.reasoningDetails) {
       for (const detail of delta.reasoningDetails) {
         if (detail.type === 'reasoning.text') {
@@ -470,6 +426,50 @@ export class OpenRouterTextAdapter<
           continue
         }
       }
+    }
+
+    if (delta.content) {
+      // Close reasoning before text starts
+      if (aguiState.reasoningMessageId && !aguiState.hasClosedReasoning) {
+        aguiState.hasClosedReasoning = true
+        yield asChunk({
+          type: 'REASONING_MESSAGE_END',
+          messageId: aguiState.reasoningMessageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+        })
+        yield asChunk({
+          type: 'REASONING_END',
+          messageId: aguiState.reasoningMessageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+        })
+      }
+
+      // Emit TEXT_MESSAGE_START on first text content
+      if (!aguiState.hasEmittedTextMessageStart) {
+        aguiState.hasEmittedTextMessageStart = true
+        yield asChunk({
+          type: 'TEXT_MESSAGE_START',
+          messageId: aguiState.messageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+          role: 'assistant',
+        })
+      }
+
+      accumulated.content += delta.content
+      updateAccumulated(accumulated.reasoning, accumulated.content)
+
+      // Emit AG-UI TEXT_MESSAGE_CONTENT
+      yield asChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: aguiState.messageId,
+        model: meta.model,
+        timestamp: meta.timestamp,
+        delta: delta.content,
+        content: accumulated.content,
+      })
     }
 
     if (delta.toolCalls) {

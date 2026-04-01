@@ -196,8 +196,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     const toolCallsEmitted = new Set<string>()
 
     // AG-UI lifecycle tracking
-    const runId = generateId('run')
-    const threadId = options.threadId || generateId('thread')
+    const runId = options.runId ?? generateId('run')
+    const threadId = options.threadId ?? generateId('thread')
     const messageId = generateId('msg')
     let stepId: string | null = null
     let reasoningMessageId: string | null = null

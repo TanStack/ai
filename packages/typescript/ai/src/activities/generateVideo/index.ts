@@ -347,6 +347,8 @@ async function* runStreamingVideoGeneration<
   } catch (error: any) {
     yield {
       type: 'RUN_ERROR',
+      runId,
+      threadId,
       message: error.message || 'Video generation failed',
       code: error.code,
       error: {
