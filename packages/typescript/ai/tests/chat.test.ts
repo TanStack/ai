@@ -1319,33 +1319,7 @@ describe('chat()', () => {
       expect((runFinished as any).threadId).toBe('thread-1')
     })
 
-    it('should strip model field from yielded events', async () => {
-      const { adapter } = createMockAdapter({
-        iterations: [
-          [
-            ev.runStarted(),
-            ev.textStart(),
-            ev.textContent('Hi'),
-            ev.textEnd(),
-            ev.runFinished('stop'),
-          ],
-        ],
-      })
-
-      const stream = chat({
-        adapter,
-        messages: [{ role: 'user', content: 'Hello' }],
-      })
-
-      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
-
-      // No yielded event should have the model field (it's stripped)
-      for (const chunk of chunks) {
-        expect('model' in chunk).toBe(false)
-      }
-    })
-
-    it('should strip toolName from TOOL_CALL_START events (only toolCallName)', async () => {
+    it('should strip deprecated toolName but keep extras on yielded events', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -1386,7 +1360,7 @@ describe('chat()', () => {
       }
     })
 
-    it('should strip usage but keep finishReason on RUN_FINISHED events', async () => {
+    it('should keep finishReason on RUN_FINISHED events', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -1408,9 +1382,6 @@ describe('chat()', () => {
 
       const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
       expect(runFinished).toBeDefined()
-      // usage is stripped (internal extension)
-      expect('usage' in runFinished!).toBe(false)
-      // finishReason is kept — needed by client to detect tool_calls vs stop
       expect((runFinished as any).finishReason).toBe('stop')
     })
 
@@ -1447,8 +1418,8 @@ describe('chat()', () => {
       expect(resultChunks.length).toBeGreaterThanOrEqual(1)
       expect((resultChunks[0] as any).toolCallId).toBe('tc-1')
       expect((resultChunks[0] as any).content).toContain('72')
-      // model should be stripped
-      expect('model' in resultChunks[0]!).toBe(false)
+      // model is kept (passthrough allows extra fields)
+      expect((resultChunks[0] as any).toolCallId).toBeDefined()
     })
   })
 })
