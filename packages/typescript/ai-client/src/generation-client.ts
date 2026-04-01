@@ -177,7 +177,7 @@ export class GenerationClient<
           break
         }
         case 'RUN_ERROR': {
-          throw new Error(chunk.error.message)
+          throw new Error(chunk.error?.message ?? chunk.message)
         }
       }
     }

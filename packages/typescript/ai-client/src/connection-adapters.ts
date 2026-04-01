@@ -193,7 +193,7 @@ export function normalizeConnectionAdapter(
             model: 'connect-wrapper',
             timestamp: Date.now(),
             finishReason: 'stop',
-          })
+          } as unknown as StreamChunk)
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
@@ -206,7 +206,7 @@ export function normalizeConnectionAdapter(
                   ? err.message
                   : 'Unknown error in connect()',
             },
-          })
+          } as unknown as StreamChunk)
         }
         throw err
       }

@@ -38,6 +38,11 @@ import type {
   Message,
 } from '@openrouter/sdk/models'
 
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 export interface OpenRouterConfig extends SDKOptions {}
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
@@ -128,18 +133,18 @@ export class OpenRouterTextAdapter<
         // Emit RUN_STARTED on first chunk
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
-          yield {
+          yield asChunk({
             type: 'RUN_STARTED',
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: currentModel || options.model,
             timestamp,
-          }
+          })
         }
 
         if (chunk.error) {
           // Emit AG-UI RUN_ERROR
-          yield {
+          yield asChunk({
             type: 'RUN_ERROR',
             runId: aguiState.runId,
             model: currentModel || options.model,
@@ -150,7 +155,7 @@ export class OpenRouterTextAdapter<
               message: chunk.error.message || 'Unknown error',
               code: String(chunk.error.code),
             },
-          }
+          })
           continue
         }
 
@@ -177,18 +182,18 @@ export class OpenRouterTextAdapter<
       // Emit RUN_STARTED if not yet emitted (error on first call)
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
-        yield {
+        yield asChunk({
           type: 'RUN_STARTED',
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: options.model,
           timestamp,
-        }
+        })
       }
 
       if (error instanceof RequestAbortedError) {
         // Emit AG-UI RUN_ERROR
-        yield {
+        yield asChunk({
           type: 'RUN_ERROR',
           runId: aguiState.runId,
           model: options.model,
@@ -199,12 +204,12 @@ export class OpenRouterTextAdapter<
             message: 'Request aborted',
             code: 'aborted',
           },
-        }
+        })
         return
       }
 
       // Emit AG-UI RUN_ERROR
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
@@ -213,7 +218,7 @@ export class OpenRouterTextAdapter<
         error: {
           message: (error as Error).message || 'Unknown error',
         },
-      }
+      })
     }
   }
 
@@ -304,44 +309,44 @@ export class OpenRouterTextAdapter<
       // Close reasoning before text starts
       if (aguiState.reasoningMessageId && !aguiState.hasClosedReasoning) {
         aguiState.hasClosedReasoning = true
-        yield {
+        yield asChunk({
           type: 'REASONING_MESSAGE_END',
           messageId: aguiState.reasoningMessageId,
           model: meta.model,
           timestamp: meta.timestamp,
-        }
-        yield {
+        })
+        yield asChunk({
           type: 'REASONING_END',
           messageId: aguiState.reasoningMessageId,
           model: meta.model,
           timestamp: meta.timestamp,
-        }
+        })
       }
 
       // Emit TEXT_MESSAGE_START on first text content
       if (!aguiState.hasEmittedTextMessageStart) {
         aguiState.hasEmittedTextMessageStart = true
-        yield {
+        yield asChunk({
           type: 'TEXT_MESSAGE_START',
           messageId: aguiState.messageId,
           model: meta.model,
           timestamp: meta.timestamp,
           role: 'assistant',
-        }
+        })
       }
 
       accumulated.content += delta.content
       updateAccumulated(accumulated.reasoning, accumulated.content)
 
       // Emit AG-UI TEXT_MESSAGE_CONTENT
-      yield {
+      yield asChunk({
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: aguiState.messageId,
         model: meta.model,
         timestamp: meta.timestamp,
         delta: delta.content,
         content: accumulated.content,
-      }
+      })
     }
 
     if (delta.reasoningDetails) {
@@ -356,45 +361,45 @@ export class OpenRouterTextAdapter<
             aguiState.reasoningMessageId = this.generateId()
 
             // Spec REASONING events
-            yield {
+            yield asChunk({
               type: 'REASONING_START',
               messageId: aguiState.reasoningMessageId,
               model: meta.model,
               timestamp: meta.timestamp,
-            }
-            yield {
+            })
+            yield asChunk({
               type: 'REASONING_MESSAGE_START',
               messageId: aguiState.reasoningMessageId,
               role: 'reasoning' as const,
               model: meta.model,
               timestamp: meta.timestamp,
-            }
+            })
 
             // Legacy STEP events (kept during transition)
-            yield {
+            yield asChunk({
               type: 'STEP_STARTED',
               stepName: aguiState.stepId,
               stepId: aguiState.stepId,
               model: meta.model,
               timestamp: meta.timestamp,
               stepType: 'thinking',
-            }
+            })
           }
 
           accumulated.reasoning += text
           updateAccumulated(accumulated.reasoning, accumulated.content)
 
           // Spec REASONING content event
-          yield {
+          yield asChunk({
             type: 'REASONING_MESSAGE_CONTENT',
             messageId: aguiState.reasoningMessageId!,
             delta: text,
             model: meta.model,
             timestamp: meta.timestamp,
-          }
+          })
 
           // Legacy STEP event
-          yield {
+          yield asChunk({
             type: 'STEP_FINISHED',
             stepName: aguiState.stepId!,
             stepId: aguiState.stepId!,
@@ -402,7 +407,7 @@ export class OpenRouterTextAdapter<
             timestamp: meta.timestamp,
             delta: text,
             content: accumulated.reasoning,
-          }
+          })
           continue
         }
         if (detail.type === 'reasoning.summary') {
@@ -415,45 +420,45 @@ export class OpenRouterTextAdapter<
             aguiState.reasoningMessageId = this.generateId()
 
             // Spec REASONING events
-            yield {
+            yield asChunk({
               type: 'REASONING_START',
               messageId: aguiState.reasoningMessageId,
               model: meta.model,
               timestamp: meta.timestamp,
-            }
-            yield {
+            })
+            yield asChunk({
               type: 'REASONING_MESSAGE_START',
               messageId: aguiState.reasoningMessageId,
               role: 'reasoning' as const,
               model: meta.model,
               timestamp: meta.timestamp,
-            }
+            })
 
             // Legacy STEP events (kept during transition)
-            yield {
+            yield asChunk({
               type: 'STEP_STARTED',
               stepName: aguiState.stepId,
               stepId: aguiState.stepId,
               model: meta.model,
               timestamp: meta.timestamp,
               stepType: 'thinking',
-            }
+            })
           }
 
           accumulated.reasoning += text
           updateAccumulated(accumulated.reasoning, accumulated.content)
 
           // Spec REASONING content event
-          yield {
+          yield asChunk({
             type: 'REASONING_MESSAGE_CONTENT',
             messageId: aguiState.reasoningMessageId!,
             delta: text,
             model: meta.model,
             timestamp: meta.timestamp,
-          }
+          })
 
           // Legacy STEP event
-          yield {
+          yield asChunk({
             type: 'STEP_FINISHED',
             stepName: aguiState.stepId!,
             stepId: aguiState.stepId!,
@@ -461,7 +466,7 @@ export class OpenRouterTextAdapter<
             timestamp: meta.timestamp,
             delta: text,
             content: accumulated.reasoning,
-          }
+          })
           continue
         }
       }
@@ -492,7 +497,7 @@ export class OpenRouterTextAdapter<
         // Emit TOOL_CALL_START when we have id and name
         if (buffer.id && buffer.name && !buffer.started) {
           buffer.started = true
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_START',
             toolCallId: buffer.id,
             toolCallName: buffer.name,
@@ -500,25 +505,25 @@ export class OpenRouterTextAdapter<
             model: meta.model,
             timestamp: meta.timestamp,
             index: tc.index,
-          }
+          })
         }
 
         // Emit TOOL_CALL_ARGS for argument deltas
         if (tc.function?.arguments && buffer.started) {
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_ARGS',
             toolCallId: buffer.id,
             model: meta.model,
             timestamp: meta.timestamp,
             delta: tc.function.arguments,
-          }
+          })
         }
       }
     }
 
     if (delta.refusal) {
       // Emit AG-UI RUN_ERROR for refusal
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: meta.model,
@@ -526,7 +531,7 @@ export class OpenRouterTextAdapter<
         message: delta.refusal,
         code: 'refusal',
         error: { message: delta.refusal, code: 'refusal' },
-      }
+      })
     }
 
     if (finishReason) {
@@ -542,7 +547,7 @@ export class OpenRouterTextAdapter<
           }
 
           // Emit AG-UI TOOL_CALL_END
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_END',
             toolCallId: tc.id,
             toolCallName: tc.name,
@@ -550,7 +555,7 @@ export class OpenRouterTextAdapter<
             model: meta.model,
             timestamp: meta.timestamp,
             input: parsedInput,
-          }
+          })
         }
 
         toolCallBuffers.clear()
@@ -566,32 +571,32 @@ export class OpenRouterTextAdapter<
       // Close reasoning events if still open
       if (aguiState.reasoningMessageId && !aguiState.hasClosedReasoning) {
         aguiState.hasClosedReasoning = true
-        yield {
+        yield asChunk({
           type: 'REASONING_MESSAGE_END',
           messageId: aguiState.reasoningMessageId,
           model: meta.model,
           timestamp: meta.timestamp,
-        }
-        yield {
+        })
+        yield asChunk({
           type: 'REASONING_END',
           messageId: aguiState.reasoningMessageId,
           model: meta.model,
           timestamp: meta.timestamp,
-        }
+        })
       }
 
       // Emit TEXT_MESSAGE_END if we had text content
       if (aguiState.hasEmittedTextMessageStart) {
-        yield {
+        yield asChunk({
           type: 'TEXT_MESSAGE_END',
           messageId: aguiState.messageId,
           model: meta.model,
           timestamp: meta.timestamp,
-        }
+        })
       }
 
       // Emit AG-UI RUN_FINISHED
-      yield {
+      yield asChunk({
         type: 'RUN_FINISHED',
         runId: aguiState.runId,
         threadId: aguiState.threadId,
@@ -605,7 +610,7 @@ export class OpenRouterTextAdapter<
             }
           : undefined,
         finishReason: computedFinishReason,
-      }
+      })
     }
   }
 

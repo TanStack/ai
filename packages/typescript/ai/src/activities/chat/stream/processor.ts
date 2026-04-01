@@ -755,7 +755,7 @@ export class StreamProcessor {
   ): void {
     this.resetStreamState()
     // AG-UI Message[] is compatible with UIMessage[] at runtime
-    this.messages = [...chunk.messages] as unknown as UIMessage[]
+    this.messages = [...chunk.messages] as unknown as Array<UIMessage>
     this.emitMessagesChange()
   }
 
@@ -865,8 +865,7 @@ export class StreamProcessor {
       // New tool call starting
       const initialState: ToolCallState = 'awaiting-input'
 
-      // Prefer spec field `toolCallName`; fall back to deprecated `toolName`
-      const toolName = chunk.toolCallName ?? (chunk as any).toolName
+      const toolName = chunk.toolCallName
 
       const newToolCall: InternalToolCallState = {
         id: chunk.toolCallId,
@@ -1226,7 +1225,7 @@ export class StreamProcessor {
     if (this.events.onCustomEvent) {
       const toolCallId =
         chunk.value && typeof chunk.value === 'object'
-          ? (chunk.value as any).toolCallId
+          ? chunk.value.toolCallId
           : undefined
       this.events.onCustomEvent(chunk.name, chunk.value, { toolCallId })
     }

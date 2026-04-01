@@ -93,8 +93,7 @@ export class ToolCallManager {
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
     const index = event.index ?? this.toolCallsMap.size
-    // Prefer spec field `toolCallName`; fall back to deprecated `toolName`
-    const name = event.toolCallName ?? event.toolName
+    const name = event.toolCallName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',

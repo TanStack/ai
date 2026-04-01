@@ -254,7 +254,7 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
         }
         case 'TOOL_CALL_START': {
           const toolIndex = chunk.index ?? 0
-          const toolName = chunk.toolCallName ?? (chunk as any).toolName
+          const toolName = chunk.toolCallName
           activeToolCalls.set(chunk.toolCallId, {
             toolName,
             index: toolIndex,

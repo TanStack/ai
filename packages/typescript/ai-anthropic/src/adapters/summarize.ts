@@ -12,6 +12,10 @@ import type {
 } from '@tanstack/ai'
 import type { AnthropicClientConfig } from '../utils'
 
+/** Cast an event object to StreamChunk. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 /**
  * Configuration for Anthropic summarize adapter
  */
@@ -103,18 +107,18 @@ export class AnthropicSummarizeAdapter<
         if (event.delta.type === 'text_delta') {
           const delta = event.delta.text
           accumulatedContent += delta
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: id,
             model,
             timestamp: Date.now(),
             delta,
             content: accumulatedContent,
-          }
+          })
         }
       } else if (event.type === 'message_delta') {
         outputTokens = event.usage.output_tokens
-        yield {
+        yield asChunk({
           type: 'RUN_FINISHED',
           runId: id,
           model,
@@ -129,7 +133,7 @@ export class AnthropicSummarizeAdapter<
             completionTokens: outputTokens,
             totalTokens: inputTokens + outputTokens,
           },
-        }
+        })
       }
     }
   }

@@ -87,7 +87,7 @@ describe('ToolCallManager', () => {
     manager.addToolCallStartEvent(
       toolCallStart({
         toolCallId: 'call_123',
-        toolName: 'get_weather',
+        toolCallName: 'get_weather',
         index: 0,
       }),
     )
@@ -120,7 +120,7 @@ describe('ToolCallManager', () => {
     manager.addToolCallStartEvent(
       toolCallStart({
         toolCallId: 'call_123',
-        toolName: 'get_weather',
+        toolCallName: 'get_weather',
         index: 0,
       }),
     )
@@ -136,7 +136,7 @@ describe('ToolCallManager', () => {
     manager.addToolCallStartEvent(
       toolCallStart({
         toolCallId: 'call_456',
-        toolName: '',
+        toolCallName: '',
         index: 1,
       }),
     )
@@ -152,7 +152,7 @@ describe('ToolCallManager', () => {
     manager.addToolCallStartEvent(
       toolCallStart({
         toolCallId: 'call_123',
-        toolName: 'get_weather',
+        toolCallName: 'get_weather',
         index: 0,
       }),
     )
@@ -197,7 +197,7 @@ describe('ToolCallManager', () => {
     manager.addToolCallStartEvent(
       toolCallStart({
         toolCallId: 'call_123',
-        toolName: 'error_tool',
+        toolCallName: 'error_tool',
         index: 0,
       }),
     )
@@ -237,7 +237,7 @@ describe('ToolCallManager', () => {
     manager.addToolCallStartEvent(
       toolCallStart({
         toolCallId: 'call_123',
-        toolName: 'no_execute',
+        toolCallName: 'no_execute',
         index: 0,
       }),
     )
@@ -266,7 +266,7 @@ describe('ToolCallManager', () => {
     manager.addToolCallStartEvent(
       toolCallStart({
         toolCallId: 'call_123',
-        toolName: 'get_weather',
+        toolCallName: 'get_weather',
         index: 0,
       }),
     )
@@ -297,7 +297,7 @@ describe('ToolCallManager', () => {
     manager.addToolCallStartEvent(
       toolCallStart({
         toolCallId: 'call_weather',
-        toolName: 'get_weather',
+        toolCallName: 'get_weather',
         index: 0,
       }),
     )
@@ -312,7 +312,7 @@ describe('ToolCallManager', () => {
     manager.addToolCallStartEvent(
       toolCallStart({
         toolCallId: 'call_calc',
-        toolName: 'calculate',
+        toolCallName: 'calculate',
         index: 1,
       }),
     )
@@ -349,7 +349,7 @@ describe('ToolCallManager', () => {
       manager.addToolCallStartEvent(
         toolCallStart({
           toolCallId: 'call_123',
-          toolName: 'get_weather',
+          toolCallName: 'get_weather',
           index: 0,
         }),
       )
@@ -367,7 +367,7 @@ describe('ToolCallManager', () => {
       manager.addToolCallStartEvent(
         toolCallStart({
           toolCallId: 'call_123',
-          toolName: 'get_weather',
+          toolCallName: 'get_weather',
           index: 0,
         }),
       )
@@ -397,7 +397,7 @@ describe('ToolCallManager', () => {
       manager.addToolCallStartEvent(
         toolCallStart({
           toolCallId: 'call_123',
-          toolName: 'get_weather',
+          toolCallName: 'get_weather',
           index: 0,
         }),
       )
@@ -405,7 +405,7 @@ describe('ToolCallManager', () => {
       manager.completeToolCall(
         toolCallEnd({
           toolCallId: 'call_123',
-          toolName: 'get_weather',
+          toolCallName: 'get_weather',
           input: { location: 'New York' },
         }),
       )

@@ -381,7 +381,7 @@ describe('OpenRouter adapter option mapping', () => {
     expect(errorChunk).toBeDefined()
 
     if (errorChunk && errorChunk.type === 'RUN_ERROR') {
-      expect(errorChunk.error.message).toBe('Invalid API key')
+      expect(errorChunk.error?.message).toBe('Invalid API key')
     }
   })
 })
@@ -674,7 +674,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
-      expect(runErrorChunk.error.message).toBe('API key invalid')
+      expect(runErrorChunk.error?.message).toBe('API key invalid')
     }
   })
 
@@ -725,14 +725,14 @@ describe('OpenRouter AG-UI event emission', () => {
     expect(eventTypes[0]).toBe('RUN_STARTED')
 
     // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
-    const textStartIndex = eventTypes.indexOf('TEXT_MESSAGE_START')
-    const textContentIndex = eventTypes.indexOf('TEXT_MESSAGE_CONTENT')
+    const textStartIndex = eventTypes.indexOf('TEXT_MESSAGE_START' as any)
+    const textContentIndex = eventTypes.indexOf('TEXT_MESSAGE_CONTENT' as any)
     expect(textStartIndex).toBeGreaterThan(-1)
     expect(textContentIndex).toBeGreaterThan(textStartIndex)
 
     // Should have TEXT_MESSAGE_END before RUN_FINISHED
-    const textEndIndex = eventTypes.indexOf('TEXT_MESSAGE_END')
-    const runFinishedIndex = eventTypes.indexOf('RUN_FINISHED')
+    const textEndIndex = eventTypes.indexOf('TEXT_MESSAGE_END' as any)
+    const runFinishedIndex = eventTypes.indexOf('RUN_FINISHED' as any)
     expect(textEndIndex).toBeGreaterThan(-1)
     expect(runFinishedIndex).toBeGreaterThan(textEndIndex)
 

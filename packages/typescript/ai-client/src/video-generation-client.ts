@@ -214,7 +214,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           break
         }
         case 'RUN_ERROR': {
-          throw new Error(chunk.error.message)
+          throw new Error(chunk.error?.message ?? chunk.message)
         }
       }
     }

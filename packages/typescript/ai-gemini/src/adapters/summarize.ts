@@ -13,6 +13,10 @@ import type {
   SummarizationResult,
 } from '@tanstack/ai'
 
+/** Cast an event object to StreamChunk. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 /**
  * Configuration for Gemini summarize adapter
  */
@@ -161,14 +165,14 @@ export class GeminiSummarizeAdapter<
         for (const part of chunk.candidates[0].content.parts) {
           if (part.text) {
             accumulatedContent += part.text
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_CONTENT',
               messageId: id,
               model,
               timestamp: Date.now(),
               delta: part.text,
               content: accumulatedContent,
-            }
+            })
           }
         }
       }
@@ -180,7 +184,7 @@ export class GeminiSummarizeAdapter<
         finishReason === FinishReason.MAX_TOKENS ||
         finishReason === FinishReason.SAFETY
       ) {
-        yield {
+        yield asChunk({
           type: 'RUN_FINISHED',
           runId: id,
           model,
@@ -196,7 +200,7 @@ export class GeminiSummarizeAdapter<
             completionTokens: outputTokens,
             totalTokens: inputTokens + outputTokens,
           },
-        }
+        })
       }
     }
   }

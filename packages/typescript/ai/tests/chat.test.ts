@@ -1377,9 +1377,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      const toolStartChunks = chunks.filter(
-        (c) => c.type === 'TOOL_CALL_START',
-      )
+      const toolStartChunks = chunks.filter((c) => c.type === 'TOOL_CALL_START')
       for (const chunk of toolStartChunks) {
         // toolCallName should be present (spec field)
         expect((chunk as any).toolCallName).toBe('get_weather')
@@ -1444,9 +1442,7 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      const resultChunks = chunks.filter(
-        (c) => c.type === 'TOOL_CALL_RESULT',
-      )
+      const resultChunks = chunks.filter((c) => c.type === 'TOOL_CALL_RESULT')
       expect(resultChunks.length).toBeGreaterThanOrEqual(1)
       expect((resultChunks[0] as any).toolCallId).toBe('tc-1')
       expect((resultChunks[0] as any).content).toContain('72')

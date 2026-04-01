@@ -34,6 +34,11 @@ import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type { GeminiMessageMetadataByModality } from '../message-types'
 import type { GeminiClientConfig } from '../utils'
 
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 /**
  * Configuration for Gemini text adapter
  */
@@ -109,7 +114,7 @@ export class GeminiTextAdapter<
       yield* this.processStreamChunks(result, options)
     } catch (error) {
       const timestamp = Date.now()
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         model: options.model,
         timestamp,
@@ -123,7 +128,7 @@ export class GeminiTextAdapter<
               ? error.message
               : 'An unknown error occurred during the chat stream.',
         },
-      }
+      })
     }
   }
 
@@ -228,13 +233,13 @@ export class GeminiTextAdapter<
       // Emit RUN_STARTED on first chunk
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
-        yield {
+        yield asChunk({
           type: 'RUN_STARTED',
           runId,
           threadId,
           model,
           timestamp,
-        }
+        })
       }
 
       if (chunk.candidates?.[0]?.content?.parts) {
@@ -250,44 +255,44 @@ export class GeminiTextAdapter<
                 reasoningMessageId = generateId(this.name)
 
                 // Spec REASONING events
-                yield {
+                yield asChunk({
                   type: 'REASONING_START',
                   messageId: reasoningMessageId,
                   model,
                   timestamp,
-                }
-                yield {
+                })
+                yield asChunk({
                   type: 'REASONING_MESSAGE_START',
                   messageId: reasoningMessageId,
                   role: 'reasoning' as const,
                   model,
                   timestamp,
-                }
+                })
 
                 // Legacy STEP events (kept during transition)
-                yield {
+                yield asChunk({
                   type: 'STEP_STARTED',
                   stepName: stepId,
                   stepId,
                   model,
                   timestamp,
                   stepType: 'thinking',
-                }
+                })
               }
 
               accumulatedThinking += part.text
 
               // Spec REASONING content event
-              yield {
+              yield asChunk({
                 type: 'REASONING_MESSAGE_CONTENT',
                 messageId: reasoningMessageId!,
                 delta: part.text,
                 model,
                 timestamp,
-              }
+              })
 
               // Legacy STEP event
-              yield {
+              yield asChunk({
                 type: 'STEP_FINISHED',
                 stepName: stepId || generateId(this.name),
                 stepId: stepId || generateId(this.name),
@@ -295,47 +300,47 @@ export class GeminiTextAdapter<
                 timestamp,
                 delta: part.text,
                 content: accumulatedThinking,
-              }
+              })
             } else if (part.text.trim()) {
               // Close reasoning before text starts
               if (reasoningMessageId && !hasClosedReasoning) {
                 hasClosedReasoning = true
-                yield {
+                yield asChunk({
                   type: 'REASONING_MESSAGE_END',
                   messageId: reasoningMessageId,
                   model,
                   timestamp,
-                }
-                yield {
+                })
+                yield asChunk({
                   type: 'REASONING_END',
                   messageId: reasoningMessageId,
                   model,
                   timestamp,
-                }
+                })
               }
 
               // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
               // Emit TEXT_MESSAGE_START on first text content
               if (!hasEmittedTextMessageStart) {
                 hasEmittedTextMessageStart = true
-                yield {
+                yield asChunk({
                   type: 'TEXT_MESSAGE_START',
                   messageId,
                   model,
                   timestamp,
                   role: 'assistant',
-                }
+                })
               }
 
               accumulatedContent += part.text
-              yield {
+              yield asChunk({
                 type: 'TEXT_MESSAGE_CONTENT',
                 messageId,
                 model,
                 timestamp,
                 delta: part.text,
                 content: accumulatedContent,
-              }
+              })
             }
           }
 
@@ -380,7 +385,7 @@ export class GeminiTextAdapter<
             // Emit TOOL_CALL_START if not already started
             if (!toolCallData.started) {
               toolCallData.started = true
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_START',
                 toolCallId,
                 toolCallName: toolCallData.name,
@@ -393,18 +398,18 @@ export class GeminiTextAdapter<
                     thoughtSignature: toolCallData.thoughtSignature,
                   },
                 }),
-              }
+              })
             }
 
             // Emit TOOL_CALL_ARGS
-            yield {
+            yield asChunk({
               type: 'TOOL_CALL_ARGS',
               toolCallId,
               model,
               timestamp,
               delta: toolCallData.args,
               args: toolCallData.args,
-            }
+            })
           }
         }
       } else if (chunk.data && chunk.data.trim()) {
@@ -412,24 +417,24 @@ export class GeminiTextAdapter<
         // Emit TEXT_MESSAGE_START on first text content
         if (!hasEmittedTextMessageStart) {
           hasEmittedTextMessageStart = true
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_START',
             messageId,
             model,
             timestamp,
             role: 'assistant',
-          }
+          })
         }
 
         accumulatedContent += chunk.data
-        yield {
+        yield asChunk({
           type: 'TEXT_MESSAGE_CONTENT',
           messageId,
           model,
           timestamp,
           delta: chunk.data,
           content: accumulatedContent,
-        }
+        })
       }
 
       if (chunk.candidates?.[0]?.finishReason) {
@@ -458,7 +463,7 @@ export class GeminiTextAdapter<
                 })
 
                 // Emit TOOL_CALL_START
-                yield {
+                yield asChunk({
                   type: 'TOOL_CALL_START',
                   toolCallId,
                   toolCallName: functionCall.name || '',
@@ -466,7 +471,7 @@ export class GeminiTextAdapter<
                   model,
                   timestamp,
                   index: nextToolIndex - 1,
-                }
+                })
 
                 // Emit TOOL_CALL_END with parsed input
                 let parsedInput: unknown = {}
@@ -479,7 +484,7 @@ export class GeminiTextAdapter<
                   parsedInput = {}
                 }
 
-                yield {
+                yield asChunk({
                   type: 'TOOL_CALL_END',
                   toolCallId,
                   toolCallName: functionCall.name || '',
@@ -487,7 +492,7 @@ export class GeminiTextAdapter<
                   model,
                   timestamp,
                   input: parsedInput,
-                }
+                })
               }
             }
           }
@@ -502,7 +507,7 @@ export class GeminiTextAdapter<
             parsedInput = {}
           }
 
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_END',
             toolCallId,
             toolCallName: toolCallData.name,
@@ -510,7 +515,7 @@ export class GeminiTextAdapter<
             model,
             timestamp,
             input: parsedInput,
-          }
+          })
         }
 
         // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
@@ -519,7 +524,7 @@ export class GeminiTextAdapter<
         }
 
         if (finishReason === FinishReason.MAX_TOKENS) {
-          yield {
+          yield asChunk({
             type: 'RUN_ERROR',
             runId,
             model,
@@ -532,37 +537,37 @@ export class GeminiTextAdapter<
                 'The response was cut off because the maximum token limit was reached.',
               code: 'max_tokens',
             },
-          }
+          })
         }
 
         // Close reasoning events if still open
         if (reasoningMessageId && !hasClosedReasoning) {
           hasClosedReasoning = true
-          yield {
+          yield asChunk({
             type: 'REASONING_MESSAGE_END',
             messageId: reasoningMessageId,
             model,
             timestamp,
-          }
-          yield {
+          })
+          yield asChunk({
             type: 'REASONING_END',
             messageId: reasoningMessageId,
             model,
             timestamp,
-          }
+          })
         }
 
         // Emit TEXT_MESSAGE_END if we had text content
         if (hasEmittedTextMessageStart) {
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_END',
             messageId,
             model,
             timestamp,
-          }
+          })
         }
 
-        yield {
+        yield asChunk({
           type: 'RUN_FINISHED',
           runId,
           threadId,
@@ -576,7 +581,7 @@ export class GeminiTextAdapter<
                 totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
               }
             : undefined,
-        }
+        })
       }
     }
   }
