@@ -192,14 +192,13 @@ export async function captureStream(opts: {
       index: chunkIndex,
       type: chunk.type,
       timestamp: chunk.timestamp,
-      id: (chunk as any).id,
       model: chunk.model,
     }
 
     // AG-UI TEXT_MESSAGE_CONTENT event
     if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
       chunkData.delta = chunk.delta
-      chunkData.content = (chunk as any).content // stripped by spec middleware
+      chunkData.content = chunk.content // TanStack extension, stripped by spec middleware
       chunkData.role = 'assistant'
       const delta = chunk.delta || ''
       fullResponse += delta
@@ -217,7 +216,7 @@ export async function captureStream(opts: {
     // AG-UI TOOL_CALL_START event
     else if (chunk.type === 'TOOL_CALL_START') {
       const id = chunk.toolCallId
-      const name = (chunk as any).toolCallName || (chunk as any).toolName || ''
+      const name = chunk.toolCallName || chunk.toolName || ''
       toolCallsInProgress.set(id, {
         name,
         args: '',
@@ -235,29 +234,24 @@ export async function captureStream(opts: {
       const id = chunk.toolCallId
       const existing = toolCallsInProgress.get(id)
       if (existing) {
-        // Accumulate from delta (spec field) or use args (deprecated extension)
-        existing.args =
-          (chunk as any).args || existing.args + (chunk.delta || '')
+        // Accumulate from delta (spec field); args is a deprecated extension (stripped)
+        existing.args = chunk.args || existing.args + (chunk.delta || '')
       }
 
       chunkData.toolCallId = chunk.toolCallId
       chunkData.delta = chunk.delta
-      chunkData.args = (chunk as any).args
+      chunkData.args = chunk.args
     }
     // AG-UI TOOL_CALL_END event
     else if (chunk.type === 'TOOL_CALL_END') {
       const id = chunk.toolCallId
       const inProgress = toolCallsInProgress.get(id)
-      // toolName/toolCallName/input/result are stripped by spec middleware;
+      // toolName/input/result are TanStack extensions (stripped by spec middleware);
       // fall back to data captured during TOOL_CALL_START/TOOL_CALL_ARGS
-      const name =
-        (chunk as any).toolCallName ||
-        (chunk as any).toolName ||
-        inProgress?.name ||
-        ''
+      const name = chunk.toolName || inProgress?.name || ''
       const args =
         inProgress?.args ||
-        ((chunk as any).input ? JSON.stringify((chunk as any).input) : '')
+        (chunk.input ? JSON.stringify(chunk.input) : '')
 
       toolCallMap.set(id, {
         id,
@@ -282,24 +276,23 @@ export async function captureStream(opts: {
       chunkData.toolName = name
 
       // Legacy: AG-UI tool results were included in TOOL_CALL_END events
-      const result = (chunk as any).result
-      if (result !== undefined) {
-        chunkData.result = result
+      if (chunk.result !== undefined) {
+        chunkData.result = chunk.result
         toolResults.push({
           toolCallId: id,
-          content: result,
+          content: chunk.result,
         })
         reconstructedMessages.push({
           role: 'tool',
           toolCallId: id,
-          content: result,
+          content: chunk.result,
         })
       }
     }
     // AG-UI TOOL_CALL_RESULT event (spec-compliant tool result delivery)
     else if (chunk.type === 'TOOL_CALL_RESULT') {
-      const id = (chunk as any).toolCallId
-      const content = (chunk as any).content
+      const id = chunk.toolCallId
+      const content = chunk.content
       chunkData.toolCallId = id
       chunkData.result = content
 
@@ -340,14 +333,12 @@ export async function captureStream(opts: {
     }
     // AG-UI RUN_FINISHED event
     else if (chunk.type === 'RUN_FINISHED') {
-      // finishReason and usage are TanStack extensions (stripped by spec middleware)
-      const finishReason = (chunk as any).finishReason
-      const usage = (chunk as any).usage
-      chunkData.finishReason = finishReason
-      chunkData.usage = usage
+      // finishReason and usage are TanStack extensions (stripped by spec middleware at runtime)
+      chunkData.finishReason = chunk.finishReason
+      chunkData.usage = chunk.usage
       // If finishReason is available, use it; otherwise assume 'stop' if we have text content
       if (
-        (finishReason === 'stop' || finishReason === undefined) &&
+        (chunk.finishReason === 'stop' || chunk.finishReason === undefined) &&
         assistantDraft
       ) {
         reconstructedMessages.push(assistantDraft)
