@@ -1319,7 +1319,7 @@ describe('chat()', () => {
       expect((runFinished as any).threadId).toBe('thread-1')
     })
 
-    it('should strip deprecated toolName but keep extras on yielded events', async () => {
+    it('should include both toolCallName (spec) and toolName (deprecated) on TOOL_CALL_START', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -1353,10 +1353,9 @@ describe('chat()', () => {
 
       const toolStartChunks = chunks.filter((c) => c.type === 'TOOL_CALL_START')
       for (const chunk of toolStartChunks) {
-        // toolCallName should be present (spec field)
+        // Both spec and deprecated field present (passthrough)
         expect((chunk as any).toolCallName).toBe('get_weather')
-        // toolName should be stripped
-        expect('toolName' in chunk).toBe(false)
+        expect((chunk as any).toolName).toBe('get_weather')
       }
     })
 
