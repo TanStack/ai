@@ -507,7 +507,7 @@ export class StreamProcessor {
         break
 
       case 'TOOL_CALL_RESULT':
-        // Tool result handled by chat activity
+        this.handleToolCallResultEvent(chunk)
         break
 
       default:
@@ -1029,6 +1029,44 @@ export class StreamProcessor {
       )
       this.emitMessagesChange()
     }
+  }
+
+  /**
+   * Handle TOOL_CALL_RESULT event (AG-UI spec).
+   *
+   * Creates a tool-result part and updates the tool-call output field,
+   * mirroring the logic from TOOL_CALL_END when it carries a result.
+   * This is the spec-compliant path for delivering tool results to the client.
+   */
+  private handleToolCallResultEvent(
+    chunk: Extract<StreamChunk, { type: 'TOOL_CALL_RESULT' }>,
+  ): void {
+    const messageId = this.toolCallToMessage.get(chunk.toolCallId)
+    if (!messageId) return
+
+    // Step 1: Update the tool-call part's output field
+    let output: unknown
+    try {
+      output = JSON.parse(chunk.content)
+    } catch {
+      output = chunk.content
+    }
+    this.messages = updateToolCallWithOutput(
+      this.messages,
+      chunk.toolCallId,
+      output,
+    )
+
+    // Step 2: Create/update the tool-result part
+    const resultState: ToolResultState = 'complete'
+    this.messages = updateToolResultPart(
+      this.messages,
+      messageId,
+      chunk.toolCallId,
+      chunk.content,
+      resultState,
+    )
+    this.emitMessagesChange()
   }
 
   /**
