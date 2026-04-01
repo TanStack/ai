@@ -351,7 +351,7 @@ export class OpenAITextAdapter<
               type: 'RUN_ERROR',
               runId,
               message: chunk.response.error.message,
-              code: chunk.response.error.code ?? undefined,
+              code: chunk.response.error.code,
               model: chunk.response.model,
               timestamp,
               error: chunk.response.error,

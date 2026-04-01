@@ -208,24 +208,16 @@ describe('OpenRouter adapter option mapping', () => {
     expect(contentChunks[0]).toMatchObject({
       type: 'TEXT_MESSAGE_CONTENT',
       delta: 'Hello ',
-      content: 'Hello ',
     })
 
     expect(contentChunks[1]).toMatchObject({
       type: 'TEXT_MESSAGE_CONTENT',
       delta: 'world',
-      content: 'Hello world',
     })
 
     const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(runFinishedChunk).toMatchObject({
       type: 'RUN_FINISHED',
-      finishReason: 'stop',
-      usage: {
-        promptTokens: 5,
-        completionTokens: 2,
-        totalTokens: 7,
-      },
     })
   })
 

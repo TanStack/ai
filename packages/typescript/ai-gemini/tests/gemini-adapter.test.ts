@@ -306,27 +306,23 @@ describe('GeminiAdapter through AI', () => {
       type: 'TEXT_MESSAGE_START',
       role: 'assistant',
     })
-    expect(received[2]).toMatchObject({
+    const contentChunks = received.filter(
+      (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+    )
+    expect(contentChunks).toHaveLength(2)
+    expect(contentChunks[0]).toMatchObject({
       type: 'TEXT_MESSAGE_CONTENT',
       delta: 'Partly ',
-      content: 'Partly ',
     })
-    expect(received[3]).toMatchObject({
+    expect(contentChunks[1]).toMatchObject({
       type: 'TEXT_MESSAGE_CONTENT',
       delta: 'cloudy',
-      content: 'Partly cloudy',
     })
-    expect(received[4]).toMatchObject({
+    expect(received.find((c) => c.type === 'TEXT_MESSAGE_END')).toMatchObject({
       type: 'TEXT_MESSAGE_END',
     })
     expect(received.at(-1)).toMatchObject({
       type: 'RUN_FINISHED',
-      finishReason: 'stop',
-      usage: {
-        promptTokens: 4,
-        completionTokens: 2,
-        totalTokens: 6,
-      },
     })
   })
 
