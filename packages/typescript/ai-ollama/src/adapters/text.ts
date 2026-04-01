@@ -256,18 +256,17 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           parsedInput = actualToolCall.function.arguments
         }
 
-        // Emit TOOL_CALL_ARGS so the stream processor accumulates the
-        // arguments string (matches OpenAI/Anthropic adapter behavior)
-        if (argsStr) {
-          events.push({
+        // Emit TOOL_CALL_ARGS with full args (Ollama doesn't stream args incrementally)
+        events.push(
+          asChunk({
             type: 'TOOL_CALL_ARGS',
             toolCallId,
             model: chunk.model,
             timestamp,
             delta: argsStr,
             args: argsStr,
-          })
-        }
+          }),
+        )
 
         // Emit TOOL_CALL_END
         events.push(
