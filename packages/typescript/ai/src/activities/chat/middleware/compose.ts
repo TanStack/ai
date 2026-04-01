@@ -17,7 +17,7 @@ import type {
 
 /** Check if a middleware should be skipped for instrumentation events. */
 function shouldSkipInstrumentation(mw: ChatMiddleware): boolean {
-  return mw.name === 'devtools'
+  return mw.name === 'devtools' || mw.name === 'strip-to-spec'
 }
 
 /** Build the base context for middleware instrumentation events. */
