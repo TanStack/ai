@@ -407,9 +407,7 @@ describe('chat()', () => {
       // (TOOL_CALL_END is also emitted but `result`/`toolName` are stripped by strip-to-spec middleware)
       const toolResultChunks = chunks.filter(
         (c) =>
-          c.type === 'TOOL_CALL_RESULT' &&
-          'content' in c &&
-          (c as any).content,
+          c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
       )
       expect(toolResultChunks).toHaveLength(1)
 
@@ -474,9 +472,7 @@ describe('chat()', () => {
       // (TOOL_CALL_END is also emitted but `result`/`toolName` are stripped by strip-to-spec middleware)
       const toolResultChunks = chunks.filter(
         (c) =>
-          c.type === 'TOOL_CALL_RESULT' &&
-          'content' in c &&
-          (c as any).content,
+          c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
       )
       expect(toolResultChunks).toHaveLength(1)
 
@@ -1257,9 +1253,7 @@ describe('chat()', () => {
         (c) => c.type === 'TOOL_CALL_RESULT',
       ) as Array<any>
       const errorResult = toolResultChunks.find(
-        (c: any) =>
-          c.content &&
-          c.content.includes('must be discovered first'),
+        (c: any) => c.content && c.content.includes('must be discovered first'),
       )
       expect(errorResult).toBeDefined()
 
@@ -1288,6 +1282,176 @@ describe('chat()', () => {
       const toolNames = (calls[0] as any).tools.map((t: any) => t.name)
       expect(toolNames).not.toContain('__lazy__tool__discovery__')
       expect(toolNames).toContain('normalTool')
+    })
+  })
+
+  // ==========================================================================
+  // AG-UI spec compliance (threadId, strip middleware)
+  // ==========================================================================
+  describe('AG-UI spec compliance', () => {
+    it('should include threadId on RUN_STARTED and RUN_FINISHED events', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Hi'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hello' }],
+        threadId: 'my-thread-id',
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      const runStarted = chunks.find((c) => c.type === 'RUN_STARTED')
+      expect(runStarted).toBeDefined()
+      expect((runStarted as any).threadId).toBeDefined()
+
+      const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
+      expect(runFinished).toBeDefined()
+      expect((runFinished as any).threadId).toBeDefined()
+    })
+
+    it('should strip model field from yielded events', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Hi'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hello' }],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // No yielded event should have the model field (it's stripped)
+      for (const chunk of chunks) {
+        expect('model' in chunk).toBe(false)
+      }
+    })
+
+    it('should strip toolName from TOOL_CALL_START events (only toolCallName)', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.toolStart('tc-1', 'get_weather'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'get_weather', {
+              input: {},
+              result: '{}',
+            }),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather' }],
+        tools: [serverTool('get_weather', () => ({ temp: 72 }))],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      const toolStartChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_START',
+      )
+      for (const chunk of toolStartChunks) {
+        // toolCallName should be present (spec field)
+        expect((chunk as any).toolCallName).toBe('get_weather')
+        // toolName should be stripped
+        expect('toolName' in chunk).toBe(false)
+      }
+    })
+
+    it('should strip finishReason and usage from RUN_FINISHED events', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Hi'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hello' }],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
+      expect(runFinished).toBeDefined()
+      // These internal extension fields should be stripped
+      expect('finishReason' in runFinished!).toBe(false)
+      expect('usage' in runFinished!).toBe(false)
+    })
+
+    it('should emit TOOL_CALL_RESULT events during agent loop', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.toolStart('tc-1', 'get_weather'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'get_weather', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('72F'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather?' }],
+        tools: [serverTool('get_weather', () => ({ temp: 72 }))],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      const resultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT',
+      )
+      expect(resultChunks.length).toBeGreaterThanOrEqual(1)
+      expect((resultChunks[0] as any).toolCallId).toBe('tc-1')
+      expect((resultChunks[0] as any).content).toContain('72')
+      // model should be stripped
+      expect('model' in resultChunks[0]!).toBe(false)
     })
   })
 })

@@ -2932,4 +2932,178 @@ describe('StreamProcessor', () => {
       expect(events.onStreamStart).not.toHaveBeenCalled()
     })
   })
+
+  // ==========================================================================
+  // REASONING events
+  // ==========================================================================
+  describe('REASONING events', () => {
+    it('should accumulate reasoning content from REASONING_MESSAGE_CONTENT', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+      processor.processChunk(chunk('REASONING_START', { messageId: 'r-1' }))
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_START', {
+          messageId: 'r-1',
+          role: 'reasoning',
+        }),
+      )
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_CONTENT', {
+          messageId: 'r-1',
+          delta: 'Let me think',
+        }),
+      )
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_CONTENT', {
+          messageId: 'r-1',
+          delta: ' about this...',
+        }),
+      )
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_END', { messageId: 'r-1' }),
+      )
+      processor.processChunk(chunk('REASONING_END', { messageId: 'r-1' }))
+
+      // Should fire onThinkingUpdate with accumulated content
+      expect(events.onThinkingUpdate).toHaveBeenCalledTimes(2)
+      expect(events.onThinkingUpdate).toHaveBeenNthCalledWith(
+        1,
+        expect.any(String),
+        'Let me think',
+      )
+      expect(events.onThinkingUpdate).toHaveBeenNthCalledWith(
+        2,
+        expect.any(String),
+        'Let me think about this...',
+      )
+    })
+
+    it('should create a thinking part in the UIMessage', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+      processor.processChunk(chunk('REASONING_START', { messageId: 'r-1' }))
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_START', {
+          messageId: 'r-1',
+          role: 'reasoning',
+        }),
+      )
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_CONTENT', {
+          messageId: 'r-1',
+          delta: 'Thinking...',
+        }),
+      )
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_END', { messageId: 'r-1' }),
+      )
+      processor.processChunk(chunk('REASONING_END', { messageId: 'r-1' }))
+      processor.processChunk(ev.textContent('Answer'))
+      processor.processChunk(ev.textEnd())
+      processor.processChunk(ev.runFinished())
+
+      const messages = processor.getMessages()
+      const assistantMsg = messages.find((m) => m.role === 'assistant')
+      expect(assistantMsg).toBeDefined()
+
+      const thinkingPart = assistantMsg!.parts.find(
+        (p) => p.type === 'thinking',
+      )
+      expect(thinkingPart).toBeDefined()
+      expect(thinkingPart!.content).toBe('Thinking...')
+
+      const textPart = assistantMsg!.parts.find((p) => p.type === 'text')
+      expect(textPart).toBeDefined()
+      expect(textPart!.content).toBe('Answer')
+    })
+
+    it('should handle REASONING events without errors when no matching message', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      // REASONING events before TEXT_MESSAGE_START — should not crash
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(chunk('REASONING_START', { messageId: 'r-1' }))
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_START', {
+          messageId: 'r-1',
+          role: 'reasoning',
+        }),
+      )
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_CONTENT', {
+          messageId: 'r-1',
+          delta: 'thinking',
+        }),
+      )
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_END', { messageId: 'r-1' }),
+      )
+      processor.processChunk(chunk('REASONING_END', { messageId: 'r-1' }))
+
+      // Should not throw, onThinkingUpdate should still fire since
+      // ensureAssistantMessage creates one
+      expect(events.onThinkingUpdate).toHaveBeenCalled()
+    })
+
+    it('should not fail on no-op REASONING lifecycle events', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+
+      // These are no-ops but should not throw
+      processor.processChunk(chunk('REASONING_START', { messageId: 'r-1' }))
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_START', {
+          messageId: 'r-1',
+          role: 'reasoning',
+        }),
+      )
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_END', { messageId: 'r-1' }),
+      )
+      processor.processChunk(chunk('REASONING_END', { messageId: 'r-1' }))
+
+      // No crash = success
+      expect(processor.getMessages()).toBeDefined()
+    })
+  })
+
+  // ==========================================================================
+  // TOOL_CALL_RESULT event
+  // ==========================================================================
+  describe('TOOL_CALL_RESULT event', () => {
+    it('should process TOOL_CALL_RESULT without errors', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.toolStart('tc-1', 'get_weather'))
+      processor.processChunk(
+        ev.toolEnd('tc-1', 'get_weather', {
+          input: { city: 'NYC' },
+        }),
+      )
+      processor.processChunk(
+        chunk('TOOL_CALL_RESULT', {
+          messageId: 'tool-result-1',
+          toolCallId: 'tc-1',
+          content: '{"temp": 72}',
+          role: 'tool',
+        }),
+      )
+      processor.processChunk(ev.runFinished('tool_calls'))
+
+      // TOOL_CALL_RESULT is a no-op in StreamProcessor, but should not throw
+      expect(processor.getMessages()).toBeDefined()
+    })
+  })
 })
