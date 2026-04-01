@@ -58,9 +58,7 @@ function probeIsolatedVm(): { compatible: boolean; error?: string } {
       _probeResult = { compatible: true }
     } else {
       const signal = result.signal ? ` (signal: ${result.signal})` : ''
-      const stderr = result.stderr?.trim()
-        ? `\n${result.stderr.trim()}`
-        : ''
+      const stderr = result.stderr?.trim() ? `\n${result.stderr.trim()}` : ''
       _probeResult = {
         compatible: false,
         error: `isolated-vm probe exited with code ${result.status}${signal}${stderr}`,

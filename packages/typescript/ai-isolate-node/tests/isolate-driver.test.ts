@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  createNodeIsolateDriver,
-  probeIsolatedVm,
-} from '../src/isolate-driver'
+import { createNodeIsolateDriver, probeIsolatedVm } from '../src/isolate-driver'
 import type { ToolBinding } from '@tanstack/ai-code-mode'
 
 const addonAvailable = probeIsolatedVm().compatible
