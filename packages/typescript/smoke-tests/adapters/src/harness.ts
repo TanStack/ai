@@ -199,7 +199,7 @@ export async function captureStream(opts: {
     // AG-UI TEXT_MESSAGE_CONTENT event
     if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
       chunkData.delta = chunk.delta
-      chunkData.content = chunk.content
+      chunkData.content = (chunk as any).content // stripped by spec middleware
       chunkData.role = 'assistant'
       const delta = chunk.delta || ''
       fullResponse += delta
@@ -207,7 +207,7 @@ export async function captureStream(opts: {
       if (!assistantDraft) {
         assistantDraft = {
           role: 'assistant',
-          content: chunk.content || '',
+          content: delta,
           toolCalls: [],
         }
       } else {
@@ -217,8 +217,10 @@ export async function captureStream(opts: {
     // AG-UI TOOL_CALL_START event
     else if (chunk.type === 'TOOL_CALL_START') {
       const id = chunk.toolCallId
+      const name =
+        (chunk as any).toolCallName || (chunk as any).toolName || ''
       toolCallsInProgress.set(id, {
-        name: chunk.toolName,
+        name,
         args: '',
       })
 
@@ -227,27 +229,36 @@ export async function captureStream(opts: {
       }
 
       chunkData.toolCallId = chunk.toolCallId
-      chunkData.toolName = chunk.toolName
+      chunkData.toolName = name
     }
     // AG-UI TOOL_CALL_ARGS event
     else if (chunk.type === 'TOOL_CALL_ARGS') {
       const id = chunk.toolCallId
       const existing = toolCallsInProgress.get(id)
       if (existing) {
-        existing.args = chunk.args || existing.args + (chunk.delta || '')
+        // Accumulate from delta (spec field) or use args (deprecated extension)
+        existing.args =
+          (chunk as any).args || existing.args + (chunk.delta || '')
       }
 
       chunkData.toolCallId = chunk.toolCallId
       chunkData.delta = chunk.delta
-      chunkData.args = chunk.args
+      chunkData.args = (chunk as any).args
     }
     // AG-UI TOOL_CALL_END event
     else if (chunk.type === 'TOOL_CALL_END') {
       const id = chunk.toolCallId
       const inProgress = toolCallsInProgress.get(id)
-      const name = chunk.toolName || inProgress?.name || ''
+      // toolName/toolCallName/input/result are stripped by spec middleware;
+      // fall back to data captured during TOOL_CALL_START/TOOL_CALL_ARGS
+      const name =
+        (chunk as any).toolCallName ||
+        (chunk as any).toolName ||
+        inProgress?.name ||
+        ''
       const args =
-        inProgress?.args || (chunk.input ? JSON.stringify(chunk.input) : '')
+        inProgress?.args ||
+        ((chunk as any).input ? JSON.stringify((chunk as any).input) : '')
 
       toolCallMap.set(id, {
         id,
@@ -269,20 +280,40 @@ export async function captureStream(opts: {
       })
 
       chunkData.toolCallId = chunk.toolCallId
-      chunkData.toolName = chunk.toolName
-      chunkData.input = chunk.input
+      chunkData.toolName = name
 
-      // AG-UI tool results are included in TOOL_CALL_END events
-      if (chunk.result !== undefined) {
-        chunkData.result = chunk.result
+      // Legacy: AG-UI tool results were included in TOOL_CALL_END events
+      const result = (chunk as any).result
+      if (result !== undefined) {
+        chunkData.result = result
         toolResults.push({
           toolCallId: id,
-          content: chunk.result,
+          content: result,
         })
         reconstructedMessages.push({
           role: 'tool',
           toolCallId: id,
-          content: chunk.result,
+          content: result,
+        })
+      }
+    }
+    // AG-UI TOOL_CALL_RESULT event (spec-compliant tool result delivery)
+    else if (chunk.type === 'TOOL_CALL_RESULT') {
+      const id = (chunk as any).toolCallId
+      const content = (chunk as any).content
+      chunkData.toolCallId = id
+      chunkData.result = content
+
+      // Only add if not already captured from TOOL_CALL_END
+      if (!toolResults.some((r) => r.toolCallId === id)) {
+        toolResults.push({
+          toolCallId: id,
+          content,
+        })
+        reconstructedMessages.push({
+          role: 'tool',
+          toolCallId: id,
+          content,
         })
       }
     }
@@ -310,9 +341,16 @@ export async function captureStream(opts: {
     }
     // AG-UI RUN_FINISHED event
     else if (chunk.type === 'RUN_FINISHED') {
-      chunkData.finishReason = chunk.finishReason
-      chunkData.usage = chunk.usage
-      if (chunk.finishReason === 'stop' && assistantDraft) {
+      // finishReason and usage are TanStack extensions (stripped by spec middleware)
+      const finishReason = (chunk as any).finishReason
+      const usage = (chunk as any).usage
+      chunkData.finishReason = finishReason
+      chunkData.usage = usage
+      // If finishReason is available, use it; otherwise assume 'stop' if we have text content
+      if (
+        (finishReason === 'stop' || finishReason === undefined) &&
+        assistantDraft
+      ) {
         reconstructedMessages.push(assistantDraft)
         lastAssistantMessage = assistantDraft
         assistantDraft = null
