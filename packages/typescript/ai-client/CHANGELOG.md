@@ -1,5 +1,13 @@
 # @tanstack/ai-client
 
+## 0.7.6
+
+### Patch Changes
+
+- fix: prevent infinite tool call loop when server tool finishes with stop ([#412](https://github.com/TanStack/ai/pull/412))
+
+  When the server-side agent loop executes a tool and the model finishes with `finishReason: 'stop'`, the client no longer auto-sends another request. Previously this caused infinite loops with non-OpenAI providers that respond minimally after tool execution.
+
 ## 0.7.5
 
 ### Patch Changes
