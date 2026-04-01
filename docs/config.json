@@ -175,6 +175,10 @@
         {
           "label": "Fal",
           "to": "adapters/fal"
+        },
+        {
+          "label": "AWS Bedrock",
+          "to": "adapters/bedrock"
         }
       ]
     },
