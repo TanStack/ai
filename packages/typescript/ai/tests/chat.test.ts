@@ -1386,7 +1386,7 @@ describe('chat()', () => {
       }
     })
 
-    it('should strip finishReason and usage from RUN_FINISHED events', async () => {
+    it('should strip usage but keep finishReason on RUN_FINISHED events', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -1408,9 +1408,10 @@ describe('chat()', () => {
 
       const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
       expect(runFinished).toBeDefined()
-      // These internal extension fields should be stripped
-      expect('finishReason' in runFinished!).toBe(false)
+      // usage is stripped (internal extension)
       expect('usage' in runFinished!).toBe(false)
+      // finishReason is kept — needed by client to detect tool_calls vs stop
+      expect((runFinished as any).finishReason).toBe('stop')
     })
 
     it('should emit TOOL_CALL_RESULT events during agent loop', async () => {

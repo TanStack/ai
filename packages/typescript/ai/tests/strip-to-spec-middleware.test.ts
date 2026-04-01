@@ -117,7 +117,7 @@ describe('stripToSpec', () => {
     expect(result).toHaveProperty('timestamp')
   })
 
-  it('strips RUN_FINISHED to spec fields (removes finishReason, usage)', () => {
+  it('strips RUN_FINISHED usage but keeps finishReason (needed by client)', () => {
     const chunk = makeChunk('RUN_FINISHED', {
       runId: 'run-1',
       model: 'gpt-4o',
@@ -130,8 +130,9 @@ describe('stripToSpec', () => {
     })
     const result = stripToSpec(chunk) as Record<string, unknown>
     expect(result).not.toHaveProperty('model')
-    expect(result).not.toHaveProperty('finishReason')
     expect(result).not.toHaveProperty('usage')
+    // finishReason is kept — client needs it to detect tool_calls vs stop
+    expect(result).toHaveProperty('finishReason', 'stop')
     expect(result).toHaveProperty('type', 'RUN_FINISHED')
     expect(result).toHaveProperty('runId', 'run-1')
     expect(result).toHaveProperty('timestamp')
@@ -237,7 +238,8 @@ describe('stripToSpec', () => {
     const result = stripToSpec(chunk) as Record<string, unknown>
     expect(result).not.toHaveProperty('rawEvent')
     expect(result).not.toHaveProperty('model')
-    expect(result).not.toHaveProperty('finishReason')
+    // finishReason is kept (needed by client)
+    expect(result).toHaveProperty('finishReason', 'stop')
     expect(result).toHaveProperty('type', 'RUN_FINISHED')
     expect(result).toHaveProperty('runId', 'run-1')
   })
