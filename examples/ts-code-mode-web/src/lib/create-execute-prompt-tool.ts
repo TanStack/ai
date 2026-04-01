@@ -1,6 +1,6 @@
 /**
  * Example: nested `execute_prompt` tool — not part of @tanstack/ai-code-mode.
- * Compose with `createCodeModeToolAndPrompt` (or any inner tools + system prompt).
+ * Compose with `createCodeMode` (or any inner tools + system prompt).
  */
 import { chat, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'

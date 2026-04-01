@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
-import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import { createCodeMode } from '@tanstack/ai-code-mode'
 import {
   createAlwaysTrustedStrategy,
   createSkillManagementTools,
@@ -57,7 +57,7 @@ You have two tools to work with:
 
 // Lazy initialization
 let codeModeCache: {
-  tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
+  tool: ReturnType<typeof createCodeMode>['tool']
   systemPrompt: string
   driver: IsolateDriver
 } | null = null
@@ -66,7 +66,7 @@ async function getCodeModeTools() {
   if (!codeModeCache) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
     const driver = await createIsolateDriver('node')
-    const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+    const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: databaseTools,
       timeout: 60000,

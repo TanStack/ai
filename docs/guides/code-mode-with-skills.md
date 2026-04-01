@@ -65,7 +65,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const storage = createFileSkillStorage({ directory: './.skills' })
 const driver = createNodeIsolateDriver()
 
-const { registry, systemPrompt, selectedSkills } = await codeModeWithSkills({
+const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills({
   config: {
     driver,
     tools: [myTool1, myTool2],
@@ -82,7 +82,7 @@ const { registry, systemPrompt, selectedSkills } = await codeModeWithSkills({
 
 const stream = chat({
   adapter: openaiText('gpt-4o'),  // strong model for reasoning
-  toolRegistry: registry,
+  toolRegistry: toolsRegistry,
   messages,
   systemPrompts: ['You are a helpful assistant.', systemPrompt],
   agentLoopStrategy: maxIterations(15),
@@ -93,7 +93,7 @@ const stream = chat({
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `registry` | `ToolRegistry` | Mutable registry containing all tools. Pass to `chat()` via `toolRegistry`. |
+| `toolsRegistry` | `ToolRegistry` | Mutable registry containing all tools. Pass to `chat()` via `toolRegistry`. |
 | `systemPrompt` | `string` | Combined Code Mode + skill library documentation. |
 | `selectedSkills` | `Array<Skill>` | Skills the selection model chose for this conversation. |
 
@@ -113,7 +113,7 @@ If you want full control — for example, loading all skills instead of using LL
 
 ```typescript
 import { chat, maxIterations } from '@tanstack/ai'
-import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import {
   createAlwaysTrustedStrategy,
@@ -132,7 +132,7 @@ const driver = createNodeIsolateDriver()
 
 // 1. Create Code Mode tool + prompt
 const { tool: codeModeTool, systemPrompt: codeModePrompt } =
-  createCodeModeToolAndPrompt({
+  createCodeMode({
     driver,
     tools: [myTool1, myTool2],
     timeout: 60_000,

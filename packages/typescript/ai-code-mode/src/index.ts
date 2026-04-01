@@ -6,7 +6,7 @@ export type {
 } from './create-code-mode-tool'
 
 export { createCodeModeSystemPrompt } from './create-system-prompt'
-export { createCodeModeToolAndPrompt } from './create-code-mode-tool-and-prompt'
+export { createCodeMode } from './create-code-mode'
 
 export {
   InMemoryAgentStore,

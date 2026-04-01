@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { anthropicText } from '@tanstack/ai-anthropic'
-import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import { createCodeMode } from '@tanstack/ai-code-mode'
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 import type { CodeExecution } from '@/lib/execute-prompt-realtime-tools'
 import { createExecutePromptTool } from '@/lib/create-execute-prompt-tool'
@@ -65,7 +65,7 @@ export const Route = createFileRoute(
 
           const driver = await getDriver()
           const adapter = anthropicText('claude-haiku-4-5')
-          const codeMode = createCodeModeToolAndPrompt({
+          const codeMode = createCodeMode({
             driver,
             tools: productTools,
             timeout: 60000,

@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createFileRoute } from '@tanstack/react-router'
-import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createAlwaysTrustedStrategy } from '@tanstack/ai-code-mode-skills'
 import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { anthropicText } from '@tanstack/ai-anthropic'
@@ -54,7 +54,7 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
 }
 
 let codeModeCache: {
-  tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
+  tool: ReturnType<typeof createCodeMode>['tool']
   systemPrompt: string
   driver: IsolateDriver
 } | null = null
@@ -63,7 +63,7 @@ async function getCodeModeTools() {
   if (!codeModeCache) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
     const driver = await createIsolateDriver('node')
-    const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+    const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: cityTools,
       timeout: 30000,

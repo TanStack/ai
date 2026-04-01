@@ -11,10 +11,10 @@ import type { CodeModeToolConfig } from './types'
  *
  * @example
  * ```typescript
- * import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+ * import { createCodeMode } from '@tanstack/ai-code-mode'
  * import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
  *
- * const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+ * const { tool, systemPrompt } = createCodeMode({
  *   driver: createNodeIsolateDriver(),
  *   tools: [weatherTool, dbTool],
  *   timeout: 30000,
@@ -27,7 +27,7 @@ import type { CodeModeToolConfig } from './types'
  * })
  * ```
  */
-export function createCodeModeToolAndPrompt(config: CodeModeToolConfig) {
+export function createCodeMode(config: CodeModeToolConfig) {
   return {
     tool: createCodeModeTool(config),
     systemPrompt: createCodeModeSystemPrompt(config),

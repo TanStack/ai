@@ -29,7 +29,7 @@ pnpm add @tanstack/ai-isolate-cloudflare
 
 ```typescript
 import { chat, toolDefinition } from '@tanstack/ai'
-import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { z } from 'zod'
 
@@ -45,7 +45,7 @@ const weatherTool = toolDefinition({
 })
 
 // Create the execute_typescript tool and system prompt
-const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+const { tool, systemPrompt } = createCodeMode({
   driver: createNodeIsolateDriver(),
   tools: [weatherTool],
 })
@@ -76,7 +76,7 @@ return { warmestCity: warmest.location, temperature: warmest.temperature }
 
 ## API Reference
 
-### `createCodeModeToolAndPrompt(config)`
+### `createCodeMode(config)`
 
 Creates both the `execute_typescript` tool and its matching system prompt. This is the recommended entry point.
 
@@ -90,7 +90,7 @@ Creates both the `execute_typescript` tool and its matching system prompt. This 
 
 ### `createCodeModeTool(config)` / `createCodeModeSystemPrompt(config)`
 
-Lower-level functions if you need only the tool or only the prompt. `createCodeModeToolAndPrompt` calls both internally.
+Lower-level functions if you need only the tool or only the prompt. `createCodeMode` calls both internally.
 
 ### Advanced
 

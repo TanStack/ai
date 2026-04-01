@@ -126,7 +126,7 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
       messages,
     })
 
-    registry = codeWithSkillsResult.registry
+    registry = codeWithSkillsResult.toolsRegistry
 
     // Verify registry is returned (not a tools array)
     const hasGetTools = typeof registry.getTools === 'function'

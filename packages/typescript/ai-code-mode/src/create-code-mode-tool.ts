@@ -64,10 +64,10 @@ export type ExecuteTypescriptOutput = z.infer<
  *
  * @example
  * ```typescript
- * import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+ * import { createCodeMode } from '@tanstack/ai-code-mode'
  * import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
  *
- * const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+ * const { tool, systemPrompt } = createCodeMode({
  *   driver: createNodeIsolateDriver(),
  *   tools: [weatherTool, dbTool],  // Become external_fetchWeather, external_dbQuery
  *   timeout: 30000,

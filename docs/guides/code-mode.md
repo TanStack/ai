@@ -72,10 +72,10 @@ const fetchWeather = toolDefinition({
 ### 3. Create the Code Mode tool and system prompt
 
 ```typescript
-import { createCodeModeToolAndPrompt } from "@tanstack/ai-code-mode";
+import { createCodeMode } from "@tanstack/ai-code-mode";
 import { createNodeIsolateDriver } from "@tanstack/ai-isolate-node";
 
-const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+const { tool, systemPrompt } = createCodeMode({
   driver: createNodeIsolateDriver(),
   tools: [fetchWeather],
   timeout: 30_000,
@@ -131,12 +131,12 @@ All three API calls happen in parallel inside the sandbox. The model receives on
 
 ## API Reference
 
-### `createCodeModeToolAndPrompt(config)`
+### `createCodeMode(config)`
 
 Creates both the `execute_typescript` tool and its matching system prompt from a single config object. This is the recommended entry point.
 
 ```typescript
-const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+const { tool, systemPrompt } = createCodeMode({
   driver,          // IsolateDriver — required
   tools,           // Array<ServerTool | ToolDefinition> — required, at least one
   timeout,         // number — execution timeout in ms (default: 30000)
@@ -172,7 +172,7 @@ interface CodeModeToolResult {
 
 ### `createCodeModeTool(config)` / `createCodeModeSystemPrompt(config)`
 
-Lower-level functions if you need only the tool or only the prompt. `createCodeModeToolAndPrompt` calls both internally.
+Lower-level functions if you need only the tool or only the prompt. `createCodeMode` calls both internally.
 
 ```typescript
 import { createCodeModeTool, createCodeModeSystemPrompt } from "@tanstack/ai-code-mode";
@@ -199,6 +199,8 @@ interface IsolateDriver {
 | `@tanstack/ai-isolate-quickjs` | `createQuickJSIsolateDriver()` | Node.js, browser, edge |
 | `@tanstack/ai-isolate-cloudflare` | `createCloudflareIsolateDriver()` | Cloudflare Workers |
 
+For full configuration options for each driver, see [Isolate Drivers](./code-mode-isolates.md).
+
 ### Advanced
 
 These utilities are used internally and are exported for custom pipelines:
@@ -209,16 +211,9 @@ These utilities are used internally and are exported for custom pipelines:
 
 ## Choosing a Driver
 
-| | Node (`isolated-vm`) | QuickJS (WASM) | Cloudflare Workers |
-|---|---|---|---|
-| **Best for** | Server-side Node.js apps | Browsers, edge, portability | Edge deployments on Cloudflare |
-| **Performance** | Fast (V8 JIT) | Slower (interpreted) | Fast (V8 on edge) |
-| **Native deps** | Yes (C++ addon) | None | None |
-| **Browser support** | No | Yes | N/A |
-| **Memory limit** | Configurable | Configurable | N/A |
-| **Setup** | `pnpm add` | `pnpm add` | Deploy a Worker first |
+For a full comparison of drivers with all configuration options, see [Isolate Drivers](./code-mode-isolates.md).
 
-For server-side Node.js applications, the Node driver gives the best performance. For browser-based or portable applications, QuickJS avoids any native compilation step. The Cloudflare driver is ideal when you already deploy to Cloudflare Workers.
+In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), and the **Cloudflare driver** when you deploy to Cloudflare Workers.
 
 ## Custom Events
 

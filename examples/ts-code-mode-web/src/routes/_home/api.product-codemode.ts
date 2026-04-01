@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
-import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import { createCodeMode } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -51,7 +51,7 @@ Always write efficient code that does all of this in a single execution — use 
 // --- Code mode tool (shared by both paths) ---
 
 let codeModeCache: {
-  tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
+  tool: ReturnType<typeof createCodeMode>['tool']
   systemPrompt: string
   driver: IsolateDriver
 } | null = null
@@ -60,7 +60,7 @@ async function getCodeModeTools() {
   if (!codeModeCache) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
     const driver = await createIsolateDriver('node')
-    const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+    const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: productTools,
       timeout: 60000,

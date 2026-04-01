@@ -142,7 +142,7 @@ export async function runSimulatedTest(): Promise<TestResult> {
 
     // Get registry and system prompt with skills integration
     // Note: We use the selection adapter for skill selection, then the chat adapter for the actual chat
-    const { registry: registry1, systemPrompt: systemPrompt1 } =
+    const { toolsRegistry: registry1, systemPrompt: systemPrompt1 } =
       await codeModeWithSkills({
         config: {
           driver,

@@ -46,7 +46,7 @@ import { groqText } from '@tanstack/ai-groq'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { openaiText } from '@tanstack/ai-openai'
-import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import { createCodeMode } from '@tanstack/ai-code-mode'
 
 import { databaseTools, getSchemaInfoTool } from './database-tools'
 import { EVAL_MODELS, getModelCategory, parseModelId } from './eval-config'
@@ -172,14 +172,14 @@ function extractAssistantReportText(messages: Array<UIMessage>): string {
 }
 
 let codeModeCache: {
-  tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
+  tool: ReturnType<typeof createCodeMode>['tool']
   systemPrompt: string
 } | null = null
 
 function getCodeModeTools() {
   if (!codeModeCache) {
     const driver = createNodeIsolateDriver()
-    const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+    const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: databaseTools,
       timeout: 60000,

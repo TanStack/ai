@@ -1,5 +1,6 @@
 export {
   createNodeIsolateDriver,
+  probeIsolatedVm,
   type NodeIsolateDriverConfig,
 } from './isolate-driver'
 

@@ -2,7 +2,7 @@
  * Example helper: inner code-mode chat + {@link createExecutePromptTool}.
  */
 import {
-  createCodeModeToolAndPrompt,
+  createCodeMode,
   type CodeModeTool,
   type IsolateDriver,
   type ToolBinding,
@@ -54,7 +54,7 @@ export function executePrompt(
     system,
     maxTokens,
     onEvent,
-    inner: createCodeModeToolAndPrompt({
+    inner: createCodeMode({
       driver,
       tools,
       timeout,

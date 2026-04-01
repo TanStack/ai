@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
-import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import { createCodeMode } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -28,7 +28,7 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
 // Lazy initialization to avoid loading native modules at module load time
 // This is necessary for RSC compatibility with Vite's module runner
 let codeModeCache: {
-  tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
+  tool: ReturnType<typeof createCodeMode>['tool']
   systemPrompt: string
 } | null = null
 
@@ -36,7 +36,7 @@ async function getCodeModeTools() {
   if (!codeModeCache) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
     const driver = await createIsolateDriver('node')
-    const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+    const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: allTools,
       timeout: 60000,

@@ -22,7 +22,7 @@ If you need a fully local setup without Cloudflare constraints, prefer `@tanstac
 
 ```typescript
 import { chat, toolDefinition } from '@tanstack/ai'
-import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createCloudflareIsolateDriver } from '@tanstack/ai-isolate-cloudflare'
 import { z } from 'zod'
 
@@ -43,7 +43,7 @@ const driver = createCloudflareIsolateDriver({
   authorization: 'Bearer your-secret-token', // optional
 })
 
-const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+const { tool, systemPrompt } = createCodeMode({
   driver,
   tools: [fetchWeather],
   timeout: 30_000,

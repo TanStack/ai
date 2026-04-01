@@ -29,7 +29,7 @@ export type { CodeModeWithSkillsOptions, CodeModeWithSkillsResult }
  *
  * @example
  * ```typescript
- * const { registry, systemPrompt, selectedSkills } = await codeModeWithSkills({
+ * const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills({
  *   config: {
  *     driver: createNodeIsolateDriver(),
  *     tools: allTools,
@@ -45,7 +45,7 @@ export type { CodeModeWithSkillsOptions, CodeModeWithSkillsResult }
  *
  * const stream = chat({
  *   adapter: openaiText('gpt-4o'),  // Main model
- *   toolRegistry: registry,  // Dynamic tool registry
+ *   toolRegistry: toolsRegistry,  // Dynamic tool registry
  *   messages,
  *   systemPrompts: [BASE_PROMPT, systemPrompt],
  * });
@@ -164,7 +164,7 @@ export async function codeModeWithSkills({
   const systemPrompt = basePrompt + '\n\n' + skillsPrompt
 
   return {
-    registry,
+    toolsRegistry: registry,
     systemPrompt,
     selectedSkills,
   }

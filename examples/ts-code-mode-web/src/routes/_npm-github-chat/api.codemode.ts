@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
-import { createCodeModeToolAndPrompt } from '@tanstack/ai-code-mode'
+import { createCodeMode } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -29,7 +29,7 @@ import {
 } from '@/lib/create-isolate-driver'
 
 type CodeModeEntry = {
-  tool: ReturnType<typeof createCodeModeToolAndPrompt>['tool']
+  tool: ReturnType<typeof createCodeMode>['tool']
   systemPrompt: string
 }
 const codeModeCacheByVM = new Map<IsolateVM, CodeModeEntry>()
@@ -38,7 +38,7 @@ async function getCodeModeTools(vm: IsolateVM = 'node') {
   let entry = codeModeCacheByVM.get(vm)
   if (!entry) {
     const driver = await createIsolateDriver(vm)
-    const { tool, systemPrompt } = createCodeModeToolAndPrompt({
+    const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: allTools,
       timeout: 60000,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
-import { createCodeModeToolAndPrompt } from '../src/create-code-mode-tool-and-prompt'
+import { createCodeMode } from '../src/create-code-mode'
 import type { IsolateDriver, IsolateContext } from '../src/types'
 
 function createMockDriver(): IsolateDriver {
@@ -23,9 +23,9 @@ function createMockTool(name: string) {
   }).server(async (input: any) => ({ result: input.query }))
 }
 
-describe('createCodeModeToolAndPrompt', () => {
+describe('createCodeMode', () => {
   it('returns an object with tool and systemPrompt keys', () => {
-    const result = createCodeModeToolAndPrompt({
+    const result = createCodeMode({
       driver: createMockDriver(),
       tools: [createMockTool('search')],
     })
@@ -36,7 +36,7 @@ describe('createCodeModeToolAndPrompt', () => {
   })
 
   it('tool.name is execute_typescript', () => {
-    const { tool } = createCodeModeToolAndPrompt({
+    const { tool } = createCodeMode({
       driver: createMockDriver(),
       tools: [createMockTool('search')],
     })
@@ -45,7 +45,7 @@ describe('createCodeModeToolAndPrompt', () => {
   })
 
   it('systemPrompt contains execute_typescript and external_ prefixed tool names', () => {
-    const { systemPrompt } = createCodeModeToolAndPrompt({
+    const { systemPrompt } = createCodeMode({
       driver: createMockDriver(),
       tools: [createMockTool('search'), createMockTool('fetchData')],
     })
@@ -57,7 +57,7 @@ describe('createCodeModeToolAndPrompt', () => {
 
   it('throws on empty tools array', () => {
     expect(() =>
-      createCodeModeToolAndPrompt({
+      createCodeMode({
         driver: createMockDriver(),
         tools: [],
       }),

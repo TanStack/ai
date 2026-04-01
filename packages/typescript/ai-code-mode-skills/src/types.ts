@@ -251,7 +251,7 @@ export interface CodeModeWithSkillsResult {
    * Pass this to chat() via the toolRegistry option.
    * Skills registered mid-stream will be added to this registry.
    */
-  registry: ToolRegistry
+  toolsRegistry: ToolRegistry
 
   /**
    * System prompt documenting available skills and external functions
