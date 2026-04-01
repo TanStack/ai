@@ -217,8 +217,7 @@ export async function captureStream(opts: {
     // AG-UI TOOL_CALL_START event
     else if (chunk.type === 'TOOL_CALL_START') {
       const id = chunk.toolCallId
-      const name =
-        (chunk as any).toolCallName || (chunk as any).toolName || ''
+      const name = (chunk as any).toolCallName || (chunk as any).toolName || ''
       toolCallsInProgress.set(id, {
         name,
         args: '',
