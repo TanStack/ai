@@ -657,11 +657,18 @@ export class ChatClient {
         await this.drainPostStreamActions()
 
         // Continue conversation if the stream ended with a tool result (server tool completed)
+        // but ONLY if the model indicated it wants to continue (finishReason !== 'stop').
+        // When finishReason is 'stop', the model is done — don't re-send.
         if (streamCompletedSuccessfully) {
           const messages = this.processor.getMessages()
           const lastPart = messages.at(-1)?.parts.at(-1)
+          const { finishReason } = this.processor.getState()
 
-          if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
+          if (
+            lastPart?.type === 'tool-result' &&
+            finishReason !== 'stop' &&
+            this.shouldAutoSend()
+          ) {
             try {
               await this.checkForContinuation()
             } catch (error) {
