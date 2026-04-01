@@ -9,7 +9,7 @@
 '@tanstack/ai-ollama': patch
 '@tanstack/ai-openai': patch
 '@tanstack/ai-client': patch
-'@tanstack/ai-devtools': patch
+'@tanstack/ai-devtools-core': patch
 ---
 
 Add code mode and isolate packages for secure AI code execution
