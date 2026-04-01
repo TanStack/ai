@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-code-mode-skills",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Persistent skill library for TanStack AI Code Mode - LLM-created reusable code snippets",
   "author": "",
   "license": "MIT",

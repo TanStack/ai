@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-isolate-quickjs",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "QuickJS WASM driver for TanStack AI Code Mode - runs everywhere",
   "author": "",
   "license": "MIT",

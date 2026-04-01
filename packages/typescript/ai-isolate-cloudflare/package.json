@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-isolate-cloudflare",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Cloudflare Workers driver for TanStack AI Code Mode - execute code on the edge",
   "author": "",
   "license": "MIT",
