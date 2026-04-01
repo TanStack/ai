@@ -250,8 +250,7 @@ export async function captureStream(opts: {
       // fall back to data captured during TOOL_CALL_START/TOOL_CALL_ARGS
       const name = chunk.toolName || inProgress?.name || ''
       const args =
-        inProgress?.args ||
-        (chunk.input ? JSON.stringify(chunk.input) : '')
+        inProgress?.args || (chunk.input ? JSON.stringify(chunk.input) : '')
 
       toolCallMap.set(id, {
         id,
