@@ -3,11 +3,17 @@ import { computed } from 'vue'
 import ThinkingPart from './thinking-part.vue'
 import type { ToolCallRenderProps, ToolResultContent } from './types'
 
-type ToolResultContentSource = {
-  type: 'url' | 'data'
-  value: string
-  mimeType?: string
-}
+type ToolResultContentSource =
+  | {
+      type: 'url'
+      value: string
+      mimeType?: string
+    }
+  | {
+      type: 'data'
+      value: string
+      mimeType: string
+    }
 
 interface MessagePartProps {
   part: any
@@ -162,6 +168,9 @@ function getContentPartSourceUrl(
             :src="getContentPartSourceUrl(contentPart.source)"
             alt="Tool result"
           />
+          <div v-else :data-tool-result-part-type="contentPart.type">
+            Unsupported tool result content: {{ contentPart.type }}
+          </div>
         </template>
       </template>
     </div>

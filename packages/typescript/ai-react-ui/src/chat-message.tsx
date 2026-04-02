@@ -6,11 +6,17 @@ type ToolResultContent = Extract<
   UIMessage['parts'][number],
   { type: 'tool-result' }
 >['content']
-type ToolResultContentSource = {
-  type: 'url' | 'data'
-  value: string
-  mimeType?: string
-}
+type ToolResultContentSource =
+  | {
+      type: 'url'
+      value: string
+      mimeType?: string
+    }
+  | {
+      type: 'data'
+      value: string
+      mimeType: string
+    }
 
 export interface ToolCallRenderProps {
   id: string
@@ -84,7 +90,11 @@ function renderToolResultContent(content: ToolResultContent): ReactNode {
           />
         )
       default:
-        return null
+        return (
+          <div key={index} data-tool-result-part-type={part.type}>
+            Unsupported tool result content: {part.type}
+          </div>
+        )
     }
   })
 }

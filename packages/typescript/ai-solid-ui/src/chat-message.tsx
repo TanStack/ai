@@ -7,11 +7,17 @@ type ToolResultContent = Extract<
   UIMessage['parts'][number],
   { type: 'tool-result' }
 >['content']
-type ToolResultContentSource = {
-  type: 'url' | 'data'
-  value: string
-  mimeType?: string
-}
+type ToolResultContentSource =
+  | {
+      type: 'url'
+      value: string
+      mimeType?: string
+    }
+  | {
+      type: 'data'
+      value: string
+      mimeType: string
+    }
 
 export interface ToolCallRenderProps {
   id: string
