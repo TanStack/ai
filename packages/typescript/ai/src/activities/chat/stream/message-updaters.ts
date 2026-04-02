@@ -8,6 +8,7 @@
 import type {
   ThinkingPart,
   ToolCallPart,
+  ToolResultContent,
   ToolResultPart,
   UIMessage,
 } from '../../../types'
@@ -97,7 +98,7 @@ export function updateToolResultPart(
   messages: Array<UIMessage>,
   messageId: string,
   toolCallId: string,
-  content: string,
+  content: ToolResultContent,
   state: ToolResultState,
   error?: string,
 ): Array<UIMessage> {

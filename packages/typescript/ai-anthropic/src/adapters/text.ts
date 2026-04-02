@@ -379,7 +379,13 @@ export class AnthropicTextAdapter<
               type: 'tool_result',
               tool_use_id: message.toolCallId,
               content:
-                typeof message.content === 'string' ? message.content : '',
+                typeof message.content === 'string'
+                  ? message.content
+                  : Array.isArray(message.content)
+                    ? message.content.map((part) =>
+                        this.convertContentPartToAnthropic(part),
+                      )
+                    : '',
             },
           ],
         })

@@ -129,4 +129,85 @@ describe('OpenAI adapter option mapping', () => {
     expect(Array.isArray(payload.tools)).toBe(true)
     expect(payload.tools.length).toBeGreaterThan(0)
   })
+
+  it('preserves multimodal tool result content for function_call_output', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.done',
+        response: {
+          id: 'resp-123',
+          model: 'gpt-4o-mini',
+          status: 'completed',
+          created_at: 1234567891,
+          usage: {
+            input_tokens: 12,
+            output_tokens: 0,
+          },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    const toolResult = [
+      {
+        type: 'text' as const,
+        content: 'Screenshot of the current state',
+      },
+      {
+        type: 'image' as const,
+        source: {
+          type: 'url' as const,
+          value: 'https://example.com/screenshot.png',
+        },
+      },
+    ]
+
+    for await (const _chunk of chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'What changed?' },
+        {
+          role: 'assistant',
+          content: 'Checking',
+          toolCalls: [
+            {
+              id: 'call_canvas',
+              type: 'function',
+              function: { name: 'view_canvas', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_canvas', content: toolResult },
+      ],
+      tools: [weatherTool],
+    })) {
+      // drain
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]
+    const toolOutput = payload.input.find(
+      (item: any) =>
+        item.type === 'function_call_output' && item.call_id === 'call_canvas',
+    )
+
+    expect(toolOutput.output).toEqual([
+      {
+        type: 'input_text',
+        text: 'Screenshot of the current state',
+      },
+      {
+        type: 'input_image',
+        image_url: 'https://example.com/screenshot.png',
+        detail: 'auto',
+      },
+    ])
+  })
 })

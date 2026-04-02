@@ -1066,6 +1066,48 @@ describe('Message Converters', () => {
         { type: 'text', content: 'The temperature is 72F.' },
       ])
     })
+
+    it('should preserve multimodal tool result content', () => {
+      const imageResult: Array<ContentPart> = [
+        {
+          type: 'text',
+          content: 'Screenshot of the current state',
+        },
+        {
+          type: 'image',
+          source: {
+            type: 'url',
+            value: 'https://example.com/screenshot.png',
+          },
+        },
+      ]
+
+      const modelMessages: Array<ModelMessage> = [
+        { role: 'user', content: 'Check the screenshot' },
+        {
+          role: 'assistant',
+          content: 'Inspecting',
+          toolCalls: [
+            {
+              id: 'tc-1',
+              type: 'function',
+              function: { name: 'view_canvas', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', content: imageResult, toolCallId: 'tc-1' },
+      ]
+
+      const result = modelMessagesToUIMessages(modelMessages)
+      const assistantParts = result[1]?.parts || []
+
+      expect(assistantParts).toContainEqual({
+        type: 'tool-result',
+        toolCallId: 'tc-1',
+        content: imageResult,
+        state: 'complete',
+      })
+    })
   })
 
   describe('convertMessagesToModelMessages', () => {

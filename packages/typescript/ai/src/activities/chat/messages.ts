@@ -1,9 +1,11 @@
 import type {
   ContentPart,
+  ContentPartSource,
   MessagePart,
   ModelMessage,
   TextPart,
   ToolCallPart,
+  ToolResultContent,
   UIMessage,
 } from '../../types'
 // ===========================
@@ -22,6 +24,92 @@ function isContentPart(part: MessagePart): part is ContentPart {
     part.type === 'video' ||
     part.type === 'document'
   )
+}
+
+function isContentPartSource(
+  source: unknown,
+): source is ContentPartSource {
+  if (!source || typeof source !== 'object') {
+    return false
+  }
+
+  const type = (source as { type?: unknown }).type
+  const value = (source as { value?: unknown }).value
+  const mimeType = (source as { mimeType?: unknown }).mimeType
+
+  if (type === 'url') {
+    return typeof value === 'string'
+  }
+
+  if (type === 'data') {
+    return typeof value === 'string' && typeof mimeType === 'string'
+  }
+
+  return false
+}
+
+function isUnknownContentPart(part: unknown): part is ContentPart {
+  if (!part || typeof part !== 'object') {
+    return false
+  }
+
+  const type = (part as { type?: unknown }).type
+  if (type === 'text') {
+    return typeof (part as { content?: unknown }).content === 'string'
+  }
+
+  if (
+    type === 'image' ||
+    type === 'audio' ||
+    type === 'video' ||
+    type === 'document'
+  ) {
+    return isContentPartSource((part as { source?: unknown }).source)
+  }
+
+  return false
+}
+
+export function isContentPartArray(
+  value: unknown,
+): value is Array<ContentPart> {
+  return Array.isArray(value) && value.every(isUnknownContentPart)
+}
+
+export function normalizeToolResultContent(
+  value: unknown,
+): ToolResultContent {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (isContentPartArray(value)) {
+    return value
+  }
+
+  return JSON.stringify(value)
+}
+
+export function parseToolResultValue(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value
+  }
+
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
+export function decodeToolResultContent(value: unknown): ToolResultContent {
+  const parsed = parseToolResultValue(value)
+
+  if (isContentPartArray(parsed)) {
+    return parsed
+  }
+
+  return normalizeToolResultContent(value)
 }
 
 /**
@@ -55,6 +143,20 @@ function getTextContent(content: string | null | Array<ContentPart>): string {
     .filter((part): part is TextPart => part.type === 'text')
     .map((part) => part.content)
     .join('')
+}
+
+function getToolResultContent(
+  content: string | null | Array<ContentPart>,
+): ToolResultContent {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  if (Array.isArray(content)) {
+    return content
+  }
+
+  return getTextContent(content)
 }
 
 /**
@@ -248,7 +350,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
       messageList.push({
         role: 'tool',
-        content: JSON.stringify(part.output),
+        content: normalizeToolResultContent(part.output),
         toolCallId: part.id,
       })
       emittedToolResultIds.add(part.id)
@@ -312,7 +414,7 @@ export function modelMessageToUIMessage(
     parts.push({
       type: 'tool-result',
       toolCallId: modelMessage.toolCallId,
-      content: getTextContent(modelMessage.content),
+      content: getToolResultContent(modelMessage.content),
       state: 'complete',
     })
   } else if (Array.isArray(modelMessage.content)) {
@@ -375,7 +477,7 @@ export function modelMessagesToUIMessages(
         currentAssistantMessage.parts.push({
           type: 'tool-result',
           toolCallId: msg.toolCallId!,
-          content: getTextContent(msg.content),
+          content: getToolResultContent(msg.content),
           state: 'complete',
         })
       } else {

@@ -184,6 +184,95 @@ describe('Anthropic adapter option mapping', () => {
     })
   })
 
+  it('preserves multimodal tool result content for tool_result blocks', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'message_start',
+        message: {
+          id: 'msg_123',
+          model: 'claude-3-7-sonnet-20250219',
+          role: 'assistant',
+          type: 'message',
+          content: [],
+          stop_reason: null,
+          stop_sequence: null,
+          usage: { input_tokens: 10, output_tokens: 0 },
+        },
+      }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 1 },
+      }
+      yield {
+        type: 'message_stop',
+      }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream as any)
+
+    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const toolResult = [
+      {
+        type: 'text' as const,
+        content: 'Screenshot of the current state',
+      },
+      {
+        type: 'image' as const,
+        source: {
+          type: 'url' as const,
+          value: 'https://example.com/screenshot.png',
+        },
+      },
+    ]
+
+    for await (const _chunk of chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'What changed?' },
+        {
+          role: 'assistant',
+          content: 'Checking',
+          toolCalls: [
+            {
+              id: 'call_canvas',
+              type: 'function',
+              function: { name: 'view_canvas', arguments: '{}' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_canvas', content: toolResult },
+      ],
+      tools: [weatherTool],
+    })) {
+      // drain
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls.at(-1) as [any]
+    expect(payload.messages[2]).toEqual({
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: 'call_canvas',
+          content: [
+            {
+              type: 'text',
+              text: 'Screenshot of the current state',
+            },
+            {
+              type: 'image',
+              source: {
+                type: 'url',
+                url: 'https://example.com/screenshot.png',
+              },
+            },
+          ],
+        },
+      ],
+    })
+  })
+
   it('merges consecutive user messages when tool results precede a follow-up user message', async () => {
     // This is the core multi-turn bug: after a tool call + result, the next user message
     // creates consecutive role:'user' messages (tool_result as user + new user message).

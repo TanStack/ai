@@ -17,7 +17,13 @@
  * @see docs/chat-architecture.md — Canonical reference for AG-UI chunk ordering,
  *   adapter contract, single-shot flows, and expected UIMessage output.
  */
-import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
+import {
+  decodeToolResultContent,
+  generateMessageId,
+  normalizeToolResultContent,
+  parseToolResultValue,
+  uiMessageToModelMessages,
+} from '../messages.js'
 import { defaultJSONParser } from './json-parser'
 import {
   updateTextPart,
@@ -291,7 +297,7 @@ export class StreamProcessor {
     )
 
     // Step 2: Create a tool-result part (for LLM conversation history)
-    const content = typeof output === 'string' ? output : JSON.stringify(output)
+    const content = normalizeToolResultContent(output)
     const toolResultState: ToolResultState = error ? 'error' : 'complete'
 
     updatedMessages = updateToolResultPart(
@@ -984,15 +990,12 @@ export class StreamProcessor {
     }
 
     // Update UIMessage if there's a result
-    if (chunk.result) {
+    if (chunk.result !== undefined) {
       // Step 1: Update the tool-call part's output field (for UI consistency
       // with client tools — see GitHub issue #176)
-      let output: unknown
-      try {
-        output = JSON.parse(chunk.result)
-      } catch {
-        output = chunk.result
-      }
+      const output = parseToolResultValue(chunk.result)
+      const content = decodeToolResultContent(chunk.result)
+
       this.messages = updateToolCallWithOutput(
         this.messages,
         chunk.toolCallId,
@@ -1005,7 +1008,7 @@ export class StreamProcessor {
         this.messages,
         messageId,
         chunk.toolCallId,
-        chunk.result,
+        content,
         resultState,
       )
       this.emitMessagesChange()

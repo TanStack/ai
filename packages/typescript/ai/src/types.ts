@@ -259,6 +259,8 @@ export type ConstrainedContent<
   | null
   | Array<ContentPartForInputModalitiesTypes<TInputModalitiesTypes>>
 
+export type ToolResultContent = string | Array<ContentPart>
+
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
     | string
@@ -300,7 +302,7 @@ export interface ToolCallPart {
 export interface ToolResultPart {
   type: 'tool-result'
   toolCallId: string
-  content: string
+  content: ToolResultContent
   state: ToolResultState
   error?: string // Error message if state is "error"
 }
@@ -880,7 +882,7 @@ export interface ToolCallEndEvent extends BaseAGUIEvent {
   /** Final parsed input arguments */
   input?: unknown
   /** Tool execution result (if executed) */
-  result?: string
+  result?: ToolResultContent
 }
 
 /**

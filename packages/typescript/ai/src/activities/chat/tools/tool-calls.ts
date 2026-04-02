@@ -1,3 +1,4 @@
+import { normalizeToolResultContent } from '../messages'
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type {
   CustomEvent,
@@ -9,6 +10,7 @@ import type {
   ToolCallEndEvent,
   ToolCallStartEvent,
   ToolExecutionContext,
+  ToolResultContent,
 } from '../../../types'
 import type {
   AfterToolCallInfo,
@@ -164,7 +166,7 @@ export class ToolCallManager {
     for (const toolCall of toolCallsArray) {
       const tool = this.tools.find((t) => t.name === toolCall.function.name)
 
-      let toolResultContent: string
+      let toolResultContent: ToolResultContent
       if (tool?.execute) {
         try {
           // Parse arguments (normalize "null" to "{}" for empty tool_use blocks)
@@ -216,8 +218,7 @@ export class ToolCallManager {
             }
           }
 
-          toolResultContent =
-            typeof result === 'string' ? result : JSON.stringify(result)
+          toolResultContent = normalizeToolResultContent(result)
         } catch (error: unknown) {
           // If tool execution fails, add error message
           const message =

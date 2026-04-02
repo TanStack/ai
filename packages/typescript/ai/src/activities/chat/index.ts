@@ -19,7 +19,11 @@ import {
   parseWithStandardSchema,
 } from './tools/schema-converter'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
-import { convertMessagesToModelMessages } from './messages'
+import {
+  convertMessagesToModelMessages,
+  normalizeToolResultContent,
+  parseToolResultValue,
+} from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import type {
   ApprovalRequest,
@@ -1002,12 +1006,7 @@ class TextEngine<
       // This handles results sent back from the client after executing client-side tools
       if (message.role === 'tool' && message.toolCallId) {
         // Parse content back to original output (was stringified by uiMessageToModelMessages)
-        let output: unknown
-        try {
-          output = JSON.parse(message.content as string)
-        } catch {
-          output = message.content
-        }
+        const output = parseToolResultValue(message.content)
         // Skip approval response messages (they have pendingExecution marker)
         // These are NOT real client tool results — they are synthetic tool messages
         // created by uiMessageToModelMessages for approved-but-not-yet-executed tools.
@@ -1084,7 +1083,7 @@ class TextEngine<
     const chunks: Array<StreamChunk> = []
 
     for (const result of results) {
-      const content = JSON.stringify(result.result)
+      const content = normalizeToolResultContent(result.result)
 
       chunks.push({
         type: 'TOOL_CALL_END',
@@ -1116,17 +1115,11 @@ class TextEngine<
     for (const message of this.messages) {
       if (message.role === 'tool' && message.toolCallId) {
         // Check if this is an approval response with pendingExecution marker
-        let hasPendingExecution = false
-        if (typeof message.content === 'string') {
-          try {
-            const parsed = JSON.parse(message.content)
-            if (parsed.pendingExecution === true) {
-              hasPendingExecution = true
-            }
-          } catch {
-            // Not JSON, treat as regular tool result
-          }
-        }
+        const parsedContent = parseToolResultValue(message.content)
+        const hasPendingExecution =
+          parsedContent &&
+          typeof parsedContent === 'object' &&
+          (parsedContent as any).pendingExecution === true
 
         // Only mark as complete if NOT pending execution
         if (!hasPendingExecution) {

@@ -13,6 +13,8 @@ import type {
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 
+type ToolResultContent = string | Array<ContentPart>
+
 /**
  * Tool call states - track the lifecycle of a tool call
  */
@@ -152,7 +154,7 @@ export type ToolCallPart<TTools extends ReadonlyArray<AnyClientTool> = any> =
 export interface ToolResultPart {
   type: 'tool-result'
   toolCallId: string
-  content: string
+  content: ToolResultContent
   state: ToolResultState
   error?: string // Error message if state is "error"
 }

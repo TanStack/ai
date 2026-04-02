@@ -703,13 +703,24 @@ export class OpenAITextAdapter<
     for (const message of messages) {
       // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
+        const output =
+          typeof message.content === 'string'
+            ? message.content
+            : this.normalizeContent(message.content).map((part) =>
+                this.convertContentPartToOpenAI(
+                  part as ContentPart<
+                    unknown,
+                    OpenAIImageMetadata,
+                    OpenAIAudioMetadata,
+                    unknown,
+                    unknown
+                  >,
+                ),
+              )
         result.push({
           type: 'function_call_output',
           call_id: message.toolCallId || '',
-          output:
-            typeof message.content === 'string'
-              ? message.content
-              : JSON.stringify(message.content),
+          output,
         })
         continue
       }

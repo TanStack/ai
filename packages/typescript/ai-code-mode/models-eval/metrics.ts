@@ -1,4 +1,4 @@
-import type { UIMessage } from '@tanstack/ai'
+import type { ToolResultPart, UIMessage } from '@tanstack/ai'
 
 export interface TypeScriptAttempt {
   toolCallId: string
@@ -44,11 +44,33 @@ function safeJsonParse(value: string): unknown {
   }
 }
 
+function parseToolResultContent(
+  content: ToolResultPart['content'],
+):
+  | {
+      success?: boolean
+      error?: { name?: string; message?: string }
+    }
+  | undefined {
+  return typeof content === 'string'
+    ? (safeJsonParse(content) as
+        | {
+            success?: boolean
+            error?: { name?: string; message?: string }
+          }
+        | undefined)
+    : undefined
+}
+
 export function computeMetrics(messages: Array<UIMessage>): ComputedMetrics {
   const toolCallLookup = new Map<string, { name: string; arguments: string }>()
   const toolResultLookup = new Map<
     string,
-    { content: string; state?: string; error?: string }
+    {
+      content: ToolResultPart['content']
+      state?: string
+      error?: string
+    }
   >()
 
   let totalToolCalls = 0
@@ -95,13 +117,8 @@ export function computeMetrics(messages: Array<UIMessage>): ComputedMetrics {
       | { typescriptCode?: string }
       | undefined
     const result = toolResultLookup.get(toolCallId)
-    const parsedResult = result?.content
-      ? (safeJsonParse(result.content) as
-          | {
-              success?: boolean
-              error?: { name?: string; message?: string }
-            }
-          | undefined)
+    const parsedResult = result
+      ? parseToolResultContent(result.content)
       : undefined
 
     const success = parsedResult?.success
