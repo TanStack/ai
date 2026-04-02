@@ -12,7 +12,8 @@ describe('getApiKeyFromEnv', () => {
   })
 
   it('should throw if the env var is not set', () => {
-    expect(() => getApiKeyFromEnv('NONEXISTENT_KEY')).toThrow('NONEXISTENT_KEY')
+    const missingKey = `__AI_UTILS_TEST_MISSING_${Date.now()}__`
+    expect(() => getApiKeyFromEnv(missingKey)).toThrow(missingKey)
   })
 
   it('should throw if the env var is empty string', () => {
@@ -21,8 +22,7 @@ describe('getApiKeyFromEnv', () => {
   })
 
   it('should include the env var name in the error message', () => {
-    expect(() => getApiKeyFromEnv('MY_PROVIDER_API_KEY')).toThrow(
-      'MY_PROVIDER_API_KEY',
-    )
+    const providerKey = `__AI_UTILS_TEST_PROVIDER_${Date.now()}__`
+    expect(() => getApiKeyFromEnv(providerKey)).toThrow(providerKey)
   })
 })

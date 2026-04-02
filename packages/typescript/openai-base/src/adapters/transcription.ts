@@ -110,6 +110,7 @@ export class OpenAICompatibleTranscriptionAdapter<
 
     // If Blob, convert to File
     if (typeof Blob !== 'undefined' && audio instanceof Blob) {
+      this.ensureFileSupport()
       return new File([audio], 'audio.mp3', {
         type: audio.type || 'audio/mpeg',
       })
@@ -117,11 +118,14 @@ export class OpenAICompatibleTranscriptionAdapter<
 
     // If ArrayBuffer, convert to File
     if (typeof ArrayBuffer !== 'undefined' && audio instanceof ArrayBuffer) {
+      this.ensureFileSupport()
       return new File([audio], 'audio.mp3', { type: 'audio/mpeg' })
     }
 
     // If base64 string, decode and convert to File
     if (typeof audio === 'string') {
+      this.ensureFileSupport()
+
       // Check if it's a data URL
       if (audio.startsWith('data:')) {
         const parts = audio.split(',')
@@ -129,35 +133,59 @@ export class OpenAICompatibleTranscriptionAdapter<
         const base64Data = parts[1] || ''
         const mimeMatch = header?.match(/data:([^;]+)/)
         const mimeType = mimeMatch?.[1] || 'audio/mpeg'
-        if (typeof atob !== 'function') {
-          throw new Error(
-            'atob is not available in this environment. Use a File, Blob, or ArrayBuffer input instead.',
-          )
-        }
-        const binaryStr = atob(base64Data)
-        const bytes = new Uint8Array(binaryStr.length)
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i)
-        }
+        const bytes = this.decodeBase64(base64Data)
         const extension = mimeType.split('/')[1] || 'mp3'
         return new File([bytes], `audio.${extension}`, { type: mimeType })
       }
 
       // Assume raw base64
-      if (typeof atob !== 'function') {
-        throw new Error(
-          'atob is not available in this environment. Use a File, Blob, or ArrayBuffer input instead.',
-        )
-      }
-      const binaryStr = atob(audio)
-      const bytes = new Uint8Array(binaryStr.length)
-      for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i)
-      }
+      const bytes = this.decodeBase64(audio)
       return new File([bytes], 'audio.mp3', { type: 'audio/mpeg' })
     }
 
     throw new Error('Invalid audio input type')
+  }
+
+  /**
+   * Checks that the global `File` constructor is available.
+   * Throws a descriptive error in environments that lack it (e.g. Node < 20).
+   */
+  private ensureFileSupport(): void {
+    if (typeof File === 'undefined') {
+      throw new Error(
+        '`File` is not available in this environment. ' +
+          'Use Node.js 20 or newer, or pass a File object directly.',
+      )
+    }
+  }
+
+  /**
+   * Decodes a base64 string to an ArrayBuffer.
+   * Uses `atob` when available, falling back to `Buffer.from` in Node.js.
+   */
+  private decodeBase64(base64: string): ArrayBuffer {
+    if (typeof atob === 'function') {
+      const binaryStr = atob(base64)
+      const bytes = new Uint8Array(binaryStr.length)
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i)
+      }
+      return bytes.buffer as ArrayBuffer
+    }
+
+    // Node.js fallback
+    if (typeof Buffer !== 'undefined') {
+      const buf = Buffer.from(base64, 'base64')
+      return buf.buffer.slice(
+        buf.byteOffset,
+        buf.byteOffset + buf.byteLength,
+      ) as ArrayBuffer
+    }
+
+    throw new Error(
+      'Neither `atob` nor `Buffer` is available in this environment. ' +
+        'Use a File, Blob, or ArrayBuffer input instead.',
+    )
   }
 
   /**

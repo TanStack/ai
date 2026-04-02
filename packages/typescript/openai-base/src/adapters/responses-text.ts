@@ -556,12 +556,17 @@ export class OpenAICompatibleResponsesTextAdapter<
         // handle output_item.added to capture function call metadata (name)
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
-          if (item.type === 'function_call' && item.id) {
-            // Use call_id for tool call correlation (required for function_call_output)
-            const callId = (item as any).call_id || item.id
+          if (item.type === 'function_call') {
+            // call_id is the required correlation ID for function_call_output.
+            // id is the internal item ID used by delta/done events (item_id).
+            // Use id when available (for the metadata map keyed by item_id),
+            // falling back to call_id for providers that omit id.
+            const itemId = item.id || item.call_id
+            const callId = item.call_id || item.id || ''
+
             // Store the function name for later use
-            if (!toolCallMetadata.has(item.id)) {
-              toolCallMetadata.set(item.id, {
+            if (!toolCallMetadata.has(itemId)) {
+              toolCallMetadata.set(itemId, {
                 index: chunk.output_index,
                 name: item.name || '',
                 callId,
@@ -577,7 +582,7 @@ export class OpenAICompatibleResponsesTextAdapter<
               timestamp,
               index: chunk.output_index,
             }
-            toolCallMetadata.get(item.id)!.started = true
+            toolCallMetadata.get(itemId)!.started = true
           }
         }
 

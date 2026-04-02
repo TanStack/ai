@@ -29,7 +29,7 @@ describe('makeGroqStructuredOutputCompatible', () => {
     expect(objectVariant.required).toBeUndefined()
   })
 
-  it('should remove empty required arrays inside oneOf variants', () => {
+  it('should not have any empty required arrays in nested structures', () => {
     const schema = {
       type: 'object',
       properties: {
