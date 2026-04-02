@@ -1,0 +1,26 @@
+[package]
+name = "tanstack-ai"
+version = "0.1.0"
+edition = "2021"
+description = "Type-safe, provider-agnostic AI SDK for Rust — chat, streaming, tools, and agent loops"
+license = "MIT"
+repository = "https://github.com/TanStack/ai"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+futures-core = "0.3"
+futures-util = "0.3"
+async-trait = "0.1"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["codec"] }
+bytes = "1"
+regex = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
