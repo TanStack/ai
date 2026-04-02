@@ -170,7 +170,7 @@ export class OpenAICompatibleTranscriptionAdapter<
       for (let i = 0; i < binaryStr.length; i++) {
         bytes[i] = binaryStr.charCodeAt(i)
       }
-      return bytes.buffer as ArrayBuffer
+      return bytes.buffer
     }
 
     // Node.js fallback
@@ -179,7 +179,7 @@ export class OpenAICompatibleTranscriptionAdapter<
       return buf.buffer.slice(
         buf.byteOffset,
         buf.byteOffset + buf.byteLength,
-      ) as ArrayBuffer
+      )
     }
 
     throw new Error(
