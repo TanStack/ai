@@ -2,10 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { stripToSpec } from '../src/strip-to-spec-middleware'
 import type { StreamChunk } from '../src/types'
 
-function makeChunk(
-  type: string,
-  fields: Record<string, unknown>,
-): StreamChunk {
+function makeChunk(type: string, fields: Record<string, unknown>): StreamChunk {
   return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
 }
 

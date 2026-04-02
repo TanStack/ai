@@ -12,7 +12,10 @@ import type { StreamChunk } from './types'
  */
 export function stripToSpec(chunk: StreamChunk): StreamChunk {
   // Only strip the deprecated nested error object from RUN_ERROR
-  if ((chunk as StreamChunk & { type: string }).type === 'RUN_ERROR' && 'error' in chunk) {
+  if (
+    (chunk as StreamChunk & { type: string }).type === 'RUN_ERROR' &&
+    'error' in chunk
+  ) {
     const { error: _deprecated, ...rest } = chunk as Record<string, unknown>
     return rest as StreamChunk
   }
