@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import ThinkingPart from './thinking-part.vue'
-import type { ToolCallRenderProps } from './types'
+import type { ToolCallRenderProps, ToolResultContent } from './types'
+
+type ToolResultContentSource = {
+  type: 'url' | 'data'
+  value: string
+  mimeType?: string
+}
 
 interface MessagePartProps {
   part: any
@@ -16,7 +22,7 @@ type MessagePartSlots = {
   'tool-default'?: (props: ToolCallRenderProps) => any
   'tool-result'?: (props: {
     toolCallId: string
-    content: string
+    content: ToolResultContent
     state: string
   }) => any
 } & Partial<Record<`tool-${string}`, (props: ToolCallRenderProps) => any>>
@@ -36,6 +42,24 @@ const toolProps = computed<ToolCallRenderProps | null>(() => {
   }
   return null
 })
+
+function isStringToolResultContent(
+  content: ToolResultContent,
+): content is string {
+  return typeof content === 'string'
+}
+
+function getContentPartSourceUrl(
+  source: ToolResultContentSource,
+): string {
+  if (source.type === 'url') {
+    return source.value
+  }
+
+  return source.value.startsWith('data:')
+    ? source.value
+    : `data:${source.mimeType};base64,${source.value}`
+}
 </script>
 
 <template>
@@ -120,6 +144,26 @@ const toolProps = computed<ToolCallRenderProps | null>(() => {
       :content="part.content"
       :state="part.state"
     />
-    <div v-else data-tool-result-content>{{ part.content }}</div>
+    <div v-else data-tool-result-content>
+      <template v-if="isStringToolResultContent(part.content)">
+        {{ part.content }}
+      </template>
+      <template v-else>
+        <template v-for="(contentPart, index) in part.content" :key="index">
+          <div
+            v-if="contentPart.type === 'text'"
+            data-tool-result-part-type="text"
+          >
+            {{ contentPart.content }}
+          </div>
+          <img
+            v-else-if="contentPart.type === 'image'"
+            data-tool-result-part-type="image"
+            :src="getContentPartSourceUrl(contentPart.source)"
+            alt="Tool result"
+          />
+        </template>
+      </template>
+    </div>
   </div>
 </template>

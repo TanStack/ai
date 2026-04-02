@@ -1,5 +1,10 @@
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-vue'
 
+export type ToolResultContent = Extract<
+  UIMessage['parts'][number],
+  { type: 'tool-result' }
+>['content']
+
 export interface ChatProps {
   /** CSS class name for the root element */
   class?: string

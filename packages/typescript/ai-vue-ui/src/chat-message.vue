@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import MessagePart from './message-part.vue'
-import type { ChatMessageProps } from './types'
+import type { ChatMessageProps, ToolResultContent } from './types'
 
 const props = defineProps<ChatMessageProps>()
 
@@ -11,7 +11,7 @@ type ChatMessageSlots = {
   'tool-default'?: (props: any) => any
   'tool-result'?: (props: {
     toolCallId: string
-    content: string
+    content: ToolResultContent
     state: string
   }) => any
 } & Partial<Record<`tool-${string}`, (props: any) => any>>

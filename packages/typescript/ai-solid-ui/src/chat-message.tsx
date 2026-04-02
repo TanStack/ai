@@ -3,6 +3,16 @@ import { ThinkingPart } from './thinking-part'
 import type { JSX } from 'solid-js'
 import type { UIMessage } from '@tanstack/ai-solid'
 
+type ToolResultContent = Extract<
+  UIMessage['parts'][number],
+  { type: 'tool-result' }
+>['content']
+type ToolResultContentSource = {
+  type: 'url' | 'data'
+  value: string
+  mimeType?: string
+}
+
 export interface ToolCallRenderProps {
   id: string
   name: string
@@ -35,9 +45,48 @@ export interface ChatMessageProps {
   /** Custom renderer for tool result parts */
   toolResultRenderer?: (props: {
     toolCallId: string
-    content: string
+    content: ToolResultContent
     state: string
   }) => JSX.Element
+}
+
+function getContentPartSourceUrl(
+  source: ToolResultContentSource,
+): string {
+  if (source.type === 'url') {
+    return source.value
+  }
+
+  return source.value.startsWith('data:')
+    ? source.value
+    : `data:${source.mimeType};base64,${source.value}`
+}
+
+function renderToolResultContent(content: ToolResultContent): JSX.Element {
+  if (typeof content === 'string') {
+    return <>{content}</>
+  }
+
+  return (
+    <For each={content}>
+      {(part) => {
+        switch (part.type) {
+          case 'text':
+            return <div data-tool-result-part-type="text">{part.content}</div>
+          case 'image':
+            return (
+              <img
+                data-tool-result-part-type="image"
+                src={getContentPartSourceUrl(part.source)}
+                alt="Tool result"
+              />
+            )
+          default:
+            return null
+        }
+      }}
+    </For>
+  )
 }
 
 /**
@@ -249,7 +298,9 @@ function MessagePart(props: {
         data-tool-call-id={props.part.toolCallId}
         data-tool-result-state={props.part.state}
       >
-        <div data-tool-result-content>{props.part.content}</div>
+        <div data-tool-result-content>
+          {renderToolResultContent(props.part.content)}
+        </div>
       </div>
     )
   }
