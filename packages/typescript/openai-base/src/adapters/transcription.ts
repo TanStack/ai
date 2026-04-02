@@ -176,10 +176,7 @@ export class OpenAICompatibleTranscriptionAdapter<
     // Node.js fallback
     if (typeof Buffer !== 'undefined') {
       const buf = Buffer.from(base64, 'base64')
-      return buf.buffer.slice(
-        buf.byteOffset,
-        buf.byteOffset + buf.byteLength,
-      )
+      return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
     }
 
     throw new Error(
