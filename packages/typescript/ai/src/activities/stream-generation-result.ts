@@ -19,7 +19,7 @@ function createId(prefix: string): string {
  *
  * @param generator - An async function that performs the generation and returns the result
  * @param options - Optional configuration (runId, threadId)
- * @returns An AsyncIterable of StreamChunks with RUN_STARTED, CUSTOM(generation:result), and RUN_FINISHED events
+ * @returns An AsyncIterable of StreamChunks with RUN_STARTED, CUSTOM(generation:result), and RUN_FINISHED events on success, or RUN_STARTED and RUN_ERROR on failure
  */
 export async function* streamGenerationResult<TResult>(
   generator: () => Promise<TResult>,

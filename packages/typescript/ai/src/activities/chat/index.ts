@@ -321,7 +321,7 @@ class TextEngine<
 
     // Initialize middleware — devtools first, strip-to-spec always last.
     // handleStreamChunk processes raw chunks BEFORE middleware, so internal
-    // state management sees extended fields (finishReason, delta, toolName, etc.).
+    // state management sees extended fields (finishReason, delta, toolCallName, etc.).
     // The strip middleware ensures the yielded public stream is AG-UI spec-compliant.
     const allMiddleware = [
       devtoolsMiddleware(),
@@ -1201,7 +1201,7 @@ class TextEngine<
     return {
       type: 'RUN_FINISHED',
       runId: this.createId('pending'),
-      threadId: this.params.threadId ?? this.createId('thread'),
+      threadId: this.threadId,
       model: this.params.model,
       timestamp: Date.now(),
       finishReason: 'tool_calls',

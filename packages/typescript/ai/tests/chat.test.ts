@@ -1289,7 +1289,7 @@ describe('chat()', () => {
   // AG-UI spec compliance (threadId, strip middleware)
   // ==========================================================================
   describe('AG-UI spec compliance', () => {
-    it('should include threadId on RUN_STARTED and RUN_FINISHED events', async () => {
+    it('should pass through adapter-generated threadId on RUN_STARTED and RUN_FINISHED events', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [

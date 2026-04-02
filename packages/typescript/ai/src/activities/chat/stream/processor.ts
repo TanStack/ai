@@ -431,7 +431,7 @@ export class StreamProcessor {
    *
    * Central dispatch for all AG-UI events. Each event type maps to a specific
    * handler. Events not listed in the switch are intentionally ignored
-   * (RUN_STARTED, STEP_STARTED, STATE_DELTA).
+   * (STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA).
    *
    * @see docs/chat-architecture.md#adapter-contract — Expected event types and ordering
    */
@@ -1222,7 +1222,8 @@ export class StreamProcessor {
     )
 
     state.hasSeenReasoningEvents = true
-    state.thinkingContent = state.thinkingContent + chunk.delta
+    const delta = chunk.delta || ''
+    state.thinkingContent = state.thinkingContent + delta
 
     this.messages = updateThinkingPart(
       this.messages,

@@ -3080,7 +3080,7 @@ describe('StreamProcessor', () => {
   // TOOL_CALL_RESULT event
   // ==========================================================================
   describe('TOOL_CALL_RESULT event', () => {
-    it('should process TOOL_CALL_RESULT without errors', () => {
+    it('should create tool-result part and update tool-call output', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
 
@@ -3102,8 +3102,19 @@ describe('StreamProcessor', () => {
       )
       processor.processChunk(ev.runFinished('tool_calls'))
 
-      // TOOL_CALL_RESULT is a no-op in StreamProcessor, but should not throw
-      expect(processor.getMessages()).toBeDefined()
+      const messages = processor.getMessages()
+      const toolCallPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-call',
+      ) as ToolCallPart
+      expect((toolCallPart as any).output).toEqual({ temp: 72 })
+
+      const toolResultPart = messages[0]?.parts.find(
+        (p) => p.type === 'tool-result',
+      ) as ToolResultPart
+      expect(toolResultPart).toBeDefined()
+      expect(toolResultPart.toolCallId).toBe('tc-1')
+      expect(toolResultPart.content).toBe('{"temp": 72}')
+      expect(toolResultPart.state).toBe('complete')
     })
   })
 })

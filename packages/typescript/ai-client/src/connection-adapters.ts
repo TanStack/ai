@@ -200,6 +200,10 @@ export function normalizeConnectionAdapter(
           push({
             type: 'RUN_ERROR',
             timestamp: Date.now(),
+            message:
+              err instanceof Error
+                ? err.message
+                : 'Unknown error in connect()',
             error: {
               message:
                 err instanceof Error
