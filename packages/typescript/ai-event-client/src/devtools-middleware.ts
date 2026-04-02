@@ -313,9 +313,10 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
           break
         }
         case 'RUN_ERROR': {
-          const errorMessage = chunk.message
-            || (chunk.error as { message?: string } | undefined)?.message
-            || 'Unknown error'
+          const errorMessage =
+            chunk.message ||
+            (chunk.error as { message?: string } | undefined)?.message ||
+            'Unknown error'
           aiEventClient.emit('text:chunk:error', {
             ...base,
             messageId: localMessageId || undefined,
