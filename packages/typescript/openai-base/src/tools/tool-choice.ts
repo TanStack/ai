@@ -1,6 +1,6 @@
 interface MCPToolChoice {
   type: 'mcp'
-  server_label: 'deepwiki'
+  server_label: string
 }
 
 interface FunctionToolChoice {

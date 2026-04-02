@@ -24,7 +24,13 @@ export function getGeminiApiKeyFromEnv(): string {
   try {
     return getApiKeyFromEnv('GOOGLE_API_KEY')
   } catch {
-    return getApiKeyFromEnv('GEMINI_API_KEY')
+    try {
+      return getApiKeyFromEnv('GEMINI_API_KEY')
+    } catch {
+      throw new Error(
+        'GOOGLE_API_KEY or GEMINI_API_KEY is not set. Please set one of these environment variables or pass the API key directly.',
+      )
+    }
   }
 }
 

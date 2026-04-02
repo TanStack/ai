@@ -675,7 +675,7 @@ export class OpenAICompatibleResponsesTextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
-      console.log(`[${this.name}] Stream ended with error:`, err.message)
+      console.error(`[${this.name}] Stream ended with error:`, err.message)
       yield {
         type: 'RUN_ERROR',
         runId: aguiState.runId,

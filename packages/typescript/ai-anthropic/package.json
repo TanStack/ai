@@ -49,7 +49,6 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-utils": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "zod": "^4.2.0"
   }

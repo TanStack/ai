@@ -45,8 +45,6 @@
     "openai": "^6.9.1"
   },
   "devDependencies": {
-    "@tanstack/ai-utils": "workspace:*",
-    "@tanstack/openai-base": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7"
   },

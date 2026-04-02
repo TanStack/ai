@@ -412,7 +412,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
-      console.log(`[${this.name}] Stream ended with error:`, err.message)
+      console.error(`[${this.name}] Stream ended with error:`, err.message)
 
       // Emit AG-UI RUN_ERROR
       yield {
@@ -462,12 +462,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
     const modelOptions = options.modelOptions
 
     return {
+      ...modelOptions,
       model: options.model,
       messages,
       temperature: options.temperature,
       max_tokens: options.maxTokens,
       top_p: options.topP,
-      ...modelOptions,
       tools: tools as Array<OpenAI_SDK.Chat.Completions.ChatCompletionTool>,
       stream: true,
     }
