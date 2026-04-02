@@ -177,9 +177,12 @@ export class GenerationClient<
           break
         }
         case 'RUN_ERROR': {
-          throw new Error(
-            chunk.message ?? chunk.error?.message ?? 'An error occurred',
-          )
+          // Prefer spec `message`; fall back to deprecated `error.message`
+          const msg =
+            (chunk.message as string | undefined) ||
+            chunk.error?.message ||
+            'An error occurred'
+          throw new Error(msg)
         }
       }
     }
