@@ -445,54 +445,57 @@ export class StreamProcessor {
       })
     }
 
-    switch (chunk.type) {
+    // Cast needed: @ag-ui/core Zod passthrough types add `& { [k: string]: unknown }`
+    // which prevents TypeScript from narrowing the `type` discriminant in switch.
+    const c = chunk as StreamChunk & { type: string }
+    switch (c.type) {
       // AG-UI Events
       case 'TEXT_MESSAGE_START':
-        this.handleTextMessageStartEvent(chunk)
+        this.handleTextMessageStartEvent(chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>)
         break
 
       case 'TEXT_MESSAGE_CONTENT':
-        this.handleTextMessageContentEvent(chunk)
+        this.handleTextMessageContentEvent(chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>)
         break
 
       case 'TEXT_MESSAGE_END':
-        this.handleTextMessageEndEvent(chunk)
+        this.handleTextMessageEndEvent(chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_END' }>)
         break
 
       case 'TOOL_CALL_START':
-        this.handleToolCallStartEvent(chunk)
+        this.handleToolCallStartEvent(chunk as Extract<StreamChunk, { type: 'TOOL_CALL_START' }>)
         break
 
       case 'TOOL_CALL_ARGS':
-        this.handleToolCallArgsEvent(chunk)
+        this.handleToolCallArgsEvent(chunk as Extract<StreamChunk, { type: 'TOOL_CALL_ARGS' }>)
         break
 
       case 'TOOL_CALL_END':
-        this.handleToolCallEndEvent(chunk)
+        this.handleToolCallEndEvent(chunk as Extract<StreamChunk, { type: 'TOOL_CALL_END' }>)
         break
 
       case 'RUN_FINISHED':
-        this.handleRunFinishedEvent(chunk)
+        this.handleRunFinishedEvent(chunk as Extract<StreamChunk, { type: 'RUN_FINISHED' }>)
         break
 
       case 'RUN_ERROR':
-        this.handleRunErrorEvent(chunk)
+        this.handleRunErrorEvent(chunk as Extract<StreamChunk, { type: 'RUN_ERROR' }>)
         break
 
       case 'STEP_FINISHED':
-        this.handleStepFinishedEvent(chunk)
+        this.handleStepFinishedEvent(chunk as Extract<StreamChunk, { type: 'STEP_FINISHED' }>)
         break
 
       case 'MESSAGES_SNAPSHOT':
-        this.handleMessagesSnapshotEvent(chunk)
+        this.handleMessagesSnapshotEvent(chunk as Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>)
         break
 
       case 'CUSTOM':
-        this.handleCustomEvent(chunk)
+        this.handleCustomEvent(chunk as Extract<StreamChunk, { type: 'CUSTOM' }>)
         break
 
       case 'RUN_STARTED':
-        this.handleRunStartedEvent(chunk)
+        this.handleRunStartedEvent(chunk as Extract<StreamChunk, { type: 'RUN_STARTED' }>)
         break
 
       case 'REASONING_START':
@@ -503,11 +506,11 @@ export class StreamProcessor {
         break
 
       case 'REASONING_MESSAGE_CONTENT':
-        this.handleReasoningMessageContentEvent(chunk)
+        this.handleReasoningMessageContentEvent(chunk as Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>)
         break
 
       case 'TOOL_CALL_RESULT':
-        this.handleToolCallResultEvent(chunk)
+        this.handleToolCallResultEvent(chunk as Extract<StreamChunk, { type: 'TOOL_CALL_RESULT' }>)
         break
 
       default:

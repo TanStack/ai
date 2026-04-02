@@ -132,6 +132,8 @@ export class MiddlewareRunner {
 
       const nextChunks: Array<StreamChunk> = []
       for (const c of chunks) {
+        // Cast: @ag-ui/core Zod passthrough types prevent direct `.type` access
+        const chunkType = (c as StreamChunk & { type: string }).type
         const result = await mw.onChunk(ctx, c)
         if (result === null) {
           // Drop this chunk
@@ -139,7 +141,7 @@ export class MiddlewareRunner {
             aiEventClient.emit('middleware:chunk:transformed', {
               ...instrumentCtx(ctx),
               middlewareName: mw.name || 'unnamed',
-              originalChunkType: c.type,
+              originalChunkType: chunkType,
               resultCount: 0,
               wasDropped: true,
             })
@@ -155,7 +157,7 @@ export class MiddlewareRunner {
             aiEventClient.emit('middleware:chunk:transformed', {
               ...instrumentCtx(ctx),
               middlewareName: mw.name || 'unnamed',
-              originalChunkType: c.type,
+              originalChunkType: chunkType,
               resultCount: result.length,
               wasDropped: false,
             })
@@ -167,7 +169,7 @@ export class MiddlewareRunner {
             aiEventClient.emit('middleware:chunk:transformed', {
               ...instrumentCtx(ctx),
               middlewareName: mw.name || 'unnamed',
-              originalChunkType: c.type,
+              originalChunkType: chunkType,
               resultCount: 1,
               wasDropped: false,
             })
