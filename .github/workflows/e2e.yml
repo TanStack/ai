@@ -39,7 +39,7 @@ jobs:
             playwright-
 
       - name: Build Packages
-        run: pnpm run build
+        run: pnpm run build:all
 
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
