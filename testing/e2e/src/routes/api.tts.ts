@@ -1,13 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiSpeech } from '@tanstack/ai-openai'
+import { createOpenaiSpeech } from '@tanstack/ai-openai'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_URL = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 function createTTSAdapter(provider: Provider) {
   const factories: Record<string, () => any> = {
-    openai: () => openaiSpeech({ baseURL: LLMOCK_URL }),
+    openai: () =>
+      createOpenaiSpeech('tts-1', DUMMY_KEY, { baseURL: LLMOCK_URL }),
   }
   return factories[provider]?.()
 }

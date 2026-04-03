@@ -1,22 +1,32 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { summarize, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiSummarize } from '@tanstack/ai-openai'
-import { anthropicSummarize } from '@tanstack/ai-anthropic'
-import { geminiSummarize } from '@tanstack/ai-gemini'
-import { ollamaSummarize } from '@tanstack/ai-ollama'
-import { grokSummarize } from '@tanstack/ai-grok'
+import { createOpenaiSummarize } from '@tanstack/ai-openai'
+import { createAnthropicSummarize } from '@tanstack/ai-anthropic'
+import { createGeminiSummarize } from '@tanstack/ai-gemini'
+import { createOllamaSummarize } from '@tanstack/ai-ollama'
+import { createGrokSummarize } from '@tanstack/ai-grok'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_URL = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 function createSummarizeAdapter(provider: Provider) {
   const factories: Record<string, () => any> = {
-    openai: () => openaiSummarize({ baseURL: LLMOCK_URL }),
-    anthropic: () => anthropicSummarize({ baseURL: LLMOCK_URL }),
-    gemini: () => geminiSummarize({ baseURL: LLMOCK_URL }),
-    ollama: () => ollamaSummarize({ host: LLMOCK_URL }),
-    grok: () => grokSummarize({ baseURL: LLMOCK_URL }),
-    openrouter: () => openaiSummarize({ baseURL: LLMOCK_URL }),
+    openai: () =>
+      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_URL }),
+    anthropic: () =>
+      createAnthropicSummarize('claude-sonnet-4-5', DUMMY_KEY, {
+        baseURL: LLMOCK_URL,
+      }),
+    gemini: () =>
+      createGeminiSummarize(DUMMY_KEY, 'gemini-2.0-flash', {
+        baseURL: LLMOCK_URL,
+      }),
+    ollama: () => createOllamaSummarize('mistral', LLMOCK_URL),
+    grok: () =>
+      createGrokSummarize('grok-3', DUMMY_KEY, { baseURL: LLMOCK_URL }),
+    openrouter: () =>
+      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_URL }),
   }
   return factories[provider]?.() ?? factories.openai!()
 }

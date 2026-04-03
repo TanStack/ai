@@ -1,15 +1,16 @@
 import type { AnyTextAdapter } from '@tanstack/ai'
 import { createChatOptions } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
-import { ollamaText } from '@tanstack/ai-ollama'
-import { groqText } from '@tanstack/ai-groq'
-import { grokText } from '@tanstack/ai-grok'
-import { openRouterText } from '@tanstack/ai-openrouter'
+import { createOpenaiChat } from '@tanstack/ai-openai'
+import { createAnthropicChat } from '@tanstack/ai-anthropic'
+import { createGeminiChat } from '@tanstack/ai-gemini'
+import { createOllamaChat } from '@tanstack/ai-ollama'
+import { createGroqText } from '@tanstack/ai-groq'
+import { createGrokText } from '@tanstack/ai-grok'
+import { createOpenRouterText } from '@tanstack/ai-openrouter'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_URL = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 const defaultModels: Record<Provider, string> = {
   openai: 'gpt-4o',
@@ -30,42 +31,48 @@ export function createTextAdapter(
   const factories: Record<Provider, () => { adapter: AnyTextAdapter }> = {
     openai: () =>
       createChatOptions({
-        adapter: openaiText({ baseURL: LLMOCK_URL }, model as 'gpt-4o'),
+        adapter: createOpenaiChat(model as 'gpt-4o', DUMMY_KEY, {
+          baseURL: LLMOCK_URL,
+        }),
       }),
     anthropic: () =>
       createChatOptions({
-        adapter: anthropicText(
-          { baseURL: LLMOCK_URL },
+        adapter: createAnthropicChat(
           model as 'claude-sonnet-4-5',
+          DUMMY_KEY,
+          { baseURL: LLMOCK_URL },
         ),
       }),
     gemini: () =>
       createChatOptions({
-        adapter: geminiText(
-          { baseURL: LLMOCK_URL },
-          model as 'gemini-2.0-flash',
-        ),
+        adapter: createGeminiChat(model as 'gemini-2.0-flash', DUMMY_KEY, {
+          baseURL: LLMOCK_URL,
+        }),
       }),
     ollama: () =>
       createChatOptions({
-        adapter: ollamaText({ host: LLMOCK_URL }, model as 'mistral'),
+        adapter: createOllamaChat(model as 'mistral', LLMOCK_URL),
       }),
     groq: () =>
       createChatOptions({
-        adapter: groqText(
-          { baseURL: LLMOCK_URL },
+        adapter: createGroqText(
           model as 'llama-3.3-70b-versatile',
+          DUMMY_KEY,
+          { baseURL: LLMOCK_URL },
         ),
       }),
     grok: () =>
       createChatOptions({
-        adapter: grokText({ baseURL: LLMOCK_URL }, model as 'grok-3'),
+        adapter: createGrokText(model as 'grok-3', DUMMY_KEY, {
+          baseURL: LLMOCK_URL,
+        }),
       }),
     openrouter: () =>
       createChatOptions({
-        adapter: openRouterText(
-          { baseURL: LLMOCK_URL },
+        adapter: createOpenRouterText(
           model as 'openai/gpt-4o',
+          DUMMY_KEY,
+          { baseURL: LLMOCK_URL },
         ),
       }),
   }

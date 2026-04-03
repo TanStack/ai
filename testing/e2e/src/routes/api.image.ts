@@ -1,17 +1,23 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
-import { geminiImage } from '@tanstack/ai-gemini'
-import { grokImage } from '@tanstack/ai-grok'
+import { createOpenaiImage } from '@tanstack/ai-openai'
+import { createGeminiImage } from '@tanstack/ai-gemini'
+import { createGrokImage } from '@tanstack/ai-grok'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_URL = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 function createImageAdapter(provider: Provider) {
   const factories: Record<string, () => any> = {
-    openai: () => openaiImage({ baseURL: LLMOCK_URL }),
-    gemini: () => geminiImage({ baseURL: LLMOCK_URL }),
-    grok: () => grokImage({ baseURL: LLMOCK_URL }),
+    openai: () =>
+      createOpenaiImage('gpt-image-1', DUMMY_KEY, { baseURL: LLMOCK_URL }),
+    gemini: () =>
+      createGeminiImage('gemini-2.0-flash', DUMMY_KEY, {
+        baseURL: LLMOCK_URL,
+      }),
+    grok: () =>
+      createGrokImage('grok-2-image', DUMMY_KEY, { baseURL: LLMOCK_URL }),
   }
   return factories[provider]?.()
 }
