@@ -16,7 +16,10 @@ for (const provider of providers) {
         return
       }
 
-      await sendMessage(page, '[parallel] compare the stratocaster and les paul')
+      await sendMessage(
+        page,
+        '[parallel] compare the stratocaster and les paul',
+      )
       await waitForResponse(page)
 
       const toolCalls = await getToolCalls(page)

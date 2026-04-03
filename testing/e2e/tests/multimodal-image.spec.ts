@@ -22,7 +22,11 @@ for (const provider of providers) {
         return
       }
 
-      await sendMessageWithImage(page, '[mmimage] describe this image', testImagePath)
+      await sendMessageWithImage(
+        page,
+        '[mmimage] describe this image',
+        testImagePath,
+      )
       await waitForResponse(page)
 
       const response = await getLastAssistantMessage(page)
