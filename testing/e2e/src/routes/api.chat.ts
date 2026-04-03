@@ -52,9 +52,7 @@ export const Route = createFileRoute('/api/chat')({
             ...adapterOptions,
             tools: config.tools,
             modelOptions: config.modelOptions,
-            systemPrompts: [
-              'You are a helpful assistant for a guitar store.',
-            ],
+            systemPrompts: ['You are a helpful assistant for a guitar store.'],
             agentLoopStrategy: maxIterations(5),
             messages,
             abortController,
