@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "test-audio-base64" },
+      "response": {
+        "content": "I would like to buy a Fender Stratocaster please."
+      }
+    }
+  ]
+}
