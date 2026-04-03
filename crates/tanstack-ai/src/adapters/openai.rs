@@ -139,9 +139,9 @@ impl OpenAiTextAdapter {
                     MessageContent::Parts(_) => String::new(),
                 };
                 items.push(serde_json::json!({
-                    "role": "tool",
-                    "tool_call_id": msg.tool_call_id,
-                    "content": content
+                    "type": "function_call_output",
+                    "call_id": msg.tool_call_id,
+                    "output": content
                 }));
                 continue;
             }
@@ -999,5 +999,29 @@ mod tests {
             }
             other => panic!("unexpected chunk 2: {other:?}"),
         }
+    }
+
+    #[test]
+    fn convert_messages_serializes_tool_results_for_responses_api() {
+        let adapter = OpenAiTextAdapter::new("gpt-4.1", "test-key");
+        let messages = vec![ModelMessage {
+            role: MessageRole::Tool,
+            content: MessageContent::Text("{\"temp\":72}".to_string()),
+            name: None,
+            tool_calls: None,
+            tool_call_id: Some("call_123".to_string()),
+        }];
+
+        let converted = adapter.convert_messages(&messages, &[]);
+        assert_eq!(
+            converted,
+            serde_json::json!([
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_123",
+                    "output": "{\"temp\":72}"
+                }
+            ])
+        );
     }
 }
