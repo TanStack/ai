@@ -16,6 +16,7 @@ export const Route = createFileRoute('/api/tts')({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
         const { text, provider } = body
 

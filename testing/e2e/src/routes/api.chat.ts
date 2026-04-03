@@ -8,6 +8,7 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         if (request.signal.aborted) {
           return new Response(null, { status: 499 })
         }

@@ -25,6 +25,7 @@ export const Route = createFileRoute('/api/summarize')({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
         const { text, provider, stream: shouldStream } = body
 

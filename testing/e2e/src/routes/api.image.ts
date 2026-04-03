@@ -20,6 +20,7 @@ export const Route = createFileRoute('/api/image')({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
         const { prompt, provider } = body
 
