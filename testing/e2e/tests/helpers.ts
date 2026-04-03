@@ -6,12 +6,15 @@ export async function sendMessage(page: Page, text: string) {
   await input.fill(text)
   // Dispatch an input event to trigger React's onChange for controlled inputs
   await input.dispatchEvent('input', { bubbles: true })
-  await page.getByTestId('send-button').click({ timeout: 5000 }).catch(async () => {
-    // Fallback: if fill() didn't trigger React state, use pressSequentially
-    await input.clear()
-    await input.pressSequentially(text, { delay: 30 })
-    await page.getByTestId('send-button').click()
-  })
+  await page
+    .getByTestId('send-button')
+    .click({ timeout: 5000 })
+    .catch(async () => {
+      // Fallback: if fill() didn't trigger React state, use pressSequentially
+      await input.clear()
+      await input.pressSequentially(text, { delay: 30 })
+      await page.getByTestId('send-button').click()
+    })
 }
 
 export async function sendMessageWithImage(
