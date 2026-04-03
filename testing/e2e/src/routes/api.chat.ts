@@ -23,28 +23,45 @@ export const Route = createFileRoute('/api/chat')({
         const modelOverride = config.modelOverrides?.[provider]
         const adapterOptions = createTextAdapter(provider, modelOverride)
 
-        try {
-          const stream = chat({
-            ...adapterOptions,
-            tools: config.tools,
-            modelOptions: config.modelOptions,
-            ...(config.outputSchema && { outputSchema: config.outputSchema }),
-            ...(config.stream === false && { stream: false }),
-            systemPrompts: ['You are a helpful assistant for a guitar store.'],
-            agentLoopStrategy: maxIterations(5),
-            messages,
-            abortController,
-          })
+        const isNonStreaming =
+          config.stream === false || config.outputSchema != null
 
-          if (config.stream === false) {
-            const result = await stream
+        try {
+          if (isNonStreaming) {
+            // Structured output and non-streaming: await the result directly
+            const result = await chat({
+              ...adapterOptions,
+              tools: config.tools,
+              modelOptions: config.modelOptions,
+              ...(config.outputSchema && { outputSchema: config.outputSchema }),
+              stream: false,
+              systemPrompts: [
+                'You are a helpful assistant for a guitar store.',
+              ],
+              agentLoopStrategy: maxIterations(5),
+              messages,
+              abortController,
+            })
             return new Response(JSON.stringify({ result }), {
               headers: { 'Content-Type': 'application/json' },
             })
           }
 
+          // Streaming: return SSE
+          const stream = chat({
+            ...adapterOptions,
+            tools: config.tools,
+            modelOptions: config.modelOptions,
+            systemPrompts: [
+              'You are a helpful assistant for a guitar store.',
+            ],
+            agentLoopStrategy: maxIterations(5),
+            messages,
+            abortController,
+          })
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
+          console.error(`[api.chat] Error:`, error.message)
           if (error.name === 'AbortError' || abortController.signal.aborted) {
             return new Response(null, { status: 499 })
           }
