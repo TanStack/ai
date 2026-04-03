@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vinxi dev --port 3010",
-    "build": "vinxi build",
+    "dev": "vite dev --port 3010",
+    "build": "vite build",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "record": "LLMOCK_RECORD=true pnpm dev",

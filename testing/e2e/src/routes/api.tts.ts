@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generate } from '@tanstack/ai'
+import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiSpeech } from '@tanstack/ai-openai'
 import type { Provider } from '@/lib/types'
 
@@ -29,10 +29,8 @@ export const Route = createFileRoute('/api/tts')({
         }
 
         try {
-          const result = await generate({ adapter, text })
-          return new Response(JSON.stringify(result), {
-            headers: { 'Content-Type': 'application/json' },
-          })
+          const stream = generateSpeech({ adapter, text, stream: true })
+          return toServerSentEventsResponse(stream)
         } catch (error: any) {
           return new Response(JSON.stringify({ error: error.message }), {
             status: 500,

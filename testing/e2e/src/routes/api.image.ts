@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generate } from '@tanstack/ai'
+import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 import { geminiImage } from '@tanstack/ai-gemini'
 import { grokImage } from '@tanstack/ai-grok'
@@ -33,10 +33,8 @@ export const Route = createFileRoute('/api/image')({
         }
 
         try {
-          const result = await generate({ adapter, prompt })
-          return new Response(JSON.stringify(result), {
-            headers: { 'Content-Type': 'application/json' },
-          })
+          const stream = generateImage({ adapter, prompt, stream: true })
+          return toServerSentEventsResponse(stream)
         } catch (error: any) {
           return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
