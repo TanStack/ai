@@ -6,8 +6,11 @@ import {
   isNotSupported,
 } from './helpers'
 import { providers } from './test-matrix'
+import { fileURLToPath } from 'url'
 import path from 'path'
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 const testImagePath = path.resolve(__dirname, '../test-assets/guitar-meme.jpg')
 
 for (const provider of providers) {
