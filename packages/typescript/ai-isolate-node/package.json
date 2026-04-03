@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-isolate-node",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Node.js isolated-vm driver for TanStack AI Code Mode",
   "author": "",
   "license": "MIT",

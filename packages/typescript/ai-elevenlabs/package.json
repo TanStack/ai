@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-elevenlabs",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "ElevenLabs adapter for TanStack AI realtime voice",
   "author": "",
   "license": "MIT",
