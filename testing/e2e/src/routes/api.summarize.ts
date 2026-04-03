@@ -31,7 +31,11 @@ export const Route = createFileRoute('/api/summarize')({
 
         try {
           const adapter = createSummarizeAdapter(provider)
-          const result = summarize({ adapter, text, stream: shouldStream ?? true })
+          const result = summarize({
+            adapter,
+            text,
+            stream: shouldStream ?? true,
+          })
 
           if (shouldStream === false) {
             const summary = await result

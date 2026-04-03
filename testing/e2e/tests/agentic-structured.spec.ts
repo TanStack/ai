@@ -1,12 +1,21 @@
 import { test, expect } from '@playwright/test'
-import { sendMessage, waitForResponse, getLastAssistantMessage, getToolCalls, isNotSupported } from './helpers'
+import {
+  sendMessage,
+  waitForResponse,
+  getLastAssistantMessage,
+  getToolCalls,
+  isNotSupported,
+} from './helpers'
 import { providers } from './test-matrix'
 
 for (const provider of providers) {
   test.describe(`${provider} — agentic-structured`, () => {
     test('calls tools then returns structured output', async ({ page }) => {
       await page.goto(`/${provider}/agentic-structured`)
-      if (await isNotSupported(page)) { test.skip(); return }
+      if (await isNotSupported(page)) {
+        test.skip()
+        return
+      }
 
       await sendMessage(page, 'check inventory and recommend a guitar as json')
       await waitForResponse(page)

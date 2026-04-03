@@ -1,12 +1,22 @@
 import { test, expect } from '@playwright/test'
-import { sendMessage, waitForResponse, getLastAssistantMessage, approveToolCall, denyToolCall, isNotSupported } from './helpers'
+import {
+  sendMessage,
+  waitForResponse,
+  getLastAssistantMessage,
+  approveToolCall,
+  denyToolCall,
+  isNotSupported,
+} from './helpers'
 import { providers } from './test-matrix'
 
 for (const provider of providers) {
   test.describe(`${provider} — tool-approval`, () => {
     test('shows approval prompt and completes on approve', async ({ page }) => {
       await page.goto(`/${provider}/tool-approval`)
-      if (await isNotSupported(page)) { test.skip(); return }
+      if (await isNotSupported(page)) {
+        test.skip()
+        return
+      }
 
       await sendMessage(page, 'add the stratocaster to my cart')
 
@@ -20,7 +30,10 @@ for (const provider of providers) {
 
     test('handles denial', async ({ page }) => {
       await page.goto(`/${provider}/tool-approval`)
-      if (await isNotSupported(page)) { test.skip(); return }
+      if (await isNotSupported(page)) {
+        test.skip()
+        return
+      }
 
       await sendMessage(page, 'add the stratocaster to my cart')
 

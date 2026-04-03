@@ -1,7 +1,10 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "compare the stratocaster and les paul", "sequenceIndex": 0 },
+      "match": {
+        "userMessage": "compare the stratocaster and les paul",
+        "sequenceIndex": 0
+      },
       "response": {
         "toolCalls": [
           {

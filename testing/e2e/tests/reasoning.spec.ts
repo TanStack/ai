@@ -1,12 +1,20 @@
 import { test, expect } from '@playwright/test'
-import { sendMessage, waitForResponse, getLastAssistantMessage, isNotSupported } from './helpers'
+import {
+  sendMessage,
+  waitForResponse,
+  getLastAssistantMessage,
+  isNotSupported,
+} from './helpers'
 import { providers } from './test-matrix'
 
 for (const provider of providers) {
   test.describe(`${provider} — reasoning`, () => {
     test('shows thinking block and final answer', async ({ page }) => {
       await page.goto(`/${provider}/reasoning`)
-      if (await isNotSupported(page)) { test.skip(); return }
+      if (await isNotSupported(page)) {
+        test.skip()
+        return
+      }
 
       await sendMessage(page, 'recommend a guitar for a beginner')
       await waitForResponse(page)

@@ -5,18 +5,26 @@ export async function sendMessage(page: Page, text: string) {
   await page.getByTestId('send-button').click()
 }
 
-export async function sendMessageWithImage(page: Page, text: string, imagePath: string) {
+export async function sendMessageWithImage(
+  page: Page,
+  text: string,
+  imagePath: string,
+) {
   await page.getByTestId('chat-input').fill(text)
   await page.getByTestId('image-attachment-input').setInputFiles(imagePath)
 }
 
 export async function waitForResponse(page: Page, timeout = 15_000) {
   try {
-    await page.getByTestId('loading-indicator').waitFor({ state: 'visible', timeout: 5_000 })
+    await page
+      .getByTestId('loading-indicator')
+      .waitFor({ state: 'visible', timeout: 5_000 })
   } catch {
     // Loading may have already finished
   }
-  await page.getByTestId('loading-indicator').waitFor({ state: 'hidden', timeout })
+  await page
+    .getByTestId('loading-indicator')
+    .waitFor({ state: 'hidden', timeout })
 }
 
 export async function getLastAssistantMessage(page: Page): Promise<string> {
@@ -26,7 +34,9 @@ export async function getLastAssistantMessage(page: Page): Promise<string> {
   return messages.nth(count - 1).innerText()
 }
 
-export async function getToolCalls(page: Page): Promise<Array<{ name: string }>> {
+export async function getToolCalls(
+  page: Page,
+): Promise<Array<{ name: string }>> {
   const toolCalls: Array<{ name: string }> = []
   const elements = page.locator('[data-testid^="tool-call-"]').filter({
     hasNot: page.locator('[data-testid^="tool-call-result-"]'),
@@ -54,7 +64,10 @@ export async function denyToolCall(page: Page, toolName: string) {
 }
 
 export async function isNotSupported(page: Page): Promise<boolean> {
-  return page.getByTestId('not-supported').isVisible({ timeout: 2_000 }).catch(() => false)
+  return page
+    .getByTestId('not-supported')
+    .isVisible({ timeout: 2_000 })
+    .catch(() => false)
 }
 
 export async function submitSummarization(page: Page, text: string) {
@@ -63,7 +76,9 @@ export async function submitSummarization(page: Page, text: string) {
 }
 
 export async function getSummarizationResult(page: Page): Promise<string> {
-  await page.getByTestId('summarize-result').waitFor({ state: 'visible', timeout: 15_000 })
+  await page
+    .getByTestId('summarize-result')
+    .waitFor({ state: 'visible', timeout: 15_000 })
   return page.getByTestId('summarize-result').innerText()
 }
 
@@ -72,6 +87,8 @@ export async function getAudioPlayer(page: Page) {
 }
 
 export async function getTranscriptionResult(page: Page): Promise<string> {
-  await page.getByTestId('transcription-result').waitFor({ state: 'visible', timeout: 15_000 })
+  await page
+    .getByTestId('transcription-result')
+    .waitFor({ state: 'visible', timeout: 15_000 })
   return page.getByTestId('transcription-result').innerText()
 }

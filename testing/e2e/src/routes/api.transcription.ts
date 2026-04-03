@@ -22,10 +22,15 @@ export const Route = createFileRoute('/api/transcription')({
 
         const adapter = createTranscriptionAdapter(provider)
         if (!adapter) {
-          return new Response(JSON.stringify({ error: 'Provider does not support transcription' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          })
+          return new Response(
+            JSON.stringify({
+              error: 'Provider does not support transcription',
+            }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         }
 
         try {

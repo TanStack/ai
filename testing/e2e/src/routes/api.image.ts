@@ -26,10 +26,15 @@ export const Route = createFileRoute('/api/image')({
 
         const adapter = createImageAdapter(provider)
         if (!adapter) {
-          return new Response(JSON.stringify({ error: 'Provider does not support image generation' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          })
+          return new Response(
+            JSON.stringify({
+              error: 'Provider does not support image generation',
+            }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         }
 
         try {

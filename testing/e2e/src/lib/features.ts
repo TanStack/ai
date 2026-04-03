@@ -13,7 +13,7 @@ interface FeatureConfig {
 }
 
 export const featureConfigs: Record<Feature, FeatureConfig> = {
-  'chat': {
+  chat: {
     tools: [],
     modelOptions: {},
   },
@@ -22,7 +22,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
     stream: false,
   },
-  'reasoning': {
+  reasoning: {
     tools: [],
     modelOptions: { reasoning: { effort: 'high' } },
     modelOverrides: {
@@ -65,7 +65,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
     outputSchema: imageAnalysisSchema,
   },
-  'summarize': {
+  summarize: {
     tools: [],
     modelOptions: {},
     stream: false,
@@ -81,12 +81,12 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
     dedicatedRoute: '/api/image',
   },
-  'tts': {
+  tts: {
     tools: [],
     modelOptions: {},
     dedicatedRoute: '/api/tts',
   },
-  'transcription': {
+  transcription: {
     tools: [],
     modelOptions: {},
     dedicatedRoute: '/api/transcription',

@@ -48,10 +48,13 @@ export const Route = createFileRoute('/api/chat')({
           if (error.name === 'AbortError' || abortController.signal.aborted) {
             return new Response(null, { status: 499 })
           }
-          return new Response(JSON.stringify({ error: error.message || 'An error occurred' }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          })
+          return new Response(
+            JSON.stringify({ error: error.message || 'An error occurred' }),
+            {
+              status: 500,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         }
       },
     },

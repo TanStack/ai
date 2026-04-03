@@ -21,7 +21,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="bg-gray-950 text-gray-100 min-h-screen">
         <header className="border-b border-orange-500/20 bg-gray-900/80 px-4 py-3">
-          <h1 className="text-lg font-bold text-orange-400">Guitar Store E2E</h1>
+          <h1 className="text-lg font-bold text-orange-400">
+            Guitar Store E2E
+          </h1>
         </header>
         <main className="flex-1">{children}</main>
         <Scripts />

@@ -27,7 +27,10 @@ export function SummarizeUI({ onSubmit, result, isLoading }: SummarizeUIProps) {
         {isLoading ? 'Summarizing...' : 'Summarize'}
       </button>
       {result && (
-        <div data-testid="summarize-result" className="p-3 bg-gray-800/50 border border-gray-700 rounded text-sm">
+        <div
+          data-testid="summarize-result"
+          className="p-3 bg-gray-800/50 border border-gray-700 rounded text-sm"
+        >
           {result}
         </div>
       )}

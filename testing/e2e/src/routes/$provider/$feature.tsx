@@ -25,14 +25,22 @@ const addToCartClient = addToCartToolDef.client((args) => ({
 }))
 
 function FeaturePage() {
-  const { provider, feature } = Route.useParams() as { provider: Provider; feature: Feature }
+  const { provider, feature } = Route.useParams() as {
+    provider: Provider
+    feature: Feature
+  }
 
   if (!ALL_PROVIDERS.includes(provider) || !isSupported(provider, feature)) {
     return <NotSupported provider={provider} feature={feature} />
   }
 
   if (feature === 'summarize' || feature === 'summarize-stream') {
-    return <SummarizeFeature provider={provider} stream={feature === 'summarize-stream'} />
+    return (
+      <SummarizeFeature
+        provider={provider}
+        stream={feature === 'summarize-stream'}
+      />
+    )
   }
   if (feature === 'image-gen') {
     return <ImageGenFeature provider={provider} />
@@ -47,17 +55,26 @@ function FeaturePage() {
   return <ChatFeature provider={provider} feature={feature} />
 }
 
-function ChatFeature({ provider, feature }: { provider: Provider; feature: Feature }) {
+function ChatFeature({
+  provider,
+  feature,
+}: {
+  provider: Provider
+  feature: Feature
+}) {
   const needsApproval = feature === 'tool-approval'
-  const showImageInput = feature === 'multimodal-image' || feature === 'multimodal-structured'
+  const showImageInput =
+    feature === 'multimodal-image' || feature === 'multimodal-structured'
 
   const tools = needsApproval ? clientTools(addToCartClient) : undefined
 
-  const { messages, sendMessage, isLoading, addToolApprovalResponse } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
-    tools,
-    body: { provider, feature },
-  })
+  const { messages, sendMessage, isLoading, addToolApprovalResponse } = useChat(
+    {
+      connection: fetchServerSentEvents('/api/chat'),
+      tools,
+      body: { provider, feature },
+    },
+  )
 
   return (
     <ChatUI
@@ -66,27 +83,43 @@ function ChatFeature({ provider, feature }: { provider: Provider; feature: Featu
       onSendMessage={(text) => {
         sendMessage({ role: 'user', parts: [{ type: 'text', text }] })
       }}
-      onSendMessageWithImage={showImageInput ? (text, file) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-          const base64 = (reader.result as string).split(',')[1]
-          sendMessage({
-            role: 'user',
-            parts: [
-              { type: 'text', text },
-              { type: 'image', image: base64, mimeType: file.type as any },
-            ],
-          })
-        }
-        reader.readAsDataURL(file)
-      } : undefined}
-      addToolApprovalResponse={needsApproval ? addToolApprovalResponse : undefined}
+      onSendMessageWithImage={
+        showImageInput
+          ? (text, file) => {
+              const reader = new FileReader()
+              reader.onload = () => {
+                const base64 = (reader.result as string).split(',')[1]
+                sendMessage({
+                  role: 'user',
+                  parts: [
+                    { type: 'text', text },
+                    {
+                      type: 'image',
+                      image: base64,
+                      mimeType: file.type as any,
+                    },
+                  ],
+                })
+              }
+              reader.readAsDataURL(file)
+            }
+          : undefined
+      }
+      addToolApprovalResponse={
+        needsApproval ? addToolApprovalResponse : undefined
+      }
       showImageInput={showImageInput}
     />
   )
 }
 
-function SummarizeFeature({ provider, stream }: { provider: Provider; stream: boolean }) {
+function SummarizeFeature({
+  provider,
+  stream,
+}: {
+  provider: Provider
+  stream: boolean
+}) {
   const [result, setResult] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -106,7 +139,13 @@ function SummarizeFeature({ provider, stream }: { provider: Provider; stream: bo
     }
   }
 
-  return <SummarizeUI onSubmit={handleSubmit} result={result} isLoading={isLoading} />
+  return (
+    <SummarizeUI
+      onSubmit={handleSubmit}
+      result={result}
+      isLoading={isLoading}
+    />
+  )
 }
 
 function ImageGenFeature({ provider }: { provider: Provider }) {

@@ -101,7 +101,10 @@ After cleanup:
 
 test('calls getGuitars with category filter', async ({ page }) => {
   await page.goto(`/${provider}/tool-calling`)
-  if (await isNotSupported(page)) { test.skip(); return }
+  if (await isNotSupported(page)) {
+    test.skip()
+    return
+  }
 
   // Send the exact message that matches your fixture
   await sendMessage(page, 'show me acoustic guitars')

@@ -1,7 +1,10 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "what guitars do you have in stock", "sequenceIndex": 0 },
+      "match": {
+        "userMessage": "what guitars do you have in stock",
+        "sequenceIndex": 0
+      },
       "response": {
         "toolCalls": [
           {

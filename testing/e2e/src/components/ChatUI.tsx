@@ -12,7 +12,10 @@ interface ChatUIProps {
   isLoading: boolean
   onSendMessage: (text: string) => void
   onSendMessageWithImage?: (text: string, file: File) => void
-  addToolApprovalResponse?: (response: { id: string; approved: boolean }) => Promise<void>
+  addToolApprovalResponse?: (response: {
+    id: string
+    approved: boolean
+  }) => Promise<void>
   showImageInput?: boolean
 }
 
@@ -41,11 +44,17 @@ export function ChatUI({
 
   return (
     <div className="flex flex-col h-[calc(100vh-60px)]">
-      <div ref={messagesRef} data-testid="message-list" className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div
+        ref={messagesRef}
+        data-testid="message-list"
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+      >
         {messages.map((message) => (
           <div
             key={message.id}
-            data-testid={message.role === 'user' ? 'user-message' : 'assistant-message'}
+            data-testid={
+              message.role === 'user' ? 'user-message' : 'assistant-message'
+            }
             className={`p-3 rounded-lg ${
               message.role === 'user'
                 ? 'bg-orange-500/10 border border-orange-500/20 ml-12'
@@ -55,7 +64,10 @@ export function ChatUI({
             {message.parts.map((part, i) => {
               if (part.type === 'text') {
                 return (
-                  <div key={i} className="prose prose-invert prose-sm max-w-none">
+                  <div
+                    key={i}
+                    className="prose prose-invert prose-sm max-w-none"
+                  >
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeRaw, rehypeSanitize]}
@@ -67,7 +79,11 @@ export function ChatUI({
               }
               if (part.type === 'thinking') {
                 return (
-                  <div key={i} data-testid="thinking-block" className="text-xs text-gray-500 italic border-l-2 border-gray-600 pl-2 my-2">
+                  <div
+                    key={i}
+                    data-testid="thinking-block"
+                    className="text-xs text-gray-500 italic border-l-2 border-gray-600 pl-2 my-2"
+                  >
                     {part.thinking}
                   </div>
                 )
@@ -75,8 +91,17 @@ export function ChatUI({
               if (part.type === 'tool-call') {
                 return <ToolCallDisplay key={i} part={part} />
               }
-              if (part.type === 'approval-requested' && addToolApprovalResponse) {
-                return <ApprovalPrompt key={i} part={part} onRespond={addToolApprovalResponse} />
+              if (
+                part.type === 'approval-requested' &&
+                addToolApprovalResponse
+              ) {
+                return (
+                  <ApprovalPrompt
+                    key={i}
+                    part={part}
+                    onRespond={addToolApprovalResponse}
+                  />
+                )
               }
               return null
             })}
@@ -85,7 +110,10 @@ export function ChatUI({
       </div>
 
       {isLoading && (
-        <div data-testid="loading-indicator" className="px-4 py-1 text-xs text-gray-400">
+        <div
+          data-testid="loading-indicator"
+          className="px-4 py-1 text-xs text-gray-400"
+        >
           Generating...
         </div>
       )}

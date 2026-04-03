@@ -1,7 +1,10 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "check inventory and recommend a guitar as json", "sequenceIndex": 0 },
+      "match": {
+        "userMessage": "check inventory and recommend a guitar as json",
+        "sequenceIndex": 0
+      },
       "response": {
         "toolCalls": [
           {

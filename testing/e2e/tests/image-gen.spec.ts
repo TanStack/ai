@@ -6,10 +6,15 @@ for (const provider of providers) {
   test.describe(`${provider} — image-gen`, () => {
     test('generates an image', async ({ page }) => {
       await page.goto(`/${provider}/image-gen`)
-      if (await isNotSupported(page)) { test.skip(); return }
+      if (await isNotSupported(page)) {
+        test.skip()
+        return
+      }
 
       await page.getByTestId('send-button').click()
-      await page.getByTestId('generated-image').waitFor({ state: 'visible', timeout: 15_000 })
+      await page
+        .getByTestId('generated-image')
+        .waitFor({ state: 'visible', timeout: 15_000 })
 
       const img = page.getByTestId('generated-image')
       await expect(img).toBeVisible()
