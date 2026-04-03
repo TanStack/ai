@@ -37,11 +37,9 @@ export function createTextAdapter(
       }),
     anthropic: () =>
       createChatOptions({
-        adapter: createAnthropicChat(
-          model as 'claude-sonnet-4-5',
-          DUMMY_KEY,
-          { baseURL: LLMOCK_URL },
-        ),
+        adapter: createAnthropicChat(model as 'claude-sonnet-4-5', DUMMY_KEY, {
+          baseURL: LLMOCK_URL,
+        }),
       }),
     gemini: () =>
       createChatOptions({
@@ -55,11 +53,9 @@ export function createTextAdapter(
       }),
     groq: () =>
       createChatOptions({
-        adapter: createGroqText(
-          model as 'llama-3.3-70b-versatile',
-          DUMMY_KEY,
-          { baseURL: LLMOCK_URL },
-        ),
+        adapter: createGroqText(model as 'llama-3.3-70b-versatile', DUMMY_KEY, {
+          baseURL: LLMOCK_URL,
+        }),
       }),
     grok: () =>
       createChatOptions({
@@ -69,11 +65,9 @@ export function createTextAdapter(
       }),
     openrouter: () =>
       createChatOptions({
-        adapter: createOpenRouterText(
-          model as 'openai/gpt-4o',
-          DUMMY_KEY,
-          { baseURL: LLMOCK_URL },
-        ),
+        adapter: createOpenRouterText(model as 'openai/gpt-4o', DUMMY_KEY, {
+          baseURL: LLMOCK_URL,
+        }),
       }),
   }
 

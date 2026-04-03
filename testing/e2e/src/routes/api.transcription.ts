@@ -1,8 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  generateTranscription,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
+import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
 import { createOpenaiTranscription } from '@tanstack/ai-openai'
 import type { Provider } from '@/lib/types'
 
