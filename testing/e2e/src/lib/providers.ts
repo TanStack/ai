@@ -9,7 +9,10 @@ import { createGrokText } from '@tanstack/ai-grok'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
 import type { Provider } from '@/lib/types'
 
-const LLMOCK_URL = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+// OpenAI-compatible SDKs (OpenAI, Groq, Grok, OpenRouter) need /v1 in baseURL
+// Anthropic, Gemini, Ollama SDKs include their path prefixes internally
+const LLMOCK_OPENAI = `${LLMOCK_BASE}/v1`
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 const defaultModels: Record<Provider, string> = {
@@ -32,41 +35,43 @@ export function createTextAdapter(
     openai: () =>
       createChatOptions({
         adapter: createOpenaiChat(model as 'gpt-4o', DUMMY_KEY, {
-          baseURL: LLMOCK_URL,
+          baseURL: LLMOCK_OPENAI,
         }),
       }),
     anthropic: () =>
       createChatOptions({
         adapter: createAnthropicChat(model as 'claude-sonnet-4-5', DUMMY_KEY, {
-          baseURL: LLMOCK_URL,
+          baseURL: LLMOCK_BASE,
         }),
       }),
     gemini: () =>
       createChatOptions({
         adapter: createGeminiChat(model as 'gemini-2.0-flash', DUMMY_KEY, {
-          baseURL: LLMOCK_URL,
+          baseURL: LLMOCK_BASE,
         }),
       }),
     ollama: () =>
       createChatOptions({
-        adapter: createOllamaChat(model as 'mistral', LLMOCK_URL),
+        adapter: createOllamaChat(model as 'mistral', LLMOCK_BASE),
       }),
     groq: () =>
       createChatOptions({
-        adapter: createGroqText(model as 'llama-3.3-70b-versatile', DUMMY_KEY, {
-          baseURL: LLMOCK_URL,
-        }),
+        adapter: createGroqText(
+          model as 'llama-3.3-70b-versatile',
+          DUMMY_KEY,
+          { baseURL: LLMOCK_OPENAI },
+        ),
       }),
     grok: () =>
       createChatOptions({
         adapter: createGrokText(model as 'grok-3', DUMMY_KEY, {
-          baseURL: LLMOCK_URL,
+          baseURL: LLMOCK_OPENAI,
         }),
       }),
     openrouter: () =>
       createChatOptions({
         adapter: createOpenRouterText(model as 'openai/gpt-4o', DUMMY_KEY, {
-          baseURL: LLMOCK_URL,
+          baseURL: LLMOCK_OPENAI,
         }),
       }),
   }

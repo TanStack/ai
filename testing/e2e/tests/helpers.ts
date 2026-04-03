@@ -1,8 +1,17 @@
 import type { Page } from '@playwright/test'
 
 export async function sendMessage(page: Page, text: string) {
-  await page.getByTestId('chat-input').fill(text)
-  await page.getByTestId('send-button').click()
+  const input = page.getByTestId('chat-input')
+  await input.click()
+  await input.fill(text)
+  // Dispatch an input event to trigger React's onChange for controlled inputs
+  await input.dispatchEvent('input', { bubbles: true })
+  await page.getByTestId('send-button').click({ timeout: 5000 }).catch(async () => {
+    // Fallback: if fill() didn't trigger React state, use pressSequentially
+    await input.clear()
+    await input.pressSequentially(text, { delay: 30 })
+    await page.getByTestId('send-button').click()
+  })
 }
 
 export async function sendMessageWithImage(
@@ -10,7 +19,9 @@ export async function sendMessageWithImage(
   text: string,
   imagePath: string,
 ) {
-  await page.getByTestId('chat-input').fill(text)
+  const input = page.getByTestId('chat-input')
+  await input.click()
+  await input.pressSequentially(text, { delay: 10 })
   await page.getByTestId('image-attachment-input').setInputFiles(imagePath)
 }
 
@@ -71,7 +82,9 @@ export async function isNotSupported(page: Page): Promise<boolean> {
 }
 
 export async function submitSummarization(page: Page, text: string) {
-  await page.getByTestId('summarize-input').fill(text)
+  const input = page.getByTestId('summarize-input')
+  await input.click()
+  await input.pressSequentially(text, { delay: 10 })
   await page.getByTestId('summarize-button').click()
 }
 

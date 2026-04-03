@@ -81,7 +81,7 @@ function ChatFeature({
       messages={messages}
       isLoading={isLoading}
       onSendMessage={(text) => {
-        sendMessage({ role: 'user', parts: [{ type: 'text', text }] })
+        sendMessage(text)
       }}
       onSendMessageWithImage={
         showImageInput
@@ -90,13 +90,15 @@ function ChatFeature({
               reader.onload = () => {
                 const base64 = (reader.result as string).split(',')[1]
                 sendMessage({
-                  role: 'user',
-                  parts: [
-                    { type: 'text', text },
+                  content: [
+                    { type: 'text', content: text },
                     {
                       type: 'image',
-                      image: base64,
-                      mimeType: file.type as any,
+                      source: {
+                        type: 'data',
+                        value: base64,
+                        mimeType: file.type,
+                      },
                     },
                   ],
                 })

@@ -7,26 +7,27 @@ import { createOllamaSummarize } from '@tanstack/ai-ollama'
 import { createGrokSummarize } from '@tanstack/ai-grok'
 import type { Provider } from '@/lib/types'
 
-const LLMOCK_URL = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const LLMOCK_OPENAI = `${LLMOCK_BASE}/v1`
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 function createSummarizeAdapter(provider: Provider) {
   const factories: Record<string, () => any> = {
     openai: () =>
-      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_URL }),
+      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
     anthropic: () =>
       createAnthropicSummarize('claude-sonnet-4-5', DUMMY_KEY, {
-        baseURL: LLMOCK_URL,
+        baseURL: LLMOCK_BASE,
       }),
     gemini: () =>
       createGeminiSummarize(DUMMY_KEY, 'gemini-2.0-flash', {
-        baseURL: LLMOCK_URL,
+        baseURL: LLMOCK_BASE,
       }),
-    ollama: () => createOllamaSummarize('mistral', LLMOCK_URL),
+    ollama: () => createOllamaSummarize('mistral', LLMOCK_BASE),
     grok: () =>
-      createGrokSummarize('grok-3', DUMMY_KEY, { baseURL: LLMOCK_URL }),
+      createGrokSummarize('grok-3', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
     openrouter: () =>
-      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_URL }),
+      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
   }
   return factories[provider]?.() ?? factories.openai!()
 }

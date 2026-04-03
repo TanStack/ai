@@ -3,13 +3,14 @@ import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
 import { createOpenaiSpeech } from '@tanstack/ai-openai'
 import type { Provider } from '@/lib/types'
 
-const LLMOCK_URL = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const LLMOCK_OPENAI = `${LLMOCK_BASE}/v1`
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 function createTTSAdapter(provider: Provider) {
   const factories: Record<string, () => any> = {
     openai: () =>
-      createOpenaiSpeech('tts-1', DUMMY_KEY, { baseURL: LLMOCK_URL }),
+      createOpenaiSpeech('tts-1', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
   }
   return factories[provider]?.()
 }

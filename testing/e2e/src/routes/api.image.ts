@@ -5,19 +5,20 @@ import { createGeminiImage } from '@tanstack/ai-gemini'
 import { createGrokImage } from '@tanstack/ai-grok'
 import type { Provider } from '@/lib/types'
 
-const LLMOCK_URL = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
+const LLMOCK_OPENAI = `${LLMOCK_BASE}/v1`
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 function createImageAdapter(provider: Provider) {
   const factories: Record<string, () => any> = {
     openai: () =>
-      createOpenaiImage('gpt-image-1', DUMMY_KEY, { baseURL: LLMOCK_URL }),
+      createOpenaiImage('gpt-image-1', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
     gemini: () =>
       createGeminiImage('gemini-2.0-flash', DUMMY_KEY, {
-        baseURL: LLMOCK_URL,
+        baseURL: LLMOCK_BASE,
       }),
     grok: () =>
-      createGrokImage('grok-2-image', DUMMY_KEY, { baseURL: LLMOCK_URL }),
+      createGrokImage('grok-2-image', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
   }
   return factories[provider]?.()
 }

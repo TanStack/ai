@@ -72,7 +72,7 @@ export function ChatUI({
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeRaw, rehypeSanitize]}
                     >
-                      {part.text}
+                      {part.content}
                     </ReactMarkdown>
                   </div>
                 )
@@ -84,7 +84,7 @@ export function ChatUI({
                     data-testid="thinking-block"
                     className="text-xs text-gray-500 italic border-l-2 border-gray-600 pl-2 my-2"
                   >
-                    {part.thinking}
+                    {part.content}
                   </div>
                 )
               }
