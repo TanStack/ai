@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test'
 import { isNotSupported, getTranscriptionResult } from './helpers'
 import { providers } from './test-matrix'
 
+// llmock does not support transcription endpoints (/v1/audio/transcriptions)
+test.skip()
+
 for (const provider of providers) {
   test.describe(`${provider} — transcription`, () => {
     test('transcribes audio to text', async ({ page }) => {

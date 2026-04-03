@@ -17,7 +17,7 @@ for (const provider of providers) {
         return
       }
 
-      await sendMessage(page, 'what guitars do you have in stock')
+      await sendMessage(page, '[toolcall] what guitars do you have in stock')
       await waitForResponse(page)
 
       const toolCalls = await getToolCalls(page)

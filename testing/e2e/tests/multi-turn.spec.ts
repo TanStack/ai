@@ -16,12 +16,12 @@ for (const provider of providers) {
         return
       }
 
-      await sendMessage(page, 'what guitars do you have')
+      await sendMessage(page, '[multiturn-1] what guitars do you have')
       await waitForResponse(page)
       const firstResponse = await getLastAssistantMessage(page)
       expect(firstResponse).toContain('Fender Stratocaster')
 
-      await sendMessage(page, 'tell me about the cheapest one')
+      await sendMessage(page, '[multiturn-2] tell me about the cheapest one')
       await waitForResponse(page)
       const secondResponse = await getLastAssistantMessage(page)
       expect(secondResponse).toContain('$1,299')

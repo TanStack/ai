@@ -88,19 +88,31 @@ export function ChatUI({
                   </div>
                 )
               }
-              if (part.type === 'tool-call') {
-                return <ToolCallDisplay key={i} part={part} />
-              }
               if (
-                part.type === 'approval-requested' &&
+                part.type === 'tool-call' &&
+                (part as any).state === 'approval-requested' &&
                 addToolApprovalResponse
               ) {
                 return (
                   <ApprovalPrompt
                     key={i}
-                    part={part}
+                    part={part as any}
                     onRespond={addToolApprovalResponse}
                   />
+                )
+              }
+              if (part.type === 'tool-call') {
+                return <ToolCallDisplay key={i} part={part as any} />
+              }
+              if (part.type === 'tool-result') {
+                return (
+                  <div
+                    key={i}
+                    data-testid={`tool-call-result-${(part as any).toolCallId}`}
+                    className="text-gray-300 text-xs mt-1"
+                  >
+                    Result: <code>{(part as any).content}</code>
+                  </div>
                 )
               }
               return null

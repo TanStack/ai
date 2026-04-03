@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test'
 import { isNotSupported } from './helpers'
 import { providers } from './test-matrix'
 
+// llmock does not support image generation endpoints (/v1/images/generations)
+test.skip()
+
 for (const provider of providers) {
   test.describe(`${provider} — image-gen`, () => {
     test('generates an image', async ({ page }) => {

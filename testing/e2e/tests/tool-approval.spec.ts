@@ -18,7 +18,7 @@ for (const provider of providers) {
         return
       }
 
-      await sendMessage(page, 'add the stratocaster to my cart')
+      await sendMessage(page, '[approval] add the stratocaster to my cart')
 
       await expect(page.getByTestId('approval-prompt-addToCart')).toBeVisible()
       await approveToolCall(page, 'addToCart')
@@ -35,7 +35,7 @@ for (const provider of providers) {
         return
       }
 
-      await sendMessage(page, 'add the stratocaster to my cart')
+      await sendMessage(page, '[approval] add the stratocaster to my cart')
 
       await expect(page.getByTestId('approval-prompt-addToCart')).toBeVisible()
       await denyToolCall(page, 'addToCart')

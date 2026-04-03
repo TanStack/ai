@@ -16,7 +16,7 @@ for (const provider of providers) {
         return
       }
 
-      await sendMessage(page, 'recommend a guitar as json')
+      await sendMessage(page, '[structured] recommend a guitar as json')
       await waitForResponse(page)
 
       const response = await getLastAssistantMessage(page)

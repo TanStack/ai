@@ -21,7 +21,7 @@ function createSummarizeAdapter(provider: Provider) {
       }),
     gemini: () =>
       createGeminiSummarize(DUMMY_KEY, 'gemini-2.0-flash', {
-        baseURL: LLMOCK_BASE,
+        httpOptions: { baseUrl: LLMOCK_BASE },
       }),
     ollama: () => createOllamaSummarize('mistral', LLMOCK_BASE),
     grok: () =>

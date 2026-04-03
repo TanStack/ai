@@ -2,7 +2,7 @@
   "fixtures": [
     {
       "match": {
-        "userMessage": "compare the stratocaster and les paul",
+        "userMessage": "[parallel] compare the stratocaster and les paul",
         "sequenceIndex": 0
       },
       "response": {

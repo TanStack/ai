@@ -18,7 +18,7 @@ for (const provider of providers) {
         return
       }
 
-      await sendMessage(page, 'what is your most popular guitar')
+      await sendMessage(page, '[oneshot] what is your most popular guitar')
       await waitForResponse(page)
 
       const response = await getLastAssistantMessage(page)

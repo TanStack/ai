@@ -17,7 +17,7 @@ for (const provider of providers) {
         return
       }
 
-      await sendMessage(page, 'check inventory and recommend a guitar as json')
+      await sendMessage(page, '[agentic] check inventory and recommend')
       await waitForResponse(page)
 
       const toolCalls = await getToolCalls(page)

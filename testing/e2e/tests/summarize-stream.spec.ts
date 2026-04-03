@@ -17,7 +17,7 @@ for (const provider of providers) {
 
       await submitSummarization(
         page,
-        'The Fender Stratocaster is a versatile electric guitar',
+        '[summarize] The Fender Stratocaster is a versatile electric guitar',
       )
       const result = await getSummarizationResult(page)
       expect(result.length).toBeGreaterThan(0)

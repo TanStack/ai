@@ -2,7 +2,7 @@
   "fixtures": [
     {
       "match": {
-        "userMessage": "check inventory and recommend a guitar as json",
+        "userMessage": "[agentic] check inventory and recommend",
         "sequenceIndex": 0
       },
       "response": {

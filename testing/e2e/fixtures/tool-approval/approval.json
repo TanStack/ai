@@ -2,7 +2,7 @@
   "fixtures": [
     {
       "match": {
-        "userMessage": "add the stratocaster to my cart",
+        "userMessage": "[approval] add the stratocaster to my cart",
         "sequenceIndex": 0
       },
       "response": {

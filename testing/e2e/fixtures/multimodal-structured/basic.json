@@ -1,7 +1,7 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "analyze this image as json" },
+      "match": { "userMessage": "[mmstruct] analyze this image" },
       "response": {
         "content": "{\"description\":\"A guitar shop with various instruments on display\",\"objects\":[\"guitar\",\"amplifier\",\"music stand\",\"wall hooks\"],\"mood\":\"warm and inviting\"}"
       }

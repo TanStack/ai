@@ -15,7 +15,7 @@ function createImageAdapter(provider: Provider) {
       createOpenaiImage('gpt-image-1', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
     gemini: () =>
       createGeminiImage('gemini-2.0-flash', DUMMY_KEY, {
-        baseURL: LLMOCK_BASE,
+        httpOptions: { baseUrl: LLMOCK_BASE },
       }),
     grok: () =>
       createGrokImage('grok-2-image', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),

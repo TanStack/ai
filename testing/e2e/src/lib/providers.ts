@@ -47,7 +47,7 @@ export function createTextAdapter(
     gemini: () =>
       createChatOptions({
         adapter: createGeminiChat(model as 'gemini-2.0-flash', DUMMY_KEY, {
-          baseURL: LLMOCK_BASE,
+          httpOptions: { baseUrl: LLMOCK_BASE },
         }),
       }),
     ollama: () =>
@@ -69,7 +69,7 @@ export function createTextAdapter(
     openrouter: () =>
       createChatOptions({
         adapter: createOpenRouterText(model as 'openai/gpt-4o', DUMMY_KEY, {
-          baseURL: LLMOCK_OPENAI,
+          serverURL: LLMOCK_OPENAI,
         }),
       }),
   }

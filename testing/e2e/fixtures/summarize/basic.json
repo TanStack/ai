@@ -2,7 +2,7 @@
   "fixtures": [
     {
       "match": {
-        "userMessage": "The Fender Stratocaster is a versatile electric guitar"
+        "userMessage": "[summarize] The Fender Stratocaster is a versatile electric guitar"
       },
       "response": {
         "content": "The Fender Stratocaster is a popular, versatile electric guitar suitable for multiple genres."

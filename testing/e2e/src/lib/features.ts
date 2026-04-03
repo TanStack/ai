@@ -1,14 +1,10 @@
 import type { Feature, Provider } from '@/lib/types'
-import type { StandardSchemaV1 } from '@standard-schema/spec'
 import { getGuitars, compareGuitars, addToCart } from '@/lib/tools'
-import { guitarRecommendationSchema, imageAnalysisSchema } from '@/lib/schemas'
 
 interface FeatureConfig {
   tools: Array<any>
   modelOptions: Record<string, any>
   modelOverrides?: Partial<Record<Provider, string>>
-  outputSchema?: StandardSchemaV1
-  stream?: boolean
   dedicatedRoute?: string
 }
 
@@ -20,7 +16,6 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'one-shot-text': {
     tools: [],
     modelOptions: {},
-    stream: false,
   },
   reasoning: {
     tools: [],
@@ -49,12 +44,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'structured-output': {
     tools: [],
     modelOptions: {},
-    outputSchema: guitarRecommendationSchema,
   },
   'agentic-structured': {
     tools: [getGuitars],
     modelOptions: {},
-    outputSchema: guitarRecommendationSchema,
   },
   'multimodal-image': {
     tools: [],
@@ -63,12 +56,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'multimodal-structured': {
     tools: [],
     modelOptions: {},
-    outputSchema: imageAnalysisSchema,
   },
   summarize: {
     tools: [],
     modelOptions: {},
-    stream: false,
     dedicatedRoute: '/api/summarize',
   },
   'summarize-stream': {

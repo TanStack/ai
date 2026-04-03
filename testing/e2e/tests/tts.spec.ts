@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test'
 import { isNotSupported, getAudioPlayer } from './helpers'
 import { providers } from './test-matrix'
 
+// llmock does not support TTS endpoints (/v1/audio/speech)
+test.skip()
+
 for (const provider of providers) {
   test.describe(`${provider} — tts`, () => {
     test('generates speech audio', async ({ page }) => {
