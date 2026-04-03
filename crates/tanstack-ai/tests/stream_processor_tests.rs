@@ -126,7 +126,7 @@ fn test_processor_with_batch_strategy() {
         role: "assistant".to_string(),
         model: None,
     });
-    assert!(r1.is_some()); // Start always passes through
+    assert_eq!(r1.len(), 1); // Start always passes through
 
     let r2 = processor.process_chunk(StreamChunk::TextMessageContent {
         timestamp: now(),
@@ -135,7 +135,7 @@ fn test_processor_with_batch_strategy() {
         content: None,
         model: None,
     });
-    assert!(r2.is_none()); // Batch: not enough chunks yet
+    assert!(r2.is_empty()); // Batch: not enough chunks yet
 
     let r3 = processor.process_chunk(StreamChunk::TextMessageContent {
         timestamp: now(),
@@ -144,7 +144,25 @@ fn test_processor_with_batch_strategy() {
         content: None,
         model: None,
     });
-    assert!(r3.is_some()); // Batch: reached 2 chunks
+    assert_eq!(r3.len(), 1); // Batch: reached 2 chunks
+
+    let r4 = processor.process_chunk(StreamChunk::TextMessageContent {
+        timestamp: now(),
+        message_id: "msg-1".to_string(),
+        delta: "c".to_string(),
+        content: None,
+        model: None,
+    });
+    assert!(r4.is_empty()); // Final chunk is still buffered
+
+    let r5 = processor.process_chunk(StreamChunk::TextMessageEnd {
+        timestamp: now(),
+        message_id: "msg-1".to_string(),
+        model: None,
+    });
+    assert_eq!(r5.len(), 2); // Flush buffered text, then emit end
+    assert!(matches!(r5[0], StreamChunk::TextMessageContent { .. }));
+    assert!(matches!(r5[1], StreamChunk::TextMessageEnd { .. }));
 }
 
 #[test]

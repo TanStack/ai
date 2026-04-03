@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 // ============================================================================
 // Tool Call States
@@ -56,8 +57,10 @@ pub struct JsonSchema {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "$ref")]
     pub r#ref: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "$defs")]
     pub defs: Option<HashMap<String, JsonSchema>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub all_of: Option<Vec<JsonSchema>>,
@@ -115,7 +118,7 @@ pub enum ContentPartSource {
 }
 
 /// Image content part.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ImagePart {
     #[serde(rename = "type")]
     pub part_type: &'static str, // always "image"
@@ -125,7 +128,7 @@ pub struct ImagePart {
 }
 
 /// Audio content part.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AudioPart {
     #[serde(rename = "type")]
     pub part_type: &'static str,
@@ -135,7 +138,7 @@ pub struct AudioPart {
 }
 
 /// Video content part.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct VideoPart {
     #[serde(rename = "type")]
     pub part_type: &'static str,
@@ -145,7 +148,7 @@ pub struct VideoPart {
 }
 
 /// Document content part (e.g., PDFs).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DocumentPart {
     #[serde(rename = "type")]
     pub part_type: &'static str,
@@ -663,9 +666,10 @@ pub struct AgentLoopState {
 }
 
 /// Strategy function that determines whether the agent loop should continue.
-pub type AgentLoopStrategy = Box<dyn Fn(&AgentLoopState) -> bool + Send + Sync>;
+pub type AgentLoopStrategy = Arc<dyn Fn(&AgentLoopState) -> bool + Send + Sync>;
 
 /// Options for text generation / chat.
+#[derive(Clone)]
 pub struct TextOptions {
     pub model: String,
     pub messages: Vec<ModelMessage>,
@@ -679,25 +683,6 @@ pub struct TextOptions {
     pub model_options: Option<serde_json::Value>,
     pub output_schema: Option<JsonSchema>,
     pub conversation_id: Option<String>,
-}
-
-impl Clone for TextOptions {
-    fn clone(&self) -> Self {
-        Self {
-            model: self.model.clone(),
-            messages: self.messages.clone(),
-            tools: self.tools.clone(),
-            system_prompts: self.system_prompts.clone(),
-            agent_loop_strategy: None, // Strategy functions cannot be cloned
-            temperature: self.temperature,
-            top_p: self.top_p,
-            max_tokens: self.max_tokens,
-            metadata: self.metadata.clone(),
-            model_options: self.model_options.clone(),
-            output_schema: self.output_schema.clone(),
-            conversation_id: self.conversation_id.clone(),
-        }
-    }
 }
 
 impl Default for TextOptions {
@@ -739,18 +724,18 @@ pub struct StructuredOutputResult {
 
 /// Continue for up to `max` iterations.
 pub fn max_iterations(max: u32) -> AgentLoopStrategy {
-    Box::new(move |state: &AgentLoopState| state.iteration_count < max)
+    Arc::new(move |state: &AgentLoopState| state.iteration_count < max)
 }
 
 /// Continue until a specific finish reason is received.
 pub fn until_finish_reason(reason: impl Into<String>) -> AgentLoopStrategy {
     let reason = reason.into();
-    Box::new(move |state: &AgentLoopState| state.finish_reason.as_ref() != Some(&reason))
+    Arc::new(move |state: &AgentLoopState| state.finish_reason.as_ref() != Some(&reason))
 }
 
 /// Combine multiple strategies with AND logic (all must return true).
 pub fn combine_strategies(strategies: Vec<AgentLoopStrategy>) -> AgentLoopStrategy {
-    Box::new(move |state: &AgentLoopState| strategies.iter().all(|s| s(state)))
+    Arc::new(move |state: &AgentLoopState| strategies.iter().all(|s| s(state)))
 }
 
 // ============================================================================

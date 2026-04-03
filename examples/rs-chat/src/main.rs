@@ -199,7 +199,9 @@ fn extract_text(chunks: &[StreamChunk]) -> String {
     let mut content = String::new();
     for chunk in chunks {
         if let StreamChunk::TextMessageContent {
-            delta, content: full, ..
+            delta,
+            content: full,
+            ..
         } = chunk
         {
             if let Some(f) = full {

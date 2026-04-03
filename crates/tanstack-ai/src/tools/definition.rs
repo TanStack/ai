@@ -99,7 +99,12 @@ pub fn tool_definition(name: impl Into<String>, description: impl Into<String>) 
     ToolDefinition::new(name, description)
 }
 
+/// Fallible helper to create a JSON Schema from a JSON value.
+pub fn try_json_schema(value: serde_json::Value) -> Result<JsonSchema, serde_json::Error> {
+    serde_json::from_value(value)
+}
+
 /// Helper to create a JSON Schema from a JSON value.
 pub fn json_schema(value: serde_json::Value) -> JsonSchema {
-    serde_json::from_value(value).unwrap_or_default()
+    try_json_schema(value).expect("invalid json schema value")
 }

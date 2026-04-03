@@ -69,10 +69,7 @@ pub use tools::*;
 pub use types::*;
 
 /// Convenience function to create a chat with an OpenAI model.
-pub fn openai_text(
-    model: impl Into<String>,
-    api_key: impl Into<String>,
-) -> OpenAiTextAdapter {
+pub fn openai_text(model: impl Into<String>, api_key: impl Into<String>) -> OpenAiTextAdapter {
     OpenAiTextAdapter::new(model, api_key)
 }
 
@@ -85,10 +82,7 @@ pub fn anthropic_text(
 }
 
 /// Convenience function to create a chat with a Gemini model.
-pub fn gemini_text(
-    model: impl Into<String>,
-    api_key: impl Into<String>,
-) -> GeminiTextAdapter {
+pub fn gemini_text(model: impl Into<String>, api_key: impl Into<String>) -> GeminiTextAdapter {
     GeminiTextAdapter::new(model, api_key)
 }
 
@@ -127,7 +121,7 @@ pub fn detect_image_mime_type(data: &[u8]) -> &'static str {
         "image/jpeg"
     } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
         "image/gif"
-    } else if data.starts_with(b"RIFF") && data.len() > 12 && &data[8..12] == b"WEBP" {
+    } else if data.starts_with(b"RIFF") && data.len() >= 12 && &data[8..12] == b"WEBP" {
         "image/webp"
     } else {
         "application/octet-stream"
@@ -145,6 +139,9 @@ mod tests {
 
         let jpeg_header = &[0xFF, 0xD8, 0xFF, 0xE0];
         assert_eq!(detect_image_mime_type(jpeg_header), "image/jpeg");
+
+        let webp_header = b"RIFF1234WEBP";
+        assert_eq!(detect_image_mime_type(webp_header), "image/webp");
     }
 
     #[test]

@@ -4,7 +4,9 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::collections::HashMap;
 
-use crate::adapter::{ChunkStream, TextAdapter, TextAdapterConfig};
+use crate::adapter::{
+    build_http_client, send_with_retries, ChunkStream, TextAdapter, TextAdapterConfig,
+};
 use crate::error::{AiError, AiResult};
 use crate::types::*;
 
@@ -16,6 +18,7 @@ pub struct AnthropicTextAdapter {
     model: String,
     base_url: String,
     client: Client,
+    max_retries: u32,
 }
 
 impl AnthropicTextAdapter {
@@ -26,6 +29,7 @@ impl AnthropicTextAdapter {
             model: model.into(),
             base_url: "https://api.anthropic.com".to_string(),
             client: Client::new(),
+            max_retries: 0,
         }
     }
 
@@ -35,18 +39,17 @@ impl AnthropicTextAdapter {
         api_key: impl Into<String>,
         config: TextAdapterConfig,
     ) -> Self {
+        let api_key = config.api_key.clone().unwrap_or_else(|| api_key.into());
         let mut adapter = Self::new(model, api_key);
+        adapter.client = build_http_client(&config);
+        adapter.max_retries = config.max_retries.unwrap_or(0);
         if let Some(base_url) = config.base_url {
             adapter.base_url = base_url;
         }
         adapter
     }
 
-    fn build_request_body(
-        &self,
-        options: &TextOptions,
-        stream: bool,
-    ) -> serde_json::Value {
+    fn build_request_body(&self, options: &TextOptions, stream: bool) -> serde_json::Value {
         let mut body = serde_json::Map::new();
 
         body.insert("model".to_string(), serde_json::json!(self.model));
@@ -66,7 +69,11 @@ impl AnthropicTextAdapter {
             .map(|msg| {
                 let mut m = serde_json::Map::new();
                 // Anthropic uses "user" for tool result messages
-                let role_str = if msg.role == MessageRole::Tool { "user" } else { msg.role.as_str() };
+                let role_str = if msg.role == MessageRole::Tool {
+                    "user"
+                } else {
+                    msg.role.as_str()
+                };
                 m.insert("role".to_string(), serde_json::json!(role_str));
 
                 if msg.role == MessageRole::Tool {
@@ -96,29 +103,27 @@ impl AnthropicTextAdapter {
                                 ContentPart::Text { content } => {
                                     serde_json::json!({"type": "text", "text": content})
                                 }
-                                ContentPart::Image { source } => {
-                                    match source {
-                                        ContentPartSource::Data { value, mime_type } => {
-                                            serde_json::json!({
-                                                "type": "image",
-                                                "source": {
-                                                    "type": "base64",
-                                                    "media_type": mime_type,
-                                                    "data": value
-                                                }
-                                            })
-                                        }
-                                        ContentPartSource::Url { value, .. } => {
-                                            serde_json::json!({
-                                                "type": "image",
-                                                "source": {
-                                                    "type": "url",
-                                                    "url": value
-                                                }
-                                            })
-                                        }
+                                ContentPart::Image { source } => match source {
+                                    ContentPartSource::Data { value, mime_type } => {
+                                        serde_json::json!({
+                                            "type": "image",
+                                            "source": {
+                                                "type": "base64",
+                                                "media_type": mime_type,
+                                                "data": value
+                                            }
+                                        })
                                     }
-                                }
+                                    ContentPartSource::Url { value, .. } => {
+                                        serde_json::json!({
+                                            "type": "image",
+                                            "source": {
+                                                "type": "url",
+                                                "url": value
+                                            }
+                                        })
+                                    }
+                                },
                                 _ => serde_json::json!({"type": "text", "text": ""}),
                             })
                             .collect();
@@ -150,10 +155,7 @@ impl AnthropicTextAdapter {
                                 }]),
                             );
                         } else {
-                            m.insert(
-                                "content".to_string(),
-                                serde_json::json!(""),
-                            );
+                            m.insert("content".to_string(), serde_json::json!(""));
                         }
                     }
                 }
@@ -212,10 +214,7 @@ enum AnthropicEvent {
         content_block: AnthropicContentBlock,
     },
     #[serde(rename = "content_block_delta")]
-    ContentBlockDelta {
-        index: usize,
-        delta: AnthropicDelta,
-    },
+    ContentBlockDelta { index: usize, delta: AnthropicDelta },
     #[serde(rename = "content_block_stop")]
     ContentBlockStop { index: usize },
     #[serde(rename = "message_delta")]
@@ -307,15 +306,16 @@ impl TextAdapter for AnthropicTextAdapter {
         let body = self.build_request_body(options, true);
         let url = format!("{}/v1/messages", self.base_url);
 
-        let response = self
-            .client
-            .post(&url)
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await?;
+        let response = send_with_retries(
+            self.client
+                .post(&url)
+                .header("x-api-key", &self.api_key)
+                .header("anthropic-version", "2023-06-01")
+                .header("Content-Type", "application/json")
+                .json(&body),
+            self.max_retries,
+        )
+        .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -357,15 +357,16 @@ impl TextAdapter for AnthropicTextAdapter {
 
         let url = format!("{}/v1/messages", self.base_url);
 
-        let response = self
-            .client
-            .post(&url)
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await?;
+        let response = send_with_retries(
+            self.client
+                .post(&url)
+                .header("x-api-key", &self.api_key)
+                .header("anthropic-version", "2023-06-01")
+                .header("Content-Type", "application/json")
+                .json(&body),
+            self.max_retries,
+        )
+        .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -475,17 +476,17 @@ where
                                                             }));
                                                         }
                                                         AnthropicDelta::InputJsonDelta { partial_json } => {
-                                                            let tool_call_id = tool_block_ids
-                                                                .get(&index)
-                                                                .cloned()
-                                                                .unwrap_or_else(|| format!("block-{}", index));
-                                                            chunks.push(Ok(StreamChunk::ToolCallArgs {
-                                                                timestamp: now,
-                                                                tool_call_id,
-                                                                delta: partial_json,
-                                                                args: None,
-                                                                model: model_str,
-                                                            }));
+                                                            if let Some(tool_call_id) = tool_block_ids.get(&index).cloned() {
+                                                                chunks.push(Ok(StreamChunk::ToolCallArgs {
+                                                                    timestamp: now,
+                                                                    tool_call_id,
+                                                                    delta: partial_json,
+                                                                    args: None,
+                                                                    model: model_str,
+                                                                }));
+                                                            } else {
+                                                                tracing::warn!(index, "missing anthropic tool_use id for input_json_delta");
+                                                            }
                                                         }
                                                         _ => {}
                                                     }
@@ -498,10 +499,10 @@ where
                                             }
                                         }
                                         Err(e) => {
-                                            eprintln!(
-                                                "Failed to parse Anthropic event: {} - {}",
-                                                e,
-                                                &data_str[..data_str.len().min(200)]
+                                            tracing::warn!(
+                                                error = %e,
+                                                data = %&data_str[..data_str.len().min(200)],
+                                                "failed to parse anthropic event"
                                             );
                                         }
                                     }
@@ -574,17 +575,17 @@ where
                                                         }));
                                                     }
                                                     AnthropicDelta::InputJsonDelta { partial_json } => {
-                                                        let tool_call_id = tool_block_ids
-                                                            .get(&index)
-                                                            .cloned()
-                                                            .unwrap_or_else(|| format!("block-{}", index));
-                                                        chunks.push(Ok(StreamChunk::ToolCallArgs {
-                                                            timestamp: now,
-                                                            tool_call_id,
-                                                            delta: partial_json,
-                                                            args: None,
-                                                            model: model_str,
-                                                        }));
+                                                        if let Some(tool_call_id) = tool_block_ids.get(&index).cloned() {
+                                                            chunks.push(Ok(StreamChunk::ToolCallArgs {
+                                                                timestamp: now,
+                                                                tool_call_id,
+                                                                delta: partial_json,
+                                                                args: None,
+                                                                model: model_str,
+                                                            }));
+                                                        } else {
+                                                            tracing::warn!(index, "missing anthropic tool_use id for input_json_delta");
+                                                        }
                                                     }
                                                     _ => {}
                                                 }
@@ -602,10 +603,10 @@ where
                                         ));
                                     }
                                     Err(e) => {
-                                        eprintln!(
-                                            "Failed to parse Anthropic event: {} - {}",
-                                            e,
-                                            &data_str[..data_str.len().min(200)]
+                                        tracing::warn!(
+                                            error = %e,
+                                            data = %&data_str[..data_str.len().min(200)],
+                                            "failed to parse anthropic event"
                                         );
                                     }
                                 }
@@ -627,38 +628,13 @@ fn convert_anthropic_event(event: AnthropicEvent, model: &str) -> Vec<StreamChun
 
     match event {
         AnthropicEvent::MessageStart { message } => {
-            vec![
-                StreamChunk::RunStarted {
-                    timestamp: now,
-                    run_id: message.id,
-                    thread_id: None,
-                    model: model_str,
-                },
-            ]
+            vec![StreamChunk::RunStarted {
+                timestamp: now,
+                run_id: message.id,
+                thread_id: None,
+                model: model_str,
+            }]
         }
-
-        AnthropicEvent::ContentBlockStart { index, content_block } => match content_block {
-            AnthropicContentBlock::Text { .. } => {
-                vec![StreamChunk::TextMessageStart {
-                    timestamp: now,
-                    message_id: format!("block-{}", index),
-                    role: "assistant".to_string(),
-                    model: model_str,
-                }]
-            }
-            AnthropicContentBlock::ToolUse { id, name, .. } => {
-                vec![StreamChunk::ToolCallStart {
-                    timestamp: now,
-                    tool_call_id: id,
-                    tool_name: name,
-                    parent_message_id: None,
-                    index: Some(index),
-                    provider_metadata: None,
-                    model: model_str,
-                }]
-            }
-            _ => vec![],
-        },
 
         AnthropicEvent::ContentBlockDelta { index, delta } => match delta {
             AnthropicDelta::TextDelta { text } => {
@@ -670,15 +646,7 @@ fn convert_anthropic_event(event: AnthropicEvent, model: &str) -> Vec<StreamChun
                     model: model_str,
                 }]
             }
-            AnthropicDelta::InputJsonDelta { partial_json } => {
-                vec![StreamChunk::ToolCallArgs {
-                    timestamp: now,
-                    tool_call_id: format!("block-{}", index),
-                    delta: partial_json,
-                    args: None,
-                    model: model_str,
-                }]
-            }
+            AnthropicDelta::InputJsonDelta { .. } => vec![],
             _ => vec![],
         },
 
@@ -767,12 +735,16 @@ mod tests {
         assert_eq!(chunks.len(), 2);
 
         match &chunks[0] {
-            Ok(StreamChunk::ToolCallStart { tool_call_id, .. }) => assert_eq!(tool_call_id, "toolu_123"),
+            Ok(StreamChunk::ToolCallStart { tool_call_id, .. }) => {
+                assert_eq!(tool_call_id, "toolu_123")
+            }
             other => panic!("unexpected chunk 0: {other:?}"),
         }
 
         match &chunks[1] {
-            Ok(StreamChunk::ToolCallArgs { tool_call_id, .. }) => assert_eq!(tool_call_id, "toolu_123"),
+            Ok(StreamChunk::ToolCallArgs { tool_call_id, .. }) => {
+                assert_eq!(tool_call_id, "toolu_123")
+            }
             other => panic!("unexpected chunk 1: {other:?}"),
         }
     }

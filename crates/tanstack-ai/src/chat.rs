@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::adapter::TextAdapter;
-use crate::error::AiResult;
+use crate::error::{AiError, AiResult};
 use crate::messages::generate_message_id;
 use crate::middleware::*;
 use crate::tools::tool_calls::*;
@@ -70,7 +70,9 @@ async fn run_non_streaming_text(options: ChatOptions) -> AiResult<ChatResult> {
     let mut content = String::new();
     for chunk in &chunks {
         if let StreamChunk::TextMessageContent {
-            delta, content: full, ..
+            delta,
+            content: full,
+            ..
         } = chunk
         {
             if let Some(full_content) = full {
@@ -89,7 +91,9 @@ async fn run_non_streaming_text(options: ChatOptions) -> AiResult<ChatResult> {
 /// 2. Once complete, call adapter.structured_output with the conversation context
 /// 3. Return the structured result
 async fn run_agentic_structured_output(options: ChatOptions) -> AiResult<ChatResult> {
-    let schema = options.output_schema.clone()
+    let schema = options
+        .output_schema
+        .clone()
         .expect("run_agentic_structured_output called without output_schema");
     let adapter = options.adapter.clone();
     let model_name = adapter.model().to_string();
@@ -115,6 +119,15 @@ async fn run_agentic_structured_output(options: ChatOptions) -> AiResult<ChatRes
     // Consume the agentic loop
     let _chunks = engine.run().await?;
 
+    if engine.last_finish_reason.as_deref() == Some("tool_calls")
+        || engine.tool_call_manager.has_tool_calls()
+    {
+        return Err(AiError::Other(
+            "agent loop did not reach a terminal assistant response before structured output"
+                .to_string(),
+        ));
+    }
+
     // Get final messages
     let final_messages = engine.messages.clone();
     let system_prompts = engine.system_prompts.clone();
@@ -128,11 +141,14 @@ async fn run_agentic_structured_output(options: ChatOptions) -> AiResult<ChatRes
             messages: final_messages,
             tools: Vec::new(),
             system_prompts,
+            agent_loop_strategy: Some(engine.loop_strategy.clone()),
             temperature,
             top_p,
             max_tokens,
+            metadata: engine.metadata.clone(),
+            model_options: engine.model_options.clone(),
             output_schema: Some(schema.clone()),
-            ..Default::default()
+            conversation_id: engine.conversation_id.clone(),
         },
         output_schema: schema,
     };
@@ -259,7 +275,9 @@ impl TextEngine {
 
             // Run onConfig middleware
             let config = self.build_middleware_config();
-            let transformed = self.middleware_runner.run_on_config(&middleware_ctx, config);
+            let transformed = self
+                .middleware_runner
+                .run_on_config(&middleware_ctx, config);
 
             // Build text options for this iteration from middleware-transformed config
             let text_options = self.build_text_options_from_config(&transformed);
@@ -287,6 +305,20 @@ impl TextEngine {
                             middleware_ctx.accumulated_content = accumulated_content.clone();
                             middleware_ctx.chunk_index += 1;
 
+                            if let StreamChunk::RunFinished {
+                                usage: Some(usage), ..
+                            } = &output_chunk
+                            {
+                                self.middleware_runner.run_on_usage(
+                                    &middleware_ctx,
+                                    &UsageInfo {
+                                        prompt_tokens: usage.prompt_tokens,
+                                        completion_tokens: usage.completion_tokens,
+                                        total_tokens: usage.total_tokens,
+                                    },
+                                );
+                            }
+
                             iteration_chunks.push(output_chunk);
                         }
                     }
@@ -302,6 +334,7 @@ impl TextEngine {
                 }
             }
 
+            let had_iteration_chunks = !iteration_chunks.is_empty();
             all_chunks.extend(iteration_chunks);
 
             // Check if we need to execute tools
@@ -312,29 +345,54 @@ impl TextEngine {
 
                 // Execute tools
                 let tool_calls = self.tool_call_manager.tool_calls();
-                let results = self.execute_tool_calls(&tool_calls).await?;
+                let execution = self.execute_tool_calls(&tool_calls).await?;
+
+                self.middleware_runner.run_on_tool_phase_complete(
+                    &middleware_ctx,
+                    &ToolPhaseCompleteInfo {
+                        tool_calls: tool_calls.clone(),
+                        results: execution
+                            .results
+                            .iter()
+                            .map(|result| ToolPhaseResultInfo {
+                                tool_call_id: result.tool_call_id.clone(),
+                                tool_name: result.tool_name.clone(),
+                                result: result.result.clone(),
+                                duration_ms: result.duration_ms,
+                            })
+                            .collect(),
+                        needs_approval: execution
+                            .needs_approval
+                            .iter()
+                            .map(|approval| ToolPhaseApprovalInfo {
+                                tool_call_id: approval.tool_call_id.clone(),
+                                tool_name: approval.tool_name.clone(),
+                                input: approval.input.clone(),
+                                approval_id: approval.approval_id.clone(),
+                            })
+                            .collect(),
+                        needs_client_execution: execution
+                            .needs_client_execution
+                            .iter()
+                            .map(|request| ToolPhaseClientInfo {
+                                tool_call_id: request.tool_call_id.clone(),
+                                tool_name: request.tool_name.clone(),
+                                input: request.input.clone(),
+                            })
+                            .collect(),
+                    },
+                );
 
                 middleware_ctx.phase = ChatMiddlewarePhase::AfterTools;
 
+                self.push_assistant_message(&accumulated_content, Some(tool_calls.clone()));
+
                 // Build tool result chunks and update messages
                 let tool_result_chunks =
-                    self.build_tool_result_chunks(&results, &message_id);
-
-                // Add assistant message with tool calls
-                self.messages.push(ModelMessage {
-                    role: MessageRole::Assistant,
-                    content: if accumulated_content.is_empty() {
-                        MessageContent::Null
-                    } else {
-                        MessageContent::Text(accumulated_content.clone())
-                    },
-                    name: None,
-                    tool_calls: Some(tool_calls),
-                    tool_call_id: None,
-                });
+                    self.build_tool_result_chunks(&execution.results, &message_id);
 
                 // Add tool result messages
-                for result in &results {
+                for result in &execution.results {
                     let content_str = serde_json::to_string(&result.result)
                         .unwrap_or_else(|_| result.result.to_string());
                     self.messages.push(ModelMessage {
@@ -348,6 +406,17 @@ impl TextEngine {
 
                 all_chunks.extend(tool_result_chunks);
 
+                if !execution.needs_approval.is_empty()
+                    || !execution.needs_client_execution.is_empty()
+                {
+                    all_chunks.extend(self.build_pending_tool_chunks(
+                        &execution.needs_approval,
+                        &execution.needs_client_execution,
+                    ));
+                    self.tool_call_manager.clear();
+                    break;
+                }
+
                 // Clear tool call manager for next iteration
                 self.tool_call_manager.clear();
                 self.iteration_count += 1;
@@ -360,12 +429,18 @@ impl TextEngine {
             // finish_reason is 'tool_calls' but no tool calls were accumulated —
             // the model may have more to say, continue the loop
             if self.last_finish_reason.as_deref() == Some("tool_calls") {
+                if had_iteration_chunks {
+                    self.push_assistant_message(&accumulated_content, None);
+                }
                 self.iteration_count += 1;
                 self.last_finish_reason = None;
                 continue;
             }
 
             // No tool calls or finish reason is not tool_calls — we're done
+            if had_iteration_chunks {
+                self.push_assistant_message(&accumulated_content, None);
+            }
             break;
         }
 
@@ -449,45 +524,21 @@ impl TextEngine {
     }
 
     /// Execute all pending tool calls.
-    async fn execute_tool_calls(&self, tool_calls: &[ToolCall]) -> AiResult<Vec<ToolResult>> {
+    async fn execute_tool_calls(
+        &self,
+        tool_calls: &[ToolCall],
+    ) -> AiResult<ExecuteToolCallsResult> {
         let approvals: HashMap<String, bool> = HashMap::new();
         let client_results: HashMap<String, serde_json::Value> = HashMap::new();
 
-        let result = crate::tools::tool_calls::execute_tool_calls(
+        crate::tools::tool_calls::execute_tool_calls(
             tool_calls,
             &self.tools,
             &approvals,
             &client_results,
             None,
         )
-        .await?;
-
-        // Combine server results with error results for client tools
-        let mut all_results = result.results;
-
-        // Handle tools that need client execution (mark as error for server-side)
-        for client_tool in result.needs_client_execution {
-            all_results.push(ToolResult {
-                tool_call_id: client_tool.tool_call_id,
-                tool_name: client_tool.tool_name,
-                result: serde_json::json!({"error": "Client-side tool execution not available"}),
-                state: ToolResultOutputState::Error,
-                duration_ms: None,
-            });
-        }
-
-        // Handle tools that need approval (mark as error)
-        for approval in result.needs_approval {
-            all_results.push(ToolResult {
-                tool_call_id: approval.tool_call_id,
-                tool_name: approval.tool_name,
-                result: serde_json::json!({"error": "Tool requires approval"}),
-                state: ToolResultOutputState::Error,
-                duration_ms: None,
-            });
-        }
-
-        Ok(all_results)
+        .await
     }
 
     /// Build TOOL_CALL_END chunks for tool results.
@@ -515,6 +566,63 @@ impl TextEngine {
             .collect()
     }
 
+    fn build_pending_tool_chunks(
+        &self,
+        approvals: &[ApprovalRequest],
+        client_requests: &[ClientToolRequest],
+    ) -> Vec<StreamChunk> {
+        let now = chrono::Utc::now().timestamp_millis() as f64 / 1000.0;
+        let model = Some(self.adapter.model().to_string());
+        let mut chunks = Vec::new();
+
+        for approval in approvals {
+            chunks.push(StreamChunk::Custom {
+                timestamp: now,
+                name: "tool-approval-required".to_string(),
+                value: Some(serde_json::json!({
+                    "toolCallId": approval.tool_call_id,
+                    "toolName": approval.tool_name,
+                    "input": approval.input,
+                    "approvalId": approval.approval_id,
+                })),
+                model: model.clone(),
+            });
+        }
+
+        for request in client_requests {
+            chunks.push(StreamChunk::Custom {
+                timestamp: now,
+                name: "tool-client-execution-required".to_string(),
+                value: Some(serde_json::json!({
+                    "toolCallId": request.tool_call_id,
+                    "toolName": request.tool_name,
+                    "input": request.input,
+                })),
+                model: model.clone(),
+            });
+        }
+
+        chunks
+    }
+
+    fn push_assistant_message(
+        &mut self,
+        accumulated_content: &str,
+        tool_calls: Option<Vec<ToolCall>>,
+    ) {
+        self.messages.push(ModelMessage {
+            role: MessageRole::Assistant,
+            content: if accumulated_content.is_empty() {
+                MessageContent::Null
+            } else {
+                MessageContent::Text(accumulated_content.to_string())
+            },
+            name: None,
+            tool_calls,
+            tool_call_id: None,
+        });
+    }
+
     /// Get accumulated content from the last text message.
     pub fn content(&self) -> String {
         self.messages
@@ -532,7 +640,9 @@ fn accumulated_content_from_chunks(chunks: &[StreamChunk]) -> String {
     let mut content = String::new();
     for chunk in chunks {
         if let StreamChunk::TextMessageContent {
-            delta, content: full, ..
+            delta,
+            content: full,
+            ..
         } = chunk
         {
             if let Some(full_content) = full {

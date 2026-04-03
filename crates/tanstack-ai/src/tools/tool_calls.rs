@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use crate::error::{AiError, AiResult};
 use crate::types::*;
+use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 /// Result of a tool execution.
@@ -45,23 +45,18 @@ pub struct ExecuteToolCallsResult {
     pub needs_client_execution: Vec<ClientToolRequest>,
 }
 
-/// Custom event emitted during tool execution.
-#[derive(Debug, Clone)]
-pub struct ToolCustomEvent {
-    pub name: String,
-    pub value: serde_json::Value,
-}
-
 /// Manages tool call accumulation and execution for the chat engine.
 #[derive(Debug, Default)]
 pub struct ToolCallManager {
     tool_calls: HashMap<String, ToolCall>,
+    tool_call_order: Vec<String>,
 }
 
 impl ToolCallManager {
     pub fn new() -> Self {
         Self {
             tool_calls: HashMap::new(),
+            tool_call_order: Vec::new(),
         }
     }
 
@@ -75,6 +70,9 @@ impl ToolCallManager {
             ..
         } = event
         {
+            if !self.tool_calls.contains_key(tool_call_id) {
+                self.tool_call_order.push(tool_call_id.clone());
+            }
             self.tool_calls.insert(
                 tool_call_id.clone(),
                 ToolCall {
@@ -92,7 +90,12 @@ impl ToolCallManager {
 
     /// Add a TOOL_CALL_ARGS event to accumulate arguments.
     pub fn add_args_event(&mut self, event: &StreamChunk) {
-        if let StreamChunk::ToolCallArgs { tool_call_id, delta, .. } = event {
+        if let StreamChunk::ToolCallArgs {
+            tool_call_id,
+            delta,
+            ..
+        } = event
+        {
             if let Some(tc) = self.tool_calls.get_mut(tool_call_id) {
                 tc.function.arguments.push_str(delta);
             }
@@ -101,11 +104,15 @@ impl ToolCallManager {
 
     /// Complete a tool call with its final input.
     pub fn complete_tool_call(&mut self, event: &StreamChunk) {
-        if let StreamChunk::ToolCallEnd { tool_call_id, input, .. } = event {
+        if let StreamChunk::ToolCallEnd {
+            tool_call_id,
+            input,
+            ..
+        } = event
+        {
             if let Some(tc) = self.tool_calls.get_mut(tool_call_id) {
                 if let Some(final_input) = input {
-                    tc.function.arguments =
-                        serde_json::to_string(final_input).unwrap_or_default();
+                    tc.function.arguments = serde_json::to_string(final_input).unwrap_or_default();
                 }
             }
         }
@@ -120,8 +127,9 @@ impl ToolCallManager {
 
     /// Get all tool calls as a Vec.
     pub fn tool_calls(&self) -> Vec<ToolCall> {
-        self.tool_calls
-            .values()
+        self.tool_call_order
+            .iter()
+            .filter_map(|tool_call_id| self.tool_calls.get(tool_call_id))
             .filter(|tc| !tc.id.is_empty() && !tc.function.name.trim().is_empty())
             .cloned()
             .collect()
@@ -130,6 +138,7 @@ impl ToolCallManager {
     /// Clear all tool calls for the next iteration.
     pub fn clear(&mut self) {
         self.tool_calls.clear();
+        self.tool_call_order.clear();
     }
 }
 
@@ -141,7 +150,7 @@ pub async fn execute_tool_calls(
     tools: &[Tool],
     approvals: &HashMap<String, bool>,
     client_results: &HashMap<String, serde_json::Value>,
-    event_tx: Option<mpsc::UnboundedSender<ToolCustomEvent>>,
+    event_tx: Option<mpsc::UnboundedSender<CustomEventData>>,
 ) -> AiResult<ExecuteToolCallsResult> {
     let mut results = Vec::new();
     let mut needs_approval = Vec::new();
@@ -262,14 +271,7 @@ pub async fn execute_tool_calls(
             let approval_id = format!("approval_{}", tool_call.id);
             if let Some(&approved) = approvals.get(&approval_id) {
                 if approved {
-                    execute_server_tool(
-                        tool_call,
-                        tool,
-                        input,
-                        &event_tx,
-                        &mut results,
-                    )
-                    .await?;
+                    execute_server_tool(tool_call, tool, input, &event_tx, &mut results).await?;
                 } else {
                     results.push(ToolResult {
                         tool_call_id: tool_call.id.clone(),
@@ -305,14 +307,14 @@ async fn execute_server_tool(
     tool_call: &ToolCall,
     tool: &Tool,
     input: serde_json::Value,
-    event_tx: &Option<mpsc::UnboundedSender<ToolCustomEvent>>,
+    event_tx: &Option<mpsc::UnboundedSender<CustomEventData>>,
     results: &mut Vec<ToolResult>,
 ) -> AiResult<()> {
     let start = std::time::Instant::now();
 
     let ctx = ToolExecutionContext {
         tool_call_id: Some(tool_call.id.clone()),
-        custom_event_tx: None, // TODO: wire up custom event channel
+        custom_event_tx: event_tx.clone(),
     };
 
     let execute_fn = tool.execute.as_ref().unwrap();
@@ -323,13 +325,14 @@ async fn execute_server_tool(
 
             // Emit custom event if channel is available
             if let Some(tx) = event_tx {
-                let _ = tx.send(ToolCustomEvent {
+                let _ = tx.send(CustomEventData {
                     name: "tool-result".to_string(),
                     value: serde_json::json!({
                         "toolCallId": tool_call.id,
                         "toolName": tool.name,
                         "result": result,
                     }),
+                    tool_call_id: Some(tool_call.id.clone()),
                 });
             }
 

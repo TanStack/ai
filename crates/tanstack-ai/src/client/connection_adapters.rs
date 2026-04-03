@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio_util::sync::CancellationToken;
 
 use crate::error::{AiError, AiResult};
 use crate::stream::StreamProcessor;
@@ -14,12 +15,22 @@ use crate::types::*;
 /// Connection type for the chat client.
 pub enum ConnectionAdapter {
     /// Server-Sent Events via fetch.
-    ServerSentEvents { url: String, headers: HashMap<String, String> },
+    ServerSentEvents {
+        url: String,
+        headers: HashMap<String, String>,
+    },
     /// HTTP streaming.
-    HttpStream { url: String, headers: HashMap<String, String> },
+    HttpStream {
+        url: String,
+        headers: HashMap<String, String>,
+    },
     /// Custom stream provider.
     Custom {
-        provider: Box<dyn Fn(Vec<ModelMessage>) -> Pin<Box<dyn Stream<Item = AiResult<StreamChunk>> + Send>> + Send + Sync>,
+        provider: Box<
+            dyn Fn(Vec<ModelMessage>) -> Pin<Box<dyn Stream<Item = AiResult<StreamChunk>> + Send>>
+                + Send
+                + Sync,
+        >,
     },
 }
 
@@ -53,7 +64,7 @@ impl Default for ChatState {
 pub struct ChatClient {
     state: Arc<RwLock<ChatState>>,
     connection: ConnectionAdapter,
-    processor: Arc<Mutex<StreamProcessor>>,
+    active_cancellation: Arc<Mutex<Option<CancellationToken>>>,
     next_subscription_id: Arc<Mutex<SubscriptionId>>,
     subscribers: Arc<RwLock<HashMap<SubscriptionId, broadcast::Sender<ChatState>>>>,
     client: Client,
@@ -65,7 +76,7 @@ impl ChatClient {
         Self {
             state: Arc::new(RwLock::new(ChatState::default())),
             connection,
-            processor: Arc::new(Mutex::new(StreamProcessor::new())),
+            active_cancellation: Arc::new(Mutex::new(None)),
             next_subscription_id: Arc::new(Mutex::new(0)),
             subscribers: Arc::new(RwLock::new(HashMap::new())),
             client: Client::new(),
@@ -104,11 +115,20 @@ impl ChatClient {
                 }],
                 created_at: Some(chrono::Utc::now()),
             });
+            state.accumulated_content.clear();
             state.is_loading = true;
             state.error = None;
         }
 
         self.notify_subscribers().await;
+
+        let cancel_token = CancellationToken::new();
+        {
+            let mut active_cancellation = self.active_cancellation.lock().await;
+            if let Some(existing) = active_cancellation.replace(cancel_token.clone()) {
+                existing.cancel();
+            }
+        }
 
         // Build messages for the provider
         let messages = {
@@ -119,31 +139,41 @@ impl ChatClient {
         // Stream the response
         match &self.connection {
             ConnectionAdapter::ServerSentEvents { url, headers } => {
-                self.stream_via_sse(url, headers, messages).await
+                self.stream_via_sse(url, headers, messages, cancel_token.clone())
+                    .await
             }
             ConnectionAdapter::HttpStream { url, headers } => {
-                self.stream_via_http(url, headers, messages).await
+                self.stream_via_http(url, headers, messages, cancel_token.clone())
+                    .await
             }
             ConnectionAdapter::Custom { provider } => {
                 let mut stream = provider(messages);
-                self.process_stream(&mut stream).await
+                self.process_stream(&mut stream, cancel_token).await
             }
         }
     }
 
     /// Stop the current generation.
     pub async fn stop(&self) {
-        let mut state = self.state.write().await;
-        state.is_loading = false;
+        if let Some(cancel_token) = self.active_cancellation.lock().await.take() {
+            cancel_token.cancel();
+        }
+        {
+            let mut state = self.state.write().await;
+            state.is_loading = false;
+        }
         self.notify_subscribers().await;
     }
 
     /// Clear all messages.
     pub async fn clear(&self) {
-        let mut state = self.state.write().await;
-        state.messages.clear();
-        state.accumulated_content.clear();
-        state.error = None;
+        {
+            let mut state = self.state.write().await;
+            state.messages.clear();
+            state.accumulated_content.clear();
+            state.is_loading = false;
+            state.error = None;
+        }
         self.notify_subscribers().await;
     }
 
@@ -152,6 +182,7 @@ impl ChatClient {
         url: &str,
         headers: &HashMap<String, String>,
         messages: Vec<ModelMessage>,
+        cancel_token: CancellationToken,
     ) -> AiResult<()> {
         let body = serde_json::json!({ "messages": messages });
 
@@ -160,13 +191,28 @@ impl ChatClient {
             request = request.header(key.as_str(), value.as_str());
         }
 
-        let response = request.send().await?;
+        let response = match request.send().await {
+            Ok(response) => response,
+            Err(error) => {
+                {
+                    let mut state = self.state.write().await;
+                    state.is_loading = false;
+                    state.error = Some(error.to_string());
+                }
+                self.clear_active_cancellation().await;
+                self.notify_subscribers().await;
+                return Err(AiError::Http(error));
+            }
+        };
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
-            let mut state = self.state.write().await;
-            state.is_loading = false;
-            state.error = Some(format!("HTTP {}: {}", status, text));
+            {
+                let mut state = self.state.write().await;
+                state.is_loading = false;
+                state.error = Some(format!("HTTP {}: {}", status, text));
+            }
+            self.clear_active_cancellation().await;
             self.notify_subscribers().await;
             return Err(AiError::Provider(format!("HTTP {}: {}", status, text)));
         }
@@ -177,7 +223,7 @@ impl ChatClient {
         let chunk_stream = parse_sse_to_chunks(byte_stream);
         futures_util::pin_mut!(chunk_stream);
 
-        self.process_stream(&mut chunk_stream).await
+        self.process_stream(&mut chunk_stream, cancel_token).await
     }
 
     async fn stream_via_http(
@@ -185,6 +231,7 @@ impl ChatClient {
         url: &str,
         headers: &HashMap<String, String>,
         messages: Vec<ModelMessage>,
+        cancel_token: CancellationToken,
     ) -> AiResult<()> {
         let body = serde_json::json!({ "messages": messages });
 
@@ -193,10 +240,29 @@ impl ChatClient {
             request = request.header(key.as_str(), value.as_str());
         }
 
-        let response = request.send().await?;
+        let response = match request.send().await {
+            Ok(response) => response,
+            Err(error) => {
+                {
+                    let mut state = self.state.write().await;
+                    state.is_loading = false;
+                    state.error = Some(error.to_string());
+                }
+                self.clear_active_cancellation().await;
+                self.notify_subscribers().await;
+                return Err(AiError::Http(error));
+            }
+        };
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
+            {
+                let mut state = self.state.write().await;
+                state.is_loading = false;
+                state.error = Some(format!("HTTP {}: {}", status, text));
+            }
+            self.clear_active_cancellation().await;
+            self.notify_subscribers().await;
             return Err(AiError::Provider(format!("HTTP {}: {}", status, text)));
         }
 
@@ -206,133 +272,189 @@ impl ChatClient {
         let chunk_stream = parse_ndjson_to_chunks(byte_stream);
         futures_util::pin_mut!(chunk_stream);
 
-        self.process_stream(&mut chunk_stream).await
+        self.process_stream(&mut chunk_stream, cancel_token).await
     }
 
-    async fn process_stream(&self, stream: &mut Pin<Box<dyn Stream<Item = AiResult<StreamChunk>> + Send>>) -> AiResult<()>
-    {
-        let mut processor = self.processor.lock().await;
+    async fn process_stream(
+        &self,
+        stream: &mut Pin<Box<dyn Stream<Item = AiResult<StreamChunk>> + Send>>,
+        cancel_token: CancellationToken,
+    ) -> AiResult<()> {
+        let mut processor = StreamProcessor::new();
 
-        while let Some(result) = stream.next().await {
-            match result {
-                Ok(chunk) => {
-                    if let Some(processed) = processor.process_chunk(chunk) {
-                        self.apply_chunk(&processed).await;
+        loop {
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    {
+                        let mut state = self.state.write().await;
+                        state.is_loading = false;
                     }
-                }
-                Err(e) => {
-                    let mut state = self.state.write().await;
-                    state.is_loading = false;
-                    state.error = Some(e.to_string());
+                    self.clear_active_cancellation().await;
                     self.notify_subscribers().await;
-                    return Err(e);
+                    return Err(AiError::Aborted("generation stopped".to_string()));
+                }
+                result = stream.next() => {
+                    match result {
+                        Some(Ok(chunk)) => {
+                            for processed in processor.process_chunk(chunk) {
+                                self.apply_chunk(&processed).await;
+                            }
+                        }
+                        Some(Err(e)) => {
+                            {
+                                let mut state = self.state.write().await;
+                                state.is_loading = false;
+                                state.error = Some(e.to_string());
+                            }
+                            self.clear_active_cancellation().await;
+                            self.notify_subscribers().await;
+                            return Err(e);
+                        }
+                        None => break,
+                    }
                 }
             }
         }
 
-        let mut state = self.state.write().await;
-        state.is_loading = false;
+        {
+            let mut state = self.state.write().await;
+            state.is_loading = false;
+        }
+        self.clear_active_cancellation().await;
         self.notify_subscribers().await;
 
         Ok(())
     }
 
     async fn apply_chunk(&self, chunk: &StreamChunk) {
-        let mut state = self.state.write().await;
+        {
+            let mut state = self.state.write().await;
 
-        match chunk {
-            StreamChunk::TextMessageContent { delta, content, .. } => {
-                if let Some(full) = content {
-                    state.accumulated_content = full.clone();
-                } else {
-                    state.accumulated_content.push_str(delta);
-                }
-
-                // Update or create the assistant message
-                let new_content = state.accumulated_content.clone();
-                if let Some(last) = state.messages.last_mut() {
-                    if last.role == UiMessageRole::Assistant {
-                        if let Some(MessagePart::Text { content, .. }) = last.parts.last_mut() {
-                            *content = new_content;
-                        }
+            match chunk {
+                StreamChunk::TextMessageContent { delta, content, .. } => {
+                    if let Some(full) = content {
+                        state.accumulated_content = full.clone();
+                    } else {
+                        state.accumulated_content.push_str(delta);
                     }
-                }
-            }
 
-            StreamChunk::TextMessageStart { role, .. } => {
-                let ui_role = match role.as_str() {
-                    "system" => UiMessageRole::System,
-                    "assistant" => UiMessageRole::Assistant,
-                    _ => UiMessageRole::Assistant,
-                };
-                state.messages.push(UiMessage {
-                    id: generate_message_id("msg"),
-                    role: ui_role,
-                    parts: vec![MessagePart::Text {
-                        content: String::new(),
-                        metadata: None,
-                    }],
-                    created_at: Some(chrono::Utc::now()),
-                });
-            }
-
-            StreamChunk::ToolCallStart { tool_call_id, tool_name, .. } => {
-                if let Some(last) = state.messages.last_mut() {
-                    if last.role == UiMessageRole::Assistant {
-                        last.parts.push(MessagePart::ToolCall {
-                            id: tool_call_id.clone(),
-                            name: tool_name.clone(),
-                            arguments: String::new(),
-                            state: ToolCallState::AwaitingInput,
-                            approval: None,
-                            output: None,
-                        });
-                    }
-                }
-            }
-
-            StreamChunk::ToolCallArgs { tool_call_id, delta, .. } => {
-                if let Some(last) = state.messages.last_mut() {
-                    for part in &mut last.parts {
-                        if let MessagePart::ToolCall { id, arguments, state: tc_state, .. } = part {
-                            if id == tool_call_id {
-                                arguments.push_str(delta);
-                                *tc_state = ToolCallState::InputStreaming;
-                                break;
+                    let new_content = state.accumulated_content.clone();
+                    if let Some(last) = state.messages.last_mut() {
+                        if last.role == UiMessageRole::Assistant {
+                            if let Some(MessagePart::Text { content, .. }) = last.parts.last_mut() {
+                                *content = new_content;
                             }
                         }
                     }
                 }
-            }
 
-            StreamChunk::ToolCallEnd { tool_call_id, input, result, .. } => {
-                if let Some(last) = state.messages.last_mut() {
-                    for part in &mut last.parts {
-                        if let MessagePart::ToolCall { id, state: tc_state, arguments, output, .. } = part {
-                            if id == tool_call_id {
-                                *tc_state = ToolCallState::InputComplete;
-                                if let Some(input_val) = input {
-                                    *arguments = serde_json::to_string(input_val).unwrap_or_default();
+                StreamChunk::TextMessageStart { role, .. } => {
+                    let ui_role = match role.as_str() {
+                        "system" => UiMessageRole::System,
+                        "assistant" => UiMessageRole::Assistant,
+                        _ => UiMessageRole::Assistant,
+                    };
+                    state.accumulated_content.clear();
+                    state.messages.push(UiMessage {
+                        id: generate_message_id("msg"),
+                        role: ui_role,
+                        parts: vec![MessagePart::Text {
+                            content: String::new(),
+                            metadata: None,
+                        }],
+                        created_at: Some(chrono::Utc::now()),
+                    });
+                }
+
+                StreamChunk::ToolCallStart {
+                    tool_call_id,
+                    tool_name,
+                    ..
+                } => {
+                    if let Some(last) = state.messages.last_mut() {
+                        if last.role == UiMessageRole::Assistant {
+                            last.parts.push(MessagePart::ToolCall {
+                                id: tool_call_id.clone(),
+                                name: tool_name.clone(),
+                                arguments: String::new(),
+                                state: ToolCallState::AwaitingInput,
+                                approval: None,
+                                output: None,
+                            });
+                        }
+                    }
+                }
+
+                StreamChunk::ToolCallArgs {
+                    tool_call_id,
+                    delta,
+                    ..
+                } => {
+                    if let Some(last) = state.messages.last_mut() {
+                        for part in &mut last.parts {
+                            if let MessagePart::ToolCall {
+                                id,
+                                arguments,
+                                state: tc_state,
+                                ..
+                            } = part
+                            {
+                                if id == tool_call_id {
+                                    arguments.push_str(delta);
+                                    *tc_state = ToolCallState::InputStreaming;
+                                    break;
                                 }
-                                if let Some(result_str) = result {
-                                    *output = serde_json::from_str(result_str).ok();
-                                }
-                                break;
                             }
                         }
                     }
                 }
-            }
 
-            StreamChunk::RunError { error, .. } => {
-                state.is_loading = false;
-                state.error = Some(error.message.clone());
-            }
+                StreamChunk::ToolCallEnd {
+                    tool_call_id,
+                    input,
+                    result,
+                    ..
+                } => {
+                    if let Some(last) = state.messages.last_mut() {
+                        for part in &mut last.parts {
+                            if let MessagePart::ToolCall {
+                                id,
+                                state: tc_state,
+                                arguments,
+                                output,
+                                ..
+                            } = part
+                            {
+                                if id == tool_call_id {
+                                    *tc_state = ToolCallState::InputComplete;
+                                    if let Some(input_val) = input {
+                                        *arguments =
+                                            serde_json::to_string(input_val).unwrap_or_default();
+                                    }
+                                    if let Some(result_str) = result {
+                                        *output = serde_json::from_str(result_str).ok();
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
 
-            _ => {}
+                StreamChunk::RunError { error, .. } => {
+                    state.is_loading = false;
+                    state.error = Some(error.message.clone());
+                }
+
+                _ => {}
+            }
         }
 
         self.notify_subscribers().await;
+    }
+
+    async fn clear_active_cancellation(&self) {
+        self.active_cancellation.lock().await.take();
     }
 
     async fn notify_subscribers(&self) {
@@ -368,9 +490,7 @@ fn generate_message_id(prefix: &str) -> String {
 }
 
 /// Parse SSE byte stream into StreamChunk events.
-fn parse_sse_to_chunks<S>(
-    stream: S,
-) -> Pin<Box<dyn Stream<Item = AiResult<StreamChunk>> + Send>>
+fn parse_sse_to_chunks<S>(stream: S) -> Pin<Box<dyn Stream<Item = AiResult<StreamChunk>> + Send>>
 where
     S: Stream<Item = Result<Bytes, reqwest::Error>> + Send + 'static,
 {
@@ -435,11 +555,14 @@ where
                             if data_str == "[DONE]" {
                                 return None;
                             }
-                            let parsed = serde_json::from_str::<StreamChunk>(data_str)
-                                .map_err(|e| {
+                            let parsed =
+                                serde_json::from_str::<StreamChunk>(data_str).map_err(|e| {
                                     AiError::Stream(format!("Failed to parse SSE chunk: {}", e))
                                 });
-                            return Some((futures_util::stream::iter(vec![parsed]), (stream, String::new())));
+                            return Some((
+                                futures_util::stream::iter(vec![parsed]),
+                                (stream, String::new()),
+                            ));
                         }
 
                         return Some((
@@ -458,9 +581,7 @@ where
 }
 
 /// Parse NDJSON byte stream into StreamChunk events.
-fn parse_ndjson_to_chunks<S>(
-    stream: S,
-) -> Pin<Box<dyn Stream<Item = AiResult<StreamChunk>> + Send>>
+fn parse_ndjson_to_chunks<S>(stream: S) -> Pin<Box<dyn Stream<Item = AiResult<StreamChunk>> + Send>>
 where
     S: Stream<Item = Result<Bytes, reqwest::Error>> + Send + 'static,
 {
@@ -516,9 +637,13 @@ where
                             return None;
                         }
 
-                        let parsed = serde_json::from_str::<StreamChunk>(line)
-                            .map_err(|e| AiError::Stream(format!("Failed to parse NDJSON chunk: {}", e)));
-                        return Some((futures_util::stream::iter(vec![parsed]), (stream, String::new())));
+                        let parsed = serde_json::from_str::<StreamChunk>(line).map_err(|e| {
+                            AiError::Stream(format!("Failed to parse NDJSON chunk: {}", e))
+                        });
+                        return Some((
+                            futures_util::stream::iter(vec![parsed]),
+                            (stream, String::new()),
+                        ));
                     }
                 }
             }
@@ -576,7 +701,11 @@ mod tests {
         assert_eq!(parsed.len(), 1);
 
         match &parsed[0] {
-            Ok(StreamChunk::RunFinished { run_id, finish_reason, .. }) => {
+            Ok(StreamChunk::RunFinished {
+                run_id,
+                finish_reason,
+                ..
+            }) => {
                 assert_eq!(run_id, "run_2");
                 assert_eq!(finish_reason.as_deref(), Some("stop"));
             }

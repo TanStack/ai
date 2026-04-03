@@ -51,8 +51,8 @@ impl StreamProcessor {
 
     /// Process a single stream chunk, updating internal state.
     ///
-    /// Returns the processed chunk if it should be emitted to the UI.
-    pub fn process_chunk(&mut self, chunk: StreamChunk) -> Option<StreamChunk> {
+    /// Returns the processed chunks that should be emitted to the UI.
+    pub fn process_chunk(&mut self, chunk: StreamChunk) -> Vec<StreamChunk> {
         if self.recording_enabled {
             self.recordings.push(RecordedChunk {
                 chunk: chunk.clone(),
@@ -67,7 +67,7 @@ impl StreamProcessor {
             } => {
                 let state = MessageStreamState::new(message_id.clone(), role.clone());
                 self.current_message = Some(state);
-                Some(chunk)
+                vec![chunk]
             }
 
             StreamChunk::TextMessageContent {
@@ -90,19 +90,31 @@ impl StreamProcessor {
                     {
                         msg.last_emitted_text = msg.total_text_content.clone();
                         msg.current_segment_text.clear();
-                        Some(chunk)
+                        vec![chunk]
                     } else {
-                        None
+                        Vec::new()
                     }
                 } else {
-                    Some(chunk)
+                    vec![chunk]
                 }
             }
 
-            StreamChunk::TextMessageEnd { .. } => {
+            StreamChunk::TextMessageEnd {
+                timestamp,
+                message_id,
+                model,
+            } => {
+                let mut emitted_chunks = Vec::new();
+
                 if let Some(msg) = &mut self.current_message {
-                    // Flush any remaining text that wasn't emitted
                     if !msg.current_segment_text.is_empty() {
+                        emitted_chunks.push(StreamChunk::TextMessageContent {
+                            timestamp: *timestamp,
+                            message_id: message_id.clone(),
+                            delta: msg.current_segment_text.clone(),
+                            content: Some(msg.total_text_content.clone()),
+                            model: model.clone(),
+                        });
                         msg.last_emitted_text = msg.total_text_content.clone();
                         msg.current_segment_text.clear();
                     }
@@ -112,7 +124,8 @@ impl StreamProcessor {
                     }
                 }
                 self.chunk_strategy.reset();
-                Some(chunk)
+                emitted_chunks.push(chunk);
+                emitted_chunks
             }
 
             StreamChunk::ToolCallStart {
@@ -138,7 +151,7 @@ impl StreamProcessor {
                     msg.tool_call_order.push(tool_call_id.clone());
                     msg.has_tool_calls_since_text_start = true;
                 }
-                Some(chunk)
+                vec![chunk]
             }
 
             StreamChunk::ToolCallArgs {
@@ -154,7 +167,7 @@ impl StreamProcessor {
                             crate::stream::json_parser::parse_partial_json(&tc.arguments);
                     }
                 }
-                Some(chunk)
+                vec![chunk]
             }
 
             StreamChunk::ToolCallEnd {
@@ -171,10 +184,10 @@ impl StreamProcessor {
                         tc.state = ToolCallState::InputComplete;
                     }
                 }
-                Some(chunk)
+                vec![chunk]
             }
 
-            StreamChunk::StepStarted { .. } => Some(chunk),
+            StreamChunk::StepStarted { .. } => vec![chunk],
             StreamChunk::StepFinished {
                 step_id: _step_id,
                 delta,
@@ -188,14 +201,14 @@ impl StreamProcessor {
                         msg.thinking_content.push_str(delta);
                     }
                 }
-                Some(chunk)
+                vec![chunk]
             }
 
-            StreamChunk::RunFinished { .. } => Some(chunk),
-            StreamChunk::RunError { .. } => Some(chunk),
+            StreamChunk::RunFinished { .. } => vec![chunk],
+            StreamChunk::RunError { .. } => vec![chunk],
 
             // Pass through other events unchanged
-            _ => Some(chunk),
+            _ => vec![chunk],
         }
     }
 

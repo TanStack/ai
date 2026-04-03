@@ -19,9 +19,8 @@ pub fn parse_partial_json(json_string: &str) -> Option<serde_json::Value> {
     let trimmed = json_string.trim();
     let mut attempt = trimmed.to_string();
 
-    // Count open/close brackets and braces to determine what to close
-    let mut brace_depth: i32 = 0;
-    let mut bracket_depth: i32 = 0;
+    // Track opener order so incomplete nested structures close correctly.
+    let mut open_stack = Vec::new();
     let mut in_string = false;
     let mut escape_next = false;
 
@@ -42,10 +41,17 @@ pub fn parse_partial_json(json_string: &str) -> Option<serde_json::Value> {
             continue;
         }
         match ch {
-            '{' => brace_depth += 1,
-            '}' => brace_depth -= 1,
-            '[' => bracket_depth += 1,
-            ']' => bracket_depth -= 1,
+            '{' | '[' => open_stack.push(ch),
+            '}' => {
+                if matches!(open_stack.last(), Some('{')) {
+                    open_stack.pop();
+                }
+            }
+            ']' => {
+                if matches!(open_stack.last(), Some('[')) {
+                    open_stack.pop();
+                }
+            }
             _ => {}
         }
     }
@@ -55,12 +61,12 @@ pub fn parse_partial_json(json_string: &str) -> Option<serde_json::Value> {
         attempt.push('"');
     }
 
-    // Close unclosed brackets and braces
-    for _ in 0..bracket_depth {
-        attempt.push(']');
-    }
-    for _ in 0..brace_depth {
-        attempt.push('}');
+    while let Some(open) = open_stack.pop() {
+        attempt.push(match open {
+            '{' => '}',
+            '[' => ']',
+            _ => continue,
+        });
     }
 
     serde_json::from_str(&attempt).ok()
@@ -98,5 +104,11 @@ mod tests {
     fn test_nested_partial() {
         let result = parse_partial_json(r#"{"user": {"name": "Jo"#).unwrap();
         assert_eq!(result["user"]["name"], "Jo");
+    }
+
+    #[test]
+    fn test_interleaved_nesting() {
+        let result = parse_partial_json(r#"[{"name": "Jo"#).unwrap();
+        assert_eq!(result, serde_json::json!([{"name": "Jo"}]));
     }
 }

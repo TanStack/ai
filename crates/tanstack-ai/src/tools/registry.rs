@@ -80,6 +80,10 @@ impl From<Vec<Tool>> for ToolRegistry {
 }
 
 /// Frozen/immutable tool registry for thread-safe sharing.
+///
+/// Use `FrozenToolRegistry` when multiple clients or tasks need to reuse the
+/// same tool set. `ChatOptions` still accepts `Vec<Tool>` because a single chat
+/// run owns its tool definitions outright.
 #[derive(Debug, Clone)]
 pub struct FrozenToolRegistry {
     tools: Arc<HashMap<String, Tool>>,

@@ -293,6 +293,24 @@ impl MiddlewareRunner {
         }
     }
 
+    /// Run on_tool_phase_complete through all middlewares.
+    pub fn run_on_tool_phase_complete(
+        &self,
+        ctx: &ChatMiddlewareContext,
+        info: &ToolPhaseCompleteInfo,
+    ) {
+        for mw in &self.middlewares {
+            mw.on_tool_phase_complete(ctx, info);
+        }
+    }
+
+    /// Run on_usage through all middlewares.
+    pub fn run_on_usage(&self, ctx: &ChatMiddlewareContext, usage: &UsageInfo) {
+        for mw in &self.middlewares {
+            mw.on_usage(ctx, usage);
+        }
+    }
+
     /// Run on_finish through all middlewares.
     pub fn run_on_finish(&self, ctx: &ChatMiddlewareContext, info: &FinishInfo) {
         for mw in &self.middlewares {

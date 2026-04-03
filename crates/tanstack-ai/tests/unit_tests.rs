@@ -2,6 +2,7 @@
 //!
 //! Ports the TypeScript test suite to Rust with full feature parity.
 
+use std::sync::Arc;
 use tanstack_ai::*;
 
 // ============================================================================
@@ -240,7 +241,7 @@ fn test_until_finish_reason_continues_on_no_match() {
 fn test_combine_strategies_all_true() {
     let strategy = combine_strategies(vec![
         max_iterations(5),
-        Box::new(|state: &AgentLoopState| state.iteration_count < 10),
+        Arc::new(|state: &AgentLoopState| state.iteration_count < 10),
     ]);
     assert!(strategy(&make_state(2, None)));
 }
@@ -249,9 +250,21 @@ fn test_combine_strategies_all_true() {
 fn test_combine_strategies_any_false() {
     let strategy = combine_strategies(vec![
         max_iterations(5),
-        Box::new(|state: &AgentLoopState| state.iteration_count < 10),
+        Arc::new(|state: &AgentLoopState| state.iteration_count < 10),
     ]);
     assert!(!strategy(&make_state(5, None)));
+}
+
+#[test]
+fn test_text_options_clone_preserves_agent_loop_strategy() {
+    let options = TextOptions {
+        agent_loop_strategy: Some(max_iterations(2)),
+        ..Default::default()
+    };
+
+    let cloned = options.clone();
+    assert!(cloned.agent_loop_strategy.is_some());
+    assert!((cloned.agent_loop_strategy.unwrap())(&make_state(1, None)));
 }
 
 #[test]
@@ -402,6 +415,25 @@ fn test_ui_to_model_multiple_text_parts() {
         }
         _ => panic!("Expected Parts content for multiple text parts"),
     }
+}
+
+#[test]
+fn test_ui_to_model_thinking_part() {
+    let ui_msg = UiMessage {
+        id: "msg-1".to_string(),
+        role: UiMessageRole::Assistant,
+        parts: vec![MessagePart::Thinking {
+            content: "reasoning".to_string(),
+        }],
+        created_at: None,
+    };
+
+    let model_msgs = ui_message_to_model_messages(&ui_msg);
+    assert_eq!(model_msgs.len(), 1);
+    assert_eq!(
+        model_msgs[0].content.as_str(),
+        Some("[thinking]reasoning[/thinking]"),
+    );
 }
 
 #[test]
@@ -717,7 +749,10 @@ fn test_model_message_with_tool_calls() {
     let deserialized: ModelMessage = serde_json::from_str(&json).unwrap();
     assert_eq!(deserialized.role, MessageRole::Assistant);
     assert!(deserialized.tool_calls.is_some());
-    assert_eq!(deserialized.tool_calls.as_ref().unwrap()[0].function.name, "getWeather");
+    assert_eq!(
+        deserialized.tool_calls.as_ref().unwrap()[0].function.name,
+        "getWeather"
+    );
 }
 
 #[test]
@@ -726,5 +761,27 @@ fn test_detect_image_mime_type() {
     assert_eq!(tanstack_ai::detect_image_mime_type(png_header), "image/png");
 
     let jpeg_header = &[0xFF, 0xD8, 0xFF, 0xE0];
-    assert_eq!(tanstack_ai::detect_image_mime_type(jpeg_header), "image/jpeg");
+    assert_eq!(
+        tanstack_ai::detect_image_mime_type(jpeg_header),
+        "image/jpeg"
+    );
+}
+
+#[test]
+fn test_json_schema_serializes_ref_and_defs_keys() {
+    let schema = JsonSchema {
+        r#ref: Some("#/$defs/thing".to_string()),
+        defs: Some(std::collections::HashMap::from([(
+            "thing".to_string(),
+            JsonSchema {
+                r#type: Some(serde_json::json!("string")),
+                ..Default::default()
+            },
+        )])),
+        ..Default::default()
+    };
+
+    let json = serde_json::to_value(schema).unwrap();
+    assert_eq!(json["$ref"], "#/$defs/thing");
+    assert!(json.get("$defs").is_some());
 }

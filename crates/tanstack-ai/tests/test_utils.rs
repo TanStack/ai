@@ -102,10 +102,7 @@ pub fn _tool_end(
     }
 }
 
-pub fn run_finished(
-    finish_reason: &str,
-    run_id: &str,
-) -> StreamChunk {
+pub fn run_finished(finish_reason: &str, run_id: &str) -> StreamChunk {
     StreamChunk::RunFinished {
         timestamp: now(),
         run_id: run_id.to_string(),
@@ -228,7 +225,9 @@ pub fn collect_text(chunks: &[StreamChunk]) -> String {
     let mut content = String::new();
     for chunk in chunks {
         if let StreamChunk::TextMessageContent {
-            delta, content: full, ..
+            delta,
+            content: full,
+            ..
         } = chunk
         {
             if let Some(full_content) = full {
@@ -260,10 +259,7 @@ pub fn count_chunk_type(chunks: &[StreamChunk], chunk_type: &str) -> usize {
 }
 
 /// Helper to create a simple server tool for testing.
-pub fn server_tool(
-    name: &str,
-    result: serde_json::Value,
-) -> Tool {
+pub fn server_tool(name: &str, result: serde_json::Value) -> Tool {
     let result_clone = result.clone();
     Tool::new(name, format!("Test tool: {}", name)).with_execute(
         move |_args: serde_json::Value, _ctx: tanstack_ai::types::ToolExecutionContext| {

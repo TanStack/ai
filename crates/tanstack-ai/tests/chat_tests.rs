@@ -249,7 +249,10 @@ async fn test_server_tool_execution() {
     let has_tool_result = second_call_messages
         .iter()
         .any(|m| m.role == MessageRole::Tool);
-    assert!(has_tool_result, "Expected tool result message in second call");
+    assert!(
+        has_tool_result,
+        "Expected tool result message in second call"
+    );
 
     // Should have TOOL_CALL_END chunks
     match result {

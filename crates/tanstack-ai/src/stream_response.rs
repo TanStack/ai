@@ -28,9 +28,9 @@ pub fn sse_stream_to_json(
     use futures_util::StreamExt;
 
     let lines = tokio_util::codec::FramedRead::new(
-        tokio_util::io::StreamReader::new(stream.map(|r| r.map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::Other, e)
-        }))),
+        tokio_util::io::StreamReader::new(
+            stream.map(|r| r.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))),
+        ),
         tokio_util::codec::LinesCodec::new(),
     );
 
@@ -97,11 +97,18 @@ pub fn chunks_to_sse_stream(
 
     stream
         .map(|result| match result {
-            Ok(chunk) => {
-                let json = serde_json::to_string(&chunk).unwrap_or_default();
-                Ok(Bytes::from(format!("data: {}\n\n", json)))
-            }
-            Err(e) => Ok(Bytes::from(format!("data: {}\n\n",
+            Ok(chunk) => match serde_json::to_string(&chunk) {
+                Ok(json) => Ok(Bytes::from(format!("data: {}\n\n", json))),
+                Err(err) => Ok(Bytes::from(format!(
+                    "data: {}\n\n",
+                    serde_json::json!({
+                        "type": "RUN_ERROR",
+                        "error": { "message": format!("failed to serialize stream chunk: {}", err) }
+                    })
+                ))),
+            },
+            Err(e) => Ok(Bytes::from(format!(
+                "data: {}\n\n",
                 serde_json::json!({"type": "RUN_ERROR", "error": {"message": e.to_string()}})
             ))),
         })
@@ -117,7 +124,11 @@ pub async fn stream_to_text(
 
     while let Some(result) = stream.next().await {
         match result? {
-            StreamChunk::TextMessageContent { delta, content: full, .. } => {
+            StreamChunk::TextMessageContent {
+                delta,
+                content: full,
+                ..
+            } => {
                 if let Some(full_content) = full {
                     content = full_content;
                 } else {

@@ -4,7 +4,9 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::collections::HashMap;
 
-use crate::adapter::{ChunkStream, TextAdapter, TextAdapterConfig};
+use crate::adapter::{
+    build_http_client, send_with_retries, ChunkStream, TextAdapter, TextAdapterConfig,
+};
 use crate::error::{AiError, AiResult};
 use crate::types::*;
 
@@ -16,6 +18,7 @@ pub struct OpenAiTextAdapter {
     model: String,
     base_url: String,
     client: Client,
+    max_retries: u32,
 }
 
 impl OpenAiTextAdapter {
@@ -26,6 +29,7 @@ impl OpenAiTextAdapter {
             model: model.into(),
             base_url: "https://api.openai.com/v1".to_string(),
             client: Client::new(),
+            max_retries: 0,
         }
     }
 
@@ -35,19 +39,34 @@ impl OpenAiTextAdapter {
         api_key: impl Into<String>,
         config: TextAdapterConfig,
     ) -> Self {
+        let api_key = config.api_key.clone().unwrap_or_else(|| api_key.into());
         let mut adapter = Self::new(model, api_key);
+        adapter.client = build_http_client(&config);
+        adapter.max_retries = config.max_retries.unwrap_or(0);
         if let Some(base_url) = config.base_url {
             adapter.base_url = base_url;
         }
         adapter
     }
 
+    fn tool_calls_json(tool_calls: &[ToolCall]) -> Vec<serde_json::Value> {
+        tool_calls
+            .iter()
+            .map(|tc| {
+                serde_json::json!({
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments
+                    }
+                })
+            })
+            .collect()
+    }
+
     /// Build the request body for the OpenAI Responses API.
-    fn build_request_body(
-        &self,
-        options: &TextOptions,
-        stream: bool,
-    ) -> serde_json::Value {
+    fn build_request_body(&self, options: &TextOptions, stream: bool) -> serde_json::Value {
         let mut body = serde_json::Map::new();
 
         body.insert("model".to_string(), serde_json::json!(self.model));
@@ -87,7 +106,10 @@ impl OpenAiTextAdapter {
             body.insert("top_p".to_string(), serde_json::json!(top_p));
         }
         if let Some(max_tokens) = options.max_tokens {
-            body.insert("max_output_tokens".to_string(), serde_json::json!(max_tokens));
+            body.insert(
+                "max_output_tokens".to_string(),
+                serde_json::json!(max_tokens),
+            );
         }
 
         serde_json::Value::Object(body)
@@ -126,10 +148,16 @@ impl OpenAiTextAdapter {
 
             match &msg.content {
                 MessageContent::Text(text) => {
-                    items.push(serde_json::json!({
-                        "role": msg.role.as_str(),
-                        "content": text
-                    }));
+                    let mut item = serde_json::Map::new();
+                    item.insert("role".to_string(), serde_json::json!(msg.role.as_str()));
+                    item.insert("content".to_string(), serde_json::json!(text));
+                    if let Some(tool_calls) = &msg.tool_calls {
+                        item.insert(
+                            "tool_calls".to_string(),
+                            serde_json::json!(Self::tool_calls_json(tool_calls)),
+                        );
+                    }
+                    items.push(serde_json::Value::Object(item));
                 }
                 MessageContent::Parts(parts) => {
                     let mut content = Vec::new();
@@ -144,7 +172,9 @@ impl OpenAiTextAdapter {
                             ContentPart::Image { source } => {
                                 let url = match source {
                                     ContentPartSource::Url { value, .. } => value.clone(),
-                                    ContentPartSource::Data { value, mime_type, .. } => {
+                                    ContentPartSource::Data {
+                                        value, mime_type, ..
+                                    } => {
                                         format!("data:{};base64,{}", mime_type, value)
                                     }
                                 };
@@ -156,26 +186,23 @@ impl OpenAiTextAdapter {
                             _ => {}
                         }
                     }
-                    items.push(serde_json::json!({
-                        "role": msg.role.as_str(),
-                        "content": content
-                    }));
+                    let mut item = serde_json::Map::new();
+                    item.insert("role".to_string(), serde_json::json!(msg.role.as_str()));
+                    item.insert("content".to_string(), serde_json::json!(content));
+                    if let Some(tool_calls) = &msg.tool_calls {
+                        item.insert(
+                            "tool_calls".to_string(),
+                            serde_json::json!(Self::tool_calls_json(tool_calls)),
+                        );
+                    }
+                    items.push(serde_json::Value::Object(item));
                 }
                 MessageContent::Null => {
                     // Handle tool calls in assistant messages
                     if let Some(tool_calls) = &msg.tool_calls {
                         items.push(serde_json::json!({
                             "role": "assistant",
-                            "tool_calls": tool_calls.iter().map(|tc| {
-                                serde_json::json!({
-                                    "id": tc.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": tc.function.name,
-                                        "arguments": tc.function.arguments
-                                    }
-                                })
-                            }).collect::<Vec<_>>()
+                            "tool_calls": Self::tool_calls_json(tool_calls)
                         }));
                     }
                 }
@@ -325,14 +352,15 @@ impl TextAdapter for OpenAiTextAdapter {
         let body = self.build_request_body(options, true);
         let url = format!("{}/responses", self.base_url);
 
-        let response = self
-            .client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await?;
+        let response = send_with_retries(
+            self.client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("Content-Type", "application/json")
+                .json(&body),
+            self.max_retries,
+        )
+        .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -375,14 +403,15 @@ impl TextAdapter for OpenAiTextAdapter {
 
         let url = format!("{}/responses", self.base_url);
 
-        let response = self
-            .client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await?;
+        let response = send_with_retries(
+            self.client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("Content-Type", "application/json")
+                .json(&body),
+            self.max_retries,
+        )
+        .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -423,8 +452,15 @@ where
             String::new(),
             HashMap::<String, String>::new(),
             HashMap::<String, String>::new(),
+            false,
         ),
-        move |(mut stream, mut line_buf, mut item_to_call, mut item_to_tool)| {
+        move |(
+            mut stream,
+            mut line_buf,
+            mut item_to_call,
+            mut item_to_tool,
+            mut has_tool_calls,
+        )| {
             let model = model.clone();
             async move {
                 loop {
@@ -453,18 +489,25 @@ where
 
                                     match serde_json::from_str::<OpenAiStreamEvent>(data_str) {
                                         Ok(event) => {
-                                            let now = chrono::Utc::now().timestamp_millis() as f64 / 1000.0;
+                                            let now = chrono::Utc::now().timestamp_millis() as f64
+                                                / 1000.0;
                                             let model_str = Some(model.clone());
 
                                             match event {
-                                                OpenAiStreamEvent::OutputItemAdded { item, .. } => match item {
-                                                    OpenAiOutputItem::Message { id, role, .. } => {
-                                                        chunks.push(Ok(StreamChunk::TextMessageStart {
-                                                            timestamp: now,
-                                                            message_id: id,
-                                                            role,
-                                                            model: model_str,
-                                                        }));
+                                                OpenAiStreamEvent::OutputItemAdded {
+                                                    item, ..
+                                                } => match item {
+                                                    OpenAiOutputItem::Message {
+                                                        id, role, ..
+                                                    } => {
+                                                        chunks.push(Ok(
+                                                            StreamChunk::TextMessageStart {
+                                                                timestamp: now,
+                                                                message_id: id,
+                                                                role,
+                                                                model: model_str,
+                                                            },
+                                                        ));
                                                     }
                                                     OpenAiOutputItem::FunctionCall {
                                                         id,
@@ -472,17 +515,22 @@ where
                                                         call_id,
                                                         ..
                                                     } => {
-                                                        item_to_call.insert(id.clone(), call_id.clone());
-                                                        item_to_tool.insert(id.clone(), name.clone());
-                                                        chunks.push(Ok(StreamChunk::ToolCallStart {
-                                                            timestamp: now,
-                                                            tool_call_id: call_id,
-                                                            tool_name: name,
-                                                            parent_message_id: Some(id),
-                                                            index: None,
-                                                            provider_metadata: None,
-                                                            model: model_str,
-                                                        }));
+                                                        has_tool_calls = true;
+                                                        item_to_call
+                                                            .insert(id.clone(), call_id.clone());
+                                                        item_to_tool
+                                                            .insert(id.clone(), name.clone());
+                                                        chunks.push(Ok(
+                                                            StreamChunk::ToolCallStart {
+                                                                timestamp: now,
+                                                                tool_call_id: call_id,
+                                                                tool_name: name,
+                                                                parent_message_id: Some(id),
+                                                                index: None,
+                                                                provider_metadata: None,
+                                                                model: model_str,
+                                                            },
+                                                        ));
                                                     }
                                                     _ => {}
                                                 },
@@ -491,8 +539,10 @@ where
                                                     delta,
                                                     ..
                                                 } => {
-                                                    let tool_call_id =
-                                                        item_to_call.get(&item_id).cloned().unwrap_or(item_id);
+                                                    let tool_call_id = item_to_call
+                                                        .get(&item_id)
+                                                        .cloned()
+                                                        .unwrap_or(item_id);
                                                     chunks.push(Ok(StreamChunk::ToolCallArgs {
                                                         timestamp: now,
                                                         tool_call_id,
@@ -506,10 +556,14 @@ where
                                                     arguments,
                                                     ..
                                                 } => {
-                                                    let tool_call_id =
-                                                        item_to_call.get(&item_id).cloned().unwrap_or(item_id.clone());
-                                                    let tool_name =
-                                                        item_to_tool.get(&item_id).cloned().unwrap_or_default();
+                                                    let tool_call_id = item_to_call
+                                                        .get(&item_id)
+                                                        .cloned()
+                                                        .unwrap_or(item_id.clone());
+                                                    let tool_name = item_to_tool
+                                                        .get(&item_id)
+                                                        .cloned()
+                                                        .unwrap_or_default();
                                                     let input: Option<serde_json::Value> =
                                                         serde_json::from_str(&arguments).ok();
                                                     chunks.push(Ok(StreamChunk::ToolCallEnd {
@@ -522,16 +576,21 @@ where
                                                     }));
                                                 }
                                                 other => {
-                                                    for chunk in convert_openai_event(other, &model) {
+                                                    for chunk in convert_openai_event(
+                                                        other,
+                                                        &model,
+                                                        has_tool_calls,
+                                                    ) {
                                                         chunks.push(Ok(chunk));
                                                     }
                                                 }
                                             }
                                         }
                                         Err(e) => {
-                                            eprintln!(
-                                                "Failed to parse OpenAI event: {} - {}",
-                                                e, &data_str[..data_str.len().min(200)]
+                                            tracing::warn!(
+                                                error = %e,
+                                                data = %&data_str[..data_str.len().min(200)],
+                                                "failed to parse openai event"
                                             );
                                         }
                                     }
@@ -544,14 +603,14 @@ where
                             if !chunks.is_empty() {
                                 return Some((
                                     futures_util::stream::iter(chunks),
-                                    (stream, line_buf, item_to_call, item_to_tool),
+                                    (stream, line_buf, item_to_call, item_to_tool, has_tool_calls),
                                 ));
                             }
                         }
                         Some(Err(e)) => {
                             return Some((
                                 futures_util::stream::iter(vec![Err(AiError::Http(e))]),
-                                (stream, line_buf, item_to_call, item_to_tool),
+                                (stream, line_buf, item_to_call, item_to_tool, has_tool_calls),
                             ));
                         }
                         None => {
@@ -567,47 +626,61 @@ where
 
                                 match serde_json::from_str::<OpenAiStreamEvent>(data_str) {
                                     Ok(event) => {
-                                        let now = chrono::Utc::now().timestamp_millis() as f64 / 1000.0;
+                                        let now =
+                                            chrono::Utc::now().timestamp_millis() as f64 / 1000.0;
                                         let model_str = Some(model.clone());
                                         let mut chunks: Vec<AiResult<StreamChunk>> = Vec::new();
 
                                         match event {
-                                            OpenAiStreamEvent::OutputItemAdded { item, .. } => match item {
-                                                OpenAiOutputItem::Message { id, role, .. } => {
-                                                    chunks.push(Ok(StreamChunk::TextMessageStart {
-                                                        timestamp: now,
-                                                        message_id: id,
-                                                        role,
-                                                        model: model_str,
-                                                    }));
+                                            OpenAiStreamEvent::OutputItemAdded { item, .. } => {
+                                                match item {
+                                                    OpenAiOutputItem::Message {
+                                                        id, role, ..
+                                                    } => {
+                                                        chunks.push(Ok(
+                                                            StreamChunk::TextMessageStart {
+                                                                timestamp: now,
+                                                                message_id: id,
+                                                                role,
+                                                                model: model_str,
+                                                            },
+                                                        ));
+                                                    }
+                                                    OpenAiOutputItem::FunctionCall {
+                                                        id,
+                                                        name,
+                                                        call_id,
+                                                        ..
+                                                    } => {
+                                                        has_tool_calls = true;
+                                                        item_to_call
+                                                            .insert(id.clone(), call_id.clone());
+                                                        item_to_tool
+                                                            .insert(id.clone(), name.clone());
+                                                        chunks.push(Ok(
+                                                            StreamChunk::ToolCallStart {
+                                                                timestamp: now,
+                                                                tool_call_id: call_id,
+                                                                tool_name: name,
+                                                                parent_message_id: Some(id),
+                                                                index: None,
+                                                                provider_metadata: None,
+                                                                model: model_str,
+                                                            },
+                                                        ));
+                                                    }
+                                                    _ => {}
                                                 }
-                                                OpenAiOutputItem::FunctionCall {
-                                                    id,
-                                                    name,
-                                                    call_id,
-                                                    ..
-                                                } => {
-                                                    item_to_call.insert(id.clone(), call_id.clone());
-                                                    item_to_tool.insert(id.clone(), name.clone());
-                                                    chunks.push(Ok(StreamChunk::ToolCallStart {
-                                                        timestamp: now,
-                                                        tool_call_id: call_id,
-                                                        tool_name: name,
-                                                        parent_message_id: Some(id),
-                                                        index: None,
-                                                        provider_metadata: None,
-                                                        model: model_str,
-                                                    }));
-                                                }
-                                                _ => {}
-                                            },
+                                            }
                                             OpenAiStreamEvent::FunctionCallArgumentsDelta {
                                                 item_id,
                                                 delta,
                                                 ..
                                             } => {
-                                                let tool_call_id =
-                                                    item_to_call.get(&item_id).cloned().unwrap_or(item_id);
+                                                let tool_call_id = item_to_call
+                                                    .get(&item_id)
+                                                    .cloned()
+                                                    .unwrap_or(item_id);
                                                 chunks.push(Ok(StreamChunk::ToolCallArgs {
                                                     timestamp: now,
                                                     tool_call_id,
@@ -625,8 +698,10 @@ where
                                                     .get(&item_id)
                                                     .cloned()
                                                     .unwrap_or(item_id.clone());
-                                                let tool_name =
-                                                    item_to_tool.get(&item_id).cloned().unwrap_or_default();
+                                                let tool_name = item_to_tool
+                                                    .get(&item_id)
+                                                    .cloned()
+                                                    .unwrap_or_default();
                                                 let input: Option<serde_json::Value> =
                                                     serde_json::from_str(&arguments).ok();
                                                 chunks.push(Ok(StreamChunk::ToolCallEnd {
@@ -639,7 +714,11 @@ where
                                                 }));
                                             }
                                             other => {
-                                                for chunk in convert_openai_event(other, &model) {
+                                                for chunk in convert_openai_event(
+                                                    other,
+                                                    &model,
+                                                    has_tool_calls,
+                                                ) {
                                                     chunks.push(Ok(chunk));
                                                 }
                                             }
@@ -647,14 +726,20 @@ where
 
                                         return Some((
                                             futures_util::stream::iter(chunks),
-                                            (stream, String::new(), item_to_call, item_to_tool),
+                                            (
+                                                stream,
+                                                String::new(),
+                                                item_to_call,
+                                                item_to_tool,
+                                                has_tool_calls,
+                                            ),
                                         ));
                                     }
                                     Err(e) => {
-                                        eprintln!(
-                                            "Failed to parse OpenAI event: {} - {}",
-                                            e,
-                                            &data_str[..data_str.len().min(200)]
+                                        tracing::warn!(
+                                            error = %e,
+                                            data = %&data_str[..data_str.len().min(200)],
+                                            "failed to parse openai event"
                                         );
                                     }
                                 }
@@ -671,7 +756,11 @@ where
 }
 
 /// Convert an OpenAI SSE event to one or more StreamChunks.
-fn convert_openai_event(event: OpenAiStreamEvent, model: &str) -> Vec<StreamChunk> {
+fn convert_openai_event(
+    event: OpenAiStreamEvent,
+    model: &str,
+    has_tool_calls: bool,
+) -> Vec<StreamChunk> {
     let now = chrono::Utc::now().timestamp_millis() as f64 / 1000.0;
     let model_str = Some(model.to_string());
 
@@ -695,10 +784,7 @@ fn convert_openai_event(event: OpenAiStreamEvent, model: &str) -> Vec<StreamChun
                 }]
             }
             OpenAiOutputItem::FunctionCall {
-                id,
-                name,
-                call_id,
-                ..
+                id, name, call_id, ..
             } => {
                 vec![StreamChunk::ToolCallStart {
                     timestamp: now,
@@ -733,9 +819,7 @@ fn convert_openai_event(event: OpenAiStreamEvent, model: &str) -> Vec<StreamChun
             }]
         }
 
-        OpenAiStreamEvent::FunctionCallArgumentsDelta {
-            item_id, delta, ..
-        } => {
+        OpenAiStreamEvent::FunctionCallArgumentsDelta { item_id, delta, .. } => {
             vec![StreamChunk::ToolCallArgs {
                 timestamp: now,
                 tool_call_id: item_id,
@@ -746,9 +830,7 @@ fn convert_openai_event(event: OpenAiStreamEvent, model: &str) -> Vec<StreamChun
         }
 
         OpenAiStreamEvent::FunctionCallArgumentsDone {
-            item_id,
-            arguments,
-            ..
+            item_id, arguments, ..
         } => {
             let input: Option<serde_json::Value> = serde_json::from_str(&arguments).ok();
             vec![StreamChunk::ToolCallEnd {
@@ -767,14 +849,15 @@ fn convert_openai_event(event: OpenAiStreamEvent, model: &str) -> Vec<StreamChun
             // Emit text message end if we had text
             // (This is a simplification — in production we'd track state)
 
-            let finish_reason = response
-                .status
-                .as_deref()
-                .map(|s| match s {
+            let finish_reason = if has_tool_calls {
+                Some("tool_calls".to_string())
+            } else {
+                response.status.as_deref().map(|s| match s {
                     "completed" => "stop".to_string(),
                     "failed" => "error".to_string(),
                     _ => s.to_string(),
-                });
+                })
+            };
 
             let usage = response.usage.map(|u| Usage {
                 prompt_tokens: u.input_tokens,
@@ -882,10 +965,8 @@ mod tests {
         let sse_1 = format!("data: {}\ndata: {}\n", start, delta);
         let sse_2 = format!("data: {}", done);
 
-        let stream = futures_util::stream::iter(vec![
-            Ok(Bytes::from(sse_1)),
-            Ok(Bytes::from(sse_2)),
-        ]);
+        let stream =
+            futures_util::stream::iter(vec![Ok(Bytes::from(sse_1)), Ok(Bytes::from(sse_2))]);
 
         let chunks = parse_openai_sse_stream(stream, "gpt-4o".to_string())
             .collect::<Vec<_>>()
@@ -894,17 +975,25 @@ mod tests {
         assert_eq!(chunks.len(), 3);
 
         match &chunks[0] {
-            Ok(StreamChunk::ToolCallStart { tool_call_id, .. }) => assert_eq!(tool_call_id, "call_abc"),
+            Ok(StreamChunk::ToolCallStart { tool_call_id, .. }) => {
+                assert_eq!(tool_call_id, "call_abc")
+            }
             other => panic!("unexpected chunk 0: {other:?}"),
         }
 
         match &chunks[1] {
-            Ok(StreamChunk::ToolCallArgs { tool_call_id, .. }) => assert_eq!(tool_call_id, "call_abc"),
+            Ok(StreamChunk::ToolCallArgs { tool_call_id, .. }) => {
+                assert_eq!(tool_call_id, "call_abc")
+            }
             other => panic!("unexpected chunk 1: {other:?}"),
         }
 
         match &chunks[2] {
-            Ok(StreamChunk::ToolCallEnd { tool_call_id, tool_name, .. }) => {
+            Ok(StreamChunk::ToolCallEnd {
+                tool_call_id,
+                tool_name,
+                ..
+            }) => {
                 assert_eq!(tool_call_id, "call_abc");
                 assert_eq!(tool_name, "get_weather");
             }

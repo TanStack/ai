@@ -100,7 +100,9 @@ impl ChunkStrategy for CompositeStrategy {
     fn should_emit(&mut self, chunk: &str, accumulated: &str) -> bool {
         self.strategies
             .iter_mut()
-            .any(|s| s.should_emit(chunk, accumulated))
+            .fold(false, |should_emit, strategy| {
+                strategy.should_emit(chunk, accumulated) || should_emit
+            })
     }
 
     fn reset(&mut self) {

@@ -167,4 +167,6 @@ fn test_manager_parallel_tool_calls() {
 
     let calls = manager.tool_calls();
     assert_eq!(calls.len(), 2);
+    assert_eq!(calls[0].id, "call_1");
+    assert_eq!(calls[1].id, "call_2");
 }

@@ -3,7 +3,9 @@ use futures_core::Stream;
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::adapter::{ChunkStream, TextAdapter, TextAdapterConfig};
+use crate::adapter::{
+    build_http_client, send_with_retries, ChunkStream, TextAdapter, TextAdapterConfig,
+};
 use crate::error::{AiError, AiResult};
 use crate::types::*;
 
@@ -15,6 +17,7 @@ pub struct GeminiTextAdapter {
     model: String,
     base_url: String,
     client: Client,
+    max_retries: u32,
 }
 
 impl GeminiTextAdapter {
@@ -25,6 +28,7 @@ impl GeminiTextAdapter {
             model: model.into(),
             base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
             client: Client::new(),
+            max_retries: 0,
         }
     }
 
@@ -34,17 +38,17 @@ impl GeminiTextAdapter {
         api_key: impl Into<String>,
         config: TextAdapterConfig,
     ) -> Self {
+        let api_key = config.api_key.clone().unwrap_or_else(|| api_key.into());
         let mut adapter = Self::new(model, api_key);
+        adapter.client = build_http_client(&config);
+        adapter.max_retries = config.max_retries.unwrap_or(0);
         if let Some(base_url) = config.base_url {
             adapter.base_url = base_url;
         }
         adapter
     }
 
-    fn build_request_body(
-        &self,
-        options: &TextOptions,
-    ) -> serde_json::Value {
+    fn build_request_body(&self, options: &TextOptions) -> serde_json::Value {
         let mut body = serde_json::Map::new();
 
         // Contents (messages)
@@ -72,6 +76,8 @@ impl GeminiTextAdapter {
                     MessageContent::Text(text) => text.clone(),
                     MessageContent::Null | MessageContent::Parts(_) => String::new(),
                 };
+                // Gemini correlates tool results by function name rather than a separate call ID.
+                // `tool_call_id` is expected to carry that name for tool result messages here.
                 contents.push(serde_json::json!({
                     "role": "user",
                     "parts": [{
@@ -96,29 +102,28 @@ impl GeminiTextAdapter {
                 MessageContent::Text(text) => {
                     vec![serde_json::json!({"text": text})]
                 }
-                MessageContent::Parts(ps) => {
-                    ps.iter()
-                        .map(|part| match part {
-                            ContentPart::Text { content } => {
-                                serde_json::json!({"text": content})
+                MessageContent::Parts(ps) => ps
+                    .iter()
+                    .map(|part| match part {
+                        ContentPart::Text { content } => {
+                            serde_json::json!({"text": content})
+                        }
+                        ContentPart::Image { source } => match source {
+                            ContentPartSource::Data { value, mime_type } => {
+                                serde_json::json!({
+                                    "inlineData": {
+                                        "mimeType": mime_type,
+                                        "data": value
+                                    }
+                                })
                             }
-                            ContentPart::Image { source } => match source {
-                                ContentPartSource::Data { value, mime_type } => {
-                                    serde_json::json!({
-                                        "inlineData": {
-                                            "mimeType": mime_type,
-                                            "data": value
-                                        }
-                                    })
-                                }
-                                ContentPartSource::Url { value, .. } => {
-                                    serde_json::json!({"text": format!("[Image: {}]", value)})
-                                }
-                            },
-                            _ => serde_json::json!({"text": ""}),
-                        })
-                        .collect()
-                }
+                            ContentPartSource::Url { value, .. } => {
+                                serde_json::json!({"text": format!("[Image: {}]", value)})
+                            }
+                        },
+                        _ => serde_json::json!({"text": ""}),
+                    })
+                    .collect(),
                 MessageContent::Null => {
                     vec![serde_json::json!({"text": ""})]
                 }
@@ -206,9 +211,15 @@ struct GeminiContent {
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum GeminiPart {
-    Text { text: String },
-    FunctionCall { function_call: GeminiFunctionCall },
-    FunctionResponse { function_response: GeminiFunctionResponse },
+    Text {
+        text: String,
+    },
+    FunctionCall {
+        function_call: GeminiFunctionCall,
+    },
+    FunctionResponse {
+        function_response: GeminiFunctionResponse,
+    },
 }
 
 #[allow(dead_code)]
@@ -250,13 +261,14 @@ impl TextAdapter for GeminiTextAdapter {
             self.base_url, self.model, self.api_key
         );
 
-        let response = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await?;
+        let response = send_with_retries(
+            self.client
+                .post(&url)
+                .header("Content-Type", "application/json")
+                .json(&body),
+            self.max_retries,
+        )
+        .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -282,13 +294,20 @@ impl TextAdapter for GeminiTextAdapter {
 
         // Add response schema
         if let Some(obj) = body.as_object_mut() {
-            obj.insert(
-                "generationConfig".to_string(),
-                serde_json::json!({
-                    "response_mime_type": "application/json",
-                    "response_schema": options.output_schema
-                }),
-            );
+            let generation_config = obj
+                .entry("generationConfig".to_string())
+                .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+
+            if let Some(config) = generation_config.as_object_mut() {
+                config.insert(
+                    "response_mime_type".to_string(),
+                    serde_json::json!("application/json"),
+                );
+                config.insert(
+                    "response_schema".to_string(),
+                    serde_json::json!(options.output_schema),
+                );
+            }
         }
 
         let url = format!(
@@ -296,13 +315,14 @@ impl TextAdapter for GeminiTextAdapter {
             self.base_url, self.model, self.api_key
         );
 
-        let response = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await?;
+        let response = send_with_retries(
+            self.client
+                .post(&url)
+                .header("Content-Type", "application/json")
+                .json(&body),
+            self.max_retries,
+        )
+        .await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -336,10 +356,7 @@ impl TextAdapter for GeminiTextAdapter {
     }
 }
 
-fn parse_gemini_sse_stream<S>(
-    stream: S,
-    model: String,
-) -> impl Stream<Item = AiResult<StreamChunk>>
+fn parse_gemini_sse_stream<S>(stream: S, model: String) -> impl Stream<Item = AiResult<StreamChunk>>
 where
     S: Stream<Item = Result<bytes::Bytes, reqwest::Error>> + Send,
 {
@@ -377,10 +394,10 @@ where
                                             }
                                         }
                                         Err(e) => {
-                                            eprintln!(
-                                                "Failed to parse Gemini event: {} - {}",
-                                                e,
-                                                &data_str[..data_str.len().min(200)]
+                                            tracing::warn!(
+                                                error = %e,
+                                                data = %&data_str[..data_str.len().min(200)],
+                                                "failed to parse gemini event"
                                             );
                                         }
                                     }
@@ -390,7 +407,10 @@ where
                             line_buf = line_buf[processed_to..].to_string();
 
                             if !chunks.is_empty() {
-                                return Some((futures_util::stream::iter(chunks), (stream, line_buf)));
+                                return Some((
+                                    futures_util::stream::iter(chunks),
+                                    (stream, line_buf),
+                                ));
                             }
                         }
                         Some(Err(e)) => {

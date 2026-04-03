@@ -190,50 +190,52 @@ pub fn model_message_to_ui_message(msg: &ModelMessage) -> UiMessage {
     let mut parts = Vec::new();
 
     // Add content parts
-    match &msg.content {
-        MessageContent::Text(text) => {
-            parts.push(MessagePart::Text {
-                content: text.clone(),
-                metadata: None,
-            });
-        }
-        MessageContent::Parts(content_parts) => {
-            for part in content_parts {
-                match part {
-                    ContentPart::Text { content } => {
-                        parts.push(MessagePart::Text {
-                            content: content.clone(),
-                            metadata: None,
-                        });
-                    }
-                    ContentPart::Image { source } => {
-                        parts.push(MessagePart::Image {
-                            source: source.clone(),
-                            metadata: None,
-                        });
-                    }
-                    ContentPart::Audio { source } => {
-                        parts.push(MessagePart::Audio {
-                            source: source.clone(),
-                            metadata: None,
-                        });
-                    }
-                    ContentPart::Video { source } => {
-                        parts.push(MessagePart::Video {
-                            source: source.clone(),
-                            metadata: None,
-                        });
-                    }
-                    ContentPart::Document { source } => {
-                        parts.push(MessagePart::Document {
-                            source: source.clone(),
-                            metadata: None,
-                        });
+    if msg.role != MessageRole::Tool {
+        match &msg.content {
+            MessageContent::Text(text) => {
+                parts.push(MessagePart::Text {
+                    content: text.clone(),
+                    metadata: None,
+                });
+            }
+            MessageContent::Parts(content_parts) => {
+                for part in content_parts {
+                    match part {
+                        ContentPart::Text { content } => {
+                            parts.push(MessagePart::Text {
+                                content: content.clone(),
+                                metadata: None,
+                            });
+                        }
+                        ContentPart::Image { source } => {
+                            parts.push(MessagePart::Image {
+                                source: source.clone(),
+                                metadata: None,
+                            });
+                        }
+                        ContentPart::Audio { source } => {
+                            parts.push(MessagePart::Audio {
+                                source: source.clone(),
+                                metadata: None,
+                            });
+                        }
+                        ContentPart::Video { source } => {
+                            parts.push(MessagePart::Video {
+                                source: source.clone(),
+                                metadata: None,
+                            });
+                        }
+                        ContentPart::Document { source } => {
+                            parts.push(MessagePart::Document {
+                                source: source.clone(),
+                                metadata: None,
+                            });
+                        }
                     }
                 }
             }
+            MessageContent::Null => {}
         }
-        MessageContent::Null => {}
     }
 
     // Add tool call parts
@@ -275,8 +277,9 @@ pub fn model_message_to_ui_message(msg: &ModelMessage) -> UiMessage {
 }
 
 /// Normalize messages to ModelMessage format.
-/// If the messages are already ModelMessages, pass through.
-/// If they are UI messages, convert them.
+///
+/// This is intentionally a passthrough for `ModelMessage` input today.
+/// UI-message normalization happens in `ui_messages_to_model_messages`.
 pub fn normalize_to_model_messages(messages: &[ModelMessage]) -> Vec<ModelMessage> {
     messages.to_vec()
 }
@@ -320,5 +323,20 @@ mod tests {
         let model_msgs = ui_message_to_model_messages(&ui_msg);
         assert_eq!(model_msgs.len(), 1);
         assert_eq!(model_msgs[0].content.as_str(), Some("Hi there!"));
+    }
+
+    #[test]
+    fn test_model_to_ui_tool_result_does_not_duplicate_text() {
+        let model_msg = ModelMessage {
+            role: MessageRole::Tool,
+            content: MessageContent::Text("{\"temp\":72}".to_string()),
+            name: None,
+            tool_calls: None,
+            tool_call_id: Some("call_1".to_string()),
+        };
+
+        let ui_msg = model_message_to_ui_message(&model_msg);
+        assert_eq!(ui_msg.parts.len(), 1);
+        assert!(matches!(ui_msg.parts[0], MessagePart::ToolResult { .. }));
     }
 }
