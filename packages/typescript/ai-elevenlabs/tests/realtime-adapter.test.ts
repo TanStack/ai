@@ -30,9 +30,14 @@ describe('elevenlabsRealtime adapter', () => {
     capturedSessionOptions = {}
   })
 
-  const fakeToken = { token: 'wss://fake-signed-url', expiresAt: Date.now() + 60_000 }
+  const fakeToken = {
+    token: 'wss://fake-signed-url',
+    expiresAt: Date.now() + 60_000,
+  }
 
-  async function createConnection(tools?: ReadonlyArray<AnyClientTool>): Promise<RealtimeConnection> {
+  async function createConnection(
+    tools?: ReadonlyArray<AnyClientTool>,
+  ): Promise<RealtimeConnection> {
     const adapter = elevenlabsRealtime()
     return adapter.connect(fakeToken, tools)
   }
@@ -41,7 +46,11 @@ describe('elevenlabsRealtime adapter', () => {
     it('should emit only transcript for user messages, not message_complete', async () => {
       const connection = await createConnection()
 
-      const transcriptEvents: Array<{ role: string; transcript: string; isFinal: boolean }> = []
+      const transcriptEvents: Array<{
+        role: string
+        transcript: string
+        isFinal: boolean
+      }> = []
       const messageCompleteEvents: Array<{ message: RealtimeMessage }> = []
 
       connection.on('transcript', (payload) => {
@@ -52,7 +61,10 @@ describe('elevenlabsRealtime adapter', () => {
       })
 
       // Simulate a user message from ElevenLabs
-      capturedSessionOptions.onMessage({ message: 'Hello from user', source: 'user' })
+      capturedSessionOptions.onMessage({
+        message: 'Hello from user',
+        source: 'user',
+      })
 
       // Should emit transcript for user
       expect(transcriptEvents).toHaveLength(1)
@@ -70,7 +82,11 @@ describe('elevenlabsRealtime adapter', () => {
     it('should emit only message_complete for assistant messages, not transcript', async () => {
       const connection = await createConnection()
 
-      const transcriptEvents: Array<{ role: string; transcript: string; isFinal: boolean }> = []
+      const transcriptEvents: Array<{
+        role: string
+        transcript: string
+        isFinal: boolean
+      }> = []
       const messageCompleteEvents: Array<{ message: RealtimeMessage }> = []
 
       connection.on('transcript', (payload) => {
@@ -81,7 +97,10 @@ describe('elevenlabsRealtime adapter', () => {
       })
 
       // Simulate an assistant message from ElevenLabs
-      capturedSessionOptions.onMessage({ message: 'Hello from assistant', source: 'ai' })
+      capturedSessionOptions.onMessage({
+        message: 'Hello from assistant',
+        source: 'ai',
+      })
 
       // Should NOT emit transcript for assistant final messages —
       // message_complete is the canonical event for assistant messages
@@ -102,11 +121,19 @@ describe('elevenlabsRealtime adapter', () => {
       const messageCompleteEvents: Array<any> = []
 
       connection.on('transcript', (payload) => transcriptEvents.push(payload))
-      connection.on('message_complete', (payload) => messageCompleteEvents.push(payload))
+      connection.on('message_complete', (payload) =>
+        messageCompleteEvents.push(payload),
+      )
 
       // User speaks, then assistant responds
-      capturedSessionOptions.onMessage({ message: 'What is the weather?', source: 'user' })
-      capturedSessionOptions.onMessage({ message: 'It is sunny today.', source: 'ai' })
+      capturedSessionOptions.onMessage({
+        message: 'What is the weather?',
+        source: 'user',
+      })
+      capturedSessionOptions.onMessage({
+        message: 'It is sunny today.',
+        source: 'ai',
+      })
 
       // One transcript event (user only)
       expect(transcriptEvents).toHaveLength(1)
@@ -123,7 +150,10 @@ describe('elevenlabsRealtime adapter', () => {
       const mockTool: AnyClientTool = {
         name: 'get_weather',
         description: 'Get current weather',
-        inputSchema: { type: 'object', properties: { city: { type: 'string' } } } as any,
+        inputSchema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+        } as any,
         execute: vi.fn(async (params: any) => `Sunny in ${params.city}`),
       }
 
