@@ -82,32 +82,23 @@ async function createElevenLabsConnection(
     return `el-msg-${Date.now()}-${++messageIdCounter}`
   }
 
-  // Convert TanStack tool definitions to ElevenLabs clientTools format
+  // Convert TanStack tool definitions to ElevenLabs clientTools format.
+  // @11labs/client@0.2.0 expects plain async functions, not objects.
   const elevenLabsClientTools: Record<
     string,
-    {
-      handler: (params: unknown) => Promise<string>
-      description: string
-      parameters: Record<string, unknown>
-    }
+    (params: unknown) => Promise<string>
   > = {}
 
   if (clientToolDefs) {
     for (const tool of clientToolDefs) {
-      elevenLabsClientTools[tool.name] = {
-        handler: async (params: unknown) => {
-          if (tool.execute) {
-            const result = await tool.execute(params)
-            return typeof result === 'string' ? result : JSON.stringify(result)
-          }
-          return JSON.stringify({
-            error: `No execute function for tool ${tool.name}`,
-          })
-        },
-        description: tool.description,
-        parameters: tool.inputSchema
-          ? (tool.inputSchema as Record<string, unknown>)
-          : { type: 'object', properties: {} },
+      elevenLabsClientTools[tool.name] = async (params: unknown) => {
+        if (tool.execute) {
+          const result = await tool.execute(params)
+          return typeof result === 'string' ? result : JSON.stringify(result)
+        }
+        return JSON.stringify({
+          error: `No execute function for tool ${tool.name}`,
+        })
       }
     }
   }
@@ -135,21 +126,25 @@ async function createElevenLabsConnection(
     onMessage: ({ message, source }: { message: string; source: string }) => {
       const role = source === 'user' ? 'user' : 'assistant'
 
-      // Emit transcript update
-      emit('transcript', {
-        role,
-        transcript: message,
-        isFinal: true,
-      })
-
-      // Create and emit message
-      const realtimeMessage: RealtimeMessage = {
-        id: generateMessageId(),
-        role,
-        timestamp: Date.now(),
-        parts: [{ type: 'audio', transcript: message }],
+      if (role === 'user') {
+        // User transcripts: only emit transcript — the RealtimeClient
+        // creates the user message when it receives a final transcript
+        emit('transcript', {
+          role,
+          transcript: message,
+          isFinal: true,
+        })
+      } else {
+        // Assistant messages: only emit message_complete — the canonical
+        // event for finalized assistant messages
+        const realtimeMessage: RealtimeMessage = {
+          id: generateMessageId(),
+          role,
+          timestamp: Date.now(),
+          parts: [{ type: 'audio', transcript: message }],
+        }
+        emit('message_complete', { message: realtimeMessage })
       }
-      emit('message_complete', { message: realtimeMessage })
     },
 
     onError: (error: string | Error) => {
