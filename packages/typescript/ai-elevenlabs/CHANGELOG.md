@@ -1,5 +1,13 @@
 # @tanstack/ai-elevenlabs
 
+## 0.1.4
+
+### Patch Changes
+
+- fix(ai-elevenlabs): prevent duplicate user messages and fix client tools registration ([#419](https://github.com/TanStack/ai/pull/419))
+  - Only emit `transcript` for user messages and `message_complete` for assistant messages, matching the contract expected by `RealtimeClient`
+  - Pass client tools as plain async functions to `@11labs/client@0.2.0` instead of `{ handler, description, parameters }` objects which were silently ignored
+
 ## 0.1.3
 
 ### Patch Changes
