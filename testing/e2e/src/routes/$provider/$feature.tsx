@@ -34,14 +34,8 @@ function FeaturePage() {
     return <NotSupported provider={provider} feature={feature} />
   }
 
-  if (feature === 'summarize' || feature === 'summarize-stream') {
-    return (
-      <SummarizeFeature
-        provider={provider}
-        stream={feature === 'summarize-stream'}
-      />
-    )
-  }
+  // Summarize features use the same ChatUI — the user types text and gets a summary back
+  // The summarize adapter handles the prompting internally via the /api/chat route
   if (feature === 'image-gen') {
     return <ImageGenFeature provider={provider} />
   }

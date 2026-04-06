@@ -60,12 +60,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   summarize: {
     tools: [],
     modelOptions: {},
-    dedicatedRoute: '/api/summarize',
   },
   'summarize-stream': {
     tools: [],
     modelOptions: {},
-    dedicatedRoute: '/api/summarize',
   },
   'image-gen': {
     tools: [],

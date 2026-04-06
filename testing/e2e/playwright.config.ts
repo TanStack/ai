@@ -2,10 +2,12 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  // Sequential execution required: llmock's sequenceIndex counter is global,
+  // so parallel workers would compete for the same fixture slots
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 4 : undefined,
+  retries: 0,
+  workers: 1,
   reporter: [['html', { open: 'never' }], ['list']],
   timeout: 30_000,
   expect: {

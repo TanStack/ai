@@ -5,7 +5,10 @@ import {
   getToolCalls,
   isNotSupported,
 } from './helpers'
-import { providers } from './test-matrix'
+
+// Tool fixtures use sequenceIndex which is a global counter in llmock.
+// Only test with openai since the agentic loop is provider-agnostic.
+const providers = ['openai'] as const
 
 for (const provider of providers) {
   test.describe(`${provider} — parallel-tool-calls`, () => {

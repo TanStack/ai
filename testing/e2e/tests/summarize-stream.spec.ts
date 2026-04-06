@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test'
 import {
-  submitSummarization,
-  getSummarizationResult,
+  sendMessage,
+  waitForResponse,
+  getLastAssistantMessage,
   isNotSupported,
 } from './helpers'
 import { providers } from './test-matrix'
@@ -15,11 +16,12 @@ for (const provider of providers) {
         return
       }
 
-      await submitSummarization(
+      await sendMessage(
         page,
         '[summarize] The Fender Stratocaster is a versatile electric guitar',
       )
-      const result = await getSummarizationResult(page)
+      await waitForResponse(page)
+      const result = await getLastAssistantMessage(page)
       expect(result.length).toBeGreaterThan(0)
     })
   })

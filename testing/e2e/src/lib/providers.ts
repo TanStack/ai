@@ -57,7 +57,7 @@ export function createTextAdapter(
     groq: () =>
       createChatOptions({
         adapter: createGroqText(model as 'llama-3.3-70b-versatile', DUMMY_KEY, {
-          baseURL: LLMOCK_OPENAI,
+          baseURL: LLMOCK_BASE,
         }),
       }),
     grok: () =>

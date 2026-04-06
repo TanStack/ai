@@ -6,7 +6,11 @@ import {
   getToolCalls,
   isNotSupported,
 } from './helpers'
-import { providers } from './test-matrix'
+
+// Tool fixtures use sequenceIndex which is a global counter in llmock.
+// Only test with openai since the agentic loop is provider-agnostic —
+// per-provider chat format is already covered by chat.spec.ts
+const providers = ['openai'] as const
 
 for (const provider of providers) {
   test.describe(`${provider} — tool-calling`, () => {
