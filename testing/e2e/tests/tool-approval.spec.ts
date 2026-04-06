@@ -2,9 +2,9 @@ import { test, expect } from './fixtures'
 import {
   sendMessage,
   waitForResponse,
-  getLastAssistantMessage,
   approveToolCall,
   denyToolCall,
+  waitForAssistantText,
 } from './helpers'
 import { providersFor } from './test-matrix'
 
@@ -17,10 +17,9 @@ for (const provider of providersFor('tool-approval')) {
 
       await expect(page.getByTestId('approval-prompt-addToCart')).toBeVisible()
       await approveToolCall(page, 'addToCart')
-      await waitForResponse(page)
 
-      const response = await getLastAssistantMessage(page)
-      expect(response).toContain('added')
+      // Wait for text response after approval + tool execution
+      await waitForAssistantText(page, 'added')
     })
 
     test('handles denial', async ({ page }) => {

@@ -2,8 +2,8 @@ import { test, expect } from './fixtures'
 import {
   sendMessage,
   waitForResponse,
-  getLastAssistantMessage,
   getToolCalls,
+  waitForAssistantText,
 } from './helpers'
 import { providersFor } from './test-matrix'
 
@@ -18,8 +18,8 @@ for (const provider of providersFor('agentic-structured')) {
       const toolCalls = await getToolCalls(page)
       expect(toolCalls.length).toBeGreaterThanOrEqual(1)
 
-      const response = await getLastAssistantMessage(page)
-      expect(response).toContain('Fender Stratocaster')
+      // Wait for text response after tool execution
+      await waitForAssistantText(page, 'Fender Stratocaster')
     })
   })
 }

@@ -30,10 +30,10 @@ const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  // Gemini excluded from tool features: aimock doesn't handle Gemini's functionResponse format
   'tool-calling': new Set([
     'openai',
     'anthropic',
+    'gemini',
     'ollama',
     'groq',
     'grok',
@@ -42,10 +42,12 @@ const matrix: Record<Feature, Set<Provider>> = {
   'parallel-tool-calls': new Set([
     'openai',
     'anthropic',
+    'gemini',
     'groq',
     'grok',
     'openrouter',
   ]),
+  // Gemini excluded: approval flow has timing issues with Gemini's streaming format
   'tool-approval': new Set([
     'openai',
     'anthropic',
@@ -66,6 +68,7 @@ const matrix: Record<Feature, Set<Provider>> = {
   'agentic-structured': new Set([
     'openai',
     'anthropic',
+    'gemini',
     'ollama',
     'groq',
     'grok',

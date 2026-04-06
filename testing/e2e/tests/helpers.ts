@@ -50,6 +50,20 @@ export async function getLastAssistantMessage(page: Page): Promise<string> {
   return messages.nth(count - 1).innerText()
 }
 
+/** Wait for an assistant message containing specific text (useful for tool-calling where
+ *  the agentic loop produces multiple responses and waitForResponse returns too early) */
+export async function waitForAssistantText(
+  page: Page,
+  text: string,
+  timeout = 15_000,
+) {
+  await page
+    .getByTestId('assistant-message')
+    .filter({ hasText: text })
+    .first()
+    .waitFor({ state: 'visible', timeout })
+}
+
 export async function getToolCalls(
   page: Page,
 ): Promise<Array<{ name: string }>> {

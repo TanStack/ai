@@ -1,5 +1,10 @@
 import { test, expect } from './fixtures'
-import { sendMessage, waitForResponse, getToolCalls } from './helpers'
+import {
+  sendMessage,
+  waitForResponse,
+  getToolCalls,
+  waitForAssistantText,
+} from './helpers'
 import { providersFor } from './test-matrix'
 
 for (const provider of providersFor('parallel-tool-calls')) {
@@ -17,6 +22,9 @@ for (const provider of providersFor('parallel-tool-calls')) {
       const toolNames = toolCalls.map((t) => t.name)
       expect(toolNames).toContain('getGuitars')
       expect(toolNames).toContain('compareGuitars')
+
+      // Wait for text response after tool execution
+      await waitForAssistantText(page, 'Stratocaster')
     })
   })
 }

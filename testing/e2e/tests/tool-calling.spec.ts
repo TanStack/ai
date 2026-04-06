@@ -2,8 +2,8 @@ import { test, expect } from './fixtures'
 import {
   sendMessage,
   waitForResponse,
-  getLastAssistantMessage,
   getToolCalls,
+  waitForAssistantText,
 } from './helpers'
 import { providersFor } from './test-matrix'
 
@@ -19,8 +19,8 @@ for (const provider of providersFor('tool-calling')) {
       expect(toolCalls.length).toBeGreaterThanOrEqual(1)
       expect(toolCalls[0].name).toBe('getGuitars')
 
-      const response = await getLastAssistantMessage(page)
-      expect(response).toContain('Fender Stratocaster')
+      // Wait for the text response after tool execution (agentic loop's second LLM call)
+      await waitForAssistantText(page, 'Fender Stratocaster')
     })
   })
 }

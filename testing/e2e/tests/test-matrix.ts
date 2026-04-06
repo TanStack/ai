@@ -42,6 +42,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
   'tool-calling': new Set([
     'openai',
     'anthropic',
+    'gemini',
     'ollama',
     'groq',
     'grok',
@@ -50,6 +51,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
   'parallel-tool-calls': new Set([
     'openai',
     'anthropic',
+    'gemini',
     'groq',
     'grok',
     'openrouter',
@@ -74,6 +76,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
   'agentic-structured': new Set([
     'openai',
     'anthropic',
+    'gemini',
     'ollama',
     'groq',
     'grok',
