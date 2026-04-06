@@ -1,5 +1,11 @@
 # @tanstack/ai-devtools-core
 
+## 0.3.17
+
+### Patch Changes
+
+- Moves devtools theme to the component to avoid theme miss-match. ([#423](https://github.com/TanStack/ai/pull/423))
+
 ## 0.3.16
 
 ### Patch Changes
