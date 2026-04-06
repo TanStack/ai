@@ -1,20 +1,11 @@
 import { test, expect } from './fixtures'
-import {
-  sendMessage,
-  waitForResponse,
-  getToolCalls,
-  isNotSupported,
-} from './helpers'
-import { providers } from './test-matrix'
+import { sendMessage, waitForResponse, getToolCalls } from './helpers'
+import { providersFor } from './test-matrix'
 
-for (const provider of providers) {
+for (const provider of providersFor('parallel-tool-calls')) {
   test.describe(`${provider} — parallel-tool-calls`, () => {
     test('calls multiple tools in parallel', async ({ page }) => {
       await page.goto(`/${provider}/parallel-tool-calls`)
-      if (await isNotSupported(page)) {
-        test.skip()
-        return
-      }
 
       await sendMessage(
         page,

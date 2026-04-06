@@ -3,18 +3,13 @@ import {
   sendMessage,
   waitForResponse,
   getLastAssistantMessage,
-  isNotSupported,
 } from './helpers'
-import { providers } from './test-matrix'
+import { providersFor } from './test-matrix'
 
-for (const provider of providers) {
+for (const provider of providersFor('summarize')) {
   test.describe(`${provider} — summarize`, () => {
     test('summarizes text', async ({ page }) => {
       await page.goto(`/${provider}/summarize`)
-      if (await isNotSupported(page)) {
-        test.skip()
-        return
-      }
 
       await sendMessage(
         page,

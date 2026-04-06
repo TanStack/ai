@@ -4,18 +4,13 @@ import {
   waitForResponse,
   getLastAssistantMessage,
   getToolCalls,
-  isNotSupported,
 } from './helpers'
-import { providers } from './test-matrix'
+import { providersFor } from './test-matrix'
 
-for (const provider of providers) {
+for (const provider of providersFor('agentic-structured')) {
   test.describe(`${provider} — agentic-structured`, () => {
     test('calls tools then returns structured output', async ({ page }) => {
       await page.goto(`/${provider}/agentic-structured`)
-      if (await isNotSupported(page)) {
-        test.skip()
-        return
-      }
 
       await sendMessage(page, '[agentic] check inventory and recommend')
       await waitForResponse(page)

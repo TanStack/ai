@@ -3,18 +3,13 @@ import {
   sendMessage,
   waitForResponse,
   getLastAssistantMessage,
-  isNotSupported,
 } from './helpers'
-import { providers } from './test-matrix'
+import { providersFor } from './test-matrix'
 
-for (const provider of providers) {
+for (const provider of providersFor('image-gen')) {
   test.describe(`${provider} — image-gen`, () => {
     test('generates an image', async ({ page }) => {
       await page.goto(`/${provider}/image-gen`)
-      if (await isNotSupported(page)) {
-        test.skip()
-        return
-      }
 
       await sendMessage(page, '[imagegen] generate a guitar in a music store')
       await waitForResponse(page)

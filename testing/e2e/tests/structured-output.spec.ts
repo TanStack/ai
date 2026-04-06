@@ -3,18 +3,13 @@ import {
   sendMessage,
   waitForResponse,
   getLastAssistantMessage,
-  isNotSupported,
 } from './helpers'
-import { providers } from './test-matrix'
+import { providersFor } from './test-matrix'
 
-for (const provider of providers) {
+for (const provider of providersFor('structured-output')) {
   test.describe(`${provider} — structured-output`, () => {
     test('returns structured JSON response', async ({ page }) => {
       await page.goto(`/${provider}/structured-output`)
-      if (await isNotSupported(page)) {
-        test.skip()
-        return
-      }
 
       await sendMessage(page, '[structured] recommend a guitar as json')
       await waitForResponse(page)

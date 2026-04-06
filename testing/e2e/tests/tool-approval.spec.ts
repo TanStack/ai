@@ -5,18 +5,13 @@ import {
   getLastAssistantMessage,
   approveToolCall,
   denyToolCall,
-  isNotSupported,
 } from './helpers'
-import { providers } from './test-matrix'
+import { providersFor } from './test-matrix'
 
-for (const provider of providers) {
+for (const provider of providersFor('tool-approval')) {
   test.describe(`${provider} — tool-approval`, () => {
     test('shows approval prompt and completes on approve', async ({ page }) => {
       await page.goto(`/${provider}/tool-approval`)
-      if (await isNotSupported(page)) {
-        test.skip()
-        return
-      }
 
       await sendMessage(page, '[approval] add the stratocaster to my cart')
 
@@ -30,10 +25,6 @@ for (const provider of providers) {
 
     test('handles denial', async ({ page }) => {
       await page.goto(`/${provider}/tool-approval`)
-      if (await isNotSupported(page)) {
-        test.skip()
-        return
-      }
 
       await sendMessage(page, '[approval] add the stratocaster to my cart')
 

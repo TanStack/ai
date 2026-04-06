@@ -29,7 +29,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  reasoning: new Set(['openai', 'anthropic', 'gemini', 'grok', 'openrouter']),
+  reasoning: new Set(['openai', 'anthropic']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
@@ -42,7 +42,6 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
   'tool-calling': new Set([
     'openai',
     'anthropic',
-    'gemini',
     'ollama',
     'groq',
     'grok',
@@ -51,7 +50,6 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
   'parallel-tool-calls': new Set([
     'openai',
     'anthropic',
-    'gemini',
     'groq',
     'grok',
     'openrouter',
@@ -59,7 +57,6 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
   'tool-approval': new Set([
     'openai',
     'anthropic',
-    'gemini',
     'ollama',
     'groq',
     'grok',
@@ -77,7 +74,6 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
   'agentic-structured': new Set([
     'openai',
     'anthropic',
-    'gemini',
     'ollama',
     'groq',
     'grok',
@@ -144,4 +140,9 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
 
 export function isSupported(provider: Provider, feature: Feature): boolean {
   return supportMatrix[feature]?.has(provider) ?? false
+}
+
+/** Get only the providers that support a given feature */
+export function providersFor(feature: Feature): Provider[] {
+  return providers.filter((p) => isSupported(p, feature))
 }

@@ -3,18 +3,13 @@ import {
   sendMessage,
   waitForResponse,
   getLastAssistantMessage,
-  isNotSupported,
 } from './helpers'
-import { providers } from './test-matrix'
+import { providersFor } from './test-matrix'
 
-for (const provider of providers) {
+for (const provider of providersFor('multi-turn')) {
   test.describe(`${provider} — multi-turn`, () => {
     test('handles a multi-turn conversation', async ({ page }) => {
       await page.goto(`/${provider}/multi-turn`)
-      if (await isNotSupported(page)) {
-        test.skip()
-        return
-      }
 
       await sendMessage(page, '[multiturn-1] what guitars do you have')
       await waitForResponse(page)

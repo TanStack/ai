@@ -3,9 +3,8 @@ import {
   sendMessageWithImage,
   waitForResponse,
   getLastAssistantMessage,
-  isNotSupported,
 } from './helpers'
-import { providers } from './test-matrix'
+import { providersFor } from './test-matrix'
 
 import { fileURLToPath } from 'url'
 import path from 'path'
@@ -14,16 +13,12 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const testImagePath = path.resolve(__dirname, '../test-assets/guitar-shop.png')
 
-for (const provider of providers) {
+for (const provider of providersFor('multimodal-structured')) {
   test.describe(`${provider} — multimodal-structured`, () => {
     test('analyzes an image and returns structured output', async ({
       page,
     }) => {
       await page.goto(`/${provider}/multimodal-structured`)
-      if (await isNotSupported(page)) {
-        test.skip()
-        return
-      }
 
       await sendMessageWithImage(
         page,

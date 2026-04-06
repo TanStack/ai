@@ -4,18 +4,13 @@ import {
   waitForResponse,
   getLastAssistantMessage,
   getToolCalls,
-  isNotSupported,
 } from './helpers'
-import { providers } from './test-matrix'
+import { providersFor } from './test-matrix'
 
-for (const provider of providers) {
+for (const provider of providersFor('tool-calling')) {
   test.describe(`${provider} — tool-calling`, () => {
     test('calls getGuitars and displays result', async ({ page }) => {
       await page.goto(`/${provider}/tool-calling`)
-      if (await isNotSupported(page)) {
-        test.skip()
-        return
-      }
 
       await sendMessage(page, '[toolcall] what guitars do you have in stock')
       await waitForResponse(page)
