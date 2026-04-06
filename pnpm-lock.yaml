@@ -1648,9 +1648,9 @@ importers:
 
   testing/e2e:
     dependencies:
-      '@copilotkit/llmock':
+      '@copilotkit/aimock':
         specifier: latest
-        version: 1.6.1
+        version: 1.7.0
       '@tailwindcss/vite':
         specifier: ^4.1.18
         version: 4.1.18(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -2170,8 +2170,8 @@ packages:
   '@cloudflare/workers-types@4.20260317.1':
     resolution: {integrity: sha512-+G4eVwyCpm8Au1ex8vQBCuA9wnwqetz4tPNRoB/53qvktERWBRMQnrtvC1k584yRE3emMThtuY0gWshvSJ++PQ==}
 
-  '@copilotkit/llmock@1.6.1':
-    resolution: {integrity: sha512-5Q8fuoIJ1zN7GYwuUjm6cF2xX4qYeHJOULNcJFPEB7NinaGZviIOfdjQaECVmeRWLjjRLky8DclP8hAoWDYnIQ==}
+  '@copilotkit/aimock@1.7.0':
+    resolution: {integrity: sha512-X6B2z0MgGTg8N/geRg6zRVVgEp3krP+gYapwXCt2w3JU7BSf2q0laa4iHC+BZqPXf29iVDVwDM7BxB5LqhjcAg==}
     engines: {node: '>=20.15.0'}
     hasBin: true
 
@@ -11145,7 +11145,7 @@ snapshots:
 
   '@cloudflare/workers-types@4.20260317.1': {}
 
-  '@copilotkit/llmock@1.6.1': {}
+  '@copilotkit/aimock@1.7.0': {}
 
   '@crazydos/vue-markdown@1.1.4(vue@3.5.25(typescript@5.9.3))':
     dependencies:

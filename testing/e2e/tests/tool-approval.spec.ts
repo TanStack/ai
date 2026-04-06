@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 import {
   sendMessage,
   waitForResponse,
@@ -8,11 +8,6 @@ import {
   isNotSupported,
 } from './helpers'
 import { providers } from './test-matrix'
-
-// Tool approval requires the server to pause on needsApproval tools and emit
-// approval-requested events. This needs investigation with llmock's tool call flow.
-// Also uses sequenceIndex which is global. Skip for now.
-test.skip()
 
 for (const provider of providers) {
   test.describe(`${provider} — tool-approval`, () => {

@@ -11,7 +11,7 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
-    "@copilotkit/llmock": "latest",
+    "@copilotkit/aimock": "latest",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",

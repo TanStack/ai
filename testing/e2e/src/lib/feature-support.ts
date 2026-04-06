@@ -19,7 +19,8 @@ const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  reasoning: new Set(['openai', 'anthropic', 'gemini', 'grok', 'openrouter']),
+  // aimock reasoning maps to OpenAI reasoning_content and Anthropic thinking blocks
+  reasoning: new Set(['openai', 'anthropic']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
@@ -29,10 +30,10 @@ const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
+  // Gemini excluded from tool features: aimock doesn't handle Gemini's functionResponse format
   'tool-calling': new Set([
     'openai',
     'anthropic',
-    'gemini',
     'ollama',
     'groq',
     'grok',
@@ -41,7 +42,6 @@ const matrix: Record<Feature, Set<Provider>> = {
   'parallel-tool-calls': new Set([
     'openai',
     'anthropic',
-    'gemini',
     'groq',
     'grok',
     'openrouter',
@@ -49,7 +49,6 @@ const matrix: Record<Feature, Set<Provider>> = {
   'tool-approval': new Set([
     'openai',
     'anthropic',
-    'gemini',
     'ollama',
     'groq',
     'grok',
@@ -67,7 +66,6 @@ const matrix: Record<Feature, Set<Provider>> = {
   'agentic-structured': new Set([
     'openai',
     'anthropic',
-    'gemini',
     'ollama',
     'groq',
     'grok',

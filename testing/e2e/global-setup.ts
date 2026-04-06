@@ -1,4 +1,4 @@
-import { LLMock } from '@copilotkit/llmock'
+import { LLMock } from '@copilotkit/aimock'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'

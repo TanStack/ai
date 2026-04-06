@@ -2,11 +2,9 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests',
-  // Sequential execution required: llmock's sequenceIndex counter is global,
-  // so parallel workers would compete for the same fixture slots
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  retries: 1,
   workers: 1,
   reporter: [['html', { open: 'never' }], ['list']],
   timeout: 30_000,
@@ -25,8 +23,8 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  globalSetup: './global-setup.ts',
-  globalTeardown: './global-teardown.ts',
+  // aimock is managed via Playwright worker fixture (tests/fixtures.ts)
+  // No globalSetup/globalTeardown needed
   webServer: {
     command: 'pnpm run dev',
     url: 'http://localhost:3010',

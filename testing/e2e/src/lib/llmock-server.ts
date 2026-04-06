@@ -10,7 +10,7 @@ export async function ensureLLMock() {
   if (startPromise) return startPromise
 
   startPromise = (async () => {
-    const { LLMock } = await import('@copilotkit/llmock')
+    const { LLMock } = await import('@copilotkit/aimock')
 
     mockInstance = new LLMock({
       port: 4010,

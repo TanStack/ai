@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 import {
   sendMessage,
   waitForResponse,
@@ -6,9 +6,6 @@ import {
   isNotSupported,
 } from './helpers'
 import { providers } from './test-matrix'
-
-// llmock reasoning field may not map to provider-specific thinking chunks
-test.skip()
 
 for (const provider of providers) {
   test.describe(`${provider} — reasoning`, () => {

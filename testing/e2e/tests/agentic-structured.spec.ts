@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 import {
   sendMessage,
   waitForResponse,
@@ -6,10 +6,7 @@ import {
   getToolCalls,
   isNotSupported,
 } from './helpers'
-
-// Tool fixtures use sequenceIndex which is a global counter in llmock.
-// Only test with openai since the agentic loop is provider-agnostic.
-const providers = ['openai'] as const
+import { providers } from './test-matrix'
 
 for (const provider of providers) {
   test.describe(`${provider} — agentic-structured`, () => {
