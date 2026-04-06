@@ -38,6 +38,25 @@ import type {
   Message,
 } from '@openrouter/sdk/models'
 
+/**
+ * Convert snake_case keys to camelCase.
+ * The OpenRouter SDK's Zod transformer expects camelCase input and silently
+ * discards any snake_case fields.  This helper normalises user-supplied
+ * modelOptions so that common snake_case variants (e.g. `tool_choice`)
+ * are accepted as well.
+ * See https://github.com/TanStack/ai/issues/314
+ */
+function snakeToCamelKeys<T extends Record<string, unknown>>(
+  obj: T,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const key of Object.keys(obj)) {
+    const camelKey = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+    result[camelKey] = obj[key]
+  }
+  return result
+}
+
 export interface OpenRouterConfig extends SDKOptions {}
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
@@ -515,15 +534,23 @@ export class OpenRouterTextAdapter<
       })
     }
 
+    // Normalise snake_case keys to camelCase so the SDK's Zod transformer
+    // does not silently discard them (see #314).
+    const normalizedModelOptions = modelOptions
+      ? snakeToCamelKeys(modelOptions as Record<string, unknown>)
+      : undefined
+
     const request: ChatGenerationParams = {
       model:
         options.model +
-        (modelOptions?.variant ? `:${modelOptions.variant}` : ''),
+        (normalizedModelOptions?.variant
+          ? `:${normalizedModelOptions.variant}`
+          : ''),
       messages,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
       topP: options.topP,
-      ...modelOptions,
+      ...normalizedModelOptions,
       tools: options.tools
         ? convertToolsToProviderFormat(options.tools)
         : undefined,

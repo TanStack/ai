@@ -168,7 +168,13 @@ export class GeminiImageAdapter<
       id: generateId(this.name),
       model,
       images,
-      usage: undefined,
+      usage: response.usageMetadata
+        ? {
+            inputTokens: response.usageMetadata.promptTokenCount ?? 0,
+            outputTokens: response.usageMetadata.candidatesTokenCount ?? 0,
+            totalTokens: response.usageMetadata.totalTokenCount ?? 0,
+          }
+        : undefined,
     }
   }
 
@@ -196,11 +202,26 @@ export class GeminiImageAdapter<
       }),
     )
 
+    // GenerateImagesResponse may include usageMetadata in newer SDK versions
+    const usageMeta = (response as any).usageMetadata as
+      | {
+          promptTokenCount?: number
+          candidatesTokenCount?: number
+          totalTokenCount?: number
+        }
+      | undefined
+
     return {
       id: generateId(this.name),
       model,
       images,
-      usage: undefined,
+      usage: usageMeta
+        ? {
+            inputTokens: usageMeta.promptTokenCount ?? 0,
+            outputTokens: usageMeta.candidatesTokenCount ?? 0,
+            totalTokens: usageMeta.totalTokenCount ?? 0,
+          }
+        : undefined,
     }
   }
 }
