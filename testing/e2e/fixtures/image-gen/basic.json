@@ -1,9 +1,9 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "a guitar in a music store" },
+      "match": { "userMessage": "[imagegen] generate a guitar in a music store" },
       "response": {
-        "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        "content": "Here is the generated image of a guitar in a music store. The image shows a beautiful acoustic guitar displayed on a wooden stand with warm lighting."
       }
     }
   ]

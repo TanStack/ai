@@ -34,18 +34,7 @@ function FeaturePage() {
     return <NotSupported provider={provider} feature={feature} />
   }
 
-  // Summarize features use the same ChatUI — the user types text and gets a summary back
-  // The summarize adapter handles the prompting internally via the /api/chat route
-  if (feature === 'image-gen') {
-    return <ImageGenFeature provider={provider} />
-  }
-  if (feature === 'tts') {
-    return <TTSFeature provider={provider} />
-  }
-  if (feature === 'transcription') {
-    return <TranscriptionFeature provider={provider} />
-  }
-
+  // All features use ChatUI — the user sends a message and gets a response
   return <ChatFeature provider={provider} feature={feature} />
 }
 

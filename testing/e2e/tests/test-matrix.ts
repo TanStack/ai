@@ -113,9 +113,33 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  'image-gen': new Set(['openai', 'gemini', 'grok']),
-  tts: new Set(['openai', 'gemini']),
-  transcription: new Set(['openai']),
+  'image-gen': new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'ollama',
+    'groq',
+    'grok',
+    'openrouter',
+  ]),
+  tts: new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'ollama',
+    'groq',
+    'grok',
+    'openrouter',
+  ]),
+  transcription: new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'ollama',
+    'groq',
+    'grok',
+    'openrouter',
+  ]),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

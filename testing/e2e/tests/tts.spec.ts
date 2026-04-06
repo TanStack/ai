@@ -1,9 +1,11 @@
 import { test, expect } from './fixtures'
-import { isNotSupported, getAudioPlayer } from './helpers'
+import {
+  sendMessage,
+  waitForResponse,
+  getLastAssistantMessage,
+  isNotSupported,
+} from './helpers'
 import { providers } from './test-matrix'
-
-// llmock does not support TTS endpoints (/v1/audio/speech)
-test.skip()
 
 for (const provider of providers) {
   test.describe(`${provider} — tts`, () => {
@@ -14,10 +16,14 @@ for (const provider of providers) {
         return
       }
 
-      await page.getByTestId('send-button').click()
+      await sendMessage(
+        page,
+        '[tts] generate speech for welcome to the guitar store',
+      )
+      await waitForResponse(page)
 
-      const audio = await getAudioPlayer(page)
-      await expect(audio).toBeVisible({ timeout: 15_000 })
+      const response = await getLastAssistantMessage(page)
+      expect(response).toContain('guitar store')
     })
   })
 }

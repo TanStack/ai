@@ -7,8 +7,6 @@ import {
 } from './helpers'
 import { providers } from './test-matrix'
 
-// Multimodal + structured output needs provider-specific fixture tuning
-test.skip()
 import { fileURLToPath } from 'url'
 import path from 'path'
 

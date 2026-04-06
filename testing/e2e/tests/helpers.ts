@@ -24,7 +24,9 @@ export async function sendMessageWithImage(
 ) {
   const input = page.getByTestId('chat-input')
   await input.click()
-  await input.pressSequentially(text, { delay: 10 })
+  await input.pressSequentially(text, { delay: 30 })
+  // Wait for React state to settle before attaching file
+  await page.waitForTimeout(200)
   await page.getByTestId('image-attachment-input').setInputFiles(imagePath)
 }
 

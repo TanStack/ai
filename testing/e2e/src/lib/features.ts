@@ -68,16 +68,13 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'image-gen': {
     tools: [],
     modelOptions: {},
-    dedicatedRoute: '/api/image',
   },
   tts: {
     tools: [],
     modelOptions: {},
-    dedicatedRoute: '/api/tts',
   },
   transcription: {
     tools: [],
     modelOptions: {},
-    dedicatedRoute: '/api/transcription',
   },
 }

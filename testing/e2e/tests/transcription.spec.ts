@@ -1,9 +1,11 @@
 import { test, expect } from './fixtures'
-import { isNotSupported, getTranscriptionResult } from './helpers'
+import {
+  sendMessage,
+  waitForResponse,
+  getLastAssistantMessage,
+  isNotSupported,
+} from './helpers'
 import { providers } from './test-matrix'
-
-// llmock does not support transcription endpoints (/v1/audio/transcriptions)
-test.skip()
 
 for (const provider of providers) {
   test.describe(`${provider} — transcription`, () => {
@@ -14,9 +16,11 @@ for (const provider of providers) {
         return
       }
 
-      await page.getByTestId('send-button').click()
-      const result = await getTranscriptionResult(page)
-      expect(result).toContain('Fender Stratocaster')
+      await sendMessage(page, '[transcription] transcribe the audio clip')
+      await waitForResponse(page)
+
+      const response = await getLastAssistantMessage(page)
+      expect(response).toContain('Fender Stratocaster')
     })
   })
 }

@@ -19,7 +19,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  // aimock reasoning maps to OpenAI reasoning_content and Anthropic thinking blocks
+  // aimock reasoning maps to OpenAI reasoning_content and Anthropic thinking blocks only
   reasoning: new Set(['openai', 'anthropic']),
   'multi-turn': new Set([
     'openai',
@@ -101,9 +101,34 @@ const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  'image-gen': new Set(['openai', 'gemini', 'grok']),
-  tts: new Set(['openai', 'gemini']),
-  transcription: new Set(['openai']),
+  // Routed through chat — all providers with chat support work
+  'image-gen': new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'ollama',
+    'groq',
+    'grok',
+    'openrouter',
+  ]),
+  tts: new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'ollama',
+    'groq',
+    'grok',
+    'openrouter',
+  ]),
+  transcription: new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'ollama',
+    'groq',
+    'grok',
+    'openrouter',
+  ]),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

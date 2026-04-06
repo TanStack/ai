@@ -1,9 +1,9 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "test-audio-base64" },
+      "match": { "userMessage": "[transcription] transcribe the audio clip" },
       "response": {
-        "content": "I would like to buy a Fender Stratocaster please."
+        "content": "Transcription result: I would like to buy a Fender Stratocaster please. The audio is clear with no background noise."
       }
     }
   ]

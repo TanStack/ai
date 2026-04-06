@@ -1,9 +1,11 @@
 import { test, expect } from './fixtures'
-import { isNotSupported } from './helpers'
+import {
+  sendMessage,
+  waitForResponse,
+  getLastAssistantMessage,
+  isNotSupported,
+} from './helpers'
 import { providers } from './test-matrix'
-
-// llmock does not support image generation endpoints (/v1/images/generations)
-test.skip()
 
 for (const provider of providers) {
   test.describe(`${provider} — image-gen`, () => {
@@ -14,15 +16,14 @@ for (const provider of providers) {
         return
       }
 
-      await page.getByTestId('send-button').click()
-      await page
-        .getByTestId('generated-image')
-        .waitFor({ state: 'visible', timeout: 15_000 })
+      await sendMessage(
+        page,
+        '[imagegen] generate a guitar in a music store',
+      )
+      await waitForResponse(page)
 
-      const img = page.getByTestId('generated-image')
-      await expect(img).toBeVisible()
-      const src = await img.getAttribute('src')
-      expect(src).toBeTruthy()
+      const response = await getLastAssistantMessage(page)
+      expect(response).toContain('guitar')
     })
   })
 }
