@@ -15,7 +15,10 @@
       }
     },
     {
-      "match": { "userMessage": "[agentic] check inventory and recommend", "sequenceIndex": 1 },
+      "match": {
+        "userMessage": "[agentic] check inventory and recommend",
+        "sequenceIndex": 1
+      },
       "response": {
         "content": "{\"name\":\"Fender Stratocaster\",\"price\":1299,\"reason\":\"Most affordable and versatile option in stock\",\"rating\":5}"
       }

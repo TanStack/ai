@@ -15,7 +15,10 @@
       }
     },
     {
-      "match": { "userMessage": "[approval] add the stratocaster to my cart", "sequenceIndex": 1 },
+      "match": {
+        "userMessage": "[approval] add the stratocaster to my cart",
+        "sequenceIndex": 1
+      },
       "response": {
         "content": "I've added the Fender Stratocaster to your cart."
       }
