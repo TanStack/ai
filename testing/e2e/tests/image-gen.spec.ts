@@ -16,10 +16,7 @@ for (const provider of providers) {
         return
       }
 
-      await sendMessage(
-        page,
-        '[imagegen] generate a guitar in a music store',
-      )
+      await sendMessage(page, '[imagegen] generate a guitar in a music store')
       await waitForResponse(page)
 
       const response = await getLastAssistantMessage(page)

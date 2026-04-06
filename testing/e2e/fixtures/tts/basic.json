@@ -1,7 +1,9 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "[tts] generate speech for welcome to the guitar store" },
+      "match": {
+        "userMessage": "[tts] generate speech for welcome to the guitar store"
+      },
       "response": {
         "content": "Audio generated successfully. The text 'Welcome to the guitar store' has been converted to speech using a warm, professional voice."
       }
