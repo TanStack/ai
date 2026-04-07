@@ -19,8 +19,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  // aimock reasoning maps to OpenAI reasoning_content and Anthropic thinking blocks only
-  reasoning: new Set(['openai', 'anthropic']),
+  reasoning: new Set(['openai', 'anthropic', 'gemini']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
