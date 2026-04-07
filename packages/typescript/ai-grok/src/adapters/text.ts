@@ -25,18 +25,6 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { InternalTextProviderOptions } from '../text/text-provider-options'
-
-// Grok's API extends the OpenAI Chat Completions format with reasoning_content
-// on the delta object. The OpenAI SDK types don't include this field yet.
-declare module 'openai/resources/chat/completions/completions' {
-  namespace ChatCompletionChunk {
-    namespace Choice {
-      interface Delta {
-        reasoning_content?: string | null
-      }
-    }
-  }
-}
 import type {
   GrokImageMetadata,
   GrokMessageMetadataByModality,
@@ -209,9 +197,6 @@ export class GrokTextAdapter<
     },
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
-    let accumulatedReasoning = ''
-    let hasEmittedStepStarted = false
-    let stepId = ''
     const timestamp = aguiState.timestamp
     let hasEmittedTextMessageStart = false
 
@@ -246,33 +231,6 @@ export class GrokTextAdapter<
         const delta = choice.delta
         const deltaContent = delta.content
         const deltaToolCalls = delta.tool_calls
-        const deltaReasoning = delta.reasoning_content
-
-        // Handle reasoning content (thinking/reasoning tokens)
-        if (deltaReasoning) {
-          if (!hasEmittedStepStarted) {
-            hasEmittedStepStarted = true
-            stepId = generateId(this.name)
-            yield {
-              type: 'STEP_STARTED',
-              stepId,
-              model: chunk.model || options.model,
-              timestamp,
-              stepType: 'thinking',
-            }
-          }
-
-          accumulatedReasoning += deltaReasoning
-
-          yield {
-            type: 'STEP_FINISHED',
-            stepId,
-            model: chunk.model || options.model,
-            timestamp,
-            delta: deltaReasoning,
-            content: accumulatedReasoning,
-          }
-        }
 
         // Handle content delta
         if (deltaContent) {

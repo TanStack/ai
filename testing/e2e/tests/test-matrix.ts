@@ -29,7 +29,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  reasoning: new Set(['openai', 'anthropic', 'gemini', 'grok']),
+  reasoning: new Set(['openai', 'anthropic', 'gemini']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
