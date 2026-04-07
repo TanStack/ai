@@ -76,6 +76,8 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 - **RUN_FINISHED** - Run completion with finish reason and usage
 - **RUN_ERROR** - Error occurred during the run
 
+> **Tip:** Some models expose their internal reasoning as thinking content that streams before the response. See [Thinking & Reasoning](./thinking-content).
+
 ### Thinking Chunks
 
 Thinking/reasoning is represented by AG-UI events `STEP_STARTED` and `STEP_FINISHED`. They stream separately from the final response text:

@@ -163,38 +163,46 @@ const adapter = elevenlabsRealtime()
 
 ## Voice Activity Detection (VAD)
 
-VAD controls how the system detects when the user is speaking. Three modes are available:
+VAD controls when the system detects that you've started and stopped speaking. Three modes are available:
 
-| Mode | Description |
-|------|-------------|
-| `server` | Provider handles speech detection server-side (default) |
-| `semantic` | Uses semantic understanding to detect turn boundaries (OpenAI only) |
-| `manual` | Application controls when to listen via `startListening()`/`stopListening()` |
+| Mode | How it works | Best for |
+|------|-------------|----------|
+| `server` | The provider detects speech server-side using audio energy levels | Default — simple, low client complexity |
+| `semantic` | Detects end-of-utterance using semantic cues like pauses and sentence completion | Natural conversation — avoids cutting you off mid-sentence |
+| `manual` | You call `startListening()` / `stopListening()` explicitly | Push-to-talk interfaces |
+
+Set the VAD mode when creating the hook:
 
 ```typescript
-const chat = useRealtimeChat({
-  // ...
-  vadMode: 'semantic',
-  semanticEagerness: 'medium', // 'low' | 'medium' | 'high'
+const { startListening, stopListening, vadMode, setVADMode } = useRealtimeChat({
+  getToken,
+  adapter: openaiRealtime(),
+  vadMode: 'manual', // or 'server' or 'semantic'
 })
 ```
 
 With `manual` VAD mode, use push-to-talk style interactions:
 
 ```typescript
-const { startListening, stopListening } = useRealtimeChat({
-  vadMode: 'manual',
-  autoCapture: false,
-  // ...
-})
-
-// In your UI
-<button
-  onPointerDown={startListening}
-  onPointerUp={stopListening}
->
+<button onMouseDown={startListening} onMouseUp={stopListening}>
   Hold to talk
 </button>
+```
+
+You can switch VAD mode at runtime without reconnecting:
+
+```typescript
+setVADMode('semantic')
+```
+
+For semantic VAD, configure eagerness to control how long the model waits before deciding you've finished speaking:
+
+```typescript
+const chat = useRealtimeChat({
+  // ...
+  vadMode: 'semantic',
+  semanticEagerness: 'low', // waits longer before detecting end-of-speech
+})
 ```
 
 ## Tools
@@ -247,20 +255,28 @@ sendImage(base64ImageData, 'image/png')
 
 ## Audio Visualization
 
-The hook provides real-time audio level data for building visualizations:
+`useRealtimeChat` exposes audio analysis data for building level meters, waveforms, and spectrum analyzers.
 
 ```typescript
 const {
-  inputLevel,       // 0-1 normalized microphone volume
-  outputLevel,      // 0-1 normalized speaker volume
-  getInputFrequencyData,   // Uint8Array for frequency spectrum
+  inputLevel,    // 0–1 normalized microphone level
+  outputLevel,   // 0–1 normalized speaker level
+  getInputFrequencyData,   // Uint8Array — FFT bins for spectrum analyzer
   getOutputFrequencyData,
-  getInputTimeDomainData,  // Uint8Array for waveform
+  getInputTimeDomainData,  // Uint8Array — waveform samples for oscilloscope
   getOutputTimeDomainData,
 } = useRealtimeChat({ /* ... */ })
 ```
 
-The `inputLevel` and `outputLevel` values update on every animation frame while connected, making them suitable for driving CSS animations or canvas visualizations:
+The `inputLevel` and `outputLevel` values update on every animation frame while connected, making them suitable for driving CSS animations or canvas visualizations.
+
+**Simple level meter:**
+
+```typescript
+<div style={{ width: `${inputLevel * 100}%`, height: 4, background: 'green' }} />
+```
+
+**Pulsing audio indicator:**
 
 ```typescript
 function AudioIndicator({ level }: { level: number }) {
@@ -279,7 +295,24 @@ function AudioIndicator({ level }: { level: number }) {
 }
 ```
 
-For more detailed visualizations, use the frequency and time-domain data getters inside a `requestAnimationFrame` loop.
+**Spectrum analyzer using canvas:**
+
+```typescript
+function drawSpectrum(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext('2d')!
+  const draw = () => {
+    const data = getInputFrequencyData()
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const barWidth = canvas.width / data.length
+    data.forEach((value, i) => {
+      const height = (value / 255) * canvas.height
+      ctx.fillRect(i * barWidth, canvas.height - height, barWidth - 1, height)
+    })
+    requestAnimationFrame(draw)
+  }
+  draw()
+}
+```
 
 ## Session Configuration
 
@@ -439,8 +472,25 @@ const { error } = useRealtimeChat({
 5. **Tool design** - Keep tool descriptions clear and tool outputs small, since results are processed in real time.
 6. **Error recovery** - Implement retry logic for transient connection failures.
 
+## Using ElevenLabs
+
+TanStack AI supports [ElevenLabs](../adapters/elevenlabs) as an alternative realtime voice provider. The client API is identical — swap the adapter and token function:
+
+```typescript
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
+
+const { status, messages, connect, disconnect } = useRealtimeChat({
+  getToken: () => fetch('/api/elevenlabs-token').then(r => r.json()),
+  adapter: elevenlabsRealtime(),
+})
+```
+
+> **Note:** ElevenLabs uses agent-based configuration — voice and system prompt are set in the ElevenLabs dashboard or via token overrides. See the [ElevenLabs adapter page](../adapters/elevenlabs) for setup details.
+
 ## Next Steps
 
 - [Tools](../tools/tools) - Learn about the isomorphic tool system
 - [Text-to-Speech](./text-to-speech) - Non-realtime speech generation
 - [Multimodal Content](../advanced/multimodal-content) - Working with images, audio, and video
+- [ElevenLabs Adapter](../adapters/elevenlabs) - ElevenLabs realtime voice provider setup and configuration

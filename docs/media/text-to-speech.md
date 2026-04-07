@@ -433,6 +433,8 @@ try {
 }
 ```
 
+> **Tip:** To trigger speech generation from your frontend with loading states, see [Generation Hooks](./generation-hooks).
+
 ## Environment Variables
 
 The TTS adapters use the same environment variables as other adapters:

@@ -442,6 +442,8 @@ And returns:
 | `stop` | `() => void` | Abort the current generation |
 | `reset` | `() => void` | Clear result, error, and return to idle |
 
+> **Tip:** To trigger image generation from your React, Vue, or Svelte app with loading states and error handling, see [Generation Hooks](./generation-hooks).
+
 ## Environment Variables
 
 The image adapters use the same environment variables as the text adapters:

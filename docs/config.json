@@ -14,12 +14,24 @@
           "to": "getting-started/overview"
         },
         {
-          "label": "Quick Start",
+          "label": "Quick Start: React",
           "to": "getting-started/quick-start"
         },
         {
           "label": "Devtools",
           "to": "getting-started/devtools"
+        },
+        {
+          "label": "Quick Start: Vue",
+          "to": "getting-started/quick-start-vue"
+        },
+        {
+          "label": "Quick Start: Svelte",
+          "to": "getting-started/quick-start-svelte"
+        },
+        {
+          "label": "Quick Start: Server Only",
+          "to": "getting-started/quick-start-server"
         }
       ]
     },
@@ -70,6 +82,10 @@
         {
           "label": "Structured Outputs",
           "to": "chat/structured-outputs"
+        },
+        {
+          "label": "Thinking & Reasoning",
+          "to": "chat/thinking-content"
         }
       ]
     },
@@ -120,6 +136,10 @@
         {
           "label": "Video Generation",
           "to": "media/video-generation"
+        },
+        {
+          "label": "Generation Hooks",
+          "to": "media/generation-hooks"
         }
       ]
     },
@@ -187,6 +207,14 @@
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact"
+        },
+        {
+          "label": "@tanstack/ai-vue",
+          "to": "api/ai-vue"
+        },
+        {
+          "label": "@tanstack/ai-svelte",
+          "to": "api/ai-svelte"
         }
       ]
     },
@@ -216,6 +244,10 @@
         {
           "label": "Groq",
           "to": "adapters/groq"
+        },
+        {
+          "label": "ElevenLabs",
+          "to": "adapters/elevenlabs"
         },
         {
           "label": "fal.ai",
