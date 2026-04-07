@@ -7,7 +7,13 @@ const docsRoot = resolve(__dirname, '../docs')
 const configPath = resolve(docsRoot, 'config.json')
 
 // Folders to ignore when crawling
-const IGNORED_FOLDERS = ['framework', 'protocol', 'reference', 'architecture', 'superpowers']
+const IGNORED_FOLDERS = [
+  'framework',
+  'protocol',
+  'reference',
+  'architecture',
+  'superpowers',
+]
 
 // Define the preferred order of sections (folders not listed here will be appended at the end)
 const SECTION_ORDER = [
