@@ -19,7 +19,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  reasoning: new Set(['openai', 'anthropic', 'gemini']),
+  reasoning: new Set(['openai', 'anthropic', 'gemini', 'grok']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
