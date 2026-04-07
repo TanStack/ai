@@ -1,7 +1,7 @@
 ---
 title: Migration Guide
 id: migration
-order: 19
+order: 1
 ---
 
 # Migration Guide
@@ -431,7 +431,7 @@ export async function POST(request: Request) {
 
 If you encounter issues during migration:
 
-1. Check the [Tree-Shaking Guide](./tree-shaking) for details on the new adapter structure
+1. Check the [Tree-Shaking Guide](../advanced/tree-shaking) for details on the new adapter structure
 2. Review the [API Reference](../api/ai) for complete function signatures
 3. Look at the [examples](../getting-started/quick-start) for working code samples
 

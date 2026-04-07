@@ -326,6 +326,8 @@ Tools go through different states during execution:
 - `approval-requested` - Tool requires user approval (if `needsApproval: true`)
 - `approval-responded` - User has approved/denied
 
+> **Tip:** If your use case involves calling multiple tools with complex logic (filtering, aggregation, parallel calls), consider [Code Mode](../code-mode/code-mode) — it lets the LLM write a TypeScript program that orchestrates tools in a single execution instead of one tool call at a time.
+
 ## Next Steps
 
 - [Server Tools](./server-tools) - Learn about server-side tool execution

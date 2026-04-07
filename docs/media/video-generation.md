@@ -1,7 +1,7 @@
 ---
 title: Video Generation
 id: video-generation
-order: 17
+order: 6
 ---
 
 # Video Generation (Experimental)

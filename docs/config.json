@@ -24,95 +24,144 @@
       ]
     },
     {
-      "label": "Guides",
+      "label": "Tools",
       "children": [
         {
           "label": "Tools",
-          "to": "guides/tools"
+          "to": "tools/tools"
         },
         {
           "label": "Tool Architecture",
-          "to": "guides/tool-architecture"
+          "to": "tools/tool-architecture"
         },
         {
           "label": "Server Tools",
-          "to": "guides/server-tools"
+          "to": "tools/server-tools"
         },
         {
           "label": "Client Tools",
-          "to": "guides/client-tools"
+          "to": "tools/client-tools"
         },
         {
           "label": "Tool Approval Flow",
-          "to": "guides/tool-approval"
+          "to": "tools/tool-approval"
         },
         {
           "label": "Lazy Tool Discovery",
-          "to": "guides/lazy-tool-discovery"
-        },
+          "to": "tools/lazy-tool-discovery"
+        }
+      ]
+    },
+    {
+      "label": "Chat & Streaming",
+      "children": [
         {
           "label": "Agentic Cycle",
-          "to": "guides/agentic-cycle"
-        },
-        {
-          "label": "Middleware",
-          "to": "guides/middleware"
-        },
-        {
-          "label": "Structured Outputs",
-          "to": "guides/structured-outputs"
+          "to": "chat/agentic-cycle"
         },
         {
           "label": "Streaming",
-          "to": "guides/streaming"
-        },
-        {
-          "label": "Multimodal Content",
-          "to": "guides/multimodal-content"
+          "to": "chat/streaming"
         },
         {
           "label": "Connection Adapters",
-          "to": "guides/connection-adapters"
+          "to": "chat/connection-adapters"
         },
         {
-          "label": "Observability",
-          "to": "guides/observability"
+          "label": "Structured Outputs",
+          "to": "chat/structured-outputs"
+        }
+      ]
+    },
+    {
+      "label": "Code Mode",
+      "children": [
+        {
+          "label": "Code Mode",
+          "to": "code-mode/code-mode"
         },
         {
-          "label": "Per-Model Type Safety",
-          "to": "guides/per-model-type-safety"
+          "label": "Showing Code Mode in the UI",
+          "to": "code-mode/client-integration"
         },
         {
-          "label": "Runtime Adapter Switching",
-          "to": "guides/runtime-adapter-switching"
+          "label": "Code Mode with Skills",
+          "to": "code-mode/code-mode-with-skills"
+        },
+        {
+          "label": "Code Mode Isolate Drivers",
+          "to": "code-mode/code-mode-isolates"
+        }
+      ]
+    },
+    {
+      "label": "Media",
+      "children": [
+        {
+          "label": "Generations",
+          "to": "media/generations"
         },
         {
           "label": "Realtime Voice Chat",
-          "to": "guides/realtime-chat"
+          "to": "media/realtime-chat"
         },
         {
           "label": "Text-to-Speech",
-          "to": "guides/text-to-speech"
+          "to": "media/text-to-speech"
         },
         {
           "label": "Transcription",
-          "to": "guides/transcription"
+          "to": "media/transcription"
         },
         {
           "label": "Image Generation",
-          "to": "guides/image-generation"
+          "to": "media/image-generation"
         },
         {
           "label": "Video Generation",
-          "to": "guides/video-generation"
+          "to": "media/video-generation"
+        }
+      ]
+    },
+    {
+      "label": "Advanced",
+      "children": [
+        {
+          "label": "Middleware",
+          "to": "advanced/middleware"
+        },
+        {
+          "label": "Observability",
+          "to": "advanced/observability"
+        },
+        {
+          "label": "Multimodal Content",
+          "to": "advanced/multimodal-content"
+        },
+        {
+          "label": "Per-Model Type Safety",
+          "to": "advanced/per-model-type-safety"
+        },
+        {
+          "label": "Runtime Adapter Switching",
+          "to": "advanced/runtime-adapter-switching"
         },
         {
           "label": "Tree-Shaking",
-          "to": "guides/tree-shaking"
+          "to": "advanced/tree-shaking"
         },
         {
+          "label": "Extend Adapter",
+          "to": "advanced/extend-adapter"
+        }
+      ]
+    },
+    {
+      "label": "Migration",
+      "children": [
+        {
           "label": "Migration Guide",
-          "to": "guides/migration"
+          "to": "migration/migration"
         }
       ]
     },
@@ -149,10 +198,6 @@
           "to": "adapters/openai"
         },
         {
-          "label": "OpenRouter",
-          "to": "adapters/openrouter"
-        },
-        {
           "label": "Anthropic",
           "to": "adapters/anthropic"
         },
@@ -165,16 +210,20 @@
           "to": "adapters/ollama"
         },
         {
-          "label": "Groq",
-          "to": "adapters/groq"
-        },
-        {
           "label": "Grok (xAI)",
           "to": "adapters/grok"
         },
         {
-          "label": "Fal",
+          "label": "Groq",
+          "to": "adapters/groq"
+        },
+        {
+          "label": "fal.ai",
           "to": "adapters/fal"
+        },
+        {
+          "label": "OpenRouter Adapter",
+          "to": "adapters/openrouter"
         }
       ]
     },
@@ -186,16 +235,16 @@
           "to": "community-adapters/guide"
         },
         {
+          "label": "Decart",
+          "to": "community-adapters/decart"
+        },
+        {
           "label": "Cencori",
           "to": "community-adapters/cencori"
         },
         {
           "label": "Cloudflare",
           "to": "community-adapters/cloudflare"
-        },
-        {
-          "label": "Decart",
-          "to": "community-adapters/decart"
         },
         {
           "label": "Soniox",

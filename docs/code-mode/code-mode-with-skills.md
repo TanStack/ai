@@ -1,7 +1,7 @@
 ---
 title: Code Mode with Skills
 id: code-mode-with-skills
-order: 20
+order: 3
 ---
 
 Skills extend [Code Mode](./code-mode.md) with a persistent library of reusable TypeScript snippets. When the LLM writes a useful piece of code — say, a function that fetches and ranks NPM packages — it can save that code as a _skill_. On future requests, relevant skills are loaded from storage and made available as first-class tools the LLM can call without re-writing the logic.
@@ -54,6 +54,14 @@ There are **two** LLM interactions per request when using the high-level API:
 The selection call is lightweight — it only sees skill metadata (names, descriptions, usage hints), not full code. If there are no skills in storage or no messages, it short-circuits and skips the LLM call entirely.
 
 ## High-Level API: `codeModeWithSkills()`
+
+### Installation
+
+```bash
+pnpm add @tanstack/ai-code-mode-skills
+```
+
+### Usage
 
 ```typescript
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
@@ -317,6 +325,8 @@ Skill execution emits events through the TanStack AI event system:
 | `code_mode:skill_error` | Skill execution failed | `{ skill, error, duration, timestamp }` |
 | `skill:registered` | New skill saved via `register_skill` | `{ id, name, description, timestamp }` |
 
+To render these events in your React app alongside Code Mode execution events, see [Showing Code Mode in the UI](./client-integration).
+
 ## Tips
 
 - **Use a cheap model for selection.** The selection call only needs to match skill names to conversation context — `gpt-4o-mini` or `claude-haiku-4-5` work well.
@@ -324,3 +334,9 @@ Skill execution emits events through the TanStack AI event system:
 - **Monitor the skill count.** As the library grows, consider increasing `maxSkillsInContext` or switching to the manual API where you control which skills load.
 - **Newly registered skills are available on the next message,** not in the current turn's tool list (unless using `ToolRegistry` with the high-level API, which adds them immediately).
 - **Skills can call other skills.** Inside the sandbox, both `external_*` and `skill_*` functions are available. Set `dependsOn` when registering to document these relationships.
+
+## Next Steps
+
+- [Code Mode](./code-mode) — Core Code Mode setup and API reference
+- [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
+- [Isolate Drivers](./code-mode-isolates) — Compare sandbox runtimes

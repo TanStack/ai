@@ -1,7 +1,7 @@
 ---
 title: Realtime Voice Chat
 id: realtime-chat
-order: 14
+order: 2
 ---
 
 TanStack AI provides a complete realtime voice chat system for building voice-to-voice AI interactions. The realtime API supports multiple providers (OpenAI, ElevenLabs), automatic tool execution, audio visualization, and multimodal input including images.
@@ -441,6 +441,6 @@ const { error } = useRealtimeChat({
 
 ## Next Steps
 
-- [Tools](./tools) - Learn about the isomorphic tool system
+- [Tools](../tools/tools) - Learn about the isomorphic tool system
 - [Text-to-Speech](./text-to-speech) - Non-realtime speech generation
-- [Multimodal Content](./multimodal-content) - Working with images, audio, and video
+- [Multimodal Content](../advanced/multimodal-content) - Working with images, audio, and video

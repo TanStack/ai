@@ -1,7 +1,7 @@
 ---
 title: Image Generation
 id: image-generation
-order: 16
+order: 5
 ---
 
 # Image Generation

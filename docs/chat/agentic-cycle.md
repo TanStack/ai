@@ -1,10 +1,12 @@
 ---
 title: Agentic Cycle
 id: agentic-cycle
-order: 6
+order: 1
 ---
 
 The agentic cycle is the pattern where the LLM repeatedly calls tools, receives results, and continues reasoning until it can provide a final answer. This enables complex multi-step operations.
+
+> **Tip:** Code Mode can reduce agent loop iterations by letting the LLM write a program that calls multiple tools in a single execution. See [Code Mode](../code-mode/code-mode).
 
 ```mermaid
 graph TD

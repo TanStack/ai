@@ -1,7 +1,7 @@
 ---
 title: Code Mode Isolate Drivers
 id: code-mode-isolates
-order: 21
+order: 4
 ---
 
 Isolate drivers provide the secure sandbox runtimes that [Code Mode](./code-mode.md) uses to execute generated TypeScript. All drivers implement the same `IsolateDriver` interface, so you can swap them without changing any other code.
@@ -201,3 +201,9 @@ interface ExecutionResult<T = unknown> {
 ```
 
 You can implement this interface to build a custom driver — for example, a Docker-based sandbox or a Deno subprocess.
+
+## Next Steps
+
+- [Code Mode](./code-mode) — Core setup, API reference, and getting started guide
+- [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
+- [Code Mode with Skills](./code-mode-with-skills) — Add persistent, reusable skill libraries

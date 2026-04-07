@@ -219,4 +219,4 @@ With this setup:
 - [Tools Overview](./tools) - Basic tool concepts
 - [Server Tools](./server-tools) - Server-side tool execution
 - [Tool Architecture](./tool-architecture) - Deep dive into the tool system
-- [Agentic Cycle](./agentic-cycle) - How the agent loop works
+- [Agentic Cycle](../chat/agentic-cycle) - How the agent loop works

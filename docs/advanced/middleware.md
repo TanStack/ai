@@ -1,7 +1,7 @@
 ---
 title: Middleware
 id: middleware
-order: 7
+order: 1
 ---
 
 Middleware lets you hook into every stage of the `chat()` lifecycle — from configuration to streaming, tool execution, usage tracking, and completion. You can observe, transform, or short-circuit behavior at each stage without modifying your adapter or tool implementations.
@@ -646,7 +646,7 @@ import type {
 
 ## Next Steps
 
-- [Tools](./tools) — Learn about the isomorphic tool system
-- [Agentic Cycle](./agentic-cycle) — Understand the multi-step agent loop
+- [Tools](../tools/tools) — Learn about the isomorphic tool system
+- [Agentic Cycle](../chat/agentic-cycle) — Understand the multi-step agent loop
 - [Observability](./observability) — Event-driven observability with the event client
-- [Streaming](./streaming) — How streaming works in TanStack AI
+- [Streaming](../chat/streaming) — How streaming works in TanStack AI

@@ -1,7 +1,7 @@
 ---
 title: Observability
 id: observability
-order: 10
+order: 2
 ---
 
 # Event client

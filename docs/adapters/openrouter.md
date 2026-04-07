@@ -128,5 +128,5 @@ const stream = chat({
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools 
+- [Tools Guide](../tools/tools) - Learn about tools 
 

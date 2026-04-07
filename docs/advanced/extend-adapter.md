@@ -1,3 +1,9 @@
+---
+title: Extend Adapter
+id: extend-adapter
+order: 7
+---
+
 # Extending Adapters with Custom Models
 
 The `extendAdapter` utility allows you to extend existing adapter factories (like `openaiText`, `anthropicText`) with custom model names while maintaining full type safety for input modalities and provider options.

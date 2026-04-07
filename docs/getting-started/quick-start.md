@@ -260,6 +260,6 @@ chat({
 
 ## Next Steps
 
-- Learn about [Tools](../guides/tools) to add function calling
-- Check out [Client Tools](../guides/client-tools) for frontend operations
+- Learn about [Tools](../tools/tools) to add function calling
+- Check out [Client Tools](../tools/client-tools) for frontend operations
 - See the [API Reference](../api/ai) for more options

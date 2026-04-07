@@ -8,7 +8,7 @@ The TanStack AI tool system provides a powerful, flexible architecture for enabl
 
 - [**Server Tools**](./server-tools) execute securely on the backend with automatic handling
 - [**Client Tools**](./client-tools) execute in the browser for UI updates and local operations
-- [**The Agentic Cycle**](./agentic-cycle) enables multi-step reasoning and complex workflows
+- [**The Agentic Cycle**](../chat/agentic-cycle) enables multi-step reasoning and complex workflows
 - [**Tool States**](#call-states) provide real-time feedback and enable robust UIs
 - [**Approval Flow**](#approval-flow) gives users control over sensitive operations
 This architecture enables building sophisticated AI applications that can:

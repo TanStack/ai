@@ -1,7 +1,7 @@
 ---
 title: Text-to-Speech
 id: text-to-speech
-order: 14
+order: 3
 ---
 
 # Text-to-Speech (TTS)

@@ -329,5 +329,5 @@ Creates an OpenAI transcription adapter with an explicit API key.
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
+- [Tools Guide](../tools/tools) - Learn about tools
 - [Other Adapters](./anthropic) - Explore other providers

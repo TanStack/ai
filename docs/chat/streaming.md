@@ -1,7 +1,7 @@
 ---
 title: Streaming
 id: streaming-responses
-order: 7
+order: 2
 ---
 
 TanStack AI supports streaming responses for real-time chat experiences. Streaming allows you to display responses as they're generated, rather than waiting for the complete response.

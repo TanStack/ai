@@ -1,7 +1,7 @@
 ---
 title: Structured Outputs
 id: structured-outputs
-order: 6
+order: 4
 ---
 
 Structured outputs allow you to constrain AI model responses to match a specific JSON schema, ensuring consistent and type-safe data extraction. TanStack AI uses the [Standard JSON Schema](https://standardschema.dev/) specification, allowing you to use any compatible schema library.

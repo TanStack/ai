@@ -1,7 +1,7 @@
 ---
 title: Connection Adapters
 id: connection-adapters
-order: 9
+order: 3
 ---
 
 
