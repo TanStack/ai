@@ -12,7 +12,9 @@ test.describe('Custom Event Emitting', () => {
     await page.waitForSelector('#run-test-button')
   })
 
-  test('server tool emits custom events received by client', async ({ page }) => {
+  test('server tool emits custom events received by client', async ({
+    page,
+  }) => {
     await selectScenario(page, 'custom-events')
     await runTest(page)
     await waitForTestComplete(page, 15000, 1)

@@ -22,7 +22,11 @@ const chunkTransformMiddleware: ChatMiddleware = {
   name: 'chunk-transform',
   onChunk(_ctx, chunk) {
     if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-      return { ...chunk, delta: '[MW] ' + chunk.delta, content: '[MW] ' + (chunk.content || '') }
+      return {
+        ...chunk,
+        delta: '[MW] ' + chunk.delta,
+        content: '[MW] ' + (chunk.content || ''),
+      }
     }
     return chunk
   },
@@ -56,17 +60,22 @@ export const Route = createFileRoute('/api/middleware-test')({
 
           const script = MIDDLEWARE_SCENARIOS[scenario]
           if (!script) {
-            return new Response(JSON.stringify({ error: `Unknown scenario: ${scenario}` }), {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            })
+            return new Response(
+              JSON.stringify({ error: `Unknown scenario: ${scenario}` }),
+              {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            )
           }
 
           const adapter = createLLMSimulator(script)
           const middleware: ChatMiddleware[] = []
 
-          if (middlewareMode === 'chunk-transform') middleware.push(chunkTransformMiddleware)
-          if (middlewareMode === 'tool-skip') middleware.push(toolSkipMiddleware)
+          if (middlewareMode === 'chunk-transform')
+            middleware.push(chunkTransformMiddleware)
+          if (middlewareMode === 'tool-skip')
+            middleware.push(toolSkipMiddleware)
 
           const tools = scenario === 'with-tool' ? [weatherTool] : []
 

@@ -295,7 +295,10 @@ export const SCENARIOS: Record<string, SimulatorScript> = {
     iterations: [
       {
         toolCalls: [
-          { name: '__lazy__tool__discovery__', arguments: { toolNames: ['search_inventory'] } },
+          {
+            name: '__lazy__tool__discovery__',
+            arguments: { toolNames: ['search_inventory'] },
+          },
         ],
       },
       {
@@ -372,7 +375,11 @@ export const SCENARIO_LIST = [
     category: 'basic',
   },
   { id: 'parallel-tools', label: 'Parallel Tools', category: 'basic' },
-  { id: 'lazy-tool-discovery', label: 'Lazy Tool Discovery', category: 'basic' },
+  {
+    id: 'lazy-tool-discovery',
+    label: 'Lazy Tool Discovery',
+    category: 'basic',
+  },
   { id: 'custom-events', label: 'Custom Event Emitting', category: 'basic' },
   { id: 'error', label: 'Error Response', category: 'basic' },
   // Race condition / event flow scenarios

@@ -30,7 +30,11 @@ function MiddlewareTestPage() {
 
       <div style={{ marginBottom: '10px' }}>
         <label>Scenario: </label>
-        <select id="mw-scenario-select" value={scenario} onChange={e => setScenario(e.target.value)}>
+        <select
+          id="mw-scenario-select"
+          value={scenario}
+          onChange={(e) => setScenario(e.target.value)}
+        >
           <option value="basic-text">Basic Text</option>
           <option value="with-tool">With Tool</option>
         </select>
@@ -38,9 +42,15 @@ function MiddlewareTestPage() {
 
       <div style={{ marginBottom: '10px' }}>
         <label>Middleware: </label>
-        <select id="mw-mode-select" value={middlewareMode} onChange={e => setMiddlewareMode(e.target.value)}>
-          {MIDDLEWARE_MODES.map(m => (
-            <option key={m.id} value={m.id}>{m.label}</option>
+        <select
+          id="mw-mode-select"
+          value={middlewareMode}
+          onChange={(e) => setMiddlewareMode(e.target.value)}
+        >
+          {MIDDLEWARE_MODES.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
           ))}
         </select>
       </div>
@@ -49,7 +59,16 @@ function MiddlewareTestPage() {
         Run Test
       </button>
 
-      <pre id="mw-messages-json" style={{ marginTop: '20px', background: '#f5f5f5', padding: '10px', maxHeight: '400px', overflow: 'auto' }}>
+      <pre
+        id="mw-messages-json"
+        style={{
+          marginTop: '20px',
+          background: '#f5f5f5',
+          padding: '10px',
+          maxHeight: '400px',
+          overflow: 'auto',
+        }}
+      >
         {JSON.stringify(messages, null, 2)}
       </pre>
 
