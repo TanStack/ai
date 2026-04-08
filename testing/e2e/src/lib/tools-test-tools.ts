@@ -1,0 +1,148 @@
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+/**
+ * Server-side tool definitions (for tools that execute on the server)
+ */
+export const serverTools = {
+  get_weather: toolDefinition({
+    name: 'get_weather',
+    description: 'Get weather for a city',
+    inputSchema: z.object({
+      city: z.string(),
+    }),
+  }).server(async (args) => {
+    return JSON.stringify({
+      city: args.city,
+      temperature: 72,
+      condition: 'sunny',
+    })
+  }),
+
+  fetch_data: toolDefinition({
+    name: 'fetch_data',
+    description: 'Fetch data from a source',
+    inputSchema: z.object({
+      source: z.string(),
+    }),
+  }).server(async (args) => {
+    return JSON.stringify({
+      source: args.source,
+      data: [1, 2, 3, 4, 5],
+    })
+  }),
+
+  get_time: toolDefinition({
+    name: 'get_time',
+    description: 'Get current time in timezone',
+    inputSchema: z.object({
+      timezone: z.string(),
+    }),
+  }).server(async (args) => {
+    return JSON.stringify({
+      timezone: args.timezone,
+      time: '14:30:00',
+    })
+  }),
+
+  delete_file: toolDefinition({
+    name: 'delete_file',
+    description: 'Delete a file (requires approval)',
+    inputSchema: z.object({
+      path: z.string(),
+    }),
+    needsApproval: true,
+  }).server(async (args) => {
+    return JSON.stringify({
+      deleted: true,
+      path: args.path,
+    })
+  }),
+}
+
+/**
+ * Client-side tool definitions (tools that execute on the client)
+ * These use .client() without an execute function - execution happens on client side
+ */
+export const clientToolDefinitions = {
+  show_notification: toolDefinition({
+    name: 'show_notification',
+    description: 'Show a notification to the user',
+    inputSchema: z.object({
+      message: z.string(),
+      type: z.enum(['info', 'warning', 'error']),
+    }),
+  }).client(),
+
+  display_chart: toolDefinition({
+    name: 'display_chart',
+    description: 'Display a chart on the screen',
+    inputSchema: z.object({
+      type: z.enum(['bar', 'line', 'pie']),
+      data: z.array(z.number()),
+    }),
+  }).client(),
+}
+
+/**
+ * Get the tools needed for a specific scenario
+ */
+export function getToolsForScenario(scenario: string) {
+  switch (scenario) {
+    case 'text-only':
+      return []
+
+    case 'server-tool-single':
+      return [serverTools.get_weather]
+
+    case 'client-tool-single':
+      return [clientToolDefinitions.show_notification]
+
+    case 'approval-tool':
+      return [serverTools.delete_file]
+
+    case 'sequence-server-client':
+      return [serverTools.fetch_data, clientToolDefinitions.display_chart]
+
+    case 'parallel-tools':
+      return [serverTools.get_weather, serverTools.get_time]
+
+    // Race condition / event flow scenarios
+    case 'sequential-client-tools':
+      return [clientToolDefinitions.show_notification]
+
+    case 'parallel-client-tools':
+      return [
+        clientToolDefinitions.show_notification,
+        clientToolDefinitions.display_chart,
+      ]
+
+    case 'sequential-approvals':
+      return [serverTools.delete_file]
+
+    case 'parallel-approvals':
+      return [serverTools.delete_file]
+
+    case 'client-then-approval':
+      return [clientToolDefinitions.show_notification, serverTools.delete_file]
+
+    case 'approval-then-client':
+      return [serverTools.delete_file, clientToolDefinitions.show_notification]
+
+    case 'server-then-two-clients':
+      return [
+        serverTools.fetch_data,
+        clientToolDefinitions.show_notification,
+        clientToolDefinitions.display_chart,
+      ]
+
+    case 'triple-client-sequence':
+      return [
+        clientToolDefinitions.show_notification,
+        clientToolDefinitions.display_chart,
+      ]
+
+    default:
+      return []
+  }
+}
