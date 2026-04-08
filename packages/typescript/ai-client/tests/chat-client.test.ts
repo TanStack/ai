@@ -8,7 +8,10 @@ import {
   createApprovalToolCallChunks,
   createCustomEventChunks,
 } from './test-utils'
-import type { ConnectionAdapter, ConnectConnectionAdapter } from '../src/connection-adapters'
+import type {
+  ConnectionAdapter,
+  ConnectConnectionAdapter,
+} from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '../src/types'
 
