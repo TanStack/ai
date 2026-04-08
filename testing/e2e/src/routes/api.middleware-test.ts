@@ -91,6 +91,7 @@ export const Route = createFileRoute('/api/middleware-test')({
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
+          console.error('[api.middleware-test] Error:', error.message)
           if (error.name === 'AbortError' || abortController.signal.aborted) {
             return new Response(null, { status: 499 })
           }

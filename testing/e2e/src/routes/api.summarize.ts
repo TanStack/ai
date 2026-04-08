@@ -29,7 +29,7 @@ function createSummarizeAdapter(provider: Provider) {
     openrouter: () =>
       createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
   }
-  return factories[provider]?.() ?? factories.openai!()
+  return factories[provider]?.()
 }
 
 export const Route = createFileRoute('/api/summarize')({
@@ -42,6 +42,12 @@ export const Route = createFileRoute('/api/summarize')({
 
         try {
           const adapter = createSummarizeAdapter(provider)
+          if (!adapter) {
+            return new Response(
+              JSON.stringify({ error: `Provider ${provider} does not support summarize` }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } },
+            )
+          }
           const result = summarize({
             adapter,
             text,

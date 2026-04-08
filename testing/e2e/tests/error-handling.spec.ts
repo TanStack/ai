@@ -49,5 +49,14 @@ test.describe('Error Handling', () => {
 
     // Should not be loading
     await expect(page.getByTestId('loading-indicator')).not.toBeVisible()
+
+    // Error response should not produce a normal assistant message with content
+    const assistantMsgs = page.getByTestId('assistant-message')
+    const count = await assistantMsgs.count()
+    if (count > 0) {
+      const text = await assistantMsgs.last().innerText()
+      expect(text).not.toContain('recommend')
+      expect(text).not.toContain('guitar')
+    }
   })
 })

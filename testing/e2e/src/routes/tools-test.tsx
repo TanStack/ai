@@ -16,6 +16,7 @@ interface ToolEvent {
     | 'approval-granted'
     | 'approval-denied'
     | 'error'
+    | 'custom-event'
   toolName: string
   toolCallId?: string
   details?: string
@@ -114,30 +115,24 @@ function ToolsTestPage() {
   // Create tracked tools (memoized since addEvent is stable)
   const clientTools = useRef(createTrackedTools(addEvent)).current
 
-  const {
-    messages,
-    sendMessage,
-    isLoading,
-    stop,
-    addToolApprovalResponse,
-    error,
-  } = useChat({
-    // Include scenario in ID so client is recreated when scenario changes
-    id: `tools-test-${scenario}`,
-    connection: fetchServerSentEvents('/api/tools-test'),
-    body: { scenario },
-    tools: clientTools,
-    onFinish: () => {
-      setTestComplete(true)
-    },
-    onCustomEvent: (eventType: string, data: unknown) => {
-      addEvent({
-        type: 'custom-event' as any,
-        toolName: eventType,
-        details: JSON.stringify(data),
-      })
-    },
-  })
+  const { messages, sendMessage, isLoading, stop, addToolApprovalResponse, error } =
+    useChat({
+      // Include scenario in ID so client is recreated when scenario changes
+      id: `tools-test-${scenario}`,
+      connection: fetchServerSentEvents('/api/tools-test'),
+      body: { scenario },
+      tools: clientTools,
+      onFinish: () => {
+        setTestComplete(true)
+      },
+      onCustomEvent: (eventType: string, data: unknown) => {
+        addEvent({
+          type: 'custom-event',
+          toolName: eventType,
+          details: JSON.stringify(data),
+        })
+      },
+    })
 
   // Track when test completes (all tool calls are complete and not loading)
   useEffect(() => {
@@ -254,17 +249,7 @@ function ToolsTestPage() {
 
       {/* Error Display */}
       {error && (
-        <div
-          id="error-display"
-          style={{
-            padding: '10px',
-            background: '#f8d7da',
-            border: '1px solid #f5c6cb',
-            borderRadius: '4px',
-            marginBottom: '10px',
-            color: '#721c24',
-          }}
-        >
+        <div id="error-display" style={{ padding: '10px', background: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '4px', marginBottom: '10px', color: '#721c24' }}>
           Error: {error.message}
         </div>
       )}
@@ -578,9 +563,7 @@ function ToolsTestPage() {
         data-approval-denied-count={
           toolEvents.filter((e) => e.type === 'approval-denied').length
         }
-        data-custom-event-count={
-          toolEvents.filter((e) => (e.type as string) === 'custom-event').length
-        }
+        data-custom-event-count={toolEvents.filter(e => e.type === 'custom-event').length}
         data-has-error={(!!error).toString()}
         data-error-message={error?.message || ''}
       />

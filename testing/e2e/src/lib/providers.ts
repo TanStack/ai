@@ -10,7 +10,7 @@ import { createOpenRouterText } from '@tanstack/ai-openrouter'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
-// OpenAI-compatible SDKs (OpenAI, Groq, Grok, OpenRouter) need /v1 in baseURL
+// OpenAI, Grok SDKs need /v1 in baseURL. Groq SDK appends /openai/v1/ internally.
 // Anthropic, Gemini, Ollama SDKs include their path prefixes internally
 const LLMOCK_OPENAI = `${LLMOCK_BASE}/v1`
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'

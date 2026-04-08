@@ -9,8 +9,10 @@ export async function sendMessage(page: Page, text: string) {
   await page
     .getByTestId('send-button')
     .click({ timeout: 5000 })
-    .catch(async () => {
-      // Fallback: if fill() didn't trigger React state, use pressSequentially
+    .catch(async (err) => {
+      // Only retry if button was disabled (fill() didn't trigger React onChange)
+      const isDisabled = await page.getByTestId('send-button').isDisabled()
+      if (!isDisabled) throw err
       await input.clear()
       await input.pressSequentially(text, { delay: 30 })
       await page.getByTestId('send-button').click()

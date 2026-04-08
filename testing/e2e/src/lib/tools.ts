@@ -49,6 +49,10 @@ export const compareGuitars = compareGuitarsToolDef.server((args) => {
     .map((id) => guitars.find((g) => g.id === id))
     .filter(Boolean) as typeof guitars
 
+  if (selected.length === 0) {
+    return { comparison: [], cheapest: 'N/A', mostExpensive: 'N/A' }
+  }
+
   const prices = selected.map((g) => g.price)
   return {
     comparison: selected.map((g) => ({

@@ -34,6 +34,12 @@ for (const provider of providersFor('tool-approval')) {
       const messages = page.getByTestId('assistant-message')
       const count = await messages.count()
       expect(count).toBeGreaterThanOrEqual(1)
+
+      // Verify the denied tool was not executed successfully
+      if (count > 0) {
+        const lastMsg = await messages.last().innerText()
+        expect(lastMsg).not.toContain('added')
+      }
     })
   })
 }
