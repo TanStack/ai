@@ -1,5 +1,19 @@
 # ts-vue-chat
 
+## 0.1.28
+
+### Patch Changes
+
+- Updated dependencies [[`1d1c58f`](https://github.com/TanStack/ai/commit/1d1c58f33188ff98893edb626efd66ac73b8eadb)]:
+  - @tanstack/ai@0.10.1
+  - @tanstack/ai-anthropic@0.7.2
+  - @tanstack/ai-client@0.7.8
+  - @tanstack/ai-gemini@0.8.5
+  - @tanstack/ai-ollama@0.6.4
+  - @tanstack/ai-openai@0.7.3
+  - @tanstack/ai-vue@0.6.13
+  - @tanstack/ai-vue-ui@0.1.24
+
 ## 0.1.27
 
 ### Patch Changes
