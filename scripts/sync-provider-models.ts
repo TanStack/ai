@@ -336,9 +336,9 @@ function addToArray(
   arrayRef: string,
 ): string {
   // Match the array declaration: export const ARRAY_NAME = [...] as const
+  // Uses [\s\S]*? (non-greedy) instead of [^\]]* to handle ] inside comments
   const pattern = new RegExp(
-    `(export const ${arrayName} = \\[[^\\]]*)(\\] as const)`,
-    's',
+    `(export const ${arrayName} = \\[\\s*[\\s\\S]*?)(\\] as const)`,
   )
   const match = pattern.exec(content)
   if (!match) {
@@ -349,7 +349,8 @@ function addToArray(
   const newEntries = entries
     .map((constName) => `  ${constName}${arrayRef},`)
     .join('\n')
-  return content.replace(pattern, `${match[1]}\n${newEntries}\n${match[2]}`)
+  // Use replacer function to prevent $-character interpretation in replacement string
+  return content.replace(pattern, () => `${match[1]}\n${newEntries}\n${match[2]}`)
 }
 
 /**
@@ -374,7 +375,8 @@ function addToTypeMap(
   }
 
   const newEntries = entries.join('\n')
-  return content.replace(pattern, `${match[1]}\n${newEntries}${match[2]}`)
+  // Use replacer function to prevent $-character interpretation in replacement string
+  return content.replace(pattern, () => `${match[1]}\n${newEntries}${match[2]}`)
 }
 
 // ---------------------------------------------------------------------------
