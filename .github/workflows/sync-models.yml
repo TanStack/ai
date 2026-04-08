@@ -29,10 +29,10 @@ jobs:
       - name: Fetch and sync model metadata
         run: pnpm generate:models:sync
 
-      - name: Check for changes
+      - name: Check for package changes
         id: changes
         run: |
-          if git diff --quiet; then
+          if git diff --quiet -- packages/; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT

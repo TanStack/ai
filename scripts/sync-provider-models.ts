@@ -36,8 +36,10 @@ interface ProviderConfig {
   providerOptionsTypeName: string
   /** Name of the input modalities type map */
   inputModalitiesTypeName: string
-  /** The full supports block to copy for new models */
-  referenceSupports: string
+  /** The supports block template (minus input modalities, which come from OpenRouter) */
+  referenceSupportsBody: string
+  /** Valid input modality types for this provider's ModelMeta interface */
+  validInputModalities: Array<InputModality>
   /** The satisfies type clause (after 'as const satisfies') */
   referenceSatisfies: string
   /** The type string for provider options map entries */
@@ -56,13 +58,11 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     chatArrayName: 'OPENAI_CHAT_MODELS',
     providerOptionsTypeName: 'OpenAIChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'OpenAIModelInputModalitiesByName',
-    referenceSupports: `  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
+    validInputModalities: ['text', 'image', 'audio', 'video'],
+    referenceSupportsBody: `    output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs', 'distillation'],
-    tools: ['web_search', 'file_search', 'image_generation', 'code_interpreter', 'mcp'],
-  },`,
+    tools: ['web_search', 'file_search', 'image_generation', 'code_interpreter', 'mcp'],`,
     referenceSatisfies:
       'ModelMeta<OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
     referenceProviderOptionsEntry:
@@ -80,11 +80,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     chatArrayName: 'ANTHROPIC_MODELS',
     providerOptionsTypeName: 'AnthropicChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
-    referenceSupports: `  supports: {
-    input: ['text', 'image', 'document'],
-    extended_thinking: true,
-    priority_tier: true,
-  },`,
+    validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
+    referenceSupportsBody: `    extended_thinking: true,
+    priority_tier: true,`,
     referenceSatisfies:
       'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
     referenceProviderOptionsEntry:
@@ -99,11 +97,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     chatArrayName: 'GEMINI_MODELS',
     providerOptionsTypeName: 'GeminiChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'GeminiModelInputModalitiesByName',
-    referenceSupports: `  supports: {
-    input: ['text', 'image', 'audio', 'video', 'document'],
-    output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
-  },`,
+    validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
+    referenceSupportsBody: `    output: ['text'],
+    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],`,
     referenceSatisfies:
       'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>',
     referenceProviderOptionsEntry:
@@ -118,11 +114,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     chatArrayName: 'GROK_CHAT_MODELS',
     providerOptionsTypeName: 'GrokChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'GrokModelInputModalitiesByName',
-    referenceSupports: `  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-  },`,
+    validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
+    referenceSupportsBody: `    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],`,
     referenceSatisfies: 'ModelMeta',
     referenceProviderOptionsEntry: 'GrokProviderOptions',
     hasBothNameAndId: false,
@@ -133,6 +127,32 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
 // ---------------------------------------------------------------------------
 // Utility functions
 // ---------------------------------------------------------------------------
+
+type InputModality = 'text' | 'image' | 'audio' | 'video' | 'document'
+
+const MODALITY_MAP: Record<string, InputModality> = {
+  text: 'text',
+  image: 'image',
+  audio: 'audio',
+  video: 'video',
+  file: 'document',
+  document: 'document',
+}
+
+/**
+ * Map OpenRouter input modalities to our standard modality types.
+ * Same mapping as the existing convert-openrouter-models.ts script.
+ */
+function mapInputModalities(modalities: Array<string>): Array<InputModality> {
+  const mapped = modalities
+    .map((m) => MODALITY_MAP[m.toLowerCase()])
+    .filter((m): m is InputModality => m !== undefined)
+  // Ensure at least 'text' is present
+  if (!mapped.includes('text')) {
+    mapped.unshift('text')
+  }
+  return mapped
+}
 
 /** Strip the provider prefix from an OpenRouter model ID */
 function stripPrefix(prefix: string, modelId: string): string {
@@ -227,6 +247,24 @@ function isImageOnlyModel(model: OpenRouterModel): boolean {
   )
 }
 
+/**
+ * Non-chat model family prefixes to exclude from chat model arrays.
+ * These are audio/music/video/image generation models that happen to
+ * include 'text' in their output modalities but are not chat models.
+ */
+const NON_CHAT_MODEL_PREFIXES = [
+  'lyria-',   // Google music generation
+  'veo-',     // Google video generation
+  'imagen-',  // Google image generation
+  'sora-',    // OpenAI video generation
+  'dall-e-',  // OpenAI image generation
+  'tts-',     // Text-to-speech models
+]
+
+function isNonChatModel(strippedId: string): boolean {
+  return NON_CHAT_MODEL_PREFIXES.some((p) => strippedId.startsWith(p))
+}
+
 // ---------------------------------------------------------------------------
 // Model constant generation
 // ---------------------------------------------------------------------------
@@ -242,6 +280,12 @@ function generateModelConstant(
   const inputNormal = convertPrice(model.pricing.prompt)
   const inputCached = convertPrice(model.pricing.input_cache_read)
   const outputNormal = convertPrice(model.pricing.completion)
+
+  // Use actual input modalities from OpenRouter data, filtered to what this provider supports
+  const inputModalities = mapInputModalities(
+    model.architecture.input_modalities,
+  ).filter((m) => config.validInputModalities.includes(m))
+  const inputModalitiesStr = inputModalities.map((m) => `'${m}'`).join(', ')
 
   const lines: Array<string> = []
   lines.push(`const ${constName} = {`)
@@ -268,6 +312,12 @@ function generateModelConstant(
     )
   }
 
+  // supports block (actual input modalities + reference capabilities)
+  lines.push(`  supports: {`)
+  lines.push(`    input: [${inputModalitiesStr}],`)
+  lines.push(config.referenceSupportsBody)
+  lines.push(`  },`)
+
   // pricing
   lines.push(`  pricing: {`)
   lines.push(`    input: {`)
@@ -280,9 +330,6 @@ function generateModelConstant(
   lines.push(`      normal: ${outputNormal},`)
   lines.push(`    },`)
   lines.push(`  },`)
-
-  // supports block (copied from reference)
-  lines.push(config.referenceSupports)
 
   lines.push(`} as const satisfies ${config.referenceSatisfies}`)
 
@@ -429,6 +476,11 @@ async function main() {
         continue
       }
 
+      // Skip non-chat model families (audio/music/video/image generation)
+      if (isNonChatModel(strippedId)) {
+        continue
+      }
+
       // Normalize for comparison to handle dots-vs-dashes naming differences
       if (
         !existingIds.has(normalizeId(strippedId)) &&
@@ -472,9 +524,11 @@ async function main() {
     // Insert constants before first export
     content = insertConstants(content, constants)
 
-    // All non-image-only models go into the chat array
-    // (models that output both text and image are still chat models)
-    const chatModels = filteredModels.filter(({ model }) => outputsText(model))
+    // Filter to chat-eligible models: must output text and not be a non-chat model family
+    const chatModels = filteredModels.filter(
+      ({ model, strippedId }) =>
+        outputsText(model) && !isNonChatModel(strippedId),
+    )
 
     if (chatModels.length > 0) {
       content = addToArray(
