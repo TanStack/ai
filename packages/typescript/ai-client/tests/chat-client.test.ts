@@ -1250,7 +1250,7 @@ describe('ChatClient', () => {
 
       let callIndex = 0
       const adapter: ConnectConnectionAdapter = {
-        async *connect(messages, data, abortSignal) {
+        async *connect(_messages, _data, abortSignal) {
           callIndex++
           const chunks = callIndex === 1 ? round1Chunks : round2Chunks
           for (const chunk of chunks) {
