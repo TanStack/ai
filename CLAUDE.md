@@ -279,14 +279,14 @@ OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record
 
 **What to add for your change:**
 
-| Change type | What E2E test to add |
-|---|---|
-| New provider adapter | Add provider to `feature-support.ts` + `test-matrix.ts`. Existing feature tests auto-run. |
-| New feature (e.g., new generation type) | Add feature to types, feature config, support matrix. Create fixture + spec file. |
-| Bug fix in chat/streaming | Add a test case to `chat.spec.ts` or `tools-test/` that reproduces the bug. |
-| Tool system change | Add scenario to `tools-test-scenarios.ts` + test in `tools-test/` specs. |
-| Middleware change | Add test to `middleware.spec.ts` with appropriate scenario. |
-| Client-side change (useChat, etc.) | Add test covering the observable behavior change. |
+| Change type                             | What E2E test to add                                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------------------------- |
+| New provider adapter                    | Add provider to `feature-support.ts` + `test-matrix.ts`. Existing feature tests auto-run. |
+| New feature (e.g., new generation type) | Add feature to types, feature config, support matrix. Create fixture + spec file.         |
+| Bug fix in chat/streaming               | Add a test case to `chat.spec.ts` or `tools-test/` that reproduces the bug.               |
+| Tool system change                      | Add scenario to `tools-test-scenarios.ts` + test in `tools-test/` specs.                  |
+| Middleware change                       | Add test to `middleware.spec.ts` with appropriate scenario.                               |
+| Client-side change (useChat, etc.)      | Add test covering the observable behavior change.                                         |
 
 **Guide:** See `testing/e2e/README.md` for full instructions on adding tests, recording fixtures, and troubleshooting.
 
