@@ -84,6 +84,46 @@ export const clientToolDefinitions = {
   }).client(),
 }
 
+export const searchInventory = toolDefinition({
+  name: 'search_inventory',
+  description: 'Search the guitar inventory by keyword',
+  inputSchema: z.object({
+    query: z.string(),
+  }),
+  lazy: true,
+}).server(async (args) => {
+  return JSON.stringify({
+    query: args.query,
+    results: [{ id: 1, name: 'Fender Stratocaster', match: 'name' }],
+  })
+})
+
+export const processOrder = toolDefinition({
+  name: 'process_order',
+  description: 'Process a guitar order with progress updates',
+  inputSchema: z.object({
+    guitarId: z.number(),
+    quantity: z.number(),
+  }),
+}).server(async (args, context) => {
+  context?.emitCustomEvent('order:progress', {
+    step: 'validating',
+    message: `Validating order for guitar ${args.guitarId}`,
+  })
+
+  context?.emitCustomEvent('order:progress', {
+    step: 'processing',
+    message: `Processing ${args.quantity} items`,
+  })
+
+  return JSON.stringify({
+    orderId: 'ORD-123',
+    guitarId: args.guitarId,
+    quantity: args.quantity,
+    status: 'completed',
+  })
+})
+
 /**
  * Get the tools needed for a specific scenario
  */
@@ -141,6 +181,12 @@ export function getToolsForScenario(scenario: string) {
         clientToolDefinitions.show_notification,
         clientToolDefinitions.display_chart,
       ]
+
+    case 'lazy-tool-discovery':
+      return [serverTools.get_weather, searchInventory]
+
+    case 'custom-events':
+      return [processOrder]
 
     default:
       return []

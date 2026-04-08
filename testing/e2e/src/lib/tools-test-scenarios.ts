@@ -290,6 +290,39 @@ export const SCENARIOS: Record<string, SimulatorScript> = {
     ],
   },
 
+  // Lazy tool discovery scenario
+  'lazy-tool-discovery': {
+    iterations: [
+      {
+        toolCalls: [
+          { name: '__lazy__tool__discovery__', arguments: { toolNames: ['search_inventory'] } },
+        ],
+      },
+      {
+        toolCalls: [
+          { name: 'search_inventory', arguments: { query: 'stratocaster' } },
+        ],
+      },
+      {
+        content: 'I found a Fender Stratocaster in the inventory.',
+      },
+    ],
+  },
+
+  // Custom event emitting scenario
+  'custom-events': {
+    iterations: [
+      {
+        toolCalls: [
+          { name: 'process_order', arguments: { guitarId: 1, quantity: 2 } },
+        ],
+      },
+      {
+        content: 'Your order has been processed successfully.',
+      },
+    ],
+  },
+
   // Three client tools in sequence - stress test continuation logic
   'triple-client-sequence': {
     iterations: [
@@ -339,6 +372,9 @@ export const SCENARIO_LIST = [
     category: 'basic',
   },
   { id: 'parallel-tools', label: 'Parallel Tools', category: 'basic' },
+  { id: 'lazy-tool-discovery', label: 'Lazy Tool Discovery', category: 'basic' },
+  { id: 'custom-events', label: 'Custom Event Emitting', category: 'basic' },
+  { id: 'error', label: 'Error Response', category: 'basic' },
   // Race condition / event flow scenarios
   {
     id: 'sequential-client-tools',
