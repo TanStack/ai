@@ -1,0 +1,65 @@
+import { useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { MIDDLEWARE_MODES } from '@/lib/middleware-test-scenarios'
+
+export const Route = createFileRoute('/middleware-test')({
+  component: MiddlewareTestPage,
+})
+
+function MiddlewareTestPage() {
+  const [scenario, setScenario] = useState('basic-text')
+  const [middlewareMode, setMiddlewareMode] = useState('none')
+  const [testComplete, setTestComplete] = useState(false)
+
+  const { messages, sendMessage, isLoading } = useChat({
+    id: `mw-test-${scenario}-${middlewareMode}`,
+    connection: fetchServerSentEvents('/api/middleware-test'),
+    body: { scenario, middlewareMode },
+    onFinish: () => setTestComplete(true),
+  })
+
+  const handleRun = () => {
+    setTestComplete(false)
+    sendMessage('Run middleware test')
+  }
+
+  return (
+    <div style={{ padding: '20px', fontFamily: 'system-ui' }}>
+      <h1>Middleware Test</h1>
+
+      <div style={{ marginBottom: '10px' }}>
+        <label>Scenario: </label>
+        <select id="mw-scenario-select" value={scenario} onChange={e => setScenario(e.target.value)}>
+          <option value="basic-text">Basic Text</option>
+          <option value="with-tool">With Tool</option>
+        </select>
+      </div>
+
+      <div style={{ marginBottom: '10px' }}>
+        <label>Middleware: </label>
+        <select id="mw-mode-select" value={middlewareMode} onChange={e => setMiddlewareMode(e.target.value)}>
+          {MIDDLEWARE_MODES.map(m => (
+            <option key={m.id} value={m.id}>{m.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <button id="mw-run-button" onClick={handleRun} disabled={isLoading}>
+        Run Test
+      </button>
+
+      <pre id="mw-messages-json" style={{ marginTop: '20px', background: '#f5f5f5', padding: '10px', maxHeight: '400px', overflow: 'auto' }}>
+        {JSON.stringify(messages, null, 2)}
+      </pre>
+
+      <div
+        id="mw-metadata"
+        style={{ display: 'none' }}
+        data-is-loading={isLoading.toString()}
+        data-test-complete={testComplete.toString()}
+        data-message-count={messages.length}
+      />
+    </div>
+  )
+}
