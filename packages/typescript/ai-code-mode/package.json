@@ -24,7 +24,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "skills"
   ],
   "scripts": {
     "build": "vite build",
@@ -42,7 +43,8 @@
     "code-mode",
     "llm",
     "sandbox",
-    "isolate"
+    "isolate",
+    "tanstack-intent"
   ],
   "dependencies": {
     "esbuild": "^0.25.12"

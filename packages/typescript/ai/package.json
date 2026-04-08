@@ -32,7 +32,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "skills"
   ],
   "scripts": {
     "build": "vite build",
@@ -52,7 +53,8 @@
     "sdk",
     "llm",
     "chat",
-    "embeddings"
+    "embeddings",
+    "tanstack-intent"
   ],
   "dependencies": {
     "@tanstack/ai-event-client": "workspace:*",

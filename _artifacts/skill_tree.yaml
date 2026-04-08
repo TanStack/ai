@@ -1,0 +1,251 @@
+# skills/_artifacts/skill_tree.yaml
+library:
+  name: '@tanstack/ai'
+  version: '0.10.0'
+  repository: 'https://github.com/TanStack/ai'
+  description: 'Type-safe, provider-agnostic AI SDK for building chat, tool calling, media generation, and code execution features.'
+generated_from:
+  domain_map: '_artifacts/domain_map.yaml'
+  skill_spec: '_artifacts/skill_spec.md'
+generated_at: '2026-04-08'
+
+skills:
+  # ── Core skills (in @tanstack/ai package) ──
+
+  - name: 'TanStack AI — Core'
+    slug: 'ai-core'
+    type: 'core'
+    domain: 'chat-experiences'
+    path: 'skills/ai-core/SKILL.md'
+    package: 'packages/typescript/ai'
+    description: >
+      Entry point for TanStack AI skills. Routes to chat-experience,
+      tool-calling, media-generation, structured-outputs, adapter-configuration,
+      ag-ui-protocol, middleware, and custom-backend-integration based on
+      developer task. Covers chat(), toolDefinition(), generateImage(),
+      outputSchema, openaiText(), toServerSentEventsResponse(), middleware hooks.
+    requires: []
+
+  - name: 'Chat Experience'
+    slug: 'ai-core/chat-experience'
+    type: 'sub-skill'
+    domain: 'chat-experiences'
+    path: 'skills/ai-core/chat-experience/SKILL.md'
+    package: 'packages/typescript/ai'
+    description: >
+      End-to-end chat implementation: server endpoint with chat() and
+      toServerSentEventsResponse(), client-side useChat hook with
+      fetchServerSentEvents(), message rendering with UIMessage parts,
+      multimodal content, thinking/reasoning display. Covers streaming
+      states, connection adapters, and message format conversions.
+      NOT Vercel AI SDK — uses chat() not streamText().
+    requires:
+      - 'ai-core'
+    sources:
+      - 'TanStack/ai:docs/getting-started/quick-start.md'
+      - 'TanStack/ai:docs/chat/streaming.md'
+      - 'TanStack/ai:docs/chat/connection-adapters.md'
+      - 'TanStack/ai:docs/chat/thinking-content.md'
+      - 'TanStack/ai:docs/advanced/multimodal-content.md'
+      - 'TanStack/ai:packages/typescript/ai/src/core/chat.ts'
+      - 'TanStack/ai:packages/typescript/ai-client/src/chat-client.ts'
+
+  - name: 'Tool Calling'
+    slug: 'ai-core/tool-calling'
+    type: 'sub-skill'
+    domain: 'tool-system'
+    path: 'skills/ai-core/tool-calling/SKILL.md'
+    package: 'packages/typescript/ai'
+    description: >
+      Isomorphic tool system: toolDefinition() with Zod schemas,
+      .server() and .client() implementations, passing tools to both
+      chat() on server and useChat/clientTools on client, tool approval
+      flows with needsApproval and addToolApprovalResponse(), lazy tool
+      discovery with lazy:true, rendering ToolCallPart and ToolResultPart
+      in UI. Requires @standard-schema/spec for type inference.
+    requires:
+      - 'ai-core'
+    sources:
+      - 'TanStack/ai:docs/tools/tools.md'
+      - 'TanStack/ai:docs/tools/server-tools.md'
+      - 'TanStack/ai:docs/tools/client-tools.md'
+      - 'TanStack/ai:docs/tools/tool-approval.md'
+      - 'TanStack/ai:docs/tools/lazy-tool-discovery.md'
+      - 'TanStack/ai:docs/tools/tool-architecture.md'
+      - 'TanStack/ai:packages/typescript/ai/src/tools/'
+
+  - name: 'Media Generation'
+    slug: 'ai-core/media-generation'
+    type: 'sub-skill'
+    domain: 'media-generation'
+    path: 'skills/ai-core/media-generation/SKILL.md'
+    package: 'packages/typescript/ai'
+    description: >
+      Image, video, speech (TTS), and transcription generation using
+      activity-specific adapters: generateImage() with openaiImage/geminiImage,
+      generateVideo() with async polling, generateSpeech() with openaiSpeech,
+      generateTranscription() with openaiTranscription. React hooks:
+      useGenerateImage, useGenerateSpeech, useTranscription, useGenerateVideo.
+      TanStack Start server function integration with toServerSentEventsResponse.
+    requires:
+      - 'ai-core'
+    sources:
+      - 'TanStack/ai:docs/media/generations.md'
+      - 'TanStack/ai:docs/media/generation-hooks.md'
+      - 'TanStack/ai:docs/media/image-generation.md'
+      - 'TanStack/ai:docs/media/video-generation.md'
+      - 'TanStack/ai:docs/media/text-to-speech.md'
+      - 'TanStack/ai:docs/media/transcription.md'
+    subsystems:
+      - 'image-generation'
+      - 'video-generation'
+      - 'text-to-speech'
+      - 'transcription'
+
+  - name: 'Structured Outputs'
+    slug: 'ai-core/structured-outputs'
+    type: 'sub-skill'
+    domain: 'chat-experiences'
+    path: 'skills/ai-core/structured-outputs/SKILL.md'
+    package: 'packages/typescript/ai'
+    description: >
+      Type-safe JSON schema responses from LLMs using outputSchema on chat().
+      Supports Zod, ArkType, and Valibot schemas. The adapter handles
+      provider-specific strategies transparently — never configure structured
+      output at the provider level. convertSchemaToJsonSchema() for manual
+      schema conversion.
+    requires:
+      - 'ai-core'
+    sources:
+      - 'TanStack/ai:docs/chat/structured-outputs.md'
+      - 'TanStack/ai:packages/typescript/ai/src/tools/schema-converter.ts'
+
+  - name: 'Adapter Configuration'
+    slug: 'ai-core/adapter-configuration'
+    type: 'sub-skill'
+    domain: 'adapter-management'
+    path: 'skills/ai-core/adapter-configuration/SKILL.md'
+    package: 'packages/typescript/ai'
+    description: >
+      Provider adapter selection and configuration: openaiText, anthropicText,
+      geminiText, ollamaText, grokText, groqText, openRouterText. Per-model
+      type safety with modelOptions, reasoning/thinking configuration,
+      runtime adapter switching, extendAdapter() for custom models, createModel().
+      API key env vars: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY/GEMINI_API_KEY,
+      XAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OLLAMA_HOST.
+    requires:
+      - 'ai-core'
+    sources:
+      - 'TanStack/ai:docs/adapters/openai.md'
+      - 'TanStack/ai:docs/adapters/anthropic.md'
+      - 'TanStack/ai:docs/adapters/gemini.md'
+      - 'TanStack/ai:docs/adapters/ollama.md'
+      - 'TanStack/ai:docs/adapters/grok.md'
+      - 'TanStack/ai:docs/adapters/groq.md'
+      - 'TanStack/ai:docs/adapters/openrouter.md'
+      - 'TanStack/ai:docs/advanced/per-model-type-safety.md'
+      - 'TanStack/ai:docs/advanced/runtime-adapter-switching.md'
+      - 'TanStack/ai:docs/advanced/extend-adapter.md'
+    subsystems:
+      - 'openai'
+      - 'anthropic'
+      - 'gemini'
+      - 'ollama'
+      - 'grok'
+      - 'groq'
+      - 'openrouter'
+    references:
+      - 'references/openai-adapter.md'
+      - 'references/anthropic-adapter.md'
+      - 'references/gemini-adapter.md'
+      - 'references/ollama-adapter.md'
+      - 'references/grok-adapter.md'
+      - 'references/groq-adapter.md'
+      - 'references/openrouter-adapter.md'
+
+  - name: 'AG-UI Protocol'
+    slug: 'ai-core/ag-ui-protocol'
+    type: 'sub-skill'
+    domain: 'transport-protocol'
+    path: 'skills/ai-core/ag-ui-protocol/SKILL.md'
+    package: 'packages/typescript/ai'
+    description: >
+      Server-side AG-UI streaming protocol implementation: StreamChunk event
+      types (RUN_STARTED, TEXT_MESSAGE_START/CONTENT/END, TOOL_CALL_START/ARGS/END,
+      RUN_FINISHED, RUN_ERROR, STEP_STARTED/STEP_FINISHED, STATE_SNAPSHOT/DELTA,
+      CUSTOM), toServerSentEventsStream() for SSE format, toHttpStream() for
+      NDJSON format. For backends serving AG-UI events without client packages.
+    requires:
+      - 'ai-core'
+    sources:
+      - 'TanStack/ai:docs/protocol/chunk-definitions.md'
+      - 'TanStack/ai:docs/protocol/sse-protocol.md'
+      - 'TanStack/ai:docs/protocol/http-stream-protocol.md'
+
+  - name: 'Middleware'
+    slug: 'ai-core/middleware'
+    type: 'sub-skill'
+    domain: 'extensibility'
+    path: 'skills/ai-core/middleware/SKILL.md'
+    package: 'packages/typescript/ai'
+    description: >
+      Chat lifecycle middleware hooks: onConfig, onStart, onChunk,
+      onBeforeToolCall, onAfterToolCall, onUsage, onFinish, onAbort, onError.
+      Use for analytics, event firing, tool caching (toolCacheMiddleware),
+      logging, and tracing. Middleware array in chat() config, left-to-right
+      execution order. NOT onEnd/onFinish callbacks on chat() — use middleware.
+    requires:
+      - 'ai-core'
+    sources:
+      - 'TanStack/ai:docs/advanced/middleware.md'
+      - 'TanStack/ai:packages/typescript/ai/src/middlewares/'
+
+  - name: 'Custom Backend Integration'
+    slug: 'ai-core/custom-backend-integration'
+    type: 'composition'
+    domain: 'transport-protocol'
+    path: 'skills/ai-core/custom-backend-integration/SKILL.md'
+    package: 'packages/typescript/ai'
+    description: >
+      Connect useChat to a non-TanStack-AI backend through custom connection
+      adapters. ConnectConnectionAdapter (single async iterable) vs
+      SubscribeConnectionAdapter (separate subscribe/send). Customize
+      fetchServerSentEvents() and fetchHttpStream() with auth headers,
+      custom URLs, and request options. Import from framework package,
+      not @tanstack/ai-client.
+    requires:
+      - 'ai-core'
+      - 'ai-core/chat-experience'
+    sources:
+      - 'TanStack/ai:docs/chat/connection-adapters.md'
+      - 'TanStack/ai:packages/typescript/ai-client/src/connection-adapters.ts'
+
+  # ── Code Mode skills (in @tanstack/ai-code-mode package) ──
+
+  - name: 'Code Mode'
+    slug: 'ai-code-mode'
+    type: 'core'
+    domain: 'code-execution'
+    path: 'skills/ai-code-mode/SKILL.md'
+    package: 'packages/typescript/ai-code-mode'
+    description: >
+      LLM-generated TypeScript execution in sandboxed environments:
+      createCodeModeTool() with isolate drivers (createNodeIsolateDriver,
+      createQuickJSIsolateDriver, createCloudflareIsolateDriver),
+      codeModeWithSkills() for persistent skill libraries, trust strategies,
+      skill storage (FileSystem, LocalStorage, InMemory, Mongo), client-side
+      execution progress via code_mode:* custom events in useChat.
+    requires:
+      - 'ai-core'
+      - 'ai-core/chat-experience'
+    sources:
+      - 'TanStack/ai:docs/code-mode/code-mode.md'
+      - 'TanStack/ai:docs/code-mode/code-mode-isolates.md'
+      - 'TanStack/ai:docs/code-mode/code-mode-with-skills.md'
+      - 'TanStack/ai:docs/code-mode/client-integration.md'
+      - 'TanStack/ai:packages/typescript/ai-code-mode/src/'
+      - 'TanStack/ai:packages/typescript/ai-code-mode-skills/src/'
+    subsystems:
+      - 'node-isolate'
+      - 'quickjs-isolate'
+      - 'cloudflare-isolate'
