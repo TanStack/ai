@@ -17,6 +17,7 @@ interface ChatUIProps {
     approved: boolean
   }) => Promise<void>
   showImageInput?: boolean
+  onStop?: () => void
 }
 
 export function ChatUI({
@@ -26,6 +27,7 @@ export function ChatUI({
   onSendMessageWithImage,
   addToolApprovalResponse,
   showImageInput,
+  onStop,
 }: ChatUIProps) {
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
@@ -168,6 +170,15 @@ export function ChatUI({
         >
           Send
         </button>
+        {isLoading && onStop && (
+          <button
+            data-testid="stop-button"
+            onClick={onStop}
+            className="px-4 py-2 bg-red-500 text-white rounded text-sm font-medium"
+          >
+            Stop
+          </button>
+        )}
       </div>
     </div>
   )

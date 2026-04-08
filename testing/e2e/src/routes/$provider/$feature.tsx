@@ -51,13 +51,12 @@ function ChatFeature({
 
   const tools = needsApproval ? clientTools(addToCartClient) : undefined
 
-  const { messages, sendMessage, isLoading, addToolApprovalResponse } = useChat(
-    {
+  const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
+    useChat({
       connection: fetchServerSentEvents('/api/chat'),
       tools,
       body: { provider, feature },
-    },
-  )
+    })
 
   return (
     <ChatUI
@@ -94,6 +93,7 @@ function ChatFeature({
         needsApproval ? addToolApprovalResponse : undefined
       }
       showImageInput={showImageInput}
+      onStop={stop}
     />
   )
 }
