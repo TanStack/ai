@@ -19,9 +19,7 @@ describe('warnIfBindingsExposeSecrets', () => {
       },
     ])
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('apiKey'),
-    )
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('apiKey'))
     warnSpy.mockRestore()
   })
 
