@@ -9,15 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
+import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 
+const ToolsTestRoute = ToolsTestRouteImport.update({
+  id: '/tools-test',
+  path: '/tools-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -36,6 +43,11 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
 const ApiTranscriptionRoute = ApiTranscriptionRouteImport.update({
   id: '/api/transcription',
   path: '/api/transcription',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiToolsTestRoute = ApiToolsTestRouteImport.update({
+  id: '/api/tools-test',
+  path: '/api/tools-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
@@ -61,20 +73,24 @@ const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRoute
   '/api/tts': typeof ApiTtsRoute
   '/$provider/': typeof ProviderIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRoute
   '/api/tts': typeof ApiTtsRoute
   '/$provider': typeof ProviderIndexRoute
@@ -82,10 +98,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRoute
   '/api/summarize': typeof ApiSummarizeRoute
+  '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRoute
   '/api/tts': typeof ApiTtsRoute
   '/$provider/': typeof ProviderIndexRoute
@@ -94,30 +112,36 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/tools-test'
     | '/$provider/$feature'
     | '/api/chat'
     | '/api/image'
     | '/api/summarize'
+    | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
     | '/$provider/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/tools-test'
     | '/$provider/$feature'
     | '/api/chat'
     | '/api/image'
     | '/api/summarize'
+    | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
     | '/$provider'
   id:
     | '__root__'
     | '/'
+    | '/tools-test'
     | '/$provider/$feature'
     | '/api/chat'
     | '/api/image'
     | '/api/summarize'
+    | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
     | '/$provider/'
@@ -125,10 +149,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
+  ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRoute
   ApiTtsRoute: typeof ApiTtsRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
@@ -136,6 +162,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tools-test': {
+      id: '/tools-test'
+      path: '/tools-test'
+      fullPath: '/tools-test'
+      preLoaderRoute: typeof ToolsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -162,6 +195,13 @@ declare module '@tanstack/react-router' {
       path: '/api/transcription'
       fullPath: '/api/transcription'
       preLoaderRoute: typeof ApiTranscriptionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tools-test': {
+      id: '/api/tools-test'
+      path: '/api/tools-test'
+      fullPath: '/api/tools-test'
+      preLoaderRoute: typeof ApiToolsTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/summarize': {
@@ -197,10 +237,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
+  ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRoute,
   ApiTtsRoute: ApiTtsRoute,
   ProviderIndexRoute: ProviderIndexRoute,
