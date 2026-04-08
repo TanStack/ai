@@ -1,5 +1,12 @@
 import { test, expect } from '../fixtures'
-import { selectScenario, runTest, waitForTestComplete, getMetadata, getEventLog, getToolCalls } from './helpers'
+import {
+  selectScenario,
+  runTest,
+  waitForTestComplete,
+  getMetadata,
+  getEventLog,
+  getToolCalls,
+} from './helpers'
 
 /**
  * Chat Flow E2E Tests — tools-test page

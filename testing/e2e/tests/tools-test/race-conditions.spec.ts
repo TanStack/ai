@@ -216,7 +216,9 @@ test.describe('Race Condition Tests', () => {
   /**
    * Tests the triple sequence stress test
    */
-  test('triple client sequence completes without blocking', async ({ page }) => {
+  test('triple client sequence completes without blocking', async ({
+    page,
+  }) => {
     await selectScenario(page, 'triple-client-sequence')
 
     const startTime = Date.now()

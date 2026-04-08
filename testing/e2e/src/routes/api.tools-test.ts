@@ -1,9 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  chat,
-  maxIterations,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
+import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
 import { createLLMSimulator } from '@tanstack/tests-adapters'
 import { SCENARIOS } from '@/lib/tools-test-scenarios'
 import { getToolsForScenario } from '@/lib/tools-test-tools'
