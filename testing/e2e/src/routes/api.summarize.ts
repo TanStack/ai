@@ -44,7 +44,9 @@ export const Route = createFileRoute('/api/summarize')({
           const adapter = createSummarizeAdapter(provider)
           if (!adapter) {
             return new Response(
-              JSON.stringify({ error: `Provider ${provider} does not support summarize` }),
+              JSON.stringify({
+                error: `Provider ${provider} does not support summarize`,
+              }),
               { status: 400, headers: { 'Content-Type': 'application/json' } },
             )
           }
