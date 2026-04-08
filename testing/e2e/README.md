@@ -12,46 +12,46 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 Each test iterates over supported providers using `providersFor('feature')`:
 
-| Feature | Providers | Spec file |
-|---|---|---|
-| chat | 7 | `tests/chat.spec.ts` |
-| one-shot-text | 7 | `tests/one-shot-text.spec.ts` |
-| multi-turn | 7 | `tests/multi-turn.spec.ts` |
-| structured-output | 7 | `tests/structured-output.spec.ts` |
-| tool-calling | 6 | `tests/tool-calling.spec.ts` |
-| parallel-tool-calls | 5 | `tests/parallel-tool-calls.spec.ts` |
-| tool-approval | 6 | `tests/tool-approval.spec.ts` |
-| agentic-structured | 6 | `tests/agentic-structured.spec.ts` |
-| reasoning | 3 | `tests/reasoning.spec.ts` |
-| multimodal-image | 5 | `tests/multimodal-image.spec.ts` |
-| multimodal-structured | 5 | `tests/multimodal-structured.spec.ts` |
-| summarize | 6 | `tests/summarize.spec.ts` |
-| summarize-stream | 6 | `tests/summarize-stream.spec.ts` |
-| image-gen | 7 | `tests/image-gen.spec.ts` |
-| tts | 7 | `tests/tts.spec.ts` |
-| transcription | 7 | `tests/transcription.spec.ts` |
+| Feature               | Providers | Spec file                             |
+| --------------------- | --------- | ------------------------------------- |
+| chat                  | 7         | `tests/chat.spec.ts`                  |
+| one-shot-text         | 7         | `tests/one-shot-text.spec.ts`         |
+| multi-turn            | 7         | `tests/multi-turn.spec.ts`            |
+| structured-output     | 7         | `tests/structured-output.spec.ts`     |
+| tool-calling          | 6         | `tests/tool-calling.spec.ts`          |
+| parallel-tool-calls   | 5         | `tests/parallel-tool-calls.spec.ts`   |
+| tool-approval         | 6         | `tests/tool-approval.spec.ts`         |
+| agentic-structured    | 6         | `tests/agentic-structured.spec.ts`    |
+| reasoning             | 3         | `tests/reasoning.spec.ts`             |
+| multimodal-image      | 5         | `tests/multimodal-image.spec.ts`      |
+| multimodal-structured | 5         | `tests/multimodal-structured.spec.ts` |
+| summarize             | 6         | `tests/summarize.spec.ts`             |
+| summarize-stream      | 6         | `tests/summarize-stream.spec.ts`      |
+| image-gen             | 7         | `tests/image-gen.spec.ts`             |
+| tts                   | 7         | `tests/tts.spec.ts`                   |
+| transcription         | 7         | `tests/transcription.spec.ts`         |
 
 ### Tools-test page (via LLM simulator)
 
 14 deterministic scenarios covering tool execution flows:
 
-| Spec file | Tests | What it covers |
-|---|---|---|
-| `tests/tools-test/chat-flow.spec.ts` | 5 | Text-only, server tool, client tool, tool call structure |
-| `tests/tools-test/approval-flow.spec.ts` | 6 | Approve, deny, sequential, parallel, mixed flows |
-| `tests/tools-test/client-tool.spec.ts` | 5 | Single, sequential, parallel, triple, server+client |
-| `tests/tools-test/race-conditions.spec.ts` | 8 | No blocking, no deadlocks, timing, mixed flows |
-| `tests/tools-test/server-client-sequence.spec.ts` | 5 | Server→client, parallel server, ordering |
+| Spec file                                         | Tests | What it covers                                           |
+| ------------------------------------------------- | ----- | -------------------------------------------------------- |
+| `tests/tools-test/chat-flow.spec.ts`              | 5     | Text-only, server tool, client tool, tool call structure |
+| `tests/tools-test/approval-flow.spec.ts`          | 6     | Approve, deny, sequential, parallel, mixed flows         |
+| `tests/tools-test/client-tool.spec.ts`            | 5     | Single, sequential, parallel, triple, server+client      |
+| `tests/tools-test/race-conditions.spec.ts`        | 8     | No blocking, no deadlocks, timing, mixed flows           |
+| `tests/tools-test/server-client-sequence.spec.ts` | 5     | Server→client, parallel server, ordering                 |
 
 ### Advanced feature tests
 
-| Spec file | What it covers |
-|---|---|
-| `tests/abort.spec.ts` | Stop button cancels in-flight generation |
-| `tests/lazy-tools.spec.ts` | `__lazy__tool__discovery__` discovers and uses lazy tools |
-| `tests/custom-events.spec.ts` | Server tool `emitCustomEvent` received by client |
-| `tests/middleware.spec.ts` | `onChunk` transform, `onBeforeToolCall` skip |
-| `tests/error-handling.spec.ts` | Server RUN_ERROR, aimock error fixture |
+| Spec file                      | What it covers                                            |
+| ------------------------------ | --------------------------------------------------------- |
+| `tests/abort.spec.ts`          | Stop button cancels in-flight generation                  |
+| `tests/lazy-tools.spec.ts`     | `__lazy__tool__discovery__` discovers and uses lazy tools |
+| `tests/custom-events.spec.ts`  | Server tool `emitCustomEvent` received by client          |
+| `tests/middleware.spec.ts`     | `onChunk` transform, `onBeforeToolCall` skip              |
+| `tests/error-handling.spec.ts` | Server RUN_ERROR, aimock error fixture                    |
 
 ## 1. Quick Start
 
@@ -132,7 +132,11 @@ Tests import from `./fixtures` (not `@playwright/test`) to get the aimock worker
 
 ```typescript
 import { test, expect } from './fixtures'
-import { sendMessage, waitForResponse, getLastAssistantMessage } from './helpers'
+import {
+  sendMessage,
+  waitForResponse,
+  getLastAssistantMessage,
+} from './helpers'
 import { providersFor } from './test-matrix'
 
 for (const provider of providersFor('my-feature')) {
@@ -181,6 +185,7 @@ await waitForAssistantText(page, 'Fender Stratocaster')
 5. **Verify aimock supports the provider** — check [aimock docs](https://github.com/CopilotKit/aimock)
 
 **SDK baseURL notes:**
+
 - OpenAI, Grok: use `LLMOCK_OPENAI` (with `/v1`)
 - Groq: use `LLMOCK_BASE` (SDK appends `/openai/v1/` internally)
 - Anthropic, Ollama: use `LLMOCK_BASE`
