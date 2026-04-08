@@ -114,7 +114,7 @@ function ToolsTestPage() {
   // Create tracked tools (memoized since addEvent is stable)
   const clientTools = useRef(createTrackedTools(addEvent)).current
 
-  const { messages, sendMessage, isLoading, stop, addToolApprovalResponse } =
+  const { messages, sendMessage, isLoading, stop, addToolApprovalResponse, error } =
     useChat({
       // Include scenario in ID so client is recreated when scenario changes
       id: `tools-test-${scenario}`,
@@ -123,6 +123,13 @@ function ToolsTestPage() {
       tools: clientTools,
       onFinish: () => {
         setTestComplete(true)
+      },
+      onCustomEvent: (eventType: string, data: unknown) => {
+        addEvent({
+          type: 'custom-event' as any,
+          toolName: eventType,
+          details: JSON.stringify(data),
+        })
       },
     })
 
@@ -238,6 +245,13 @@ function ToolsTestPage() {
           </span>
         )}
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div id="error-display" style={{ padding: '10px', background: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '4px', marginBottom: '10px', color: '#721c24' }}>
+          Error: {error.message}
+        </div>
+      )}
 
       {/* Controls */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
@@ -548,6 +562,9 @@ function ToolsTestPage() {
         data-approval-denied-count={
           toolEvents.filter((e) => e.type === 'approval-denied').length
         }
+        data-custom-event-count={toolEvents.filter(e => (e.type as string) === 'custom-event').length}
+        data-has-error={(!!error).toString()}
+        data-error-message={error?.message || ''}
       />
 
       {/* Event log as JSON for easy parsing in tests */}
