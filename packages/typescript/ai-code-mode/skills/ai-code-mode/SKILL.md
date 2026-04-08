@@ -9,12 +9,12 @@ description: >
   execution progress via code_mode:* custom events in useChat.
 type: core
 library: tanstack-ai
-library_version: "0.10.0"
+library_version: '0.10.0'
 sources:
-  - "TanStack/ai:docs/code-mode/code-mode.md"
-  - "TanStack/ai:docs/code-mode/code-mode-isolates.md"
-  - "TanStack/ai:docs/code-mode/code-mode-with-skills.md"
-  - "TanStack/ai:docs/code-mode/client-integration.md"
+  - 'TanStack/ai:docs/code-mode/code-mode.md'
+  - 'TanStack/ai:docs/code-mode/code-mode-isolates.md'
+  - 'TanStack/ai:docs/code-mode/code-mode-with-skills.md'
+  - 'TanStack/ai:docs/code-mode/client-integration.md'
 ---
 
 > **Note**: This skill requires familiarity with ai-core and ai-core/chat-experience. Code Mode is always used on top of a chat experience.
@@ -97,8 +97,8 @@ Three drivers implement the `IsolateDriver` interface. All are interchangeable.
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 
 const driver = createNodeIsolateDriver({
-  memoryLimit: 128,   // MB, default 128
-  timeout: 30_000,    // ms, default 30000
+  memoryLimit: 128, // MB, default 128
+  timeout: 30_000, // ms, default 30000
   // skipProbe: false -- set true only after verifying compatibility
 })
 ```
@@ -109,9 +109,9 @@ const driver = createNodeIsolateDriver({
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 
 const driver = createQuickJSIsolateDriver({
-  memoryLimit: 128,      // MB, default 128
-  timeout: 30_000,       // ms, default 30000
-  maxStackSize: 524288,  // bytes, default 512 KiB
+  memoryLimit: 128, // MB, default 128
+  timeout: 30_000, // ms, default 30000
+  maxStackSize: 524288, // bytes, default 512 KiB
 })
 ```
 
@@ -123,16 +123,16 @@ import { createCloudflareIsolateDriver } from '@tanstack/ai-isolate-cloudflare'
 const driver = createCloudflareIsolateDriver({
   workerUrl: 'https://my-code-mode-worker.my-account.workers.dev',
   authorization: process.env.CODE_MODE_WORKER_SECRET,
-  timeout: 30_000,     // ms, default 30000
-  maxToolRounds: 10,   // max tool-call/result cycles, default 10
+  timeout: 30_000, // ms, default 30000
+  maxToolRounds: 10, // max tool-call/result cycles, default 10
 })
 ```
 
-| Driver | Best for | Native deps | Browser support | Performance |
-|--------|----------|-------------|-----------------|-------------|
-| Node | Server-side Node.js | Yes (C++ addon) | No | Fast (V8 JIT) |
-| QuickJS | Browsers, edge, portability | None (WASM) | Yes | Slower (interpreted) |
-| Cloudflare | Edge deployments | None | N/A | Fast (V8 on edge) |
+| Driver     | Best for                    | Native deps     | Browser support | Performance          |
+| ---------- | --------------------------- | --------------- | --------------- | -------------------- |
+| Node       | Server-side Node.js         | Yes (C++ addon) | No              | Fast (V8 JIT)        |
+| QuickJS    | Browsers, edge, portability | None (WASM)     | Yes             | Slower (interpreted) |
+| Cloudflare | Edge deployments            | None            | N/A             | Fast (V8 on edge)    |
 
 ### 2. Adding Persistent Skills with codeModeWithSkills()
 
@@ -166,20 +166,21 @@ const storage = createFileSkillStorage({
 const driver = createNodeIsolateDriver()
 
 // High-level API: automatic LLM-based skill selection
-const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills({
-  config: {
-    driver,
-    tools: [myTool1, myTool2],
-    timeout: 60_000,
-    memoryLimit: 128,
-  },
-  adapter: openaiText('gpt-4o-mini'),  // cheap model for skill selection
-  skills: {
-    storage,
-    maxSkillsInContext: 5,
-  },
-  messages,
-})
+const { toolsRegistry, systemPrompt, selectedSkills } =
+  await codeModeWithSkills({
+    config: {
+      driver,
+      tools: [myTool1, myTool2],
+      timeout: 60_000,
+      memoryLimit: 128,
+    },
+    adapter: openaiText('gpt-4o-mini'), // cheap model for skill selection
+    skills: {
+      storage,
+      maxSkillsInContext: 5,
+    },
+    messages,
+  })
 
 const stream = chat({
   adapter: openaiText('gpt-4o'),
@@ -220,13 +221,13 @@ Code Mode emits custom events during sandbox execution. Handle them in `useChat`
 
 Events emitted:
 
-| Event | When | Key fields |
-|-------|------|------------|
-| `code_mode:execution_started` | Sandbox begins | `timestamp`, `codeLength` |
-| `code_mode:console` | Each console.log/error/warn/info | `level`, `message`, `timestamp` |
-| `code_mode:external_call` | Before an external_* function runs | `function`, `args`, `timestamp` |
-| `code_mode:external_result` | After successful external_* call | `function`, `result`, `duration` |
-| `code_mode:external_error` | When external_* call fails | `function`, `error`, `duration` |
+| Event                         | When                                 | Key fields                       |
+| ----------------------------- | ------------------------------------ | -------------------------------- |
+| `code_mode:execution_started` | Sandbox begins                       | `timestamp`, `codeLength`        |
+| `code_mode:console`           | Each console.log/error/warn/info     | `level`, `message`, `timestamp`  |
+| `code_mode:external_call`     | Before an external\_\* function runs | `function`, `args`, `timestamp`  |
+| `code_mode:external_result`   | After successful external\_\* call   | `function`, `result`, `duration` |
+| `code_mode:external_error`    | When external\_\* call fails         | `function`, `error`, `duration`  |
 
 ```typescript
 import { useCallback, useRef, useState } from 'react'
@@ -320,12 +321,12 @@ The `onCustomEvent` callback signature is identical across all framework integra
 
 Skill-specific events (when using `codeModeWithSkills`):
 
-| Event | When | Key fields |
-|-------|------|------------|
-| `code_mode:skill_call` | Skill tool invoked | `skill`, `input`, `timestamp` |
-| `code_mode:skill_result` | Skill completed | `skill`, `result`, `duration` |
-| `code_mode:skill_error` | Skill failed | `skill`, `error`, `duration` |
-| `skill:registered` | New skill saved | `id`, `name`, `description` |
+| Event                    | When               | Key fields                    |
+| ------------------------ | ------------------ | ----------------------------- |
+| `code_mode:skill_call`   | Skill tool invoked | `skill`, `input`, `timestamp` |
+| `code_mode:skill_result` | Skill completed    | `skill`, `result`, `duration` |
+| `code_mode:skill_error`  | Skill failed       | `skill`, `error`, `duration`  |
+| `skill:registered`       | New skill saved    | `id`, `name`, `description`   |
 
 ## Common Mistakes
 
@@ -334,30 +335,40 @@ Skill-specific events (when using `codeModeWithSkills`):
 Code Mode executes LLM-generated code. Any secrets available in the sandbox context are accessible to generated code, which could exfiltrate them via tool calls. Never pass API keys, database credentials, or tokens into the sandbox. Keep secrets in your tool server implementations, which run in the host process outside the sandbox.
 
 Wrong:
+
 ```typescript
 const codeModeTool = createCodeModeTool({
   driver,
-  tools: [toolDefinition({
-    name: 'callApi',
-    inputSchema: z.object({ url: z.string(), apiKey: z.string() }),
-    outputSchema: z.any(),
-  }).server(async ({ url, apiKey }) => fetch(url, {
-    headers: { Authorization: apiKey },
-  }))],
+  tools: [
+    toolDefinition({
+      name: 'callApi',
+      inputSchema: z.object({ url: z.string(), apiKey: z.string() }),
+      outputSchema: z.any(),
+    }).server(async ({ url, apiKey }) =>
+      fetch(url, {
+        headers: { Authorization: apiKey },
+      }),
+    ),
+  ],
 })
 ```
 
 Right:
+
 ```typescript
 const codeModeTool = createCodeModeTool({
   driver,
-  tools: [toolDefinition({
-    name: 'callApi',
-    inputSchema: z.object({ url: z.string() }),
-    outputSchema: z.any(),
-  }).server(async ({ url }) => fetch(url, {
-    headers: { Authorization: process.env.API_KEY },  // secret stays in host
-  }))],
+  tools: [
+    toolDefinition({
+      name: 'callApi',
+      inputSchema: z.object({ url: z.string() }),
+      outputSchema: z.any(),
+    }).server(async ({ url }) =>
+      fetch(url, {
+        headers: { Authorization: process.env.API_KEY }, // secret stays in host
+      }),
+    ),
+  ],
 })
 ```
 
@@ -368,11 +379,13 @@ Source: docs/code-mode/code-mode.md
 LLM-generated code may contain infinite loops. The default timeout is 30s, but developers may override to 0 (no timeout). Always set an explicit, finite timeout.
 
 Wrong:
+
 ```typescript
 const driver = createNodeIsolateDriver({ timeout: 0 })
 ```
 
 Right:
+
 ```typescript
 const driver = createNodeIsolateDriver({ timeout: 30_000 })
 ```
@@ -384,7 +397,10 @@ Source: ai-code-mode source (default timeout in CodeModeToolConfig)
 `isolated-vm` requires native module compilation. An incompatible build (wrong Node.js version, missing build tools) causes segfaults that no JS error handling can catch. The driver runs a subprocess probe by default. Never set `skipProbe: true` unless you have independently verified compatibility. Use `probeIsolatedVm()` to check before creating the driver.
 
 ```typescript
-import { createNodeIsolateDriver, probeIsolatedVm } from '@tanstack/ai-isolate-node'
+import {
+  createNodeIsolateDriver,
+  probeIsolatedVm,
+} from '@tanstack/ai-isolate-node'
 
 const probe = probeIsolatedVm()
 if (!probe.compatible) {

@@ -1,6 +1,6 @@
 ---
-"@tanstack/ai": patch
-"@tanstack/ai-code-mode": patch
+'@tanstack/ai': patch
+'@tanstack/ai-code-mode': patch
 ---
 
 Add @tanstack/intent agent skills for AI coding assistants

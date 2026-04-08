@@ -8,9 +8,9 @@ description: >
   execution order. NOT onEnd/onFinish callbacks on chat() — use middleware.
 type: sub-skill
 library: tanstack-ai
-library_version: "0.10.0"
+library_version: '0.10.0'
 sources:
-  - "TanStack/ai:docs/advanced/middleware.md"
+  - 'TanStack/ai:docs/advanced/middleware.md'
 ---
 
 # Middleware
@@ -50,19 +50,19 @@ Every hook receives a `ChatMiddlewareContext` as its first argument, which provi
 `requestId`, `streamId`, `phase`, `iteration`, `chunkIndex`, `model`, `provider`,
 `signal`, `abort()`, `defer()`, and more.
 
-| Hook | When | Second Argument |
-| --- | --- | --- |
-| `onConfig` | Once at startup (`init`) + once per iteration (`beforeModel`) | `ChatMiddlewareConfig` (return partial to merge) |
-| `onStart` | Once after initial `onConfig` | none |
-| `onIteration` | Start of each agent loop iteration | `IterationInfo` |
-| `onChunk` | Every streamed chunk | `StreamChunk` (return void/chunk/chunk[]/null) |
-| `onBeforeToolCall` | Before each tool executes | `ToolCallHookContext` (return decision or void) |
-| `onAfterToolCall` | After each tool executes | `AfterToolCallInfo` |
-| `onToolPhaseComplete` | After all tool calls in an iteration | `ToolPhaseCompleteInfo` |
-| `onUsage` | When `RUN_FINISHED` includes usage data | `UsageInfo` |
-| `onFinish` | Run completed normally | `FinishInfo` |
-| `onAbort` | Run was aborted | `AbortInfo` |
-| `onError` | Unhandled error occurred | `ErrorInfo` |
+| Hook                  | When                                                          | Second Argument                                  |
+| --------------------- | ------------------------------------------------------------- | ------------------------------------------------ |
+| `onConfig`            | Once at startup (`init`) + once per iteration (`beforeModel`) | `ChatMiddlewareConfig` (return partial to merge) |
+| `onStart`             | Once after initial `onConfig`                                 | none                                             |
+| `onIteration`         | Start of each agent loop iteration                            | `IterationInfo`                                  |
+| `onChunk`             | Every streamed chunk                                          | `StreamChunk` (return void/chunk/chunk[]/null)   |
+| `onBeforeToolCall`    | Before each tool executes                                     | `ToolCallHookContext` (return decision or void)  |
+| `onAfterToolCall`     | After each tool executes                                      | `AfterToolCallInfo`                              |
+| `onToolPhaseComplete` | After all tool calls in an iteration                          | `ToolPhaseCompleteInfo`                          |
+| `onUsage`             | When `RUN_FINISHED` includes usage data                       | `UsageInfo`                                      |
+| `onFinish`            | Run completed normally                                        | `FinishInfo`                                     |
+| `onAbort`             | Run was aborted                                               | `AbortInfo`                                      |
+| `onError`             | Unhandled error occurred                                      | `ErrorInfo`                                      |
 
 Terminal hooks (`onFinish`, `onAbort`, `onError`) are **mutually exclusive** -- exactly
 one fires per `chat()` invocation.
@@ -75,7 +75,11 @@ Use `onStart`, `onFinish`, `onUsage`, and `onError` for comprehensive observabil
 Use `ctx.defer()` for non-blocking async side effects that should not block the stream.
 
 ```typescript
-import { chat, toServerSentEventsResponse, type ChatMiddleware } from '@tanstack/ai'
+import {
+  chat,
+  toServerSentEventsResponse,
+  type ChatMiddleware,
+} from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const analytics: ChatMiddleware = {
@@ -97,7 +101,7 @@ const analytics: ChatMiddleware = {
           tokens: info.usage?.totalTokens,
           finishReason: info.finishReason,
         }),
-      })
+      }),
     )
   },
   onError: (ctx, info) => {
@@ -109,7 +113,7 @@ const analytics: ChatMiddleware = {
           error: String(info.error),
           duration: info.duration,
         }),
-      })
+      }),
     )
   },
 }
@@ -162,12 +166,12 @@ const toolGuard: ChatMiddleware = {
 
 **`onBeforeToolCall` decision types:**
 
-| Decision | Effect |
-| --- | --- |
-| `void` / `undefined` | Continue normally, next middleware decides |
-| `{ type: 'transformArgs', args }` | Replace tool arguments before execution |
-| `{ type: 'skip', result }` | Skip execution, use provided result (used by `toolCacheMiddleware`) |
-| `{ type: 'abort', reason? }` | Abort the entire chat run |
+| Decision                          | Effect                                                              |
+| --------------------------------- | ------------------------------------------------------------------- |
+| `void` / `undefined`              | Continue normally, next middleware decides                          |
+| `{ type: 'transformArgs', args }` | Replace tool arguments before execution                             |
+| `{ type: 'skip', result }`        | Skip execution, use provided result (used by `toolCacheMiddleware`) |
+| `{ type: 'abort', reason? }`      | Abort the entire chat run                                           |
 
 ### Pattern 3: Multiple Middleware Composition
 
@@ -206,24 +210,24 @@ const stream = chat({
   messages,
   tools: [weatherTool, stockTool],
   middleware: [
-    logging,                                    // Runs first
-    configTransform,                            // Transforms config second
-    toolCacheMiddleware({ ttl: 60_000 }),        // Caches tool results third
+    logging, // Runs first
+    configTransform, // Transforms config second
+    toolCacheMiddleware({ ttl: 60_000 }), // Caches tool results third
   ],
 })
 ```
 
 **Composition rules by hook:**
 
-| Hook | Composition | Effect of Order |
-| --- | --- | --- |
-| `onConfig` | **Piped** -- each receives previous output | Earlier middleware transforms first |
-| `onStart` | Sequential | All run in order |
-| `onChunk` | **Piped** -- chunks flow through each | If first drops a chunk, later never see it |
-| `onBeforeToolCall` | **First-win** -- first non-void decision wins | Earlier middleware has priority |
-| `onAfterToolCall` | Sequential | All run in order |
-| `onUsage` | Sequential | All run in order |
-| `onFinish/onAbort/onError` | Sequential | All run in order |
+| Hook                       | Composition                                   | Effect of Order                            |
+| -------------------------- | --------------------------------------------- | ------------------------------------------ |
+| `onConfig`                 | **Piped** -- each receives previous output    | Earlier middleware transforms first        |
+| `onStart`                  | Sequential                                    | All run in order                           |
+| `onChunk`                  | **Piped** -- chunks flow through each         | If first drops a chunk, later never see it |
+| `onBeforeToolCall`         | **First-win** -- first non-void decision wins | Earlier middleware has priority            |
+| `onAfterToolCall`          | Sequential                                    | All run in order                           |
+| `onUsage`                  | Sequential                                    | All run in order                           |
+| `onFinish/onAbort/onError` | Sequential                                    | All run in order                           |
 
 ## Built-in: toolCacheMiddleware
 
@@ -239,8 +243,8 @@ const stream = chat({
   tools: [weatherTool],
   middleware: [
     toolCacheMiddleware({
-      ttl: 60_000,           // Cache entries expire after 60 seconds
-      maxSize: 50,           // Max 50 entries (LRU eviction)
+      ttl: 60_000, // Cache entries expire after 60 seconds
+      maxSize: 50, // Max 50 entries (LRU eviction)
       toolNames: ['getWeather'], // Only cache specific tools
     }),
   ],
@@ -306,7 +310,7 @@ const resilient: ChatMiddleware = {
       fetch('/api/analytics', {
         method: 'POST',
         body: JSON.stringify({ duration: info.duration }),
-      })
+      }),
     )
   },
   onChunk: (ctx, chunk) => {

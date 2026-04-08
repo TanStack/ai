@@ -8,10 +8,10 @@
 
 ## Adapter Factories
 
-| Factory            | Type        | Description              |
-|--------------------|-------------|--------------------------|
-| `ollamaText`       | Text/Chat   | Chat completions         |
-| `ollamaSummarize`  | Summarize   | Text summarization       |
+| Factory           | Type      | Description        |
+| ----------------- | --------- | ------------------ |
+| `ollamaText`      | Text/Chat | Chat completions   |
+| `ollamaSummarize` | Summarize | Text summarization |
 
 ## Import
 
@@ -24,15 +24,15 @@ import { ollamaText } from '@tanstack/ai-ollama'
 Ollama runs models locally. The adapter supports a large catalog of models.
 Key families include:
 
-| Model Family       | Example Names                     | Notes                      |
-|--------------------|-----------------------------------|----------------------------|
-| Llama 4            | `llama4`, `llama4:scout`          | Latest Meta models         |
-| Llama 3.3          | `llama3.3`, `llama3.3:70b`       | Strong general purpose     |
-| Qwen 3             | `qwen3`, `qwen3:32b`             | Reasoning capable          |
-| DeepSeek R1        | `deepseek-r1`, `deepseek-r1:70b` | Reasoning focused          |
-| Gemma 3            | `gemma3`, `gemma3:27b`           | Google's open model        |
-| Phi 4              | `phi4`, `phi4:14b`               | Microsoft's small model    |
-| Mistral            | `mistral`, `mistral-large`       | Mistral AI models          |
+| Model Family | Example Names                    | Notes                   |
+| ------------ | -------------------------------- | ----------------------- |
+| Llama 4      | `llama4`, `llama4:scout`         | Latest Meta models      |
+| Llama 3.3    | `llama3.3`, `llama3.3:70b`       | Strong general purpose  |
+| Qwen 3       | `qwen3`, `qwen3:32b`             | Reasoning capable       |
+| DeepSeek R1  | `deepseek-r1`, `deepseek-r1:70b` | Reasoning focused       |
+| Gemma 3      | `gemma3`, `gemma3:27b`           | Google's open model     |
+| Phi 4        | `phi4`, `phi4:14b`               | Microsoft's small model |
+| Mistral      | `mistral`, `mistral-large`       | Mistral AI models       |
 
 Models must be pulled first: `ollama pull llama3.3`
 

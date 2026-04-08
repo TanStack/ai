@@ -9,15 +9,15 @@ description: >
   XAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OLLAMA_HOST.
 type: sub-skill
 library: tanstack-ai
-library_version: "0.10.0"
+library_version: '0.10.0'
 sources:
-  - "TanStack/ai:docs/adapters/openai.md"
-  - "TanStack/ai:docs/adapters/anthropic.md"
-  - "TanStack/ai:docs/adapters/gemini.md"
-  - "TanStack/ai:docs/adapters/ollama.md"
-  - "TanStack/ai:docs/advanced/per-model-type-safety.md"
-  - "TanStack/ai:docs/advanced/runtime-adapter-switching.md"
-  - "TanStack/ai:docs/advanced/extend-adapter.md"
+  - 'TanStack/ai:docs/adapters/openai.md'
+  - 'TanStack/ai:docs/adapters/anthropic.md'
+  - 'TanStack/ai:docs/adapters/gemini.md'
+  - 'TanStack/ai:docs/adapters/ollama.md'
+  - 'TanStack/ai:docs/advanced/per-model-type-safety.md'
+  - 'TanStack/ai:docs/advanced/runtime-adapter-switching.md'
+  - 'TanStack/ai:docs/advanced/extend-adapter.md'
 ---
 
 # Adapter Configuration
@@ -60,15 +60,15 @@ into the factory, not into `chat()`.
 Each provider has a dedicated package with tree-shakeable adapter factories.
 The text adapter is the primary one for chat/completions:
 
-| Provider    | Package                  | Factory        | Env Var              |
-|-------------|--------------------------|----------------|----------------------|
-| OpenAI      | `@tanstack/ai-openai`    | `openaiText`   | `OPENAI_API_KEY`     |
-| Anthropic   | `@tanstack/ai-anthropic` | `anthropicText`| `ANTHROPIC_API_KEY`  |
-| Gemini      | `@tanstack/ai-gemini`    | `geminiText`   | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
-| Grok (xAI)  | `@tanstack/ai-grok`      | `grokText`     | `XAI_API_KEY`        |
-| Groq        | `@tanstack/ai-groq`      | `groqText`     | `GROQ_API_KEY`       |
-| OpenRouter  | `@tanstack/ai-openrouter`| `openRouterText`| `OPENROUTER_API_KEY`|
-| Ollama      | `@tanstack/ai-ollama`    | `ollamaText`   | `OLLAMA_HOST` (default: `http://localhost:11434`) |
+| Provider   | Package                   | Factory          | Env Var                                           |
+| ---------- | ------------------------- | ---------------- | ------------------------------------------------- |
+| OpenAI     | `@tanstack/ai-openai`     | `openaiText`     | `OPENAI_API_KEY`                                  |
+| Anthropic  | `@tanstack/ai-anthropic`  | `anthropicText`  | `ANTHROPIC_API_KEY`                               |
+| Gemini     | `@tanstack/ai-gemini`     | `geminiText`     | `GOOGLE_API_KEY` or `GEMINI_API_KEY`              |
+| Grok (xAI) | `@tanstack/ai-grok`       | `grokText`       | `XAI_API_KEY`                                     |
+| Groq       | `@tanstack/ai-groq`       | `groqText`       | `GROQ_API_KEY`                                    |
+| OpenRouter | `@tanstack/ai-openrouter` | `openRouterText` | `OPENROUTER_API_KEY`                              |
+| Ollama     | `@tanstack/ai-ollama`     | `ollamaText`     | `OLLAMA_HOST` (default: `http://localhost:11434`) |
 
 ```typescript
 // Each factory takes model as first arg, optional config as second
@@ -245,15 +245,15 @@ Source: docs/migration/migration.md
 Each provider uses a specific env var name. Using the wrong one causes a
 runtime error:
 
-| Provider    | Correct Env Var        | Common Mistake             |
-|-------------|------------------------|----------------------------|
-| OpenAI      | `OPENAI_API_KEY`       |                            |
-| Anthropic   | `ANTHROPIC_API_KEY`    |                            |
-| Gemini      | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | `GOOGLE_GENAI_API_KEY` (does not work) |
-| Grok (xAI)  | `XAI_API_KEY`          | `GROK_API_KEY` (does not work) |
-| Groq        | `GROQ_API_KEY`         |                            |
-| OpenRouter  | `OPENROUTER_API_KEY`   |                            |
-| Ollama      | `OLLAMA_HOST`          | No API key needed, just the host URL (default: `http://localhost:11434`) |
+| Provider   | Correct Env Var                      | Common Mistake                                                           |
+| ---------- | ------------------------------------ | ------------------------------------------------------------------------ |
+| OpenAI     | `OPENAI_API_KEY`                     |                                                                          |
+| Anthropic  | `ANTHROPIC_API_KEY`                  |                                                                          |
+| Gemini     | `GOOGLE_API_KEY` or `GEMINI_API_KEY` | `GOOGLE_GENAI_API_KEY` (does not work)                                   |
+| Grok (xAI) | `XAI_API_KEY`                        | `GROK_API_KEY` (does not work)                                           |
+| Groq       | `GROQ_API_KEY`                       |                                                                          |
+| OpenRouter | `OPENROUTER_API_KEY`                 |                                                                          |
+| Ollama     | `OLLAMA_HOST`                        | No API key needed, just the host URL (default: `http://localhost:11434`) |
 
 Source: adapter source code (`utils/client.ts` in each adapter package).
 

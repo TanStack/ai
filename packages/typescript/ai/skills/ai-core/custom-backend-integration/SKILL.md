@@ -9,9 +9,9 @@ description: >
   not @tanstack/ai-client.
 type: composition
 library: tanstack-ai
-library_version: "0.10.0"
+library_version: '0.10.0'
 sources:
-  - "TanStack/ai:docs/chat/connection-adapters.md"
+  - 'TanStack/ai:docs/chat/connection-adapters.md'
 ---
 
 # Custom Backend Integration
@@ -281,37 +281,35 @@ a shorthand for creating a `ConnectConnectionAdapter` from an async generator:
 import { useChat, stream } from '@tanstack/ai-react'
 import type { StreamChunk, UIMessage } from '@tanstack/ai'
 
-const directAdapter = stream(
-  async function* (
-    messages: Array<UIMessage>,
-    data?: Record<string, any>,
-  ): AsyncGenerator<StreamChunk> {
-    const response = await fetch('https://my-api.com/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, ...data }),
-    })
+const directAdapter = stream(async function* (
+  messages: Array<UIMessage>,
+  data?: Record<string, any>,
+): AsyncGenerator<StreamChunk> {
+  const response = await fetch('https://my-api.com/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages, ...data }),
+  })
 
-    const reader = response.body!.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
 
-      for (const line of lines) {
-        if (line.trim()) {
-          yield JSON.parse(line) as StreamChunk
-        }
+    for (const line of lines) {
+      if (line.trim()) {
+        yield JSON.parse(line) as StreamChunk
       }
     }
-  },
-)
+  }
+})
 
 const { messages, sendMessage } = useChat({
   connection: directAdapter,
@@ -369,6 +367,7 @@ same origin, can exhaust this limit. New connections queue indefinitely until
 an existing one closes.
 
 Mitigations:
+
 - Use HTTP/2 (multiplexes streams over a single TCP connection; no per-domain limit)
 - Use `fetchHttpStream` instead of `fetchServerSentEvents` (each request is a
   standard POST, not a long-lived EventSource)

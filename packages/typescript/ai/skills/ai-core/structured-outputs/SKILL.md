@@ -8,9 +8,9 @@ description: >
   schema conversion.
 type: sub-skill
 library: tanstack-ai
-library_version: "0.10.0"
+library_version: '0.10.0'
 sources:
-  - "TanStack/ai:docs/chat/structured-outputs.md"
+  - 'TanStack/ai:docs/chat/structured-outputs.md'
 ---
 
 # Structured Outputs
@@ -26,7 +26,17 @@ import { z } from 'zod'
 
 const stream = chat({
   adapter: openaiText('gpt-5.2'),
-  messages: [{ role: 'user', content: [{ type: 'text', content: 'Extract the person info from: John is 30 years old' }] }],
+  messages: [
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          content: 'Extract the person info from: John is 30 years old',
+        },
+      ],
+    },
+  ],
   outputSchema: z.object({
     name: z.string(),
     age: z.number(),
@@ -48,7 +58,7 @@ import { z } from 'zod'
 const PersonSchema = z.object({
   name: z.string().meta({ description: "The person's full name" }),
   age: z.number().meta({ description: "The person's age in years" }),
-  email: z.string().email().meta({ description: "Email address" }),
+  email: z.string().email().meta({ description: 'Email address' }),
 })
 
 // chat() returns Promise<{ name: string; age: number; email: string }>
@@ -57,14 +67,15 @@ const person = await chat({
   messages: [
     {
       role: 'user',
-      content: 'Extract the person info: John Doe is 30 years old, email john@example.com',
+      content:
+        'Extract the person info: John Doe is 30 years old, email john@example.com',
     },
   ],
   outputSchema: PersonSchema,
 })
 
-console.log(person.name)  // "John Doe"
-console.log(person.age)   // 30
+console.log(person.name) // "John Doe"
+console.log(person.age) // 30
 console.log(person.email) // "john@example.com"
 ```
 
@@ -88,11 +99,13 @@ const CompanySchema = z.object({
       name: z.string(),
       role: z.string(),
       department: z.string(),
-    })
+    }),
   ),
   financials: z
     .object({
-      revenue: z.number().meta({ description: 'Annual revenue in millions USD' }),
+      revenue: z
+        .number()
+        .meta({ description: 'Annual revenue in millions USD' }),
       profitable: z.boolean(),
     })
     .optional(),

@@ -8,9 +8,9 @@
 
 ## Adapter Factories
 
-| Factory       | Type        | Description              |
-|---------------|-------------|--------------------------|
-| `groqText`    | Text/Chat   | Chat completions         |
+| Factory    | Type      | Description      |
+| ---------- | --------- | ---------------- |
+| `groqText` | Text/Chat | Chat completions |
 
 Groq currently only has a text adapter (no image, TTS, etc.).
 
@@ -22,16 +22,16 @@ import { groqText } from '@tanstack/ai-groq'
 
 ## Key Chat Models
 
-| Model                                       | Context Window | Notes                    |
-|---------------------------------------------|----------------|--------------------------|
-| `llama-3.3-70b-versatile`                  | 131K           | General purpose          |
-| `meta-llama/llama-4-maverick-17b-128e-instruct` | 131K    | Vision, JSON schema      |
-| `meta-llama/llama-4-scout-17b-16e-instruct`| 131K           | Vision, tool calling     |
-| `openai/gpt-oss-120b`                      | 131K           | Reasoning, browser search|
-| `openai/gpt-oss-20b`                       | 131K           | Budget reasoning         |
-| `qwen/qwen3-32b`                           | 131K           | Reasoning, tool calling  |
-| `moonshotai/kimi-k2-instruct-0905`         | 262K           | Large context            |
-| `llama-3.1-8b-instant`                     | 131K           | Ultra-fast, budget       |
+| Model                                           | Context Window | Notes                     |
+| ----------------------------------------------- | -------------- | ------------------------- |
+| `llama-3.3-70b-versatile`                       | 131K           | General purpose           |
+| `meta-llama/llama-4-maverick-17b-128e-instruct` | 131K           | Vision, JSON schema       |
+| `meta-llama/llama-4-scout-17b-16e-instruct`     | 131K           | Vision, tool calling      |
+| `openai/gpt-oss-120b`                           | 131K           | Reasoning, browser search |
+| `openai/gpt-oss-20b`                            | 131K           | Budget reasoning          |
+| `qwen/qwen3-32b`                                | 131K           | Reasoning, tool calling   |
+| `moonshotai/kimi-k2-instruct-0905`              | 262K           | Large context             |
+| `llama-3.1-8b-instant`                          | 131K           | Ultra-fast, budget        |
 
 Guard models: `meta-llama/llama-guard-4-12b`, `meta-llama/llama-prompt-guard-2-86m`
 
@@ -43,11 +43,16 @@ chat({
   messages,
   modelOptions: {
     // Reasoning
-    reasoning_effort: 'medium',    // 'none' | 'default' | 'low' | 'medium' | 'high'
-    reasoning_format: 'parsed',    // 'hidden' | 'raw' | 'parsed' (mutually exclusive with include_reasoning)
-    include_reasoning: true,       // mutually exclusive with reasoning_format
+    reasoning_effort: 'medium', // 'none' | 'default' | 'low' | 'medium' | 'high'
+    reasoning_format: 'parsed', // 'hidden' | 'raw' | 'parsed' (mutually exclusive with include_reasoning)
+    include_reasoning: true, // mutually exclusive with reasoning_format
     // Response format
-    response_format: { type: 'json_schema', json_schema: { /* ... */ } },
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        /* ... */
+      },
+    },
     // Sampling
     temperature: 0.7,
     top_p: 0.9,
@@ -66,9 +71,11 @@ chat({
     // Documents for context
     documents: [{ text: '...' }],
     // Search settings (for web search tool)
-    search_settings: { /* SearchSettings */ },
+    search_settings: {
+      /* SearchSettings */
+    },
     // Service tier
-    service_tier: 'auto',         // 'auto' | 'on_demand' | 'flex' | 'performance'
+    service_tier: 'auto', // 'auto' | 'on_demand' | 'flex' | 'performance'
     // Metadata
     metadata: { session: 'abc' },
     // Logging

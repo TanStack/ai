@@ -8,11 +8,11 @@
 
 ## Adapter Factories
 
-| Factory            | Type        | Description              |
-|--------------------|-------------|--------------------------|
-| `grokText`         | Text/Chat   | Chat completions         |
-| `grokImage`        | Image       | Image generation         |
-| `grokSummarize`    | Summarize   | Text summarization       |
+| Factory         | Type      | Description        |
+| --------------- | --------- | ------------------ |
+| `grokText`      | Text/Chat | Chat completions   |
+| `grokImage`     | Image     | Image generation   |
+| `grokSummarize` | Summarize | Text summarization |
 
 ## Import
 
@@ -23,16 +23,16 @@ import { grokImage } from '@tanstack/ai-grok'
 
 ## Key Chat Models
 
-| Model                          | Context Window | Notes                      |
-|--------------------------------|----------------|----------------------------|
-| `grok-4-1-fast-reasoning`     | 2M             | Latest, fast reasoning     |
-| `grok-4-1-fast-non-reasoning` | 2M             | Latest, no reasoning       |
-| `grok-code-fast-1`            | 256K           | Code-specialized, reasoning|
-| `grok-4`                      | 256K           | Full reasoning, tool calling|
-| `grok-4-fast-reasoning`       | 2M             | Fast reasoning variant     |
-| `grok-3`                      | 131K           | Previous gen, no reasoning |
-| `grok-3-mini`                 | 131K           | Budget reasoning           |
-| `grok-2-vision-1212`          | 32K            | Vision input               |
+| Model                         | Context Window | Notes                        |
+| ----------------------------- | -------------- | ---------------------------- |
+| `grok-4-1-fast-reasoning`     | 2M             | Latest, fast reasoning       |
+| `grok-4-1-fast-non-reasoning` | 2M             | Latest, no reasoning         |
+| `grok-code-fast-1`            | 256K           | Code-specialized, reasoning  |
+| `grok-4`                      | 256K           | Full reasoning, tool calling |
+| `grok-4-fast-reasoning`       | 2M             | Fast reasoning variant       |
+| `grok-3`                      | 131K           | Previous gen, no reasoning   |
+| `grok-3-mini`                 | 131K           | Budget reasoning             |
+| `grok-2-vision-1212`          | 32K            | Vision input                 |
 
 Image model: `grok-2-image-1212`
 

@@ -9,14 +9,14 @@ description: >
   TanStack Start server function integration with toServerSentEventsResponse.
 type: sub-skill
 library: tanstack-ai
-library_version: "0.10.0"
+library_version: '0.10.0'
 sources:
-  - "TanStack/ai:docs/media/generations.md"
-  - "TanStack/ai:docs/media/generation-hooks.md"
-  - "TanStack/ai:docs/media/image-generation.md"
-  - "TanStack/ai:docs/media/video-generation.md"
-  - "TanStack/ai:docs/media/text-to-speech.md"
-  - "TanStack/ai:docs/media/transcription.md"
+  - 'TanStack/ai:docs/media/generations.md'
+  - 'TanStack/ai:docs/media/generation-hooks.md'
+  - 'TanStack/ai:docs/media/image-generation.md'
+  - 'TanStack/ai:docs/media/video-generation.md'
+  - 'TanStack/ai:docs/media/text-to-speech.md'
+  - 'TanStack/ai:docs/media/transcription.md'
 ---
 
 # Media Generation
@@ -198,7 +198,7 @@ const result = await generateSpeech({
   adapter: openaiSpeech('tts-1-hd'),
   text: 'Hello, welcome to TanStack AI!',
   voice: 'alloy', // alloy | echo | fable | onyx | nova | shimmer | ash | ballad | coral | sage | verse
-  format: 'mp3',  // mp3 | opus | aac | flac | wav | pcm
+  format: 'mp3', // mp3 | opus | aac | flac | wav | pcm
   speed: 1.0, // 0.25 to 4.0
 })
 
@@ -263,7 +263,11 @@ Video generation uses a jobs/polling architecture. The server creates a job,
 polls for status, and streams updates to the client.
 
 ```typescript
-import { generateVideo, getVideoJobStatus, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  generateVideo,
+  getVideoJobStatus,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 // Non-streaming: manual polling loop
@@ -299,7 +303,8 @@ import { useGenerateVideo, fetchServerSentEvents } from '@tanstack/ai-react'
 const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
   connection: fetchServerSentEvents('/api/generate/video'),
   onJobCreated: (id) => console.log('Job created:', id),
-  onStatusUpdate: (status) => console.log(`${status.status} (${status.progress}%)`),
+  onStatusUpdate: (status) =>
+    console.log(`${status.status} (${status.progress}%)`),
 })
 
 // videoStatus: { jobId, status, progress?, url?, error? }
@@ -312,15 +317,15 @@ const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
 
 All generation hooks return the same shape:
 
-| Property | Type | Description |
-| --- | --- | --- |
-| `generate` | `(input) => Promise<void>` | Trigger generation |
-| `result` | `T \| null` | Result (optionally transformed via `onResult`) |
-| `isLoading` | `boolean` | Whether generation is in progress |
-| `error` | `Error \| undefined` | Current error |
-| `status` | `GenerationClientState` | `'idle' \| 'generating' \| 'success' \| 'error'` |
-| `stop` | `() => void` | Abort current generation |
-| `reset` | `() => void` | Clear state, return to idle |
+| Property    | Type                       | Description                                      |
+| ----------- | -------------------------- | ------------------------------------------------ |
+| `generate`  | `(input) => Promise<void>` | Trigger generation                               |
+| `result`    | `T \| null`                | Result (optionally transformed via `onResult`)   |
+| `isLoading` | `boolean`                  | Whether generation is in progress                |
+| `error`     | `Error \| undefined`       | Current error                                    |
+| `status`    | `GenerationClientState`    | `'idle' \| 'generating' \| 'success' \| 'error'` |
+| `stop`      | `() => void`               | Abort current generation                         |
+| `reset`     | `() => void`               | Clear state, return to idle                      |
 
 Provide either `connection` (streaming SSE transport) or `fetcher`
 (direct async call / server function returning `Response`). Use `onResult`
@@ -384,15 +389,16 @@ stream from a server function will not work.
 **Wrong:**
 
 ```typescript
-export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .handler(({ data }) => {
+export const generateImageStreamFn = createServerFn({ method: 'POST' }).handler(
+  ({ data }) => {
     // BUG: returning raw stream -- client cannot parse this
     return generateImage({
       adapter: openaiImage('gpt-image-1'),
       prompt: data.prompt,
       stream: true,
     })
-  })
+  },
+)
 ```
 
 **Correct:**
@@ -401,8 +407,8 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' })
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
-export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .handler(({ data }) => {
+export const generateImageStreamFn = createServerFn({ method: 'POST' }).handler(
+  ({ data }) => {
     return toServerSentEventsResponse(
       generateImage({
         adapter: openaiImage('gpt-image-1'),
@@ -410,7 +416,8 @@ export const generateImageStreamFn = createServerFn({ method: 'POST' })
         stream: true,
       }),
     )
-  })
+  },
+)
 ```
 
 > Source: maintainer interview.

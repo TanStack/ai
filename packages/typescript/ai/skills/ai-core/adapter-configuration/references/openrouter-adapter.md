@@ -8,11 +8,11 @@
 
 ## Adapter Factories
 
-| Factory              | Type        | Description              |
-|----------------------|-------------|--------------------------|
-| `openRouterText`     | Text/Chat   | Chat completions         |
-| `openRouterImage`    | Image       | Image generation         |
-| `openRouterSummarize`| Summarize   | Text summarization       |
+| Factory               | Type      | Description        |
+| --------------------- | --------- | ------------------ |
+| `openRouterText`      | Text/Chat | Chat completions   |
+| `openRouterImage`     | Image     | Image generation   |
+| `openRouterSummarize` | Summarize | Text summarization |
 
 ## Import
 
@@ -25,13 +25,13 @@ import { openRouterText } from '@tanstack/ai-openrouter'
 OpenRouter routes to hundreds of models across providers. Model IDs use
 the format `provider/model-name`:
 
-| Model ID                           | Notes                         |
-|------------------------------------|-------------------------------|
-| `anthropic/claude-sonnet-4`        | Claude via OpenRouter         |
-| `openai/gpt-5.2`                  | GPT-5.2 via OpenRouter        |
-| `google/gemini-2.5-pro`           | Gemini via OpenRouter         |
-| `meta-llama/llama-4-maverick`     | Open-source via OpenRouter    |
-| `deepseek/deepseek-r1`            | Reasoning model               |
+| Model ID                      | Notes                      |
+| ----------------------------- | -------------------------- |
+| `anthropic/claude-sonnet-4`   | Claude via OpenRouter      |
+| `openai/gpt-5.2`              | GPT-5.2 via OpenRouter     |
+| `google/gemini-2.5-pro`       | Gemini via OpenRouter      |
+| `meta-llama/llama-4-maverick` | Open-source via OpenRouter |
+| `deepseek/deepseek-r1`        | Reasoning model            |
 
 ## Provider-Specific modelOptions
 
@@ -44,7 +44,7 @@ chat({
   modelOptions: {
     // Reasoning
     reasoning: {
-      effort: 'high',           // 'none' | 'minimal' | 'low' | 'medium' | 'high'
+      effort: 'high', // 'none' | 'minimal' | 'low' | 'medium' | 'high'
       max_tokens: 4096,
       exclude: false,
     },
@@ -68,7 +68,7 @@ chat({
     responseFormat: { type: 'json_object' },
     // Web search
     webSearchOptions: {
-      search_context_size: 'medium',  // 'low' | 'medium' | 'high'
+      search_context_size: 'medium', // 'low' | 'medium' | 'high'
     },
     // Verbosity
     verbosity: 'medium',

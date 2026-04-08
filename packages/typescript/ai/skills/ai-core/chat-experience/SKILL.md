@@ -9,13 +9,13 @@ description: >
   NOT Vercel AI SDK — uses chat() not streamText().
 type: sub-skill
 library: tanstack-ai
-library_version: "0.10.0"
+library_version: '0.10.0'
 sources:
-  - "TanStack/ai:docs/getting-started/quick-start.md"
-  - "TanStack/ai:docs/chat/streaming.md"
-  - "TanStack/ai:docs/chat/connection-adapters.md"
-  - "TanStack/ai:docs/chat/thinking-content.md"
-  - "TanStack/ai:docs/advanced/multimodal-content.md"
+  - 'TanStack/ai:docs/getting-started/quick-start.md'
+  - 'TanStack/ai:docs/chat/streaming.md'
+  - 'TanStack/ai:docs/chat/connection-adapters.md'
+  - 'TanStack/ai:docs/chat/thinking-content.md'
+  - 'TanStack/ai:docs/advanced/multimodal-content.md'
 ---
 
 # Chat Experience
@@ -393,10 +393,18 @@ All parameters are top-level on the `chat()` options object.
 
 ```typescript
 // WRONG
-chat({ adapter, messages, providerOptions: { responseFormat: { type: 'json_object' } } })
+chat({
+  adapter,
+  messages,
+  providerOptions: { responseFormat: { type: 'json_object' } },
+})
 
 // CORRECT
-chat({ adapter, messages, modelOptions: { responseFormat: { type: 'json_object' } } })
+chat({
+  adapter,
+  messages,
+  modelOptions: { responseFormat: { type: 'json_object' } },
+})
 ```
 
 ### h. HIGH: Implementing custom SSE stream instead of using toServerSentEventsResponse
@@ -429,7 +437,13 @@ error events (RUN_ERROR), and correct headers automatically.
 
 ```typescript
 // WRONG
-chat({ adapter, messages, onEnd: (result) => { trackAnalytics(result) } })
+chat({
+  adapter,
+  messages,
+  onEnd: (result) => {
+    trackAnalytics(result)
+  },
+})
 
 // CORRECT
 import type { ChatMiddleware } from '@tanstack/ai'

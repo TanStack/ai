@@ -8,12 +8,12 @@
 
 ## Adapter Factories
 
-| Factory            | Type        | Description                |
-|--------------------|-------------|----------------------------|
-| `geminiText`       | Text/Chat   | Chat completions           |
-| `geminiImage`      | Image       | Image generation (Imagen)  |
-| `geminiSpeech`     | TTS         | Text-to-speech (experimental) |
-| `geminiSummarize`  | Summarize   | Text summarization         |
+| Factory           | Type      | Description                   |
+| ----------------- | --------- | ----------------------------- |
+| `geminiText`      | Text/Chat | Chat completions              |
+| `geminiImage`     | Image     | Image generation (Imagen)     |
+| `geminiSpeech`    | TTS       | Text-to-speech (experimental) |
+| `geminiSummarize` | Summarize | Text summarization            |
 
 ## Import
 
@@ -24,14 +24,14 @@ import { geminiImage } from '@tanstack/ai-gemini'
 
 ## Key Chat Models
 
-| Model                        | Max Input  | Max Output | Notes                         |
-|------------------------------|------------|------------|-------------------------------|
-| `gemini-3.1-pro-preview`    | 1M         | 65K        | Latest flagship, thinking     |
-| `gemini-3-pro-preview`      | 1M         | 65K        | Previous flagship             |
-| `gemini-3-flash-preview`    | 1M         | 65K        | Fast, thinking, multimodal    |
-| `gemini-3.1-flash-lite-preview` | 1M     | 65K        | Budget, still capable         |
-| `gemini-2.5-pro`            | 1M         | 65K        | Stable release, all features  |
-| `gemini-2.5-flash`          | 1M         | 65K        | Fast stable release           |
+| Model                           | Max Input | Max Output | Notes                        |
+| ------------------------------- | --------- | ---------- | ---------------------------- |
+| `gemini-3.1-pro-preview`        | 1M        | 65K        | Latest flagship, thinking    |
+| `gemini-3-pro-preview`          | 1M        | 65K        | Previous flagship            |
+| `gemini-3-flash-preview`        | 1M        | 65K        | Fast, thinking, multimodal   |
+| `gemini-3.1-flash-lite-preview` | 1M        | 65K        | Budget, still capable        |
+| `gemini-2.5-pro`                | 1M        | 65K        | Stable release, all features |
+| `gemini-2.5-flash`              | 1M        | 65K        | Fast stable release          |
 
 All Gemini text models accept `text`, `image`, `audio`, `video`, and `document` input.
 
@@ -53,13 +53,20 @@ chat({
     },
     // Safety settings
     safetySettings: [
-      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+      },
     ],
     // Tool config
-    toolConfig: { /* ToolConfig */ },
+    toolConfig: {
+      /* ToolConfig */
+    },
     // Structured output
     responseMimeType: 'application/json',
-    responseSchema: { /* Schema */ },
+    responseSchema: {
+      /* Schema */
+    },
     // Cached content
     cachedContent: 'cachedContents/abc123',
     // Response modalities

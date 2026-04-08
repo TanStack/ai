@@ -8,11 +8,11 @@ description: >
   NDJSON format. For backends serving AG-UI events without client packages.
 type: sub-skill
 library: tanstack-ai
-library_version: "0.10.0"
+library_version: '0.10.0'
 sources:
-  - "TanStack/ai:docs/protocol/chunk-definitions.md"
-  - "TanStack/ai:docs/protocol/sse-protocol.md"
-  - "TanStack/ai:docs/protocol/http-stream-protocol.md"
+  - 'TanStack/ai:docs/protocol/chunk-definitions.md'
+  - 'TanStack/ai:docs/protocol/sse-protocol.md'
+  - 'TanStack/ai:docs/protocol/http-stream-protocol.md'
 ---
 
 # AG-UI Protocol
@@ -66,7 +66,7 @@ const response = new Response(sseStream, {
   headers: {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
   },
 })
 
@@ -77,11 +77,11 @@ const response2 = toServerSentEventsResponse(stream, { abortController })
 
 **Default response headers set by `toServerSentEventsResponse()`:**
 
-| Header | Value |
-| --- | --- |
-| `Content-Type` | `text/event-stream` |
-| `Cache-Control` | `no-cache` |
-| `Connection` | `keep-alive` |
+| Header          | Value               |
+| --------------- | ------------------- |
+| `Content-Type`  | `text/event-stream` |
+| `Cache-Control` | `no-cache`          |
+| `Connection`    | `keep-alive`        |
 
 Custom headers merge on top (user headers override defaults):
 
@@ -141,23 +141,23 @@ adapters from `@tanstack/ai-react` (or the framework-specific package).
 All events extend `BaseAGUIEvent` which carries `type`, `timestamp`, optional
 `model`, and optional `rawEvent`.
 
-| Event Type | Description |
-| --- | --- |
-| `RUN_STARTED` | First event in a stream. Carries `runId` and optional `threadId`. |
-| `TEXT_MESSAGE_START` | New text message begins. Carries `messageId` and `role`. |
-| `TEXT_MESSAGE_CONTENT` | Incremental text token. Carries `messageId` and `delta` (the new text). |
-| `TEXT_MESSAGE_END` | Text message complete. Carries `messageId`. |
-| `TOOL_CALL_START` | Tool invocation begins. Carries `toolCallId`, `toolName`, and `index`. |
-| `TOOL_CALL_ARGS` | Incremental tool arguments JSON. Carries `toolCallId` and `delta`. |
-| `TOOL_CALL_END` | Tool call arguments complete. Carries `toolCallId` and `toolName`. |
-| `STEP_STARTED` | Thinking/reasoning step begins. Carries `stepId` and optional `stepType`. |
-| `STEP_FINISHED` | Thinking step complete. Carries `stepId`, `delta`, and optional `content`. |
-| `MESSAGES_SNAPSHOT` | Full conversation transcript snapshot. Carries `messages: Array<UIMessage>`. |
-| `STATE_SNAPSHOT` | Full application state snapshot. Carries `state: Record<string, unknown>`. |
-| `STATE_DELTA` | Incremental state update. Carries `delta: Record<string, unknown>`. |
-| `CUSTOM` | Extension point. Carries `name` (string) and optional `value` (unknown). |
-| `RUN_FINISHED` | Stream complete. Carries `runId` and `finishReason` (`'stop'` / `'length'` / `'content_filter'` / `'tool_calls'` / `null`). |
-| `RUN_ERROR` | Error during stream. Carries optional `runId` and `error: { message, code? }`. |
+| Event Type             | Description                                                                                                                 |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `RUN_STARTED`          | First event in a stream. Carries `runId` and optional `threadId`.                                                           |
+| `TEXT_MESSAGE_START`   | New text message begins. Carries `messageId` and `role`.                                                                    |
+| `TEXT_MESSAGE_CONTENT` | Incremental text token. Carries `messageId` and `delta` (the new text).                                                     |
+| `TEXT_MESSAGE_END`     | Text message complete. Carries `messageId`.                                                                                 |
+| `TOOL_CALL_START`      | Tool invocation begins. Carries `toolCallId`, `toolName`, and `index`.                                                      |
+| `TOOL_CALL_ARGS`       | Incremental tool arguments JSON. Carries `toolCallId` and `delta`.                                                          |
+| `TOOL_CALL_END`        | Tool call arguments complete. Carries `toolCallId` and `toolName`.                                                          |
+| `STEP_STARTED`         | Thinking/reasoning step begins. Carries `stepId` and optional `stepType`.                                                   |
+| `STEP_FINISHED`        | Thinking step complete. Carries `stepId`, `delta`, and optional `content`.                                                  |
+| `MESSAGES_SNAPSHOT`    | Full conversation transcript snapshot. Carries `messages: Array<UIMessage>`.                                                |
+| `STATE_SNAPSHOT`       | Full application state snapshot. Carries `state: Record<string, unknown>`.                                                  |
+| `STATE_DELTA`          | Incremental state update. Carries `delta: Record<string, unknown>`.                                                         |
+| `CUSTOM`               | Extension point. Carries `name` (string) and optional `value` (unknown).                                                    |
+| `RUN_FINISHED`         | Stream complete. Carries `runId` and `finishReason` (`'stop'` / `'length'` / `'content_filter'` / `'tool_calls'` / `null`). |
+| `RUN_ERROR`            | Error during stream. Carries optional `runId` and `error: { message, code? }`.                                              |
 
 **Typical event sequence for a text-only response:**
 
@@ -189,7 +189,7 @@ Fix: Set proxy-bypass headers on the response.
 ```typescript
 toServerSentEventsResponse(stream, {
   headers: {
-    'X-Accel-Buffering': 'no',        // nginx
+    'X-Accel-Buffering': 'no', // nginx
     'X-Content-Type-Options': 'nosniff', // Some CDNs
   },
   abortController,
