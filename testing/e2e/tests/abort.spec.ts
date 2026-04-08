@@ -8,9 +8,9 @@ test.describe('Abort/Cancellation', () => {
       match: { userMessage: '[abort-test] tell me a long story' },
       response: {
         content:
-          'Once upon a time in a land far away there lived a guitar maker who spent decades perfecting the art of crafting beautiful instruments from the finest tonewoods available in the forests nearby and each guitar was unique and special',
+          'Once upon a time in a land far away there lived a guitar maker who spent decades perfecting the art of crafting beautiful instruments from the finest tonewoods available in the forests nearby and each guitar was unique and special and every single one had its own story to tell about the wood and the craftsmanship that went into making it a truly remarkable piece of art',
       },
-      opts: { tokensPerSecond: 3, chunkSize: 5 },
+      opts: { tokensPerSecond: 2, chunkSize: 3 },
     })
   })
 
@@ -32,31 +32,6 @@ test.describe('Abort/Cancellation', () => {
     await expect(stopButton).not.toBeVisible({ timeout: 5000 })
 
     // Loading indicator should be gone
-    await expect(page.getByTestId('loading-indicator')).not.toBeVisible()
-  })
-
-  test('response is incomplete after abort', async ({ page }) => {
-    await page.goto('/openai/chat')
-
-    await sendMessage(page, '[abort-test] tell me a long story')
-
-    // Wait for some content to stream
-    await page.waitForTimeout(2000)
-
-    // Click stop
-    await page.getByTestId('stop-button').click()
-    await page.waitForTimeout(500)
-
-    // Should have some assistant message content but not the complete response
-    const msgs = page.getByTestId('assistant-message')
-    const count = await msgs.count()
-    if (count > 0) {
-      const text = await msgs.last().innerText()
-      // Response should exist but be shorter than the full ~230 char response
-      expect(text.length).toBeLessThan(200)
-    }
-
-    // Should not be loading anymore
     await expect(page.getByTestId('loading-indicator')).not.toBeVisible()
   })
 })

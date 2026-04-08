@@ -3,6 +3,7 @@ import { test, expect } from './fixtures'
 test.describe('Middleware Lifecycle', () => {
   test('onChunk transforms text content', async ({ page }) => {
     await page.goto('/middleware-test')
+    await page.waitForTimeout(2000) // hydration
     await page.locator('#mw-scenario-select').selectOption('basic-text')
     await page.locator('#mw-mode-select').selectOption('chunk-transform')
     await page.locator('#mw-run-button').click()
@@ -24,6 +25,7 @@ test.describe('Middleware Lifecycle', () => {
 
   test('onBeforeToolCall skips tool execution', async ({ page }) => {
     await page.goto('/middleware-test')
+    await page.waitForTimeout(2000)
     await page.locator('#mw-scenario-select').selectOption('with-tool')
     await page.locator('#mw-mode-select').selectOption('tool-skip')
     await page.locator('#mw-run-button').click()
@@ -49,6 +51,7 @@ test.describe('Middleware Lifecycle', () => {
 
   test('no middleware passes content through unchanged', async ({ page }) => {
     await page.goto('/middleware-test')
+    await page.waitForTimeout(2000)
     await page.locator('#mw-scenario-select').selectOption('basic-text')
     await page.locator('#mw-mode-select').selectOption('none')
     await page.locator('#mw-run-button').click()
