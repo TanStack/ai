@@ -3,7 +3,7 @@ import {
   ToolCallManager,
   executeToolCalls,
 } from '../src/activities/chat/tools/tool-calls'
-import type { RunFinishedEvent, Tool, ToolCall } from '../src/types'
+import type { Tool, ToolCall } from '../src/types'
 
 /**
  * Drain an async generator and return its final return value.
@@ -18,14 +18,6 @@ async function drainGenerator<TChunk, TResult>(
 }
 
 describe('null tool input normalization', () => {
-  const mockFinishedEvent: RunFinishedEvent = {
-    type: 'RUN_FINISHED',
-    runId: 'test-run',
-    model: 'test',
-    timestamp: Date.now(),
-    finishReason: 'tool_calls',
-  }
-
   describe('executeToolCalls', () => {
     it('should normalize "null" arguments to empty object', async () => {
       const receivedInput = vi.fn()
@@ -73,7 +65,7 @@ describe('null tool input normalization', () => {
         },
       ]
 
-      const result = await drainGenerator(executeToolCalls(toolCalls, [tool]))
+      await drainGenerator(executeToolCalls(toolCalls, [tool]))
       expect(receivedInput).toHaveBeenCalledWith({})
     })
 
@@ -100,14 +92,14 @@ describe('null tool input normalization', () => {
         },
       ]
 
-      const result = await drainGenerator(executeToolCalls(toolCalls, [tool]))
+      await drainGenerator(executeToolCalls(toolCalls, [tool]))
       expect(receivedInput).toHaveBeenCalledWith({ location: 'NYC' })
     })
   })
 
   describe('ToolCallManager.completeToolCall', () => {
     it('should normalize null input to empty object', () => {
-      const manager = new ToolCallManager([], mockFinishedEvent)
+      const manager = new ToolCallManager([])
 
       // Register a tool call
       manager.addToolCallStartEvent({
@@ -136,7 +128,7 @@ describe('null tool input normalization', () => {
     })
 
     it('should preserve valid object input', () => {
-      const manager = new ToolCallManager([], mockFinishedEvent)
+      const manager = new ToolCallManager([])
 
       manager.addToolCallStartEvent({
         type: 'TOOL_CALL_START',
