@@ -253,12 +253,12 @@ function isImageOnlyModel(model: OpenRouterModel): boolean {
  * include 'text' in their output modalities but are not chat models.
  */
 const NON_CHAT_MODEL_PREFIXES = [
-  'lyria-',   // Google music generation
-  'veo-',     // Google video generation
-  'imagen-',  // Google image generation
-  'sora-',    // OpenAI video generation
-  'dall-e-',  // OpenAI image generation
-  'tts-',     // Text-to-speech models
+  'lyria-', // Google music generation
+  'veo-', // Google video generation
+  'imagen-', // Google image generation
+  'sora-', // OpenAI video generation
+  'dall-e-', // OpenAI image generation
+  'tts-', // Text-to-speech models
 ]
 
 function isNonChatModel(strippedId: string): boolean {
@@ -397,7 +397,10 @@ function addToArray(
     .map((constName) => `  ${constName}${arrayRef},`)
     .join('\n')
   // Use replacer function to prevent $-character interpretation in replacement string
-  return content.replace(pattern, () => `${match[1]}\n${newEntries}\n${match[2]}`)
+  return content.replace(
+    pattern,
+    () => `${match[1]}\n${newEntries}\n${match[2]}`,
+  )
 }
 
 /**
