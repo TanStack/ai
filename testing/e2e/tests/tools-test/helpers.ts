@@ -131,6 +131,8 @@ export async function getMetadata(page: Page): Promise<Record<string, string>> {
       approvalGrantedCount:
         el.getAttribute('data-approval-granted-count') || '',
       approvalDeniedCount: el.getAttribute('data-approval-denied-count') || '',
+      hasError: el.getAttribute('data-has-error') || '',
+      errorMessage: el.getAttribute('data-error-message') || '',
     }
   })
 }

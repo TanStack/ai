@@ -22,6 +22,26 @@ export const Route = createFileRoute('/api/tools-test')({
           const messages = body.messages
           const scenario = body.data?.scenario || body.scenario || 'text-only'
 
+          // Special error scenario: return a stream that immediately errors
+          if (scenario === 'error') {
+            const errorStream = (async function* () {
+              yield {
+                type: 'RUN_STARTED' as const,
+                runId: 'error-test',
+                timestamp: Date.now(),
+              }
+              yield {
+                type: 'RUN_ERROR' as const,
+                runId: 'error-test',
+                error: {
+                  message: 'Test error: Something went wrong during generation',
+                },
+                timestamp: Date.now(),
+              }
+            })()
+            return toServerSentEventsResponse(errorStream, { abortController })
+          }
+
           // Get the script for this scenario
           const script = SCENARIOS[scenario]
           if (!script) {
