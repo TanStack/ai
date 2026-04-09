@@ -1,6 +1,11 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
-import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
+import {
+  createOllamaClient,
+  generateId,
+  getOllamaHostFromEnv,
+} from '../utils'
+import type { OllamaClientConfig } from '../utils/client'
 
 import type {
   OLLAMA_TEXT_MODELS,
@@ -119,12 +124,22 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
   private client: Ollama
 
-  constructor(hostOrClient: string | Ollama | undefined, model: TModel) {
+  constructor(
+    hostOrClientOrConfig: string | Ollama | OllamaClientConfig | undefined,
+    model: TModel,
+  ) {
     super({}, model)
-    if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
-      this.client = createOllamaClient({ host: hostOrClient })
+    if (
+      typeof hostOrClientOrConfig === 'string' ||
+      hostOrClientOrConfig === undefined
+    ) {
+      this.client = createOllamaClient({ host: hostOrClientOrConfig })
+    } else if ('chat' in hostOrClientOrConfig) {
+      // Ollama client instance (has a chat method)
+      this.client = hostOrClientOrConfig as Ollama
     } else {
-      this.client = hostOrClient
+      // OllamaClientConfig object
+      this.client = createOllamaClient(hostOrClientOrConfig)
     }
   }
 
@@ -476,14 +491,14 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 }
 
 /**
- * Creates an Ollama chat adapter with explicit host.
+ * Creates an Ollama chat adapter with explicit host and optional config.
  * Type resolution happens here at the call site.
  */
 export function createOllamaChat<TModel extends string>(
   model: TModel,
-  host?: string,
+  hostOrConfig?: string | OllamaClientConfig,
 ): OllamaTextAdapter<TModel> {
-  return new OllamaTextAdapter(host, model)
+  return new OllamaTextAdapter(hostOrConfig, model)
 }
 
 /**

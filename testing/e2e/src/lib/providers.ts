@@ -64,7 +64,10 @@ export function createTextAdapter(
       }),
     ollama: () =>
       createChatOptions({
-        adapter: createOllamaChat(model as 'mistral', base),
+        adapter: createOllamaChat(
+          model as 'mistral',
+          testHeaders ? { host: base, headers: testHeaders } : base,
+        ),
       }),
     groq: () =>
       createChatOptions({

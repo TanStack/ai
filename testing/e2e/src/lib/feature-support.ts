@@ -46,10 +46,11 @@ const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  // Gemini excluded: approval flow timing issues. Ollama excluded: no X-Test-Id header support.
+  // Gemini excluded: approval flow timing issues with Gemini's streaming format
   'tool-approval': new Set([
     'openai',
     'anthropic',
+    'ollama',
     'groq',
     'grok',
     'openrouter',
