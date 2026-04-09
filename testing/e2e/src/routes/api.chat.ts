@@ -25,7 +25,12 @@ export const Route = createFileRoute('/api/chat')({
 
         const config = featureConfigs[feature]
         const modelOverride = config.modelOverrides?.[provider]
-        const adapterOptions = createTextAdapter(provider, modelOverride, aimockPort)
+        const adapterOptions = createTextAdapter(
+          provider,
+          modelOverride,
+          aimockPort,
+          testId,
+        )
 
         try {
           const stream = chat({
@@ -36,7 +41,6 @@ export const Route = createFileRoute('/api/chat')({
             agentLoopStrategy: maxIterations(5),
             messages,
             abortController,
-            ...(testId && { request: { headers: { 'X-Test-Id': testId } } }),
           })
 
           return toServerSentEventsResponse(stream, { abortController })

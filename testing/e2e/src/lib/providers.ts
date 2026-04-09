@@ -26,33 +26,42 @@ export function createTextAdapter(
   provider: Provider,
   modelOverride?: string,
   aimockPort?: number,
+  testId?: string,
 ): { adapter: AnyTextAdapter } {
   const model = modelOverride ?? defaultModels[provider]
 
   // OpenAI, Grok SDKs need /v1 in baseURL. Groq SDK appends /openai/v1/ internally.
   // Anthropic, Gemini, Ollama SDKs include their path prefixes internally
-  const base = aimockPort
-    ? `http://127.0.0.1:${aimockPort}`
-    : LLMOCK_DEFAULT_BASE
+  const base = LLMOCK_DEFAULT_BASE
   const openaiUrl = `${base}/v1`
+
+  // X-Test-Id header for per-test sequenceIndex isolation in aimock
+  const testHeaders = testId
+    ? { 'X-Test-Id': testId }
+    : undefined
 
   const factories: Record<Provider, () => { adapter: AnyTextAdapter }> = {
     openai: () =>
       createChatOptions({
         adapter: createOpenaiChat(model as 'gpt-4o', DUMMY_KEY, {
           baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
         }),
       }),
     anthropic: () =>
       createChatOptions({
         adapter: createAnthropicChat(model as 'claude-sonnet-4-5', DUMMY_KEY, {
           baseURL: base,
+          defaultHeaders: testHeaders,
         }),
       }),
     gemini: () =>
       createChatOptions({
         adapter: createGeminiChat(model as 'gemini-2.0-flash', DUMMY_KEY, {
-          httpOptions: { baseUrl: base },
+          httpOptions: {
+            baseUrl: base,
+            headers: testHeaders,
+          },
         }),
       }),
     ollama: () =>
@@ -63,12 +72,14 @@ export function createTextAdapter(
       createChatOptions({
         adapter: createGroqText(model as 'llama-3.3-70b-versatile', DUMMY_KEY, {
           baseURL: base,
+          defaultHeaders: testHeaders,
         }),
       }),
     grok: () =>
       createChatOptions({
         adapter: createGrokText(model as 'grok-3', DUMMY_KEY, {
           baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
         }),
       }),
     openrouter: () =>
