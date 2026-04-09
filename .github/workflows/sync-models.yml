@@ -47,32 +47,25 @@ jobs:
 
           PACKAGES=""
           if echo "$CHANGED_FILES" | grep -q "packages/typescript/ai-openai/"; then
-            PACKAGES="${PACKAGES}'@tanstack/ai-openai': patch
-"
+            PACKAGES="$PACKAGES'@tanstack/ai-openai': patch"$'\n'
           fi
           if echo "$CHANGED_FILES" | grep -q "packages/typescript/ai-anthropic/"; then
-            PACKAGES="${PACKAGES}'@tanstack/ai-anthropic': patch
-"
+            PACKAGES="$PACKAGES'@tanstack/ai-anthropic': patch"$'\n'
           fi
           if echo "$CHANGED_FILES" | grep -q "packages/typescript/ai-gemini/"; then
-            PACKAGES="${PACKAGES}'@tanstack/ai-gemini': patch
-"
+            PACKAGES="$PACKAGES'@tanstack/ai-gemini': patch"$'\n'
           fi
           if echo "$CHANGED_FILES" | grep -q "packages/typescript/ai-grok/"; then
-            PACKAGES="${PACKAGES}'@tanstack/ai-grok': patch
-"
+            PACKAGES="$PACKAGES'@tanstack/ai-grok': patch"$'\n'
           fi
           if echo "$CHANGED_FILES" | grep -q "packages/typescript/ai-openrouter/"; then
-            PACKAGES="${PACKAGES}'@tanstack/ai-openrouter': patch
-"
+            PACKAGES="$PACKAGES'@tanstack/ai-openrouter': patch"$'\n'
           fi
 
           if [ -n "$PACKAGES" ]; then
-            printf '%s' "---
-${PACKAGES}---
-
-Update model metadata from OpenRouter API
-" > "$CHANGESET_FILE"
+            printf '%s\n' "---" > "$CHANGESET_FILE"
+            printf '%s' "$PACKAGES" >> "$CHANGESET_FILE"
+            printf '%s\n\n%s\n' "---" "Update model metadata from OpenRouter API" >> "$CHANGESET_FILE"
           fi
 
       - name: Commit and force-push
@@ -88,29 +81,26 @@ Update model metadata from OpenRouter API
 
       - name: Create or update PR
         if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
           BRANCH="automated/sync-models"
           EXISTING_PR=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number' 2>/dev/null || true)
 
           if [ -z "$EXISTING_PR" ] || [ "$EXISTING_PR" = "null" ]; then
+            BODY=$(cat <<'PRBODY'
+          Automated daily sync of model metadata from the OpenRouter API.
+
+          - Fetches the latest model list from OpenRouter
+          - Converts to the internal adapter format
+          - Syncs provider-specific model metadata for affected packages
+          - Creates a patch changeset for all changed packages
+          PRBODY
+          )
             gh pr create \
               --title "chore: sync model metadata from OpenRouter" \
-              --body "## Summary
-
-This automated PR syncs model metadata from the OpenRouter API daily.
-
-- Fetches the latest model list from OpenRouter
-- Converts to the internal adapter format
-- Syncs provider-specific model metadata for affected packages
-- Creates a patch changeset for all changed packages
-
-## Review Checklist
-
-- [ ] Verify model additions/removals look correct
-- [ ] Check that no unexpected packages were changed
-- [ ] Confirm changeset bump type is appropriate (patch)" \
+              --body "$BODY" \
               --base main \
               --head "$BRANCH"
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
