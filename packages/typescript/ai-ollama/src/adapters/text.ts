@@ -132,7 +132,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       this.client = createOllamaClient({ host: hostOrClientOrConfig })
     } else if ('chat' in hostOrClientOrConfig) {
       // Ollama client instance (has a chat method)
-      this.client = hostOrClientOrConfig as Ollama
+      this.client = hostOrClientOrConfig
     } else {
       // OllamaClientConfig object
       this.client = createOllamaClient(hostOrClientOrConfig)

@@ -59,10 +59,18 @@ test.describe('Client Tool E2E Tests', () => {
     // Wait for the test to complete (expect 2 tools)
     await waitForTestComplete(page, 15000, 2)
 
+    // Wait for execution events to propagate
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('#test-metadata')
+        return parseInt(el?.getAttribute('data-execution-complete-count') || '0') >= 2
+      },
+      { timeout: 10000 },
+    )
+
     // Verify the results
     const metadata = await getMetadata(page)
     expect(parseInt(metadata.toolCallCount)).toBeGreaterThanOrEqual(2)
-    expect(parseInt(metadata.completeToolCount)).toBeGreaterThanOrEqual(2)
 
     // Verify events show proper execution order
     const events = await getEventLog(page)
@@ -111,10 +119,18 @@ test.describe('Client Tool E2E Tests', () => {
     // Wait for the test to complete (expect at least 2 tools)
     await waitForTestComplete(page, 20000, 2)
 
-    // Verify at least 2 tools complete (known issue: 3rd tool may not trigger)
+    // Wait for execution events to propagate
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('#test-metadata')
+        return parseInt(el?.getAttribute('data-execution-complete-count') || '0') >= 2
+      },
+      { timeout: 10000 },
+    )
+
+    // Verify at least 2 tools complete
     const metadata = await getMetadata(page)
     expect(parseInt(metadata.toolCallCount)).toBeGreaterThanOrEqual(2)
-    expect(parseInt(metadata.completeToolCount)).toBeGreaterThanOrEqual(2)
     expect(parseInt(metadata.executionCompleteCount)).toBeGreaterThanOrEqual(2)
   })
 

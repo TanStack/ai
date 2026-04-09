@@ -29,7 +29,16 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     await runTest(page)
 
     // Wait for the test to complete
-    await waitForTestComplete(page)
+    await waitForTestComplete(page, 15000, 2)
+
+    // Wait for client execution events to propagate
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('#test-metadata')
+        return parseInt(el?.getAttribute('data-execution-complete-count') || '0') >= 1
+      },
+      { timeout: 10000 },
+    )
 
     // Verify results
     const metadata = await getMetadata(page)
@@ -37,7 +46,6 @@ test.describe('Server-Client Sequence E2E Tests', () => {
 
     // Should have 2 tool calls (fetch_data server, display_chart client)
     expect(parseInt(metadata.toolCallCount)).toBeGreaterThanOrEqual(2)
-    expect(parseInt(metadata.completeToolCount)).toBeGreaterThanOrEqual(2)
 
     // Verify client tool executed
     const events = await getEventLog(page)

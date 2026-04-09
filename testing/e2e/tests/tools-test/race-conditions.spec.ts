@@ -40,6 +40,15 @@ test.describe('Race Condition Tests', () => {
     // Wait for completion - expect 2 client tools
     await waitForTestComplete(page, 20000, 2)
 
+    // Wait for client execution events to propagate
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('#test-metadata')
+        return parseInt(el?.getAttribute('data-execution-complete-count') || '0') >= 2
+      },
+      { timeout: 10000 },
+    )
+
     const endTime = Date.now()
     const duration = endTime - startTime
 
