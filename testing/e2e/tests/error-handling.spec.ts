@@ -3,13 +3,12 @@ import { selectScenario, runTest, getMetadata } from './tools-test/helpers'
 import { sendMessage, featureUrl } from './helpers'
 
 test.describe('Error Handling', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/tools-test')
-    await page.waitForSelector('#run-test-button')
-  })
-
-  test('displays error when server returns RUN_ERROR', async ({ page }) => {
-    await selectScenario(page, 'error')
+  test('displays error when server returns RUN_ERROR', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'error', testId, aimockPort)
     await runTest(page)
 
     // Wait for error to appear

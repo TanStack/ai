@@ -7,8 +7,7 @@ import {
 } from '@tanstack/ai'
 import type { ChatMiddleware } from '@tanstack/ai'
 import { z } from 'zod'
-import { createLLMSimulator } from '@tanstack/tests-adapters'
-import { MIDDLEWARE_SCENARIOS } from '@/lib/middleware-test-scenarios'
+import { createTextAdapter } from '@/lib/providers'
 
 const weatherTool = toolDefinition({
   name: 'get_weather',
@@ -57,19 +56,20 @@ export const Route = createFileRoute('/api/middleware-test')({
           const messages = body.messages
           const scenario = body.data?.scenario || 'basic-text'
           const middlewareMode = body.data?.middlewareMode || 'none'
+          const testId: string | undefined =
+            typeof body.data?.testId === 'string' ? body.data.testId : undefined
+          const aimockPort: number | undefined =
+            body.data?.aimockPort != null
+              ? Number(body.data.aimockPort)
+              : undefined
 
-          const script = MIDDLEWARE_SCENARIOS[scenario]
-          if (!script) {
-            return new Response(
-              JSON.stringify({ error: `Unknown scenario: ${scenario}` }),
-              {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' },
-              },
-            )
-          }
+          const adapterOptions = createTextAdapter(
+            'openai',
+            undefined,
+            aimockPort,
+            testId,
+          )
 
-          const adapter = createLLMSimulator(script)
           const middleware: ChatMiddleware[] = []
 
           if (middlewareMode === 'chunk-transform')
@@ -80,8 +80,7 @@ export const Route = createFileRoute('/api/middleware-test')({
           const tools = scenario === 'with-tool' ? [weatherTool] : []
 
           const stream = chat({
-            adapter,
-            model: 'simulator-model',
+            ...adapterOptions,
             messages,
             tools,
             middleware,

@@ -1,13 +1,29 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-import { MIDDLEWARE_MODES } from '@/lib/middleware-test-scenarios'
+
+const MIDDLEWARE_MODES = [
+  { id: 'none', label: 'No Middleware' },
+  { id: 'chunk-transform', label: 'Chunk Transform (prefix text)' },
+  { id: 'tool-skip', label: 'Tool Skip (skip with custom result)' },
+] as const
 
 export const Route = createFileRoute('/middleware-test')({
   component: MiddlewareTestPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    const port =
+      typeof search.aimockPort === 'string'
+        ? parseInt(search.aimockPort, 10)
+        : undefined
+    return {
+      testId: typeof search.testId === 'string' ? search.testId : undefined,
+      aimockPort: port != null && !isNaN(port) ? port : undefined,
+    }
+  },
 })
 
 function MiddlewareTestPage() {
+  const { testId, aimockPort } = Route.useSearch()
   const [scenario, setScenario] = useState('basic-text')
   const [middlewareMode, setMiddlewareMode] = useState('none')
   const [testComplete, setTestComplete] = useState(false)
@@ -15,13 +31,13 @@ function MiddlewareTestPage() {
   const { messages, sendMessage, isLoading } = useChat({
     id: `mw-test-${scenario}-${middlewareMode}`,
     connection: fetchServerSentEvents('/api/middleware-test'),
-    body: { scenario, middlewareMode },
+    body: { scenario, middlewareMode, testId, aimockPort },
     onFinish: () => setTestComplete(true),
   })
 
   const handleRun = () => {
     setTestComplete(false)
-    sendMessage('Run middleware test')
+    sendMessage(`[${scenario}] run test`)
   }
 
   return (

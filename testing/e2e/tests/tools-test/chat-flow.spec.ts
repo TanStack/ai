@@ -16,13 +16,12 @@ import {
  */
 
 test.describe('Chat Flow Tests (tools-test page)', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/tools-test')
-    await page.waitForSelector('#run-test-button')
-  })
-
-  test('text-only scenario completes without tool calls', async ({ page }) => {
-    await selectScenario(page, 'text-only')
+  test('text-only scenario completes without tool calls', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'text-only', testId, aimockPort)
     await runTest(page)
 
     // Wait for loading to finish
@@ -45,8 +44,10 @@ test.describe('Chat Flow Tests (tools-test page)', () => {
 
   test('text-only scenario shows response in messages JSON', async ({
     page,
+    testId,
+    aimockPort,
   }) => {
-    await selectScenario(page, 'text-only')
+    await selectScenario(page, 'text-only', testId, aimockPort)
     await runTest(page)
 
     // Wait for loading to finish
@@ -70,8 +71,12 @@ test.describe('Chat Flow Tests (tools-test page)', () => {
     expect(messages.length).toBeGreaterThanOrEqual(1)
   })
 
-  test('single server tool scenario triggers a tool call', async ({ page }) => {
-    await selectScenario(page, 'server-tool-single')
+  test('single server tool scenario triggers a tool call', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'server-tool-single', testId, aimockPort)
     await runTest(page)
 
     await waitForTestComplete(page, 15000, 1)
@@ -82,8 +87,12 @@ test.describe('Chat Flow Tests (tools-test page)', () => {
     expect(parseInt(metadata.completeToolCount)).toBeGreaterThanOrEqual(1)
   })
 
-  test('single client tool triggers execution events', async ({ page }) => {
-    await selectScenario(page, 'client-tool-single')
+  test('single client tool triggers execution events', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'client-tool-single', testId, aimockPort)
     await runTest(page)
 
     await waitForTestComplete(page, 15000, 1)
@@ -101,8 +110,12 @@ test.describe('Chat Flow Tests (tools-test page)', () => {
     expect(completeEvents.length).toBeGreaterThanOrEqual(1)
   })
 
-  test('tool calls appear in tool-calls JSON', async ({ page }) => {
-    await selectScenario(page, 'server-tool-single')
+  test('tool calls appear in tool-calls JSON', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'server-tool-single', testId, aimockPort)
     await runTest(page)
 
     await waitForTestComplete(page, 15000, 1)

@@ -124,6 +124,56 @@ export const processOrder = toolDefinition({
   })
 })
 
+// Available test scenarios (UI list with id/label/category)
+export const SCENARIO_LIST = [
+  { id: 'text-only', label: 'Text Only (No Tools)', category: 'basic' },
+  { id: 'server-tool-single', label: 'Single Server Tool', category: 'basic' },
+  { id: 'client-tool-single', label: 'Single Client Tool', category: 'basic' },
+  { id: 'approval-tool', label: 'Approval Required Tool', category: 'basic' },
+  {
+    id: 'sequence-server-client',
+    label: 'Server \u2192 Client Sequence',
+    category: 'basic',
+  },
+  { id: 'parallel-tools', label: 'Parallel Tools', category: 'basic' },
+  {
+    id: 'lazy-tool-discovery',
+    label: 'Lazy Tool Discovery',
+    category: 'basic',
+  },
+  { id: 'custom-events', label: 'Custom Event Emitting', category: 'basic' },
+  { id: 'error', label: 'Error Response', category: 'basic' },
+  // Race condition / event flow scenarios
+  {
+    id: 'sequential-client-tools',
+    label: 'Sequential Client Tools (2)',
+    category: 'race',
+  },
+  {
+    id: 'parallel-client-tools',
+    label: 'Parallel Client Tools',
+    category: 'race',
+  },
+  {
+    id: 'sequential-approvals',
+    label: 'Sequential Approvals (2)',
+    category: 'race',
+  },
+  { id: 'parallel-approvals', label: 'Parallel Approvals', category: 'race' },
+  { id: 'client-then-approval', label: 'Client \u2192 Approval', category: 'race' },
+  { id: 'approval-then-client', label: 'Approval \u2192 Client', category: 'race' },
+  {
+    id: 'server-then-two-clients',
+    label: 'Server \u2192 2 Clients',
+    category: 'race',
+  },
+  {
+    id: 'triple-client-sequence',
+    label: 'Triple Client Sequence',
+    category: 'race',
+  },
+]
+
 /**
  * Get the tools needed for a specific scenario
  */

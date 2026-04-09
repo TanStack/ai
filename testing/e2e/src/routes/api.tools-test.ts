@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
-import { createLLMSimulator } from '@tanstack/tests-adapters'
-import { SCENARIOS } from '@/lib/tools-test-scenarios'
+import { createTextAdapter } from '@/lib/providers'
 import { getToolsForScenario } from '@/lib/tools-test-tools'
 
 export const Route = createFileRoute('/api/tools-test')({
@@ -18,9 +17,14 @@ export const Route = createFileRoute('/api/tools-test')({
 
         try {
           const body = await request.json()
-          // scenario is in body.data (from useChat body option) or body directly (legacy)
           const messages = body.messages
           const scenario = body.data?.scenario || body.scenario || 'text-only'
+          const testId: string | undefined =
+            typeof body.data?.testId === 'string' ? body.data.testId : undefined
+          const aimockPort: number | undefined =
+            body.data?.aimockPort != null
+              ? Number(body.data.aimockPort)
+              : undefined
 
           // Special error scenario: return a stream that immediately errors
           if (scenario === 'error') {
@@ -42,29 +46,17 @@ export const Route = createFileRoute('/api/tools-test')({
             return toServerSentEventsResponse(errorStream, { abortController })
           }
 
-          // Get the script for this scenario
-          const script = SCENARIOS[scenario]
-          if (!script) {
-            return new Response(
-              JSON.stringify({
-                error: `Unknown scenario: ${scenario}. Available: ${Object.keys(SCENARIOS).join(', ')}`,
-              }),
-              {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' },
-              },
-            )
-          }
+          const adapterOptions = createTextAdapter(
+            'openai',
+            undefined,
+            aimockPort,
+            testId,
+          )
 
-          // Create simulator with the script
-          const adapter = createLLMSimulator(script)
-
-          // Determine which tools to include based on the scenario
           const tools = getToolsForScenario(scenario)
 
           const stream = chat({
-            adapter,
-            model: 'simulator-model',
+            ...adapterOptions,
             messages,
             tools,
             agentLoopStrategy: maxIterations(20),

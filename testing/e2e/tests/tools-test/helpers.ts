@@ -26,7 +26,16 @@ import type { Page } from '@playwright/test'
 export async function selectScenario(
   page: Page,
   scenario: string,
+  testId?: string,
+  aimockPort?: number,
 ): Promise<void> {
+  const params = new URLSearchParams()
+  if (testId) params.set('testId', testId)
+  if (aimockPort) params.set('aimockPort', String(aimockPort))
+  const qs = params.toString()
+  await page.goto(`/tools-test${qs ? '?' + qs : ''}`)
+  await page.waitForSelector('#run-test-button')
+
   // Wait for hydration
   await page.waitForTimeout(500)
 

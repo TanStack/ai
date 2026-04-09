@@ -21,13 +21,12 @@ import {
  */
 
 test.describe('Approval Flow E2E Tests', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/tools-test')
-    await page.waitForSelector('#run-test-button')
-  })
-
-  test('single approval flow - approve', async ({ page }) => {
-    await selectScenario(page, 'approval-tool')
+  test('single approval flow - approve', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'approval-tool', testId, aimockPort)
     await runTest(page)
 
     // Wait for approval request to appear
@@ -50,8 +49,8 @@ test.describe('Approval Flow E2E Tests', () => {
     expect(parseInt(metadata.approvalDeniedCount)).toBe(0)
   })
 
-  test('single approval flow - deny', async ({ page }) => {
-    await selectScenario(page, 'approval-tool')
+  test('single approval flow - deny', async ({ page, testId, aimockPort }) => {
+    await selectScenario(page, 'approval-tool', testId, aimockPort)
     await runTest(page)
 
     // Wait for approval request to appear
@@ -69,10 +68,14 @@ test.describe('Approval Flow E2E Tests', () => {
     expect(parseInt(metadata.approvalGrantedCount)).toBe(0)
   })
 
-  test('sequential approvals - both approved', async ({ page }) => {
+  test('sequential approvals - both approved', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
     // This tests the specific issue: two approvals in sequence
     // The second approval shouldn't be blocked by the first
-    await selectScenario(page, 'sequential-approvals')
+    await selectScenario(page, 'sequential-approvals', testId, aimockPort)
     await runTest(page)
 
     // Wait for first approval
@@ -107,9 +110,13 @@ test.describe('Approval Flow E2E Tests', () => {
     expect(parseInt(metadata.approvalGrantedCount)).toBe(2)
   })
 
-  test('parallel approvals - both approved', async ({ page }) => {
+  test('parallel approvals - both approved', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
     // Two approvals requested at the same time
-    await selectScenario(page, 'parallel-approvals')
+    await selectScenario(page, 'parallel-approvals', testId, aimockPort)
     await runTest(page)
 
     // Wait for approvals to appear
@@ -140,9 +147,9 @@ test.describe('Approval Flow E2E Tests', () => {
     expect(parseInt(metadata.approvalGrantedCount)).toBe(2)
   })
 
-  test('client tool then approval', async ({ page }) => {
+  test('client tool then approval', async ({ page, testId, aimockPort }) => {
     // Tests that a client tool doesn't block subsequent approval
-    await selectScenario(page, 'client-then-approval')
+    await selectScenario(page, 'client-then-approval', testId, aimockPort)
     await runTest(page)
 
     // Wait for approval request (after client tool completes)
@@ -167,9 +174,9 @@ test.describe('Approval Flow E2E Tests', () => {
     expect(clientExecution).toBeTruthy()
   })
 
-  test('approval then client tool', async ({ page }) => {
+  test('approval then client tool', async ({ page, testId, aimockPort }) => {
     // Tests that approval doesn't block subsequent client tool
-    await selectScenario(page, 'approval-then-client')
+    await selectScenario(page, 'approval-then-client', testId, aimockPort)
     await runTest(page)
 
     // Wait for approval request

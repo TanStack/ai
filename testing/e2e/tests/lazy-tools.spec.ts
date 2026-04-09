@@ -8,13 +8,8 @@ import {
 } from './tools-test/helpers'
 
 test.describe('Lazy Tool Discovery', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/tools-test')
-    await page.waitForSelector('#run-test-button')
-  })
-
-  test('discovers and uses lazy tool', async ({ page }) => {
-    await selectScenario(page, 'lazy-tool-discovery')
+  test('discovers and uses lazy tool', async ({ page, testId, aimockPort }) => {
+    await selectScenario(page, 'lazy-tool-discovery', testId, aimockPort)
     await runTest(page)
     await waitForTestComplete(page, 20000, 2)
 

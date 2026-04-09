@@ -22,11 +22,6 @@ import {
  */
 
 test.describe('Race Condition Tests', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/tools-test')
-    await page.waitForSelector('#run-test-button')
-  })
-
   /**
    * This test catches the specific bug where two client tool calls in a row
    * would fail because the send of the second tool's result was blocked
@@ -34,8 +29,10 @@ test.describe('Race Condition Tests', () => {
    */
   test('two client tools in sequence dont block each other', async ({
     page,
+    testId,
+    aimockPort,
   }) => {
-    await selectScenario(page, 'sequential-client-tools')
+    await selectScenario(page, 'sequential-client-tools', testId, aimockPort)
 
     const startTime = Date.now()
     await runTest(page)
@@ -74,8 +71,10 @@ test.describe('Race Condition Tests', () => {
    */
   test('parallel client tools execute without interference', async ({
     page,
+    testId,
+    aimockPort,
   }) => {
-    await selectScenario(page, 'parallel-client-tools')
+    await selectScenario(page, 'parallel-client-tools', testId, aimockPort)
     await runTest(page)
 
     // Wait for completion - expect 2 client tools in parallel
@@ -96,8 +95,12 @@ test.describe('Race Condition Tests', () => {
   /**
    * Tests that rapid approval responses don't cause race conditions
    */
-  test('rapid sequential approvals complete correctly', async ({ page }) => {
-    await selectScenario(page, 'sequential-approvals')
+  test('rapid sequential approvals complete correctly', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'sequential-approvals', testId, aimockPort)
     await runTest(page)
 
     // Wait for first approval
@@ -129,8 +132,12 @@ test.describe('Race Condition Tests', () => {
   /**
    * Tests that parallel approvals can all be approved without blocking
    */
-  test('parallel approvals can all be approved rapidly', async ({ page }) => {
-    await selectScenario(page, 'parallel-approvals')
+  test('parallel approvals can all be approved rapidly', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'parallel-approvals', testId, aimockPort)
     await runTest(page)
 
     // Wait for approvals to appear
@@ -162,8 +169,12 @@ test.describe('Race Condition Tests', () => {
   /**
    * Tests that client tool execution doesn't block subsequent approval flow
    */
-  test('client tool doesnt block subsequent approval', async ({ page }) => {
-    await selectScenario(page, 'client-then-approval')
+  test('client tool doesnt block subsequent approval', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'client-then-approval', testId, aimockPort)
     await runTest(page)
 
     // Wait for approval to appear (after client tool auto-executes)
@@ -185,8 +196,12 @@ test.describe('Race Condition Tests', () => {
   /**
    * Tests that approval doesn't block subsequent client tool execution
    */
-  test('approval doesnt block subsequent client tool', async ({ page }) => {
-    await selectScenario(page, 'approval-then-client')
+  test('approval doesnt block subsequent client tool', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'approval-then-client', testId, aimockPort)
     await runTest(page)
 
     // Wait for approval
@@ -218,8 +233,10 @@ test.describe('Race Condition Tests', () => {
    */
   test('triple client sequence completes without blocking', async ({
     page,
+    testId,
+    aimockPort,
   }) => {
-    await selectScenario(page, 'triple-client-sequence')
+    await selectScenario(page, 'triple-client-sequence', testId, aimockPort)
 
     const startTime = Date.now()
     await runTest(page)
@@ -247,8 +264,12 @@ test.describe('Race Condition Tests', () => {
   /**
    * Tests complex mixed flow: server -> client -> client
    */
-  test('server then two clients flows correctly', async ({ page }) => {
-    await selectScenario(page, 'server-then-two-clients')
+  test('server then two clients flows correctly', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'server-then-two-clients', testId, aimockPort)
     await runTest(page)
 
     // Wait for completion - expect 3 tools (1 server + 2 clients)

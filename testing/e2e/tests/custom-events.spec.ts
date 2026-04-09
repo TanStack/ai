@@ -7,15 +7,12 @@ import {
 } from './tools-test/helpers'
 
 test.describe('Custom Event Emitting', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/tools-test')
-    await page.waitForSelector('#run-test-button')
-  })
-
   test('server tool emits custom events received by client', async ({
     page,
+    testId,
+    aimockPort,
   }) => {
-    await selectScenario(page, 'custom-events')
+    await selectScenario(page, 'custom-events', testId, aimockPort)
     await runTest(page)
     await waitForTestComplete(page, 15000, 1)
 

@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
-import { SCENARIO_LIST } from '@/lib/tools-test-scenarios'
+import { SCENARIO_LIST } from '@/lib/tools-test-tools'
 
 /**
  * Event log entry for tracking tool execution flow
@@ -99,6 +99,7 @@ function createTrackedTools(
 }
 
 function ToolsTestPage() {
+  const { testId, aimockPort } = Route.useSearch()
   const [scenario, setScenario] = useState('text-only')
   const [toolEvents, setToolEvents] = useState<Array<ToolEvent>>([])
   const [testStartTime, setTestStartTime] = useState<number | null>(null)
@@ -126,7 +127,7 @@ function ToolsTestPage() {
     // Include scenario in ID so client is recreated when scenario changes
     id: `tools-test-${scenario}`,
     connection: fetchServerSentEvents('/api/tools-test'),
-    body: { scenario },
+    body: { scenario, testId, aimockPort },
     tools: clientTools,
     onFinish: () => {
       setTestComplete(true)
@@ -174,7 +175,7 @@ function ToolsTestPage() {
     setTestComplete(false)
     setTestStartTime(Date.now())
     respondedApprovals.current.clear()
-    sendMessage('Run the test scenario')
+    sendMessage(`[${scenario}] run test`)
   }, [sendMessage])
 
   // Extract tool call parts from messages for display
@@ -614,4 +615,14 @@ function ToolsTestPage() {
 
 export const Route = createFileRoute('/tools-test')({
   component: ToolsTestPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    const port =
+      typeof search.aimockPort === 'string'
+        ? parseInt(search.aimockPort, 10)
+        : undefined
+    return {
+      testId: typeof search.testId === 'string' ? search.testId : undefined,
+      aimockPort: port != null && !isNaN(port) ? port : undefined,
+    }
+  },
 })

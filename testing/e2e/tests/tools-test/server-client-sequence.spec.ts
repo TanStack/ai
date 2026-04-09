@@ -20,13 +20,12 @@ import {
  */
 
 test.describe('Server-Client Sequence E2E Tests', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/tools-test')
-    await page.waitForSelector('#run-test-button')
-  })
-
-  test('server tool followed by client tool', async ({ page }) => {
-    await selectScenario(page, 'sequence-server-client')
+  test('server tool followed by client tool', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'sequence-server-client', testId, aimockPort)
     await runTest(page)
 
     // Wait for the test to complete
@@ -48,9 +47,13 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     expect(chartExecution).toBeTruthy()
   })
 
-  test('server then two client tools in sequence', async ({ page }) => {
+  test('server then two client tools in sequence', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
     // Tests complex continuation: server -> client -> client
-    await selectScenario(page, 'server-then-two-clients')
+    await selectScenario(page, 'server-then-two-clients', testId, aimockPort)
     await runTest(page)
 
     // Wait for the test to complete
@@ -92,8 +95,12 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     }
   })
 
-  test('parallel server tools complete correctly', async ({ page }) => {
-    await selectScenario(page, 'parallel-tools')
+  test('parallel server tools complete correctly', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'parallel-tools', testId, aimockPort)
     await runTest(page)
 
     // Wait for the test to complete
@@ -114,8 +121,8 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     expect(toolNames).toContain('get_time')
   })
 
-  test('single server tool completes', async ({ page }) => {
-    await selectScenario(page, 'server-tool-single')
+  test('single server tool completes', async ({ page, testId, aimockPort }) => {
+    await selectScenario(page, 'server-tool-single', testId, aimockPort)
     await runTest(page)
 
     // Wait for the test to complete
@@ -139,8 +146,12 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     )
   })
 
-  test('text only scenario has no tool calls', async ({ page }) => {
-    await selectScenario(page, 'text-only')
+  test('text only scenario has no tool calls', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'text-only', testId, aimockPort)
     await runTest(page)
 
     // Wait for loading to finish

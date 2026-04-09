@@ -19,15 +19,12 @@ import {
  */
 
 test.describe('Client Tool E2E Tests', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/tools-test')
-    await page.waitForSelector('#run-test-button:not([disabled])', {
-      timeout: 10000,
-    })
-  })
-
-  test('single client tool executes and completes', async ({ page }) => {
-    await selectScenario(page, 'client-tool-single')
+  test('single client tool executes and completes', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'client-tool-single', testId, aimockPort)
     await runTest(page)
 
     // Wait for the test to complete
@@ -49,10 +46,14 @@ test.describe('Client Tool E2E Tests', () => {
     expect(startEvents[0]?.toolName).toBe('show_notification')
   })
 
-  test('sequential client tools execute in order', async ({ page }) => {
+  test('sequential client tools execute in order', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
     // This tests the specific issue: two client tool calls in a row
     // The second call shouldn't be blocked by the first
-    await selectScenario(page, 'sequential-client-tools')
+    await selectScenario(page, 'sequential-client-tools', testId, aimockPort)
     await runTest(page)
 
     // Wait for the test to complete (expect 2 tools)
@@ -73,8 +74,12 @@ test.describe('Client Tool E2E Tests', () => {
     expect(executionEvents.length).toBeGreaterThanOrEqual(4)
   })
 
-  test('parallel client tools execute concurrently', async ({ page }) => {
-    await selectScenario(page, 'parallel-client-tools')
+  test('parallel client tools execute concurrently', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'parallel-client-tools', testId, aimockPort)
     await runTest(page)
 
     // Wait for the test to complete (expect 2 tools)
@@ -92,11 +97,15 @@ test.describe('Client Tool E2E Tests', () => {
     expect(toolNames.has('display_chart')).toBe(true)
   })
 
-  test('triple client sequence completes all three', async ({ page }) => {
+  test('triple client sequence completes all three', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
     // Stress test: three client tools in sequence
     // NOTE: This tests a complex multi-step continuation flow that requires
     // additional investigation. Currently verifying at least 2 tools complete.
-    await selectScenario(page, 'triple-client-sequence')
+    await selectScenario(page, 'triple-client-sequence', testId, aimockPort)
     await runTest(page)
 
     // Wait for the test to complete (expect at least 2 tools)
@@ -109,12 +118,16 @@ test.describe('Client Tool E2E Tests', () => {
     expect(parseInt(metadata.executionCompleteCount)).toBeGreaterThanOrEqual(2)
   })
 
-  test('server then two clients sequence completes', async ({ page }) => {
+  test('server then two clients sequence completes', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
     // Tests complex flow: server tool -> client tool -> client tool
     // NOTE: This tests a complex multi-step continuation flow involving
     // both server and client tools. Currently verifying at least 1 client tool completes.
     // Known issue: Server tool state tracking may need investigation.
-    await selectScenario(page, 'server-then-two-clients')
+    await selectScenario(page, 'server-then-two-clients', testId, aimockPort)
     await runTest(page)
 
     // Wait for at least 1 client tool to complete
