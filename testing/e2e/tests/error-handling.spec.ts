@@ -28,19 +28,12 @@ test.describe('Error Handling', () => {
     await expect(page.locator('#error-display')).toBeVisible()
   })
 
+  // Fixture loaded from fixtures/error/basic.json (static, shared across workers)
   test('aimock error fixture returns error to client', async ({
     page,
-    aimock,
     testId,
     aimockPort,
   }) => {
-    aimock.addFixture({
-      match: { userMessage: '[error-test] trigger server error' },
-      response: {
-        error: { message: 'Internal server error', type: 'server_error' },
-      },
-    })
-
     await page.goto(featureUrl('openai', 'chat', testId, aimockPort))
 
     await sendMessage(page, '[error-test] trigger server error')

@@ -1,19 +1,9 @@
 import { test, expect } from './fixtures'
-import { sendMessage, featureUrl } from './helpers'
+import { featureUrl } from './helpers'
+
+// Fixture is loaded from fixtures/abort/basic.json (static, shared across workers)
 
 test.describe('Abort/Cancellation', () => {
-  test.beforeEach(async ({ aimock }) => {
-    // Add a slow-streaming fixture so there's time to click stop
-    aimock.addFixture({
-      match: { userMessage: '[abort-test] tell me a long story' },
-      response: {
-        content:
-          'Once upon a time in a land far away there lived a guitar maker who spent decades perfecting the art of crafting beautiful instruments from the finest tonewoods available in the forests nearby and each guitar was unique and special and every single one had its own story to tell about the wood and the craftsmanship that went into making it a truly remarkable piece of art and the customers would come from miles around just to see the collection and hear the stories behind each instrument that hung on the walls of the little shop on the corner of Main Street in the small town where everyone knew each other by name',
-      },
-      opts: { tokensPerSecond: 1, chunkSize: 2 },
-    })
-  })
-
   test('stop button appears during loading and stops generation', async ({
     page,
     testId,
@@ -21,19 +11,43 @@ test.describe('Abort/Cancellation', () => {
   }) => {
     await page.goto(featureUrl('openai', 'chat', testId, aimockPort))
 
-    await sendMessage(page, '[abort-test] tell me a long story')
+    // Type and send
+    const input = page.getByTestId('chat-input')
+    await input.click()
+    await input.fill('[abort-test] tell me a long story')
+    await input.dispatchEvent('input', { bubbles: true })
+    await page
+      .getByTestId('send-button')
+      .click({ timeout: 5000 })
+      .catch(async () => {
+        const isDisabled = await page.getByTestId('send-button').isDisabled()
+        if (!isDisabled) throw new Error('Send button click failed')
+        await input.clear()
+        await input.pressSequentially(
+          '[abort-test] tell me a long story',
+          { delay: 30 },
+        )
+        await page.getByTestId('send-button').click()
+      })
 
-    // Stop button should appear while loading
+    // Wait for loading to start (proves the request was sent)
+    await expect(page.getByTestId('loading-indicator')).toBeVisible({
+      timeout: 10000,
+    })
+
+    // Stop button should be visible during loading
     const stopButton = page.getByTestId('stop-button')
     await expect(stopButton).toBeVisible({ timeout: 5000 })
 
     // Click stop
     await stopButton.click()
 
-    // Stop button should disappear (loading = false)
-    await expect(stopButton).not.toBeVisible({ timeout: 5000 })
+    // Loading should stop
+    await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
+      timeout: 10000,
+    })
 
-    // Loading indicator should be gone
-    await expect(page.getByTestId('loading-indicator')).not.toBeVisible()
+    // Stop button should disappear
+    await expect(stopButton).not.toBeVisible()
   })
 })

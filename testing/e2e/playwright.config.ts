@@ -23,9 +23,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  // aimock is managed via Playwright worker fixture (tests/fixtures.ts).
-  // Each worker starts its own aimock instance on a unique port (4010 + workerIndex).
+  // aimock started in globalSetup, shared across all workers on port 4010.
   // Tests send X-Test-Id headers for per-test sequenceIndex isolation.
+  globalSetup: './global-setup.ts',
+  globalTeardown: './global-teardown.ts',
   webServer: {
     command: 'pnpm run dev',
     url: 'http://localhost:3010',

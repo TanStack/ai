@@ -1,0 +1,15 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[error-test] trigger server error"
+      },
+      "response": {
+        "error": {
+          "message": "Internal server error",
+          "type": "server_error"
+        }
+      }
+    }
+  ]
+}

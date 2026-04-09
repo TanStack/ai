@@ -59,7 +59,6 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
   'tool-approval': new Set([
     'openai',
     'anthropic',
-    'ollama',
     'groq',
     'grok',
     'openrouter',

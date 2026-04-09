@@ -244,6 +244,19 @@ test.describe('Race Condition Tests', () => {
     // Wait for completion - expect 3 client tools
     await waitForTestComplete(page, 20000, 3)
 
+    // Wait for client-side execution events to propagate
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('#test-metadata')
+        return (
+          parseInt(
+            el?.getAttribute('data-execution-complete-count') || '0',
+          ) >= 3
+        )
+      },
+      { timeout: 5000 },
+    )
+
     const endTime = Date.now()
     const duration = endTime - startTime
 
@@ -254,7 +267,9 @@ test.describe('Race Condition Tests', () => {
 
     // Verify order: all executions should complete in sequence
     const events = await getEventLog(page)
-    const completeEvents = events.filter((e) => e.type === 'execution-complete')
+    const completeEvents = events.filter(
+      (e: { type: string }) => e.type === 'execution-complete',
+    )
     expect(completeEvents.length).toBe(3)
 
     // If blocking occurs, this would take much longer than expected
