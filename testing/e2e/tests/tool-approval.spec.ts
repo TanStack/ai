@@ -16,15 +16,13 @@ for (const provider of providersFor('tool-approval')) {
       testId,
       aimockPort,
     }) => {
-      await page.goto(
-        featureUrl(provider, 'tool-approval', testId, aimockPort),
-      )
+      await page.goto(featureUrl(provider, 'tool-approval', testId, aimockPort))
 
       await sendMessage(page, '[approval] add the stratocaster to my cart')
 
-      await expect(
-        page.getByTestId('approval-prompt-addToCart'),
-      ).toBeVisible({ timeout: 20000 })
+      await expect(page.getByTestId('approval-prompt-addToCart')).toBeVisible({
+        timeout: 20000,
+      })
       await approveToolCall(page, 'addToCart')
 
       // Wait for text response after approval + tool execution
@@ -32,15 +30,13 @@ for (const provider of providersFor('tool-approval')) {
     })
 
     test('handles denial', async ({ page, testId, aimockPort }) => {
-      await page.goto(
-        featureUrl(provider, 'tool-approval', testId, aimockPort),
-      )
+      await page.goto(featureUrl(provider, 'tool-approval', testId, aimockPort))
 
       await sendMessage(page, '[approval] add the stratocaster to my cart')
 
-      await expect(
-        page.getByTestId('approval-prompt-addToCart'),
-      ).toBeVisible({ timeout: 20000 })
+      await expect(page.getByTestId('approval-prompt-addToCart')).toBeVisible({
+        timeout: 20000,
+      })
       await denyToolCall(page, 'addToCart')
       await waitForResponse(page)
 
