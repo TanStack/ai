@@ -1,7 +1,10 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "[sequential-approvals] run test", "sequenceIndex": 0 },
+      "match": {
+        "userMessage": "[sequential-approvals] run test",
+        "sequenceIndex": 0
+      },
       "response": {
         "content": "First I need to delete file A.",
         "toolCalls": [
@@ -10,7 +13,10 @@
       }
     },
     {
-      "match": { "userMessage": "[sequential-approvals] run test", "sequenceIndex": 1 },
+      "match": {
+        "userMessage": "[sequential-approvals] run test",
+        "sequenceIndex": 1
+      },
       "response": {
         "content": "Now I need to delete file B.",
         "toolCalls": [
@@ -19,7 +25,10 @@
       }
     },
     {
-      "match": { "userMessage": "[sequential-approvals] run test", "sequenceIndex": 2 },
+      "match": {
+        "userMessage": "[sequential-approvals] run test",
+        "sequenceIndex": 2
+      },
       "response": {
         "content": "Both files have been processed."
       }

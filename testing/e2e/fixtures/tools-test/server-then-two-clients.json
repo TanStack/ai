@@ -1,7 +1,10 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "[server-then-two-clients] run test", "sequenceIndex": 0 },
+      "match": {
+        "userMessage": "[server-then-two-clients] run test",
+        "sequenceIndex": 0
+      },
       "response": {
         "content": "Fetching data first.",
         "toolCalls": [
@@ -10,25 +13,40 @@
       }
     },
     {
-      "match": { "userMessage": "[server-then-two-clients] run test", "sequenceIndex": 1 },
+      "match": {
+        "userMessage": "[server-then-two-clients] run test",
+        "sequenceIndex": 1
+      },
       "response": {
         "content": "First client action.",
         "toolCalls": [
-          { "name": "show_notification", "arguments": "{\"message\":\"Data fetched\",\"type\":\"info\"}" }
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":\"Data fetched\",\"type\":\"info\"}"
+          }
         ]
       }
     },
     {
-      "match": { "userMessage": "[server-then-two-clients] run test", "sequenceIndex": 2 },
+      "match": {
+        "userMessage": "[server-then-two-clients] run test",
+        "sequenceIndex": 2
+      },
       "response": {
         "content": "Second client action.",
         "toolCalls": [
-          { "name": "display_chart", "arguments": "{\"type\":\"line\",\"data\":[10,20,30]}" }
+          {
+            "name": "display_chart",
+            "arguments": "{\"type\":\"line\",\"data\":[10,20,30]}"
+          }
         ]
       }
     },
     {
-      "match": { "userMessage": "[server-then-two-clients] run test", "sequenceIndex": 3 },
+      "match": {
+        "userMessage": "[server-then-two-clients] run test",
+        "sequenceIndex": 3
+      },
       "response": {
         "content": "All done."
       }

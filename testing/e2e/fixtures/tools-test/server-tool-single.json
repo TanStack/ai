@@ -1,7 +1,10 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "[server-tool-single] run test", "sequenceIndex": 0 },
+      "match": {
+        "userMessage": "[server-tool-single] run test",
+        "sequenceIndex": 0
+      },
       "response": {
         "content": "Let me get the weather for you.",
         "toolCalls": [
@@ -10,7 +13,10 @@
       }
     },
     {
-      "match": { "userMessage": "[server-tool-single] run test", "sequenceIndex": 1 },
+      "match": {
+        "userMessage": "[server-tool-single] run test",
+        "sequenceIndex": 1
+      },
       "response": {
         "content": "The weather in San Francisco is 72\u00b0F and sunny."
       }

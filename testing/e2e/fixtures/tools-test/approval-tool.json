@@ -1,7 +1,10 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "[approval-tool] run test", "sequenceIndex": 0 },
+      "match": {
+        "userMessage": "[approval-tool] run test",
+        "sequenceIndex": 0
+      },
       "response": {
         "content": "I need your permission to delete this file.",
         "toolCalls": [
@@ -10,7 +13,10 @@
       }
     },
     {
-      "match": { "userMessage": "[approval-tool] run test", "sequenceIndex": 1 },
+      "match": {
+        "userMessage": "[approval-tool] run test",
+        "sequenceIndex": 1
+      },
       "response": {
         "content": "The file has been deleted."
       }

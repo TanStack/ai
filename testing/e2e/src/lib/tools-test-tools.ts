@@ -160,8 +160,16 @@ export const SCENARIO_LIST = [
     category: 'race',
   },
   { id: 'parallel-approvals', label: 'Parallel Approvals', category: 'race' },
-  { id: 'client-then-approval', label: 'Client \u2192 Approval', category: 'race' },
-  { id: 'approval-then-client', label: 'Approval \u2192 Client', category: 'race' },
+  {
+    id: 'client-then-approval',
+    label: 'Client \u2192 Approval',
+    category: 'race',
+  },
+  {
+    id: 'approval-then-client',
+    label: 'Approval \u2192 Client',
+    category: 'race',
+  },
   {
     id: 'server-then-two-clients',
     label: 'Server \u2192 2 Clients',
