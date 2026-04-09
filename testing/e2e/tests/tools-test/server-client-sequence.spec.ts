@@ -35,7 +35,10 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     await page.waitForFunction(
       () => {
         const el = document.querySelector('#test-metadata')
-        return parseInt(el?.getAttribute('data-execution-complete-count') || '0') >= 1
+        return (
+          parseInt(el?.getAttribute('data-execution-complete-count') || '0') >=
+          1
+        )
       },
       { timeout: 10000 },
     )
