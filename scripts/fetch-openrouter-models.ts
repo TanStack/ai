@@ -195,7 +195,9 @@ function escapeString(value: string): string {
 
 async function main() {
   console.log(`Fetching models from ${API_URL}...`)
-  const response = await fetch(API_URL)
+  const response = await fetch(API_URL, {
+    signal: AbortSignal.timeout(30_000),
+  })
 
   if (!response.ok) {
     throw new Error(

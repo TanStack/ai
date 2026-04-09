@@ -12,7 +12,7 @@
  */
 
 import { readFile, writeFile } from 'node:fs/promises'
-import { resolve, dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { models } from './openrouter.models'
 import type { OpenRouterModel } from './openrouter.models'
@@ -527,11 +527,8 @@ async function main() {
     // Insert constants before first export
     content = insertConstants(content, constants)
 
-    // Filter to chat-eligible models: must output text and not be a non-chat model family
-    const chatModels = filteredModels.filter(
-      ({ model, strippedId }) =>
-        outputsText(model) && !isNonChatModel(strippedId),
-    )
+    // Filter to chat-eligible models: must output text
+    const chatModels = filteredModels.filter(({ model }) => outputsText(model))
 
     if (chatModels.length > 0) {
       content = addToArray(
