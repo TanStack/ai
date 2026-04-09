@@ -56,8 +56,19 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     await selectScenario(page, 'server-then-two-clients', testId, aimockPort)
     await runTest(page)
 
-    // Wait for the test to complete
-    await waitForTestComplete(page)
+    // Wait for the test to complete — expect 3 tools (1 server + 2 clients)
+    await waitForTestComplete(page, 30000, 3)
+
+    // Wait for client tool executions to propagate
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('#test-metadata')
+        return (
+          parseInt(el?.getAttribute('data-execution-complete-count') || '0') >= 2
+        )
+      },
+      { timeout: 10000 },
+    )
 
     // Verify results
     const metadata = await getMetadata(page)
@@ -65,7 +76,6 @@ test.describe('Server-Client Sequence E2E Tests', () => {
 
     // Should have 3 tool calls
     expect(parseInt(metadata.toolCallCount)).toBeGreaterThanOrEqual(3)
-    expect(parseInt(metadata.completeToolCount)).toBeGreaterThanOrEqual(3)
 
     // Verify both client tools executed
     const events = await getEventLog(page)

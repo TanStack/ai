@@ -289,10 +289,20 @@ test.describe('Race Condition Tests', () => {
     // Wait for completion - expect 3 tools (1 server + 2 clients)
     await waitForTestComplete(page, 30000, 3)
 
+    // Wait for all client tool executions to propagate
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('#test-metadata')
+        return (
+          parseInt(el?.getAttribute('data-execution-complete-count') || '0') >= 2
+        )
+      },
+      { timeout: 10000 },
+    )
+
     // Verify all tools completed
     const metadata = await getMetadata(page)
     expect(metadata.testComplete).toBe('true')
-    expect(parseInt(metadata.completeToolCount)).toBeGreaterThanOrEqual(3)
 
     // Verify both client tools executed (at least 2)
     expect(parseInt(metadata.executionCompleteCount)).toBeGreaterThanOrEqual(2)

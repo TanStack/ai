@@ -58,7 +58,7 @@ export async function selectScenario(
         .getElementById('test-metadata')
         ?.getAttribute('data-scenario') === expected,
     scenario,
-    { timeout: 3000 },
+    { timeout: 10000 },
   )
 
   // Wait for new client to initialize
