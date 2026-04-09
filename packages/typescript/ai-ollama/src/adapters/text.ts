@@ -1,10 +1,6 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
-import {
-  createOllamaClient,
-  generateId,
-  getOllamaHostFromEnv,
-} from '../utils'
+import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 import type { OllamaClientConfig } from '../utils/client'
 
 import type {
