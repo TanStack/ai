@@ -64,6 +64,14 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
+  'text-tool-text': new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'groq',
+    'grok',
+    'openrouter',
+  ]),
   'structured-output': new Set([
     'openai',
     'anthropic',

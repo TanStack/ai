@@ -15,6 +15,7 @@ export type Feature =
   | 'tool-calling'
   | 'parallel-tool-calls'
   | 'tool-approval'
+  | 'text-tool-text'
   | 'structured-output'
   | 'agentic-structured'
   | 'multimodal-image'
@@ -43,6 +44,7 @@ export const ALL_FEATURES: Feature[] = [
   'tool-calling',
   'parallel-tool-calls',
   'tool-approval',
+  'text-tool-text',
   'structured-output',
   'agentic-structured',
   'multimodal-image',

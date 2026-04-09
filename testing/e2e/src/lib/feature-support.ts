@@ -55,6 +55,15 @@ const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
+  // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
+  'text-tool-text': new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'groq',
+    'grok',
+    'openrouter',
+  ]),
   'structured-output': new Set([
     'openai',
     'anthropic',

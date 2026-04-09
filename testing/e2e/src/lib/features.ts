@@ -41,6 +41,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [addToCart],
     modelOptions: {},
   },
+  'text-tool-text': {
+    tools: [getGuitars],
+    modelOptions: {},
+  },
   'structured-output': {
     tools: [],
     modelOptions: {},
