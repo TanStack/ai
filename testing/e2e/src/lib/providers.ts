@@ -83,7 +83,10 @@ export function createTextAdapter(
     openrouter: () =>
       createChatOptions({
         adapter: createOpenRouterText(model as 'openai/gpt-4o', DUMMY_KEY, {
-          serverURL: openaiUrl,
+          // OpenRouter SDK doesn't support defaultHeaders, so pass testId via query param
+          serverURL: testId
+            ? `${openaiUrl}?testId=${encodeURIComponent(testId)}`
+            : openaiUrl,
         }),
       }),
   }

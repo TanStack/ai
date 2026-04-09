@@ -8,9 +8,9 @@ test.describe('Abort/Cancellation', () => {
       match: { userMessage: '[abort-test] tell me a long story' },
       response: {
         content:
-          'Once upon a time in a land far away there lived a guitar maker who spent decades perfecting the art of crafting beautiful instruments from the finest tonewoods available in the forests nearby and each guitar was unique and special and every single one had its own story to tell about the wood and the craftsmanship that went into making it a truly remarkable piece of art',
+          'Once upon a time in a land far away there lived a guitar maker who spent decades perfecting the art of crafting beautiful instruments from the finest tonewoods available in the forests nearby and each guitar was unique and special and every single one had its own story to tell about the wood and the craftsmanship that went into making it a truly remarkable piece of art and the customers would come from miles around just to see the collection and hear the stories behind each instrument that hung on the walls of the little shop on the corner of Main Street in the small town where everyone knew each other by name',
       },
-      opts: { tokensPerSecond: 2, chunkSize: 3 },
+      opts: { tokensPerSecond: 1, chunkSize: 2 },
     })
   })
 
