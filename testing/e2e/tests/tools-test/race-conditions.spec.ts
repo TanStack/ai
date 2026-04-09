@@ -249,9 +249,8 @@ test.describe('Race Condition Tests', () => {
       () => {
         const el = document.querySelector('#test-metadata')
         return (
-          parseInt(
-            el?.getAttribute('data-execution-complete-count') || '0',
-          ) >= 3
+          parseInt(el?.getAttribute('data-execution-complete-count') || '0') >=
+          3
         )
       },
       { timeout: 5000 },

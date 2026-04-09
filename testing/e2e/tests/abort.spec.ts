@@ -23,10 +23,9 @@ test.describe('Abort/Cancellation', () => {
         const isDisabled = await page.getByTestId('send-button').isDisabled()
         if (!isDisabled) throw new Error('Send button click failed')
         await input.clear()
-        await input.pressSequentially(
-          '[abort-test] tell me a long story',
-          { delay: 30 },
-        )
+        await input.pressSequentially('[abort-test] tell me a long story', {
+          delay: 30,
+        })
         await page.getByTestId('send-button').click()
       })
 
