@@ -20,10 +20,7 @@ for (const provider of providersFor('text-tool-text')) {
         featureUrl(provider, 'text-tool-text', testId, aimockPort),
       )
 
-      await sendMessage(
-        page,
-        '[text-tool-text] check what guitars we have',
-      )
+      await sendMessage(page, '[text-tool-text] check what guitars we have')
       await waitForResponse(page)
 
       // Should have the initial text AND a tool call in the response
