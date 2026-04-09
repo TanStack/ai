@@ -4,7 +4,6 @@
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",
-    "**/smoke-tests/**",
     "packages/typescript/ai-code-mode/models-eval"
   ],
   "ignore": [
@@ -16,10 +15,6 @@
     "packages/typescript/ai-openai/src/audio/audio-provider-options.ts",
     "packages/typescript/ai-openai/src/audio/transcribe-provider-options.ts",
     "packages/typescript/ai-openai/src/image/image-provider-options.ts",
-    "packages/typescript/smoke-tests/adapters/src/**",
-    "packages/typescript/smoke-tests/e2e/playwright.config.ts",
-    "packages/typescript/smoke-tests/e2e/src/**",
-    "packages/typescript/smoke-tests/e2e/vite.config.ts",
     "packages/typescript/ai-devtools/src/production.ts"
   ],
   "ignoreExportsUsedInFile": true,

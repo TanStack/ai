@@ -2,7 +2,7 @@
 
 End-to-end tests for TanStack AI using Playwright and [aimock](https://github.com/CopilotKit/aimock) for deterministic LLM mocking.
 
-**Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. Tool execution scenarios use the LLM simulator (`@tanstack/tests-adapters`) for deterministic multi-step flows.
+**Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures.
 
 **Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter
 
@@ -31,7 +31,7 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | tts                   | 7         | `tests/tts.spec.ts`                   |
 | transcription         | 7         | `tests/transcription.spec.ts`         |
 
-### Tools-test page (via LLM simulator)
+### Tools-test page (via aimock)
 
 14 deterministic scenarios covering tool execution flows:
 
@@ -206,7 +206,7 @@ The tools-test page tracks events via `#test-metadata` data attributes and `#eve
 
 ## 8. Adding a Middleware Test
 
-1. **Add scenario to `src/lib/middleware-test-scenarios.ts`** — LLM simulator script
+1. **Add scenario fixture to `fixtures/middleware-test/`** — aimock fixture JSON
 2. **Add middleware to `src/routes/api.middleware-test.ts`** — new middleware mode
 3. **Add test to `tests/middleware.spec.ts`** — select scenario + mode, verify observable effect
 
@@ -238,13 +238,13 @@ testing/e2e/
 │   │   ├── tools-test.tsx            # Tools test page with event tracking
 │   │   ├── middleware-test.tsx        # Middleware test page
 │   │   ├── api.chat.ts               # Chat endpoint → aimock
-│   │   ├── api.tools-test.ts         # Tools endpoint → LLM simulator
-│   │   └── api.middleware-test.ts     # Middleware endpoint → LLM simulator + middleware
+│   │   ├── api.tools-test.ts         # Tools endpoint → aimock
+│   │   └── api.middleware-test.ts     # Middleware endpoint → aimock + middleware
 │   ├── lib/
 │   │   ├── providers.ts              # Provider → adapter factory (baseURL → aimock)
 │   │   ├── features.ts               # Feature → config (tools, modelOptions)
 │   │   ├── feature-support.ts        # Provider × feature support matrix
-│   │   ├── tools-test-scenarios.ts   # 14 LLM simulator scripts
+│   │   ├── (fixtures in fixtures/tools-test/)
 │   │   └── tools-test-tools.ts       # Server + client tool definitions
 │   └── components/
 │       └── ChatUI.tsx                # Chat interface with stop button
