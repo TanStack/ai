@@ -36,9 +36,7 @@ export function createTextAdapter(
   const openaiUrl = `${base}/v1`
 
   // X-Test-Id header for per-test sequenceIndex isolation in aimock
-  const testHeaders = testId
-    ? { 'X-Test-Id': testId }
-    : undefined
+  const testHeaders = testId ? { 'X-Test-Id': testId } : undefined
 
   const factories: Record<Provider, () => { adapter: AnyTextAdapter }> = {
     openai: () =>

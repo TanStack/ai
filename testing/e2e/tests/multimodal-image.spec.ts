@@ -15,7 +15,11 @@ const testImagePath = path.resolve(__dirname, '../test-assets/guitar-meme.jpg')
 
 for (const provider of providersFor('multimodal-image')) {
   test.describe(`${provider} — multimodal-image`, () => {
-    test('describes an uploaded image', async ({ page, testId, aimockPort }) => {
+    test('describes an uploaded image', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
       await page.goto(
         featureUrl(provider, 'multimodal-image', testId, aimockPort),
       )
