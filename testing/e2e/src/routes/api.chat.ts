@@ -18,10 +18,14 @@ export const Route = createFileRoute('/api/chat')({
         const { messages, data } = body
         const provider: Provider = data?.provider || 'openai'
         const feature: Feature = data?.feature || 'chat'
+        const testId: string | undefined =
+          typeof data?.testId === 'string' ? data.testId : undefined
+        const aimockPort: number | undefined =
+          data?.aimockPort != null ? Number(data.aimockPort) : undefined
 
         const config = featureConfigs[feature]
         const modelOverride = config.modelOverrides?.[provider]
-        const adapterOptions = createTextAdapter(provider, modelOverride)
+        const adapterOptions = createTextAdapter(provider, modelOverride, aimockPort)
 
         try {
           const stream = chat({
@@ -32,6 +36,7 @@ export const Route = createFileRoute('/api/chat')({
             agentLoopStrategy: maxIterations(5),
             messages,
             abortController,
+            ...(testId && { request: { headers: { 'X-Test-Id': testId } } }),
           })
 
           return toServerSentEventsResponse(stream, { abortController })

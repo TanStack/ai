@@ -4,13 +4,18 @@ import {
   waitForResponse,
   getToolCalls,
   waitForAssistantText,
+  featureUrl,
 } from './helpers'
 import { providersFor } from './test-matrix'
 
 for (const provider of providersFor('tool-calling')) {
   test.describe(`${provider} — tool-calling`, () => {
-    test('calls getGuitars and displays result', async ({ page }) => {
-      await page.goto(`/${provider}/tool-calling`)
+    test('calls getGuitars and displays result', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      await page.goto(featureUrl(provider, 'tool-calling', testId, aimockPort))
 
       await sendMessage(page, '[toolcall] what guitars do you have in stock')
       await waitForResponse(page)

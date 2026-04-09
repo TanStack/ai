@@ -2,10 +2,10 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 1,
-  workers: 1,
+  workers: process.env.CI ? 4 : undefined,
   reporter: [['html', { open: 'never' }], ['list']],
   timeout: 30_000,
   expect: {
@@ -23,8 +23,9 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  // aimock is managed via Playwright worker fixture (tests/fixtures.ts)
-  // No globalSetup/globalTeardown needed
+  // aimock is managed via Playwright worker fixture (tests/fixtures.ts).
+  // Each worker starts its own aimock instance on a unique port (4010 + workerIndex).
+  // Tests send X-Test-Id headers for per-test sequenceIndex isolation.
   webServer: {
     command: 'pnpm run dev',
     url: 'http://localhost:3010',

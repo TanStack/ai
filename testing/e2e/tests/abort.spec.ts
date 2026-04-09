@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { sendMessage } from './helpers'
+import { sendMessage, featureUrl } from './helpers'
 
 test.describe('Abort/Cancellation', () => {
   test.beforeEach(async ({ aimock }) => {
@@ -16,8 +16,10 @@ test.describe('Abort/Cancellation', () => {
 
   test('stop button appears during loading and stops generation', async ({
     page,
+    testId,
+    aimockPort,
   }) => {
-    await page.goto('/openai/chat')
+    await page.goto(featureUrl('openai', 'chat', testId, aimockPort))
 
     await sendMessage(page, '[abort-test] tell me a long story')
 

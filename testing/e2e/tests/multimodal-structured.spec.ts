@@ -3,6 +3,7 @@ import {
   sendMessageWithImage,
   waitForResponse,
   getLastAssistantMessage,
+  featureUrl,
 } from './helpers'
 import { providersFor } from './test-matrix'
 
@@ -17,8 +18,12 @@ for (const provider of providersFor('multimodal-structured')) {
   test.describe(`${provider} — multimodal-structured`, () => {
     test('analyzes an image and returns structured output', async ({
       page,
+      testId,
+      aimockPort,
     }) => {
-      await page.goto(`/${provider}/multimodal-structured`)
+      await page.goto(
+        featureUrl(provider, 'multimodal-structured', testId, aimockPort),
+      )
 
       await sendMessageWithImage(
         page,

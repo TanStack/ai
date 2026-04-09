@@ -3,13 +3,18 @@ import {
   sendMessage,
   waitForResponse,
   getLastAssistantMessage,
+  featureUrl,
 } from './helpers'
 import { providersFor } from './test-matrix'
 
 for (const provider of providersFor('multi-turn')) {
   test.describe(`${provider} — multi-turn`, () => {
-    test('handles a multi-turn conversation', async ({ page }) => {
-      await page.goto(`/${provider}/multi-turn`)
+    test('handles a multi-turn conversation', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      await page.goto(featureUrl(provider, 'multi-turn', testId, aimockPort))
 
       await sendMessage(page, '[multiturn-1] what guitars do you have')
       await waitForResponse(page)

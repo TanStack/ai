@@ -24,6 +24,7 @@ function ProviderPage() {
             key={feature}
             to="/$provider/$feature"
             params={{ provider, feature }}
+            search={{ testId: undefined, aimockPort: undefined }}
             className="p-3 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 transition-colors text-center text-sm"
           >
             {feature}

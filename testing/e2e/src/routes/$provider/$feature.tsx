@@ -10,6 +10,16 @@ import { ChatUI } from '@/components/ChatUI'
 
 export const Route = createFileRoute('/$provider/$feature')({
   component: FeaturePage,
+  validateSearch: (search: Record<string, unknown>) => {
+    const port =
+      typeof search.aimockPort === 'string'
+        ? parseInt(search.aimockPort, 10)
+        : undefined
+    return {
+      testId: typeof search.testId === 'string' ? search.testId : undefined,
+      aimockPort: port != null && !isNaN(port) ? port : undefined,
+    }
+  },
 })
 
 const addToCartClient = addToCartToolDef.client((args) => ({
@@ -46,11 +56,13 @@ function ChatFeature({
 
   const tools = needsApproval ? clientTools(addToCartClient) : undefined
 
+  const { testId, aimockPort } = Route.useSearch()
+
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
       connection: fetchServerSentEvents('/api/chat'),
       tools,
-      body: { provider, feature },
+      body: { provider, feature, testId, aimockPort },
     })
 
   return (

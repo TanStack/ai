@@ -3,6 +3,7 @@ import {
   sendMessageWithImage,
   waitForResponse,
   getLastAssistantMessage,
+  featureUrl,
 } from './helpers'
 import { providersFor } from './test-matrix'
 import { fileURLToPath } from 'url'
@@ -14,8 +15,10 @@ const testImagePath = path.resolve(__dirname, '../test-assets/guitar-meme.jpg')
 
 for (const provider of providersFor('multimodal-image')) {
   test.describe(`${provider} — multimodal-image`, () => {
-    test('describes an uploaded image', async ({ page }) => {
-      await page.goto(`/${provider}/multimodal-image`)
+    test('describes an uploaded image', async ({ page, testId, aimockPort }) => {
+      await page.goto(
+        featureUrl(provider, 'multimodal-image', testId, aimockPort),
+      )
 
       await sendMessageWithImage(
         page,

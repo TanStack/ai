@@ -9,14 +9,23 @@ const __dirname = path.dirname(__filename)
 
 export type AIMockFixture = {
   aimock: LLMock
+  testId: string
+  aimockPort: number
 }
 
-// Worker-scoped fixture: one aimock instance per worker, reset match counts per test
 export const test = base.extend<AIMockFixture>({
+  // Worker-scoped: one aimock per worker on a unique port
+  aimockPort: [
+    async ({}, use, workerInfo) => {
+      await use(4010 + workerInfo.workerIndex)
+    },
+    { scope: 'worker' },
+  ],
+
   aimock: [
-    async ({}, use) => {
+    async ({ aimockPort }, use) => {
       const mock = new LLMock({
-        port: 4010,
+        port: aimockPort,
         host: '127.0.0.1',
         logLevel: 'info',
       })
@@ -30,20 +39,21 @@ export const test = base.extend<AIMockFixture>({
       }
 
       await mock.start()
-      console.log(`[aimock] started at ${mock.url}`)
+      console.log(`[aimock] started on port ${aimockPort}`)
 
       await use(mock)
 
       await mock.stop()
-      console.log(`[aimock] stopped`)
+      console.log(`[aimock] stopped port ${aimockPort}`)
     },
     { scope: 'worker' },
   ],
-})
 
-// Reset match counts before each test so sequenceIndex starts fresh
-test.beforeEach(async ({ aimock }) => {
-  aimock.resetMatchCounts()
+  // Test-scoped: unique ID per test for sequenceIndex isolation
+  testId: async ({}, use, testInfo) => {
+    const id = `${testInfo.workerIndex}-${testInfo.testId}`
+    await use(id)
+  },
 })
 
 export { expect } from '@playwright/test'

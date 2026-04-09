@@ -4,13 +4,20 @@ import {
   waitForResponse,
   getToolCalls,
   waitForAssistantText,
+  featureUrl,
 } from './helpers'
 import { providersFor } from './test-matrix'
 
 for (const provider of providersFor('parallel-tool-calls')) {
   test.describe(`${provider} — parallel-tool-calls`, () => {
-    test('calls multiple tools in parallel', async ({ page }) => {
-      await page.goto(`/${provider}/parallel-tool-calls`)
+    test('calls multiple tools in parallel', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      await page.goto(
+        featureUrl(provider, 'parallel-tool-calls', testId, aimockPort),
+      )
 
       await sendMessage(
         page,

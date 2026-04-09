@@ -5,13 +5,18 @@ import {
   approveToolCall,
   denyToolCall,
   waitForAssistantText,
+  featureUrl,
 } from './helpers'
 import { providersFor } from './test-matrix'
 
 for (const provider of providersFor('tool-approval')) {
   test.describe(`${provider} — tool-approval`, () => {
-    test('shows approval prompt and completes on approve', async ({ page }) => {
-      await page.goto(`/${provider}/tool-approval`)
+    test('shows approval prompt and completes on approve', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      await page.goto(featureUrl(provider, 'tool-approval', testId, aimockPort))
 
       await sendMessage(page, '[approval] add the stratocaster to my cart')
 
@@ -22,8 +27,8 @@ for (const provider of providersFor('tool-approval')) {
       await waitForAssistantText(page, 'added')
     })
 
-    test('handles denial', async ({ page }) => {
-      await page.goto(`/${provider}/tool-approval`)
+    test('handles denial', async ({ page, testId, aimockPort }) => {
+      await page.goto(featureUrl(provider, 'tool-approval', testId, aimockPort))
 
       await sendMessage(page, '[approval] add the stratocaster to my cart')
 

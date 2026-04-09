@@ -1,5 +1,14 @@
 import type { Page } from '@playwright/test'
 
+export function featureUrl(
+  provider: string,
+  feature: string,
+  testId: string,
+  aimockPort: number,
+): string {
+  return `/${provider}/${feature}?testId=${encodeURIComponent(testId)}&aimockPort=${aimockPort}`
+}
+
 export async function sendMessage(page: Page, text: string) {
   const input = page.getByTestId('chat-input')
   await input.click()

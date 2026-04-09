@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 import { selectScenario, runTest, getMetadata } from './tools-test/helpers'
-import { sendMessage } from './helpers'
+import { sendMessage, featureUrl } from './helpers'
 
 test.describe('Error Handling', () => {
   test.beforeEach(async ({ page }) => {
@@ -32,6 +32,8 @@ test.describe('Error Handling', () => {
   test('aimock error fixture returns error to client', async ({
     page,
     aimock,
+    testId,
+    aimockPort,
   }) => {
     aimock.addFixture({
       match: { userMessage: '[error-test] trigger server error' },
@@ -40,7 +42,7 @@ test.describe('Error Handling', () => {
       },
     })
 
-    await page.goto('/openai/chat')
+    await page.goto(featureUrl('openai', 'chat', testId, aimockPort))
 
     await sendMessage(page, '[error-test] trigger server error')
 
