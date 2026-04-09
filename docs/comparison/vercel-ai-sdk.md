@@ -29,8 +29,13 @@ This article compares the two SDKs from TanStack AI's perspective, with honest a
 | Lazy Tool Discovery | Built-in — token-optimized dynamic loading | — |
 | Connection Adapters | SSE, HTTP stream, RPC, direct async iterables, custom | SSE-based transport |
 | Extend Adapter | Add custom/fine-tuned models with full type safety | — |
+| Image Generation | Stable API with per-model type safety (OpenAI, Gemini, fal.ai) | `generateImage()` |
+| Video Generation | Stable API with async job lifecycle (OpenAI, fal.ai) | `experimental_generateVideo()` |
+| Text-to-Speech | Stable API, 6 output formats, speed control (OpenAI, Gemini, ElevenLabs) | `experimental_generateSpeech()` |
+| Transcription | Stable API with word timestamps and diarization (OpenAI) | `experimental_transcribe()` |
+| Summarization | Dedicated `summarize()` with streaming and style options | — |
 | Code Execution | Node.js, Cloudflare Workers, QuickJS sandboxes | — |
-| Realtime Voice | OpenAI Realtime API support | — |
+| Realtime Voice | OpenAI Realtime API with VAD modes and tool support | — |
 | DevTools | TanStack DevTools integration | Local dev inspector |
 | MCP Client | — | Built-in |
 | Platform Association | None — pure library | Optional Vercel integration |
@@ -254,6 +259,84 @@ TanStack AI provides three isolate drivers for safe code execution in AI workflo
 All three implement the same `IsolateDriver` interface, so you can swap execution environments without changing application code. This powers TanStack AI's code mode — where the LLM writes and executes code as part of the agent loop.
 
 Vercel AI SDK does not provide built-in code execution sandboxes.
+
+### Media Generation
+
+TanStack AI provides stable, dedicated APIs for every media generation activity — image, video, speech, transcription, and summarization. Each is a separate, tree-shakeable function with its own adapter per provider.
+
+Vercel AI SDK has added some of these capabilities, but most remain experimental (`experimental_generateSpeech`, `experimental_generateVideo`, `experimental_transcribe`). TanStack AI's media APIs are stable and go further in several areas:
+
+**Image generation** — `generateImage()` with per-model type safety. TypeScript knows that `dall-e-3` supports `1024x1024`, `1792x1024`, and `1024x1792`, while `gpt-image-1` has different size constraints. Three providers ship adapters: OpenAI (DALL-E, GPT Image), Gemini (Imagen 3), and fal.ai (600+ community models including Flux, SDXL, and more).
+
+```ts
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+const result = await generateImage({
+  adapter: openaiImage('dall-e-3'),
+  prompt: 'A sunset over mountains',
+  size: '1792x1024',
+  numberOfImages: 1,
+})
+```
+
+**Video generation** — `generateVideo()` handles the full async job lifecycle automatically. Video generation APIs are inherently asynchronous — you submit a job, poll for status, and eventually get a result. TanStack AI manages this entire lifecycle with configurable polling intervals and timeouts, streaming status updates back to the client.
+
+```ts
+import { generateVideo } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+const stream = generateVideo({
+  adapter: openaiVideo('sora-2'),
+  prompt: 'A cat playing piano',
+  size: '1280x720',
+  duration: 8,
+  stream: true,          // Stream job lifecycle events
+  pollingInterval: 2000, // Poll every 2 seconds
+})
+
+for await (const chunk of stream) {
+  // Receive: job created → status updates → final video URL
+}
+```
+
+Vercel AI SDK's `experimental_generateVideo()` returns the video directly without exposing the job lifecycle or streaming status updates.
+
+**Text-to-speech** — `generateSpeech()` supports 6 audio output formats (mp3, opus, aac, flac, wav, pcm), speed control (0.25x to 4x), and multiple providers: OpenAI (11 voices), Gemini (30+ voices with language hints), and ElevenLabs.
+
+```ts
+import { generateSpeech } from '@tanstack/ai'
+import { openaiSpeech } from '@tanstack/ai-openai'
+
+const result = await generateSpeech({
+  adapter: openaiSpeech('tts-1-hd'),
+  text: 'Hello, world!',
+  voice: 'nova',
+  format: 'opus',
+  speed: 1.2,
+})
+```
+
+**Transcription** — `generateTranscription()` supports 5 output formats (json, text, srt, verbose_json, vtt), word-level timestamps with confidence scores, and speaker diarization via OpenAI's `gpt-4o-transcribe-diarize` model.
+
+```ts
+import { generateTranscription } from '@tanstack/ai'
+import { openaiTranscription } from '@tanstack/ai-openai'
+
+const result = await generateTranscription({
+  adapter: openaiTranscription('gpt-4o-transcribe'),
+  audio: audioFile,
+  responseFormat: 'verbose_json', // Includes word-level timestamps
+})
+
+// result.words → [{ word: 'Hello', start: 0.0, end: 0.42 }, ...]
+```
+
+**Summarization** — `summarize()` is a dedicated activity with style control (`bullet-points`, `paragraph`, `concise`), focus topics, and streaming support. Vercel AI SDK has no equivalent — summarization requires calling `generateText()` with a prompt.
+
+**Realtime voice** — `realtimeToken()` enables bidirectional audio streaming via OpenAI's Realtime API with Voice Activity Detection modes (server, semantic, manual), tool calling during voice sessions, and simultaneous audio + text output.
+
+All media activities follow the same adapter pattern as chat — tree-shakeable imports, per-model type safety, and streaming support. If your app only uses chat, none of this media code enters your bundle.
 
 ### Community Adapter Ecosystem
 
