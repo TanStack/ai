@@ -25,7 +25,7 @@ const OPENAI_REALTIME_SESSIONS_URL =
  *
  * const token = await realtimeToken({
  *   adapter: openaiRealtimeToken({
- *     model: 'gpt-4o-realtime-preview',
+ *     model: 'gpt-realtime-1.5',
  *     voice: 'alloy',
  *     instructions: 'You are a helpful assistant.',
  *     turnDetection: {
@@ -46,7 +46,7 @@ export function openaiRealtimeToken(
 
     async generateToken(): Promise<RealtimeToken> {
       const model: OpenAIRealtimeModel =
-        options.model ?? 'gpt-4o-realtime-preview'
+        options.model ?? 'gpt-realtime-1.5'
 
       // Call OpenAI API to create session and get ephemeral token.
       // Only the model is sent server-side; all other session config
