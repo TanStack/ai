@@ -20,7 +20,6 @@ This article compares the two SDKs from TanStack AI's perspective, with honest a
 | Hosting | Works anywhere | Works anywhere |
 | Providers | 9 official (including OpenRouter) + 5 community | 40+ via Gateway or direct |
 | Framework Hooks | React, Solid, Svelte, Vue, Preact | React, Svelte, Vue, Angular |
-| Headless UI Components | React, Solid, Vue | — |
 | Streaming | Built-in with configurable chunk strategies | Built-in with progressive delivery |
 | Tool Calling | Isomorphic `.server()` / `.client()` system | Provider-scoped tool objects |
 | Agent Loop Control | Composable strategy functions | `maxSteps` parameter |
@@ -188,8 +187,6 @@ Vercel AI SDK has no equivalent — all tools must be sent upfront.
 - `@tanstack/ai-preact` — `useChat` hook wraps `ChatClient`
 
 No framework-specific logic in the core. If a new framework emerges, it only needs a thin reactive wrapper.
-
-On top of this, TanStack AI provides **headless UI component libraries** (`@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, `@tanstack/ai-vue-ui`) — `Chat`, `ChatMessages`, `ChatMessage`, `ChatInput`, `ToolApproval`, `TextPart`, `ThinkingPart` — all fully customizable via render props. You get the behavior without being locked into any visual design.
 
 ### Connection Adapters
 
@@ -405,7 +402,6 @@ In TanStack AI, each activity (chat, image, speech, video, transcription, summar
 - **Custom agent behavior** — Composable loop strategies, not a fixed agent class
 - **No vendor association** — Pure library with no platform layer
 - **Per-model type safety** — TypeScript narrows options per model, not per provider
-- **Headless UI components** — Pre-built components you can fully customize
 - **Code execution** — Built-in sandboxed execution environments
 - **Flexible transport** — SSE, HTTP streams, RPC, direct iterables, or custom adapters
 
