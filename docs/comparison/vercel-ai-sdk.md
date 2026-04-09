@@ -26,7 +26,7 @@ This article compares the two SDKs from TanStack AI's perspective, with honest a
 | Agent Loop Control | Composable strategy functions | `maxSteps` parameter |
 | Tool Approval | Per-tool `needsApproval` with batched approval flow | Per-tool approval |
 | Type Safety | Per-model type narrowing | Per-provider types |
-| Schema Validation | Standard Schema v1 (Zod, ArkType, Valibot, any compliant library) | Zod + Standard Schema |
+| Schema Validation | Standard Schema v1 — designed around it from day one | Standard Schema v1 (added later) |
 | Tree-Shaking | Separate adapter per activity (text, image, speech, etc.) | Monolithic provider packages |
 | Lazy Tool Discovery | Built-in — token-optimized dynamic loading | — |
 | Connection Adapters | SSE, HTTP stream, RPC, direct async iterables, custom | SSE-based transport |
@@ -152,7 +152,7 @@ combineStrategies([
 ])
 ```
 
-Vercel AI SDK controls agent loops via the `maxSteps` parameter on `generateText()` and `streamText()`. You can set a step limit, but you can't compose multiple stopping conditions or inject custom logic into the loop.
+Vercel AI SDK controls agent loops via the `maxSteps` parameter on `generateText()` and `streamText()`. You can set a step limit, but it doesn't offer a composable strategy pattern for combining multiple stopping conditions.
 
 ### Lazy Tool Discovery
 
@@ -186,7 +186,7 @@ Vercel AI SDK has no equivalent — all tools must be sent upfront.
 
 No framework-specific logic in the core. If a new framework emerges, it only needs a thin reactive wrapper.
 
-On top of this, TanStack AI provides **headless UI component libraries** for React, Solid, and Vue — `Chat`, `ChatMessages`, `ChatMessage`, `ChatInput`, `ToolApproval`, `TextPart`, `ThinkingPart` — all fully customizable via render props. You get the behavior without being locked into any visual design.
+On top of this, TanStack AI provides **headless UI component libraries** (`@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, `@tanstack/ai-vue-ui`) — `Chat`, `ChatMessages`, `ChatMessage`, `ChatInput`, `ToolApproval`, `TextPart`, `ThinkingPart` — all fully customizable via render props. You get the behavior without being locked into any visual design.
 
 ### Connection Adapters
 
@@ -215,7 +215,7 @@ rpcStream((messages, data) => api.streamResponse(messages, data))
 // Or implement your own ConnectConnectionAdapter
 ```
 
-Each adapter accepts static or dynamic (function-based) URLs and options. Swap transport without changing application code. Vercel AI SDK uses SSE-based transport with a `ChatTransport` interface, but the built-in options are more limited.
+Each adapter accepts static or dynamic (function-based) URLs and options. Swap transport without changing application code. Vercel AI SDK primarily uses SSE-based transport and provides extensibility via a transport interface, but doesn't ship the same breadth of built-in adapters.
 
 ### Extend Adapter
 
@@ -373,7 +373,7 @@ const result = await generateText({
 })
 ```
 
-TanStack AI's approach lets you compose multiple conditions — iteration limits, finish reasons, token budgets, custom business logic — as simple functions. Vercel AI SDK's `maxSteps` is a single numeric limit without composable stopping conditions.
+TanStack AI's approach lets you compose multiple conditions — iteration limits, finish reasons, token budgets, custom business logic — as simple functions. Vercel AI SDK's `maxSteps` provides a straightforward step limit but doesn't offer a composable strategy pattern.
 
 ### Tree-Shaking
 
