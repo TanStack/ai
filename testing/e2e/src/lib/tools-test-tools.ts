@@ -98,6 +98,16 @@ export const searchInventory = toolDefinition({
   })
 })
 
+export const failingTool = toolDefinition({
+  name: 'failing_tool',
+  description: 'A tool that always throws an error',
+  inputSchema: z.object({
+    message: z.string(),
+  }),
+}).server(async (args) => {
+  throw new Error(`Tool execution failed: ${args.message}`)
+})
+
 export const processOrder = toolDefinition({
   name: 'process_order',
   description: 'Process a guitar order with progress updates',
@@ -143,6 +153,11 @@ export const SCENARIO_LIST = [
   },
   { id: 'custom-events', label: 'Custom Event Emitting', category: 'basic' },
   { id: 'error', label: 'Error Response', category: 'basic' },
+  {
+    id: 'tool-error',
+    label: 'Tool Throws Error',
+    category: 'basic',
+  },
   // Race condition / event flow scenarios
   {
     id: 'sequential-client-tools',
@@ -245,6 +260,9 @@ export function getToolsForScenario(scenario: string) {
 
     case 'custom-events':
       return [processOrder]
+
+    case 'tool-error':
+      return [failingTool]
 
     default:
       return []
