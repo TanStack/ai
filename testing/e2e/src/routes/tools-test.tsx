@@ -210,8 +210,7 @@ function ToolsTestPage() {
         height: '100vh',
         padding: '20px',
         fontFamily: 'system-ui, sans-serif',
-        backgroundColor: '#f8f9fa',
-        color: '#1a1a2e',
+        color: '#e2e8f0',
       }}
     >
       <h1 style={{ marginTop: 0 }}>Tool Testing Page</h1>
@@ -225,7 +224,7 @@ function ToolsTestPage() {
           id="scenario-select"
           value={scenario}
           onChange={(e) => setScenario(e.target.value)}
-          style={{ padding: '8px', fontSize: '14px' }}
+          style={{ padding: '8px', fontSize: '14px', backgroundColor: '#1e293b', color: '#e2e8f0', border: '1px solid #475569', borderRadius: '4px' }}
         >
           <optgroup label="Basic Scenarios">
             {SCENARIO_LIST.filter((s) => s.category === 'basic').map((s) => (
@@ -262,11 +261,11 @@ function ToolsTestPage() {
           id="error-display"
           style={{
             padding: '10px',
-            background: '#f8d7da',
-            border: '1px solid #f5c6cb',
+            background: 'rgba(220, 53, 69, 0.15)',
+            border: '1px solid rgba(220, 53, 69, 0.4)',
             borderRadius: '4px',
             marginBottom: '10px',
-            color: '#721c24',
+            color: '#f8a4a4',
           }}
         >
           Error: {error.message}
@@ -318,9 +317,9 @@ function ToolsTestPage() {
           style={{
             marginBottom: '20px',
             padding: '15px',
-            backgroundColor: '#fff3cd',
+            backgroundColor: 'rgba(255, 193, 7, 0.15)',
             borderRadius: '4px',
-            border: '1px solid #ffc107',
+            border: '1px solid rgba(255, 193, 7, 0.4)',
           }}
         >
           <h3 style={{ margin: '0 0 10px 0' }}>
@@ -418,9 +417,9 @@ function ToolsTestPage() {
         style={{
           marginBottom: '20px',
           padding: '15px',
-          backgroundColor: '#d1ecf1',
+          backgroundColor: 'rgba(23, 162, 184, 0.1)',
           borderRadius: '4px',
-          border: '1px solid #bee5eb',
+          border: '1px solid rgba(23, 162, 184, 0.3)',
           maxHeight: '150px',
           overflow: 'auto',
         }}
@@ -429,7 +428,7 @@ function ToolsTestPage() {
           Event Log (<span id="event-count">{toolEvents.length}</span>)
         </h3>
         {toolEvents.length === 0 ? (
-          <p style={{ color: '#6c757d', margin: 0 }}>No events yet</p>
+          <p style={{ color: '#8899aa', margin: 0 }}>No events yet</p>
         ) : (
           <div id="event-log">
             {toolEvents.map((event, i) => (
@@ -445,11 +444,11 @@ function ToolsTestPage() {
                   color:
                     event.type === 'execution-complete' ||
                     event.type === 'approval-granted'
-                      ? '#155724'
+                      ? '#6ee7b7'
                       : event.type === 'error' ||
                           event.type === 'approval-denied'
-                        ? '#721c24'
-                        : '#0c5460',
+                        ? '#fca5a5'
+                        : '#67e8f9',
                 }}
               >
                 [
@@ -471,15 +470,16 @@ function ToolsTestPage() {
         style={{
           marginBottom: '20px',
           padding: '15px',
-          backgroundColor: '#e9ecef',
+          backgroundColor: 'rgba(100, 116, 139, 0.1)',
           borderRadius: '4px',
+          border: '1px solid rgba(100, 116, 139, 0.3)',
           maxHeight: '200px',
           overflow: 'auto',
         }}
       >
         <h3 style={{ margin: '0 0 10px 0' }}>Tool Calls</h3>
         {toolCalls.length === 0 ? (
-          <p style={{ color: '#6c757d' }}>No tool calls yet</p>
+          <p style={{ color: '#8899aa' }}>No tool calls yet</p>
         ) : (
           <table style={{ width: '100%', fontSize: '12px' }}>
             <thead>
@@ -537,11 +537,12 @@ function ToolsTestPage() {
           flex: 1,
           overflow: 'auto',
           padding: '10px',
-          backgroundColor: '#f5f5f5',
-          border: '1px solid #ddd',
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          border: '1px solid rgba(100, 116, 139, 0.3)',
           borderRadius: '4px',
           fontFamily: 'monospace',
           fontSize: '12px',
+          color: '#94a3b8',
         }}
       >
         <pre

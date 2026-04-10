@@ -45,8 +45,7 @@ function MiddlewareTestPage() {
       style={{
         padding: '20px',
         fontFamily: 'system-ui',
-        backgroundColor: '#f8f9fa',
-        color: '#1a1a2e',
+        color: '#e2e8f0',
       }}
     >
       <h1>Middleware Test</h1>
@@ -57,6 +56,13 @@ function MiddlewareTestPage() {
           id="mw-scenario-select"
           value={scenario}
           onChange={(e) => setScenario(e.target.value)}
+          style={{
+            backgroundColor: '#1e293b',
+            color: '#e2e8f0',
+            border: '1px solid #475569',
+            borderRadius: '4px',
+            padding: '6px',
+          }}
         >
           <option value="basic-text">Basic Text</option>
           <option value="with-tool">With Tool</option>
@@ -69,6 +75,13 @@ function MiddlewareTestPage() {
           id="mw-mode-select"
           value={middlewareMode}
           onChange={(e) => setMiddlewareMode(e.target.value)}
+          style={{
+            backgroundColor: '#1e293b',
+            color: '#e2e8f0',
+            border: '1px solid #475569',
+            borderRadius: '4px',
+            padding: '6px',
+          }}
         >
           {MIDDLEWARE_MODES.map((m) => (
             <option key={m.id} value={m.id}>
@@ -78,7 +91,21 @@ function MiddlewareTestPage() {
         </select>
       </div>
 
-      <button id="mw-run-button" onClick={handleRun} disabled={isLoading}>
+      <button
+        id="mw-run-button"
+        onClick={handleRun}
+        disabled={isLoading}
+        style={{
+          padding: '10px 20px',
+          fontSize: '14px',
+          backgroundColor: '#007bff',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: isLoading ? 'not-allowed' : 'pointer',
+          opacity: isLoading ? 0.7 : 1,
+        }}
+      >
         Run Test
       </button>
 
@@ -86,8 +113,10 @@ function MiddlewareTestPage() {
         id="mw-messages-json"
         style={{
           marginTop: '20px',
-          background: '#f5f5f5',
-          color: '#1a1a2e',
+          background: 'rgba(15, 23, 42, 0.6)',
+          border: '1px solid rgba(100, 116, 139, 0.3)',
+          borderRadius: '4px',
+          color: '#94a3b8',
           padding: '10px',
           maxHeight: '400px',
           overflow: 'auto',
