@@ -79,11 +79,11 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     hasBothNameAndId: false,
     providerOptionsIsMappedType: false,
     skipPatterns: [
-      'gpt-3.5-',    // Legacy GPT-3.5 models
-      'gpt-4-',      // Legacy GPT-4 base models (not 4.1+)
-      'gpt-4o',      // GPT-4o variants (4o, 4o-mini, 4o-audio, etc.)
-      'gpt-oss-',    // Open-source/experimental models
-      'chatgpt-',    // ChatGPT branded models
+      'gpt-3.5-', // Legacy GPT-3.5 models
+      'gpt-4-', // Legacy GPT-4 base models (not 4.1+)
+      'gpt-4o', // GPT-4o variants (4o, 4o-mini, 4o-audio, etc.)
+      'gpt-oss-', // Open-source/experimental models
+      'chatgpt-', // ChatGPT branded models
     ],
   },
   'anthropic/': {
@@ -126,7 +126,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     hasBothNameAndId: false,
     providerOptionsIsMappedType: false,
     skipPatterns: [
-      'gemma-',  // Gemma open-source models (not Gemini API models)
+      'gemma-', // Gemma open-source models (not Gemini API models)
     ],
   },
   'x-ai/': {
@@ -508,7 +508,9 @@ async function main() {
   const lastRun = await readLastRunTimestamp()
   const now = Math.floor(Date.now() / 1000)
   const cutoffTimestamp = (lastRun ?? now) - MAX_MODEL_AGE_SECONDS
-  const cutoffDate = new Date(cutoffTimestamp * 1000).toISOString().split('T')[0]
+  const cutoffDate = new Date(cutoffTimestamp * 1000)
+    .toISOString()
+    .split('T')[0]
   console.log(
     `Model age cutoff: ${cutoffDate} (skipping models created before this date)`,
   )
