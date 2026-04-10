@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[oneshot] what is your most popular guitar" },
+      "response": {
+        "content": "Our most popular guitar is the Fender Stratocaster. It's loved for its versatile tone and comfortable neck profile."
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Core TanStack AI library - Open source AI SDK",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -32,7 +32,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "skills"
   ],
   "scripts": {
     "build": "vite build",
@@ -52,7 +53,8 @@
     "sdk",
     "llm",
     "chat",
-    "embeddings"
+    "embeddings",
+    "tanstack-intent"
   ],
   "dependencies": {
     "@standard-schema/spec": "^1.1.0",

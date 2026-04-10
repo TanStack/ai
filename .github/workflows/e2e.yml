@@ -1,0 +1,77 @@
+name: E2E Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main, alpha, beta, rc]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@main
+
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('testing/e2e/package.json') }}
+          restore-keys: |
+            playwright-
+
+      - name: Build Packages
+        run: pnpm run build:all
+
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @tanstack/ai-e2e exec playwright install --with-deps chromium
+
+      - name: Install Playwright Deps (if cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @tanstack/ai-e2e exec playwright install-deps chromium
+
+      - name: Run E2E Tests
+        run: pnpm --filter @tanstack/ai-e2e test:e2e
+
+      - name: Upload Video Recordings
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-videos
+          path: testing/e2e/test-results/**/*.webm
+          retention-days: 14
+
+      - name: Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-report
+          path: testing/e2e/playwright-report/
+          retention-days: 14
+
+      - name: Upload Traces (on failure)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-traces
+          path: testing/e2e/test-results/**/*.zip
+          retention-days: 14

@@ -310,43 +310,6 @@ const ALLENAI_OLMO_3_1_32B_INSTRUCT = {
     image: 0,
   },
 } as const
-const ALLENAI_OLMO_3_1_32B_THINK = {
-  id: 'allenai/olmo-3.1-32b-think',
-  name: 'AllenAI: Olmo 3.1 32B Think',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'includeReasoning',
-      'logitBias',
-      'maxCompletionTokens',
-      'presencePenalty',
-      'reasoning',
-      'repetitionPenalty',
-      'responseFormat',
-      'seed',
-      'stop',
-      'temperature',
-      'topK',
-      'topP',
-    ],
-  },
-  context_window: 65536,
-  max_output_tokens: 65536,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.15,
-        cached: 0,
-      },
-      output: {
-        normal: 0.5,
-      },
-    },
-    image: 0,
-  },
-} as const
 const ALPINDALE_GOLIATH_120B = {
   id: 'alpindale/goliath-120b',
   name: 'Goliath 120B',
@@ -609,36 +572,6 @@ const ANTHROPIC_CLAUDE_3_5_HAIKU = {
     image: 0,
   },
 } as const
-const ANTHROPIC_CLAUDE_3_5_SONNET = {
-  id: 'anthropic/claude-3.5-sonnet',
-  name: 'Anthropic: Claude 3.5 Sonnet',
-  supports: {
-    input: ['text', 'image', 'document'],
-    output: ['text'],
-    supports: [
-      'maxCompletionTokens',
-      'stop',
-      'temperature',
-      'toolChoice',
-      'topK',
-      'topP',
-    ],
-  },
-  context_window: 200000,
-  max_output_tokens: 8192,
-  pricing: {
-    text: {
-      input: {
-        normal: 6,
-        cached: 8.1,
-      },
-      output: {
-        normal: 30,
-      },
-    },
-    image: 0,
-  },
-} as const
 const ANTHROPIC_CLAUDE_3_7_SONNET = {
   id: 'anthropic/claude-3.7-sonnet',
   name: 'Anthropic: Claude 3.7 Sonnet',
@@ -842,6 +775,7 @@ const ANTHROPIC_CLAUDE_OPUS_4_6 = {
     supports: [
       'includeReasoning',
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'reasoning',
       'responseFormat',
       'stop',
@@ -862,6 +796,39 @@ const ANTHROPIC_CLAUDE_OPUS_4_6 = {
       },
       output: {
         normal: 25,
+      },
+    },
+    image: 0,
+  },
+} as const
+const ANTHROPIC_CLAUDE_OPUS_4_6_FAST = {
+  id: 'anthropic/claude-opus-4.6-fast',
+  name: 'Anthropic: Claude Opus 4.6 (Fast)',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    supports: [
+      'includeReasoning',
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topP',
+      'verbosity',
+    ],
+  },
+  context_window: 1000000,
+  max_output_tokens: 128000,
+  pricing: {
+    text: {
+      input: {
+        normal: 30,
+        cached: 40.5,
+      },
+      output: {
+        normal: 150,
       },
     },
     image: 0,
@@ -940,6 +907,7 @@ const ANTHROPIC_CLAUDE_SONNET_4_6 = {
     output: ['text'],
     supports: [
       'includeReasoning',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'reasoning',
       'responseFormat',
@@ -1095,6 +1063,44 @@ const ARCEE_AI_TRINITY_LARGE_PREVIEW_FREE = {
     image: 0,
   },
 } as const
+const ARCEE_AI_TRINITY_LARGE_THINKING = {
+  id: 'arcee-ai/trinity-large-thinking',
+  name: 'Arcee AI: Trinity Large Thinking',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'repetitionPenalty',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topK',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 262144,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.22,
+        cached: 0,
+      },
+      output: {
+        normal: 0.85,
+      },
+    },
+    image: 0,
+  },
+} as const
 const ARCEE_AI_TRINITY_MINI = {
   id: 'arcee-ai/trinity-mini',
   name: 'Arcee AI: Trinity Mini',
@@ -1122,37 +1128,6 @@ const ARCEE_AI_TRINITY_MINI = {
       },
       output: {
         normal: 0.15,
-      },
-    },
-    image: 0,
-  },
-} as const
-const ARCEE_AI_TRINITY_MINI_FREE = {
-  id: 'arcee-ai/trinity-mini:free',
-  name: 'Arcee AI: Trinity Mini (free)',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'includeReasoning',
-      'maxCompletionTokens',
-      'reasoning',
-      'responseFormat',
-      'temperature',
-      'toolChoice',
-      'topK',
-      'topP',
-    ],
-  },
-  context_window: 131072,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
       },
     },
     image: 0,
@@ -1860,6 +1835,7 @@ const DEEPSEEK_DEEPSEEK_R1 = {
       'frequencyPenalty',
       'includeReasoning',
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
       'repetitionPenalty',
@@ -2398,7 +2374,7 @@ const GOOGLE_GEMINI_2_5_FLASH_LITE_PREVIEW_09_2025 = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 65536,
+  max_output_tokens: 65535,
   pricing: {
     text: {
       input: {
@@ -3047,6 +3023,208 @@ const GOOGLE_GEMMA_3N_E4B_IT_FREE = {
     image: 0,
   },
 } as const
+const GOOGLE_GEMMA_4_26B_A4B_IT = {
+  id: 'google/gemma-4-26b-a4b-it',
+  name: 'Google: Gemma 4 26B A4B ',
+  supports: {
+    input: ['image', 'text', 'video'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
+      'logprobs',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'repetitionPenalty',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topK',
+      'topLogprobs',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 262144,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.13,
+        cached: 0,
+      },
+      output: {
+        normal: 0.4,
+      },
+    },
+    image: 0,
+  },
+} as const
+const GOOGLE_GEMMA_4_26B_A4B_IT_FREE = {
+  id: 'google/gemma-4-26b-a4b-it:free',
+  name: 'Google: Gemma 4 26B A4B  (free)',
+  supports: {
+    input: ['image', 'text', 'video'],
+    output: ['text'],
+    supports: [
+      'includeReasoning',
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 32768,
+  pricing: {
+    text: {
+      input: {
+        normal: 0,
+        cached: 0,
+      },
+      output: {
+        normal: 0,
+      },
+    },
+    image: 0,
+  },
+} as const
+const GOOGLE_GEMMA_4_31B_IT = {
+  id: 'google/gemma-4-31b-it',
+  name: 'Google: Gemma 4 31B',
+  supports: {
+    input: ['image', 'text', 'video'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
+      'logprobs',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'repetitionPenalty',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topK',
+      'topLogprobs',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 131072,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.14,
+        cached: 0,
+      },
+      output: {
+        normal: 0.4,
+      },
+    },
+    image: 0,
+  },
+} as const
+const GOOGLE_GEMMA_4_31B_IT_FREE = {
+  id: 'google/gemma-4-31b-it:free',
+  name: 'Google: Gemma 4 31B (free)',
+  supports: {
+    input: ['image', 'text', 'video'],
+    output: ['text'],
+    supports: [
+      'includeReasoning',
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 32768,
+  pricing: {
+    text: {
+      input: {
+        normal: 0,
+        cached: 0,
+      },
+      output: {
+        normal: 0,
+      },
+    },
+    image: 0,
+  },
+} as const
+const GOOGLE_LYRIA_3_CLIP_PREVIEW = {
+  id: 'google/lyria-3-clip-preview',
+  name: 'Google: Lyria 3 Clip Preview',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text', 'audio'],
+    supports: [
+      'maxCompletionTokens',
+      'responseFormat',
+      'seed',
+      'temperature',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 65536,
+  pricing: {
+    text: {
+      input: {
+        normal: 0,
+        cached: 0,
+      },
+      output: {
+        normal: 0,
+      },
+    },
+    image: 0,
+  },
+} as const
+const GOOGLE_LYRIA_3_PRO_PREVIEW = {
+  id: 'google/lyria-3-pro-preview',
+  name: 'Google: Lyria 3 Pro Preview',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text', 'audio'],
+    supports: [
+      'maxCompletionTokens',
+      'responseFormat',
+      'seed',
+      'temperature',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 65536,
+  pricing: {
+    text: {
+      input: {
+        normal: 0,
+        cached: 0,
+      },
+      output: {
+        normal: 0,
+      },
+    },
+    image: 0,
+  },
+} as const
 const GRYPHE_MYTHOMAX_L2_13B = {
   id: 'gryphe/mythomax-l2-13b',
   name: 'MythoMax 13B',
@@ -3252,43 +3430,6 @@ const INFLECTION_INFLECTION_3_PRODUCTIVITY = {
     image: 0,
   },
 } as const
-const KWAIPILOT_KAT_CODER_PRO = {
-  id: 'kwaipilot/kat-coder-pro',
-  name: 'Kwaipilot: KAT-Coder-Pro V1',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'logitBias',
-      'maxCompletionTokens',
-      'minP',
-      'presencePenalty',
-      'repetitionPenalty',
-      'responseFormat',
-      'seed',
-      'stop',
-      'temperature',
-      'toolChoice',
-      'topK',
-      'topP',
-    ],
-  },
-  context_window: 256000,
-  max_output_tokens: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.207,
-        cached: 0.0414,
-      },
-      output: {
-        normal: 0.828,
-      },
-    },
-    image: 0,
-  },
-} as const
 const KWAIPILOT_KAT_CODER_PRO_V2 = {
   id: 'kwaipilot/kat-coder-pro-v2',
   name: 'Kwaipilot: KAT-Coder-Pro V2',
@@ -3359,39 +3500,6 @@ const LIQUID_LFM_2_24B_A2B = {
     image: 0,
   },
 } as const
-const LIQUID_LFM_2_2_6B = {
-  id: 'liquid/lfm-2.2-6b',
-  name: 'LiquidAI: LFM2-2.6B',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'maxCompletionTokens',
-      'minP',
-      'presencePenalty',
-      'repetitionPenalty',
-      'seed',
-      'stop',
-      'temperature',
-      'topK',
-      'topP',
-    ],
-  },
-  context_window: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.01,
-        cached: 0,
-      },
-      output: {
-        normal: 0.02,
-      },
-    },
-    image: 0,
-  },
-} as const
 const LIQUID_LFM_2_5_1_2B_INSTRUCT_FREE = {
   id: 'liquid/lfm-2.5-1.2b-instruct:free',
   name: 'LiquidAI: LFM2.5-1.2B-Instruct (free)',
@@ -3455,39 +3563,6 @@ const LIQUID_LFM_2_5_1_2B_THINKING_FREE = {
       },
       output: {
         normal: 0,
-      },
-    },
-    image: 0,
-  },
-} as const
-const LIQUID_LFM2_8B_A1B = {
-  id: 'liquid/lfm2-8b-a1b',
-  name: 'LiquidAI: LFM2-8B-A1B',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'maxCompletionTokens',
-      'minP',
-      'presencePenalty',
-      'repetitionPenalty',
-      'seed',
-      'stop',
-      'temperature',
-      'topK',
-      'topP',
-    ],
-  },
-  context_window: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.01,
-        cached: 0,
-      },
-      output: {
-        normal: 0.02,
       },
     },
     image: 0,
@@ -3580,7 +3655,6 @@ const META_LLAMA_LLAMA_3_70B_INSTRUCT = {
       'maxCompletionTokens',
       'presencePenalty',
       'repetitionPenalty',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
@@ -4267,11 +4341,12 @@ const MINIMAX_MINIMAX_M2_1 = {
     ],
   },
   context_window: 196608,
+  max_output_tokens: 196608,
   pricing: {
     text: {
       input: {
-        normal: 0.27,
-        cached: 0.0290000007,
+        normal: 0.29,
+        cached: 0.03,
       },
       output: {
         normal: 0.95,
@@ -4312,11 +4387,11 @@ const MINIMAX_MINIMAX_M2_5 = {
   pricing: {
     text: {
       input: {
-        normal: 0.19,
-        cached: 0.095,
+        normal: 0.118,
+        cached: 0.059,
       },
       output: {
-        normal: 1.15,
+        normal: 0.99,
       },
     },
     image: 0,
@@ -4916,7 +4991,6 @@ const MISTRALAI_MISTRAL_SMALL_24B_INSTRUCT_2501 = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
-      'logitBias',
       'maxCompletionTokens',
       'minP',
       'presencePenalty',
@@ -4925,7 +4999,6 @@ const MISTRALAI_MISTRAL_SMALL_24B_INSTRUCT_2501 = {
       'seed',
       'stop',
       'temperature',
-      'toolChoice',
       'topK',
       'topP',
     ],
@@ -4962,6 +5035,7 @@ const MISTRALAI_MISTRAL_SMALL_2603 = {
       'stop',
       'temperature',
       'toolChoice',
+      'topK',
       'topP',
     ],
   },
@@ -5212,17 +5286,14 @@ const MOONSHOTAI_KIMI_K2 = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
-      'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
       'repetitionPenalty',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
       'toolChoice',
       'topK',
-      'topLogprobs',
       'topP',
     ],
   },
@@ -5265,12 +5336,13 @@ const MOONSHOTAI_KIMI_K2_0905 = {
       'topP',
     ],
   },
-  context_window: 131072,
+  context_window: 262144,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
         normal: 0.4,
-        cached: 0.15,
+        cached: 0,
       },
       output: {
         normal: 2,
@@ -5303,15 +5375,15 @@ const MOONSHOTAI_KIMI_K2_THINKING = {
       'topP',
     ],
   },
-  context_window: 131072,
+  context_window: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.47,
-        cached: 0.141,
+        normal: 0.6,
+        cached: 0,
       },
       output: {
-        normal: 2,
+        normal: 2.5,
       },
     },
     image: 0,
@@ -5349,11 +5421,11 @@ const MOONSHOTAI_KIMI_K2_5 = {
   pricing: {
     text: {
       input: {
-        normal: 0.42,
-        cached: 0.21,
+        normal: 0.3827,
+        cached: 0.19135,
       },
       output: {
-        normal: 2.2,
+        normal: 1.72,
       },
     },
     image: 0,
@@ -6094,6 +6166,7 @@ const OPENAI_GPT_3_5_TURBO_16K = {
       'logitBias',
       'logprobs',
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -6164,6 +6237,7 @@ const OPENAI_GPT_4 = {
       'frequencyPenalty',
       'logitBias',
       'logprobs',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'presencePenalty',
       'responseFormat',
@@ -6342,6 +6416,7 @@ const OPENAI_GPT_4_1 = {
     output: ['text'],
     supports: [
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'responseFormat',
       'seed',
       'temperature',
@@ -6372,6 +6447,7 @@ const OPENAI_GPT_4_1_MINI = {
     output: ['text'],
     supports: [
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'responseFormat',
       'seed',
       'temperature',
@@ -6401,6 +6477,7 @@ const OPENAI_GPT_4_1_NANO = {
     input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'responseFormat',
       'seed',
@@ -6434,6 +6511,7 @@ const OPENAI_GPT_4O = {
       'frequencyPenalty',
       'logitBias',
       'logprobs',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'presencePenalty',
       'responseFormat',
@@ -6472,6 +6550,7 @@ const OPENAI_GPT_4O_2024_05_13 = {
       'logitBias',
       'logprobs',
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -6508,6 +6587,7 @@ const OPENAI_GPT_4O_2024_08_06 = {
       'frequencyPenalty',
       'logitBias',
       'logprobs',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'presencePenalty',
       'responseFormat',
@@ -6618,6 +6698,7 @@ const OPENAI_GPT_4O_MINI = {
       'frequencyPenalty',
       'logitBias',
       'logprobs',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'presencePenalty',
       'responseFormat',
@@ -6773,6 +6854,7 @@ const OPENAI_GPT_5 = {
     output: ['text'],
     supports: [
       'includeReasoning',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'reasoning',
       'responseFormat',
@@ -6933,6 +7015,7 @@ const OPENAI_GPT_5_MINI = {
     supports: [
       'includeReasoning',
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'reasoning',
       'responseFormat',
       'seed',
@@ -6962,6 +7045,7 @@ const OPENAI_GPT_5_NANO = {
     output: ['text'],
     supports: [
       'includeReasoning',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'reasoning',
       'responseFormat',
@@ -7023,6 +7107,7 @@ const OPENAI_GPT_5_1 = {
     supports: [
       'includeReasoning',
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'reasoning',
       'responseFormat',
       'seed',
@@ -7050,7 +7135,13 @@ const OPENAI_GPT_5_1_CHAT = {
   supports: {
     input: ['document', 'image', 'text'],
     output: ['text'],
-    supports: ['maxCompletionTokens', 'responseFormat', 'seed', 'toolChoice'],
+    supports: [
+      'maxCompletionTokens',
+      'maxCompletionTokens',
+      'responseFormat',
+      'seed',
+      'toolChoice',
+    ],
   },
   context_window: 128000,
   max_output_tokens: 16384,
@@ -7075,6 +7166,7 @@ const OPENAI_GPT_5_1_CODEX = {
     output: ['text'],
     supports: [
       'includeReasoning',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'reasoning',
       'responseFormat',
@@ -7106,6 +7198,7 @@ const OPENAI_GPT_5_1_CODEX_MAX = {
     supports: [
       'includeReasoning',
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'reasoning',
       'responseFormat',
       'seed',
@@ -7135,6 +7228,7 @@ const OPENAI_GPT_5_1_CODEX_MINI = {
     output: ['text'],
     supports: [
       'includeReasoning',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'reasoning',
       'responseFormat',
@@ -7166,6 +7260,7 @@ const OPENAI_GPT_5_2 = {
     supports: [
       'includeReasoning',
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'reasoning',
       'responseFormat',
       'seed',
@@ -7193,7 +7288,13 @@ const OPENAI_GPT_5_2_CHAT = {
   supports: {
     input: ['document', 'image', 'text'],
     output: ['text'],
-    supports: ['maxCompletionTokens', 'responseFormat', 'seed', 'toolChoice'],
+    supports: [
+      'maxCompletionTokens',
+      'maxCompletionTokens',
+      'responseFormat',
+      'seed',
+      'toolChoice',
+    ],
   },
   context_window: 128000,
   max_output_tokens: 16384,
@@ -7218,6 +7319,7 @@ const OPENAI_GPT_5_2_CODEX = {
     output: ['text'],
     supports: [
       'includeReasoning',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'reasoning',
       'responseFormat',
@@ -7276,7 +7378,13 @@ const OPENAI_GPT_5_3_CHAT = {
   supports: {
     input: ['text', 'image', 'document'],
     output: ['text'],
-    supports: ['maxCompletionTokens', 'responseFormat', 'seed', 'toolChoice'],
+    supports: [
+      'maxCompletionTokens',
+      'maxCompletionTokens',
+      'responseFormat',
+      'seed',
+      'toolChoice',
+    ],
   },
   context_window: 128000,
   max_output_tokens: 16384,
@@ -7301,6 +7409,7 @@ const OPENAI_GPT_5_3_CODEX = {
     output: ['text'],
     supports: [
       'includeReasoning',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'reasoning',
       'responseFormat',
@@ -7332,6 +7441,7 @@ const OPENAI_GPT_5_4 = {
     supports: [
       'includeReasoning',
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'reasoning',
       'responseFormat',
       'seed',
@@ -7361,6 +7471,7 @@ const OPENAI_GPT_5_4_MINI = {
     output: ['text'],
     supports: [
       'includeReasoning',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'reasoning',
       'responseFormat',
@@ -7392,6 +7503,7 @@ const OPENAI_GPT_5_4_NANO = {
     supports: [
       'includeReasoning',
       'maxCompletionTokens',
+      'maxCompletionTokens',
       'reasoning',
       'responseFormat',
       'seed',
@@ -7421,6 +7533,7 @@ const OPENAI_GPT_5_4_PRO = {
     output: ['text'],
     supports: [
       'includeReasoning',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'reasoning',
       'responseFormat',
@@ -7459,6 +7572,7 @@ const OPENAI_GPT_AUDIO = {
       'seed',
       'stop',
       'temperature',
+      'toolChoice',
       'topLogprobs',
       'topP',
     ],
@@ -7494,6 +7608,7 @@ const OPENAI_GPT_AUDIO_MINI = {
       'seed',
       'stop',
       'temperature',
+      'toolChoice',
       'topLogprobs',
       'topP',
     ],
@@ -7523,6 +7638,7 @@ const OPENAI_GPT_OSS_120B = {
       'frequencyPenalty',
       'includeReasoning',
       'logitBias',
+      'logprobs',
       'maxCompletionTokens',
       'minP',
       'presencePenalty',
@@ -7534,6 +7650,7 @@ const OPENAI_GPT_OSS_120B = {
       'temperature',
       'toolChoice',
       'topK',
+      'topLogprobs',
       'topP',
     ],
   },
@@ -8013,6 +8130,7 @@ const OPENROUTER_AUTO = {
       'includeReasoning',
       'logitBias',
       'logprobs',
+      'maxCompletionTokens',
       'maxCompletionTokens',
       'minP',
       'presencePenalty',
@@ -8812,6 +8930,7 @@ const QWEN_QWEN3_235B_A22B_2507 = {
       'temperature',
       'toolChoice',
       'topK',
+      'topLogprobs',
       'topP',
     ],
   },
@@ -9515,6 +9634,7 @@ const QWEN_QWEN3_VL_30B_A3B_INSTRUCT = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
+      'logitBias',
       'maxCompletionTokens',
       'minP',
       'presencePenalty',
@@ -9869,7 +9989,7 @@ const QWEN_QWEN3_5_9B = {
     ],
   },
   context_window: 256000,
-  max_output_tokens: 65536,
+  max_output_tokens: 32768,
   pricing: {
     text: {
       input: {
@@ -9949,6 +10069,39 @@ const QWEN_QWEN3_5_PLUS_02_15 = {
     image: 0,
   },
 } as const
+const QWEN_QWEN3_6_PLUS = {
+  id: 'qwen/qwen3.6-plus',
+  name: 'Qwen: Qwen3.6 Plus',
+  supports: {
+    input: ['text', 'image', 'video'],
+    output: ['text'],
+    supports: [
+      'includeReasoning',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 1000000,
+  max_output_tokens: 65536,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.325,
+        cached: 0,
+      },
+      output: {
+        normal: 1.95,
+      },
+    },
+    image: 0,
+  },
+} as const
 const QWEN_QWQ_32B = {
   id: 'qwen/qwq-32b',
   name: 'Qwen: QwQ 32B',
@@ -9980,8 +10133,8 @@ const QWEN_QWQ_32B = {
     image: 0,
   },
 } as const
-const REKA_REKA_EDGE = {
-  id: 'reka/reka-edge',
+const REKAAI_REKA_EDGE = {
+  id: 'rekaai/reka-edge',
   name: 'Reka Edge',
   supports: {
     input: ['image', 'text', 'video'],
@@ -10008,6 +10161,40 @@ const REKA_REKA_EDGE = {
       },
       output: {
         normal: 0.1,
+      },
+    },
+    image: 0,
+  },
+} as const
+const REKAAI_REKA_FLASH_3 = {
+  id: 'rekaai/reka-flash-3',
+  name: 'Reka Flash 3',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'includeReasoning',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'seed',
+      'stop',
+      'temperature',
+      'topK',
+      'topP',
+    ],
+  },
+  context_window: 65536,
+  max_output_tokens: 65536,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.1,
+        cached: 0,
+      },
+      output: {
+        normal: 0.2,
       },
     },
     image: 0,
@@ -10259,50 +10446,21 @@ const STEPFUN_STEP_3_5_FLASH = {
       'seed',
       'stop',
       'temperature',
+      'toolChoice',
       'topK',
       'topP',
     ],
   },
   context_window: 262144,
+  max_output_tokens: 65536,
   pricing: {
     text: {
       input: {
         normal: 0.1,
-        cached: 0.02,
-      },
-      output: {
-        normal: 0.3,
-      },
-    },
-    image: 0,
-  },
-} as const
-const STEPFUN_STEP_3_5_FLASH_FREE = {
-  id: 'stepfun/step-3.5-flash:free',
-  name: 'StepFun: Step 3.5 Flash (free)',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'includeReasoning',
-      'maxCompletionTokens',
-      'reasoning',
-      'stop',
-      'temperature',
-      'topP',
-    ],
-  },
-  context_window: 256000,
-  max_output_tokens: 256000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
         cached: 0,
       },
       output: {
-        normal: 0,
+        normal: 0.3,
       },
     },
     image: 0,
@@ -10781,7 +10939,7 @@ const X_AI_GROK_4 = {
   id: 'x-ai/grok-4',
   name: 'xAI: Grok 4',
   supports: {
-    input: ['image', 'text'],
+    input: ['image', 'text', 'document'],
     output: ['text'],
     supports: [
       'includeReasoning',
@@ -10814,7 +10972,7 @@ const X_AI_GROK_4_FAST = {
   id: 'x-ai/grok-4-fast',
   name: 'xAI: Grok 4 Fast',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
       'includeReasoning',
@@ -10848,7 +11006,7 @@ const X_AI_GROK_4_1_FAST = {
   id: 'x-ai/grok-4.1-fast',
   name: 'xAI: Grok 4.1 Fast',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
       'includeReasoning',
@@ -10878,11 +11036,11 @@ const X_AI_GROK_4_1_FAST = {
     image: 0,
   },
 } as const
-const X_AI_GROK_4_20_BETA = {
-  id: 'x-ai/grok-4.20-beta',
-  name: 'xAI: Grok 4.20 Beta',
+const X_AI_GROK_4_20 = {
+  id: 'x-ai/grok-4.20',
+  name: 'xAI: Grok 4.20',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
       'includeReasoning',
@@ -10911,11 +11069,11 @@ const X_AI_GROK_4_20_BETA = {
     image: 0,
   },
 } as const
-const X_AI_GROK_4_20_MULTI_AGENT_BETA = {
-  id: 'x-ai/grok-4.20-multi-agent-beta',
-  name: 'xAI: Grok 4.20 Multi-Agent Beta',
+const X_AI_GROK_4_20_MULTI_AGENT = {
+  id: 'x-ai/grok-4.20-multi-agent',
+  name: 'xAI: Grok 4.20 Multi-Agent',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     supports: [
       'includeReasoning',
@@ -11224,7 +11382,6 @@ const Z_AI_GLM_4_5V = {
       'presencePenalty',
       'reasoning',
       'repetitionPenalty',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
@@ -11335,6 +11492,7 @@ const Z_AI_GLM_4_7 = {
       'frequencyPenalty',
       'includeReasoning',
       'logitBias',
+      'logprobs',
       'maxCompletionTokens',
       'minP',
       'presencePenalty',
@@ -11346,6 +11504,7 @@ const Z_AI_GLM_4_7 = {
       'temperature',
       'toolChoice',
       'topK',
+      'topLogprobs',
       'topP',
     ],
   },
@@ -11481,6 +11640,77 @@ const Z_AI_GLM_5_TURBO = {
     image: 0,
   },
 } as const
+const Z_AI_GLM_5_1 = {
+  id: 'z-ai/glm-5.1',
+  name: 'Z.ai: GLM 5.1',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'includeReasoning',
+      'logitBias',
+      'logprobs',
+      'maxCompletionTokens',
+      'minP',
+      'presencePenalty',
+      'reasoning',
+      'repetitionPenalty',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topK',
+      'topLogprobs',
+      'topP',
+    ],
+  },
+  context_window: 202752,
+  pricing: {
+    text: {
+      input: {
+        normal: 1.26,
+        cached: 0,
+      },
+      output: {
+        normal: 3.96,
+      },
+    },
+    image: 0,
+  },
+} as const
+const Z_AI_GLM_5V_TURBO = {
+  id: 'z-ai/glm-5v-turbo',
+  name: 'Z.ai: GLM 5V Turbo',
+  supports: {
+    input: ['image', 'text', 'video'],
+    output: ['text'],
+    supports: [
+      'includeReasoning',
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 202752,
+  max_output_tokens: 131072,
+  pricing: {
+    text: {
+      input: {
+        normal: 1.2,
+        cached: 0.24,
+      },
+      output: {
+        normal: 4,
+      },
+    },
+    image: 0,
+  },
+} as const
 
 export type OpenRouterModelOptionsByName = {
   [AI21_JAMBA_LARGE_1_7.id]: OpenRouterCommonOptions &
@@ -11590,23 +11820,6 @@ export type OpenRouterModelOptionsByName = {
       | 'topK'
       | 'topP'
     >
-  [ALLENAI_OLMO_3_1_32B_THINK.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'includeReasoning'
-      | 'logitBias'
-      | 'maxCompletionTokens'
-      | 'presencePenalty'
-      | 'reasoning'
-      | 'repetitionPenalty'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'temperature'
-      | 'topK'
-      | 'topP'
-    >
   [ALPINDALE_GOLIATH_120B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -11697,16 +11910,6 @@ export type OpenRouterModelOptionsByName = {
       | 'topK'
       | 'topP'
     >
-  [ANTHROPIC_CLAUDE_3_5_SONNET.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topK'
-      | 'topP'
-    >
   [ANTHROPIC_CLAUDE_3_7_SONNET.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -11786,12 +11989,26 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'includeReasoning'
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
       | 'toolChoice'
       | 'topK'
+      | 'topP'
+      | 'verbosity'
+    >
+  [ANTHROPIC_CLAUDE_OPUS_4_6_FAST.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
       | 'topP'
       | 'verbosity'
     >
@@ -11824,6 +12041,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
@@ -11881,6 +12099,24 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       'maxCompletionTokens' | 'responseFormat' | 'temperature' | 'topK' | 'topP'
     >
+  [ARCEE_AI_TRINITY_LARGE_THINKING.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'repetitionPenalty'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topK'
+      | 'topP'
+    >
   [ARCEE_AI_TRINITY_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -11891,18 +12127,6 @@ export type OpenRouterModelOptionsByName = {
       | 'stop'
       | 'temperature'
       | 'toolChoice'
-      | 'topP'
-    >
-  [ARCEE_AI_TRINITY_MINI_FREE.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'includeReasoning'
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topK'
       | 'topP'
     >
   [ARCEE_AI_VIRTUOSO_LARGE.id]: OpenRouterCommonOptions &
@@ -12205,6 +12429,7 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
@@ -12678,6 +12903,80 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       'maxCompletionTokens' | 'responseFormat' | 'seed' | 'temperature' | 'topP'
     >
+  [GOOGLE_GEMMA_4_26B_A4B_IT.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'logprobs'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'repetitionPenalty'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
+    >
+  [GOOGLE_GEMMA_4_26B_A4B_IT_FREE.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
+  [GOOGLE_GEMMA_4_31B_IT.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'logprobs'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'repetitionPenalty'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
+    >
+  [GOOGLE_GEMMA_4_31B_IT_FREE.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
+  [GOOGLE_LYRIA_3_CLIP_PREVIEW.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'temperature' | 'topP'
+    >
+  [GOOGLE_LYRIA_3_PRO_PREVIEW.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'temperature' | 'topP'
+    >
   [GRYPHE_MYTHOMAX_L2_13B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -12748,23 +13047,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       'maxCompletionTokens' | 'stop' | 'temperature' | 'topP'
     >
-  [KWAIPILOT_KAT_CODER_PRO.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'logitBias'
-      | 'maxCompletionTokens'
-      | 'minP'
-      | 'presencePenalty'
-      | 'repetitionPenalty'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topK'
-      | 'topP'
-    >
   [KWAIPILOT_KAT_CODER_PRO_V2.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -12796,20 +13078,6 @@ export type OpenRouterModelOptionsByName = {
       | 'topK'
       | 'topP'
     >
-  [LIQUID_LFM_2_2_6B.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'maxCompletionTokens'
-      | 'minP'
-      | 'presencePenalty'
-      | 'repetitionPenalty'
-      | 'seed'
-      | 'stop'
-      | 'temperature'
-      | 'topK'
-      | 'topP'
-    >
   [LIQUID_LFM_2_5_1_2B_INSTRUCT_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -12833,20 +13101,6 @@ export type OpenRouterModelOptionsByName = {
       | 'minP'
       | 'presencePenalty'
       | 'reasoning'
-      | 'repetitionPenalty'
-      | 'seed'
-      | 'stop'
-      | 'temperature'
-      | 'topK'
-      | 'topP'
-    >
-  [LIQUID_LFM2_8B_A1B.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'maxCompletionTokens'
-      | 'minP'
-      | 'presencePenalty'
       | 'repetitionPenalty'
       | 'seed'
       | 'stop'
@@ -12897,7 +13151,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'repetitionPenalty'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -13454,7 +13707,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
-      | 'logitBias'
       | 'maxCompletionTokens'
       | 'minP'
       | 'presencePenalty'
@@ -13463,7 +13715,6 @@ export type OpenRouterModelOptionsByName = {
       | 'seed'
       | 'stop'
       | 'temperature'
-      | 'toolChoice'
       | 'topK'
       | 'topP'
     >
@@ -13480,6 +13731,7 @@ export type OpenRouterModelOptionsByName = {
       | 'stop'
       | 'temperature'
       | 'toolChoice'
+      | 'topK'
       | 'topP'
     >
   [MISTRALAI_MISTRAL_SMALL_3_1_24B_INSTRUCT.id]: OpenRouterCommonOptions &
@@ -13575,17 +13827,14 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
-      | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'repetitionPenalty'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
       | 'toolChoice'
       | 'topK'
-      | 'topLogprobs'
       | 'topP'
     >
   [MOONSHOTAI_KIMI_K2_0905.id]: OpenRouterCommonOptions &
@@ -13949,6 +14198,7 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
@@ -13979,6 +14229,7 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'logitBias'
       | 'logprobs'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'responseFormat'
@@ -14057,6 +14308,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -14067,6 +14319,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -14076,6 +14329,7 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_4_1_NANO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'responseFormat'
       | 'seed'
@@ -14089,6 +14343,7 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'logitBias'
       | 'logprobs'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'responseFormat'
@@ -14107,6 +14362,7 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
@@ -14123,6 +14379,7 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'logitBias'
       | 'logprobs'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'responseFormat'
@@ -14173,6 +14430,7 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'logitBias'
       | 'logprobs'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'responseFormat'
@@ -14232,6 +14490,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
@@ -14294,6 +14553,7 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'includeReasoning'
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
       | 'seed'
@@ -14303,6 +14563,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
@@ -14324,6 +14585,7 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'includeReasoning'
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
       | 'seed'
@@ -14332,12 +14594,17 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_1_CHAT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
+      | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
+      | 'seed'
+      | 'toolChoice'
     >
   [OPENAI_GPT_5_1_CODEX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
@@ -14349,6 +14616,7 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'includeReasoning'
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
       | 'seed'
@@ -14358,6 +14626,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
@@ -14369,6 +14638,7 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'includeReasoning'
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
       | 'seed'
@@ -14377,12 +14647,17 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_2_CHAT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
+      | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
+      | 'seed'
+      | 'toolChoice'
     >
   [OPENAI_GPT_5_2_CODEX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
@@ -14402,12 +14677,17 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_3_CHAT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
+      | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
+      | 'seed'
+      | 'toolChoice'
     >
   [OPENAI_GPT_5_3_CODEX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
@@ -14419,6 +14699,7 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'includeReasoning'
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
       | 'seed'
@@ -14428,6 +14709,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
@@ -14439,6 +14721,7 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'includeReasoning'
       | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
       | 'seed'
@@ -14448,6 +14731,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'reasoning'
       | 'responseFormat'
@@ -14466,6 +14750,7 @@ export type OpenRouterModelOptionsByName = {
       | 'seed'
       | 'stop'
       | 'temperature'
+      | 'toolChoice'
       | 'topLogprobs'
       | 'topP'
     >
@@ -14481,6 +14766,7 @@ export type OpenRouterModelOptionsByName = {
       | 'seed'
       | 'stop'
       | 'temperature'
+      | 'toolChoice'
       | 'topLogprobs'
       | 'topP'
     >
@@ -14490,6 +14776,7 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'includeReasoning'
       | 'logitBias'
+      | 'logprobs'
       | 'maxCompletionTokens'
       | 'minP'
       | 'presencePenalty'
@@ -14501,6 +14788,7 @@ export type OpenRouterModelOptionsByName = {
       | 'temperature'
       | 'toolChoice'
       | 'topK'
+      | 'topLogprobs'
       | 'topP'
     >
   [OPENAI_GPT_OSS_120B_FREE.id]: OpenRouterCommonOptions &
@@ -14681,6 +14969,7 @@ export type OpenRouterModelOptionsByName = {
       | 'includeReasoning'
       | 'logitBias'
       | 'logprobs'
+      | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'minP'
       | 'presencePenalty'
@@ -15007,6 +15296,7 @@ export type OpenRouterModelOptionsByName = {
       | 'temperature'
       | 'toolChoice'
       | 'topK'
+      | 'topLogprobs'
       | 'topP'
     >
   [QWEN_QWEN3_235B_A22B_THINKING_2507.id]: OpenRouterCommonOptions &
@@ -15316,6 +15606,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
+      | 'logitBias'
       | 'maxCompletionTokens'
       | 'minP'
       | 'presencePenalty'
@@ -15514,6 +15805,19 @@ export type OpenRouterModelOptionsByName = {
       | 'toolChoice'
       | 'topP'
     >
+  [QWEN_QWEN3_6_PLUS.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
   [QWEN_QWQ_32B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -15525,7 +15829,7 @@ export type OpenRouterModelOptionsByName = {
       | 'topK'
       | 'topP'
     >
-  [REKA_REKA_EDGE.id]: OpenRouterCommonOptions &
+  [REKAAI_REKA_EDGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
@@ -15535,6 +15839,20 @@ export type OpenRouterModelOptionsByName = {
       | 'stop'
       | 'temperature'
       | 'toolChoice'
+      | 'topK'
+      | 'topP'
+    >
+  [REKAAI_REKA_FLASH_3.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
       | 'topK'
       | 'topP'
     >
@@ -15641,18 +15959,8 @@ export type OpenRouterModelOptionsByName = {
       | 'seed'
       | 'stop'
       | 'temperature'
+      | 'toolChoice'
       | 'topK'
-      | 'topP'
-    >
-  [STEPFUN_STEP_3_5_FLASH_FREE.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'includeReasoning'
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'stop'
-      | 'temperature'
       | 'topP'
     >
   [SWITCHPOINT_ROUTER.id]: OpenRouterCommonOptions &
@@ -15894,7 +16202,7 @@ export type OpenRouterModelOptionsByName = {
       | 'topLogprobs'
       | 'topP'
     >
-  [X_AI_GROK_4_20_BETA.id]: OpenRouterCommonOptions &
+  [X_AI_GROK_4_20.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
@@ -15908,7 +16216,7 @@ export type OpenRouterModelOptionsByName = {
       | 'topLogprobs'
       | 'topP'
     >
-  [X_AI_GROK_4_20_MULTI_AGENT_BETA.id]: OpenRouterCommonOptions &
+  [X_AI_GROK_4_20_MULTI_AGENT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'includeReasoning'
@@ -16041,7 +16349,6 @@ export type OpenRouterModelOptionsByName = {
       | 'presencePenalty'
       | 'reasoning'
       | 'repetitionPenalty'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -16092,6 +16399,7 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'includeReasoning'
       | 'logitBias'
+      | 'logprobs'
       | 'maxCompletionTokens'
       | 'minP'
       | 'presencePenalty'
@@ -16103,6 +16411,7 @@ export type OpenRouterModelOptionsByName = {
       | 'temperature'
       | 'toolChoice'
       | 'topK'
+      | 'topLogprobs'
       | 'topP'
     >
   [Z_AI_GLM_4_7_FLASH.id]: OpenRouterCommonOptions &
@@ -16163,6 +16472,38 @@ export type OpenRouterModelOptionsByName = {
       | 'topK'
       | 'topP'
     >
+  [Z_AI_GLM_5_1.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'includeReasoning'
+      | 'logitBias'
+      | 'logprobs'
+      | 'maxCompletionTokens'
+      | 'minP'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'repetitionPenalty'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topK'
+      | 'topLogprobs'
+      | 'topP'
+    >
+  [Z_AI_GLM_5V_TURBO.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'includeReasoning'
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
 }
 
 export type OpenRouterModelInputModalitiesByName = {
@@ -16176,7 +16517,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [ALLENAI_OLMO_2_0325_32B_INSTRUCT.id]: ReadonlyArray<'text'>
   [ALLENAI_OLMO_3_32B_THINK.id]: ReadonlyArray<'text'>
   [ALLENAI_OLMO_3_1_32B_INSTRUCT.id]: ReadonlyArray<'text'>
-  [ALLENAI_OLMO_3_1_32B_THINK.id]: ReadonlyArray<'text'>
   [ALPINDALE_GOLIATH_120B.id]: ReadonlyArray<'text'>
   [AMAZON_NOVA_2_LITE_V1.id]: ReadonlyArray<
     'text' | 'image' | 'video' | 'document'
@@ -16188,7 +16528,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [ANTHRACITE_ORG_MAGNUM_V4_72B.id]: ReadonlyArray<'text'>
   [ANTHROPIC_CLAUDE_3_HAIKU.id]: ReadonlyArray<'text' | 'image'>
   [ANTHROPIC_CLAUDE_3_5_HAIKU.id]: ReadonlyArray<'text' | 'image'>
-  [ANTHROPIC_CLAUDE_3_5_SONNET.id]: ReadonlyArray<'text' | 'image' | 'document'>
   [ANTHROPIC_CLAUDE_3_7_SONNET.id]: ReadonlyArray<'text' | 'image' | 'document'>
   [ANTHROPIC_CLAUDE_3_7_SONNET_THINKING.id]: ReadonlyArray<
     'text' | 'image' | 'document'
@@ -16198,6 +16537,7 @@ export type OpenRouterModelInputModalitiesByName = {
   [ANTHROPIC_CLAUDE_OPUS_4_1.id]: ReadonlyArray<'image' | 'text' | 'document'>
   [ANTHROPIC_CLAUDE_OPUS_4_5.id]: ReadonlyArray<'document' | 'image' | 'text'>
   [ANTHROPIC_CLAUDE_OPUS_4_6.id]: ReadonlyArray<'text' | 'image'>
+  [ANTHROPIC_CLAUDE_OPUS_4_6_FAST.id]: ReadonlyArray<'text' | 'image'>
   [ANTHROPIC_CLAUDE_SONNET_4.id]: ReadonlyArray<'image' | 'text' | 'document'>
   [ANTHROPIC_CLAUDE_SONNET_4_5.id]: ReadonlyArray<'text' | 'image' | 'document'>
   [ANTHROPIC_CLAUDE_SONNET_4_6.id]: ReadonlyArray<'text' | 'image'>
@@ -16205,8 +16545,8 @@ export type OpenRouterModelInputModalitiesByName = {
   [ARCEE_AI_MAESTRO_REASONING.id]: ReadonlyArray<'text'>
   [ARCEE_AI_SPOTLIGHT.id]: ReadonlyArray<'image' | 'text'>
   [ARCEE_AI_TRINITY_LARGE_PREVIEW_FREE.id]: ReadonlyArray<'text'>
+  [ARCEE_AI_TRINITY_LARGE_THINKING.id]: ReadonlyArray<'text'>
   [ARCEE_AI_TRINITY_MINI.id]: ReadonlyArray<'text'>
-  [ARCEE_AI_TRINITY_MINI_FREE.id]: ReadonlyArray<'text'>
   [ARCEE_AI_VIRTUOSO_LARGE.id]: ReadonlyArray<'text'>
   [BAIDU_ERNIE_4_5_21B_A3B.id]: ReadonlyArray<'text'>
   [BAIDU_ERNIE_4_5_21B_A3B_THINKING.id]: ReadonlyArray<'text'>
@@ -16287,6 +16627,12 @@ export type OpenRouterModelInputModalitiesByName = {
   [GOOGLE_GEMMA_3N_E2B_IT_FREE.id]: ReadonlyArray<'text'>
   [GOOGLE_GEMMA_3N_E4B_IT.id]: ReadonlyArray<'text'>
   [GOOGLE_GEMMA_3N_E4B_IT_FREE.id]: ReadonlyArray<'text'>
+  [GOOGLE_GEMMA_4_26B_A4B_IT.id]: ReadonlyArray<'image' | 'text' | 'video'>
+  [GOOGLE_GEMMA_4_26B_A4B_IT_FREE.id]: ReadonlyArray<'image' | 'text' | 'video'>
+  [GOOGLE_GEMMA_4_31B_IT.id]: ReadonlyArray<'image' | 'text' | 'video'>
+  [GOOGLE_GEMMA_4_31B_IT_FREE.id]: ReadonlyArray<'image' | 'text' | 'video'>
+  [GOOGLE_LYRIA_3_CLIP_PREVIEW.id]: ReadonlyArray<'text' | 'image'>
+  [GOOGLE_LYRIA_3_PRO_PREVIEW.id]: ReadonlyArray<'text' | 'image'>
   [GRYPHE_MYTHOMAX_L2_13B.id]: ReadonlyArray<'text'>
   [IBM_GRANITE_GRANITE_4_0_H_MICRO.id]: ReadonlyArray<'text'>
   [INCEPTION_MERCURY.id]: ReadonlyArray<'text'>
@@ -16294,13 +16640,10 @@ export type OpenRouterModelInputModalitiesByName = {
   [INCEPTION_MERCURY_CODER.id]: ReadonlyArray<'text'>
   [INFLECTION_INFLECTION_3_PI.id]: ReadonlyArray<'text'>
   [INFLECTION_INFLECTION_3_PRODUCTIVITY.id]: ReadonlyArray<'text'>
-  [KWAIPILOT_KAT_CODER_PRO.id]: ReadonlyArray<'text'>
   [KWAIPILOT_KAT_CODER_PRO_V2.id]: ReadonlyArray<'text'>
   [LIQUID_LFM_2_24B_A2B.id]: ReadonlyArray<'text'>
-  [LIQUID_LFM_2_2_6B.id]: ReadonlyArray<'text'>
   [LIQUID_LFM_2_5_1_2B_INSTRUCT_FREE.id]: ReadonlyArray<'text'>
   [LIQUID_LFM_2_5_1_2B_THINKING_FREE.id]: ReadonlyArray<'text'>
-  [LIQUID_LFM2_8B_A1B.id]: ReadonlyArray<'text'>
   [MANCER_WEAVER.id]: ReadonlyArray<'text'>
   [MEITUAN_LONGCAT_FLASH_CHAT.id]: ReadonlyArray<'text'>
   [META_LLAMA_LLAMA_3_70B_INSTRUCT.id]: ReadonlyArray<'text'>
@@ -16502,8 +16845,10 @@ export type OpenRouterModelInputModalitiesByName = {
   [QWEN_QWEN3_5_9B.id]: ReadonlyArray<'text' | 'image' | 'video'>
   [QWEN_QWEN3_5_FLASH_02_23.id]: ReadonlyArray<'text' | 'image' | 'video'>
   [QWEN_QWEN3_5_PLUS_02_15.id]: ReadonlyArray<'text' | 'image' | 'video'>
+  [QWEN_QWEN3_6_PLUS.id]: ReadonlyArray<'text' | 'image' | 'video'>
   [QWEN_QWQ_32B.id]: ReadonlyArray<'text'>
-  [REKA_REKA_EDGE.id]: ReadonlyArray<'image' | 'text' | 'video'>
+  [REKAAI_REKA_EDGE.id]: ReadonlyArray<'image' | 'text' | 'video'>
+  [REKAAI_REKA_FLASH_3.id]: ReadonlyArray<'text'>
   [RELACE_RELACE_APPLY_3.id]: ReadonlyArray<'text'>
   [RELACE_RELACE_SEARCH.id]: ReadonlyArray<'text'>
   [SAO10K_L3_EURYALE_70B.id]: ReadonlyArray<'text'>
@@ -16512,7 +16857,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [SAO10K_L3_1_EURYALE_70B.id]: ReadonlyArray<'text'>
   [SAO10K_L3_3_EURYALE_70B.id]: ReadonlyArray<'text'>
   [STEPFUN_STEP_3_5_FLASH.id]: ReadonlyArray<'text'>
-  [STEPFUN_STEP_3_5_FLASH_FREE.id]: ReadonlyArray<'text'>
   [SWITCHPOINT_ROUTER.id]: ReadonlyArray<'text'>
   [TENCENT_HUNYUAN_A13B_INSTRUCT.id]: ReadonlyArray<'text'>
   [THEDRUMMER_CYDONIA_24B_V4_1.id]: ReadonlyArray<'text'>
@@ -16527,11 +16871,11 @@ export type OpenRouterModelInputModalitiesByName = {
   [X_AI_GROK_3_BETA.id]: ReadonlyArray<'text'>
   [X_AI_GROK_3_MINI.id]: ReadonlyArray<'text'>
   [X_AI_GROK_3_MINI_BETA.id]: ReadonlyArray<'text'>
-  [X_AI_GROK_4.id]: ReadonlyArray<'image' | 'text'>
-  [X_AI_GROK_4_FAST.id]: ReadonlyArray<'text' | 'image'>
-  [X_AI_GROK_4_1_FAST.id]: ReadonlyArray<'text' | 'image'>
-  [X_AI_GROK_4_20_BETA.id]: ReadonlyArray<'text' | 'image'>
-  [X_AI_GROK_4_20_MULTI_AGENT_BETA.id]: ReadonlyArray<'text' | 'image'>
+  [X_AI_GROK_4.id]: ReadonlyArray<'image' | 'text' | 'document'>
+  [X_AI_GROK_4_FAST.id]: ReadonlyArray<'text' | 'image' | 'document'>
+  [X_AI_GROK_4_1_FAST.id]: ReadonlyArray<'text' | 'image' | 'document'>
+  [X_AI_GROK_4_20.id]: ReadonlyArray<'text' | 'image' | 'document'>
+  [X_AI_GROK_4_20_MULTI_AGENT.id]: ReadonlyArray<'text' | 'image' | 'document'>
   [X_AI_GROK_CODE_FAST_1.id]: ReadonlyArray<'text'>
   [XIAOMI_MIMO_V2_FLASH.id]: ReadonlyArray<'text'>
   [XIAOMI_MIMO_V2_OMNI.id]: ReadonlyArray<'text' | 'audio' | 'image' | 'video'>
@@ -16547,6 +16891,8 @@ export type OpenRouterModelInputModalitiesByName = {
   [Z_AI_GLM_4_7_FLASH.id]: ReadonlyArray<'text'>
   [Z_AI_GLM_5.id]: ReadonlyArray<'text'>
   [Z_AI_GLM_5_TURBO.id]: ReadonlyArray<'text'>
+  [Z_AI_GLM_5_1.id]: ReadonlyArray<'text'>
+  [Z_AI_GLM_5V_TURBO.id]: ReadonlyArray<'image' | 'text' | 'video'>
 }
 
 export const OPENROUTER_CHAT_MODELS = [
@@ -16560,7 +16906,6 @@ export const OPENROUTER_CHAT_MODELS = [
   ALLENAI_OLMO_2_0325_32B_INSTRUCT.id,
   ALLENAI_OLMO_3_32B_THINK.id,
   ALLENAI_OLMO_3_1_32B_INSTRUCT.id,
-  ALLENAI_OLMO_3_1_32B_THINK.id,
   ALPINDALE_GOLIATH_120B.id,
   AMAZON_NOVA_2_LITE_V1.id,
   AMAZON_NOVA_LITE_V1.id,
@@ -16570,7 +16915,6 @@ export const OPENROUTER_CHAT_MODELS = [
   ANTHRACITE_ORG_MAGNUM_V4_72B.id,
   ANTHROPIC_CLAUDE_3_HAIKU.id,
   ANTHROPIC_CLAUDE_3_5_HAIKU.id,
-  ANTHROPIC_CLAUDE_3_5_SONNET.id,
   ANTHROPIC_CLAUDE_3_7_SONNET.id,
   ANTHROPIC_CLAUDE_3_7_SONNET_THINKING.id,
   ANTHROPIC_CLAUDE_HAIKU_4_5.id,
@@ -16578,6 +16922,7 @@ export const OPENROUTER_CHAT_MODELS = [
   ANTHROPIC_CLAUDE_OPUS_4_1.id,
   ANTHROPIC_CLAUDE_OPUS_4_5.id,
   ANTHROPIC_CLAUDE_OPUS_4_6.id,
+  ANTHROPIC_CLAUDE_OPUS_4_6_FAST.id,
   ANTHROPIC_CLAUDE_SONNET_4.id,
   ANTHROPIC_CLAUDE_SONNET_4_5.id,
   ANTHROPIC_CLAUDE_SONNET_4_6.id,
@@ -16585,8 +16930,8 @@ export const OPENROUTER_CHAT_MODELS = [
   ARCEE_AI_MAESTRO_REASONING.id,
   ARCEE_AI_SPOTLIGHT.id,
   ARCEE_AI_TRINITY_LARGE_PREVIEW_FREE.id,
+  ARCEE_AI_TRINITY_LARGE_THINKING.id,
   ARCEE_AI_TRINITY_MINI.id,
-  ARCEE_AI_TRINITY_MINI_FREE.id,
   ARCEE_AI_VIRTUOSO_LARGE.id,
   BAIDU_ERNIE_4_5_21B_A3B.id,
   BAIDU_ERNIE_4_5_21B_A3B_THINKING.id,
@@ -16643,6 +16988,10 @@ export const OPENROUTER_CHAT_MODELS = [
   GOOGLE_GEMMA_3N_E2B_IT_FREE.id,
   GOOGLE_GEMMA_3N_E4B_IT.id,
   GOOGLE_GEMMA_3N_E4B_IT_FREE.id,
+  GOOGLE_GEMMA_4_26B_A4B_IT.id,
+  GOOGLE_GEMMA_4_26B_A4B_IT_FREE.id,
+  GOOGLE_GEMMA_4_31B_IT.id,
+  GOOGLE_GEMMA_4_31B_IT_FREE.id,
   GRYPHE_MYTHOMAX_L2_13B.id,
   IBM_GRANITE_GRANITE_4_0_H_MICRO.id,
   INCEPTION_MERCURY.id,
@@ -16650,13 +16999,10 @@ export const OPENROUTER_CHAT_MODELS = [
   INCEPTION_MERCURY_CODER.id,
   INFLECTION_INFLECTION_3_PI.id,
   INFLECTION_INFLECTION_3_PRODUCTIVITY.id,
-  KWAIPILOT_KAT_CODER_PRO.id,
   KWAIPILOT_KAT_CODER_PRO_V2.id,
   LIQUID_LFM_2_24B_A2B.id,
-  LIQUID_LFM_2_2_6B.id,
   LIQUID_LFM_2_5_1_2B_INSTRUCT_FREE.id,
   LIQUID_LFM_2_5_1_2B_THINKING_FREE.id,
-  LIQUID_LFM2_8B_A1B.id,
   MANCER_WEAVER.id,
   MEITUAN_LONGCAT_FLASH_CHAT.id,
   META_LLAMA_LLAMA_3_70B_INSTRUCT.id,
@@ -16850,8 +17196,10 @@ export const OPENROUTER_CHAT_MODELS = [
   QWEN_QWEN3_5_9B.id,
   QWEN_QWEN3_5_FLASH_02_23.id,
   QWEN_QWEN3_5_PLUS_02_15.id,
+  QWEN_QWEN3_6_PLUS.id,
   QWEN_QWQ_32B.id,
-  REKA_REKA_EDGE.id,
+  REKAAI_REKA_EDGE.id,
+  REKAAI_REKA_FLASH_3.id,
   RELACE_RELACE_APPLY_3.id,
   RELACE_RELACE_SEARCH.id,
   SAO10K_L3_EURYALE_70B.id,
@@ -16860,7 +17208,6 @@ export const OPENROUTER_CHAT_MODELS = [
   SAO10K_L3_1_EURYALE_70B.id,
   SAO10K_L3_3_EURYALE_70B.id,
   STEPFUN_STEP_3_5_FLASH.id,
-  STEPFUN_STEP_3_5_FLASH_FREE.id,
   SWITCHPOINT_ROUTER.id,
   TENCENT_HUNYUAN_A13B_INSTRUCT.id,
   THEDRUMMER_CYDONIA_24B_V4_1.id,
@@ -16878,8 +17225,8 @@ export const OPENROUTER_CHAT_MODELS = [
   X_AI_GROK_4.id,
   X_AI_GROK_4_FAST.id,
   X_AI_GROK_4_1_FAST.id,
-  X_AI_GROK_4_20_BETA.id,
-  X_AI_GROK_4_20_MULTI_AGENT_BETA.id,
+  X_AI_GROK_4_20.id,
+  X_AI_GROK_4_20_MULTI_AGENT.id,
   X_AI_GROK_CODE_FAST_1.id,
   XIAOMI_MIMO_V2_FLASH.id,
   XIAOMI_MIMO_V2_OMNI.id,
@@ -16895,6 +17242,8 @@ export const OPENROUTER_CHAT_MODELS = [
   Z_AI_GLM_4_7_FLASH.id,
   Z_AI_GLM_5.id,
   Z_AI_GLM_5_TURBO.id,
+  Z_AI_GLM_5_1.id,
+  Z_AI_GLM_5V_TURBO.id,
 ] as const
 
 export const OPENROUTER_IMAGE_MODELS = [
