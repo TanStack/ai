@@ -213,6 +213,122 @@ const GROK_2_IMAGE = {
  * Grok Chat Models
  * Based on xAI's available models as of 2025
  */
+const GROK_3_BETA = {
+  name: 'grok-3-beta',
+  context_window: 131_072,
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+  },
+  pricing: {
+    input: {
+      normal: 3,
+      cached: 0.75,
+    },
+    output: {
+      normal: 15,
+    },
+  },
+} as const satisfies ModelMeta
+
+const GROK_3_MINI_BETA = {
+  name: 'grok-3-mini-beta',
+  context_window: 131_072,
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+  },
+  pricing: {
+    input: {
+      normal: 0.3,
+      cached: 0.075,
+    },
+    output: {
+      normal: 0.5,
+    },
+  },
+} as const satisfies ModelMeta
+
+const GROK_4_FAST = {
+  name: 'grok-4-fast',
+  context_window: 2_000_000,
+  max_output_tokens: 30_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+  },
+  pricing: {
+    input: {
+      normal: 0.2,
+      cached: 0.05,
+    },
+    output: {
+      normal: 0.5,
+    },
+  },
+} as const satisfies ModelMeta
+
+const GROK_4_1_FAST = {
+  name: 'grok-4.1-fast',
+  context_window: 2_000_000,
+  max_output_tokens: 30_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+  },
+  pricing: {
+    input: {
+      normal: 0.2,
+      cached: 0.05,
+    },
+    output: {
+      normal: 0.5,
+    },
+  },
+} as const satisfies ModelMeta
+
+const GROK_4_20 = {
+  name: 'grok-4.20',
+  context_window: 2_000_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 6,
+    },
+  },
+} as const satisfies ModelMeta
+
+const GROK_4_20_MULTI_AGENT = {
+  name: 'grok-4.20-multi-agent',
+  context_window: 2_000_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 6,
+    },
+  },
+} as const satisfies ModelMeta
+
 export const GROK_CHAT_MODELS = [
   GROK_4_1_FAST_REASONING.name,
   GROK_4_1_FAST_NON_REASONING.name,
@@ -223,6 +339,13 @@ export const GROK_CHAT_MODELS = [
   GROK_3.name,
   GROK_3_MINI.name,
   GROK_2_VISION.name,
+
+  GROK_3_BETA.name,
+  GROK_3_MINI_BETA.name,
+  GROK_4_FAST.name,
+  GROK_4_1_FAST.name,
+  GROK_4_20.name,
+  GROK_4_20_MULTI_AGENT.name,
 ] as const
 
 /**
@@ -247,6 +370,12 @@ export type GrokModelInputModalitiesByName = {
   [GROK_3.name]: typeof GROK_3.supports.input
   [GROK_3_MINI.name]: typeof GROK_3_MINI.supports.input
   [GROK_2_VISION.name]: typeof GROK_2_VISION.supports.input
+  [GROK_3_BETA.name]: typeof GROK_3_BETA.supports.input
+  [GROK_3_MINI_BETA.name]: typeof GROK_3_MINI_BETA.supports.input
+  [GROK_4_FAST.name]: typeof GROK_4_FAST.supports.input
+  [GROK_4_1_FAST.name]: typeof GROK_4_1_FAST.supports.input
+  [GROK_4_20.name]: typeof GROK_4_20.supports.input
+  [GROK_4_20_MULTI_AGENT.name]: typeof GROK_4_20_MULTI_AGENT.supports.input
 }
 
 /**
