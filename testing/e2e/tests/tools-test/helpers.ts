@@ -179,3 +179,36 @@ export async function getToolCalls(
     }
   })
 }
+
+/**
+ * Extract tool-call parts with parsed arguments from #messages-json-content.
+ */
+export async function getToolCallParts(
+  page: Page,
+): Promise<Array<{ name: string; arguments: Record<string, unknown> }>> {
+  return page.evaluate(() => {
+    const el = document.getElementById('messages-json-content')
+    if (!el) return []
+    try {
+      const messages = JSON.parse(el.textContent || '[]')
+      const parts: Array<{ name: string; arguments: Record<string, unknown> }> =
+        []
+      for (const msg of messages) {
+        for (const part of msg.parts || []) {
+          if (part.type === 'tool-call') {
+            parts.push({
+              name: part.name,
+              arguments:
+                typeof part.arguments === 'string'
+                  ? JSON.parse(part.arguments)
+                  : part.arguments,
+            })
+          }
+        }
+      }
+      return parts
+    } catch {
+      return []
+    }
+  })
+}

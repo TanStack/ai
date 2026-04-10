@@ -715,6 +715,7 @@ describe('chat()', () => {
       )
       expect(toolArgsChunks).toHaveLength(1)
       expect((toolArgsChunks[0] as any).delta).toBe('{"city":"NYC"}')
+      expect((toolArgsChunks[0] as any).args).toBe('{"city":"NYC"}')
 
       const toolEndChunks = chunks.filter(
         (c) => c.type === 'TOOL_CALL_END' && (c as any).toolCallId === 'call_1',

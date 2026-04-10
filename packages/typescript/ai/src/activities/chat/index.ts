@@ -1114,6 +1114,7 @@ class TextEngine<
           model: finishEvent.model,
           toolCallId: result.toolCallId,
           delta: args,
+          args,
         })
       }
 
