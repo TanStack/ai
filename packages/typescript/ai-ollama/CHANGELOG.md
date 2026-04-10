@@ -1,5 +1,11 @@
 # @tanstack/ai-ollama
 
+## 0.6.5
+
+### Patch Changes
+
+- Add `headers` support to `OllamaClientConfig` and `createOllamaChat`. The Ollama SDK already accepts `config.headers` and passes them on every request — this change exposes the option through the TanStack AI adapter, enabling custom headers like `X-Test-Id` for test isolation. ([#417](https://github.com/TanStack/ai/pull/417))
+
 ## 0.6.4
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @tanstack/ai-grok
 
+## 0.6.5
+
+### Patch Changes
+
+- Update model metadata from OpenRouter API ([#433](https://github.com/TanStack/ai/pull/433))
+
 ## 0.6.4
 
 ### Patch Changes
