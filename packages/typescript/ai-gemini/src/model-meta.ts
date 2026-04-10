@@ -934,7 +934,17 @@ const GEMINI_2_0_FLASH_001 = {
   supports: {
     input: ['text', 'image', 'document', 'audio', 'video'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -945,7 +955,15 @@ const GEMINI_2_0_FLASH_001 = {
       normal: 0.4,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMINI_2_0_FLASH_LITE_001 = {
   name: 'gemini-2.0-flash-lite-001',
@@ -954,7 +972,17 @@ const GEMINI_2_0_FLASH_LITE_001 = {
   supports: {
     input: ['text', 'image', 'document', 'audio', 'video'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -964,7 +992,15 @@ const GEMINI_2_0_FLASH_LITE_001 = {
       normal: 0.3,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMINI_2_5_PRO_PREVIEW = {
   name: 'gemini-2.5-pro-preview',
@@ -973,7 +1009,17 @@ const GEMINI_2_5_PRO_PREVIEW = {
   supports: {
     input: ['document', 'image', 'text', 'audio'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -984,7 +1030,15 @@ const GEMINI_2_5_PRO_PREVIEW = {
       normal: 10,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMINI_2_5_PRO_PREVIEW_05_06 = {
   name: 'gemini-2.5-pro-preview-05-06',
@@ -993,7 +1047,17 @@ const GEMINI_2_5_PRO_PREVIEW_05_06 = {
   supports: {
     input: ['text', 'image', 'document', 'audio', 'video'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -1004,7 +1068,15 @@ const GEMINI_2_5_PRO_PREVIEW_05_06 = {
       normal: 10,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = {
   name: 'gemini-3.1-pro-preview-customtools',
@@ -1013,7 +1085,17 @@ const GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = {
   supports: {
     input: ['text', 'audio', 'image', 'video', 'document'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -1024,7 +1106,15 @@ const GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS = {
       normal: 12,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMMA_2_27B_IT = {
   name: 'gemma-2-27b-it',
@@ -1033,7 +1123,17 @@ const GEMMA_2_27B_IT = {
   supports: {
     input: ['text'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -1043,7 +1143,15 @@ const GEMMA_2_27B_IT = {
       normal: 0.65,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMMA_2_9B_IT = {
   name: 'gemma-2-9b-it',
@@ -1051,7 +1159,17 @@ const GEMMA_2_9B_IT = {
   supports: {
     input: ['text'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -1061,7 +1179,15 @@ const GEMMA_2_9B_IT = {
       normal: 0.09,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMMA_3_12B_IT = {
   name: 'gemma-3-12b-it',
@@ -1069,7 +1195,17 @@ const GEMMA_3_12B_IT = {
   supports: {
     input: ['text', 'image'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -1079,7 +1215,15 @@ const GEMMA_3_12B_IT = {
       normal: 0.13,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMMA_3_27B_IT = {
   name: 'gemma-3-27b-it',
@@ -1088,7 +1232,17 @@ const GEMMA_3_27B_IT = {
   supports: {
     input: ['text', 'image'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -1098,7 +1252,15 @@ const GEMMA_3_27B_IT = {
       normal: 0.16,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMMA_3_4B_IT = {
   name: 'gemma-3-4b-it',
@@ -1106,7 +1268,17 @@ const GEMMA_3_4B_IT = {
   supports: {
     input: ['text', 'image'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -1116,7 +1288,15 @@ const GEMMA_3_4B_IT = {
       normal: 0.08,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMMA_3N_E4B_IT = {
   name: 'gemma-3n-e4b-it',
@@ -1124,7 +1304,17 @@ const GEMMA_3N_E4B_IT = {
   supports: {
     input: ['text'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -1134,7 +1324,15 @@ const GEMMA_3N_E4B_IT = {
       normal: 0.04,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMMA_4_26B_A4B_IT = {
   name: 'gemma-4-26b-a4b-it',
@@ -1143,7 +1341,17 @@ const GEMMA_4_26B_A4B_IT = {
   supports: {
     input: ['image', 'text', 'video'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -1153,7 +1361,15 @@ const GEMMA_4_26B_A4B_IT = {
       normal: 0.4,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 const GEMMA_4_31B_IT = {
   name: 'gemma-4-31b-it',
@@ -1162,7 +1378,17 @@ const GEMMA_4_31B_IT = {
   supports: {
     input: ['image', 'text', 'video'],
     output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],
+    capabilities: [
+      'batch_api',
+      'caching',
+      'code_execution',
+      'file_search',
+      'function_calling',
+      'search_grounding',
+      'structured_output',
+      'thinking',
+      'url_context',
+    ],
   },
   pricing: {
     input: {
@@ -1172,7 +1398,15 @@ const GEMMA_4_31B_IT = {
       normal: 0.4,
     },
   },
-} as const satisfies ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+>
 
 export const GEMINI_MODELS = [
   GEMINI_3_1_PRO.name,
@@ -1351,19 +1585,97 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions
-  [GEMINI_2_0_FLASH_001.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMINI_2_0_FLASH_LITE_001.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMINI_2_5_PRO_PREVIEW.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMINI_2_5_PRO_PREVIEW_05_06.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMMA_2_27B_IT.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMMA_2_9B_IT.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMMA_3_12B_IT.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMMA_3_27B_IT.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMMA_3_4B_IT.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMMA_3N_E4B_IT.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMMA_4_26B_A4B_IT.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
-  [GEMMA_4_31B_IT.name]: GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions
+  [GEMINI_2_0_FLASH_001.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMINI_2_0_FLASH_LITE_001.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMINI_2_5_PRO_PREVIEW.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMINI_2_5_PRO_PREVIEW_05_06.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMMA_2_27B_IT.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMMA_2_9B_IT.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMMA_3_12B_IT.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMMA_3_27B_IT.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMMA_3_4B_IT.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMMA_3N_E4B_IT.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMMA_4_26B_A4B_IT.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
+  [GEMMA_4_31B_IT.name]: GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions &
+    GeminiThinkingAdvancedOptions
 }
 
 /**

@@ -442,7 +442,16 @@ const CLAUDE_OPUS_4_6_FAST = {
       normal: 150,
     },
   },
-} as const satisfies ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
 
 export const ANTHROPIC_MODELS = [
   CLAUDE_OPUS_4_6.id,
@@ -560,7 +569,14 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions
-  [CLAUDE_OPUS_4_6_FAST.id]: AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions
+  [CLAUDE_OPUS_4_6_FAST.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
 }
 
 /**
