@@ -24,6 +24,10 @@ const ROOT = resolve(__dirname, '..')
 // Provider configuration
 // ---------------------------------------------------------------------------
 
+/** Seconds in 30 days — models older than this before the last sync are skipped */
+const MAX_MODEL_AGE_SECONDS = 30 * 24 * 60 * 60
+const LAST_RUN_FILE = resolve(ROOT, 'scripts/.sync-models-last-run')
+
 interface ProviderConfig {
   /** npm package name for changeset */
   packageName: string
@@ -50,6 +54,8 @@ interface ProviderConfig {
   hasBothNameAndId: boolean
   /** Whether the provider options type is a mapped type (skip insertion) */
   providerOptionsIsMappedType: boolean
+  /** Model ID patterns to always skip (matched against stripped ID) */
+  skipPatterns: Array<string>
 }
 
 const PROVIDER_MAP: Record<string, ProviderConfig> = {
@@ -72,6 +78,13 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
       'OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions',
     hasBothNameAndId: false,
     providerOptionsIsMappedType: false,
+    skipPatterns: [
+      'gpt-3.5-',    // Legacy GPT-3.5 models
+      'gpt-4-',      // Legacy GPT-4 base models (not 4.1+)
+      'gpt-4o',      // GPT-4o variants (4o, 4o-mini, 4o-audio, etc.)
+      'gpt-oss-',    // Open-source/experimental models
+      'chatgpt-',    // ChatGPT branded models
+    ],
   },
   'anthropic/': {
     packageName: '@tanstack/ai-anthropic',
@@ -93,6 +106,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
       'AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions',
     hasBothNameAndId: true,
     providerOptionsIsMappedType: false,
+    skipPatterns: [],
   },
   'google/': {
     packageName: '@tanstack/ai-gemini',
@@ -111,6 +125,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
       'GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions',
     hasBothNameAndId: false,
     providerOptionsIsMappedType: false,
+    skipPatterns: [
+      'gemma-',  // Gemma open-source models (not Gemini API models)
+    ],
   },
   'x-ai/': {
     packageName: '@tanstack/ai-grok',
@@ -127,6 +144,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     referenceProviderOptionsEntry: 'GrokProviderOptions',
     hasBothNameAndId: false,
     providerOptionsIsMappedType: true,
+    skipPatterns: [],
   },
 }
 
@@ -269,6 +287,49 @@ const NON_CHAT_MODEL_PREFIXES = [
 
 function isNonChatModel(strippedId: string): boolean {
   return NON_CHAT_MODEL_PREFIXES.some((p) => strippedId.startsWith(p))
+}
+
+/**
+ * Check if a model should be skipped based on provider-specific patterns.
+ */
+function matchesSkipPattern(
+  strippedId: string,
+  patterns: Array<string>,
+): boolean {
+  return patterns.some((p) => strippedId.startsWith(p))
+}
+
+/**
+ * Read the last sync run timestamp. Returns epoch seconds, or null if no previous run.
+ */
+async function readLastRunTimestamp(): Promise<number | null> {
+  try {
+    const content = await readFile(LAST_RUN_FILE, 'utf-8')
+    const ts = parseInt(content.trim(), 10)
+    return isNaN(ts) ? null : ts
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Write the current timestamp as the last sync run.
+ */
+async function writeLastRunTimestamp(): Promise<void> {
+  const now = Math.floor(Date.now() / 1000)
+  await writeFile(LAST_RUN_FILE, String(now) + '\n', 'utf-8')
+}
+
+/**
+ * Check if a model is too old to sync. Models created more than 30 days
+ * before the last sync run are considered deprecated/legacy and skipped.
+ */
+function isModelTooOld(
+  model: OpenRouterModel,
+  cutoffTimestamp: number,
+): boolean {
+  if (!model.created) return false // No date = don't skip
+  return model.created < cutoffTimestamp
 }
 
 // ---------------------------------------------------------------------------
@@ -443,6 +504,15 @@ async function main() {
   let totalAdded = 0
   const changedPackages = new Set<string>()
 
+  // Determine age cutoff: skip models created >30 days before last run
+  const lastRun = await readLastRunTimestamp()
+  const now = Math.floor(Date.now() / 1000)
+  const cutoffTimestamp = (lastRun ?? now) - MAX_MODEL_AGE_SECONDS
+  const cutoffDate = new Date(cutoffTimestamp * 1000).toISOString().split('T')[0]
+  console.log(
+    `Model age cutoff: ${cutoffDate} (skipping models created before this date)`,
+  )
+
   for (const [prefix, config] of Object.entries(PROVIDER_MAP)) {
     console.log(`\nProcessing provider: ${prefix}`)
 
@@ -488,6 +558,16 @@ async function main() {
 
       // Skip non-chat model families (audio/music/video/image generation)
       if (isNonChatModel(strippedId)) {
+        continue
+      }
+
+      // Skip provider-specific patterns (deprecated/legacy model families)
+      if (matchesSkipPattern(strippedId, config.skipPatterns)) {
+        continue
+      }
+
+      // Skip models that are too old (created >30 days before last sync)
+      if (isModelTooOld(model, cutoffTimestamp)) {
         continue
       }
 
@@ -586,6 +666,9 @@ async function main() {
   }
 
   console.log(`\nDone. Added ${totalAdded} new models total.`)
+
+  // Record this run's timestamp for future age-based filtering
+  await writeLastRunTimestamp()
 
   // Create changeset if any models were added
   if (totalAdded > 0) {
