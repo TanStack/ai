@@ -41,7 +41,14 @@ function MiddlewareTestPage() {
   }
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'system-ui', backgroundColor: '#f8f9fa', color: '#1a1a2e' }}>
+    <div
+      style={{
+        padding: '20px',
+        fontFamily: 'system-ui',
+        backgroundColor: '#f8f9fa',
+        color: '#1a1a2e',
+      }}
+    >
       <h1>Middleware Test</h1>
 
       <div style={{ marginBottom: '10px' }}>
