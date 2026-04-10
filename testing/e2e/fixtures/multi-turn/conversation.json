@@ -1,0 +1,20 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[multiturn-1] what guitars do you have"
+      },
+      "response": {
+        "content": "We have four guitars in stock: the Fender Stratocaster ($1,299), Gibson Les Paul ($2,499), Taylor 814ce ($3,299), and Martin D-28 ($2,999). What would you like to know more about?"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[multiturn-2] tell me about the cheapest one"
+      },
+      "response": {
+        "content": "The Fender Stratocaster at $1,299 is our most affordable guitar. It's a versatile electric guitar known for its bright, clear tone and comfortable playability. Perfect for blues, rock, and everything in between."
+      }
+    }
+  ]
+}
