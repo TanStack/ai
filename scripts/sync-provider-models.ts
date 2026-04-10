@@ -714,9 +714,7 @@ async function createChangeset(changedPackages: Set<string>) {
     console.log(`\nChangeset created: ${changesetFile}`)
   }
 
-  console.log(
-    `  Packages: ${Array.from(changedPackages).sort().join(', ')}`,
-  )
+  console.log(`  Packages: ${Array.from(changedPackages).sort().join(', ')}`)
 }
 
 function buildChangesetContent(packages: Set<string>): string {
