@@ -27,7 +27,7 @@ jobs:
         uses: TanStack/config/.github/setup@main
 
       - name: Fetch and sync model metadata
-        run: pnpm generate:models:sync
+        run: pnpm generate:models
 
       - name: Check for package changes
         id: changes
@@ -36,36 +36,6 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Detect affected packages and create changeset
-        if: steps.changes.outputs.changed == 'true'
-        run: |
-          CHANGED_FILES=$(git diff --name-only)
-          TIMESTAMP=$(date +%s)
-          CHANGESET_FILE=".changeset/sync-models-${TIMESTAMP}.md"
-
-          PACKAGES=""
-          if echo "$CHANGED_FILES" | grep -q "packages/typescript/ai-openai/"; then
-            PACKAGES="$PACKAGES'@tanstack/ai-openai': patch"$'\n'
-          fi
-          if echo "$CHANGED_FILES" | grep -q "packages/typescript/ai-anthropic/"; then
-            PACKAGES="$PACKAGES'@tanstack/ai-anthropic': patch"$'\n'
-          fi
-          if echo "$CHANGED_FILES" | grep -q "packages/typescript/ai-gemini/"; then
-            PACKAGES="$PACKAGES'@tanstack/ai-gemini': patch"$'\n'
-          fi
-          if echo "$CHANGED_FILES" | grep -q "packages/typescript/ai-grok/"; then
-            PACKAGES="$PACKAGES'@tanstack/ai-grok': patch"$'\n'
-          fi
-          if echo "$CHANGED_FILES" | grep -q "packages/typescript/ai-openrouter/"; then
-            PACKAGES="$PACKAGES'@tanstack/ai-openrouter': patch"$'\n'
-          fi
-
-          if [ -n "$PACKAGES" ]; then
-            printf '%s\n' "---" > "$CHANGESET_FILE"
-            printf '%s' "$PACKAGES" >> "$CHANGESET_FILE"
-            printf '%s\n\n%s\n' "---" "Update model metadata from OpenRouter API" >> "$CHANGESET_FILE"
           fi
 
       - name: Commit and force-push
