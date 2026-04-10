@@ -79,6 +79,24 @@ export function ChatUI({
                   </div>
                 )
               }
+              if (part.type === 'image') {
+                const imgPart = part as any
+                const src =
+                  imgPart.source?.type === 'data'
+                    ? `data:${imgPart.source.mimeType};base64,${imgPart.source.value}`
+                    : imgPart.source?.type === 'url'
+                      ? imgPart.source.value
+                      : undefined
+                return src ? (
+                  <img
+                    key={i}
+                    src={src}
+                    alt="uploaded"
+                    data-testid="image-part"
+                    className="max-w-xs max-h-48 rounded mt-1"
+                  />
+                ) : null
+              }
               if (part.type === 'thinking') {
                 return (
                   <div

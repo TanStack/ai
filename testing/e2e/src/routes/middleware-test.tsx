@@ -41,7 +41,7 @@ function MiddlewareTestPage() {
   }
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'system-ui' }}>
+    <div style={{ padding: '20px', fontFamily: 'system-ui', backgroundColor: '#f8f9fa', color: '#1a1a2e' }}>
       <h1>Middleware Test</h1>
 
       <div style={{ marginBottom: '10px' }}>
@@ -80,6 +80,7 @@ function MiddlewareTestPage() {
         style={{
           marginTop: '20px',
           background: '#f5f5f5',
+          color: '#1a1a2e',
           padding: '10px',
           maxHeight: '400px',
           overflow: 'auto',

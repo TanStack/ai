@@ -210,6 +210,8 @@ function ToolsTestPage() {
         height: '100vh',
         padding: '20px',
         fontFamily: 'system-ui, sans-serif',
+        backgroundColor: '#f8f9fa',
+        color: '#1a1a2e',
       }}
     >
       <h1 style={{ marginTop: 0 }}>Tool Testing Page</h1>
