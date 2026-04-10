@@ -224,7 +224,14 @@ function ToolsTestPage() {
           id="scenario-select"
           value={scenario}
           onChange={(e) => setScenario(e.target.value)}
-          style={{ padding: '8px', fontSize: '14px', backgroundColor: '#1e293b', color: '#e2e8f0', border: '1px solid #475569', borderRadius: '4px' }}
+          style={{
+            padding: '8px',
+            fontSize: '14px',
+            backgroundColor: '#1e293b',
+            color: '#e2e8f0',
+            border: '1px solid #475569',
+            borderRadius: '4px',
+          }}
         >
           <optgroup label="Basic Scenarios">
             {SCENARIO_LIST.filter((s) => s.category === 'basic').map((s) => (
