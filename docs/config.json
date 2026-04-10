@@ -36,6 +36,15 @@
       ]
     },
     {
+      "label": "Comparison",
+      "children": [
+        {
+          "label": "TanStack AI vs Vercel AI SDK",
+          "to": "comparison/vercel-ai-sdk"
+        }
+      ]
+    },
+    {
       "label": "Tools",
       "children": [
         {
