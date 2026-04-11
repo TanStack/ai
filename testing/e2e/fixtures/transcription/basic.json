@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[transcription] transcribe the audio clip" },
+      "response": {
+        "content": "Transcription result: I would like to buy a Fender Stratocaster please. The audio is clear with no background noise."
+      }
+    }
+  ]
+}

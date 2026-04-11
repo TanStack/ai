@@ -1,0 +1,25 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[approval-tool] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "I need your permission to delete this file.",
+        "toolCalls": [
+          { "name": "delete_file", "arguments": "{\"path\":\"/tmp/test.txt\"}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[approval-tool] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The file has been deleted."
+      }
+    }
+  ]
+}

@@ -36,6 +36,10 @@ pnpm test:coverage         # Generate coverage reports
 pnpm test:knip             # Check for unused dependencies
 pnpm test:sherif           # Check pnpm workspace consistency
 pnpm test:docs             # Verify documentation links
+
+# E2E tests (required for all changes)
+pnpm --filter @tanstack/ai-e2e test:e2e    # Run E2E tests
+pnpm --filter @tanstack/ai-e2e test:e2e:ui # Run with Playwright UI
 ```
 
 ### Testing Individual Packages
@@ -99,6 +103,10 @@ packages/
 │   └── solid-ai-devtools/ # Solid DevTools component
 ├── php/                 # PHP packages (future)
 └── python/              # Python packages (future)
+
+testing/
+├── e2e/                 # E2E tests (Playwright + aimock) — MANDATORY for all changes
+└── panel/               # Vendor integration panel
 
 examples/                # Example applications
 ├── ts-react-chat/       # React chat example
@@ -204,11 +212,13 @@ Each framework integration uses the headless `ai-client` under the hood.
 
 1. Create a changeset: `pnpm changeset`
 2. Make changes in the appropriate package(s)
-3. Run tests: `pnpm test:lib` (or package-specific tests)
-4. Run type checks: `pnpm test:types`
-5. Run linter: `pnpm test:eslint`
-6. Format code: `pnpm format`
-7. Verify build: `pnpm test:build` or `pnpm build`
+3. **Add or update E2E tests** (see E2E Testing below) — this is mandatory for any feature, bug fix, or behavior change
+4. Run tests: `pnpm test:lib` (or package-specific tests)
+5. Run E2E tests: `pnpm --filter @tanstack/ai-e2e test:e2e`
+6. Run type checks: `pnpm test:types`
+7. Run linter: `pnpm test:eslint`
+8. Format code: `pnpm format`
+9. Verify build: `pnpm test:build` or `pnpm build`
 
 ### Working with Examples
 
@@ -247,6 +257,38 @@ Each package uses `exports` field in package.json for subpath exports (e.g., `@t
 - Unit tests in `*.test.ts` files alongside source
 - Uses Vitest with happy-dom for DOM testing
 - Test coverage via `pnpm test:coverage`
+- **E2E tests are mandatory** — see E2E Testing section below
+
+### E2E Testing (REQUIRED)
+
+**Every feature, bug fix, or behavior change MUST include E2E test coverage.** The E2E suite lives at `testing/e2e/` and uses Playwright + [aimock](https://github.com/CopilotKit/aimock) for deterministic LLM mocking.
+
+```bash
+# Run all E2E tests
+pnpm --filter @tanstack/ai-e2e test:e2e
+
+# Run with Playwright UI (for debugging)
+pnpm --filter @tanstack/ai-e2e test:e2e:ui
+
+# Run a specific spec
+pnpm --filter @tanstack/ai-e2e test:e2e -- --grep "openai -- chat"
+
+# Record real LLM responses as fixtures
+OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record
+```
+
+**What to add for your change:**
+
+| Change type                             | What E2E test to add                                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------------------------- |
+| New provider adapter                    | Add provider to `feature-support.ts` + `test-matrix.ts`. Existing feature tests auto-run. |
+| New feature (e.g., new generation type) | Add feature to types, feature config, support matrix. Create fixture + spec file.         |
+| Bug fix in chat/streaming               | Add a test case to `chat.spec.ts` or `tools-test/` that reproduces the bug.               |
+| Tool system change                      | Add scenario to `tools-test-scenarios.ts` + test in `tools-test/` specs.                  |
+| Middleware change                       | Add test to `middleware.spec.ts` with appropriate scenario.                               |
+| Client-side change (useChat, etc.)      | Add test covering the observable behavior change.                                         |
+
+**Guide:** See `testing/e2e/README.md` for full instructions on adding tests, recording fixtures, and troubleshooting.
 
 ### Documentation
 

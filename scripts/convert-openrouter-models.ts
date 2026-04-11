@@ -140,7 +140,11 @@ function generateModelMetaString(model: OpenRouterModel): string {
   if (!inputModalities.includes('text')) {
     inputModalities.unshift('text')
   }
-  if (outputModalities.includes('text')) {
+  const nonChatFamilies = ['lyria', 'veo', 'imagen', 'sora', 'dall-e', 'tts']
+  const isNonChat = nonChatFamilies.some((f) =>
+    model.id.toLowerCase().includes(f),
+  )
+  if (outputModalities.includes('text') && !isNonChat) {
     chatModels.add(`${constName}.id`)
   }
   if (outputModalities.includes('image')) {

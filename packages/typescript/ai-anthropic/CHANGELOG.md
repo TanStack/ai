@@ -1,5 +1,11 @@
 # @tanstack/ai-anthropic
 
+## 0.7.3
+
+### Patch Changes
+
+- Update model metadata from OpenRouter API ([#433](https://github.com/TanStack/ai/pull/433))
+
 ## 0.7.2
 
 ### Patch Changes
