@@ -1,5 +1,11 @@
 # @tanstack/ai-gemini
 
+## 0.8.6
+
+### Patch Changes
+
+- Update model metadata from OpenRouter API ([#433](https://github.com/TanStack/ai/pull/433))
+
 ## 0.8.5
 
 ### Patch Changes
