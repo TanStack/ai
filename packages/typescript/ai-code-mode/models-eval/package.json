@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-code-mode-models-eval",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "type": "module",
   "description": "Dev benchmark: local/cloud models vs code-mode database-demo gold (not published)",

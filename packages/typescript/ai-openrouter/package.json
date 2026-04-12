@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-openrouter",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "OpenRouter adapter for TanStack AI",
   "author": "",
   "license": "MIT",

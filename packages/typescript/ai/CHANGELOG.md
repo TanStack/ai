@@ -1,5 +1,14 @@
 # @tanstack/ai
 
+## 0.10.2
+
+### Patch Changes
+
+- Emit TOOL_CALL_START and TOOL_CALL_ARGS for pending tool calls during continuation re-executions ([#372](https://github.com/TanStack/ai/pull/372))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.2
+
 ## 0.10.1
 
 ### Patch Changes
