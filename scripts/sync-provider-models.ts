@@ -11,6 +11,7 @@
  *   pnpm tsx scripts/sync-provider-models.ts
  */
 
+import { execFileSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -497,6 +498,38 @@ function addToTypeMap(
 }
 
 // ---------------------------------------------------------------------------
+// Git-based change detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect packages with uncommitted changes by running `git diff`.
+ * This captures changes from ALL prior pipeline steps (e.g. convert-openrouter-models.ts)
+ * not just the models added by this script.
+ */
+function detectChangedPackages(): Set<string> {
+  const changed = new Set<string>()
+  try {
+    const diff = execFileSync(
+      'git',
+      ['diff', 'HEAD', '--name-only', '--', 'packages/'],
+      { encoding: 'utf-8', cwd: ROOT },
+    ).trim()
+    if (!diff) return changed
+
+    for (const line of diff.split('\n')) {
+      // packages/typescript/ai-openrouter/... → @tanstack/ai-openrouter
+      const match = line.match(/^packages\/typescript\/([\w-]+)\//)
+      if (match) {
+        changed.add(`@tanstack/${match[1]}`)
+      }
+    }
+  } catch {
+    // git not available (e.g. running outside a repo) — fall back to empty set
+  }
+  return changed
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -672,20 +705,23 @@ async function main() {
   // Record this run's timestamp for future age-based filtering
   await writeLastRunTimestamp()
 
-  // Create changeset if any models were added
-  if (totalAdded > 0) {
-    await createChangeset(changedPackages)
+  // Detect all packages with uncommitted changes (includes changes from
+  // convert-openrouter-models.ts which runs before this script)
+  const allChangedPackages = detectChangedPackages()
+  for (const pkg of changedPackages) {
+    allChangedPackages.add(pkg)
+  }
+
+  if (allChangedPackages.size > 0) {
+    await createChangeset(allChangedPackages)
   }
 }
 
 /**
  * Create or update the sync-models changeset file.
  * If one already exists, merges the package lists. Otherwise creates a new one.
- * Always includes @tanstack/ai-openrouter since the convert script regenerates it.
  */
 async function createChangeset(changedPackages: Set<string>) {
-  changedPackages.add('@tanstack/ai-openrouter')
-
   const changesetDir = resolve(ROOT, '.changeset')
   const { readdir } = await import('node:fs/promises')
   const files = await readdir(changesetDir)
