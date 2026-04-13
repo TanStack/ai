@@ -398,7 +398,9 @@ describe('GeminiAdapter through AI', () => {
     // for the tool result) and the follow-up user text
     const lastParts = payload.contents[2].parts
     const hasFunctionResponse = lastParts.some((p: any) => p.functionResponse)
-    const hasFollowUp = lastParts.some((p: any) => p.text === 'What about Paris?')
+    const hasFollowUp = lastParts.some(
+      (p: any) => p.text === 'What about Paris?',
+    )
     const hasToolResultText = lastParts.some(
       (p: any) => p.text === '{"temp":72}',
     )
