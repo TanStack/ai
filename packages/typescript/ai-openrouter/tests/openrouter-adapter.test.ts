@@ -930,3 +930,236 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.toolChoice).toBe('required')
   })
 })
+
+describe('OpenRouter duplicate event prevention', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('does not emit duplicate TEXT_MESSAGE_END when SDK sends separate usage chunk with finishReason', async () => {
+    // Real-world pattern: OpenAI-compatible APIs often send a finish chunk
+    // followed by a separate usage-only chunk, both with finishReason set.
+    const streamChunks = [
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hello' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+      },
+      {
+        // Separate usage chunk — also has finishReason
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 5, completionTokens: 1, totalTokens: 6 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const textEndChunks = chunks.filter((c) => c.type === 'TEXT_MESSAGE_END')
+    expect(textEndChunks).toHaveLength(1)
+  })
+
+  it('does not emit duplicate RUN_FINISHED when SDK sends separate usage chunk with finishReason', async () => {
+    const streamChunks = [
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hello' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 5, completionTokens: 1, totalTokens: 6 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runFinishedChunks = chunks.filter((c) => c.type === 'RUN_FINISHED')
+    expect(runFinishedChunks).toHaveLength(1)
+  })
+
+  it('preserves usage data from the second finishReason chunk', async () => {
+    // When the first finish chunk has no usage but the second does,
+    // the single RUN_FINISHED should carry the usage from the second chunk.
+    const streamChunks = [
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hi' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        // No usage on first finish chunk
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runFinished = chunks.filter((c) => c.type === 'RUN_FINISHED')
+    expect(runFinished).toHaveLength(1)
+    if (runFinished[0]?.type === 'RUN_FINISHED') {
+      expect(runFinished[0].usage).toMatchObject({
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+      })
+    }
+  })
+
+  it('ensures TEXT_MESSAGE_END comes before RUN_FINISHED even with duplicate finishReason chunks', async () => {
+    const streamChunks = [
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hello' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 5, completionTokens: 1, totalTokens: 6 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const eventTypes = chunks.map((c) => c.type)
+    const textEndIndex = eventTypes.lastIndexOf('TEXT_MESSAGE_END' as any)
+    const runFinishedIndex = eventTypes.lastIndexOf('RUN_FINISHED' as any)
+
+    expect(textEndIndex).toBeGreaterThan(-1)
+    expect(runFinishedIndex).toBeGreaterThan(-1)
+    expect(textEndIndex).toBeLessThan(runFinishedIndex)
+  })
+})
+
+describe('OpenRouter STEP event consistency', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('every STEP_FINISHED has a preceding STEP_STARTED', async () => {
+    const streamChunks = [
+      {
+        id: 'chatcmpl-step',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: {
+              reasoningDetails: [
+                { type: 'reasoning.text', text: 'Thinking...' },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-step',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: { content: 'Answer: 42' },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-step',
+        model: 'openai/o1-preview',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/o1-preview',
+      messages: [{ role: 'user', content: 'What is the meaning of life?' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const eventTypes = chunks.map((c) => c.type)
+    const stepFinishedIndices = eventTypes
+      .map((t, i) => (t === 'STEP_FINISHED' ? i : -1))
+      .filter((i) => i !== -1)
+    const stepStartedIndices = eventTypes
+      .map((t, i) => (t === 'STEP_STARTED' ? i : -1))
+      .filter((i) => i !== -1)
+
+    // Every STEP_FINISHED must have a STEP_STARTED before it
+    expect(stepStartedIndices.length).toBeGreaterThan(0)
+    for (const finIdx of stepFinishedIndices) {
+      const hasMatchingStart = stepStartedIndices.some(
+        (startIdx) => startIdx < finIdx,
+      )
+      expect(hasMatchingStart).toBe(true)
+    }
+  })
+})

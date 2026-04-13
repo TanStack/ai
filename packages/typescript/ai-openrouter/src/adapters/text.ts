@@ -76,7 +76,13 @@ interface AGUIState {
   hasClosedReasoning: boolean
   hasEmittedRunStarted: boolean
   hasEmittedTextMessageStart: boolean
+  hasEmittedTextMessageEnd: boolean
+  hasEmittedRunFinished: boolean
   hasEmittedStepStarted: boolean
+  deferredUsage:
+    | { promptTokens: number; completionTokens: number; totalTokens: number }
+    | undefined
+  computedFinishReason: string | undefined
 }
 
 export class OpenRouterTextAdapter<
@@ -116,7 +122,11 @@ export class OpenRouterTextAdapter<
       hasClosedReasoning: false,
       hasEmittedRunStarted: false,
       hasEmittedTextMessageStart: false,
+      hasEmittedTextMessageEnd: false,
+      hasEmittedRunFinished: false,
       hasEmittedStepStarted: false,
+      deferredUsage: undefined,
+      computedFinishReason: undefined,
     }
 
     try {
@@ -177,6 +187,20 @@ export class OpenRouterTextAdapter<
             aguiState,
           )
         }
+      }
+
+      // Emit RUN_FINISHED after the stream ends so we capture usage from
+      // any chunk (some SDKs send usage on a separate trailing chunk).
+      if (aguiState.hasEmittedRunFinished && aguiState.computedFinishReason) {
+        yield asChunk({
+          type: 'RUN_FINISHED',
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model: currentModel || options.model,
+          timestamp,
+          usage: aguiState.deferredUsage,
+          finishReason: aguiState.computedFinishReason,
+        })
       }
     } catch (error) {
       // Emit RUN_STARTED if not yet emitted (error on first call)
@@ -535,82 +559,84 @@ export class OpenRouterTextAdapter<
     }
 
     if (finishReason) {
-      // Emit all completed tool calls when finish reason indicates tool usage
-      if (finishReason === 'tool_calls' || toolCallBuffers.size > 0) {
-        for (const [, tc] of toolCallBuffers.entries()) {
-          // Parse arguments for TOOL_CALL_END
-          let parsedInput: unknown = {}
-          try {
-            parsedInput = tc.arguments ? JSON.parse(tc.arguments) : {}
-          } catch {
-            parsedInput = {}
+      // Capture usage from whichever chunk provides it (may arrive on a
+      // later duplicate finishReason chunk from the SDK).
+      if (usage) {
+        aguiState.deferredUsage = {
+          promptTokens: usage.promptTokens || 0,
+          completionTokens: usage.completionTokens || 0,
+          totalTokens: usage.totalTokens || 0,
+        }
+      }
+
+      // Guard: only emit finish events once.  OpenAI-compatible APIs often
+      // send two chunks with finishReason (one for the finish, one carrying
+      // usage data).  Without this guard TEXT_MESSAGE_END and RUN_FINISHED
+      // would be emitted twice.
+      if (!aguiState.hasEmittedRunFinished) {
+        aguiState.hasEmittedRunFinished = true
+
+        // Emit all completed tool calls when finish reason indicates tool usage
+        if (finishReason === 'tool_calls' || toolCallBuffers.size > 0) {
+          for (const [, tc] of toolCallBuffers.entries()) {
+            // Parse arguments for TOOL_CALL_END
+            let parsedInput: unknown = {}
+            try {
+              parsedInput = tc.arguments ? JSON.parse(tc.arguments) : {}
+            } catch {
+              parsedInput = {}
+            }
+
+            // Emit AG-UI TOOL_CALL_END
+            yield asChunk({
+              type: 'TOOL_CALL_END',
+              toolCallId: tc.id,
+              toolCallName: tc.name,
+              toolName: tc.name,
+              model: meta.model,
+              timestamp: meta.timestamp,
+              input: parsedInput,
+            })
           }
 
-          // Emit AG-UI TOOL_CALL_END
+          toolCallBuffers.clear()
+        }
+
+        aguiState.computedFinishReason =
+          finishReason === 'tool_calls'
+            ? 'tool_calls'
+            : finishReason === 'length'
+              ? 'length'
+              : 'stop'
+
+        // Close reasoning events if still open
+        if (aguiState.reasoningMessageId && !aguiState.hasClosedReasoning) {
+          aguiState.hasClosedReasoning = true
           yield asChunk({
-            type: 'TOOL_CALL_END',
-            toolCallId: tc.id,
-            toolCallName: tc.name,
-            toolName: tc.name,
+            type: 'REASONING_MESSAGE_END',
+            messageId: aguiState.reasoningMessageId,
             model: meta.model,
             timestamp: meta.timestamp,
-            input: parsedInput,
+          })
+          yield asChunk({
+            type: 'REASONING_END',
+            messageId: aguiState.reasoningMessageId,
+            model: meta.model,
+            timestamp: meta.timestamp,
           })
         }
 
-        toolCallBuffers.clear()
+        // Emit TEXT_MESSAGE_END if we had text content
+        if (aguiState.hasEmittedTextMessageStart) {
+          aguiState.hasEmittedTextMessageEnd = true
+          yield asChunk({
+            type: 'TEXT_MESSAGE_END',
+            messageId: aguiState.messageId,
+            model: meta.model,
+            timestamp: meta.timestamp,
+          })
+        }
       }
-
-      const computedFinishReason =
-        finishReason === 'tool_calls'
-          ? 'tool_calls'
-          : finishReason === 'length'
-            ? 'length'
-            : 'stop'
-
-      // Close reasoning events if still open
-      if (aguiState.reasoningMessageId && !aguiState.hasClosedReasoning) {
-        aguiState.hasClosedReasoning = true
-        yield asChunk({
-          type: 'REASONING_MESSAGE_END',
-          messageId: aguiState.reasoningMessageId,
-          model: meta.model,
-          timestamp: meta.timestamp,
-        })
-        yield asChunk({
-          type: 'REASONING_END',
-          messageId: aguiState.reasoningMessageId,
-          model: meta.model,
-          timestamp: meta.timestamp,
-        })
-      }
-
-      // Emit TEXT_MESSAGE_END if we had text content
-      if (aguiState.hasEmittedTextMessageStart) {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_END',
-          messageId: aguiState.messageId,
-          model: meta.model,
-          timestamp: meta.timestamp,
-        })
-      }
-
-      // Emit AG-UI RUN_FINISHED
-      yield asChunk({
-        type: 'RUN_FINISHED',
-        runId: aguiState.runId,
-        threadId: aguiState.threadId,
-        model: meta.model,
-        timestamp: meta.timestamp,
-        usage: usage
-          ? {
-              promptTokens: usage.promptTokens || 0,
-              completionTokens: usage.completionTokens || 0,
-              totalTokens: usage.totalTokens || 0,
-            }
-          : undefined,
-        finishReason: computedFinishReason,
-      })
     }
   }
 
