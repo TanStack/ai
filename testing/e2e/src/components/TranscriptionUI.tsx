@@ -18,7 +18,12 @@ interface TranscriptionUIProps {
 // The adapter will decode this to a File object named "audio.mp3" for the multipart upload
 const TEST_AUDIO_BASE64 = 'data:audio/mpeg;base64,SGVsbG8='
 
-export function TranscriptionUI({ provider, mode, testId, aimockPort }: TranscriptionUIProps) {
+export function TranscriptionUI({
+  provider,
+  mode,
+  testId,
+  aimockPort,
+}: TranscriptionUIProps) {
   const connectionOptions = () => {
     const body = { provider, testId, aimockPort }
 
@@ -31,13 +36,20 @@ export function TranscriptionUI({ provider, mode, testId, aimockPort }: Transcri
     return {
       fetcher: async (input: { audio: string; language?: string }) => {
         return generateTranscriptionFn({
-          data: { audio: input.audio, language: input.language, provider, aimockPort, testId },
+          data: {
+            audio: input.audio,
+            language: input.language,
+            provider,
+            aimockPort,
+            testId,
+          },
         }) as Promise<TranscriptionResult>
       },
     }
   }
 
-  const { generate, result, isLoading, error, status } = useTranscription(connectionOptions())
+  const { generate, result, isLoading, error, status } =
+    useTranscription(connectionOptions())
 
   return (
     <div className="p-4 space-y-4">
@@ -50,10 +62,26 @@ export function TranscriptionUI({ provider, mode, testId, aimockPort }: Transcri
         Transcribe
       </button>
       <div data-testid="generation-status">
-        {status === 'idle' ? 'idle' : isLoading ? 'loading' : error ? 'error' : result ? 'complete' : 'idle'}
+        {status === 'idle'
+          ? 'idle'
+          : isLoading
+            ? 'loading'
+            : error
+              ? 'error'
+              : result
+                ? 'complete'
+                : 'idle'}
       </div>
-      {error && <div data-testid="generation-error" className="text-red-400 text-sm">{error.message}</div>}
-      {result && <p data-testid="transcription-text" className="text-gray-200">{result.text}</p>}
+      {error && (
+        <div data-testid="generation-error" className="text-red-400 text-sm">
+          {error.message}
+        </div>
+      )}
+      {result && (
+        <p data-testid="transcription-text" className="text-gray-200">
+          {result.text}
+        </p>
+      )}
     </div>
   )
 }

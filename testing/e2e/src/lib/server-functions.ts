@@ -30,7 +30,11 @@ export const generateImageFn = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
-    const adapter = createImageAdapter(data.provider, data.aimockPort, data.testId)
+    const adapter = createImageAdapter(
+      data.provider,
+      data.aimockPort,
+      data.testId,
+    )
     return generateImage({
       adapter,
       prompt: data.prompt,
@@ -54,7 +58,11 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
-    const adapter = createTTSAdapter(data.provider, data.aimockPort, data.testId)
+    const adapter = createTTSAdapter(
+      data.provider,
+      data.aimockPort,
+      data.testId,
+    )
     return generateSpeech({
       adapter,
       text: data.text,
@@ -78,7 +86,11 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
-    const adapter = createTranscriptionAdapter(data.provider, data.aimockPort, data.testId)
+    const adapter = createTranscriptionAdapter(
+      data.provider,
+      data.aimockPort,
+      data.testId,
+    )
     return generateTranscription({
       adapter,
       audio: data.audio,
@@ -101,7 +113,11 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
-    const adapter = createVideoAdapter(data.provider, data.aimockPort, data.testId)
+    const adapter = createVideoAdapter(
+      data.provider,
+      data.aimockPort,
+      data.testId,
+    )
     // Non-streaming: create job, poll until complete, return result with URL
     const { jobId } = await generateVideo({
       adapter,

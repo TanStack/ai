@@ -15,7 +15,12 @@ interface VideoGenUIProps {
   aimockPort?: number
 }
 
-export function VideoGenUI({ provider, mode, testId, aimockPort }: VideoGenUIProps) {
+export function VideoGenUI({
+  provider,
+  mode,
+  testId,
+  aimockPort,
+}: VideoGenUIProps) {
   const [prompt, setPrompt] = useState('')
 
   const connectionOptions = () => {
@@ -36,7 +41,8 @@ export function VideoGenUI({ provider, mode, testId, aimockPort }: VideoGenUIPro
     }
   }
 
-  const { generate, result, videoStatus, isLoading, error, status } = useGenerateVideo(connectionOptions())
+  const { generate, result, videoStatus, isLoading, error, status } =
+    useGenerateVideo(connectionOptions())
 
   return (
     <div className="p-4 space-y-4">
@@ -59,16 +65,34 @@ export function VideoGenUI({ provider, mode, testId, aimockPort }: VideoGenUIPro
         </button>
       </div>
       <div data-testid="generation-status">
-        {status === 'idle' ? 'idle' : isLoading ? 'loading' : error ? 'error' : result ? 'complete' : 'idle'}
+        {status === 'idle'
+          ? 'idle'
+          : isLoading
+            ? 'loading'
+            : error
+              ? 'error'
+              : result
+                ? 'complete'
+                : 'idle'}
       </div>
       {videoStatus && (
         <span data-testid="video-status" className="text-gray-400 text-sm">
-          {videoStatus.status}{videoStatus.progress != null && ` (${videoStatus.progress}%)`}
+          {videoStatus.status}
+          {videoStatus.progress != null && ` (${videoStatus.progress}%)`}
         </span>
       )}
-      {error && <div data-testid="generation-error" className="text-red-400 text-sm">{error.message}</div>}
+      {error && (
+        <div data-testid="generation-error" className="text-red-400 text-sm">
+          {error.message}
+        </div>
+      )}
       {result && result.url && (
-        <video data-testid="generated-video" src={result.url} controls className="rounded border border-gray-700 max-w-lg" />
+        <video
+          data-testid="generated-video"
+          src={result.url}
+          controls
+          className="rounded border border-gray-700 max-w-lg"
+        />
       )}
     </div>
   )

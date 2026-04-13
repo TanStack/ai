@@ -35,13 +35,20 @@ export function ImageGenUI({
     return {
       fetcher: async (input: { prompt: string }) => {
         return generateImageFn({
-          data: { prompt: input.prompt, provider, numberOfImages: 1, aimockPort, testId },
+          data: {
+            prompt: input.prompt,
+            provider,
+            numberOfImages: 1,
+            aimockPort,
+            testId,
+          },
         }) as Promise<ImageGenerationResult>
       },
     }
   }
 
-  const { generate, result, isLoading, error, status } = useGenerateImage(connectionOptions())
+  const { generate, result, isLoading, error, status } =
+    useGenerateImage(connectionOptions())
 
   return (
     <div className="p-4 space-y-4">
@@ -64,13 +71,31 @@ export function ImageGenUI({
         </button>
       </div>
       <div data-testid="generation-status">
-        {status === 'idle' ? 'idle' : isLoading ? 'loading' : error ? 'error' : result ? 'complete' : 'idle'}
+        {status === 'idle'
+          ? 'idle'
+          : isLoading
+            ? 'loading'
+            : error
+              ? 'error'
+              : result
+                ? 'complete'
+                : 'idle'}
       </div>
-      {error && <div data-testid="generation-error" className="text-red-400 text-sm">{error.message}</div>}
+      {error && (
+        <div data-testid="generation-error" className="text-red-400 text-sm">
+          {error.message}
+        </div>
+      )}
       {result && (
         <div className="grid grid-cols-2 gap-4">
           {result.images.map((img, i) => (
-            <img key={i} data-testid="generated-image" src={img.url || `data:image/png;base64,${img.b64Json}`} alt={`Generated ${i + 1}`} className="rounded border border-gray-700" />
+            <img
+              key={i}
+              data-testid="generated-image"
+              src={img.url || `data:image/png;base64,${img.b64Json}`}
+              alt={`Generated ${i + 1}`}
+              className="rounded border border-gray-700"
+            />
           ))}
         </div>
       )}

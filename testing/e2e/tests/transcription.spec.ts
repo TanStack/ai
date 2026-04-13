@@ -1,9 +1,5 @@
 import { test, expect } from './fixtures'
-import {
-  clickGenerate,
-  waitForGenerationComplete,
-  featureUrl,
-} from './helpers'
+import { clickGenerate, waitForGenerationComplete, featureUrl } from './helpers'
 import { providersFor } from './test-matrix'
 
 for (const provider of providersFor('transcription')) {

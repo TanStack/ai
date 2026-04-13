@@ -168,7 +168,9 @@ export async function fillTextInput(page: Page, text: string) {
 export async function clickGenerate(page: Page) {
   // Wait for React hydration — generation-status is rendered by React, so its
   // presence confirms the component is interactive
-  await page.getByTestId('generation-status').waitFor({ state: 'visible', timeout: 10_000 })
+  await page
+    .getByTestId('generation-status')
+    .waitFor({ state: 'visible', timeout: 10_000 })
   await page.getByTestId('generate-button').click()
 }
 

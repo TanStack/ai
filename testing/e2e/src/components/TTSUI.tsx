@@ -30,13 +30,20 @@ export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
     return {
       fetcher: async (input: { text: string; voice?: string }) => {
         return generateSpeechFn({
-          data: { text: input.text, voice: input.voice, provider, aimockPort, testId },
+          data: {
+            text: input.text,
+            voice: input.voice,
+            provider,
+            aimockPort,
+            testId,
+          },
         }) as Promise<TTSResult>
       },
     }
   }
 
-  const { generate, result, isLoading, error, status } = useGenerateSpeech(connectionOptions())
+  const { generate, result, isLoading, error, status } =
+    useGenerateSpeech(connectionOptions())
 
   return (
     <div className="p-4 space-y-4">
@@ -59,11 +66,27 @@ export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
         </button>
       </div>
       <div data-testid="generation-status">
-        {status === 'idle' ? 'idle' : isLoading ? 'loading' : error ? 'error' : result ? 'complete' : 'idle'}
+        {status === 'idle'
+          ? 'idle'
+          : isLoading
+            ? 'loading'
+            : error
+              ? 'error'
+              : result
+                ? 'complete'
+                : 'idle'}
       </div>
-      {error && <div data-testid="generation-error" className="text-red-400 text-sm">{error.message}</div>}
+      {error && (
+        <div data-testid="generation-error" className="text-red-400 text-sm">
+          {error.message}
+        </div>
+      )}
       {result && (
-        <audio data-testid="generated-audio" src={`data:audio/${result.format || 'mp3'};base64,${result.audio}`} controls />
+        <audio
+          data-testid="generated-audio"
+          src={`data:audio/${result.format || 'mp3'};base64,${result.audio}`}
+          controls
+        />
       )}
     </div>
   )
