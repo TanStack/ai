@@ -377,17 +377,6 @@ export class OpenRouterTextAdapter<
             model: meta.model,
             timestamp: meta.timestamp,
           })
-
-          // Legacy STEP event
-          yield asChunk({
-            type: 'STEP_FINISHED',
-            stepName: aguiState.stepId!,
-            stepId: aguiState.stepId!,
-            model: meta.model,
-            timestamp: meta.timestamp,
-            delta: text,
-            content: accumulated.reasoning,
-          })
           continue
         }
         if (detail.type === 'reasoning.summary') {
@@ -436,17 +425,6 @@ export class OpenRouterTextAdapter<
             model: meta.model,
             timestamp: meta.timestamp,
           })
-
-          // Legacy STEP event
-          yield asChunk({
-            type: 'STEP_FINISHED',
-            stepName: aguiState.stepId!,
-            stepId: aguiState.stepId!,
-            model: meta.model,
-            timestamp: meta.timestamp,
-            delta: text,
-            content: accumulated.reasoning,
-          })
           continue
         }
       }
@@ -468,6 +446,18 @@ export class OpenRouterTextAdapter<
           model: meta.model,
           timestamp: meta.timestamp,
         })
+
+        // Legacy: single STEP_FINISHED to close the STEP_STARTED
+        if (aguiState.stepId) {
+          yield asChunk({
+            type: 'STEP_FINISHED',
+            stepName: aguiState.stepId,
+            stepId: aguiState.stepId,
+            model: meta.model,
+            timestamp: meta.timestamp,
+            content: accumulated.reasoning,
+          })
+        }
       }
 
       // Emit TEXT_MESSAGE_START on first text content
@@ -624,6 +614,18 @@ export class OpenRouterTextAdapter<
             model: meta.model,
             timestamp: meta.timestamp,
           })
+
+          // Legacy: single STEP_FINISHED to close the STEP_STARTED
+          if (aguiState.stepId) {
+            yield asChunk({
+              type: 'STEP_FINISHED',
+              stepName: aguiState.stepId,
+              stepId: aguiState.stepId,
+              model: meta.model,
+              timestamp: meta.timestamp,
+              content: accumulated.reasoning,
+            })
+          }
         }
 
         // Emit TEXT_MESSAGE_END if we had text content

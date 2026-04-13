@@ -801,13 +801,13 @@ describe('OpenRouter AG-UI event emission', () => {
       expect(stepStartedChunk.stepType).toBe('thinking')
     }
 
-    // Check for STEP_FINISHED event
+    // Check for STEP_FINISHED event — emitted once when reasoning closes
     const stepFinishedChunks = chunks.filter((c) => c.type === 'STEP_FINISHED')
-    expect(stepFinishedChunks.length).toBeGreaterThan(0)
+    expect(stepFinishedChunks).toHaveLength(1)
     const stepFinishedChunk = stepFinishedChunks[0]
     if (stepFinishedChunk?.type === 'STEP_FINISHED') {
       expect(stepFinishedChunk.stepId).toBeDefined()
-      expect(stepFinishedChunk.delta).toBe('Let me think about this...')
+      expect(stepFinishedChunk.content).toBe('Let me think about this...')
     }
   })
 })
@@ -1161,5 +1161,84 @@ describe('OpenRouter STEP event consistency', () => {
       )
       expect(hasMatchingStart).toBe(true)
     }
+  })
+
+  it('emits exactly one STEP_STARTED and one STEP_FINISHED for multi-delta reasoning', async () => {
+    // When multiple reasoning deltas arrive, the adapter should emit a
+    // single STEP_STARTED/STEP_FINISHED pair — not one STEP_FINISHED per
+    // delta.  A 1:N ratio causes verifiers to report orphan STEP_FINISHED.
+    const streamChunks = [
+      {
+        id: 'chatcmpl-multi',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: {
+              reasoningDetails: [{ type: 'reasoning.text', text: 'Let me ' }],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-multi',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: {
+              reasoningDetails: [
+                { type: 'reasoning.text', text: 'think about ' },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-multi',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: {
+              reasoningDetails: [{ type: 'reasoning.text', text: 'this...' }],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-multi',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: { content: 'The answer is 42.' },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-multi',
+        model: 'openai/o1-preview',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 20, completionTokens: 10, totalTokens: 30 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/o1-preview',
+      messages: [{ role: 'user', content: 'What is the meaning of life?' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const stepStarted = chunks.filter((c) => c.type === 'STEP_STARTED')
+    const stepFinished = chunks.filter((c) => c.type === 'STEP_FINISHED')
+
+    expect(stepStarted).toHaveLength(1)
+    expect(stepFinished).toHaveLength(1)
   })
 })

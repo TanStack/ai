@@ -61,7 +61,7 @@ describe('toServerSentEventsStream', () => {
     expect(output).toContain('data: ')
     expect(output).toContain('"type":"TEXT_MESSAGE_CONTENT"')
     expect(output).toContain('\n\n')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should format each chunk with data: prefix', async () => {
@@ -82,30 +82,7 @@ describe('toServerSentEventsStream', () => {
 
     const lines = output.split('\n\n').filter((line) => line.trim())
     expect(lines[0]).toMatch(/^data: /)
-    expect(lines[lines.length - 1]).toBe('data: [DONE]')
-  })
-
-  it('should end with [DONE] marker', async () => {
-    const chunks: Array<Record<string, unknown>> = [
-      {
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: 'msg-1',
-        model: 'test',
-        timestamp: Date.now(),
-        delta: 'Test',
-        content: 'Test',
-      },
-    ]
-
-    const stream = createMockStream(chunks)
-    const sseStream = toServerSentEventsStream(stream)
-    const output = await readStream(sseStream)
-
-    // Should end with [DONE] marker followed by newlines
-    expect(output).toContain('data: [DONE]')
-    const doneIndex = output.lastIndexOf('data: [DONE]')
-    const afterDone = output.slice(doneIndex)
-    expect(afterDone).toBe('data: [DONE]\n\n')
+    expect(lines[lines.length - 1]).toMatch(/^data: \{/)
   })
 
   it('should handle tool call events', async () => {
@@ -126,7 +103,7 @@ describe('toServerSentEventsStream', () => {
 
     expect(output).toContain('"type":"TOOL_CALL_START"')
     expect(output).toContain('"toolName":"getWeather"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should handle RUN_FINISHED events', async () => {
@@ -146,7 +123,7 @@ describe('toServerSentEventsStream', () => {
 
     expect(output).toContain('"type":"RUN_FINISHED"')
     expect(output).toContain('"finishReason":"stop"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should handle RUN_ERROR events', async () => {
@@ -165,7 +142,7 @@ describe('toServerSentEventsStream', () => {
     const output = await readStream(sseStream)
 
     expect(output).toContain('"type":"RUN_ERROR"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should handle empty stream', async () => {
@@ -173,7 +150,54 @@ describe('toServerSentEventsStream', () => {
     const sseStream = toServerSentEventsStream(stream)
     const output = await readStream(sseStream)
 
-    expect(output).toBe('data: [DONE]\n\n')
+    expect(output).toBe('')
+  })
+
+  it('should not emit [DONE] sentinel — RUN_FINISHED is the stream terminator', async () => {
+    const chunks: Array<Record<string, unknown>> = [
+      {
+        type: 'RUN_STARTED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        role: 'assistant',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Hello',
+        content: 'Hello',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      },
+    ]
+
+    const stream = createMockStream(chunks)
+    const sseStream = toServerSentEventsStream(stream)
+    const output = await readStream(sseStream)
+
+    expect(output).not.toContain('[DONE]')
+    // Stream should end with the RUN_FINISHED event
+    expect(output).toContain('"type":"RUN_FINISHED"')
   })
 
   it('should abort when abortController signals abort', async () => {
@@ -294,8 +318,8 @@ describe('toServerSentEventsStream', () => {
     const dataLines = output
       .split('\n\n')
       .filter((line) => line.startsWith('data: '))
-    expect(dataLines.length).toBeGreaterThanOrEqual(3) // At least 3 chunks + [DONE]
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(dataLines.length).toBeGreaterThanOrEqual(3) // At least 3 chunks
+    expect(output).not.toContain('[DONE]')
   })
 })
 
@@ -423,7 +447,7 @@ describe('toServerSentEventsResponse', () => {
     expect(output).toContain('"type":"TEXT_MESSAGE_CONTENT"')
     expect(output).toContain('"delta":"Hello"')
     expect(output).toContain('"delta":" world"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should handle undefined init parameter', async () => {
