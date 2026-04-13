@@ -562,7 +562,7 @@ export class GeminiTextAdapter<
         for (const contentPart of msg.content) {
           parts.push(this.convertContentPartToGemini(contentPart))
         }
-      } else if (msg.content) {
+      } else if (msg.content && msg.role !== 'tool') {
         parts.push({ text: msg.content })
       }
 
