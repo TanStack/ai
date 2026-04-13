@@ -1140,7 +1140,7 @@ class TextEngine<
           model: finishEvent.model,
           toolCallId: result.toolCallId,
           toolName: result.toolName,
-        })
+        } as StreamChunk)
 
         const args = argsMap.get(result.toolCallId) ?? '{}'
         chunks.push({
@@ -1150,7 +1150,7 @@ class TextEngine<
           toolCallId: result.toolCallId,
           delta: args,
           args,
-        })
+        } as StreamChunk)
       }
 
       chunks.push({
