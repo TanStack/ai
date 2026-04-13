@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
-import { createImageAdapter } from '@/lib/media-providers'
+import { generateVideo, toHttpResponse } from '@tanstack/ai'
+import { createVideoAdapter } from '@/lib/media-providers'
 import type { Provider } from '@/lib/types'
 
-export const Route = createFileRoute('/api/image')({
+export const Route = createFileRoute('/api/video/stream')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -11,25 +11,23 @@ export const Route = createFileRoute('/api/image')({
         const abortController = new AbortController()
         const body = await request.json()
         const data = body.data ?? body
-        const { prompt, provider, numberOfImages, testId, aimockPort } =
-          data as {
-            prompt: string
-            provider: Provider
-            numberOfImages?: number
-            testId?: string
-            aimockPort?: number
-          }
+        const { prompt, provider, testId, aimockPort } = data as {
+          prompt: string
+          provider: Provider
+          testId?: string
+          aimockPort?: number
+        }
 
-        const adapter = createImageAdapter(provider, aimockPort, testId)
+        const adapter = createVideoAdapter(provider, aimockPort, testId)
 
         try {
-          const stream = generateImage({
+          const stream = generateVideo({
             adapter,
             prompt,
-            numberOfImages: numberOfImages ?? 1,
             stream: true,
+            pollingInterval: 500,
           })
-          return toServerSentEventsResponse(stream, { abortController })
+          return toHttpResponse(stream, { abortController })
         } catch (error: any) {
           return new Response(JSON.stringify({ error: error.message }), {
             status: 500,

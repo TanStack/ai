@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
+import { generateImage, toHttpResponse } from '@tanstack/ai'
 import { createImageAdapter } from '@/lib/media-providers'
 import type { Provider } from '@/lib/types'
 
-export const Route = createFileRoute('/api/image')({
+export const Route = createFileRoute('/api/image/stream')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -29,7 +29,7 @@ export const Route = createFileRoute('/api/image')({
             numberOfImages: numberOfImages ?? 1,
             stream: true,
           })
-          return toServerSentEventsResponse(stream, { abortController })
+          return toHttpResponse(stream, { abortController })
         } catch (error: any) {
           return new Response(JSON.stringify({ error: error.message }), {
             status: 500,

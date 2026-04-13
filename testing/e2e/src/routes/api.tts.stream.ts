@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
+import { generateSpeech, toHttpResponse } from '@tanstack/ai'
 import { createTTSAdapter } from '@/lib/media-providers'
 import type { Provider } from '@/lib/types'
 
-export const Route = createFileRoute('/api/tts')({
+export const Route = createFileRoute('/api/tts/stream')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -23,7 +23,7 @@ export const Route = createFileRoute('/api/tts')({
 
         try {
           const stream = generateSpeech({ adapter, text, voice, stream: true })
-          return toServerSentEventsResponse(stream, { abortController })
+          return toHttpResponse(stream, { abortController })
         } catch (error: any) {
           return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
