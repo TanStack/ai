@@ -166,12 +166,23 @@ export async function fillTextInput(page: Page, text: string) {
 }
 
 export async function clickGenerate(page: Page) {
-  // Wait for React hydration — generation-status is rendered by React, so its
-  // presence confirms the component is interactive
-  await page
-    .getByTestId('generation-status')
-    .waitFor({ state: 'visible', timeout: 10_000 })
-  await page.getByTestId('generate-button').click()
+  // Wait for full page load (including hydration scripts)
+  await page.waitForLoadState('networkidle')
+  const btn = page.getByTestId('generate-button')
+  await btn.click()
+  // Verify the click actually triggered React — status should leave 'idle'
+  // If still idle after a short wait, the click missed hydration; retry
+  try {
+    await expect(page.getByTestId('generation-status')).not.toHaveText(
+      'idle',
+      {
+        timeout: 3_000,
+      },
+    )
+  } catch {
+    // Retry click — hydration likely wasn't complete on first attempt
+    await btn.click()
+  }
 }
 
 export async function waitForGenerationComplete(page: Page, timeout = 30_000) {

@@ -7,43 +7,20 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 /**
- * Directories that use JSON fixture files (loaded via loadFixtureDir).
- * Media endpoints (transcription, video) need programmatic registration via
- * onTranscription/onVideo because aimock's JSON loader doesn't set the
- * `match.endpoint` field that these routes require for matching.
+ * Directories to skip when loading JSON fixtures.
+ * - 'recorded' is for record-mode output
+ * - 'video-gen' uses programmatic registration (needs match.endpoint)
  */
-const JSON_FIXTURE_DIRS = new Set([
-  'chat',
-  'error',
-  'image-gen',
-  'middleware-test',
-  'multi-turn',
-  'multimodal-image',
-  'multimodal-structured',
-  'reasoning',
-  'structured-output',
-  'summarize',
-  'tool-approval',
-  'tool-calling',
-  'tools-test',
-  'tts',
-  'custom-events',
-  'lazy-tools',
-  'agentic-structured',
-])
+const SKIP_FIXTURE_DIRS = new Set(['recorded', 'video-gen'])
 
 export default async function globalSetup() {
   const mock = new LLMock({ port: 4010, host: '127.0.0.1', logLevel: 'info' })
 
-  // Load JSON fixture directories
+  // Load all JSON fixture directories (except skipped ones)
   const fixturesDir = path.resolve(__dirname, 'fixtures')
   const entries = fs.readdirSync(fixturesDir, { withFileTypes: true })
   for (const entry of entries) {
-    if (
-      entry.isDirectory() &&
-      entry.name !== 'recorded' &&
-      JSON_FIXTURE_DIRS.has(entry.name)
-    ) {
+    if (entry.isDirectory() && !SKIP_FIXTURE_DIRS.has(entry.name)) {
       await mock.loadFixtureDir(path.join(fixturesDir, entry.name))
     }
   }
