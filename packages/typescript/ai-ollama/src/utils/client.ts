@@ -3,6 +3,7 @@ import { generateId as _generateId } from '@tanstack/ai-utils'
 
 export interface OllamaClientConfig {
   host?: string
+  headers?: Record<string, string>
 }
 
 /**
@@ -11,6 +12,7 @@ export interface OllamaClientConfig {
 export function createOllamaClient(config: OllamaClientConfig = {}): Ollama {
   return new Ollama({
     host: config.host || 'http://localhost:11434',
+    headers: config.headers,
   })
 }
 

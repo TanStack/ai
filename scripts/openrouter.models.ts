@@ -37,7 +37,12 @@ export interface OpenRouterModel {
 export const models: Array<OpenRouterModel> = [
   {
     id: 'ai21/jamba-large-1.7',
+    canonical_slug: 'ai21/jamba-large-1.7',
+    hugging_face_id: 'ai21labs/AI21-Jamba-Large-1.7',
     name: 'AI21: Jamba Large 1.7',
+    created: 1754669020,
+    description:
+      'Jamba Large 1.7 is the latest model in the Jamba open family, offering improvements in grounding, instruction-following, and overall efficiency. Built on a hybrid SSM-Transformer architecture with a 256K context...',
     context_length: 256000,
     architecture: {
       modality: 'text->text',
@@ -55,6 +60,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -67,7 +73,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'aion-labs/aion-1.0',
+    canonical_slug: 'aion-labs/aion-1.0',
+    hugging_face_id: '',
     name: 'AionLabs: Aion-1.0',
+    created: 1738697557,
+    description:
+      'Aion-1.0 is a multi-model system designed for high performance across various tasks, including reasoning and coding. It is built on DeepSeek-R1, augmented with additional models and techniques such as Tree...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -85,6 +96,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -95,7 +107,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'aion-labs/aion-1.0-mini',
+    canonical_slug: 'aion-labs/aion-1.0-mini',
+    hugging_face_id: 'FuseAI/FuseO1-DeepSeekR1-QwQ-SkyT1-32B-Preview',
     name: 'AionLabs: Aion-1.0-Mini',
+    created: 1738697107,
+    description:
+      'Aion-1.0-Mini 32B parameter model is a distilled version of the DeepSeek-R1 model, designed for strong performance in reasoning domains such as mathematics, coding, and logic. It is a modified variant...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -113,6 +130,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -123,7 +141,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'aion-labs/aion-2.0',
+    canonical_slug: 'aion-labs/aion-2.0-20260223',
+    hugging_face_id: null,
     name: 'AionLabs: Aion-2.0',
+    created: 1771881306,
+    description:
+      'Aion-2.0 is a variant of DeepSeek V3.2 optimized for immersive roleplaying and storytelling. It is particularly strong at introducing tension, crises, and conflict into stories, making narratives feel more engaging....',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -142,6 +165,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -152,7 +176,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'aion-labs/aion-rp-llama-3.1-8b',
+    canonical_slug: 'aion-labs/aion-rp-llama-3.1-8b',
+    hugging_face_id: '',
     name: 'AionLabs: Aion-RP 1.0 (8B)',
+    created: 1738696718,
+    description:
+      'Aion-RP-Llama-3.1-8B ranks the highest in the character evaluation portion of the RPBench-Auto benchmark, a roleplaying-specific variant of Arena-Hard-Auto, where LLMs evaluate each other’s responses. It is a fine-tuned base model...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -170,11 +199,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: ['max_tokens', 'temperature', 'top_p'],
   },
   {
     id: 'alfredpros/codellama-7b-instruct-solidity',
+    canonical_slug: 'alfredpros/codellama-7b-instruct-solidity',
+    hugging_face_id: 'AlfredPros/CodeLlama-7b-Instruct-Solidity',
     name: 'AlfredPros: CodeLLaMa 7B Instruct Solidity',
+    created: 1744641874,
+    description:
+      'A finetuned 7 billion parameters Code LLaMA - Instruct model to generate Solidity smart contract using 4-bit QLoRA finetuning provided by PEFT library.',
     context_length: 4096,
     architecture: {
       modality: 'text->text',
@@ -192,6 +227,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -207,7 +243,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'alibaba/tongyi-deepresearch-30b-a3b',
+    canonical_slug: 'alibaba/tongyi-deepresearch-30b-a3b',
+    hugging_face_id: 'Alibaba-NLP/Tongyi-DeepResearch-30B-A3B',
     name: 'Tongyi DeepResearch 30B A3B',
+    created: 1758210804,
+    description:
+      "Tongyi DeepResearch is an agentic large language model developed by Tongyi Lab, with 30 billion total parameters activating only 3 billion per token. It's optimized for long-horizon, deep information-seeking tasks...",
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -226,6 +267,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -248,7 +290,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'allenai/olmo-2-0325-32b-instruct',
+    canonical_slug: 'allenai/olmo-2-0325-32b-instruct',
+    hugging_face_id: 'allenai/OLMo-2-0325-32B-Instruct',
     name: 'AllenAI: Olmo 2 32B Instruct',
+    created: 1741988556,
+    description:
+      'OLMo-2 32B Instruct is a supervised instruction-finetuned variant of the OLMo-2 32B March 2025 base model. It excels in complex reasoning and instruction-following tasks across diverse benchmarks such as GSM8K,...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -266,11 +313,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [],
   },
   {
     id: 'allenai/olmo-3-32b-think',
+    canonical_slug: 'allenai/olmo-3-32b-think-20251121',
+    hugging_face_id: 'allenai/Olmo-3-32B-Think',
     name: 'AllenAI: Olmo 3 32B Think',
+    created: 1763758276,
+    description:
+      'Olmo 3 32B Think is a large-scale, 32-billion-parameter model purpose-built for deep reasoning, complex logic chains and advanced instruction-following scenarios. Its capacity enables strong performance on demanding evaluation tasks and...',
     context_length: 65536,
     architecture: {
       modality: 'text->text',
@@ -288,6 +341,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -307,7 +361,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'allenai/olmo-3.1-32b-instruct',
+    canonical_slug: 'allenai/olmo-3.1-32b-instruct-20251215',
+    hugging_face_id: 'allenai/Olmo-3.1-32B-Instruct',
     name: 'AllenAI: Olmo 3.1 32B Instruct',
+    created: 1767728554,
+    description:
+      'Olmo 3.1 32B Instruct is a large-scale, 32-billion-parameter instruction-tuned language model engineered for high-performance conversational AI, multi-turn dialogue, and practical instruction following. As part of the Olmo 3.1 family, this...',
     context_length: 65536,
     architecture: {
       modality: 'text->text',
@@ -325,6 +384,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -343,45 +403,13 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
-    id: 'allenai/olmo-3.1-32b-think',
-    name: 'AllenAI: Olmo 3.1 32B Think',
-    context_length: 65536,
-    architecture: {
-      modality: 'text->text',
-      input_modalities: ['text'],
-      output_modalities: ['text'],
-      tokenizer: 'Other',
-      instruct_type: null,
-    },
-    pricing: {
-      prompt: '0.00000015',
-      completion: '0.0000005',
-    },
-    top_provider: {
-      context_length: 65536,
-      max_completion_tokens: 65536,
-      is_moderated: false,
-    },
-    supported_parameters: [
-      'frequency_penalty',
-      'include_reasoning',
-      'logit_bias',
-      'max_tokens',
-      'presence_penalty',
-      'reasoning',
-      'repetition_penalty',
-      'response_format',
-      'seed',
-      'stop',
-      'structured_outputs',
-      'temperature',
-      'top_k',
-      'top_p',
-    ],
-  },
-  {
     id: 'alpindale/goliath-120b',
+    canonical_slug: 'alpindale/goliath-120b',
+    hugging_face_id: 'alpindale/goliath-120b',
     name: 'Goliath 120B',
+    created: 1699574400,
+    description:
+      'A large LLM created by combining two fine-tuned Llama 70B models into one 120B model. Combines Xwin and Euryale. Credits to - [@chargoddard](https://huggingface.co/chargoddard) for developing the framework used to merge...',
     context_length: 6144,
     architecture: {
       modality: 'text->text',
@@ -399,6 +427,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 1024,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -419,7 +448,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'amazon/nova-2-lite-v1',
+    canonical_slug: 'amazon/nova-2-lite-v1',
+    hugging_face_id: '',
     name: 'Amazon: Nova 2 Lite',
+    created: 1764696672,
+    description:
+      'Nova 2 Lite is a fast, cost-effective reasoning model for everyday workloads that can process text, images, and videos to generate text. Nova 2 Lite demonstrates standout capabilities in processing...',
     context_length: 1000000,
     architecture: {
       modality: 'text+image+file+video->text',
@@ -437,6 +471,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65535,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -451,7 +486,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'amazon/nova-lite-v1',
+    canonical_slug: 'amazon/nova-lite-v1',
+    hugging_face_id: '',
     name: 'Amazon: Nova Lite 1.0',
+    created: 1733437363,
+    description:
+      'Amazon Nova Lite 1.0 is a very low-cost multimodal model from Amazon that focused on fast processing of image, video, and text inputs to generate text output. Amazon Nova Lite...',
     context_length: 300000,
     architecture: {
       modality: 'text+image->text',
@@ -469,6 +509,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 5120,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'stop',
@@ -480,7 +521,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'amazon/nova-micro-v1',
+    canonical_slug: 'amazon/nova-micro-v1',
+    hugging_face_id: '',
     name: 'Amazon: Nova Micro 1.0',
+    created: 1733437237,
+    description:
+      'Amazon Nova Micro 1.0 is a text-only model that delivers the lowest latency responses in the Amazon Nova family of models at a very low cost. With a context length...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -498,6 +544,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 5120,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'stop',
@@ -509,7 +556,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'amazon/nova-premier-v1',
+    canonical_slug: 'amazon/nova-premier-v1',
+    hugging_face_id: '',
     name: 'Amazon: Nova Premier 1.0',
+    created: 1761950332,
+    description:
+      'Amazon Nova Premier is the most capable of Amazon’s multimodal models for complex reasoning tasks and for use as the best teacher for distilling custom models.',
     context_length: 1000000,
     architecture: {
       modality: 'text+image->text',
@@ -528,6 +580,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'stop',
@@ -539,7 +592,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'amazon/nova-pro-v1',
+    canonical_slug: 'amazon/nova-pro-v1',
+    hugging_face_id: '',
     name: 'Amazon: Nova Pro 1.0',
+    created: 1733436303,
+    description:
+      'Amazon Nova Pro 1.0 is a capable multimodal model from Amazon focused on providing a combination of accuracy, speed, and cost for a wide range of tasks. As of December...',
     context_length: 300000,
     architecture: {
       modality: 'text+image->text',
@@ -557,6 +615,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 5120,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'stop',
@@ -568,7 +627,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthracite-org/magnum-v4-72b',
+    canonical_slug: 'anthracite-org/magnum-v4-72b',
+    hugging_face_id: 'anthracite-org/magnum-v4-72b',
     name: 'Magnum v4 72B',
+    created: 1729555200,
+    description:
+      'This is a series of models designed to replicate the prose quality of the Claude 3 models, specifically Sonnet(https://openrouter.ai/anthropic/claude-3.5-sonnet) and Opus(https://openrouter.ai/anthropic/claude-3-opus).\n\nThe model is fine-tuned on top of [Qwen2.5 72B](https://openrouter.ai/qwen/qwen-2.5-72b-instruct).',
     context_length: 16384,
     architecture: {
       modality: 'text->text',
@@ -586,6 +650,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 2048,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -606,7 +671,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-3-haiku',
+    canonical_slug: 'anthropic/claude-3-haiku',
+    hugging_face_id: null,
     name: 'Anthropic: Claude 3 Haiku',
+    created: 1710288000,
+    description:
+      "Claude 3 Haiku is Anthropic's fastest and most compact model for\nnear-instant responsiveness. Quick and accurate targeted performance.\n\nSee the launch announcement and benchmark results [here](https://www.anthropic.com/news/claude-3-haiku)\n\n#multimodal",
     context_length: 200000,
     architecture: {
       modality: 'text+image->text',
@@ -626,6 +696,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'stop',
@@ -638,7 +709,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-3.5-haiku',
+    canonical_slug: 'anthropic/claude-3-5-haiku',
+    hugging_face_id: null,
     name: 'Anthropic: Claude 3.5 Haiku',
+    created: 1730678400,
+    description:
+      'Claude 3.5 Haiku features offers enhanced capabilities in speed, coding accuracy, and tool use. Engineered to excel in real-time applications, it delivers quick response times that are essential for dynamic...',
     context_length: 200000,
     architecture: {
       modality: 'text+image->text',
@@ -659,38 +735,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: true,
     },
-    supported_parameters: [
-      'max_tokens',
-      'stop',
-      'temperature',
-      'tool_choice',
-      'tools',
-      'top_k',
-      'top_p',
-    ],
-  },
-  {
-    id: 'anthropic/claude-3.5-sonnet',
-    name: 'Anthropic: Claude 3.5 Sonnet',
-    context_length: 200000,
-    architecture: {
-      modality: 'text+image+file->text',
-      input_modalities: ['text', 'image', 'file'],
-      output_modalities: ['text'],
-      tokenizer: 'Claude',
-      instruct_type: null,
-    },
-    pricing: {
-      prompt: '0.000006',
-      completion: '0.00003',
-      input_cache_read: '0.0000006',
-      input_cache_write: '0.0000075',
-    },
-    top_provider: {
-      context_length: 200000,
-      max_completion_tokens: 8192,
-      is_moderated: true,
-    },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'stop',
@@ -703,7 +748,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-3.7-sonnet',
+    canonical_slug: 'anthropic/claude-3-7-sonnet-20250219',
+    hugging_face_id: '',
     name: 'Anthropic: Claude 3.7 Sonnet',
+    created: 1740422110,
+    description:
+      'Claude 3.7 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities. It introduces a hybrid reasoning approach, allowing users to choose between rapid responses and...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -724,6 +774,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 64000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -738,7 +789,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-3.7-sonnet:thinking',
+    canonical_slug: 'anthropic/claude-3-7-sonnet-20250219',
+    hugging_face_id: '',
     name: 'Anthropic: Claude 3.7 Sonnet (thinking)',
+    created: 1740422110,
+    description:
+      'Claude 3.7 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities. It introduces a hybrid reasoning approach, allowing users to choose between rapid responses and...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -759,6 +815,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 64000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -772,7 +829,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-haiku-4.5',
+    canonical_slug: 'anthropic/claude-4.5-haiku-20251001',
+    hugging_face_id: '',
     name: 'Anthropic: Claude Haiku 4.5',
+    created: 1760547638,
+    description:
+      'Claude Haiku 4.5 is Anthropic’s fastest and most efficient model, delivering near-frontier intelligence at a fraction of the cost and latency of larger Claude models. Matching Claude Sonnet 4’s performance...',
     context_length: 200000,
     architecture: {
       modality: 'text+image->text',
@@ -793,6 +855,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 64000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -809,7 +872,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-opus-4',
+    canonical_slug: 'anthropic/claude-4-opus-20250522',
+    hugging_face_id: '',
     name: 'Anthropic: Claude Opus 4',
+    created: 1747931245,
+    description:
+      'Claude Opus 4 is benchmarked as the world’s best coding model, at time of release, bringing sustained performance on complex, long-running tasks and agent workflows. It sets new benchmarks in...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -830,6 +898,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -844,7 +913,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-opus-4.1',
+    canonical_slug: 'anthropic/claude-4.1-opus-20250805',
+    hugging_face_id: '',
     name: 'Anthropic: Claude Opus 4.1',
+    created: 1754411591,
+    description:
+      'Claude Opus 4.1 is an updated version of Anthropic’s flagship model, offering improved performance in coding, reasoning, and agentic tasks. It achieves 74.5% on SWE-bench Verified and shows notable gains...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -865,6 +939,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -881,7 +956,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-opus-4.5',
+    canonical_slug: 'anthropic/claude-4.5-opus-20251124',
+    hugging_face_id: '',
     name: 'Anthropic: Claude Opus 4.5',
+    created: 1764010580,
+    description:
+      'Claude Opus 4.5 is Anthropic’s frontier reasoning model optimized for complex software engineering, agentic workflows, and long-horizon computer use. It offers strong multimodal capabilities, competitive performance across real-world coding and...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -902,6 +982,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 64000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -918,7 +999,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-opus-4.6',
+    canonical_slug: 'anthropic/claude-4.6-opus-20260205',
+    hugging_face_id: '',
     name: 'Anthropic: Claude Opus 4.6',
+    created: 1770219050,
+    description:
+      'Opus 4.6 is Anthropic’s strongest model for coding and long-running professional tasks. It is built for agents that operate across entire workflows rather than single prompts, making it especially effective...',
     context_length: 1000000,
     architecture: {
       modality: 'text+image->text',
@@ -939,8 +1025,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -955,8 +1043,56 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
+    id: 'anthropic/claude-opus-4.6-fast',
+    canonical_slug: 'anthropic/claude-4.6-opus-fast-20260407',
+    hugging_face_id: null,
+    name: 'Anthropic: Claude Opus 4.6 (Fast)',
+    created: 1775592472,
+    description:
+      "Fast-mode variant of [Opus 4.6](/anthropic/claude-opus-4.6) - identical capabilities with higher output speed at premium 6x pricing.\n\nLearn more in Anthropic's docs: https://platform.claude.com/docs/en/build-with-claude/fast-mode",
+    context_length: 1000000,
+    architecture: {
+      modality: 'text+image->text',
+      input_modalities: ['text', 'image'],
+      output_modalities: ['text'],
+      tokenizer: 'Claude',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0.00003',
+      completion: '0.00015',
+      web_search: '0.01',
+      input_cache_read: '0.000003',
+      input_cache_write: '0.0000375',
+    },
+    top_provider: {
+      context_length: 1000000,
+      max_completion_tokens: 128000,
+      is_moderated: true,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'include_reasoning',
+      'max_tokens',
+      'reasoning',
+      'response_format',
+      'stop',
+      'structured_outputs',
+      'temperature',
+      'tool_choice',
+      'tools',
+      'top_p',
+      'verbosity',
+    ],
+  },
+  {
     id: 'anthropic/claude-sonnet-4',
+    canonical_slug: 'anthropic/claude-4-sonnet-20250522',
+    hugging_face_id: '',
     name: 'Anthropic: Claude Sonnet 4',
+    created: 1747930371,
+    description:
+      'Claude Sonnet 4 significantly enhances the capabilities of its predecessor, Sonnet 3.7, excelling in both coding and reasoning tasks with improved precision and controllability. Achieving state-of-the-art performance on SWE-bench (72.7%),...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -977,6 +1113,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 64000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -991,7 +1128,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-sonnet-4.5',
+    canonical_slug: 'anthropic/claude-4.5-sonnet-20250929',
+    hugging_face_id: '',
     name: 'Anthropic: Claude Sonnet 4.5',
+    created: 1759161676,
+    description:
+      'Claude Sonnet 4.5 is Anthropic’s most advanced Sonnet model to date, optimized for real-world agents and coding workflows. It delivers state-of-the-art performance on coding benchmarks such as SWE-bench Verified, with...',
     context_length: 1000000,
     architecture: {
       modality: 'text+image+file->text',
@@ -1012,6 +1154,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 64000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -1028,7 +1171,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'anthropic/claude-sonnet-4.6',
+    canonical_slug: 'anthropic/claude-4.6-sonnet-20260217',
+    hugging_face_id: '',
     name: 'Anthropic: Claude Sonnet 4.6',
+    created: 1771342990,
+    description:
+      "Sonnet 4.6 is Anthropic's most capable Sonnet-class model yet, with frontier performance across coding, agents, and professional work. It excels at iterative development, complex codebase navigation, end-to-end project management with...",
     context_length: 1000000,
     architecture: {
       modality: 'text+image->text',
@@ -1049,8 +1197,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -1066,7 +1216,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'arcee-ai/coder-large',
+    canonical_slug: 'arcee-ai/coder-large',
+    hugging_face_id: '',
     name: 'Arcee AI: Coder Large',
+    created: 1746478663,
+    description:
+      'Coder‑Large is a 32 B‑parameter offspring of Qwen 2.5‑Instruct that has been further trained on permissively‑licensed GitHub, CodeSearchNet and synthetic bug‑fix corpora. It supports a 32k context window, enabling multi‑file...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -1084,6 +1239,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -1099,7 +1255,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'arcee-ai/maestro-reasoning',
+    canonical_slug: 'arcee-ai/maestro-reasoning',
+    hugging_face_id: '',
     name: 'Arcee AI: Maestro Reasoning',
+    created: 1746481269,
+    description:
+      "Maestro Reasoning is Arcee's flagship analysis model: a 32 B‑parameter derivative of Qwen 2.5‑32 B tuned with DPO and chain‑of‑thought RL for step‑by‑step logic. Compared to the earlier 7 B...",
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -1117,6 +1278,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -1132,7 +1294,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'arcee-ai/spotlight',
+    canonical_slug: 'arcee-ai/spotlight',
+    hugging_face_id: '',
     name: 'Arcee AI: Spotlight',
+    created: 1746481552,
+    description:
+      'Spotlight is a 7‑billion‑parameter vision‑language model derived from Qwen 2.5‑VL and fine‑tuned by Arcee AI for tight image‑text grounding tasks. It offers a 32 k‑token context window, enabling rich multimodal...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -1150,6 +1317,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65537,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -1165,7 +1333,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'arcee-ai/trinity-large-preview:free',
+    canonical_slug: 'arcee-ai/trinity-large-preview',
+    hugging_face_id: 'arcee-ai/Trinity-Large-Preview',
     name: 'Arcee AI: Trinity Large Preview (free)',
+    created: 1769552670,
+    description:
+      'Trinity-Large-Preview is a frontier-scale open-weight language model from Arcee, built as a 400B-parameter sparse Mixture-of-Experts with 13B active parameters per token using 4-of-256 expert routing. It excels in creative writing,...',
     context_length: 131000,
     architecture: {
       modality: 'text->text',
@@ -1183,6 +1356,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -1194,8 +1368,58 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
+    id: 'arcee-ai/trinity-large-thinking',
+    canonical_slug: 'arcee-ai/trinity-large-thinking',
+    hugging_face_id: 'arcee-ai/Trinity-Large-Thinking',
+    name: 'Arcee AI: Trinity Large Thinking',
+    created: 1775058318,
+    description:
+      'Trinity Large Thinking is a powerful open source reasoning model from the team at Arcee AI. It shows strong performance in PinchBench, agentic workloads, and reasoning tasks. Launch video: https://youtu.be/Gc82AXLa0Rg?si=4RLn6WBz33qT--B7',
+    context_length: 262144,
+    architecture: {
+      modality: 'text->text',
+      input_modalities: ['text'],
+      output_modalities: ['text'],
+      tokenizer: 'Other',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0.00000022',
+      completion: '0.00000085',
+    },
+    top_provider: {
+      context_length: 262144,
+      max_completion_tokens: 262144,
+      is_moderated: false,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'frequency_penalty',
+      'include_reasoning',
+      'logit_bias',
+      'max_tokens',
+      'presence_penalty',
+      'reasoning',
+      'repetition_penalty',
+      'response_format',
+      'seed',
+      'stop',
+      'structured_outputs',
+      'temperature',
+      'tool_choice',
+      'tools',
+      'top_k',
+      'top_p',
+    ],
+  },
+  {
     id: 'arcee-ai/trinity-mini',
+    canonical_slug: 'arcee-ai/trinity-mini-20251201',
+    hugging_face_id: 'arcee-ai/Trinity-Mini',
     name: 'Arcee AI: Trinity Mini',
+    created: 1764601720,
+    description:
+      'Trinity Mini is a 26B-parameter (3B active) sparse mixture-of-experts language model featuring 128 experts with 8 active per token. Engineered for efficient reasoning over long contexts (131k) with robust function...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -1213,6 +1437,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -1227,41 +1452,13 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
-    id: 'arcee-ai/trinity-mini:free',
-    name: 'Arcee AI: Trinity Mini (free)',
-    context_length: 131072,
-    architecture: {
-      modality: 'text->text',
-      input_modalities: ['text'],
-      output_modalities: ['text'],
-      tokenizer: 'Other',
-      instruct_type: null,
-    },
-    pricing: {
-      prompt: '0',
-      completion: '0',
-    },
-    top_provider: {
-      context_length: 131072,
-      max_completion_tokens: null,
-      is_moderated: false,
-    },
-    supported_parameters: [
-      'include_reasoning',
-      'max_tokens',
-      'reasoning',
-      'response_format',
-      'structured_outputs',
-      'temperature',
-      'tool_choice',
-      'tools',
-      'top_k',
-      'top_p',
-    ],
-  },
-  {
     id: 'arcee-ai/virtuoso-large',
+    canonical_slug: 'arcee-ai/virtuoso-large',
+    hugging_face_id: '',
     name: 'Arcee AI: Virtuoso Large',
+    created: 1746478885,
+    description:
+      "Virtuoso‑Large is Arcee's top‑tier general‑purpose LLM at 72 B parameters, tuned to tackle cross‑domain reasoning, creative writing and enterprise QA. Unlike many 70 B peers, it retains the 128 k...",
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -1279,6 +1476,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 64000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -1296,7 +1494,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'baidu/ernie-4.5-21b-a3b',
+    canonical_slug: 'baidu/ernie-4.5-21b-a3b',
+    hugging_face_id: 'baidu/ERNIE-4.5-21B-A3B-PT',
     name: 'Baidu: ERNIE 4.5 21B A3B',
+    created: 1755034167,
+    description:
+      'A sophisticated text-based Mixture-of-Experts (MoE) model featuring 21B total parameters with 3B activated per token, delivering exceptional multimodal understanding and generation through heterogeneous MoE structures and modality-isolated routing. Supporting an...',
     context_length: 120000,
     architecture: {
       modality: 'text->text',
@@ -1314,6 +1517,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -1330,7 +1534,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'baidu/ernie-4.5-21b-a3b-thinking',
+    canonical_slug: 'baidu/ernie-4.5-21b-a3b-thinking',
+    hugging_face_id: 'baidu/ERNIE-4.5-21B-A3B-Thinking',
     name: 'Baidu: ERNIE 4.5 21B A3B Thinking',
+    created: 1760048887,
+    description:
+      "ERNIE-4.5-21B-A3B-Thinking is Baidu's upgraded lightweight MoE model, refined to boost reasoning depth and quality for top-tier performance in logical puzzles, math, science, coding, text generation, and expert-level academic benchmarks.",
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -1348,6 +1557,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -1364,7 +1574,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'baidu/ernie-4.5-300b-a47b',
+    canonical_slug: 'baidu/ernie-4.5-300b-a47b',
+    hugging_face_id: 'baidu/ERNIE-4.5-300B-A47B-PT',
     name: 'Baidu: ERNIE 4.5 300B A47B ',
+    created: 1751300139,
+    description:
+      'ERNIE-4.5-300B-A47B is a 300B parameter Mixture-of-Experts (MoE) language model developed by Baidu as part of the ERNIE 4.5 series. It activates 47B parameters per token and supports text generation in...',
     context_length: 123000,
     architecture: {
       modality: 'text->text',
@@ -1382,6 +1597,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 12000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -1398,7 +1614,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'baidu/ernie-4.5-vl-28b-a3b',
+    canonical_slug: 'baidu/ernie-4.5-vl-28b-a3b',
+    hugging_face_id: 'baidu/ERNIE-4.5-VL-28B-A3B-PT',
     name: 'Baidu: ERNIE 4.5 VL 28B A3B',
+    created: 1755032836,
+    description:
+      'A powerful multimodal Mixture-of-Experts chat model featuring 28B total parameters with 3B activated per token, delivering exceptional text and vision understanding through its innovative heterogeneous MoE structure with modality-isolated routing....',
     context_length: 30000,
     architecture: {
       modality: 'text+image->text',
@@ -1416,6 +1637,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -1434,7 +1656,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'baidu/ernie-4.5-vl-424b-a47b',
+    canonical_slug: 'baidu/ernie-4.5-vl-424b-a47b',
+    hugging_face_id: 'baidu/ERNIE-4.5-VL-424B-A47B-PT',
     name: 'Baidu: ERNIE 4.5 VL 424B A47B ',
+    created: 1751300903,
+    description:
+      'ERNIE-4.5-VL-424B-A47B is a multimodal Mixture-of-Experts (MoE) model from Baidu’s ERNIE 4.5 series, featuring 424B total parameters with 47B active per token. It is trained jointly on text and image data...',
     context_length: 123000,
     architecture: {
       modality: 'text+image->text',
@@ -1452,6 +1679,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -1468,7 +1696,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'bytedance-seed/seed-1.6',
+    canonical_slug: 'bytedance-seed/seed-1.6-20250625',
+    hugging_face_id: '',
     name: 'ByteDance Seed: Seed 1.6',
+    created: 1766504997,
+    description:
+      'Seed 1.6 is a general-purpose model released by the ByteDance Seed team. It incorporates multimodal capabilities and adaptive deep thinking with a 256K context window.',
     context_length: 262144,
     architecture: {
       modality: 'text+image+video->text',
@@ -1486,6 +1719,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -1502,7 +1736,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'bytedance-seed/seed-1.6-flash',
+    canonical_slug: 'bytedance-seed/seed-1.6-flash-20250625',
+    hugging_face_id: '',
     name: 'ByteDance Seed: Seed 1.6 Flash',
+    created: 1766505011,
+    description:
+      'Seed 1.6 Flash is an ultra-fast multimodal deep thinking model by ByteDance Seed, supporting both text and visual understanding. It features a 256k context window and can generate outputs of...',
     context_length: 262144,
     architecture: {
       modality: 'text+image+video->text',
@@ -1520,6 +1759,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -1536,7 +1776,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'bytedance-seed/seed-2.0-lite',
+    canonical_slug: 'bytedance-seed/seed-2.0-lite-20260309',
+    hugging_face_id: null,
     name: 'ByteDance Seed: Seed-2.0-Lite',
+    created: 1773157231,
+    description:
+      'Seed-2.0-Lite is a versatile, cost‑efficient enterprise workhorse that delivers strong multimodal and agent capabilities while offering noticeably lower latency, making it a practical default choice for most production workloads across...',
     context_length: 262144,
     architecture: {
       modality: 'text+image+video->text',
@@ -1554,6 +1799,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -1570,7 +1816,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'bytedance-seed/seed-2.0-mini',
+    canonical_slug: 'bytedance-seed/seed-2.0-mini-20260224',
+    hugging_face_id: '',
     name: 'ByteDance Seed: Seed-2.0-Mini',
+    created: 1772131107,
+    description:
+      'Seed-2.0-mini targets latency-sensitive, high-concurrency, and cost-sensitive scenarios, emphasizing fast response and flexible inference deployment. It delivers performance comparable to ByteDance-Seed-1.6, supports 256k context, four reasoning effort modes (minimal/low/medium/high), multimodal understanding,...',
     context_length: 262144,
     architecture: {
       modality: 'text+image+video->text',
@@ -1588,6 +1839,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -1604,7 +1856,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'bytedance/ui-tars-1.5-7b',
+    canonical_slug: 'bytedance/ui-tars-1.5-7b',
+    hugging_face_id: 'ByteDance-Seed/UI-TARS-1.5-7B',
     name: 'ByteDance: UI-TARS 7B ',
+    created: 1753205056,
+    description:
+      'UI-TARS-1.5 is a multimodal vision-language agent optimized for GUI-based environments, including desktop interfaces, web browsers, mobile systems, and games. Built by ByteDance, it builds upon the UI-TARS framework with reinforcement...',
     context_length: 128000,
     architecture: {
       modality: 'text+image->text',
@@ -1622,6 +1879,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 2048,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -1637,7 +1895,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+    canonical_slug: 'venice/uncensored',
+    hugging_face_id: 'cognitivecomputations/Dolphin-Mistral-24B-Venice-Edition',
     name: 'Venice: Uncensored (free)',
+    created: 1752094966,
+    description:
+      'Venice Uncensored Dolphin Mistral 24B Venice Edition is a fine-tuned variant of Mistral-Small-24B-Instruct-2501, developed by dphn.ai in collaboration with Venice.ai. This model is designed as an “uncensored” instruct-tuned LLM, preserving...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -1655,6 +1918,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -1669,7 +1933,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'cohere/command-a',
+    canonical_slug: 'cohere/command-a-03-2025',
+    hugging_face_id: 'CohereForAI/c4ai-command-a-03-2025',
     name: 'Cohere: Command A',
+    created: 1741894342,
+    description:
+      'Command A is an open-weights 111B parameter model with a 256k context window focused on delivering great performance across agentic, multilingual, and coding use cases. Compared to other leading proprietary...',
     context_length: 256000,
     architecture: {
       modality: 'text->text',
@@ -1687,6 +1956,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -1702,7 +1972,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'cohere/command-r-08-2024',
+    canonical_slug: 'cohere/command-r-08-2024',
+    hugging_face_id: null,
     name: 'Cohere: Command R (08-2024)',
+    created: 1724976000,
+    description:
+      'command-r-08-2024 is an update of the [Command R](/models/cohere/command-r) with improved performance for multilingual retrieval-augmented generation (RAG) and tool use. More broadly, it is better at math, code and reasoning and...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -1720,6 +1995,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -1737,7 +2013,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'cohere/command-r-plus-08-2024',
+    canonical_slug: 'cohere/command-r-plus-08-2024',
+    hugging_face_id: null,
     name: 'Cohere: Command R+ (08-2024)',
+    created: 1724976000,
+    description:
+      'command-r-plus-08-2024 is an update of the [Command R+](/models/cohere/command-r-plus) with roughly 50% higher throughput and 25% lower latencies as compared to the previous Command R+ version, while keeping the hardware footprint...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -1755,6 +2036,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -1772,7 +2054,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'cohere/command-r7b-12-2024',
+    canonical_slug: 'cohere/command-r7b-12-2024',
+    hugging_face_id: '',
     name: 'Cohere: Command R7B (12-2024)',
+    created: 1734158152,
+    description:
+      'Command R7B (12-2024) is a small, fast update of the Command R+ model, delivered in December 2024. It excels at RAG, tool use, agents, and similar tasks requiring complex reasoning...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -1790,6 +2077,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -1805,7 +2093,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepcogito/cogito-v2.1-671b',
+    canonical_slug: 'deepcogito/cogito-v2.1-671b-20251118',
+    hugging_face_id: '',
     name: 'Deep Cogito: Cogito v2.1 671B',
+    created: 1763071233,
+    description:
+      'Cogito v2.1 671B MoE represents one of the strongest open models globally, matching performance of frontier closed and open models. This model is trained using self play with reinforcement learning...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -1823,6 +2116,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -1842,7 +2136,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-chat',
+    canonical_slug: 'deepseek/deepseek-chat-v3',
+    hugging_face_id: 'deepseek-ai/DeepSeek-V3',
     name: 'DeepSeek: DeepSeek V3',
+    created: 1735241320,
+    description:
+      'DeepSeek-V3 is the latest model from the DeepSeek team, building upon the instruction following and coding abilities of the previous versions. Pre-trained on nearly 15 trillion tokens, the reported evaluations...',
     context_length: 163840,
     architecture: {
       modality: 'text->text',
@@ -1860,6 +2159,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 163840,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -1878,7 +2178,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-chat-v3-0324',
+    canonical_slug: 'deepseek/deepseek-chat-v3-0324',
+    hugging_face_id: 'deepseek-ai/DeepSeek-V3-0324',
     name: 'DeepSeek: DeepSeek V3 0324',
+    created: 1742824755,
+    description:
+      'DeepSeek V3, a 685B-parameter, mixture-of-experts model, is the latest iteration of the flagship chat model family from the DeepSeek team. It succeeds the [DeepSeek V3](/deepseek/deepseek-chat-v3) model and performs really well...',
     context_length: 163840,
     architecture: {
       modality: 'text->text',
@@ -1897,6 +2202,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -1920,7 +2226,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-chat-v3.1',
+    canonical_slug: 'deepseek/deepseek-chat-v3.1',
+    hugging_face_id: 'deepseek-ai/DeepSeek-V3.1',
     name: 'DeepSeek: DeepSeek V3.1',
+    created: 1755779628,
+    description:
+      'DeepSeek-V3.1 is a large hybrid reasoning model (671B parameters, 37B active) that supports both thinking and non-thinking modes via prompt templates. It extends the DeepSeek-V3 base with a two-phase long-context...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -1938,6 +2249,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 7168,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -1962,7 +2274,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-r1',
+    canonical_slug: 'deepseek/deepseek-r1',
+    hugging_face_id: 'deepseek-ai/DeepSeek-R1',
     name: 'DeepSeek: R1',
+    created: 1737381095,
+    description:
+      "DeepSeek R1 is here: Performance on par with [OpenAI o1](/openai/o1), but open-sourced and with fully open reasoning tokens. It's 671B parameters in size, with 37B active in an inference pass....",
     context_length: 64000,
     architecture: {
       modality: 'text->text',
@@ -1980,9 +2297,11 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'presence_penalty',
       'reasoning',
@@ -1998,7 +2317,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-r1-0528',
+    canonical_slug: 'deepseek/deepseek-r1-0528',
+    hugging_face_id: 'deepseek-ai/DeepSeek-R1-0528',
     name: 'DeepSeek: R1 0528',
+    created: 1748455170,
+    description:
+      "May 28th update to the [original DeepSeek R1](/deepseek/deepseek-r1) Performance on par with [OpenAI o1](/openai/o1), but open-sourced and with fully open reasoning tokens. It's 671B parameters in size, with 37B active...",
     context_length: 163840,
     architecture: {
       modality: 'text->text',
@@ -2017,6 +2341,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -2039,7 +2364,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-r1-distill-llama-70b',
+    canonical_slug: 'deepseek/deepseek-r1-distill-llama-70b',
+    hugging_face_id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B',
     name: 'DeepSeek: R1 Distill Llama 70B',
+    created: 1737663169,
+    description:
+      'DeepSeek R1 Distill Llama 70B is a distilled large language model based on [Llama-3.3-70B-Instruct](/meta-llama/llama-3.3-70b-instruct), using outputs from [DeepSeek R1](/deepseek/deepseek-r1). The model combines advanced distillation techniques to achieve high performance across...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -2057,6 +2387,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -2068,7 +2399,6 @@ export const models: Array<OpenRouterModel> = [
       'response_format',
       'seed',
       'stop',
-      'structured_outputs',
       'temperature',
       'top_k',
       'top_p',
@@ -2076,7 +2406,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-r1-distill-qwen-32b',
+    canonical_slug: 'deepseek/deepseek-r1-distill-qwen-32b',
+    hugging_face_id: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B',
     name: 'DeepSeek: R1 Distill Qwen 32B',
+    created: 1738194830,
+    description:
+      "DeepSeek R1 Distill Qwen 32B is a distilled large language model based on [Qwen 2.5 32B](https://huggingface.co/Qwen/Qwen2.5-32B), using outputs from [DeepSeek R1](/deepseek/deepseek-r1). It outperforms OpenAI's o1-mini across various benchmarks, achieving new...",
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -2094,6 +2429,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -2111,7 +2447,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-v3.1-terminus',
+    canonical_slug: 'deepseek/deepseek-v3.1-terminus',
+    hugging_face_id: 'deepseek-ai/DeepSeek-V3.1-Terminus',
     name: 'DeepSeek: DeepSeek V3.1 Terminus',
+    created: 1758548275,
+    description:
+      "DeepSeek-V3.1 Terminus is an update to [DeepSeek V3.1](/deepseek/deepseek-chat-v3.1) that maintains the model's original capabilities while addressing issues reported by users, including language consistency and agent capabilities, further optimizing the model's...",
     context_length: 163840,
     architecture: {
       modality: 'text->text',
@@ -2130,6 +2471,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -2152,7 +2494,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-v3.2',
+    canonical_slug: 'deepseek/deepseek-v3.2-20251201',
+    hugging_face_id: 'deepseek-ai/DeepSeek-V3.2',
     name: 'DeepSeek: DeepSeek V3.2',
+    created: 1764594642,
+    description:
+      'DeepSeek-V3.2 is a large language model designed to harmonize high computational efficiency with strong reasoning and agentic tool-use performance. It introduces DeepSeek Sparse Attention (DSA), a fine-grained sparse attention mechanism...',
     context_length: 163840,
     architecture: {
       modality: 'text->text',
@@ -2171,6 +2518,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -2195,7 +2543,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-v3.2-exp',
+    canonical_slug: 'deepseek/deepseek-v3.2-exp',
+    hugging_face_id: 'deepseek-ai/DeepSeek-V3.2-Exp',
     name: 'DeepSeek: DeepSeek V3.2 Exp',
+    created: 1759150481,
+    description:
+      'DeepSeek-V3.2-Exp is an experimental large language model released by DeepSeek as an intermediate step between V3.1 and future architectures. It introduces DeepSeek Sparse Attention (DSA), a fine-grained sparse attention mechanism...',
     context_length: 163840,
     architecture: {
       modality: 'text->text',
@@ -2213,6 +2566,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -2235,7 +2589,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'deepseek/deepseek-v3.2-speciale',
+    canonical_slug: 'deepseek/deepseek-v3.2-speciale-20251201',
+    hugging_face_id: 'deepseek-ai/DeepSeek-V3.2-Speciale',
     name: 'DeepSeek: DeepSeek V3.2 Speciale',
+    created: 1764594837,
+    description:
+      'DeepSeek-V3.2-Speciale is a high-compute variant of DeepSeek-V3.2 optimized for maximum reasoning and agentic performance. It builds on DeepSeek Sparse Attention (DSA) for efficient long-context processing, then scales post-training reinforcement learning...',
     context_length: 163840,
     architecture: {
       modality: 'text->text',
@@ -2254,6 +2613,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 163840,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -2274,7 +2634,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'eleutherai/llemma_7b',
+    canonical_slug: 'eleutherai/llemma_7b',
+    hugging_face_id: 'EleutherAI/llemma_7b',
     name: 'EleutherAI: Llemma 7b',
+    created: 1744643225,
+    description:
+      'Llemma 7B is a language model for mathematics. It was initialized with Code Llama 7B weights, and trained on the Proof-Pile-2 for 200B tokens. Llemma models are particularly strong at...',
     context_length: 4096,
     architecture: {
       modality: 'text->text',
@@ -2292,6 +2657,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -2307,7 +2673,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'essentialai/rnj-1-instruct',
+    canonical_slug: 'essentialai/rnj-1-instruct',
+    hugging_face_id: 'EssentialAI/rnj-1-instruct',
     name: 'EssentialAI: Rnj 1 Instruct',
+    created: 1765094847,
+    description:
+      'Rnj-1 is an 8B-parameter, dense, open-weight model family developed by Essential AI and trained from scratch with a focus on programming, math, and scientific reasoning. The model demonstrates strong performance...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -2325,6 +2696,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -2344,7 +2716,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-2.0-flash-001',
+    canonical_slug: 'google/gemini-2.0-flash-001',
+    hugging_face_id: '',
     name: 'Google: Gemini 2.0 Flash',
+    created: 1738769413,
+    description:
+      'Gemini Flash 2.0 offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5). It...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2356,8 +2733,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000001',
       completion: '0.0000004',
-      image: '0.0000001',
       audio: '0.0000007',
+      image: '0.0000001',
       internal_reasoning: '0.0000004',
       input_cache_read: '0.000000025',
       input_cache_write: '0.00000008333333333333334',
@@ -2367,6 +2744,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -2381,7 +2759,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-2.0-flash-lite-001',
+    canonical_slug: 'google/gemini-2.0-flash-lite-001',
+    hugging_face_id: '',
     name: 'Google: Gemini 2.0 Flash Lite',
+    created: 1740506212,
+    description:
+      'Gemini 2.0 Flash Lite offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5),...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2393,8 +2776,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.000000075',
       completion: '0.0000003',
-      image: '0.000000075',
       audio: '0.000000075',
+      image: '0.000000075',
       internal_reasoning: '0.0000003',
     },
     top_provider: {
@@ -2402,6 +2785,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -2416,7 +2800,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-2.5-flash',
+    canonical_slug: 'google/gemini-2.5-flash',
+    hugging_face_id: '',
     name: 'Google: Gemini 2.5 Flash',
+    created: 1750172488,
+    description:
+      'Gemini 2.5 Flash is Google\'s state-of-the-art workhorse model, specifically designed for advanced reasoning, coding, mathematics, and scientific tasks. It includes built-in "thinking" capabilities, enabling it to provide responses with greater...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2428,8 +2817,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000003',
       completion: '0.0000025',
-      image: '0.0000003',
       audio: '0.000001',
+      image: '0.0000003',
       internal_reasoning: '0.0000025',
       input_cache_read: '0.00000003',
       input_cache_write: '0.00000008333333333333334',
@@ -2439,6 +2828,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65535,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2455,7 +2845,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-2.5-flash-image',
+    canonical_slug: 'google/gemini-2.5-flash-image',
+    hugging_face_id: '',
     name: 'Google: Nano Banana (Gemini 2.5 Flash Image)',
+    created: 1759870431,
+    description:
+      'Gemini 2.5 Flash Image, a.k.a. "Nano Banana," is now generally available. It is a state of the art image generation model with contextual understanding. It is capable of image generation,...',
     context_length: 32768,
     architecture: {
       modality: 'text+image->text+image',
@@ -2467,8 +2862,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000003',
       completion: '0.0000025',
-      image: '0.0000003',
       audio: '0.000001',
+      image: '0.0000003',
       internal_reasoning: '0.0000025',
       input_cache_read: '0.00000003',
       input_cache_write: '0.00000008333333333333334',
@@ -2478,6 +2873,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -2490,7 +2886,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-2.5-flash-lite',
+    canonical_slug: 'google/gemini-2.5-flash-lite',
+    hugging_face_id: '',
     name: 'Google: Gemini 2.5 Flash Lite',
+    created: 1753200276,
+    description:
+      'Gemini 2.5 Flash-Lite is a lightweight reasoning model in the Gemini 2.5 family, optimized for ultra-low latency and cost efficiency. It offers improved throughput, faster token generation, and better performance...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2502,8 +2903,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000001',
       completion: '0.0000004',
-      image: '0.0000001',
       audio: '0.0000003',
+      image: '0.0000001',
       internal_reasoning: '0.0000004',
       input_cache_read: '0.00000001',
       input_cache_write: '0.00000008333333333333334',
@@ -2513,6 +2914,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65535,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2529,7 +2931,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-2.5-flash-lite-preview-09-2025',
+    canonical_slug: 'google/gemini-2.5-flash-lite-preview-09-2025',
+    hugging_face_id: '',
     name: 'Google: Gemini 2.5 Flash Lite Preview 09-2025',
+    created: 1758819686,
+    description:
+      'Gemini 2.5 Flash-Lite is a lightweight reasoning model in the Gemini 2.5 family, optimized for ultra-low latency and cost efficiency. It offers improved throughput, faster token generation, and better performance...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2541,17 +2948,18 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000001',
       completion: '0.0000004',
-      image: '0.0000001',
       audio: '0.0000003',
+      image: '0.0000001',
       internal_reasoning: '0.0000004',
       input_cache_read: '0.00000001',
       input_cache_write: '0.00000008333333333333334',
     },
     top_provider: {
       context_length: 1048576,
-      max_completion_tokens: 65536,
+      max_completion_tokens: 65535,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2568,7 +2976,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-2.5-pro',
+    canonical_slug: 'google/gemini-2.5-pro',
+    hugging_face_id: '',
     name: 'Google: Gemini 2.5 Pro',
+    created: 1750169544,
+    description:
+      'Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2580,8 +2993,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000125',
       completion: '0.00001',
-      image: '0.00000125',
       audio: '0.00000125',
+      image: '0.00000125',
       internal_reasoning: '0.00001',
       input_cache_read: '0.000000125',
       input_cache_write: '0.000000375',
@@ -2591,6 +3004,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2607,7 +3021,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-2.5-pro-preview',
+    canonical_slug: 'google/gemini-2.5-pro-preview-06-05',
+    hugging_face_id: '',
     name: 'Google: Gemini 2.5 Pro Preview 06-05',
+    created: 1749137257,
+    description:
+      'Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio->text',
@@ -2619,8 +3038,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000125',
       completion: '0.00001',
-      image: '0.00000125',
       audio: '0.00000125',
+      image: '0.00000125',
       internal_reasoning: '0.00001',
       input_cache_read: '0.000000125',
       input_cache_write: '0.000000375',
@@ -2630,6 +3049,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2646,7 +3066,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-2.5-pro-preview-05-06',
+    canonical_slug: 'google/gemini-2.5-pro-preview-03-25',
+    hugging_face_id: '',
     name: 'Google: Gemini 2.5 Pro Preview 05-06',
+    created: 1746578513,
+    description:
+      'Gemini 2.5 Pro is Google’s state-of-the-art AI model designed for advanced reasoning, coding, mathematics, and scientific tasks. It employs “thinking” capabilities, enabling it to reason through responses with enhanced accuracy...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2658,8 +3083,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000125',
       completion: '0.00001',
-      image: '0.00000125',
       audio: '0.00000125',
+      image: '0.00000125',
       internal_reasoning: '0.00001',
       input_cache_read: '0.000000125',
       input_cache_write: '0.000000375',
@@ -2669,6 +3094,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65535,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2685,7 +3111,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-3-flash-preview',
+    canonical_slug: 'google/gemini-3-flash-preview-20251217',
+    hugging_face_id: '',
     name: 'Google: Gemini 3 Flash Preview',
+    created: 1765987078,
+    description:
+      'Gemini 3 Flash Preview is a high speed, high value thinking model designed for agentic workflows, multi turn chat, and coding assistance. It delivers near Pro level reasoning and tool...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2697,8 +3128,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000005',
       completion: '0.000003',
-      image: '0.0000005',
       audio: '0.000001',
+      image: '0.0000005',
       internal_reasoning: '0.000003',
       input_cache_read: '0.00000005',
       input_cache_write: '0.00000008333333333333334',
@@ -2708,6 +3139,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2724,7 +3156,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-3-pro-image-preview',
+    canonical_slug: 'google/gemini-3-pro-image-preview-20251120',
+    hugging_face_id: '',
     name: 'Google: Nano Banana Pro (Gemini 3 Pro Image Preview)',
+    created: 1763653797,
+    description:
+      'Nano Banana Pro is Google’s most advanced image-generation and editing model, built on Gemini 3 Pro. It extends the original Nano Banana with significantly improved multimodal reasoning, real-world grounding, and...',
     context_length: 65536,
     architecture: {
       modality: 'text+image->text+image',
@@ -2736,8 +3173,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.000002',
       completion: '0.000012',
-      image: '0.000002',
       audio: '0.000002',
+      image: '0.000002',
       internal_reasoning: '0.000012',
       input_cache_read: '0.0000002',
       input_cache_write: '0.000000375',
@@ -2747,6 +3184,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2761,7 +3199,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-3.1-flash-image-preview',
+    canonical_slug: 'google/gemini-3.1-flash-image-preview-20260226',
+    hugging_face_id: '',
     name: 'Google: Nano Banana 2 (Gemini 3.1 Flash Image Preview)',
+    created: 1772119558,
+    description:
+      'Gemini 3.1 Flash Image Preview, a.k.a. "Nano Banana 2," is Google’s latest state of the art image generation and editing model, delivering Pro-level visual quality at Flash speed. It combines...',
     context_length: 65536,
     architecture: {
       modality: 'text+image->text+image',
@@ -2779,6 +3222,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2793,7 +3237,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-3.1-flash-lite-preview',
+    canonical_slug: 'google/gemini-3.1-flash-lite-preview-20260303',
+    hugging_face_id: '',
     name: 'Google: Gemini 3.1 Flash Lite Preview',
+    created: 1772512673,
+    description:
+      "Gemini 3.1 Flash Lite Preview is Google's high-efficiency model optimized for high-volume use cases. It outperforms Gemini 2.5 Flash Lite on overall quality and approaches Gemini 2.5 Flash performance across...",
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2805,8 +3254,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000025',
       completion: '0.0000015',
-      image: '0.00000025',
       audio: '0.0000005',
+      image: '0.00000025',
       internal_reasoning: '0.0000015',
       input_cache_read: '0.000000025',
       input_cache_write: '0.00000008333333333333334',
@@ -2816,6 +3265,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2832,7 +3282,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-3.1-pro-preview',
+    canonical_slug: 'google/gemini-3.1-pro-preview-20260219',
+    hugging_face_id: '',
     name: 'Google: Gemini 3.1 Pro Preview',
+    created: 1771509627,
+    description:
+      'Gemini 3.1 Pro Preview is Google’s frontier reasoning model, delivering enhanced software engineering performance, improved agentic reliability, and more efficient token usage across complex workflows. Building on the multimodal foundation...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2844,8 +3299,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.000002',
       completion: '0.000012',
-      image: '0.000002',
       audio: '0.000002',
+      image: '0.000002',
       internal_reasoning: '0.000012',
       input_cache_read: '0.0000002',
       input_cache_write: '0.000000375',
@@ -2855,6 +3310,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2871,7 +3327,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemini-3.1-pro-preview-customtools',
+    canonical_slug: 'google/gemini-3.1-pro-preview-customtools-20260219',
+    hugging_face_id: null,
     name: 'Google: Gemini 3.1 Pro Preview Custom Tools',
+    created: 1772045923,
+    description:
+      'Gemini 3.1 Pro Preview Custom Tools is a variant of Gemini 3.1 Pro that improves tool selection behavior by preventing overuse of a general bash tool when more efficient third-party...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
@@ -2883,8 +3344,8 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.000002',
       completion: '0.000012',
-      image: '0.000002',
       audio: '0.000002',
+      image: '0.000002',
       internal_reasoning: '0.000012',
       input_cache_read: '0.0000002',
       input_cache_write: '0.000000375',
@@ -2894,6 +3355,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -2910,7 +3372,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-2-27b-it',
+    canonical_slug: 'google/gemma-2-27b-it',
+    hugging_face_id: 'google/gemma-2-27b-it',
     name: 'Google: Gemma 2 27B',
+    created: 1720828800,
+    description:
+      'Gemma 2 27B by Google is an open model built from the same research and technology used to create the [Gemini models](/models?q=gemini). Gemma models are well-suited for a variety of...',
     context_length: 8192,
     architecture: {
       modality: 'text->text',
@@ -2928,6 +3395,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 2048,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -2941,7 +3409,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-2-9b-it',
+    canonical_slug: 'google/gemma-2-9b-it',
+    hugging_face_id: 'google/gemma-2-9b-it',
     name: 'Google: Gemma 2 9B',
+    created: 1719532800,
+    description:
+      'Gemma 2 9B by Google is an advanced, open-source language model that sets a new standard for efficiency and performance in its size class. Designed for a wide variety of...',
     context_length: 8192,
     architecture: {
       modality: 'text->text',
@@ -2959,6 +3432,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -2971,7 +3445,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-3-12b-it',
+    canonical_slug: 'google/gemma-3-12b-it',
+    hugging_face_id: 'google/gemma-3-12b-it',
     name: 'Google: Gemma 3 12B',
+    created: 1741902625,
+    description:
+      'Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities,...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -2989,6 +3468,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -3007,7 +3487,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-3-12b-it:free',
+    canonical_slug: 'google/gemma-3-12b-it',
+    hugging_face_id: 'google/gemma-3-12b-it',
     name: 'Google: Gemma 3 12B (free)',
+    created: 1741902625,
+    description:
+      'Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities,...',
     context_length: 32768,
     architecture: {
       modality: 'text+image->text',
@@ -3025,6 +3510,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'seed',
@@ -3035,7 +3521,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-3-27b-it',
+    canonical_slug: 'google/gemma-3-27b-it',
+    hugging_face_id: 'google/gemma-3-27b-it',
     name: 'Google: Gemma 3 27B',
+    created: 1741756359,
+    description:
+      'Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities,...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -3053,6 +3544,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -3071,7 +3563,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-3-27b-it:free',
+    canonical_slug: 'google/gemma-3-27b-it',
+    hugging_face_id: 'google/gemma-3-27b-it',
     name: 'Google: Gemma 3 27B (free)',
+    created: 1741756359,
+    description:
+      'Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities,...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -3089,6 +3586,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -3100,7 +3598,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-3-4b-it',
+    canonical_slug: 'google/gemma-3-4b-it',
+    hugging_face_id: 'google/gemma-3-4b-it',
     name: 'Google: Gemma 3 4B',
+    created: 1741905510,
+    description:
+      'Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities,...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -3118,6 +3621,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -3134,7 +3638,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-3-4b-it:free',
+    canonical_slug: 'google/gemma-3-4b-it',
+    hugging_face_id: 'google/gemma-3-4b-it',
     name: 'Google: Gemma 3 4B (free)',
+    created: 1741905510,
+    description:
+      'Gemma 3 introduces multimodality, supporting vision-language input and text outputs. It handles context windows up to 128k tokens, understands over 140 languages, and offers improved math, reasoning, and chat capabilities,...',
     context_length: 32768,
     architecture: {
       modality: 'text+image->text',
@@ -3152,6 +3661,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -3163,7 +3673,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-3n-e2b-it:free',
+    canonical_slug: 'google/gemma-3n-e2b-it',
+    hugging_face_id: 'google/gemma-3n-E2B-it',
     name: 'Google: Gemma 3n 2B (free)',
+    created: 1752074904,
+    description:
+      'Gemma 3n E2B IT is a multimodal, instruction-tuned model developed by Google DeepMind, designed to operate efficiently at an effective parameter size of 2B while leveraging a 6B architecture. Based...',
     context_length: 8192,
     architecture: {
       modality: 'text->text',
@@ -3181,6 +3696,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 2048,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -3191,7 +3707,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-3n-e4b-it',
+    canonical_slug: 'google/gemma-3n-e4b-it',
+    hugging_face_id: 'google/gemma-3n-E4B-it',
     name: 'Google: Gemma 3n 4B',
+    created: 1747776824,
+    description:
+      'Gemma 3n E4B-it is optimized for efficient execution on mobile and low-resource devices, such as phones, laptops, and tablets. It supports multimodal inputs—including text, visual data, and audio—enabling diverse tasks...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -3209,6 +3730,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -3224,7 +3746,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'google/gemma-3n-e4b-it:free',
+    canonical_slug: 'google/gemma-3n-e4b-it',
+    hugging_face_id: 'google/gemma-3n-E4B-it',
     name: 'Google: Gemma 3n 4B (free)',
+    created: 1747776824,
+    description:
+      'Gemma 3n E4B-it is optimized for efficient execution on mobile and low-resource devices, such as phones, laptops, and tablets. It supports multimodal inputs—including text, visual data, and audio—enabling diverse tasks...',
     context_length: 8192,
     architecture: {
       modality: 'text->text',
@@ -3242,6 +3769,245 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 2048,
       is_moderated: false,
     },
+    per_request_limits: null,
+    supported_parameters: [
+      'max_tokens',
+      'response_format',
+      'seed',
+      'temperature',
+      'top_p',
+    ],
+  },
+  {
+    id: 'google/gemma-4-26b-a4b-it',
+    canonical_slug: 'google/gemma-4-26b-a4b-it-20260403',
+    hugging_face_id: 'google/gemma-4-26B-A4B-it',
+    name: 'Google: Gemma 4 26B A4B ',
+    created: 1775227989,
+    description:
+      'Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind. Despite 25.2B total parameters, only 3.8B activate per token during inference — delivering near-31B quality at...',
+    context_length: 262144,
+    architecture: {
+      modality: 'text+image+video->text',
+      input_modalities: ['image', 'text', 'video'],
+      output_modalities: ['text'],
+      tokenizer: 'Gemma',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0.00000013',
+      completion: '0.0000004',
+    },
+    top_provider: {
+      context_length: 262144,
+      max_completion_tokens: 262144,
+      is_moderated: false,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'frequency_penalty',
+      'include_reasoning',
+      'logit_bias',
+      'logprobs',
+      'max_tokens',
+      'presence_penalty',
+      'reasoning',
+      'repetition_penalty',
+      'response_format',
+      'seed',
+      'stop',
+      'structured_outputs',
+      'temperature',
+      'tool_choice',
+      'tools',
+      'top_k',
+      'top_logprobs',
+      'top_p',
+    ],
+  },
+  {
+    id: 'google/gemma-4-26b-a4b-it:free',
+    canonical_slug: 'google/gemma-4-26b-a4b-it-20260403',
+    hugging_face_id: 'google/gemma-4-26B-A4B-it',
+    name: 'Google: Gemma 4 26B A4B  (free)',
+    created: 1775227989,
+    description:
+      'Gemma 4 26B A4B IT is an instruction-tuned Mixture-of-Experts (MoE) model from Google DeepMind. Despite 25.2B total parameters, only 3.8B activate per token during inference — delivering near-31B quality at...',
+    context_length: 262144,
+    architecture: {
+      modality: 'text+image+video->text',
+      input_modalities: ['image', 'text', 'video'],
+      output_modalities: ['text'],
+      tokenizer: 'Gemma',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0',
+      completion: '0',
+    },
+    top_provider: {
+      context_length: 262144,
+      max_completion_tokens: 32768,
+      is_moderated: false,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'include_reasoning',
+      'max_tokens',
+      'reasoning',
+      'response_format',
+      'seed',
+      'temperature',
+      'tool_choice',
+      'tools',
+      'top_p',
+    ],
+  },
+  {
+    id: 'google/gemma-4-31b-it',
+    canonical_slug: 'google/gemma-4-31b-it-20260402',
+    hugging_face_id: 'google/gemma-4-31B-it',
+    name: 'Google: Gemma 4 31B',
+    created: 1775148486,
+    description:
+      "Gemma 4 31B Instruct is Google DeepMind's 30.7B dense multimodal model supporting text and image input with text output. Features a 256K token context window, configurable thinking/reasoning mode, native function...",
+    context_length: 262144,
+    architecture: {
+      modality: 'text+image+video->text',
+      input_modalities: ['image', 'text', 'video'],
+      output_modalities: ['text'],
+      tokenizer: 'Gemma',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0.00000014',
+      completion: '0.0000004',
+    },
+    top_provider: {
+      context_length: 262144,
+      max_completion_tokens: 131072,
+      is_moderated: false,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'frequency_penalty',
+      'include_reasoning',
+      'logit_bias',
+      'logprobs',
+      'max_tokens',
+      'presence_penalty',
+      'reasoning',
+      'repetition_penalty',
+      'response_format',
+      'seed',
+      'stop',
+      'structured_outputs',
+      'temperature',
+      'tool_choice',
+      'tools',
+      'top_k',
+      'top_logprobs',
+      'top_p',
+    ],
+  },
+  {
+    id: 'google/gemma-4-31b-it:free',
+    canonical_slug: 'google/gemma-4-31b-it-20260402',
+    hugging_face_id: 'google/gemma-4-31B-it',
+    name: 'Google: Gemma 4 31B (free)',
+    created: 1775148486,
+    description:
+      "Gemma 4 31B Instruct is Google DeepMind's 30.7B dense multimodal model supporting text and image input with text output. Features a 256K token context window, configurable thinking/reasoning mode, native function...",
+    context_length: 262144,
+    architecture: {
+      modality: 'text+image+video->text',
+      input_modalities: ['image', 'text', 'video'],
+      output_modalities: ['text'],
+      tokenizer: 'Gemma',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0',
+      completion: '0',
+    },
+    top_provider: {
+      context_length: 262144,
+      max_completion_tokens: 32768,
+      is_moderated: false,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'include_reasoning',
+      'max_tokens',
+      'reasoning',
+      'response_format',
+      'seed',
+      'temperature',
+      'tool_choice',
+      'tools',
+      'top_p',
+    ],
+  },
+  {
+    id: 'google/lyria-3-clip-preview',
+    canonical_slug: 'google/lyria-3-clip-preview-20260330',
+    hugging_face_id: null,
+    name: 'Google: Lyria 3 Clip Preview',
+    created: 1774907255,
+    description:
+      "30 second duration clips are priced at $0.04 per clip. Lyria 3 is Google's family of music generation models, available through the Gemini API. With Lyria 3, you can generate...",
+    context_length: 1048576,
+    architecture: {
+      modality: 'text+image->text+audio',
+      input_modalities: ['text', 'image'],
+      output_modalities: ['text', 'audio'],
+      tokenizer: 'Other',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0',
+      completion: '0',
+    },
+    top_provider: {
+      context_length: 1048576,
+      max_completion_tokens: 65536,
+      is_moderated: false,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'max_tokens',
+      'response_format',
+      'seed',
+      'temperature',
+      'top_p',
+    ],
+  },
+  {
+    id: 'google/lyria-3-pro-preview',
+    canonical_slug: 'google/lyria-3-pro-preview-20260330',
+    hugging_face_id: null,
+    name: 'Google: Lyria 3 Pro Preview',
+    created: 1774907286,
+    description:
+      "Full-length songs are priced at $0.08 per song. Lyria 3 is Google's family of music generation models, available through the Gemini API. With Lyria 3, you can generate high-quality, 48kHz...",
+    context_length: 1048576,
+    architecture: {
+      modality: 'text+image->text+audio',
+      input_modalities: ['text', 'image'],
+      output_modalities: ['text', 'audio'],
+      tokenizer: 'Other',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0',
+      completion: '0',
+    },
+    top_provider: {
+      context_length: 1048576,
+      max_completion_tokens: 65536,
+      is_moderated: false,
+    },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -3252,7 +4018,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'gryphe/mythomax-l2-13b',
+    canonical_slug: 'gryphe/mythomax-l2-13b',
+    hugging_face_id: 'Gryphe/MythoMax-L2-13b',
     name: 'MythoMax 13B',
+    created: 1688256000,
+    description:
+      'One of the highest performing and most popular fine-tunes of Llama 2 13B, with rich descriptions and roleplay. #merge',
     context_length: 4096,
     architecture: {
       modality: 'text->text',
@@ -3270,6 +4041,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -3291,7 +4063,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'ibm-granite/granite-4.0-h-micro',
+    canonical_slug: 'ibm-granite/granite-4.0-h-micro',
+    hugging_face_id: 'ibm-granite/granite-4.0-h-micro',
     name: 'IBM: Granite 4.0 Micro',
+    created: 1760927695,
+    description:
+      'Granite-4.0-H-Micro is a 3B parameter from the Granite 4 family of models. These models are the latest in a series of models released by IBM. They are fine-tuned for long...',
     context_length: 131000,
     architecture: {
       modality: 'text->text',
@@ -3309,6 +4086,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -3322,7 +4100,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'inception/mercury',
+    canonical_slug: 'inception/mercury',
+    hugging_face_id: '',
     name: 'Inception: Mercury',
+    created: 1750973026,
+    description:
+      'Mercury is the first diffusion large language model (dLLM). Applying a breakthrough discrete diffusion approach, the model runs 5-10x faster than even speed optimized models like GPT-4.1 Nano and Claude...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -3341,6 +4124,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -3353,7 +4137,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'inception/mercury-2',
+    canonical_slug: 'inception/mercury-2-20260304',
+    hugging_face_id: null,
     name: 'Inception: Mercury 2',
+    created: 1772636275,
+    description:
+      'Mercury 2 is an extremely fast reasoning LLM, and the first reasoning diffusion LLM (dLLM). Instead of generating tokens sequentially, Mercury 2 produces and refines multiple tokens in parallel, achieving...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -3372,6 +4161,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 50000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -3386,7 +4176,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'inception/mercury-coder',
+    canonical_slug: 'inception/mercury-coder-small-beta',
+    hugging_face_id: '',
     name: 'Inception: Mercury Coder',
+    created: 1746033880,
+    description:
+      'Mercury Coder is the first diffusion large language model (dLLM). Applying a breakthrough discrete diffusion approach, the model runs 5-10x faster than even speed optimized models like Claude 3.5 Haiku...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -3405,6 +4200,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -3417,7 +4213,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'inflection/inflection-3-pi',
+    canonical_slug: 'inflection/inflection-3-pi',
+    hugging_face_id: null,
     name: 'Inflection: Inflection 3 Pi',
+    created: 1728604800,
+    description:
+      "Inflection 3 Pi powers Inflection's [Pi](https://pi.ai) chatbot, including backstory, emotional intelligence, productivity, and safety. It has access to recent news, and excels in scenarios like customer support and roleplay. Pi...",
     context_length: 8000,
     architecture: {
       modality: 'text->text',
@@ -3435,11 +4236,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 1024,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: ['max_tokens', 'stop', 'temperature', 'top_p'],
   },
   {
     id: 'inflection/inflection-3-productivity',
+    canonical_slug: 'inflection/inflection-3-productivity',
+    hugging_face_id: null,
     name: 'Inflection: Inflection 3 Productivity',
+    created: 1728604800,
+    description:
+      'Inflection 3 Productivity is optimized for following instructions. It is better for tasks requiring JSON output or precise adherence to provided guidelines. It has access to recent news. For emotional...',
     context_length: 8000,
     architecture: {
       modality: 'text->text',
@@ -3457,50 +4264,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 1024,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: ['max_tokens', 'stop', 'temperature', 'top_p'],
   },
   {
-    id: 'kwaipilot/kat-coder-pro',
-    name: 'Kwaipilot: KAT-Coder-Pro V1',
-    context_length: 256000,
-    architecture: {
-      modality: 'text->text',
-      input_modalities: ['text'],
-      output_modalities: ['text'],
-      tokenizer: 'Other',
-      instruct_type: null,
-    },
-    pricing: {
-      prompt: '0.000000207',
-      completion: '0.000000828',
-      input_cache_read: '0.0000000414',
-    },
-    top_provider: {
-      context_length: 256000,
-      max_completion_tokens: 128000,
-      is_moderated: false,
-    },
-    supported_parameters: [
-      'frequency_penalty',
-      'logit_bias',
-      'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
-      'seed',
-      'stop',
-      'structured_outputs',
-      'temperature',
-      'tool_choice',
-      'tools',
-      'top_k',
-      'top_p',
-    ],
-  },
-  {
     id: 'kwaipilot/kat-coder-pro-v2',
+    canonical_slug: 'kwaipilot/kat-coder-pro-v2-20260327',
+    hugging_face_id: '',
     name: 'Kwaipilot: KAT-Coder-Pro V2',
+    created: 1774649310,
+    description:
+      'KAT-Coder-Pro V2 is the latest high-performance model in KwaiKAT’s KAT-Coder series, designed for complex enterprise-grade software engineering and SaaS integration. It builds on the agentic coding strengths of earlier versions,...',
     context_length: 256000,
     architecture: {
       modality: 'text->text',
@@ -3519,6 +4293,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 80000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -3539,7 +4314,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'liquid/lfm-2-24b-a2b',
+    canonical_slug: 'liquid/lfm-2-24b-a2b-20260224',
+    hugging_face_id: 'LiquidAI/LFM2-24B-A2B',
     name: 'LiquidAI: LFM2-24B-A2B',
+    created: 1772048711,
+    description:
+      'LFM2-24B-A2B is the largest model in the LFM2 family of hybrid architectures designed for efficient on-device deployment. Built as a 24B parameter Mixture-of-Experts model with only 2B active parameters per...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -3557,6 +4337,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -3571,41 +4352,13 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
-    id: 'liquid/lfm-2.2-6b',
-    name: 'LiquidAI: LFM2-2.6B',
-    context_length: 32768,
-    architecture: {
-      modality: 'text->text',
-      input_modalities: ['text'],
-      output_modalities: ['text'],
-      tokenizer: 'Other',
-      instruct_type: null,
-    },
-    pricing: {
-      prompt: '0.00000001',
-      completion: '0.00000002',
-    },
-    top_provider: {
-      context_length: 32768,
-      max_completion_tokens: null,
-      is_moderated: false,
-    },
-    supported_parameters: [
-      'frequency_penalty',
-      'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'seed',
-      'stop',
-      'temperature',
-      'top_k',
-      'top_p',
-    ],
-  },
-  {
     id: 'liquid/lfm-2.5-1.2b-instruct:free',
+    canonical_slug: 'liquid/lfm-2.5-1.2b-instruct-20260120',
+    hugging_face_id: 'LiquidAI/LFM2.5-1.2B-Instruct',
     name: 'LiquidAI: LFM2.5-1.2B-Instruct (free)',
+    created: 1768927521,
+    description:
+      'LFM2.5-1.2B-Instruct is a compact, high-performance instruction-tuned model built for fast on-device AI. It delivers strong chat quality in a 1.2B parameter footprint, with efficient edge inference and broad runtime support.',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -3623,6 +4376,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -3638,7 +4392,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'liquid/lfm-2.5-1.2b-thinking:free',
+    canonical_slug: 'liquid/lfm-2.5-1.2b-thinking-20260120',
+    hugging_face_id: 'LiquidAI/LFM2.5-1.2B-Thinking',
     name: 'LiquidAI: LFM2.5-1.2B-Thinking (free)',
+    created: 1768927527,
+    description:
+      'LFM2.5-1.2B-Thinking is a lightweight reasoning-focused model optimized for agentic tasks, data extraction, and RAG—while still running comfortably on edge devices. It supports long context (up to 32K tokens) and is...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -3656,6 +4415,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -3672,41 +4432,13 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
-    id: 'liquid/lfm2-8b-a1b',
-    name: 'LiquidAI: LFM2-8B-A1B',
-    context_length: 32768,
-    architecture: {
-      modality: 'text->text',
-      input_modalities: ['text'],
-      output_modalities: ['text'],
-      tokenizer: 'Other',
-      instruct_type: null,
-    },
-    pricing: {
-      prompt: '0.00000001',
-      completion: '0.00000002',
-    },
-    top_provider: {
-      context_length: 32768,
-      max_completion_tokens: null,
-      is_moderated: false,
-    },
-    supported_parameters: [
-      'frequency_penalty',
-      'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'seed',
-      'stop',
-      'temperature',
-      'top_k',
-      'top_p',
-    ],
-  },
-  {
     id: 'mancer/weaver',
+    canonical_slug: 'mancer/weaver',
+    hugging_face_id: null,
     name: 'Mancer: Weaver (alpha)',
+    created: 1690934400,
+    description:
+      "An attempt to recreate Claude-style verbosity, but don't expect the same level of coherence or memory. Meant for use in roleplay/narrative situations.",
     context_length: 8000,
     architecture: {
       modality: 'text->text',
@@ -3724,6 +4456,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 2000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -3744,7 +4477,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meituan/longcat-flash-chat',
+    canonical_slug: 'meituan/longcat-flash-chat',
+    hugging_face_id: 'meituan-longcat/LongCat-Flash-Chat',
     name: 'Meituan: LongCat Flash Chat',
+    created: 1757427658,
+    description:
+      'LongCat-Flash-Chat is a large-scale Mixture-of-Experts (MoE) model with 560B total parameters, of which 18.6B–31.3B (≈27B on average) are dynamically activated per input. It introduces a shortcut-connected MoE design to reduce...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -3763,6 +4501,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -3783,7 +4522,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-3-70b-instruct',
+    canonical_slug: 'meta-llama/llama-3-70b-instruct',
+    hugging_face_id: 'meta-llama/Meta-Llama-3-70B-Instruct',
     name: 'Meta: Llama 3 70B Instruct',
+    created: 1713398400,
+    description:
+      "Meta's latest class of model (Llama 3) launched with a variety of sizes & flavors. This 70B instruct-tuned version was optimized for high quality dialogue usecases. It has demonstrated strong...",
     context_length: 8192,
     architecture: {
       modality: 'text->text',
@@ -3801,15 +4545,14 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
       'presence_penalty',
       'repetition_penalty',
-      'response_format',
       'seed',
       'stop',
-      'structured_outputs',
       'temperature',
       'top_k',
       'top_p',
@@ -3817,7 +4560,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-3-8b-instruct',
+    canonical_slug: 'meta-llama/llama-3-8b-instruct',
+    hugging_face_id: 'meta-llama/Meta-Llama-3-8B-Instruct',
     name: 'Meta: Llama 3 8B Instruct',
+    created: 1713398400,
+    description:
+      "Meta's latest class of model (Llama 3) launched with a variety of sizes & flavors. This 8B instruct-tuned version was optimized for high quality dialogue usecases. It has demonstrated strong...",
     context_length: 8192,
     architecture: {
       modality: 'text->text',
@@ -3835,6 +4583,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -3854,7 +4603,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-3.1-70b-instruct',
+    canonical_slug: 'meta-llama/llama-3.1-70b-instruct',
+    hugging_face_id: 'meta-llama/Meta-Llama-3.1-70B-Instruct',
     name: 'Meta: Llama 3.1 70B Instruct',
+    created: 1721692800,
+    description:
+      "Meta's latest class of model (Llama 3.1) launched with a variety of sizes & flavors. This 70B instruct-tuned version is optimized for high quality dialogue usecases. It has demonstrated strong...",
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -3872,6 +4626,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -3890,7 +4645,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-3.1-8b-instruct',
+    canonical_slug: 'meta-llama/llama-3.1-8b-instruct',
+    hugging_face_id: 'meta-llama/Meta-Llama-3.1-8B-Instruct',
     name: 'Meta: Llama 3.1 8B Instruct',
+    created: 1721692800,
+    description:
+      "Meta's latest class of model (Llama 3.1) launched with a variety of sizes & flavors. This 8B instruct-tuned version is fast and efficient. It has demonstrated strong performance compared to...",
     context_length: 16384,
     architecture: {
       modality: 'text->text',
@@ -3908,6 +4668,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logprobs',
@@ -3929,7 +4690,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-3.2-11b-vision-instruct',
+    canonical_slug: 'meta-llama/llama-3.2-11b-vision-instruct',
+    hugging_face_id: 'meta-llama/Llama-3.2-11B-Vision-Instruct',
     name: 'Meta: Llama 3.2 11B Vision Instruct',
+    created: 1727222400,
+    description:
+      'Llama 3.2 11B Vision is a multimodal model with 11 billion parameters, designed to handle tasks combining visual and textual data. It excels in tasks such as image captioning and...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -3947,6 +4713,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -3963,7 +4730,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-3.2-1b-instruct',
+    canonical_slug: 'meta-llama/llama-3.2-1b-instruct',
+    hugging_face_id: 'meta-llama/Llama-3.2-1B-Instruct',
     name: 'Meta: Llama 3.2 1B Instruct',
+    created: 1727222400,
+    description:
+      'Llama 3.2 1B is a 1-billion-parameter language model focused on efficiently performing natural language tasks, such as summarization, dialogue, and multilingual text analysis. Its smaller size allows it to operate...',
     context_length: 60000,
     architecture: {
       modality: 'text->text',
@@ -3981,6 +4753,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -3994,7 +4767,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-3.2-3b-instruct',
+    canonical_slug: 'meta-llama/llama-3.2-3b-instruct',
+    hugging_face_id: 'meta-llama/Llama-3.2-3B-Instruct',
     name: 'Meta: Llama 3.2 3B Instruct',
+    created: 1727222400,
+    description:
+      'Llama 3.2 3B is a 3-billion-parameter multilingual large language model, optimized for advanced natural language processing tasks like dialogue generation, reasoning, and summarization. Designed with the latest transformer architecture, it...',
     context_length: 80000,
     architecture: {
       modality: 'text->text',
@@ -4012,6 +4790,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4025,7 +4804,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-3.2-3b-instruct:free',
+    canonical_slug: 'meta-llama/llama-3.2-3b-instruct',
+    hugging_face_id: 'meta-llama/Llama-3.2-3B-Instruct',
     name: 'Meta: Llama 3.2 3B Instruct (free)',
+    created: 1727222400,
+    description:
+      'Llama 3.2 3B is a 3-billion-parameter multilingual large language model, optimized for advanced natural language processing tasks like dialogue generation, reasoning, and summarization. Designed with the latest transformer architecture, it...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -4043,6 +4827,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4055,7 +4840,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-3.3-70b-instruct',
+    canonical_slug: 'meta-llama/llama-3.3-70b-instruct',
+    hugging_face_id: 'meta-llama/Llama-3.3-70B-Instruct',
     name: 'Meta: Llama 3.3 70B Instruct',
+    created: 1733506137,
+    description:
+      'The Meta Llama 3.3 multilingual large language model (LLM) is a pretrained and instruction tuned generative model in 70B (text in/text out). The Llama 3.3 instruction tuned text only model...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -4073,6 +4863,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -4095,7 +4886,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-3.3-70b-instruct:free',
+    canonical_slug: 'meta-llama/llama-3.3-70b-instruct',
+    hugging_face_id: 'meta-llama/Llama-3.3-70B-Instruct',
     name: 'Meta: Llama 3.3 70B Instruct (free)',
+    created: 1733506137,
+    description:
+      'The Meta Llama 3.3 multilingual large language model (LLM) is a pretrained and instruction tuned generative model in 70B (text in/text out). The Llama 3.3 instruction tuned text only model...',
     context_length: 65536,
     architecture: {
       modality: 'text->text',
@@ -4113,6 +4909,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4127,7 +4924,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-4-maverick',
+    canonical_slug: 'meta-llama/llama-4-maverick-17b-128e-instruct',
+    hugging_face_id: 'meta-llama/Llama-4-Maverick-17B-128E-Instruct',
     name: 'Meta: Llama 4 Maverick',
+    created: 1743881822,
+    description:
+      'Llama 4 Maverick 17B Instruct (128E) is a high-capacity multimodal language model from Meta, built on a mixture-of-experts (MoE) architecture with 128 experts and 17 billion active parameters per forward...',
     context_length: 1048576,
     architecture: {
       modality: 'text+image->text',
@@ -4145,6 +4947,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -4165,7 +4968,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-4-scout',
+    canonical_slug: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    hugging_face_id: 'meta-llama/Llama-4-Scout-17B-16E-Instruct',
     name: 'Meta: Llama 4 Scout',
+    created: 1743881519,
+    description:
+      'Llama 4 Scout 17B Instruct (16E) is a mixture-of-experts (MoE) language model developed by Meta, activating 17 billion parameters out of a total of 109B. It supports native multimodal input...',
     context_length: 327680,
     architecture: {
       modality: 'text+image->text',
@@ -4183,6 +4991,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4202,7 +5011,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-guard-3-8b',
+    canonical_slug: 'meta-llama/llama-guard-3-8b',
+    hugging_face_id: 'meta-llama/Llama-Guard-3-8B',
     name: 'Llama Guard 3 8B',
+    created: 1739401318,
+    description:
+      'Llama Guard 3 is a Llama-3.1-8B pretrained model, fine-tuned for content safety classification. Similar to previous versions, it can be used to classify content in both LLM inputs (prompt classification)...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -4220,6 +5034,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4233,7 +5048,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'meta-llama/llama-guard-4-12b',
+    canonical_slug: 'meta-llama/llama-guard-4-12b',
+    hugging_face_id: 'meta-llama/Llama-Guard-4-12B',
     name: 'Meta: Llama Guard 4 12B',
+    created: 1745975193,
+    description:
+      'Llama Guard 4 is a Llama 4 Scout-derived multimodal pretrained model, fine-tuned for content safety classification. Similar to previous versions, it can be used to classify content in both LLM...',
     context_length: 163840,
     architecture: {
       modality: 'text+image->text',
@@ -4251,6 +5071,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -4268,7 +5089,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'microsoft/phi-4',
+    canonical_slug: 'microsoft/phi-4',
+    hugging_face_id: 'microsoft/phi-4',
     name: 'Microsoft: Phi 4',
+    created: 1736489872,
+    description:
+      '[Microsoft Research](/microsoft) Phi-4 is designed to perform well in complex reasoning tasks and can operate efficiently in situations with limited memory or where quick responses are needed. At 14 billion...',
     context_length: 16384,
     architecture: {
       modality: 'text->text',
@@ -4286,6 +5112,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logprobs',
@@ -4305,7 +5132,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'microsoft/wizardlm-2-8x22b',
+    canonical_slug: 'microsoft/wizardlm-2-8x22b',
+    hugging_face_id: 'microsoft/WizardLM-2-8x22B',
     name: 'WizardLM-2 8x22B',
+    created: 1713225600,
+    description:
+      "WizardLM-2 8x22B is Microsoft AI's most advanced Wizard model. It demonstrates highly competitive performance compared to leading proprietary models, and it consistently outperforms all existing state-of-the-art opensource models. It is...",
     context_length: 65535,
     architecture: {
       modality: 'text->text',
@@ -4323,6 +5155,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4337,7 +5170,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'minimax/minimax-01',
+    canonical_slug: 'minimax/minimax-01',
+    hugging_face_id: 'MiniMaxAI/MiniMax-Text-01',
     name: 'MiniMax: MiniMax-01',
+    created: 1736915462,
+    description:
+      'MiniMax-01 is a combines MiniMax-Text-01 for text generation and MiniMax-VL-01 for image understanding. It has 456 billion parameters, with 45.9 billion parameters activated per inference, and can handle a context...',
     context_length: 1000192,
     architecture: {
       modality: 'text+image->text',
@@ -4355,11 +5193,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 1000192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: ['max_tokens', 'temperature', 'top_p'],
   },
   {
     id: 'minimax/minimax-m1',
+    canonical_slug: 'minimax/minimax-m1',
+    hugging_face_id: '',
     name: 'MiniMax: MiniMax M1',
+    created: 1750200414,
+    description:
+      'MiniMax-M1 is a large-scale, open-weight reasoning model designed for extended context and high-efficiency inference. It leverages a hybrid Mixture-of-Experts (MoE) architecture paired with a custom "lightning attention" mechanism, allowing it...',
     context_length: 1000000,
     architecture: {
       modality: 'text->text',
@@ -4377,6 +5221,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 40000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -4395,7 +5240,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'minimax/minimax-m2',
+    canonical_slug: 'minimax/minimax-m2',
+    hugging_face_id: 'MiniMaxAI/MiniMax-M2',
     name: 'MiniMax: MiniMax M2',
+    created: 1761252093,
+    description:
+      'MiniMax-M2 is a compact, high-efficiency large language model optimized for end-to-end coding and agentic workflows. With 10 billion activated parameters (230 billion total), it delivers near-frontier intelligence across general reasoning,...',
     context_length: 196608,
     architecture: {
       modality: 'text->text',
@@ -4414,6 +5264,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 196608,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -4436,7 +5287,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'minimax/minimax-m2-her',
+    canonical_slug: 'minimax/minimax-m2-her-20260123',
+    hugging_face_id: '',
     name: 'MiniMax: MiniMax M2-her',
+    created: 1769177239,
+    description:
+      'MiniMax M2-her is a dialogue-first large language model built for immersive roleplay, character-driven chat, and expressive multi-turn conversations. Designed to stay consistent in tone and personality, it supports rich message...',
     context_length: 65536,
     architecture: {
       modality: 'text->text',
@@ -4455,11 +5311,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 2048,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: ['max_tokens', 'temperature', 'top_p'],
   },
   {
     id: 'minimax/minimax-m2.1',
+    canonical_slug: 'minimax/minimax-m2.1',
+    hugging_face_id: 'MiniMaxAI/MiniMax-M2.1',
     name: 'MiniMax: MiniMax M2.1',
+    created: 1766454997,
+    description:
+      'MiniMax-M2.1 is a lightweight, state-of-the-art large language model optimized for coding, agentic workflows, and modern application development. With only 10 billion activated parameters, it delivers a major jump in real-world...',
     context_length: 196608,
     architecture: {
       modality: 'text->text',
@@ -4469,15 +5331,16 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.00000027',
+      prompt: '0.00000029',
       completion: '0.00000095',
-      input_cache_read: '0.0000000290000007',
+      input_cache_read: '0.00000003',
     },
     top_provider: {
       context_length: 196608,
-      max_completion_tokens: null,
+      max_completion_tokens: 196608,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -4502,7 +5365,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'minimax/minimax-m2.5',
+    canonical_slug: 'minimax/minimax-m2.5-20260211',
+    hugging_face_id: 'MiniMaxAI/MiniMax-M2.5',
     name: 'MiniMax: MiniMax M2.5',
+    created: 1770908502,
+    description:
+      'MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in a diverse range of complex real-world digital working environments, M2.5 builds upon the coding expertise of M2.1...',
     context_length: 196608,
     architecture: {
       modality: 'text->text',
@@ -4512,15 +5380,16 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.00000019',
-      completion: '0.00000115',
-      input_cache_read: '0.000000095',
+      prompt: '0.000000118',
+      completion: '0.00000099',
+      input_cache_read: '0.000000059',
     },
     top_provider: {
       context_length: 196608,
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -4547,7 +5416,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'minimax/minimax-m2.5:free',
+    canonical_slug: 'minimax/minimax-m2.5-20260211',
+    hugging_face_id: 'MiniMaxAI/MiniMax-M2.5',
     name: 'MiniMax: MiniMax M2.5 (free)',
+    created: 1770908502,
+    description:
+      'MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in a diverse range of complex real-world digital working environments, M2.5 builds upon the coding expertise of M2.1...',
     context_length: 196608,
     architecture: {
       modality: 'text->text',
@@ -4565,6 +5439,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 196608,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -4578,7 +5453,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'minimax/minimax-m2.7',
+    canonical_slug: 'minimax/minimax-m2.7-20260318',
+    hugging_face_id: 'MiniMaxAI/MiniMax-M2.7',
     name: 'MiniMax: MiniMax M2.7',
+    created: 1773836697,
+    description:
+      'MiniMax-M2.7 is a next-generation large language model designed for autonomous, real-world productivity and continuous improvement. Built to actively participate in its own evolution, M2.7 integrates advanced agentic capabilities through multi-agent...',
     context_length: 204800,
     architecture: {
       modality: 'text->text',
@@ -4597,6 +5477,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -4610,7 +5491,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/codestral-2508',
+    canonical_slug: 'mistralai/codestral-2508',
+    hugging_face_id: '',
     name: 'Mistral: Codestral 2508',
+    created: 1754079630,
+    description:
+      "Mistral's cutting-edge language model for coding released end of July 2025. Codestral specializes in low-latency, high-frequency tasks such as fill-in-the-middle (FIM), code correction and test generation.\n\n[Blog Post](https://mistral.ai/news/codestral-25-08)",
     context_length: 256000,
     architecture: {
       modality: 'text->text',
@@ -4629,6 +5515,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4645,7 +5532,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/devstral-2512',
+    canonical_slug: 'mistralai/devstral-2512',
+    hugging_face_id: 'mistralai/Devstral-2-123B-Instruct-2512',
     name: 'Mistral: Devstral 2 2512',
+    created: 1765285419,
+    description:
+      'Devstral 2 is a state-of-the-art open-source model by Mistral AI specializing in agentic coding. It is a 123B-parameter dense transformer model supporting a 256K context window. Devstral 2 supports exploring...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -4664,6 +5556,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4680,7 +5573,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/devstral-medium',
+    canonical_slug: 'mistralai/devstral-medium-2507',
+    hugging_face_id: '',
     name: 'Mistral: Devstral Medium',
+    created: 1752161321,
+    description:
+      'Devstral Medium is a high-performance code generation and agentic reasoning model developed jointly by Mistral AI and All Hands AI. Positioned as a step up from Devstral Small, it achieves...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -4699,6 +5597,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4715,7 +5614,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/devstral-small',
+    canonical_slug: 'mistralai/devstral-small-2507',
+    hugging_face_id: 'mistralai/Devstral-Small-2507',
     name: 'Mistral: Devstral Small 1.1',
+    created: 1752160751,
+    description:
+      'Devstral Small 1.1 is a 24B parameter open-weight language model for software engineering agents, developed by Mistral AI in collaboration with All Hands AI. Finetuned from Mistral Small 3.1 and...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -4734,6 +5638,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4750,7 +5655,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/ministral-14b-2512',
+    canonical_slug: 'mistralai/ministral-14b-2512',
+    hugging_face_id: 'mistralai/Ministral-3-14B-Instruct-2512',
     name: 'Mistral: Ministral 3 14B 2512',
+    created: 1764681735,
+    description:
+      'The largest model in the Ministral 3 family, Ministral 3 14B offers frontier capabilities and performance comparable to its larger Mistral Small 3.2 24B counterpart. A powerful and efficient language...',
     context_length: 262144,
     architecture: {
       modality: 'text+image->text',
@@ -4769,6 +5679,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logprobs',
@@ -4788,7 +5699,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/ministral-3b-2512',
+    canonical_slug: 'mistralai/ministral-3b-2512',
+    hugging_face_id: 'mistralai/Ministral-3-3B-Instruct-2512',
     name: 'Mistral: Ministral 3 3B 2512',
+    created: 1764681560,
+    description:
+      'The smallest model in the Ministral 3 family, Ministral 3 3B is a powerful, efficient tiny language model with vision capabilities.',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -4807,6 +5723,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logprobs',
@@ -4826,7 +5743,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/ministral-8b-2512',
+    canonical_slug: 'mistralai/ministral-8b-2512',
+    hugging_face_id: 'mistralai/Ministral-3-8B-Instruct-2512',
     name: 'Mistral: Ministral 3 8B 2512',
+    created: 1764681654,
+    description:
+      'A balanced model in the Ministral 3 family, Ministral 3 8B is a powerful, efficient tiny language model with vision capabilities.',
     context_length: 262144,
     architecture: {
       modality: 'text+image->text',
@@ -4845,6 +5767,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logprobs',
@@ -4864,7 +5787,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-7b-instruct-v0.1',
+    canonical_slug: 'mistralai/mistral-7b-instruct-v0.1',
+    hugging_face_id: 'mistralai/Mistral-7B-Instruct-v0.1',
     name: 'Mistral: Mistral 7B Instruct v0.1',
+    created: 1695859200,
+    description:
+      'A 7.3B parameter model that outperforms Llama 2 13B on all benchmarks, with optimizations for speed and context length.',
     context_length: 2824,
     architecture: {
       modality: 'text->text',
@@ -4882,6 +5810,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4895,7 +5824,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-large',
+    canonical_slug: 'mistralai/mistral-large',
+    hugging_face_id: null,
     name: 'Mistral Large',
+    created: 1708905600,
+    description:
+      "This is Mistral AI's flagship model, Mistral Large 2 (version `mistral-large-2407`). It's a proprietary weights-available model and excels at reasoning, code, JSON, chat, and more. Read the launch announcement [here](https://mistral.ai/news/mistral-large-2407/)....",
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -4914,6 +5848,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4930,7 +5865,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-large-2407',
+    canonical_slug: 'mistralai/mistral-large-2407',
+    hugging_face_id: '',
     name: 'Mistral Large 2407',
+    created: 1731978415,
+    description:
+      "This is Mistral AI's flagship model, Mistral Large 2 (version mistral-large-2407). It's a proprietary weights-available model and excels at reasoning, code, JSON, chat, and more. Read the launch announcement [here](https://mistral.ai/news/mistral-large-2407/)....",
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -4949,6 +5889,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -4965,7 +5906,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-large-2411',
+    canonical_slug: 'mistralai/mistral-large-2411',
+    hugging_face_id: '',
     name: 'Mistral Large 2411',
+    created: 1731978685,
+    description:
+      'Mistral Large 2 2411 is an update of [Mistral Large 2](/mistralai/mistral-large) released together with [Pixtral Large 2411](/mistralai/pixtral-large-2411) It provides a significant upgrade on the previous [Mistral Large 24.07](/mistralai/mistral-large-2407), with notable...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -4984,6 +5930,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5000,7 +5947,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-large-2512',
+    canonical_slug: 'mistralai/mistral-large-2512',
+    hugging_face_id: '',
     name: 'Mistral: Mistral Large 3 2512',
+    created: 1764624472,
+    description:
+      'Mistral Large 3 2512 is Mistral’s most capable model to date, featuring a sparse mixture-of-experts architecture with 41B active parameters (675B total), and released under the Apache 2.0 license.',
     context_length: 262144,
     architecture: {
       modality: 'text+image->text',
@@ -5019,6 +5971,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5035,7 +5988,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-medium-3',
+    canonical_slug: 'mistralai/mistral-medium-3',
+    hugging_face_id: '',
     name: 'Mistral: Mistral Medium 3',
+    created: 1746627341,
+    description:
+      'Mistral Medium 3 is a high-performance enterprise-grade language model designed to deliver frontier-level capabilities at significantly reduced operational cost. It balances state-of-the-art reasoning and multimodal performance with 8× lower cost...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -5054,6 +6012,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5070,7 +6029,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-medium-3.1',
+    canonical_slug: 'mistralai/mistral-medium-3.1',
+    hugging_face_id: '',
     name: 'Mistral: Mistral Medium 3.1',
+    created: 1755095639,
+    description:
+      'Mistral Medium 3.1 is an updated version of Mistral Medium 3, which is a high-performance enterprise-grade language model designed to deliver frontier-level capabilities at significantly reduced operational cost. It balances...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -5089,6 +6053,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5105,7 +6070,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-nemo',
+    canonical_slug: 'mistralai/mistral-nemo',
+    hugging_face_id: 'mistralai/Mistral-Nemo-Instruct-2407',
     name: 'Mistral: Mistral Nemo',
+    created: 1721347200,
+    description:
+      'A 12B parameter model with a 128k token context length built by Mistral in collaboration with NVIDIA. The model is multilingual, supporting English, French, German, Spanish, Italian, Portuguese, Chinese, Japanese,...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -5123,6 +6093,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5142,7 +6113,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-saba',
+    canonical_slug: 'mistralai/mistral-saba-2502',
+    hugging_face_id: '',
     name: 'Mistral: Saba',
+    created: 1739803239,
+    description:
+      'Mistral Saba is a 24B-parameter language model specifically designed for the Middle East and South Asia, delivering accurate and contextually relevant responses while maintaining efficient performance. Trained on curated regional...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -5161,6 +6137,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5177,7 +6154,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-small-24b-instruct-2501',
+    canonical_slug: 'mistralai/mistral-small-24b-instruct-2501',
+    hugging_face_id: 'mistralai/Mistral-Small-24B-Instruct-2501',
     name: 'Mistral: Mistral Small 3',
+    created: 1738255409,
+    description:
+      'Mistral Small 3 is a 24B-parameter language model optimized for low-latency performance across common AI tasks. Released under the Apache 2.0 license, it features both pre-trained and instruction-tuned versions designed...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -5195,9 +6177,9 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
-      'logit_bias',
       'max_tokens',
       'min_p',
       'presence_penalty',
@@ -5206,15 +6188,18 @@ export const models: Array<OpenRouterModel> = [
       'seed',
       'stop',
       'temperature',
-      'tool_choice',
-      'tools',
       'top_k',
       'top_p',
     ],
   },
   {
     id: 'mistralai/mistral-small-2603',
+    canonical_slug: 'mistralai/mistral-small-2603',
+    hugging_face_id: 'mistralai/Mistral-Small-4-119B-2603',
     name: 'Mistral: Mistral Small 4',
+    created: 1773695685,
+    description:
+      'Mistral Small 4 is the next major release in the Mistral Small family, unifying the capabilities of several flagship Mistral models into a single system. It combines strong reasoning from...',
     context_length: 262144,
     architecture: {
       modality: 'text+image->text',
@@ -5233,6 +6218,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -5246,12 +6232,18 @@ export const models: Array<OpenRouterModel> = [
       'temperature',
       'tool_choice',
       'tools',
+      'top_k',
       'top_p',
     ],
   },
   {
     id: 'mistralai/mistral-small-3.1-24b-instruct',
+    canonical_slug: 'mistralai/mistral-small-3.1-24b-instruct-2503',
+    hugging_face_id: 'mistralai/Mistral-Small-3.1-24B-Instruct-2503',
     name: 'Mistral: Mistral Small 3.1 24B',
+    created: 1742238937,
+    description:
+      'Mistral Small 3.1 24B Instruct is an upgraded variant of Mistral Small 3 (2501), featuring 24 billion parameters with advanced multimodal capabilities. It provides state-of-the-art performance in text-based reasoning and...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -5270,6 +6262,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5286,7 +6279,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-small-3.2-24b-instruct',
+    canonical_slug: 'mistralai/mistral-small-3.2-24b-instruct-2506',
+    hugging_face_id: 'mistralai/Mistral-Small-3.2-24B-Instruct-2506',
     name: 'Mistral: Mistral Small 3.2 24B',
+    created: 1750443016,
+    description:
+      'Mistral-Small-3.2-24B-Instruct-2506 is an updated 24B parameter model from Mistral optimized for instruction following, repetition reduction, and improved function calling. Compared to the 3.1 release, version 3.2 significantly improves accuracy on...',
     context_length: 128000,
     architecture: {
       modality: 'text+image->text',
@@ -5304,6 +6302,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -5324,7 +6323,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mistral-small-creative',
+    canonical_slug: 'mistralai/mistral-small-creative-20251216',
+    hugging_face_id: null,
     name: 'Mistral: Mistral Small Creative',
+    created: 1765908653,
+    description:
+      'Mistral Small Creative is an experimental small model designed for creative writing, narrative generation, roleplay and character-driven dialogue, general-purpose instruction following, and conversational agents.',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -5343,11 +6347,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: ['tool_choice', 'tools'],
   },
   {
     id: 'mistralai/mixtral-8x22b-instruct',
+    canonical_slug: 'mistralai/mixtral-8x22b-instruct',
+    hugging_face_id: 'mistralai/Mixtral-8x22B-Instruct-v0.1',
     name: 'Mistral: Mixtral 8x22B Instruct',
+    created: 1713312000,
+    description:
+      "Mistral's official instruct fine-tuned version of [Mixtral 8x22B](/models/mistralai/mixtral-8x22b). It uses 39B active parameters out of 141B, offering unparalleled cost efficiency for its size. Its strengths include: - strong math, coding,...",
     context_length: 65536,
     architecture: {
       modality: 'text->text',
@@ -5366,6 +6376,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5382,7 +6393,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/mixtral-8x7b-instruct',
+    canonical_slug: 'mistralai/mixtral-8x7b-instruct',
+    hugging_face_id: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
     name: 'Mistral: Mixtral 8x7B Instruct',
+    created: 1702166400,
+    description:
+      'Mixtral 8x7B Instruct is a pretrained generative Sparse Mixture of Experts, by Mistral AI, for chat and instruction use. Incorporates 8 experts (feed-forward networks) for a total of 47 billion...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -5400,6 +6416,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -5419,7 +6436,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/pixtral-large-2411',
+    canonical_slug: 'mistralai/pixtral-large-2411',
+    hugging_face_id: '',
     name: 'Mistral: Pixtral Large 2411',
+    created: 1731977388,
+    description:
+      'Pixtral Large is a 124B parameter, open-weight, multimodal model built on top of [Mistral Large 2](/mistralai/mistral-large-2411). The model is able to understand documents, charts and natural images. The model is...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -5438,6 +6460,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5454,7 +6477,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'mistralai/voxtral-small-24b-2507',
+    canonical_slug: 'mistralai/voxtral-small-24b-2507',
+    hugging_face_id: 'mistralai/Voxtral-Small-24B-2507',
     name: 'Mistral: Voxtral Small 24B 2507',
+    created: 1761835144,
+    description:
+      'Voxtral Small is an enhancement of Mistral Small 3, incorporating state-of-the-art audio input capabilities while retaining best-in-class text performance. It excels at speech transcription, translation and audio understanding. Input audio...',
     context_length: 32000,
     architecture: {
       modality: 'text+audio->text',
@@ -5474,6 +6502,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5490,7 +6519,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'moonshotai/kimi-k2',
+    canonical_slug: 'moonshotai/kimi-k2',
+    hugging_face_id: 'moonshotai/Kimi-K2-Instruct',
     name: 'MoonshotAI: Kimi K2 0711',
+    created: 1752263252,
+    description:
+      'Kimi K2 Instruct is a large-scale Mixture-of-Experts (MoE) language model developed by Moonshot AI, featuring 1 trillion total parameters with 32 billion active per forward pass. It is optimized for...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -5508,28 +6542,30 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
-      'logprobs',
       'max_tokens',
       'presence_penalty',
       'repetition_penalty',
-      'response_format',
       'seed',
       'stop',
-      'structured_outputs',
       'temperature',
       'tool_choice',
       'tools',
       'top_k',
-      'top_logprobs',
       'top_p',
     ],
   },
   {
     id: 'moonshotai/kimi-k2-0905',
+    canonical_slug: 'moonshotai/kimi-k2-0905',
+    hugging_face_id: 'moonshotai/Kimi-K2-Instruct-0905',
     name: 'MoonshotAI: Kimi K2 0905',
-    context_length: 131072,
+    created: 1757021147,
+    description:
+      'Kimi K2 0905 is the September update of [Kimi K2 0711](moonshotai/kimi-k2). It is a large-scale Mixture-of-Experts (MoE) language model developed by Moonshot AI, featuring 1 trillion total parameters with 32...',
+    context_length: 262144,
     architecture: {
       modality: 'text->text',
       input_modalities: ['text'],
@@ -5540,13 +6576,13 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000004',
       completion: '0.000002',
-      input_cache_read: '0.00000015',
     },
     top_provider: {
-      context_length: 131072,
-      max_completion_tokens: null,
+      context_length: 262144,
+      max_completion_tokens: 262144,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -5569,8 +6605,13 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'moonshotai/kimi-k2-thinking',
+    canonical_slug: 'moonshotai/kimi-k2-thinking-20251106',
+    hugging_face_id: 'moonshotai/Kimi-K2-Thinking',
     name: 'MoonshotAI: Kimi K2 Thinking',
-    context_length: 131072,
+    created: 1762440622,
+    description:
+      'Kimi K2 Thinking is Moonshot AI’s most advanced open reasoning model to date, extending the K2 series into agentic, long-horizon reasoning. Built on the trillion-parameter Mixture-of-Experts (MoE) architecture introduced in...',
+    context_length: 262144,
     architecture: {
       modality: 'text->text',
       input_modalities: ['text'],
@@ -5579,15 +6620,15 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.00000047',
-      completion: '0.000002',
-      input_cache_read: '0.000000141',
+      prompt: '0.0000006',
+      completion: '0.0000025',
     },
     top_provider: {
-      context_length: 131072,
+      context_length: 262144,
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -5610,7 +6651,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'moonshotai/kimi-k2.5',
+    canonical_slug: 'moonshotai/kimi-k2.5-0127',
+    hugging_face_id: 'moonshotai/Kimi-K2.5',
     name: 'MoonshotAI: Kimi K2.5',
+    created: 1769487076,
+    description:
+      "Kimi K2.5 is Moonshot AI's native multimodal model, delivering state-of-the-art visual coding capability and a self-directed agent swarm paradigm. Built on Kimi K2 with continued pretraining over approximately 15T mixed...",
     context_length: 262144,
     architecture: {
       modality: 'text+image->text',
@@ -5620,15 +6666,16 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.00000042',
-      completion: '0.0000022',
-      input_cache_read: '0.00000021',
+      prompt: '0.0000003827',
+      completion: '0.00000172',
+      input_cache_read: '0.00000019135',
     },
     top_provider: {
       context_length: 262144,
       max_completion_tokens: 65535,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -5654,7 +6701,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'morph/morph-v3-fast',
+    canonical_slug: 'morph/morph-v3-fast',
+    hugging_face_id: '',
     name: 'Morph: Morph V3 Fast',
+    created: 1751910002,
+    description:
+      "Morph's fastest apply model for code edits. ~10,500 tokens/sec with 96% accuracy for rapid code transformations. The model requires the prompt to be in the following format: <instruction>{instruction}</instruction> <code>{initial_code}</code> <update>{edit_snippet}</update>...",
     context_length: 81920,
     architecture: {
       modality: 'text->text',
@@ -5672,11 +6724,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 38000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: ['max_tokens', 'stop', 'temperature'],
   },
   {
     id: 'morph/morph-v3-large',
+    canonical_slug: 'morph/morph-v3-large',
+    hugging_face_id: '',
     name: 'Morph: Morph V3 Large',
+    created: 1751910858,
+    description:
+      "Morph's high-accuracy apply model for complex code edits. ~4,500 tokens/sec with 98% accuracy for precise code transformations. The model requires the prompt to be in the following format: <instruction>{instruction}</instruction> <code>{initial_code}</code>...",
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -5694,11 +6752,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: ['max_tokens', 'stop', 'temperature'],
   },
   {
     id: 'nex-agi/deepseek-v3.1-nex-n1',
+    canonical_slug: 'nex-agi/deepseek-v3.1-nex-n1',
+    hugging_face_id: 'nex-agi/DeepSeek-V3.1-Nex-N1',
     name: 'Nex AGI: DeepSeek V3.1 Nex N1',
+    created: 1765204393,
+    description:
+      'DeepSeek V3.1 Nex-N1 is the flagship release of the Nex-N1 series — a post-trained model designed to highlight agent autonomy, tool use, and real-world productivity. Nex-N1 demonstrates competitive performance across...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -5716,6 +6780,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 163840,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'response_format',
@@ -5729,7 +6794,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nousresearch/hermes-2-pro-llama-3-8b',
+    canonical_slug: 'nousresearch/hermes-2-pro-llama-3-8b',
+    hugging_face_id: 'NousResearch/Hermes-2-Pro-Llama-3-8B',
     name: 'NousResearch: Hermes 2 Pro - Llama-3 8B',
+    created: 1716768000,
+    description:
+      'Hermes 2 Pro is an upgraded, retrained version of Nous Hermes 2, consisting of an updated and cleaned version of the OpenHermes 2.5 Dataset, as well as a newly introduced...',
     context_length: 8192,
     architecture: {
       modality: 'text->text',
@@ -5747,6 +6817,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5763,7 +6834,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nousresearch/hermes-3-llama-3.1-405b',
+    canonical_slug: 'nousresearch/hermes-3-llama-3.1-405b',
+    hugging_face_id: 'NousResearch/Hermes-3-Llama-3.1-405B',
     name: 'Nous: Hermes 3 405B Instruct',
+    created: 1723766400,
+    description:
+      'Hermes 3 is a generalist language model with many improvements over Hermes 2, including advanced agentic capabilities, much better roleplaying, reasoning, multi-turn conversation, long context coherence, and improvements across the...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -5781,6 +6857,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5797,7 +6874,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nousresearch/hermes-3-llama-3.1-405b:free',
+    canonical_slug: 'nousresearch/hermes-3-llama-3.1-405b',
+    hugging_face_id: 'NousResearch/Hermes-3-Llama-3.1-405B',
     name: 'Nous: Hermes 3 405B Instruct (free)',
+    created: 1723766400,
+    description:
+      'Hermes 3 is a generalist language model with many improvements over Hermes 2, including advanced agentic capabilities, much better roleplaying, reasoning, multi-turn conversation, long context coherence, and improvements across the...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -5815,6 +6897,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5827,7 +6910,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nousresearch/hermes-3-llama-3.1-70b',
+    canonical_slug: 'nousresearch/hermes-3-llama-3.1-70b',
+    hugging_face_id: 'NousResearch/Hermes-3-Llama-3.1-70B',
     name: 'Nous: Hermes 3 70B Instruct',
+    created: 1723939200,
+    description:
+      'Hermes 3 is a generalist language model with many improvements over [Hermes 2](/models/nousresearch/nous-hermes-2-mistral-7b-dpo), including advanced agentic capabilities, much better roleplaying, reasoning, multi-turn conversation, long context coherence, and improvements across the...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -5845,6 +6933,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5861,7 +6950,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nousresearch/hermes-4-405b',
+    canonical_slug: 'nousresearch/hermes-4-405b',
+    hugging_face_id: 'NousResearch/Hermes-4-405B',
     name: 'Nous: Hermes 4 405B',
+    created: 1756235463,
+    description:
+      'Hermes 4 is a large-scale reasoning model built on Meta-Llama-3.1-405B and released by Nous Research. It introduces a hybrid reasoning mode, where the model can choose to deliberate internally with...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -5879,6 +6973,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -5894,7 +6989,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nousresearch/hermes-4-70b',
+    canonical_slug: 'nousresearch/hermes-4-70b',
+    hugging_face_id: 'NousResearch/Hermes-4-70B',
     name: 'Nous: Hermes 4 70B',
+    created: 1756236182,
+    description:
+      'Hermes 4 70B is a hybrid reasoning model from Nous Research, built on Meta-Llama-3.1-70B. It introduces the same hybrid mode as the larger 405B release, allowing the model to either...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -5912,6 +7012,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -5927,7 +7028,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/llama-3.1-nemotron-70b-instruct',
+    canonical_slug: 'nvidia/llama-3.1-nemotron-70b-instruct',
+    hugging_face_id: 'nvidia/Llama-3.1-Nemotron-70B-Instruct-HF',
     name: 'NVIDIA: Llama 3.1 Nemotron 70B Instruct',
+    created: 1728950400,
+    description:
+      "NVIDIA's Llama 3.1 Nemotron 70B is a language model designed for generating precise and useful responses. Leveraging [Llama 3.1 70B](/models/meta-llama/llama-3.1-70b-instruct) architecture and Reinforcement Learning from Human Feedback (RLHF), it excels...",
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -5945,6 +7051,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -5963,7 +7070,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+    canonical_slug: 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+    hugging_face_id: 'nvidia/Llama-3_1-Nemotron-Ultra-253B-v1',
     name: 'NVIDIA: Llama 3.1 Nemotron Ultra 253B v1',
+    created: 1744115059,
+    description:
+      'Llama-3.1-Nemotron-Ultra-253B-v1 is a large language model (LLM) optimized for advanced reasoning, human-interactive chat, retrieval-augmented generation (RAG), and tool-calling tasks. Derived from Meta’s Llama-3.1-405B-Instruct, it has been significantly customized using Neural...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -5981,6 +7093,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -5997,7 +7110,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+    canonical_slug: 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+    hugging_face_id: 'nvidia/Llama-3_3-Nemotron-Super-49B-v1_5',
     name: 'NVIDIA: Llama 3.3 Nemotron Super 49B V1.5',
+    created: 1760101395,
+    description:
+      'Llama-3.3-Nemotron-Super-49B-v1.5 is a 49B-parameter, English-centric reasoning/chat model derived from Meta’s Llama-3.3-70B-Instruct with a 128K context. It’s post-trained for agentic workflows (RAG, tool calling) via SFT across math, code, science, and...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -6015,6 +7133,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -6035,7 +7154,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/nemotron-3-nano-30b-a3b',
+    canonical_slug: 'nvidia/nemotron-3-nano-30b-a3b',
+    hugging_face_id: 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16',
     name: 'NVIDIA: Nemotron 3 Nano 30B A3B',
+    created: 1765731275,
+    description:
+      'NVIDIA Nemotron 3 Nano 30B A3B is a small language MoE model with highest compute efficiency and accuracy for developers to build specialized agentic AI systems. The model is fully...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -6053,6 +7177,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -6073,7 +7198,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/nemotron-3-nano-30b-a3b:free',
+    canonical_slug: 'nvidia/nemotron-3-nano-30b-a3b',
+    hugging_face_id: 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16',
     name: 'NVIDIA: Nemotron 3 Nano 30B A3B (free)',
+    created: 1765731275,
+    description:
+      'NVIDIA Nemotron 3 Nano 30B A3B is a small language MoE model with highest compute efficiency and accuracy for developers to build specialized agentic AI systems. The model is fully...',
     context_length: 256000,
     architecture: {
       modality: 'text->text',
@@ -6091,6 +7221,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -6104,7 +7235,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/nemotron-3-super-120b-a12b',
+    canonical_slug: 'nvidia/nemotron-3-super-120b-a12b-20230311',
+    hugging_face_id: 'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8',
     name: 'NVIDIA: Nemotron 3 Super',
+    created: 1773245239,
+    description:
+      'NVIDIA Nemotron 3 Super is a 120B-parameter open hybrid MoE model, activating just 12B parameters for maximum compute efficiency and accuracy in complex multi-agent applications. Built on a hybrid Mamba-Transformer...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -6123,6 +7259,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -6143,7 +7280,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/nemotron-3-super-120b-a12b:free',
+    canonical_slug: 'nvidia/nemotron-3-super-120b-a12b-20230311',
+    hugging_face_id: 'nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8',
     name: 'NVIDIA: Nemotron 3 Super (free)',
+    created: 1773245239,
+    description:
+      'NVIDIA Nemotron 3 Super is a 120B-parameter open hybrid MoE model, activating just 12B parameters for maximum compute efficiency and accuracy in complex multi-agent applications. Built on a hybrid Mamba-Transformer...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -6161,6 +7303,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 262144,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -6176,7 +7319,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/nemotron-nano-12b-v2-vl',
+    canonical_slug: 'nvidia/nemotron-nano-12b-v2-vl',
+    hugging_face_id: 'nvidia/NVIDIA-Nemotron-Nano-12B-v2-VL-BF16',
     name: 'NVIDIA: Nemotron Nano 12B 2 VL',
+    created: 1761675565,
+    description:
+      'NVIDIA Nemotron Nano 2 VL is a 12-billion-parameter open multimodal reasoning model designed for video understanding and document intelligence. It introduces a hybrid Transformer-Mamba architecture, combining transformer-level accuracy with Mamba’s...',
     context_length: 131072,
     architecture: {
       modality: 'text+image+video->text',
@@ -6194,6 +7342,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -6212,7 +7361,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/nemotron-nano-12b-v2-vl:free',
+    canonical_slug: 'nvidia/nemotron-nano-12b-v2-vl',
+    hugging_face_id: 'nvidia/NVIDIA-Nemotron-Nano-12B-v2-VL-BF16',
     name: 'NVIDIA: Nemotron Nano 12B 2 VL (free)',
+    created: 1761675565,
+    description:
+      'NVIDIA Nemotron Nano 2 VL is a 12-billion-parameter open multimodal reasoning model designed for video understanding and document intelligence. It introduces a hybrid Transformer-Mamba architecture, combining transformer-level accuracy with Mamba’s...',
     context_length: 128000,
     architecture: {
       modality: 'text+image+video->text',
@@ -6230,6 +7384,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -6243,7 +7398,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/nemotron-nano-9b-v2',
+    canonical_slug: 'nvidia/nemotron-nano-9b-v2',
+    hugging_face_id: 'nvidia/NVIDIA-Nemotron-Nano-9B-v2',
     name: 'NVIDIA: Nemotron Nano 9B V2',
+    created: 1757106807,
+    description:
+      'NVIDIA-Nemotron-Nano-9B-v2 is a large language model (LLM) trained from scratch by NVIDIA, and designed as a unified model for both reasoning and non-reasoning tasks. It responds to user queries and...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -6261,6 +7421,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -6281,7 +7442,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'nvidia/nemotron-nano-9b-v2:free',
+    canonical_slug: 'nvidia/nemotron-nano-9b-v2',
+    hugging_face_id: 'nvidia/NVIDIA-Nemotron-Nano-9B-v2',
     name: 'NVIDIA: Nemotron Nano 9B V2 (free)',
+    created: 1757106807,
+    description:
+      'NVIDIA-Nemotron-Nano-9B-v2 is a large language model (LLM) trained from scratch by NVIDIA, and designed as a unified model for both reasoning and non-reasoning tasks. It responds to user queries and...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -6299,6 +7465,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -6314,7 +7481,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-3.5-turbo',
+    canonical_slug: 'openai/gpt-3.5-turbo',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-3.5 Turbo',
+    created: 1685232000,
+    description:
+      "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.\n\nTraining data up to Sep 2021.",
     context_length: 16385,
     architecture: {
       modality: 'text->text',
@@ -6332,6 +7504,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -6351,7 +7524,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-3.5-turbo-0613',
+    canonical_slug: 'openai/gpt-3.5-turbo-0613',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-3.5 Turbo (older v0613)',
+    created: 1706140800,
+    description:
+      "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.\n\nTraining data up to Sep 2021.",
     context_length: 4095,
     architecture: {
       modality: 'text->text',
@@ -6369,11 +7547,12 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
       'logprobs',
-      'max_tokens',
+      'max_completion_tokens',
       'presence_penalty',
       'response_format',
       'seed',
@@ -6388,7 +7567,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-3.5-turbo-16k',
+    canonical_slug: 'openai/gpt-3.5-turbo-16k',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-3.5 Turbo 16k',
+    created: 1693180800,
+    description:
+      'This model offers four times the context length of gpt-3.5-turbo, allowing it to support approximately 20 pages of text in a single request at a higher cost. Training data: up...',
     context_length: 16385,
     architecture: {
       modality: 'text->text',
@@ -6406,10 +7590,12 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
       'logprobs',
+      'max_completion_tokens',
       'max_tokens',
       'presence_penalty',
       'response_format',
@@ -6425,7 +7611,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-3.5-turbo-instruct',
+    canonical_slug: 'openai/gpt-3.5-turbo-instruct',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-3.5 Turbo Instruct',
+    created: 1695859200,
+    description:
+      'This model is a variant of GPT-3.5 Turbo tuned for instructional prompts and omitting chat-related optimizations. Training data: up to Sep 2021.',
     context_length: 4095,
     architecture: {
       modality: 'text->text',
@@ -6443,6 +7634,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -6460,7 +7652,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4',
+    canonical_slug: 'openai/gpt-4',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4',
+    created: 1685232000,
+    description:
+      "OpenAI's flagship model, GPT-4 is a large-scale multimodal language model capable of solving difficult problems with greater accuracy than previous models due to its broader general knowledge and advanced reasoning...",
     context_length: 8191,
     architecture: {
       modality: 'text->text',
@@ -6478,10 +7675,12 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
       'logprobs',
+      'max_completion_tokens',
       'max_tokens',
       'presence_penalty',
       'response_format',
@@ -6497,7 +7696,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4-0314',
+    canonical_slug: 'openai/gpt-4-0314',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4 (older v0314)',
+    created: 1685232000,
+    description:
+      'GPT-4-0314 is the first version of GPT-4 released, with a context length of 8,192 tokens, and was supported until June 14. Training data: up to Sep 2021.',
     context_length: 8191,
     architecture: {
       modality: 'text->text',
@@ -6515,6 +7719,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -6534,7 +7739,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4-1106-preview',
+    canonical_slug: 'openai/gpt-4-1106-preview',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4 Turbo (older v1106)',
+    created: 1699228800,
+    description:
+      'The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.\n\nTraining data: up to April 2023.',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -6552,6 +7762,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -6571,7 +7782,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4-turbo',
+    canonical_slug: 'openai/gpt-4-turbo',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4 Turbo',
+    created: 1712620800,
+    description:
+      'The latest GPT-4 Turbo model with vision capabilities. Vision requests can now use JSON mode and function calling.\n\nTraining data: up to December 2023.',
     context_length: 128000,
     architecture: {
       modality: 'text+image->text',
@@ -6589,6 +7805,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -6608,7 +7825,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4-turbo-preview',
+    canonical_slug: 'openai/gpt-4-turbo-preview',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4 Turbo Preview',
+    created: 1706140800,
+    description:
+      'The preview GPT-4 model with improved instruction following, JSON mode, reproducible outputs, parallel function calling, and more. Training data: up to Dec 2023. **Note:** heavily rate limited by OpenAI while...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -6626,6 +7848,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -6645,7 +7868,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4.1',
+    canonical_slug: 'openai/gpt-4.1-2025-04-14',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-4.1',
+    created: 1744651385,
+    description:
+      'GPT-4.1 is a flagship large language model optimized for advanced instruction following, real-world software engineering, and long-context reasoning. It supports a 1 million token context window and outperforms GPT-4o and...',
     context_length: 1047576,
     architecture: {
       modality: 'text+image+file->text',
@@ -6665,7 +7893,9 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
+      'max_completion_tokens',
       'max_tokens',
       'response_format',
       'seed',
@@ -6678,7 +7908,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4.1-mini',
+    canonical_slug: 'openai/gpt-4.1-mini-2025-04-14',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-4.1 Mini',
+    created: 1744651381,
+    description:
+      'GPT-4.1 Mini is a mid-sized model delivering performance competitive with GPT-4o at substantially lower latency and cost. It retains a 1 million token context window and scores 45.1% on hard...',
     context_length: 1047576,
     architecture: {
       modality: 'text+image+file->text',
@@ -6698,7 +7933,9 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
+      'max_completion_tokens',
       'max_tokens',
       'response_format',
       'seed',
@@ -6711,7 +7948,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4.1-nano',
+    canonical_slug: 'openai/gpt-4.1-nano-2025-04-14',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-4.1 Nano',
+    created: 1744651369,
+    description:
+      'For tasks that demand low latency, GPT‑4.1 nano is the fastest and cheapest model in the GPT-4.1 series. It delivers exceptional performance at a small size with its 1 million...',
     context_length: 1047576,
     architecture: {
       modality: 'text+image+file->text',
@@ -6731,7 +7973,9 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
+      'max_completion_tokens',
       'max_tokens',
       'response_format',
       'seed',
@@ -6744,7 +7988,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4o',
+    canonical_slug: 'openai/gpt-4o',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4o',
+    created: 1715558400,
+    description:
+      'GPT-4o ("o" for "omni") is OpenAI\'s latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as...',
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -6763,10 +8012,12 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
       'logprobs',
+      'max_completion_tokens',
       'max_tokens',
       'presence_penalty',
       'response_format',
@@ -6783,7 +8034,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4o-2024-05-13',
+    canonical_slug: 'openai/gpt-4o-2024-05-13',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4o (2024-05-13)',
+    created: 1715558400,
+    description:
+      'GPT-4o ("o" for "omni") is OpenAI\'s latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as...',
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -6801,10 +8057,12 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
       'logprobs',
+      'max_completion_tokens',
       'max_tokens',
       'presence_penalty',
       'response_format',
@@ -6821,7 +8079,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4o-2024-08-06',
+    canonical_slug: 'openai/gpt-4o-2024-08-06',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4o (2024-08-06)',
+    created: 1722902400,
+    description:
+      'The 2024-08-06 version of GPT-4o offers improved performance in structured outputs, with the ability to supply a JSON schema in the respone_format. Read more [here](https://openai.com/index/introducing-structured-outputs-in-the-api/). GPT-4o ("o" for "omni") is...',
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -6840,10 +8103,12 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
       'logprobs',
+      'max_completion_tokens',
       'max_tokens',
       'presence_penalty',
       'response_format',
@@ -6860,7 +8125,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4o-2024-11-20',
+    canonical_slug: 'openai/gpt-4o-2024-11-20',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-4o (2024-11-20)',
+    created: 1732127594,
+    description:
+      'The 2024-11-20 version of GPT-4o offers a leveled-up creative writing ability with more natural, engaging, and tailored writing to improve relevance & readability. It’s also better at working with uploaded...',
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -6879,6 +8149,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -6899,7 +8170,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4o-audio-preview',
+    canonical_slug: 'openai/gpt-4o-audio-preview',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-4o Audio',
+    created: 1755233061,
+    description:
+      'The gpt-4o-audio-preview model adds support for audio inputs as prompts. This enhancement allows the model to detect nuances within audio recordings and add depth to generated user experiences. Audio outputs...',
     context_length: 128000,
     architecture: {
       modality: 'text+audio->text+audio',
@@ -6918,6 +8194,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -6937,7 +8214,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4o-mini',
+    canonical_slug: 'openai/gpt-4o-mini',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4o-mini',
+    created: 1721260800,
+    description:
+      "GPT-4o mini is OpenAI's newest model after [GPT-4 Omni](/models/openai/gpt-4o), supporting both text and image inputs with text outputs. As their most advanced small model, it is many multiples more affordable...",
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -6956,10 +8238,12 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
       'logprobs',
+      'max_completion_tokens',
       'max_tokens',
       'presence_penalty',
       'response_format',
@@ -6976,7 +8260,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4o-mini-2024-07-18',
+    canonical_slug: 'openai/gpt-4o-mini-2024-07-18',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4o-mini (2024-07-18)',
+    created: 1721260800,
+    description:
+      "GPT-4o mini is OpenAI's newest model after [GPT-4 Omni](/models/openai/gpt-4o), supporting both text and image inputs with text outputs. As their most advanced small model, it is many multiples more affordable...",
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -6995,6 +8284,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -7015,7 +8305,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4o-mini-search-preview',
+    canonical_slug: 'openai/gpt-4o-mini-search-preview-2025-03-11',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-4o-mini Search Preview',
+    created: 1741818122,
+    description:
+      'GPT-4o mini Search Preview is a specialized model for web search in Chat Completions. It is trained to understand and execute web search queries.',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -7034,6 +8329,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -7043,7 +8339,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4o-search-preview',
+    canonical_slug: 'openai/gpt-4o-search-preview-2025-03-11',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-4o Search Preview',
+    created: 1741817949,
+    description:
+      'GPT-4o Search Previewis a specialized model for web search in Chat Completions. It is trained to understand and execute web search queries.',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -7062,6 +8363,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -7071,7 +8373,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-4o:extended',
+    canonical_slug: 'openai/gpt-4o',
+    hugging_face_id: null,
     name: 'OpenAI: GPT-4o (extended)',
+    created: 1715558400,
+    description:
+      'GPT-4o ("o" for "omni") is OpenAI\'s latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as...',
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7089,6 +8396,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 64000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -7109,7 +8417,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5',
+    canonical_slug: 'openai/gpt-5-2025-08-07',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5',
+    created: 1754587413,
+    description:
+      'GPT-5 is OpenAI’s most advanced model, offering major improvements in reasoning, code quality, and user experience. It is optimized for complex tasks that require step-by-step reasoning, instruction following, and accuracy...',
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7129,8 +8442,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7142,7 +8457,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5-chat',
+    canonical_slug: 'openai/gpt-5-chat-2025-08-07',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5 Chat',
+    created: 1754587837,
+    description:
+      'GPT-5 Chat is designed for advanced, natural, multimodal, and context-aware conversations for enterprise applications.',
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7162,6 +8482,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'response_format',
@@ -7171,7 +8492,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5-codex',
+    canonical_slug: 'openai/gpt-5-codex',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5 Codex',
+    created: 1758643403,
+    description:
+      'GPT-5-Codex is a specialized version of GPT-5 optimized for software engineering and coding workflows. It is designed for both interactive development sessions and long, independent execution of complex engineering tasks....',
     context_length: 400000,
     architecture: {
       modality: 'text+image->text',
@@ -7190,6 +8516,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -7203,7 +8530,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5-image',
+    canonical_slug: 'openai/gpt-5-image',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5 Image',
+    created: 1760447986,
+    description:
+      "[GPT-5](https://openrouter.ai/openai/gpt-5) Image combines OpenAI's GPT-5 model with state-of-the-art image generation capabilities. It offers major improvements in reasoning, code quality, and user experience while incorporating GPT Image 1's superior instruction following,...",
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text+image',
@@ -7223,6 +8555,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -7244,7 +8577,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5-image-mini',
+    canonical_slug: 'openai/gpt-5-image-mini',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5 Image Mini',
+    created: 1760624583,
+    description:
+      "GPT-5 Image Mini combines OpenAI's advanced language capabilities, powered by [GPT-5 Mini](https://openrouter.ai/openai/gpt-5-mini), with GPT Image 1 Mini for efficient image generation. This natively multimodal model features superior instruction following, text...",
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text+image',
@@ -7264,6 +8602,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -7285,7 +8624,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5-mini',
+    canonical_slug: 'openai/gpt-5-mini-2025-08-07',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5 Mini',
+    created: 1754587407,
+    description:
+      'GPT-5 Mini is a compact version of GPT-5, designed to handle lighter-weight reasoning tasks. It provides the same instruction-following and safety-tuning benefits as GPT-5, but with reduced latency and cost....',
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7305,8 +8649,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7318,7 +8664,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5-nano',
+    canonical_slug: 'openai/gpt-5-nano-2025-08-07',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5 Nano',
+    created: 1754587402,
+    description:
+      'GPT-5-Nano is the smallest and fastest variant in the GPT-5 system, optimized for developer tools, rapid interactions, and ultra-low latency environments. While limited in reasoning depth compared to its larger...',
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7338,8 +8689,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7351,7 +8704,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5-pro',
+    canonical_slug: 'openai/gpt-5-pro-2025-10-06',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5 Pro',
+    created: 1759776663,
+    description:
+      'GPT-5 Pro is OpenAI’s most advanced model, offering major improvements in reasoning, code quality, and user experience. It is optimized for complex tasks that require step-by-step reasoning, instruction following, and...',
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7370,6 +8728,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -7383,7 +8742,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.1',
+    canonical_slug: 'openai/gpt-5.1-20251113',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.1',
+    created: 1763060305,
+    description:
+      'GPT-5.1 is the latest frontier-grade model in the GPT-5 series, offering stronger general-purpose reasoning, improved instruction adherence, and a more natural conversational style compared to GPT-5. It uses adaptive reasoning...',
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7403,8 +8767,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7416,7 +8782,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.1-chat',
+    canonical_slug: 'openai/gpt-5.1-chat-20251113',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.1 Chat',
+    created: 1763060302,
+    description:
+      'GPT-5.1 Chat (AKA Instant is the fast, lightweight member of the 5.1 family, optimized for low-latency chat while retaining strong general intelligence. It uses adaptive reasoning to selectively “think” on...',
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7436,7 +8807,9 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
+      'max_completion_tokens',
       'max_tokens',
       'response_format',
       'seed',
@@ -7447,7 +8820,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.1-codex',
+    canonical_slug: 'openai/gpt-5.1-codex-20251113',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.1-Codex',
+    created: 1763060298,
+    description:
+      'GPT-5.1-Codex is a specialized version of GPT-5.1 optimized for software engineering and coding workflows. It is designed for both interactive development sessions and long, independent execution of complex engineering tasks....',
     context_length: 400000,
     architecture: {
       modality: 'text+image->text',
@@ -7466,8 +8844,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7479,7 +8859,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.1-codex-max',
+    canonical_slug: 'openai/gpt-5.1-codex-max-20251204',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.1-Codex-Max',
+    created: 1764878934,
+    description:
+      'GPT-5.1-Codex-Max is OpenAI’s latest agentic coding model, designed for long-running, high-context software development tasks. It is based on an updated version of the 5.1 reasoning stack and trained on agentic...',
     context_length: 400000,
     architecture: {
       modality: 'text+image->text',
@@ -7499,8 +8884,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7512,7 +8899,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.1-codex-mini',
+    canonical_slug: 'openai/gpt-5.1-codex-mini-20251113',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.1-Codex-Mini',
+    created: 1763057820,
+    description:
+      'GPT-5.1-Codex-Mini is a smaller and faster version of GPT-5.1-Codex',
     context_length: 400000,
     architecture: {
       modality: 'text+image->text',
@@ -7531,8 +8923,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7544,7 +8938,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.2',
+    canonical_slug: 'openai/gpt-5.2-20251211',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.2',
+    created: 1765389775,
+    description:
+      'GPT-5.2 is the latest frontier-grade model in the GPT-5 series, offering stronger agentic and long context perfomance compared to GPT-5.1. It uses adaptive reasoning to allocate computation dynamically, responding quickly...',
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7564,8 +8963,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7577,7 +8978,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.2-chat',
+    canonical_slug: 'openai/gpt-5.2-chat-20251211',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.2 Chat',
+    created: 1765389783,
+    description:
+      'GPT-5.2 Chat (AKA Instant) is the fast, lightweight member of the 5.2 family, optimized for low-latency chat while retaining strong general intelligence. It uses adaptive reasoning to selectively “think” on...',
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7597,7 +9003,9 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
+      'max_completion_tokens',
       'max_tokens',
       'response_format',
       'seed',
@@ -7608,7 +9016,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.2-codex',
+    canonical_slug: 'openai/gpt-5.2-codex-20260114',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.2-Codex',
+    created: 1768409315,
+    description:
+      'GPT-5.2-Codex is an upgraded version of GPT-5.1-Codex optimized for software engineering and coding workflows. It is designed for both interactive development sessions and long, independent execution of complex engineering tasks....',
     context_length: 400000,
     architecture: {
       modality: 'text+image->text',
@@ -7628,8 +9041,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7641,7 +9056,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.2-pro',
+    canonical_slug: 'openai/gpt-5.2-pro-20251211',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.2 Pro',
+    created: 1765389780,
+    description:
+      'GPT-5.2 Pro is OpenAI’s most advanced model, offering major improvements in agentic coding and long context performance over GPT-5 Pro. It is optimized for complex tasks that require step-by-step reasoning,...',
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7660,6 +9080,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -7673,7 +9094,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.3-chat',
+    canonical_slug: 'openai/gpt-5.3-chat-20260303',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.3 Chat',
+    created: 1772564061,
+    description:
+      "GPT-5.3 Chat is an update to ChatGPT's most-used model that makes everyday conversations smoother, more useful, and more directly helpful. It delivers more accurate answers with better contextualization and significantly...",
     context_length: 128000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7693,7 +9119,9 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
+      'max_completion_tokens',
       'max_tokens',
       'response_format',
       'seed',
@@ -7704,7 +9132,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.3-codex',
+    canonical_slug: 'openai/gpt-5.3-codex-20260224',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.3-Codex',
+    created: 1771959164,
+    description:
+      'GPT-5.3-Codex is OpenAI’s most advanced agentic coding model, combining the frontier software engineering performance of GPT-5.2-Codex with the broader reasoning and professional knowledge capabilities of GPT-5.2. It achieves state-of-the-art results...',
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7724,8 +9157,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7737,7 +9172,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.4',
+    canonical_slug: 'openai/gpt-5.4-20260305',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.4',
+    created: 1772734352,
+    description:
+      'GPT-5.4 is OpenAI’s latest frontier model, unifying the Codex and GPT lines into a single system. It features a 1M+ token context window (922K input, 128K output) with support for...',
     context_length: 1050000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7757,8 +9197,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7770,7 +9212,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.4-mini',
+    canonical_slug: 'openai/gpt-5.4-mini-20260317',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.4 Mini',
+    created: 1773748178,
+    description:
+      'GPT-5.4 mini brings the core capabilities of GPT-5.4 to a faster, more efficient model optimized for high-throughput workloads. It supports text and image inputs with strong performance across reasoning, coding,...',
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7790,8 +9237,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7803,7 +9252,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.4-nano',
+    canonical_slug: 'openai/gpt-5.4-nano-20260317',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.4 Nano',
+    created: 1773748187,
+    description:
+      'GPT-5.4 nano is the most lightweight and cost-efficient variant of the GPT-5.4 family, optimized for speed-critical and high-volume tasks. It supports text and image inputs and is designed for low-latency...',
     context_length: 400000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7823,8 +9277,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7836,7 +9292,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-5.4-pro',
+    canonical_slug: 'openai/gpt-5.4-pro-20260305',
+    hugging_face_id: '',
     name: 'OpenAI: GPT-5.4 Pro',
+    created: 1772734366,
+    description:
+      "GPT-5.4 Pro is OpenAI's most advanced model, building on GPT-5.4's unified architecture with enhanced reasoning capabilities for complex, high-stakes tasks. It features a 1M+ token context window (922K input, 128K...",
     context_length: 1050000,
     architecture: {
       modality: 'text+image+file->text',
@@ -7855,8 +9316,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
+      'max_completion_tokens',
       'max_tokens',
       'reasoning',
       'response_format',
@@ -7868,7 +9331,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-audio',
+    canonical_slug: 'openai/gpt-audio',
+    hugging_face_id: '',
     name: 'OpenAI: GPT Audio',
+    created: 1768862569,
+    description:
+      "The gpt-audio model is OpenAI's first generally available audio model. The new snapshot features an upgraded decoder for more natural sounding voices and maintains better voice consistency. Audio is priced...",
     context_length: 128000,
     architecture: {
       modality: 'text+audio->text+audio',
@@ -7887,6 +9355,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -7898,13 +9367,20 @@ export const models: Array<OpenRouterModel> = [
       'stop',
       'structured_outputs',
       'temperature',
+      'tool_choice',
+      'tools',
       'top_logprobs',
       'top_p',
     ],
   },
   {
     id: 'openai/gpt-audio-mini',
+    canonical_slug: 'openai/gpt-audio-mini',
+    hugging_face_id: '',
     name: 'OpenAI: GPT Audio Mini',
+    created: 1768859419,
+    description:
+      'A cost-efficient version of GPT Audio. The new snapshot features an upgraded decoder for more natural sounding voices and maintains better voice consistency. Input is priced at $0.60 per million...',
     context_length: 128000,
     architecture: {
       modality: 'text+audio->text+audio',
@@ -7923,6 +9399,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -7934,13 +9411,20 @@ export const models: Array<OpenRouterModel> = [
       'stop',
       'structured_outputs',
       'temperature',
+      'tool_choice',
+      'tools',
       'top_logprobs',
       'top_p',
     ],
   },
   {
     id: 'openai/gpt-oss-120b',
+    canonical_slug: 'openai/gpt-oss-120b',
+    hugging_face_id: 'openai/gpt-oss-120b',
     name: 'OpenAI: gpt-oss-120b',
+    created: 1754414231,
+    description:
+      'gpt-oss-120b is an open-weight, 117B-parameter Mixture-of-Experts (MoE) language model from OpenAI designed for high-reasoning, agentic, and general-purpose production use cases. It activates 5.1B parameters per forward pass and is optimized...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -7958,10 +9442,12 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
       'logit_bias',
+      'logprobs',
       'max_tokens',
       'min_p',
       'presence_penalty',
@@ -7976,12 +9462,18 @@ export const models: Array<OpenRouterModel> = [
       'tool_choice',
       'tools',
       'top_k',
+      'top_logprobs',
       'top_p',
     ],
   },
   {
     id: 'openai/gpt-oss-120b:free',
+    canonical_slug: 'openai/gpt-oss-120b',
+    hugging_face_id: 'openai/gpt-oss-120b',
     name: 'OpenAI: gpt-oss-120b (free)',
+    created: 1754414231,
+    description:
+      'gpt-oss-120b is an open-weight, 117B-parameter Mixture-of-Experts (MoE) language model from OpenAI designed for high-reasoning, agentic, and general-purpose production use cases. It activates 5.1B parameters per forward pass and is optimized...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -7999,6 +9491,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8012,7 +9505,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-oss-20b',
+    canonical_slug: 'openai/gpt-oss-20b',
+    hugging_face_id: 'openai/gpt-oss-20b',
     name: 'OpenAI: gpt-oss-20b',
+    created: 1754414229,
+    description:
+      'gpt-oss-20b is an open-weight 21B parameter model released by OpenAI under the Apache 2.0 license. It uses a Mixture-of-Experts (MoE) architecture with 3.6B active parameters per forward pass, optimized for...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -8031,6 +9529,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -8056,7 +9555,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-oss-20b:free',
+    canonical_slug: 'openai/gpt-oss-20b',
+    hugging_face_id: 'openai/gpt-oss-20b',
     name: 'OpenAI: gpt-oss-20b (free)',
+    created: 1754414229,
+    description:
+      'gpt-oss-20b is an open-weight 21B parameter model released by OpenAI under the Apache 2.0 license. It uses a Mixture-of-Experts (MoE) architecture with 3.6B active parameters per forward pass, optimized for...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -8074,6 +9578,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8087,7 +9592,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/gpt-oss-safeguard-20b',
+    canonical_slug: 'openai/gpt-oss-safeguard-20b',
+    hugging_face_id: 'openai/gpt-oss-safeguard-20b',
     name: 'OpenAI: gpt-oss-safeguard-20b',
+    created: 1761752836,
+    description:
+      'gpt-oss-safeguard-20b is a safety reasoning model from OpenAI built upon gpt-oss-20b. This open-weight, 21B-parameter Mixture-of-Experts (MoE) model offers lower latency for safety tasks like content classification, LLM filtering, and trust...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -8106,6 +9616,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8121,7 +9632,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/o1',
+    canonical_slug: 'openai/o1-2024-12-17',
+    hugging_face_id: '',
     name: 'OpenAI: o1',
+    created: 1734459999,
+    description:
+      'The latest and strongest model family from OpenAI, o1 is designed to spend more time thinking before responding. The o1 model series is trained with large-scale reinforcement learning to reason...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -8140,6 +9656,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8153,7 +9670,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/o1-pro',
+    canonical_slug: 'openai/o1-pro',
+    hugging_face_id: '',
     name: 'OpenAI: o1-pro',
+    created: 1742423211,
+    description:
+      'The o1 series of models are trained with reinforcement learning to think before they answer and perform complex reasoning. The o1-pro model uses more compute to think harder and provide...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -8171,6 +9693,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8182,7 +9705,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/o3',
+    canonical_slug: 'openai/o3-2025-04-16',
+    hugging_face_id: '',
     name: 'OpenAI: o3',
+    created: 1744823457,
+    description:
+      'o3 is a well-rounded and powerful model across domains. It sets a new standard for math, science, coding, and visual reasoning tasks. It also excels at technical writing and instruction-following....',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -8202,6 +9730,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8215,7 +9744,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/o3-deep-research',
+    canonical_slug: 'openai/o3-deep-research-2025-06-26',
+    hugging_face_id: '',
     name: 'OpenAI: o3 Deep Research',
+    created: 1760129661,
+    description:
+      "o3-deep-research is OpenAI's advanced model for deep research, designed to tackle complex, multi-step research tasks.\n\nNote: This model always uses the 'web_search' tool which adds additional cost.",
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -8235,6 +9769,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -8256,7 +9791,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/o3-mini',
+    canonical_slug: 'openai/o3-mini-2025-01-31',
+    hugging_face_id: '',
     name: 'OpenAI: o3 Mini',
+    created: 1738351721,
+    description:
+      'OpenAI o3-mini is a cost-efficient language model optimized for STEM reasoning tasks, particularly excelling in science, mathematics, and coding. This model supports the `reasoning_effort` parameter, which can be set to...',
     context_length: 200000,
     architecture: {
       modality: 'text+file->text',
@@ -8275,6 +9815,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8288,7 +9829,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/o3-mini-high',
+    canonical_slug: 'openai/o3-mini-high-2025-01-31',
+    hugging_face_id: '',
     name: 'OpenAI: o3 Mini High',
+    created: 1739372611,
+    description:
+      'OpenAI o3-mini-high is the same model as [o3-mini](/openai/o3-mini) with reasoning_effort set to high. o3-mini is a cost-efficient language model optimized for STEM reasoning tasks, particularly excelling in science, mathematics, and...',
     context_length: 200000,
     architecture: {
       modality: 'text+file->text',
@@ -8307,6 +9853,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8320,7 +9867,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/o3-pro',
+    canonical_slug: 'openai/o3-pro-2025-06-10',
+    hugging_face_id: '',
     name: 'OpenAI: o3 Pro',
+    created: 1749598352,
+    description:
+      'The o-series of models are trained with reinforcement learning to think before they answer and perform complex reasoning. The o3-pro model uses more compute to think harder and provide consistently...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -8339,6 +9891,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8352,7 +9905,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/o4-mini',
+    canonical_slug: 'openai/o4-mini-2025-04-16',
+    hugging_face_id: '',
     name: 'OpenAI: o4 Mini',
+    created: 1744820942,
+    description:
+      'OpenAI o4-mini is a compact reasoning model in the o-series, optimized for fast, cost-efficient performance while retaining strong multimodal and agentic capabilities. It supports tool use and demonstrates competitive reasoning...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -8372,6 +9930,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8385,7 +9944,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/o4-mini-deep-research',
+    canonical_slug: 'openai/o4-mini-deep-research-2025-06-26',
+    hugging_face_id: '',
     name: 'OpenAI: o4 Mini Deep Research',
+    created: 1760129642,
+    description:
+      "o4-mini-deep-research is OpenAI's faster, more affordable deep research model—ideal for tackling complex, multi-step research tasks.\n\nNote: This model always uses the 'web_search' tool which adds additional cost.",
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -8405,6 +9969,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -8426,7 +9991,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openai/o4-mini-high',
+    canonical_slug: 'openai/o4-mini-high-2025-04-16',
+    hugging_face_id: '',
     name: 'OpenAI: o4 Mini High',
+    created: 1744824212,
+    description:
+      'OpenAI o4-mini-high is the same model as [o4-mini](/openai/o4-mini) with reasoning_effort set to high. OpenAI o4-mini is a compact reasoning model in the o-series, optimized for fast, cost-efficient performance while retaining...',
     context_length: 200000,
     architecture: {
       modality: 'text+image+file->text',
@@ -8446,6 +10016,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 100000,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8459,7 +10030,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openrouter/auto',
+    canonical_slug: 'openrouter/auto',
+    hugging_face_id: null,
     name: 'Auto Router',
+    created: 1699401600,
+    description:
+      'Your prompt will be processed by a meta-model and routed to one of dozens of models (see below), optimizing for the best possible output. To see which model was used,...',
     context_length: 2000000,
     architecture: {
       modality: 'text+image+file+audio+video->text+image',
@@ -8477,11 +10053,13 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
       'logit_bias',
       'logprobs',
+      'max_completion_tokens',
       'max_tokens',
       'min_p',
       'presence_penalty',
@@ -8503,7 +10081,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'openrouter/bodybuilder',
+    canonical_slug: 'openrouter/bodybuilder',
+    hugging_face_id: '',
     name: 'Body Builder (beta)',
+    created: 1764903653,
+    description:
+      'Transform your natural language requests into structured OpenRouter API request objects. Describe what you want to accomplish with AI models, and Body Builder will construct the appropriate API calls. Example:...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -8521,11 +10104,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [],
   },
   {
     id: 'openrouter/free',
+    canonical_slug: 'openrouter/free',
+    hugging_face_id: '',
     name: 'Free Models Router',
+    created: 1769917427,
+    description:
+      'The simplest way to get free inference. openrouter/free is a router that selects free models at random from the models available on OpenRouter. The router smartly filters for models that...',
     context_length: 200000,
     architecture: {
       modality: 'text+image->text',
@@ -8543,6 +10132,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -8564,7 +10154,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'perplexity/sonar',
+    canonical_slug: 'perplexity/sonar',
+    hugging_face_id: '',
     name: 'Perplexity: Sonar',
+    created: 1738013808,
+    description:
+      'Sonar is lightweight, affordable, fast, and simple to use — now featuring citations and the ability to customize sources. It is designed for companies seeking to integrate lightweight question-and-answer features...',
     context_length: 127072,
     architecture: {
       modality: 'text+image->text',
@@ -8583,6 +10178,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -8595,7 +10191,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'perplexity/sonar-deep-research',
+    canonical_slug: 'perplexity/sonar-deep-research',
+    hugging_face_id: '',
     name: 'Perplexity: Sonar Deep Research',
+    created: 1741311246,
+    description:
+      'Sonar Deep Research is a research-focused model designed for multi-step retrieval, synthesis, and reasoning across complex topics. It autonomously searches, reads, and evaluates sources, refining its approach as it gathers...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -8615,6 +10216,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -8629,7 +10231,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'perplexity/sonar-pro',
+    canonical_slug: 'perplexity/sonar-pro',
+    hugging_face_id: '',
     name: 'Perplexity: Sonar Pro',
+    created: 1741312423,
+    description:
+      'Note: Sonar Pro pricing includes Perplexity search pricing. See [details here](https://docs.perplexity.ai/guides/pricing#detailed-pricing-breakdown-for-sonar-reasoning-pro-and-sonar-pro) For enterprises seeking more advanced capabilities, the Sonar Pro API can handle in-depth, multi-step queries with added extensibility, like...',
     context_length: 200000,
     architecture: {
       modality: 'text+image->text',
@@ -8648,6 +10255,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -8660,7 +10268,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'perplexity/sonar-pro-search',
+    canonical_slug: 'perplexity/sonar-pro-search',
+    hugging_face_id: '',
     name: 'Perplexity: Sonar Pro Search',
+    created: 1761854366,
+    description:
+      "Exclusively available on the OpenRouter API, Sonar Pro's new Pro Search mode is Perplexity's most advanced agentic search system. It is designed for deeper reasoning and analysis. Pricing is based...",
     context_length: 200000,
     architecture: {
       modality: 'text+image->text',
@@ -8679,6 +10292,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -8694,7 +10308,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'perplexity/sonar-reasoning-pro',
+    canonical_slug: 'perplexity/sonar-reasoning-pro',
+    hugging_face_id: '',
     name: 'Perplexity: Sonar Reasoning Pro',
+    created: 1741313308,
+    description:
+      'Note: Sonar Pro pricing includes Perplexity search pricing. See [details here](https://docs.perplexity.ai/guides/pricing#detailed-pricing-breakdown-for-sonar-reasoning-pro-and-sonar-pro) Sonar Reasoning Pro is a premier reasoning model powered by DeepSeek R1 with Chain of Thought (CoT). Designed for...',
     context_length: 128000,
     architecture: {
       modality: 'text+image->text',
@@ -8713,6 +10332,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -8727,7 +10347,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'prime-intellect/intellect-3',
+    canonical_slug: 'prime-intellect/intellect-3-20251126',
+    hugging_face_id: 'PrimeIntellect/INTELLECT-3-FP8',
     name: 'Prime Intellect: INTELLECT-3',
+    created: 1764212534,
+    description:
+      'INTELLECT-3 is a 106B-parameter Mixture-of-Experts model (12B active) post-trained from GLM-4.5-Air-Base using supervised fine-tuning (SFT) followed by large-scale reinforcement learning (RL). It offers state-of-the-art performance for its size across math,...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -8745,6 +10370,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -8763,7 +10389,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen-2.5-72b-instruct',
+    canonical_slug: 'qwen/qwen-2.5-72b-instruct',
+    hugging_face_id: 'Qwen/Qwen2.5-72B-Instruct',
     name: 'Qwen2.5 72B Instruct',
+    created: 1726704000,
+    description:
+      'Qwen2.5 72B is the latest series of Qwen large language models. Qwen2.5 brings the following improvements upon Qwen2: - Significantly more knowledge and has greatly improved capabilities in coding and...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -8781,6 +10412,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -8790,7 +10422,6 @@ export const models: Array<OpenRouterModel> = [
       'response_format',
       'seed',
       'stop',
-      'structured_outputs',
       'temperature',
       'tool_choice',
       'tools',
@@ -8800,7 +10431,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen-2.5-7b-instruct',
+    canonical_slug: 'qwen/qwen-2.5-7b-instruct',
+    hugging_face_id: 'Qwen/Qwen2.5-7B-Instruct',
     name: 'Qwen: Qwen2.5 7B Instruct',
+    created: 1729036800,
+    description:
+      'Qwen2.5 7B is the latest series of Qwen large language models. Qwen2.5 brings the following improvements upon Qwen2: - Significantly more knowledge and has greatly improved capabilities in coding and...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -8818,6 +10454,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -8837,7 +10474,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen-2.5-coder-32b-instruct',
+    canonical_slug: 'qwen/qwen-2.5-coder-32b-instruct',
+    hugging_face_id: 'Qwen/Qwen2.5-Coder-32B-Instruct',
     name: 'Qwen2.5 Coder 32B Instruct',
+    created: 1731368400,
+    description:
+      'Qwen2.5-Coder is the latest series of Code-Specific Qwen large language models (formerly known as CodeQwen). Qwen2.5-Coder brings the following improvements upon CodeQwen1.5: - Significantly improvements in **code generation**, **code reasoning**...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -8855,6 +10497,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -8868,7 +10511,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen-max',
+    canonical_slug: 'qwen/qwen-max-2025-01-25',
+    hugging_face_id: '',
     name: 'Qwen: Qwen-Max ',
+    created: 1738402289,
+    description:
+      "Qwen-Max, based on Qwen2.5, provides the best inference performance among [Qwen models](/qwen), especially for complex multi-step tasks. It's a large-scale MoE model that has been pretrained on over 20 trillion...",
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -8887,6 +10535,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'presence_penalty',
@@ -8900,7 +10549,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen-plus',
+    canonical_slug: 'qwen/qwen-plus-2025-01-25',
+    hugging_face_id: '',
     name: 'Qwen: Qwen-Plus',
+    created: 1738409840,
+    description:
+      'Qwen-Plus, based on the Qwen2.5 foundation model, is a 131K context model with a balanced performance, speed, and cost combination.',
     context_length: 1000000,
     architecture: {
       modality: 'text->text',
@@ -8919,6 +10573,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'presence_penalty',
@@ -8932,7 +10587,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen-plus-2025-07-28',
+    canonical_slug: 'qwen/qwen-plus-2025-07-28',
+    hugging_face_id: '',
     name: 'Qwen: Qwen Plus 0728',
+    created: 1757347599,
+    description:
+      'Qwen Plus 0728, based on the Qwen3 foundation model, is a 1 million context hybrid reasoning model with a balanced performance, speed, and cost combination.',
     context_length: 1000000,
     architecture: {
       modality: 'text->text',
@@ -8950,6 +10610,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'presence_penalty',
@@ -8964,7 +10625,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen-plus-2025-07-28:thinking',
+    canonical_slug: 'qwen/qwen-plus-2025-07-28',
+    hugging_face_id: '',
     name: 'Qwen: Qwen Plus 0728 (thinking)',
+    created: 1757347599,
+    description:
+      'Qwen Plus 0728, based on the Qwen3 foundation model, is a 1 million context hybrid reasoning model with a balanced performance, speed, and cost combination.',
     context_length: 1000000,
     architecture: {
       modality: 'text->text',
@@ -8982,6 +10648,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -8998,7 +10665,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen-turbo',
+    canonical_slug: 'qwen/qwen-turbo-2024-11-01',
+    hugging_face_id: '',
     name: 'Qwen: Qwen-Turbo',
+    created: 1738410974,
+    description:
+      'Qwen-Turbo, based on Qwen2.5, is a 1M context model that provides fast speed and low cost, suitable for simple tasks.',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -9017,6 +10689,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'presence_penalty',
@@ -9030,7 +10703,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen-vl-max',
+    canonical_slug: 'qwen/qwen-vl-max-2025-01-25',
+    hugging_face_id: '',
     name: 'Qwen: Qwen VL Max',
+    created: 1738434304,
+    description:
+      'Qwen VL Max is a visual understanding model with 7500 tokens context length. It excels in delivering optimal performance for a broader spectrum of complex tasks.\n',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -9048,6 +10726,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'presence_penalty',
@@ -9061,7 +10740,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen-vl-plus',
+    canonical_slug: 'qwen/qwen-vl-plus',
+    hugging_face_id: '',
     name: 'Qwen: Qwen VL Plus',
+    created: 1738731255,
+    description:
+      "Qwen's Enhanced Large Visual Language Model. Significantly upgraded for detailed recognition capabilities and text recognition abilities, supporting ultra-high pixel resolutions up to millions of pixels and extreme aspect ratios for...",
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -9080,6 +10764,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'presence_penalty',
@@ -9091,7 +10776,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen2.5-coder-7b-instruct',
+    canonical_slug: 'qwen/qwen2.5-coder-7b-instruct',
+    hugging_face_id: 'Qwen/Qwen2.5-Coder-7B-Instruct',
     name: 'Qwen: Qwen2.5 Coder 7B Instruct',
+    created: 1744734887,
+    description:
+      'Qwen2.5-Coder-7B-Instruct is a 7B parameter instruction-tuned language model optimized for code-related tasks such as code generation, reasoning, and bug fixing. Based on the Qwen2.5 architecture, it incorporates enhancements like RoPE,...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -9109,6 +10799,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -9123,7 +10814,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen2.5-vl-32b-instruct',
+    canonical_slug: 'qwen/qwen2.5-vl-32b-instruct',
+    hugging_face_id: 'Qwen/Qwen2.5-VL-32B-Instruct',
     name: 'Qwen: Qwen2.5 VL 32B Instruct',
+    created: 1742839838,
+    description:
+      'Qwen2.5-VL-32B is a multimodal vision-language model fine-tuned through reinforcement learning for enhanced mathematical reasoning, structured outputs, and visual problem-solving capabilities. It excels at visual analysis tasks, including object recognition, textual...',
     context_length: 128000,
     architecture: {
       modality: 'text+image->text',
@@ -9141,6 +10837,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -9157,7 +10854,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen2.5-vl-72b-instruct',
+    canonical_slug: 'qwen/qwen2.5-vl-72b-instruct',
+    hugging_face_id: 'Qwen/Qwen2.5-VL-72B-Instruct',
     name: 'Qwen: Qwen2.5 VL 72B Instruct',
+    created: 1738410311,
+    description:
+      'Qwen2.5-VL is proficient in recognizing common objects such as flowers, birds, fish, and insects. It is also highly capable of analyzing texts, charts, icons, graphics, and layouts within images.',
     context_length: 32768,
     architecture: {
       modality: 'text+image->text',
@@ -9175,6 +10877,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -9192,7 +10895,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-14b',
+    canonical_slug: 'qwen/qwen3-14b-04-28',
+    hugging_face_id: 'Qwen/Qwen3-14B',
     name: 'Qwen: Qwen3 14B',
+    created: 1745876478,
+    description:
+      'Qwen3-14B is a dense 14.8B parameter causal language model from the Qwen3 series, designed for both complex reasoning and efficient dialogue. It supports seamless switching between a "thinking" mode for...',
     context_length: 40960,
     architecture: {
       modality: 'text->text',
@@ -9210,6 +10918,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 40960,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -9233,7 +10942,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-235b-a22b',
+    canonical_slug: 'qwen/qwen3-235b-a22b-04-28',
+    hugging_face_id: 'Qwen/Qwen3-235B-A22B',
     name: 'Qwen: Qwen3 235B A22B',
+    created: 1745875757,
+    description:
+      'Qwen3-235B-A22B is a 235B parameter mixture-of-experts (MoE) model developed by Qwen, activating 22B parameters per forward pass. It supports seamless switching between a "thinking" mode for complex reasoning, math, and...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -9251,6 +10965,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -9266,7 +10981,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-235b-a22b-2507',
+    canonical_slug: 'qwen/qwen3-235b-a22b-07-25',
+    hugging_face_id: 'Qwen/Qwen3-235B-A22B-Instruct-2507',
     name: 'Qwen: Qwen3 235B A22B Instruct 2507',
+    created: 1753119555,
+    description:
+      'Qwen3-235B-A22B-Instruct-2507 is a multilingual, instruction-tuned mixture-of-experts language model based on the Qwen3-235B architecture, with 22B active parameters per forward pass. It is optimized for general-purpose text generation, including instruction following,...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -9284,6 +11004,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -9303,12 +11024,18 @@ export const models: Array<OpenRouterModel> = [
       'tool_choice',
       'tools',
       'top_k',
+      'top_logprobs',
       'top_p',
     ],
   },
   {
     id: 'qwen/qwen3-235b-a22b-thinking-2507',
+    canonical_slug: 'qwen/qwen3-235b-a22b-thinking-2507',
+    hugging_face_id: 'Qwen/Qwen3-235B-A22B-Thinking-2507',
     name: 'Qwen: Qwen3 235B A22B Thinking 2507',
+    created: 1753449557,
+    description:
+      'Qwen3-235B-A22B-Thinking-2507 is a high-performance, open-weight Mixture-of-Experts (MoE) language model optimized for complex reasoning tasks. It activates 22B of its 235B parameters per forward pass and natively supports up to 262,144...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -9326,6 +11053,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -9348,7 +11076,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-30b-a3b',
+    canonical_slug: 'qwen/qwen3-30b-a3b-04-28',
+    hugging_face_id: 'Qwen/Qwen3-30B-A3B',
     name: 'Qwen: Qwen3 30B A3B',
+    created: 1745878604,
+    description:
+      'Qwen3, the latest generation in the Qwen large language model series, features both dense and mixture-of-experts (MoE) architectures to excel in reasoning, multilingual support, and advanced agent tasks. Its unique...',
     context_length: 40960,
     architecture: {
       modality: 'text->text',
@@ -9366,6 +11099,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 40960,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -9389,7 +11123,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-30b-a3b-instruct-2507',
+    canonical_slug: 'qwen/qwen3-30b-a3b-instruct-2507',
+    hugging_face_id: 'Qwen/Qwen3-30B-A3B-Instruct-2507',
     name: 'Qwen: Qwen3 30B A3B Instruct 2507',
+    created: 1753806965,
+    description:
+      'Qwen3-30B-A3B-Instruct-2507 is a 30.5B-parameter mixture-of-experts language model from Qwen, with 3.3B active parameters per inference. It operates in non-thinking mode and is designed for high-quality instruction following, multilingual understanding, and...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -9407,6 +11146,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 262144,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -9427,7 +11167,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-30b-a3b-thinking-2507',
+    canonical_slug: 'qwen/qwen3-30b-a3b-thinking-2507',
+    hugging_face_id: 'Qwen/Qwen3-30B-A3B-Thinking-2507',
     name: 'Qwen: Qwen3 30B A3B Thinking 2507',
+    created: 1756399192,
+    description:
+      'Qwen3-30B-A3B-Thinking-2507 is a 30B parameter Mixture-of-Experts reasoning model optimized for complex tasks requiring extended multi-step thinking. The model is designed specifically for “thinking mode,” where internal reasoning traces are separated...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -9446,6 +11191,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -9468,7 +11214,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-32b',
+    canonical_slug: 'qwen/qwen3-32b-04-28',
+    hugging_face_id: 'Qwen/Qwen3-32B',
     name: 'Qwen: Qwen3 32B',
+    created: 1745875945,
+    description:
+      'Qwen3-32B is a dense 32.8B parameter causal language model from the Qwen3 series, optimized for both complex reasoning and efficient dialogue. It supports seamless switching between a "thinking" mode for...',
     context_length: 40960,
     architecture: {
       modality: 'text->text',
@@ -9487,6 +11238,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 40960,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -9509,7 +11261,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-8b',
+    canonical_slug: 'qwen/qwen3-8b-04-28',
+    hugging_face_id: 'Qwen/Qwen3-8B',
     name: 'Qwen: Qwen3 8B',
+    created: 1745876632,
+    description:
+      'Qwen3-8B is a dense 8.2B parameter causal language model from the Qwen3 series, designed for both reasoning-heavy tasks and efficient dialogue. It supports seamless switching between "thinking" mode for math,...',
     context_length: 40960,
     architecture: {
       modality: 'text->text',
@@ -9528,6 +11285,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -9550,7 +11308,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-coder',
+    canonical_slug: 'qwen/qwen3-coder-480b-a35b-07-25',
+    hugging_face_id: 'Qwen/Qwen3-Coder-480B-A35B-Instruct',
     name: 'Qwen: Qwen3 Coder 480B A35B',
+    created: 1753230546,
+    description:
+      'Qwen3-Coder-480B-A35B-Instruct is a Mixture-of-Experts (MoE) code generation model developed by the Qwen team. It is optimized for agentic coding tasks such as function calling, tool use, and long-context reasoning over...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -9569,6 +11332,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -9589,7 +11353,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-coder-30b-a3b-instruct',
+    canonical_slug: 'qwen/qwen3-coder-30b-a3b-instruct',
+    hugging_face_id: 'Qwen/Qwen3-Coder-30B-A3B-Instruct',
     name: 'Qwen: Qwen3 Coder 30B A3B Instruct',
+    created: 1753972379,
+    description:
+      'Qwen3-Coder-30B-A3B-Instruct is a 30.5B parameter Mixture-of-Experts (MoE) model with 128 experts (8 active per forward pass), designed for advanced code generation, repository-scale understanding, and agentic tool use. Built on the...',
     context_length: 160000,
     architecture: {
       modality: 'text->text',
@@ -9607,6 +11376,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -9625,7 +11395,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-coder-flash',
+    canonical_slug: 'qwen/qwen3-coder-flash',
+    hugging_face_id: '',
     name: 'Qwen: Qwen3 Coder Flash',
+    created: 1758115536,
+    description:
+      "Qwen3 Coder Flash is Alibaba's fast and cost efficient version of their proprietary Qwen3 Coder Plus. It is a powerful coding agent model specializing in autonomous programming via tool calling...",
     context_length: 1000000,
     architecture: {
       modality: 'text->text',
@@ -9644,6 +11419,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'presence_penalty',
@@ -9657,7 +11433,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-coder-next',
+    canonical_slug: 'qwen/qwen3-coder-next-2025-02-03',
+    hugging_face_id: 'Qwen/Qwen3-Coder-Next',
     name: 'Qwen: Qwen3 Coder Next',
+    created: 1770164101,
+    description:
+      'Qwen3-Coder-Next is an open-weight causal language model optimized for coding agents and local development workflows. It uses a sparse MoE design with 80B total parameters and only 3B activated per...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -9676,6 +11457,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -9696,7 +11478,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-coder-plus',
+    canonical_slug: 'qwen/qwen3-coder-plus',
+    hugging_face_id: '',
     name: 'Qwen: Qwen3 Coder Plus',
+    created: 1758662707,
+    description:
+      "Qwen3 Coder Plus is Alibaba's proprietary version of the Open Source Qwen3 Coder 480B A35B. It is a powerful coding agent model specializing in autonomous programming via tool calling and...",
     context_length: 1000000,
     architecture: {
       modality: 'text->text',
@@ -9715,6 +11502,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'presence_penalty',
@@ -9729,7 +11517,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-coder:free',
+    canonical_slug: 'qwen/qwen3-coder-480b-a35b-07-25',
+    hugging_face_id: 'Qwen/Qwen3-Coder-480B-A35B-Instruct',
     name: 'Qwen: Qwen3 Coder 480B A35B (free)',
+    created: 1753230546,
+    description:
+      'Qwen3-Coder-480B-A35B-Instruct is a Mixture-of-Experts (MoE) code generation model developed by the Qwen team. It is optimized for agentic coding tasks such as function calling, tool use, and long-context reasoning over...',
     context_length: 262000,
     architecture: {
       modality: 'text->text',
@@ -9747,6 +11540,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 262000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -9761,7 +11555,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-max',
+    canonical_slug: 'qwen/qwen3-max',
+    hugging_face_id: '',
     name: 'Qwen: Qwen3 Max',
+    created: 1758662808,
+    description:
+      'Qwen3-Max is an updated release built on the Qwen3 series, offering major improvements in reasoning, instruction following, multilingual support, and long-tail knowledge coverage compared to the January 2025 version. It...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -9780,6 +11579,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'presence_penalty',
@@ -9793,7 +11593,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-max-thinking',
+    canonical_slug: 'qwen/qwen3-max-thinking-20260123',
+    hugging_face_id: null,
     name: 'Qwen: Qwen3 Max Thinking',
+    created: 1770671901,
+    description:
+      'Qwen3-Max-Thinking is the flagship reasoning model in the Qwen3 series, designed for high-stakes cognitive tasks that require deep, multi-step reasoning. By significantly scaling model capacity and reinforcement learning compute, it...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -9811,6 +11616,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -9827,7 +11633,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-next-80b-a3b-instruct',
+    canonical_slug: 'qwen/qwen3-next-80b-a3b-instruct-2509',
+    hugging_face_id: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
     name: 'Qwen: Qwen3 Next 80B A3B Instruct',
+    created: 1757612213,
+    description:
+      'Qwen3-Next-80B-A3B-Instruct is an instruction-tuned chat model in the Qwen3-Next series optimized for fast, stable responses without “thinking” traces. It targets complex tasks across reasoning, code generation, knowledge QA, and multilingual...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -9845,6 +11656,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -9865,7 +11677,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-next-80b-a3b-instruct:free',
+    canonical_slug: 'qwen/qwen3-next-80b-a3b-instruct-2509',
+    hugging_face_id: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
     name: 'Qwen: Qwen3 Next 80B A3B Instruct (free)',
+    created: 1757612213,
+    description:
+      'Qwen3-Next-80B-A3B-Instruct is an instruction-tuned chat model in the Qwen3-Next series optimized for fast, stable responses without “thinking” traces. It targets complex tasks across reasoning, code generation, knowledge QA, and multilingual...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -9883,6 +11700,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -9899,7 +11717,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-next-80b-a3b-thinking',
+    canonical_slug: 'qwen/qwen3-next-80b-a3b-thinking-2509',
+    hugging_face_id: 'Qwen/Qwen3-Next-80B-A3B-Thinking',
     name: 'Qwen: Qwen3 Next 80B A3B Thinking',
+    created: 1757612284,
+    description:
+      'Qwen3-Next-80B-A3B-Thinking is a reasoning-first chat model in the Qwen3-Next line that outputs structured “thinking” traces by default. It’s designed for hard multi-step problems; math proofs, code synthesis/debugging, logic, and agentic...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -9917,6 +11740,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -9939,7 +11763,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-vl-235b-a22b-instruct',
+    canonical_slug: 'qwen/qwen3-vl-235b-a22b-instruct',
+    hugging_face_id: 'Qwen/Qwen3-VL-235B-A22B-Instruct',
     name: 'Qwen: Qwen3 VL 235B A22B Instruct',
+    created: 1758668687,
+    description:
+      'Qwen3-VL-235B-A22B Instruct is an open-weight multimodal model that unifies strong text generation with visual understanding across images and video. The Instruct model targets general vision-language use (VQA, document parsing, chart/table...',
     context_length: 262144,
     architecture: {
       modality: 'text+image->text',
@@ -9958,6 +11787,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -9978,7 +11808,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-vl-235b-a22b-thinking',
+    canonical_slug: 'qwen/qwen3-vl-235b-a22b-thinking',
+    hugging_face_id: 'Qwen/Qwen3-VL-235B-A22B-Thinking',
     name: 'Qwen: Qwen3 VL 235B A22B Thinking',
+    created: 1758668690,
+    description:
+      'Qwen3-VL-235B-A22B Thinking is a multimodal model that unifies strong text generation with visual understanding across images and video. The Thinking model is optimized for multimodal reasoning in STEM and math....',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -9996,6 +11831,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -10016,7 +11852,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-vl-30b-a3b-instruct',
+    canonical_slug: 'qwen/qwen3-vl-30b-a3b-instruct',
+    hugging_face_id: 'Qwen/Qwen3-VL-30B-A3B-Instruct',
     name: 'Qwen: Qwen3 VL 30B A3B Instruct',
+    created: 1759794476,
+    description:
+      'Qwen3-VL-30B-A3B-Instruct is a multimodal model that unifies strong text generation with visual understanding for images and videos. Its Instruct variant optimizes instruction-following for general multimodal tasks. It excels in perception...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -10034,8 +11875,10 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
+      'logit_bias',
       'max_tokens',
       'min_p',
       'presence_penalty',
@@ -10053,7 +11896,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-vl-30b-a3b-thinking',
+    canonical_slug: 'qwen/qwen3-vl-30b-a3b-thinking',
+    hugging_face_id: 'Qwen/Qwen3-VL-30B-A3B-Thinking',
     name: 'Qwen: Qwen3 VL 30B A3B Thinking',
+    created: 1759794479,
+    description:
+      'Qwen3-VL-30B-A3B-Thinking is a multimodal model that unifies strong text generation with visual understanding for images and videos. Its Thinking variant enhances reasoning in STEM, math, and complex tasks. It excels...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -10071,6 +11919,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -10091,7 +11940,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-vl-32b-instruct',
+    canonical_slug: 'qwen/qwen3-vl-32b-instruct',
+    hugging_face_id: 'Qwen/Qwen3-VL-32B-Instruct',
     name: 'Qwen: Qwen3 VL 32B Instruct',
+    created: 1761231332,
+    description:
+      'Qwen3-VL-32B-Instruct is a large-scale multimodal vision-language model designed for high-precision understanding and reasoning across text, images, and video. With 32 billion parameters, it combines deep visual perception with advanced text...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -10109,6 +11963,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'presence_penalty',
@@ -10122,7 +11977,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-vl-8b-instruct',
+    canonical_slug: 'qwen/qwen3-vl-8b-instruct',
+    hugging_face_id: 'Qwen/Qwen3-VL-8B-Instruct',
     name: 'Qwen: Qwen3 VL 8B Instruct',
+    created: 1760463308,
+    description:
+      'Qwen3-VL-8B-Instruct is a multimodal vision-language model from the Qwen3-VL series, built for high-fidelity understanding and reasoning across text, images, and video. It features improved multimodal fusion with Interleaved-MRoPE for long-horizon...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -10140,6 +12000,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -10160,7 +12021,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3-vl-8b-thinking',
+    canonical_slug: 'qwen/qwen3-vl-8b-thinking',
+    hugging_face_id: 'Qwen/Qwen3-VL-8B-Thinking',
     name: 'Qwen: Qwen3 VL 8B Thinking',
+    created: 1760463746,
+    description:
+      'Qwen3-VL-8B-Thinking is the reasoning-optimized variant of the Qwen3-VL-8B multimodal model, designed for advanced visual and textual reasoning across complex scenes, documents, and temporal sequences. It integrates enhanced multimodal alignment and...',
     context_length: 131072,
     architecture: {
       modality: 'text+image->text',
@@ -10178,6 +12044,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -10194,7 +12061,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3.5-122b-a10b',
+    canonical_slug: 'qwen/qwen3.5-122b-a10b-20260224',
+    hugging_face_id: 'Qwen/Qwen3.5-122B-A10B',
     name: 'Qwen: Qwen3.5-122B-A10B',
+    created: 1772053789,
+    description:
+      'The Qwen3.5 122B-A10B native vision-language model is built on a hybrid architecture that integrates a linear attention mechanism with a sparse mixture-of-experts model, achieving higher inference efficiency. In terms of...',
     context_length: 262144,
     architecture: {
       modality: 'text+image+video->text',
@@ -10212,6 +12084,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -10236,7 +12109,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3.5-27b',
+    canonical_slug: 'qwen/qwen3.5-27b-20260224',
+    hugging_face_id: 'Qwen/Qwen3.5-27B',
     name: 'Qwen: Qwen3.5-27B',
+    created: 1772053810,
+    description:
+      'The Qwen3.5 27B native vision-language Dense model incorporates a linear attention mechanism, delivering fast response times while balancing inference speed and performance. Its overall capabilities are comparable to those of...',
     context_length: 262144,
     architecture: {
       modality: 'text+image+video->text',
@@ -10254,6 +12132,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -10278,7 +12157,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3.5-35b-a3b',
+    canonical_slug: 'qwen/qwen3.5-35b-a3b-20260224',
+    hugging_face_id: 'Qwen/Qwen3.5-35B-A3B',
     name: 'Qwen: Qwen3.5-35B-A3B',
+    created: 1772053822,
+    description:
+      'The Qwen3.5 Series 35B-A3B is a native vision-language model designed with a hybrid architecture that integrates linear attention mechanisms and a sparse mixture-of-experts model, achieving higher inference efficiency. Its overall...',
     context_length: 262144,
     architecture: {
       modality: 'text+image+video->text',
@@ -10296,6 +12180,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -10320,7 +12205,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3.5-397b-a17b',
+    canonical_slug: 'qwen/qwen3.5-397b-a17b-20260216',
+    hugging_face_id: 'Qwen/Qwen3.5-397B-A17B',
     name: 'Qwen: Qwen3.5 397B A17B',
+    created: 1771223018,
+    description:
+      'The Qwen3.5 series 397B-A17B native vision-language model is built on a hybrid architecture that integrates a linear attention mechanism with a sparse mixture-of-experts model, achieving higher inference efficiency. It delivers...',
     context_length: 262144,
     architecture: {
       modality: 'text+image+video->text',
@@ -10338,6 +12228,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -10360,7 +12251,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3.5-9b',
+    canonical_slug: 'qwen/qwen3.5-9b-20260310',
+    hugging_face_id: 'Qwen/Qwen3.5-9B',
     name: 'Qwen: Qwen3.5-9B',
+    created: 1773152396,
+    description:
+      'Qwen3.5-9B is a multimodal foundation model from the Qwen3.5 family, designed to deliver strong reasoning, coding, and visual understanding in an efficient 9B-parameter architecture. It uses a unified vision-language design...',
     context_length: 256000,
     architecture: {
       modality: 'text+image+video->text',
@@ -10375,9 +12271,10 @@ export const models: Array<OpenRouterModel> = [
     },
     top_provider: {
       context_length: 256000,
-      max_completion_tokens: 65536,
+      max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -10401,7 +12298,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3.5-flash-02-23',
+    canonical_slug: 'qwen/qwen3.5-flash-20260224',
+    hugging_face_id: null,
     name: 'Qwen: Qwen3.5-Flash',
+    created: 1772053776,
+    description:
+      'The Qwen3.5 native vision-language Flash models are built on a hybrid architecture that integrates a linear attention mechanism with a sparse mixture-of-experts model, achieving higher inference efficiency. Compared to the...',
     context_length: 1000000,
     architecture: {
       modality: 'text+image+video->text',
@@ -10419,6 +12321,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -10435,7 +12338,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwen3.5-plus-02-15',
+    canonical_slug: 'qwen/qwen3.5-plus-20260216',
+    hugging_face_id: '',
     name: 'Qwen: Qwen3.5 Plus 2026-02-15',
+    created: 1771229416,
+    description:
+      'The Qwen3.5 native vision-language series Plus models are built on a hybrid architecture that integrates linear attention mechanisms with sparse mixture-of-experts models, achieving higher inference efficiency. In a variety of...',
     context_length: 1000000,
     architecture: {
       modality: 'text+image+video->text',
@@ -10453,6 +12361,47 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
+    supported_parameters: [
+      'include_reasoning',
+      'max_tokens',
+      'presence_penalty',
+      'reasoning',
+      'response_format',
+      'seed',
+      'structured_outputs',
+      'temperature',
+      'tool_choice',
+      'tools',
+      'top_p',
+    ],
+  },
+  {
+    id: 'qwen/qwen3.6-plus',
+    canonical_slug: 'qwen/qwen3.6-plus-04-02',
+    hugging_face_id: '',
+    name: 'Qwen: Qwen3.6 Plus',
+    created: 1775133557,
+    description:
+      'Qwen 3.6 Plus builds on a hybrid architecture that combines efficient linear attention with sparse mixture-of-experts routing, enabling strong scalability and high-performance inference. Compared to the 3.5 series, it delivers...',
+    context_length: 1000000,
+    architecture: {
+      modality: 'text+image+video->text',
+      input_modalities: ['text', 'image', 'video'],
+      output_modalities: ['text'],
+      tokenizer: 'Qwen3',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0.000000325',
+      completion: '0.00000195',
+    },
+    top_provider: {
+      context_length: 1000000,
+      max_completion_tokens: 65536,
+      is_moderated: false,
+    },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -10469,7 +12418,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'qwen/qwq-32b',
+    canonical_slug: 'qwen/qwq-32b',
+    hugging_face_id: 'Qwen/QwQ-32B',
     name: 'Qwen: QwQ 32B',
+    created: 1741208814,
+    description:
+      'QwQ is the reasoning model of the Qwen series. Compared with conventional instruction-tuned models, QwQ, which is capable of thinking and reasoning, can achieve significantly enhanced performance in downstream tasks,...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -10487,6 +12441,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -10499,8 +12454,13 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
-    id: 'reka/reka-edge',
+    id: 'rekaai/reka-edge',
+    canonical_slug: 'rekaai/reka-edge-2603',
+    hugging_face_id: 'RekaAI/reka-edge-2603',
     name: 'Reka Edge',
+    created: 1774026965,
+    description:
+      'Reka Edge is an extremely efficient 7B multimodal vision-language model that accepts image/video+text inputs and generates text outputs. This model is optimized specifically to deliver industry-leading performance in image understanding,...',
     context_length: 16384,
     architecture: {
       modality: 'text+image+video->text',
@@ -10518,6 +12478,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -10533,8 +12494,52 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
+    id: 'rekaai/reka-flash-3',
+    canonical_slug: 'rekaai/reka-flash-3',
+    hugging_face_id: 'RekaAI/reka-flash-3',
+    name: 'Reka Flash 3',
+    created: 1741812813,
+    description:
+      'Reka Flash 3 is a general-purpose, instruction-tuned large language model with 21 billion parameters, developed by Reka. It excels at general chat, coding tasks, instruction-following, and function calling. Featuring a...',
+    context_length: 65536,
+    architecture: {
+      modality: 'text->text',
+      input_modalities: ['text'],
+      output_modalities: ['text'],
+      tokenizer: 'Other',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0.0000001',
+      completion: '0.0000002',
+    },
+    top_provider: {
+      context_length: 65536,
+      max_completion_tokens: 65536,
+      is_moderated: false,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'frequency_penalty',
+      'include_reasoning',
+      'max_tokens',
+      'presence_penalty',
+      'reasoning',
+      'seed',
+      'stop',
+      'temperature',
+      'top_k',
+      'top_p',
+    ],
+  },
+  {
     id: 'relace/relace-apply-3',
+    canonical_slug: 'relace/relace-apply-3',
+    hugging_face_id: '',
     name: 'Relace: Relace Apply 3',
+    created: 1758891572,
+    description:
+      'Relace Apply 3 is a specialized code-patching LLM that merges AI-suggested edits straight into your source files. It can apply updates from GPT-4o, Claude, and others into your files at...',
     context_length: 256000,
     architecture: {
       modality: 'text->text',
@@ -10552,11 +12557,17 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: ['max_tokens', 'seed', 'stop'],
   },
   {
     id: 'relace/relace-search',
+    canonical_slug: 'relace/relace-search-20251208',
+    hugging_face_id: null,
     name: 'Relace: Relace Search',
+    created: 1765213560,
+    description:
+      'The relace-search model uses 4-12 `view_file` and `grep` tools in parallel to explore a codebase and return relevant files to the user request. In contrast to RAG, relace-search performs agentic...',
     context_length: 256000,
     architecture: {
       modality: 'text->text',
@@ -10574,6 +12585,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 128000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'seed',
@@ -10586,7 +12598,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'sao10k/l3-euryale-70b',
+    canonical_slug: 'sao10k/l3-euryale-70b',
+    hugging_face_id: 'Sao10K/L3-70B-Euryale-v2.1',
     name: 'Sao10k: Llama 3 Euryale 70B v2.1',
+    created: 1718668800,
+    description:
+      'Euryale 70B v2.1 is a model focused on creative roleplay from [Sao10k](https://ko-fi.com/sao10k). - Better prompt adherence. - Better anatomy / spatial awareness. - Adapts much better to unique and custom...',
     context_length: 8192,
     architecture: {
       modality: 'text->text',
@@ -10604,6 +12621,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -10620,7 +12638,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'sao10k/l3-lunaris-8b',
+    canonical_slug: 'sao10k/l3-lunaris-8b',
+    hugging_face_id: 'Sao10K/L3-8B-Lunaris-v1',
     name: 'Sao10K: Llama 3 8B Lunaris',
+    created: 1723507200,
+    description:
+      "Lunaris 8B is a versatile generalist and roleplaying model based on Llama 3. It's a strategic merge of multiple models, designed to balance creativity with improved logic and general knowledge....",
     context_length: 8192,
     architecture: {
       modality: 'text->text',
@@ -10638,6 +12661,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -10655,7 +12679,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'sao10k/l3.1-70b-hanami-x1',
+    canonical_slug: 'sao10k/l3.1-70b-hanami-x1',
+    hugging_face_id: 'Sao10K/L3.1-70B-Hanami-x1',
     name: 'Sao10K: Llama 3.1 70B Hanami x1',
+    created: 1736302854,
+    description:
+      "This is [Sao10K](/sao10k)'s experiment over [Euryale v2.2](/sao10k/l3.1-euryale-70b).",
     context_length: 16000,
     architecture: {
       modality: 'text->text',
@@ -10673,6 +12702,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -10689,7 +12719,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'sao10k/l3.1-euryale-70b',
+    canonical_slug: 'sao10k/l3.1-euryale-70b',
+    hugging_face_id: 'Sao10K/L3.1-70B-Euryale-v2.2',
     name: 'Sao10K: Llama 3.1 Euryale 70B v2.2',
+    created: 1724803200,
+    description:
+      'Euryale L3.1 70B v2.2 is a model focused on creative roleplay from [Sao10k](https://ko-fi.com/sao10k). It is the successor of [Euryale L3 70B v2.1](/models/sao10k/l3-euryale-70b).',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -10707,6 +12742,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'max_tokens',
@@ -10716,7 +12752,6 @@ export const models: Array<OpenRouterModel> = [
       'response_format',
       'seed',
       'stop',
-      'structured_outputs',
       'temperature',
       'tool_choice',
       'tools',
@@ -10726,7 +12761,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'sao10k/l3.3-euryale-70b',
+    canonical_slug: 'sao10k/l3.3-euryale-70b-v2.3',
+    hugging_face_id: 'Sao10K/L3.3-70B-Euryale-v2.3',
     name: 'Sao10K: Llama 3.3 Euryale 70B',
+    created: 1734535928,
+    description:
+      'Euryale L3.3 70B is a model focused on creative roleplay from [Sao10k](https://ko-fi.com/sao10k). It is the successor of [Euryale L3 70B v2.2](/models/sao10k/l3-euryale-70b).',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -10744,6 +12784,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logprobs',
@@ -10763,7 +12804,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'stepfun/step-3.5-flash',
+    canonical_slug: 'stepfun/step-3.5-flash',
+    hugging_face_id: 'stepfun-ai/Step-3.5-Flash',
     name: 'StepFun: Step 3.5 Flash',
+    created: 1769728337,
+    description:
+      "Step 3.5 Flash is StepFun's most capable open-source foundation model. Built on a sparse Mixture of Experts (MoE) architecture, it selectively activates only 11B of its 196B parameters per token....",
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -10775,13 +12821,13 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000001',
       completion: '0.0000003',
-      input_cache_read: '0.00000002',
     },
     top_provider: {
       context_length: 262144,
-      max_completion_tokens: null,
+      max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -10794,45 +12840,20 @@ export const models: Array<OpenRouterModel> = [
       'seed',
       'stop',
       'temperature',
+      'tool_choice',
       'tools',
       'top_k',
       'top_p',
     ],
   },
   {
-    id: 'stepfun/step-3.5-flash:free',
-    name: 'StepFun: Step 3.5 Flash (free)',
-    context_length: 256000,
-    architecture: {
-      modality: 'text->text',
-      input_modalities: ['text'],
-      output_modalities: ['text'],
-      tokenizer: 'Other',
-      instruct_type: null,
-    },
-    pricing: {
-      prompt: '0',
-      completion: '0',
-    },
-    top_provider: {
-      context_length: 256000,
-      max_completion_tokens: 256000,
-      is_moderated: false,
-    },
-    supported_parameters: [
-      'frequency_penalty',
-      'include_reasoning',
-      'max_tokens',
-      'reasoning',
-      'stop',
-      'temperature',
-      'tools',
-      'top_p',
-    ],
-  },
-  {
     id: 'switchpoint/router',
+    canonical_slug: 'switchpoint/router',
+    hugging_face_id: '',
     name: 'Switchpoint Router',
+    created: 1752272899,
+    description:
+      "Switchpoint AI's router instantly analyzes your request and directs it to the optimal AI from an ever-evolving library. As the world of LLMs advances, our router gets smarter, ensuring you...",
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -10850,6 +12871,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -10863,7 +12885,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'tencent/hunyuan-a13b-instruct',
+    canonical_slug: 'tencent/hunyuan-a13b-instruct',
+    hugging_face_id: 'tencent/Hunyuan-A13B-Instruct',
     name: 'Tencent: Hunyuan A13B Instruct',
+    created: 1751987664,
+    description:
+      'Hunyuan-A13B is a 13B active parameter Mixture-of-Experts (MoE) language model developed by Tencent, with a total parameter count of 80B and support for reasoning via Chain-of-Thought. It offers competitive benchmark...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -10881,6 +12908,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -10894,7 +12922,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'thedrummer/cydonia-24b-v4.1',
+    canonical_slug: 'thedrummer/cydonia-24b-v4.1',
+    hugging_face_id: 'thedrummer/cydonia-24b-v4.1',
     name: 'TheDrummer: Cydonia 24B V4.1',
+    created: 1758931878,
+    description:
+      'Uncensored and creative writing model based on Mistral Small 3.2 24B with good recall, prompt adherence, and intelligence.',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -10912,6 +12945,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -10927,7 +12961,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'thedrummer/rocinante-12b',
+    canonical_slug: 'thedrummer/rocinante-12b',
+    hugging_face_id: 'TheDrummer/Rocinante-12B-v1.1',
     name: 'TheDrummer: Rocinante 12B',
+    created: 1727654400,
+    description:
+      'Rocinante 12B is designed for engaging storytelling and rich prose. Early testers have reported: - Expanded vocabulary with unique and expressive word choices - Enhanced creativity for vivid narratives -...',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -10945,6 +12984,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -10967,7 +13007,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'thedrummer/skyfall-36b-v2',
+    canonical_slug: 'thedrummer/skyfall-36b-v2',
+    hugging_face_id: 'TheDrummer/Skyfall-36B-v2',
     name: 'TheDrummer: Skyfall 36B V2',
+    created: 1741636566,
+    description:
+      'Skyfall 36B v2 is an enhanced iteration of Mistral Small 2501, specifically fine-tuned for improved creativity, nuanced writing, role-playing, and coherent storytelling.',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -10985,6 +13030,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -11000,7 +13046,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'thedrummer/unslopnemo-12b',
+    canonical_slug: 'thedrummer/unslopnemo-12b',
+    hugging_face_id: 'TheDrummer/UnslopNemo-12B-v4.1',
     name: 'TheDrummer: UnslopNemo 12B',
+    created: 1731103448,
+    description:
+      'UnslopNemo v4.1 is the latest addition from the creator of Rocinante, designed for adventure writing and role-play scenarios.',
     context_length: 32768,
     architecture: {
       modality: 'text->text',
@@ -11018,6 +13069,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 32768,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logprobs',
@@ -11037,7 +13089,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'tngtech/deepseek-r1t2-chimera',
+    canonical_slug: 'tngtech/deepseek-r1t2-chimera',
+    hugging_face_id: 'tngtech/DeepSeek-TNG-R1T2-Chimera',
     name: 'TNG: DeepSeek R1T2 Chimera',
+    created: 1751986985,
+    description:
+      'DeepSeek-TNG-R1T2-Chimera is the second-generation Chimera model from TNG Tech. It is a 671 B-parameter mixture-of-experts text-generation model assembled from DeepSeek-AI’s R1-0528, R1, and V3-0324 checkpoints with an Assembly-of-Experts merge. The...',
     context_length: 163840,
     architecture: {
       modality: 'text->text',
@@ -11056,6 +13113,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 163840,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -11076,7 +13134,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'undi95/remm-slerp-l2-13b',
+    canonical_slug: 'undi95/remm-slerp-l2-13b',
+    hugging_face_id: 'Undi95/ReMM-SLERP-L2-13B',
     name: 'ReMM SLERP 13B',
+    created: 1689984000,
+    description:
+      'A recreation trial of the original MythoMax-L2-B13 but with updated models. #merge',
     context_length: 6144,
     architecture: {
       modality: 'text->text',
@@ -11094,6 +13157,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 4096,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logit_bias',
@@ -11115,7 +13179,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'upstage/solar-pro-3',
+    canonical_slug: 'upstage/solar-pro-3',
+    hugging_face_id: '',
     name: 'Upstage: Solar Pro 3',
+    created: 1769481200,
+    description:
+      "Solar Pro 3 is Upstage's powerful Mixture-of-Experts (MoE) language model. With 102B total parameters and 12B active parameters per forward pass, it delivers exceptional performance while maintaining computational efficiency. Optimized...",
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -11134,6 +13203,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -11147,7 +13217,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'writer/palmyra-x5',
+    canonical_slug: 'writer/palmyra-x5-20250428',
+    hugging_face_id: '',
     name: 'Writer: Palmyra X5',
+    created: 1769003823,
+    description:
+      "Palmyra X5 is Writer's most advanced model, purpose-built for building and scaling AI agents across the enterprise. It delivers industry-leading speed and efficiency on context windows up to 1 million...",
     context_length: 1040000,
     architecture: {
       modality: 'text->text',
@@ -11165,6 +13240,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 8192,
       is_moderated: true,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'stop',
@@ -11175,7 +13251,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'x-ai/grok-3',
+    canonical_slug: 'x-ai/grok-3',
+    hugging_face_id: '',
     name: 'xAI: Grok 3',
+    created: 1749582908,
+    description:
+      "Grok 3 is the latest model from xAI. It's their flagship model that excels at enterprise use cases like data extraction, coding, and text summarization. Possesses deep domain knowledge in...",
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -11195,6 +13276,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logprobs',
@@ -11213,7 +13295,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'x-ai/grok-3-beta',
+    canonical_slug: 'x-ai/grok-3-beta',
+    hugging_face_id: '',
     name: 'xAI: Grok 3 Beta',
+    created: 1744240068,
+    description:
+      "Grok 3 is the latest model from xAI. It's their flagship model that excels at enterprise use cases like data extraction, coding, and text summarization. Possesses deep domain knowledge in...",
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -11233,6 +13320,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'logprobs',
@@ -11250,7 +13338,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'x-ai/grok-3-mini',
+    canonical_slug: 'x-ai/grok-3-mini',
+    hugging_face_id: '',
     name: 'xAI: Grok 3 Mini',
+    created: 1749583245,
+    description:
+      'A lightweight model that thinks before responding. Fast, smart, and great for logic-based tasks that do not require deep domain knowledge. The raw thinking traces are accessible.',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -11270,6 +13363,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'logprobs',
@@ -11288,7 +13382,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'x-ai/grok-3-mini-beta',
+    canonical_slug: 'x-ai/grok-3-mini-beta',
+    hugging_face_id: '',
     name: 'xAI: Grok 3 Mini Beta',
+    created: 1744240195,
+    description:
+      'Grok 3 Mini is a lightweight, smaller thinking model. Unlike traditional models that generate answers immediately, Grok 3 Mini thinks before responding. It’s ideal for reasoning-heavy tasks that don’t demand...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -11308,6 +13407,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'logprobs',
@@ -11325,11 +13425,16 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'x-ai/grok-4',
+    canonical_slug: 'x-ai/grok-4-07-09',
+    hugging_face_id: '',
     name: 'xAI: Grok 4',
+    created: 1752087689,
+    description:
+      "Grok 4 is xAI's latest reasoning model with a 256k context window. It supports parallel tool calling, structured outputs, and both image and text inputs. Note that reasoning is not...",
     context_length: 256000,
     architecture: {
-      modality: 'text+image->text',
-      input_modalities: ['image', 'text'],
+      modality: 'text+image+file->text',
+      input_modalities: ['image', 'text', 'file'],
       output_modalities: ['text'],
       tokenizer: 'Grok',
       instruct_type: null,
@@ -11345,6 +13450,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'logprobs',
@@ -11362,11 +13468,16 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'x-ai/grok-4-fast',
+    canonical_slug: 'x-ai/grok-4-fast',
+    hugging_face_id: '',
     name: 'xAI: Grok 4 Fast',
+    created: 1758240090,
+    description:
+      "Grok 4 Fast is xAI's latest multimodal model with SOTA cost-efficiency and a 2M token context window. It comes in two flavors: non-reasoning and reasoning. Read more about the model...",
     context_length: 2000000,
     architecture: {
-      modality: 'text+image->text',
-      input_modalities: ['text', 'image'],
+      modality: 'text+image+file->text',
+      input_modalities: ['text', 'image', 'file'],
       output_modalities: ['text'],
       tokenizer: 'Grok',
       instruct_type: null,
@@ -11382,6 +13493,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 30000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'logprobs',
@@ -11399,11 +13511,16 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'x-ai/grok-4.1-fast',
+    canonical_slug: 'x-ai/grok-4.1-fast',
+    hugging_face_id: '',
     name: 'xAI: Grok 4.1 Fast',
+    created: 1763587502,
+    description:
+      "Grok 4.1 Fast is xAI's best agentic tool calling model that shines in real-world use cases like customer support and deep research. 2M context window. Reasoning can be enabled/disabled using...",
     context_length: 2000000,
     architecture: {
-      modality: 'text+image->text',
-      input_modalities: ['text', 'image'],
+      modality: 'text+image+file->text',
+      input_modalities: ['text', 'image', 'file'],
       output_modalities: ['text'],
       tokenizer: 'Grok',
       instruct_type: null,
@@ -11419,6 +13536,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 30000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'logprobs',
@@ -11435,12 +13553,17 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
-    id: 'x-ai/grok-4.20-beta',
-    name: 'xAI: Grok 4.20 Beta',
+    id: 'x-ai/grok-4.20',
+    canonical_slug: 'x-ai/grok-4.20-20260309',
+    hugging_face_id: '',
+    name: 'xAI: Grok 4.20',
+    created: 1774979019,
+    description:
+      "Grok 4.20 is xAI's newest flagship model with industry-leading speed and agentic tool calling capabilities. It combines the lowest hallucination rate on the market with strict prompt adherance, delivering consistently...",
     context_length: 2000000,
     architecture: {
-      modality: 'text+image->text',
-      input_modalities: ['text', 'image'],
+      modality: 'text+image+file->text',
+      input_modalities: ['text', 'image', 'file'],
       output_modalities: ['text'],
       tokenizer: 'Grok',
       instruct_type: null,
@@ -11456,6 +13579,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'logprobs',
@@ -11472,12 +13596,17 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
-    id: 'x-ai/grok-4.20-multi-agent-beta',
-    name: 'xAI: Grok 4.20 Multi-Agent Beta',
+    id: 'x-ai/grok-4.20-multi-agent',
+    canonical_slug: 'x-ai/grok-4.20-multi-agent-20260309',
+    hugging_face_id: '',
+    name: 'xAI: Grok 4.20 Multi-Agent',
+    created: 1774979158,
+    description:
+      'Grok 4.20 Multi-Agent is a variant of xAI’s Grok 4.20 designed for collaborative, agent-based workflows. Multiple agents operate in parallel to conduct deep research, coordinate tool use, and synthesize information...',
     context_length: 2000000,
     architecture: {
-      modality: 'text+image->text',
-      input_modalities: ['text', 'image'],
+      modality: 'text+image+file->text',
+      input_modalities: ['text', 'image', 'file'],
       output_modalities: ['text'],
       tokenizer: 'Grok',
       instruct_type: null,
@@ -11493,6 +13622,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'logprobs',
@@ -11508,7 +13638,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'x-ai/grok-code-fast-1',
+    canonical_slug: 'x-ai/grok-code-fast-1',
+    hugging_face_id: '',
     name: 'xAI: Grok Code Fast 1',
+    created: 1756238927,
+    description:
+      'Grok Code Fast 1 is a speedy and economical reasoning model that excels at agentic coding. With reasoning traces visible in the response, developers can steer Grok Code for high-quality...',
     context_length: 256000,
     architecture: {
       modality: 'text->text',
@@ -11528,6 +13663,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 10000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'logprobs',
@@ -11546,7 +13682,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'xiaomi/mimo-v2-flash',
+    canonical_slug: 'xiaomi/mimo-v2-flash-20251210',
+    hugging_face_id: 'XiaomiMiMo/MiMo-V2-Flash',
     name: 'Xiaomi: MiMo-V2-Flash',
+    created: 1765731308,
+    description:
+      'MiMo-V2-Flash is an open-source foundation language model developed by Xiaomi. It is a Mixture-of-Experts model with 309B total parameters and 15B active parameters, adopting hybrid attention architecture. MiMo-V2-Flash supports a...',
     context_length: 262144,
     architecture: {
       modality: 'text->text',
@@ -11565,6 +13706,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -11587,7 +13729,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'xiaomi/mimo-v2-omni',
+    canonical_slug: 'xiaomi/mimo-v2-omni-20260318',
+    hugging_face_id: '',
     name: 'Xiaomi: MiMo-V2-Omni',
+    created: 1773863703,
+    description:
+      'MiMo-V2-Omni is a frontier omni-modal model that natively processes image, video, and audio inputs within a unified architecture. It combines strong multimodal perception with agentic capability - visual grounding, multi-step...',
     context_length: 262144,
     architecture: {
       modality: 'text+image+audio+video->text',
@@ -11606,6 +13753,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65536,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -11622,7 +13770,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'xiaomi/mimo-v2-pro',
+    canonical_slug: 'xiaomi/mimo-v2-pro-20260318',
+    hugging_face_id: '',
     name: 'Xiaomi: MiMo-V2-Pro',
+    created: 1773863643,
+    description:
+      "MiMo-V2-Pro is Xiaomi's flagship foundation model, featuring over 1T total parameters and a 1M context length, deeply optimized for agentic scenarios. It is highly adaptable to general agent frameworks like...",
     context_length: 1048576,
     architecture: {
       modality: 'text->text',
@@ -11641,6 +13794,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -11657,7 +13811,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'z-ai/glm-4-32b',
+    canonical_slug: 'z-ai/glm-4-32b-0414',
+    hugging_face_id: '',
     name: 'Z.ai: GLM 4 32B ',
+    created: 1753376617,
+    description:
+      'GLM 4 32B is a cost-effective foundation language model. It can efficiently perform complex tasks and has significantly enhanced capabilities in tool use, online search, and code-related intelligent tasks. It...',
     context_length: 128000,
     architecture: {
       modality: 'text->text',
@@ -11675,6 +13834,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'max_tokens',
       'temperature',
@@ -11685,7 +13845,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'z-ai/glm-4.5',
+    canonical_slug: 'z-ai/glm-4.5',
+    hugging_face_id: 'zai-org/GLM-4.5',
     name: 'Z.ai: GLM 4.5',
+    created: 1753471347,
+    description:
+      'GLM-4.5 is our latest flagship foundation model, purpose-built for agent-based applications. It leverages a Mixture-of-Experts (MoE) architecture and supports a context length of up to 128k tokens. GLM-4.5 delivers significantly...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -11704,6 +13869,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 98304,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -11724,7 +13890,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'z-ai/glm-4.5-air',
+    canonical_slug: 'z-ai/glm-4.5-air',
+    hugging_face_id: 'zai-org/GLM-4.5-Air',
     name: 'Z.ai: GLM 4.5 Air',
+    created: 1753471258,
+    description:
+      'GLM-4.5-Air is the lightweight variant of our latest flagship model family, also purpose-built for agent-centric applications. Like GLM-4.5, it adopts the Mixture-of-Experts (MoE) architecture but with a more compact parameter...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -11743,6 +13914,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 98304,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -11763,7 +13935,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'z-ai/glm-4.5-air:free',
+    canonical_slug: 'z-ai/glm-4.5-air',
+    hugging_face_id: 'zai-org/GLM-4.5-Air',
     name: 'Z.ai: GLM 4.5 Air (free)',
+    created: 1753471258,
+    description:
+      'GLM-4.5-Air is the lightweight variant of our latest flagship model family, also purpose-built for agent-centric applications. Like GLM-4.5, it adopts the Mixture-of-Experts (MoE) architecture but with a more compact parameter...',
     context_length: 131072,
     architecture: {
       modality: 'text->text',
@@ -11781,6 +13958,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 96000,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'include_reasoning',
       'max_tokens',
@@ -11793,7 +13971,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'z-ai/glm-4.5v',
+    canonical_slug: 'z-ai/glm-4.5v',
+    hugging_face_id: 'zai-org/GLM-4.5V',
     name: 'Z.ai: GLM 4.5V',
+    created: 1754922288,
+    description:
+      'GLM-4.5V is a vision-language foundation model for multimodal agent applications. Built on a Mixture-of-Experts (MoE) architecture with 106B parameters and 12B activated parameters, it achieves state-of-the-art results in video understanding,...',
     context_length: 65536,
     architecture: {
       modality: 'text+image->text',
@@ -11812,6 +13995,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 16384,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -11819,10 +14003,8 @@ export const models: Array<OpenRouterModel> = [
       'presence_penalty',
       'reasoning',
       'repetition_penalty',
-      'response_format',
       'seed',
       'stop',
-      'structured_outputs',
       'temperature',
       'tool_choice',
       'tools',
@@ -11832,7 +14014,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'z-ai/glm-4.6',
+    canonical_slug: 'z-ai/glm-4.6',
+    hugging_face_id: 'zai-org/GLM-4.6',
     name: 'Z.ai: GLM 4.6',
+    created: 1759235576,
+    description:
+      'Compared with GLM-4.5, this generation brings several key improvements: Longer context window: The context window has been expanded from 128K to 200K tokens, enabling the model to handle more complex...',
     context_length: 204800,
     architecture: {
       modality: 'text->text',
@@ -11850,6 +14037,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 204800,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -11872,7 +14060,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'z-ai/glm-4.6v',
+    canonical_slug: 'z-ai/glm-4.6-20251208',
+    hugging_face_id: 'zai-org/GLM-4.6V',
     name: 'Z.ai: GLM 4.6V',
+    created: 1765207462,
+    description:
+      'GLM-4.6V is a large multimodal model designed for high-fidelity visual understanding and long-context reasoning across images, documents, and mixed media. It supports up to 128K tokens, processes complex page layouts...',
     context_length: 131072,
     architecture: {
       modality: 'text+image+video->text',
@@ -11890,6 +14083,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -11911,7 +14105,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'z-ai/glm-4.7',
+    canonical_slug: 'z-ai/glm-4.7-20251222',
+    hugging_face_id: 'zai-org/GLM-4.7',
     name: 'Z.ai: GLM 4.7',
+    created: 1766378014,
+    description:
+      'GLM-4.7 is Z.ai’s latest flagship model, featuring upgrades in two key areas: enhanced programming capabilities and more stable multi-step reasoning/execution. It demonstrates significant improvements in executing complex agent tasks while...',
     context_length: 202752,
     architecture: {
       modality: 'text->text',
@@ -11930,10 +14129,12 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 65535,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
       'logit_bias',
+      'logprobs',
       'max_tokens',
       'min_p',
       'presence_penalty',
@@ -11947,12 +14148,18 @@ export const models: Array<OpenRouterModel> = [
       'tool_choice',
       'tools',
       'top_k',
+      'top_logprobs',
       'top_p',
     ],
   },
   {
     id: 'z-ai/glm-4.7-flash',
+    canonical_slug: 'z-ai/glm-4.7-flash-20260119',
+    hugging_face_id: 'zai-org/GLM-4.7-Flash',
     name: 'Z.ai: GLM 4.7 Flash',
+    created: 1768833913,
+    description:
+      'As a 30B-class SOTA model, GLM-4.7-Flash offers a new option that balances performance and efficiency. It is further optimized for agentic coding use cases, strengthening coding capabilities, long-horizon task planning,...',
     context_length: 202752,
     architecture: {
       modality: 'text->text',
@@ -11971,6 +14178,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: null,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -11992,7 +14200,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'z-ai/glm-5',
+    canonical_slug: 'z-ai/glm-5-20260211',
+    hugging_face_id: 'zai-org/GLM-5',
     name: 'Z.ai: GLM 5',
+    created: 1770829182,
+    description:
+      'GLM-5 is Z.ai’s flagship open-source foundation model engineered for complex systems design and long-horizon agent workflows. Built for expert developers, it delivers production-grade performance on large-scale programming tasks, rivaling leading...',
     context_length: 80000,
     architecture: {
       modality: 'text->text',
@@ -12010,6 +14223,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -12034,7 +14248,12 @@ export const models: Array<OpenRouterModel> = [
   },
   {
     id: 'z-ai/glm-5-turbo',
+    canonical_slug: 'z-ai/glm-5-turbo-20260315',
+    hugging_face_id: '',
     name: 'Z.ai: GLM 5 Turbo',
+    created: 1773583573,
+    description:
+      'GLM-5 Turbo is a new model from Z.ai designed for fast inference and strong performance in agent-driven environments such as OpenClaw scenarios. It is deeply optimized for real-world agent workflows...',
     context_length: 202752,
     architecture: {
       modality: 'text->text',
@@ -12053,6 +14272,7 @@ export const models: Array<OpenRouterModel> = [
       max_completion_tokens: 131072,
       is_moderated: false,
     },
+    per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
@@ -12069,6 +14289,92 @@ export const models: Array<OpenRouterModel> = [
       'tool_choice',
       'tools',
       'top_k',
+      'top_p',
+    ],
+  },
+  {
+    id: 'z-ai/glm-5.1',
+    canonical_slug: 'z-ai/glm-5.1-20260406',
+    hugging_face_id: 'zai-org/GLM-5.1',
+    name: 'Z.ai: GLM 5.1',
+    created: 1775578025,
+    description:
+      'GLM-5.1 delivers a major leap in coding capability, with particularly significant gains in handling long-horizon tasks. Unlike previous models built around minute-level interactions, GLM-5.1 can work independently and continuously on...',
+    context_length: 202752,
+    architecture: {
+      modality: 'text->text',
+      input_modalities: ['text'],
+      output_modalities: ['text'],
+      tokenizer: 'Other',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0.00000126',
+      completion: '0.00000396',
+    },
+    top_provider: {
+      context_length: 202752,
+      max_completion_tokens: null,
+      is_moderated: false,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'frequency_penalty',
+      'include_reasoning',
+      'logit_bias',
+      'logprobs',
+      'max_tokens',
+      'min_p',
+      'presence_penalty',
+      'reasoning',
+      'repetition_penalty',
+      'response_format',
+      'seed',
+      'stop',
+      'structured_outputs',
+      'temperature',
+      'tool_choice',
+      'tools',
+      'top_k',
+      'top_logprobs',
+      'top_p',
+    ],
+  },
+  {
+    id: 'z-ai/glm-5v-turbo',
+    canonical_slug: 'z-ai/glm-5v-turbo-20260401',
+    hugging_face_id: '',
+    name: 'Z.ai: GLM 5V Turbo',
+    created: 1775061458,
+    description:
+      'GLM-5V-Turbo is Z.ai’s first native multimodal agent foundation model, built for vision-based coding and agent-driven tasks. It natively handles image, video, and text inputs, excels at long-horizon planning, complex coding,...',
+    context_length: 202752,
+    architecture: {
+      modality: 'text+image+video->text',
+      input_modalities: ['image', 'text', 'video'],
+      output_modalities: ['text'],
+      tokenizer: 'Other',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0.0000012',
+      completion: '0.000004',
+      input_cache_read: '0.00000024',
+    },
+    top_provider: {
+      context_length: 202752,
+      max_completion_tokens: 131072,
+      is_moderated: false,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'include_reasoning',
+      'max_tokens',
+      'reasoning',
+      'response_format',
+      'temperature',
+      'tool_choice',
+      'tools',
       'top_p',
     ],
   },

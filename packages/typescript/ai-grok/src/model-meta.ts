@@ -213,6 +213,44 @@ const GROK_2_IMAGE = {
  * Grok Chat Models
  * Based on xAI's available models as of 2025
  */
+const GROK_4_20 = {
+  name: 'grok-4.20',
+  context_window: 2_000_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 6,
+    },
+  },
+} as const satisfies ModelMeta
+
+const GROK_4_20_MULTI_AGENT = {
+  name: 'grok-4.20-multi-agent',
+  context_window: 2_000_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 6,
+    },
+  },
+} as const satisfies ModelMeta
+
 export const GROK_CHAT_MODELS = [
   GROK_4_1_FAST_REASONING.name,
   GROK_4_1_FAST_NON_REASONING.name,
@@ -223,6 +261,9 @@ export const GROK_CHAT_MODELS = [
   GROK_3.name,
   GROK_3_MINI.name,
   GROK_2_VISION.name,
+
+  GROK_4_20.name,
+  GROK_4_20_MULTI_AGENT.name,
 ] as const
 
 /**
@@ -247,6 +288,8 @@ export type GrokModelInputModalitiesByName = {
   [GROK_3.name]: typeof GROK_3.supports.input
   [GROK_3_MINI.name]: typeof GROK_3_MINI.supports.input
   [GROK_2_VISION.name]: typeof GROK_2_VISION.supports.input
+  [GROK_4_20.name]: typeof GROK_4_20.supports.input
+  [GROK_4_20_MULTI_AGENT.name]: typeof GROK_4_20_MULTI_AGENT.supports.input
 }
 
 /**

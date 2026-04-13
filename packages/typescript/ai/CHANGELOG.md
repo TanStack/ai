@@ -1,5 +1,44 @@
 # @tanstack/ai
 
+## 0.10.2
+
+### Patch Changes
+
+- Emit TOOL_CALL_START and TOOL_CALL_ARGS for pending tool calls during continuation re-executions ([#372](https://github.com/TanStack/ai/pull/372))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.2
+
+## 0.10.1
+
+### Patch Changes
+
+- Add @tanstack/intent agent skills for AI coding assistants ([#432](https://github.com/TanStack/ai/pull/432))
+
+  Adds 10 skill files covering chat-experience, tool-calling, media-generation,
+  code-mode, structured-outputs, adapter-configuration, ag-ui-protocol,
+  middleware, and custom-backend-integration. Skills guide AI agents to generate
+  correct TanStack AI code patterns and avoid common mistakes.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.1
+
+## 0.10.0
+
+### Minor Changes
+
+- Add code mode and isolate packages for secure AI code execution ([#362](https://github.com/TanStack/ai/pull/362))
+
+  Also includes fixes for Ollama tool call argument streaming and usage
+  reporting, OpenAI realtime adapter handling of missing call_id/item_id,
+  realtime client guards for missing toolCallId, and new DevtoolsChatMiddleware
+  type export from ai-event-client.
+
+### Patch Changes
+
+- Updated dependencies [[`54abae0`](https://github.com/TanStack/ai/commit/54abae063c91b8b04b91ecb2c6785f5ff9168a7c)]:
+  - @tanstack/ai-event-client@0.2.0
+
 ## 0.9.2
 
 ### Patch Changes

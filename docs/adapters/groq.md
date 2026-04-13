@@ -268,5 +268,5 @@ Creates a Groq TTS adapter with an explicit API key.
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
+- [Tools Guide](../tools/tools) - Learn about tools
 - [Other Adapters](./openai) - Explore other providers

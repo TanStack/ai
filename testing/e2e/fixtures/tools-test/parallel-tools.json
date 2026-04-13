@@ -1,0 +1,26 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[parallel-tools] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Let me gather all the information at once.",
+        "toolCalls": [
+          { "name": "get_weather", "arguments": "{\"city\":\"NYC\"}" },
+          { "name": "get_time", "arguments": "{\"timezone\":\"EST\"}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[parallel-tools] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Here is the weather and time for NYC."
+      }
+    }
+  ]
+}

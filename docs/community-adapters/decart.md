@@ -244,5 +244,5 @@ Creates a Decart video adapter with an explicit API key.
 - [Decart Platform](https://platform.decart.ai) - Visit Decart's platform to generate API keys
 - [API Documentation](https://docs.platform.decart.ai) - View complete API reference
 - [GitHub Repository](https://github.com/decartai/tanstack-ai) - Explore the adapter source code
-- [Image Generation Guide](../guides/image-generation) - Learn about image generation
-- [Video Generation Guide](../guides/video-generation) - Learn about video generation
+- [Image Generation Guide](../media/image-generation) - Learn about image generation
+- [Video Generation Guide](../media/video-generation) - Learn about video generation

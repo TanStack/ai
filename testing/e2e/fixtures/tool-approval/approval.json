@@ -1,0 +1,50 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[approval] add the stratocaster to my cart",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "addToCart",
+            "arguments": "{\"guitarId\":\"1\",\"quantity\":1}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[approval] add the stratocaster to my cart",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "I've added the Fender Stratocaster to your cart."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[approval-deny] add the stratocaster to my cart",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "addToCart",
+            "arguments": "{\"guitarId\":\"1\",\"quantity\":1}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[approval-deny] add the stratocaster to my cart",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Understood, I won't add the guitar to your cart. Let me know if you change your mind."
+      }
+    }
+  ]
+}
