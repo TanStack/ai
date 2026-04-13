@@ -1,3 +1,5 @@
+export type Mode = 'sse' | 'http-stream' | 'fetcher'
+
 export type Provider =
   | 'openai'
   | 'anthropic'
@@ -25,6 +27,7 @@ export type Feature =
   | 'image-gen'
   | 'tts'
   | 'transcription'
+  | 'video-gen'
 
 export const ALL_PROVIDERS: Provider[] = [
   'openai',
@@ -54,4 +57,5 @@ export const ALL_FEATURES: Feature[] = [
   'image-gen',
   'tts',
   'transcription',
+  'video-gen',
 ]
