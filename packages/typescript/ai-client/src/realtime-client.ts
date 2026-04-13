@@ -96,14 +96,45 @@ export class RealtimeClient {
       this.scheduleTokenRefresh()
 
       // Connect via adapter (pass tools for providers like ElevenLabs that need them at connect time)
-      const toolsList =
-        this.clientTools.size > 0
-          ? Array.from(this.clientTools.values())
-          : undefined
-      this.connection = await this.options.adapter.connect(
-        this.token,
-        toolsList,
-      )
+      // const toolsList =
+      //   this.clientTools.size > 0
+      //     ? Array.from(this.clientTools.values())
+      //     : undefined
+
+      const toolsConfig = this.clientTools.size > 0
+        ? Array.from(this.clientTools.values()).map((t) => ({
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema
+            ? convertSchemaToJsonSchema(t.inputSchema)
+            : undefined,
+          outputSchema: t.outputSchema
+            ? convertSchemaToJsonSchema(t.outputSchema)
+            : undefined,
+        }))
+        : undefined
+      const {
+        instructions,
+        voice,
+        vadMode,
+        outputModalities,
+        temperature,
+        maxOutputTokens,
+        semanticEagerness,
+        providerOptions,
+      } = this.options
+
+      this.connection = await this.options.adapter.connect(this.token, {
+        instructions,
+        voice,
+        vadMode,
+        outputModalities,
+        temperature,
+        maxOutputTokens,
+        semanticEagerness,
+        providerOptions,
+        tools: toolsConfig,
+      })
 
       // Subscribe to connection events
       this.subscribeToConnectionEvents()

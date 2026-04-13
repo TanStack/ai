@@ -82,3 +82,9 @@ export type {
   GeminiDocumentMetadata,
   GeminiMessageMetadataByModality,
 } from './message-types'
+
+// Realtime adapter
+export {
+  geminiRealtime,
+  geminiRealtimeToken,
+} from './realtime/index'

@@ -25,12 +25,12 @@ export interface RealtimeAdapter {
   /**
    * Create a connection using the provided token
    * @param token - The ephemeral token from the server
-   * @param clientTools - Optional client-side tools to register with the provider
+   * @param config - Initial session configuration (voice, instructions, etc.)
    * @returns A connection instance
    */
   connect: (
     token: RealtimeToken,
-    clientTools?: ReadonlyArray<AnyClientTool>,
+    config: RealtimeSessionConfig,
   ) => Promise<RealtimeConnection>
 }
 
@@ -147,6 +147,11 @@ export interface RealtimeClientOptions {
    * Eagerness level for semantic VAD ('low', 'medium', 'high')
    */
   semanticEagerness?: 'low' | 'medium' | 'high'
+
+  /**
+   * Provider-specific options
+   */
+  providerOptions?: Record<string, unknown>
 
   // Callbacks
   onStatusChange?: (status: RealtimeStatus) => void

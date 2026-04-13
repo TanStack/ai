@@ -22,6 +22,7 @@ export interface RealtimeToolConfig {
   name: string
   description: string
   inputSchema?: Record<string, any>
+  outputSchema?: Record<string, any>
 }
 
 /**

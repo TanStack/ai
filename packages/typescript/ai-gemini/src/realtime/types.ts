@@ -1,7 +1,45 @@
+
+/**
+ * Gemini realtime voice options
+ */
+export type GeminiRealtimeVoice =
+  | "Achernar"
+  | "Achird"
+  | "Algenib"
+  | "Algieba"
+  | "Alnilam"
+  | "Aoede"
+  | "Autonoe"
+  | "Callirrhoe"
+  | "Charon"
+  | "Despina"
+  | "Enceladus"
+  | "Erinome"
+  | "Fenrir"
+  | "Gacrux"
+  | "Iapetus"
+  | "Kore"
+  | "Laomedeia"
+  | "Leda"
+  | "Orus"
+  | "Pulcherrima"
+  | "Puck"
+  | "Rasalgethi"
+  | "Sadachbia"
+  | "Sadaltager"
+  | "Schedar"
+  | "Sulafat"
+  | "Umbriel"
+  | "Vindemiatrix"
+  | "Zephyr"
+  | "Zubenelgenubi";
+
 /**
  * Gemini realtime model options
  */
-export type GeminiRealtimeModel = 'gemini-live-2.5-flash-native-audio'
+export type GeminiRealtimeModel = 
+  | 'gemini-3.1-flash-live-preview'
+  | 'gemini-2.5-flash-native-audio-preview-12-2025'
 
 /**
  * Options for the Gemini realtime client adapter

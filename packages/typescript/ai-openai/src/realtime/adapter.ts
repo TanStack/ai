@@ -43,10 +43,10 @@ export function openaiRealtime(
 
     async connect(
       token: RealtimeToken,
-      _clientTools?: ReadonlyArray<AnyClientTool>,
+      config: RealtimeSessionConfig,
     ): Promise<RealtimeConnection> {
       if (connectionMode === 'webrtc') {
-        return createWebRTCConnection(token)
+        return createWebRTCConnection(token, config)
       }
       throw new Error('WebSocket connection mode not yet implemented')
     },
@@ -58,6 +58,7 @@ export function openaiRealtime(
  */
 async function createWebRTCConnection(
   token: RealtimeToken,
+  config: RealtimeSessionConfig,
 ): Promise<RealtimeConnection> {
   const model = token.config.model ?? 'gpt-4o-realtime-preview'
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
