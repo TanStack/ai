@@ -1,0 +1,16 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[abort-test] tell me a long story"
+      },
+      "response": {
+        "content": "Once upon a time in a land far away there lived a guitar maker who spent decades perfecting the art of crafting beautiful instruments from the finest tonewoods available in the forests nearby and each guitar was unique and special and every single one had its own story to tell about the wood and the craftsmanship that went into making it a truly remarkable piece of art and the customers would come from miles around just to see the collection and hear the stories behind each instrument that hung on the walls of the little shop on the corner of Main Street in the small town where everyone knew each other by name and the guitar maker would spend hours talking to each customer about the history and character of every guitar in the shop telling tales of the trees that provided the wood and the journeys those trees had taken before becoming part of something so beautiful and musical"
+      },
+      "opts": {
+        "tokensPerSecond": 1,
+        "chunkSize": 2
+      }
+    }
+  ]
+}

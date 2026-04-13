@@ -1,5 +1,27 @@
 # @tanstack/ai-devtools-core
 
+## 0.3.19
+
+### Patch Changes
+
+- Updated dependencies [[`4445410`](https://github.com/TanStack/ai/commit/44454100e5825f948bab0ce52c57c80d70c0ebe7)]:
+  - @tanstack/ai@0.10.2
+  - @tanstack/ai-event-client@0.2.2
+
+## 0.3.18
+
+### Patch Changes
+
+- Updated dependencies [[`1d1c58f`](https://github.com/TanStack/ai/commit/1d1c58f33188ff98893edb626efd66ac73b8eadb)]:
+  - @tanstack/ai@0.10.1
+  - @tanstack/ai-event-client@0.2.1
+
+## 0.3.17
+
+### Patch Changes
+
+- Moves devtools theme to the component to avoid theme miss-match. ([#423](https://github.com/TanStack/ai/pull/423))
+
 ## 0.3.16
 
 ### Patch Changes

@@ -380,4 +380,4 @@ function handleChunk(chunk: StreamChunk) {
 
 - [SSE Protocol](./sse-protocol) - How chunks are transmitted via Server-Sent Events
 - [HTTP Stream Protocol](./http-stream-protocol) - How chunks are transmitted via HTTP streaming
-- [Connection Adapters Guide](../guides/connection-adapters) - Client implementation
+- [Connection Adapters Guide](../chat/connection-adapters) - Client implementation

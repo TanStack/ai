@@ -1,0 +1,76 @@
+name: Sync Model Metadata
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync Models
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@main
+
+      - name: Fetch and sync model metadata
+        run: pnpm generate:models
+
+      - name: Check for package changes
+        id: changes
+        run: |
+          if git diff --quiet -- packages/; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and force-push
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/ scripts/openrouter.models.ts scripts/.sync-models-last-run .changeset/
+          git commit -m "chore: sync model metadata from OpenRouter"
+          git push --force origin HEAD:automated/sync-models
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or update PR
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          BRANCH="automated/sync-models"
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number' 2>/dev/null || true)
+
+          if [ -z "$EXISTING_PR" ] || [ "$EXISTING_PR" = "null" ]; then
+            BODY=$(cat <<'PRBODY'
+          Automated daily sync of model metadata from the OpenRouter API.
+
+          - Fetches the latest model list from OpenRouter
+          - Converts to the internal adapter format
+          - Syncs provider-specific model metadata for affected packages
+          - Creates a patch changeset for all changed packages
+          PRBODY
+          )
+            gh pr create \
+              --title "chore: sync model metadata from OpenRouter" \
+              --body "$BODY" \
+              --base main \
+              --head "$BRANCH"
+          fi

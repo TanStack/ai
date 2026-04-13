@@ -380,8 +380,8 @@ Creates a Gemini TTS adapter with an explicit API key.
 
 ## Next Steps
 
-- [Image Generation Guide](../guides/image-generation) - Learn more about image generation
+- [Image Generation Guide](../media/image-generation) - Learn more about image generation
 - [Media Generation Example](https://github.com/TanStack/ai/tree/main/examples/ts-react-media) - Full working example with Gemini and fal.ai
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
+- [Tools Guide](../tools/tools) - Learn about tools
 - [Other Adapters](./openai) - Explore other providers

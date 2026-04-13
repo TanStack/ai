@@ -1,0 +1,43 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[sequential-client-tools] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "First notification coming.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":\"First notification\",\"type\":\"info\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[sequential-client-tools] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Second notification coming.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":\"Second notification\",\"type\":\"warning\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[sequential-client-tools] run test",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "Both notifications have been shown."
+      }
+    }
+  ]
+}

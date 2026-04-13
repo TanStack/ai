@@ -1,0 +1,28 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[text-tool-text] check what guitars we have",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Let me check our inventory for you.",
+        "toolCalls": [
+          {
+            "name": "getGuitars",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[text-tool-text] check what guitars we have",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Here's what we have in stock: the Fender Stratocaster at $1,299, Gibson Les Paul at $2,499, Taylor 814ce at $3,299, and Martin D-28 at $2,999."
+      }
+    }
+  ]
+}

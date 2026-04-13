@@ -1,5 +1,28 @@
 # @tanstack/ai
 
+## 0.10.2
+
+### Patch Changes
+
+- Emit TOOL_CALL_START and TOOL_CALL_ARGS for pending tool calls during continuation re-executions ([#372](https://github.com/TanStack/ai/pull/372))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.2
+
+## 0.10.1
+
+### Patch Changes
+
+- Add @tanstack/intent agent skills for AI coding assistants ([#432](https://github.com/TanStack/ai/pull/432))
+
+  Adds 10 skill files covering chat-experience, tool-calling, media-generation,
+  code-mode, structured-outputs, adapter-configuration, ag-ui-protocol,
+  middleware, and custom-backend-integration. Skills guide AI agents to generate
+  correct TanStack AI code patterns and avoid common mistakes.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.1
+
 ## 0.10.0
 
 ### Minor Changes

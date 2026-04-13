@@ -347,5 +347,5 @@ const client = new ChatClient({
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Connection Adapters](../guides/connection-adapters) - Learn about adapters
+- [Connection Adapters](../chat/connection-adapters) - Learn about adapters
 - [@tanstack/ai-react API](./ai-react) - React hooks wrapper
