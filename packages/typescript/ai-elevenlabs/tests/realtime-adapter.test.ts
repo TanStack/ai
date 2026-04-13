@@ -302,7 +302,7 @@ describe('elevenlabsRealtime adapter', () => {
   })
 
   describe('clientTools registration', () => {
-    it('should pass client tools as plain functions to @11labs/client', async () => {
+    it('should pass client tools as plain functions to @elevenlabs/client', async () => {
       const mockTool: AnyClientTool = {
         name: 'get_weather',
         description: 'Get current weather',
