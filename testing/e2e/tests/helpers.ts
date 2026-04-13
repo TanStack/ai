@@ -173,12 +173,9 @@ export async function clickGenerate(page: Page) {
   // Verify the click actually triggered React — status should leave 'idle'
   // If still idle after a short wait, the click missed hydration; retry
   try {
-    await expect(page.getByTestId('generation-status')).not.toHaveText(
-      'idle',
-      {
-        timeout: 3_000,
-      },
-    )
+    await expect(page.getByTestId('generation-status')).not.toHaveText('idle', {
+      timeout: 3_000,
+    })
   } catch {
     // Retry click — hydration likely wasn't complete on first attempt
     await btn.click()
