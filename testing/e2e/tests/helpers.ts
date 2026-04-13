@@ -1,12 +1,15 @@
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 export function featureUrl(
   provider: string,
   feature: string,
   testId: string,
   aimockPort: number,
+  mode?: string,
 ): string {
-  return `/${provider}/${feature}?testId=${encodeURIComponent(testId)}&aimockPort=${aimockPort}`
+  let url = `/${provider}/${feature}?testId=${encodeURIComponent(testId)}&aimockPort=${aimockPort}`
+  if (mode) url += `&mode=${mode}`
+  return url
 }
 
 export async function sendMessage(page: Page, text: string) {
@@ -134,4 +137,43 @@ export async function getTranscriptionResult(page: Page): Promise<string> {
     .getByTestId('transcription-result')
     .waitFor({ state: 'visible', timeout: 15_000 })
   return page.getByTestId('transcription-result').innerText()
+}
+
+export async function fillPrompt(page: Page, text: string) {
+  const input = page.getByTestId('prompt-input')
+  await input.click()
+  await input.fill(text)
+  await input.dispatchEvent('input', { bubbles: true })
+  // If fill() didn't trigger React onChange, fall back to pressSequentially
+  const btn = page.getByTestId('generate-button')
+  if (await btn.isDisabled()) {
+    await input.clear()
+    await input.pressSequentially(text, { delay: 30 })
+  }
+}
+
+export async function fillTextInput(page: Page, text: string) {
+  const input = page.getByTestId('text-input')
+  await input.click()
+  await input.fill(text)
+  await input.dispatchEvent('input', { bubbles: true })
+  // If fill() didn't trigger React onChange, fall back to pressSequentially
+  const btn = page.getByTestId('generate-button')
+  if (await btn.isDisabled()) {
+    await input.clear()
+    await input.pressSequentially(text, { delay: 30 })
+  }
+}
+
+export async function clickGenerate(page: Page) {
+  // Wait for React hydration — generation-status is rendered by React, so its
+  // presence confirms the component is interactive
+  await page.getByTestId('generation-status').waitFor({ state: 'visible', timeout: 10_000 })
+  await page.getByTestId('generate-button').click()
+}
+
+export async function waitForGenerationComplete(page: Page, timeout = 30_000) {
+  await expect(page.getByTestId('generation-status')).toHaveText('complete', {
+    timeout,
+  })
 }
