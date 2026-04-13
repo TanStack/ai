@@ -104,7 +104,9 @@ describe('connection-adapters', () => {
       expect(chunks).toHaveLength(1)
     })
 
-    it('should skip [DONE] markers', async () => {
+    it('should skip [DONE] markers and warn about deprecation', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
       const mockReader = {
         read: vi
           .fn()
@@ -135,6 +137,11 @@ describe('connection-adapters', () => {
       }
 
       expect(chunks).toHaveLength(0)
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[DONE] sentinel'),
+      )
+
+      warnSpy.mockRestore()
     })
 
     it('should handle malformed JSON gracefully', async () => {
