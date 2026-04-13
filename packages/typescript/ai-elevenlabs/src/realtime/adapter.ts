@@ -1,4 +1,5 @@
-import { Conversation } from '@11labs/client'
+import { Conversation } from '@elevenlabs/client'
+import type { Language } from '@elevenlabs/client'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -16,7 +17,7 @@ import type { ElevenLabsRealtimeOptions } from './types'
 /**
  * Creates an ElevenLabs realtime adapter for client-side use.
  *
- * Wraps the @11labs/client SDK for voice conversations.
+ * Wraps the @elevenlabs/client SDK for voice conversations.
  *
  * @param options - Optional configuration
  * @returns A RealtimeAdapter for use with RealtimeClient
@@ -45,6 +46,56 @@ export function elevenlabsRealtime(
       return createElevenLabsConnection(token, options, clientToolDefs)
     },
   }
+}
+
+type SessionOverrides = NonNullable<
+  Parameters<typeof Conversation.startSession>[0]['overrides']
+>
+
+/**
+ * Merges token instructions with user-provided overrides into
+ * the shape expected by Conversation.startSession.
+ * Option overrides take precedence over token instructions.
+ */
+function buildOverrides(
+  instructions: string | undefined,
+  optionOverrides: ElevenLabsRealtimeOptions['overrides'],
+): SessionOverrides | undefined {
+  const hasInstructions = instructions !== undefined
+  const hasOptions = optionOverrides !== undefined
+
+  if (!hasInstructions && !hasOptions) return undefined
+
+  const overrides: SessionOverrides = {}
+
+  if (hasInstructions || optionOverrides?.agent) {
+    const agentOverrides = optionOverrides?.agent
+
+    overrides.agent = {
+      prompt: {
+        prompt: agentOverrides?.prompt?.prompt ?? instructions,
+      },
+      firstMessage: agentOverrides?.firstMessage,
+      language: agentOverrides?.language as Language | undefined,
+    }
+  }
+
+  if (optionOverrides?.tts) {
+    overrides.tts = {
+      voiceId: optionOverrides.tts.voiceId,
+      speed: optionOverrides.tts.speed,
+      stability: optionOverrides.tts.stability,
+      similarityBoost: optionOverrides.tts.similarityBoost,
+    }
+  }
+
+  if (optionOverrides?.conversation) {
+    overrides.conversation = {
+      textOnly: optionOverrides.conversation.textOnly,
+    }
+  }
+
+  return overrides
 }
 
 /**
@@ -159,6 +210,15 @@ async function createElevenLabsConnection(
   // Only add clientTools if we have any
   if (Object.keys(elevenLabsClientTools).length > 0) {
     sessionOptions.clientTools = elevenLabsClientTools
+  }
+
+  const overrides = buildOverrides(
+    token.config.instructions,
+    _options.overrides,
+  )
+
+  if (overrides) {
+    sessionOptions.overrides = overrides
   }
 
   // Start the conversation session

@@ -25,6 +25,25 @@ export interface ElevenLabsRealtimeOptions {
   connectionMode?: 'websocket' | 'webrtc'
   /** Enable debug logging */
   debug?: boolean
+  /** Optional overrides passed directly to Conversation.startSession */
+  overrides?: {
+    agent?: {
+      prompt?: {
+        prompt?: string
+      }
+      firstMessage?: string
+      language?: string
+    }
+    tts?: {
+      voiceId?: string
+      speed?: number
+      stability?: number
+      similarityBoost?: number
+    }
+    conversation?: {
+      textOnly?: boolean
+    }
+  }
 }
 
 /**

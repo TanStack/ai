@@ -41,7 +41,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@11labs/client": "^0.2.0"
+    "@elevenlabs/client": "^1.2.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
