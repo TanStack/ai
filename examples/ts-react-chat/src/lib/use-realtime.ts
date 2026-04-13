@@ -6,9 +6,10 @@ import {
   elevenlabsRealtime,
   elevenlabsRealtimeToken,
 } from '@tanstack/ai-elevenlabs'
+import { geminiRealtime, geminiRealtimeToken } from '@tanstack/ai-gemini'
 import { realtimeClientTools } from '@/lib/realtime-tools'
 
-type Provider = 'openai' | 'elevenlabs'
+type Provider = 'openai' | 'elevenlabs' | 'gemini'
 
 const getRealtimeTokenFn = createServerFn({ method: 'POST' })
   .inputValidator((data: { provider: Provider; agentId?: string }) => {
@@ -21,6 +22,12 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
         adapter: openaiRealtimeToken({
           model: 'gpt-4o-realtime-preview',
         }),
+      })
+    }
+
+    if (data.provider === 'gemini') {
+      return realtimeToken({
+        adapter: geminiRealtimeToken(),
       })
     }
 
@@ -55,7 +62,11 @@ export function useRealtime({
   semanticEagerness?: 'low' | 'medium' | 'high'
 }) {
   const adapter =
-    provider === 'openai' ? openaiRealtime() : elevenlabsRealtime()
+    provider === 'openai'
+      ? openaiRealtime()
+      : provider === 'gemini'
+        ? geminiRealtime()
+        : elevenlabsRealtime()
 
   return useRealtimeChat({
     getToken: () =>

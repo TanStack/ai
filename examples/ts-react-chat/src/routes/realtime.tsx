@@ -13,11 +13,12 @@ import {
 import { AudioSparkline } from '@/components/AudioSparkline'
 import { useRealtime } from '@/lib/use-realtime'
 
-type Provider = 'openai' | 'elevenlabs'
+type Provider = 'openai' | 'elevenlabs' | 'gemini'
 type OutputMode = 'audio+text' | 'text-only' | 'audio-only'
 
 const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
   { value: 'openai', label: 'OpenAI Realtime' },
+  { value: 'gemini', label: 'Google Gemini' },
   { value: 'elevenlabs', label: 'ElevenLabs' },
 ]
 
@@ -275,7 +276,7 @@ function RealtimePage() {
         </div>
 
         {/* Tools indicator */}
-        {provider === 'openai' && (
+        {(provider === 'openai' || provider === 'gemini') && (
           <div className="border-b border-orange-500/10 bg-gray-800/50 px-4 py-2">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Wrench className="w-3 h-3" />
