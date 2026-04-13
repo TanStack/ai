@@ -1,11 +1,8 @@
 import { GoogleGenAI } from '@google/genai'
 import {
   convertSchemaToJsonSchema,
-} from '@tanstack/ai'
-import { generateId } from '../utils'
-import type { LiveConnectConfig, Modality } from '@google/genai'
+} from "@tanstack/ai"
 import type {
-  AnyClientTool,
   AudioVisualization,
   RealtimeEvent,
   RealtimeEventHandler,
@@ -13,8 +10,9 @@ import type {
   RealtimeMode,
   RealtimeSessionConfig,
   RealtimeToken
-} from "@tanstack/ai"
-import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
+} from '@tanstack/ai'
+import type { LiveConnectConfig, Modality } from '@google/genai'
+import type { AnyClientTool, RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { GeminiRealtimeOptions } from './types'
 
 const textEncoder = new TextEncoder()
@@ -74,9 +72,10 @@ export function geminiRealtime(
 
     connect(
       token: RealtimeToken,
-      config: RealtimeSessionConfig
+      config: RealtimeSessionConfig,
+      clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
-      return createWebSocketConnection(token, config)
+      return createWebSocketConnection(token, config, clientTools)
     },
   }
 }
@@ -87,17 +86,31 @@ export function geminiRealtime(
 async function createWebSocketConnection(
   token: RealtimeToken,
   config: RealtimeSessionConfig,
+  tools?: ReadonlyArray<AnyClientTool>,
 ): Promise<RealtimeConnection> {
   const model = token.config.model ?? 'gemini-live-2.5-flash-native-audio'
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
   const responseModalities = config.outputModalities?.map(modality => modality.toUpperCase()) as Array<Modality>
 
+  const toolsConfig = tools
+    ? tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema
+        ? convertSchemaToJsonSchema(t.inputSchema)
+        : undefined,
+      outputSchema: t.outputSchema
+        ? convertSchemaToJsonSchema(t.outputSchema)
+        : undefined,
+    }))
+    : undefined
+
   const liveConfig: LiveConnectConfig = {
     responseModalities,
-    tools: [{
-      functionDeclarations: config.tools
-    }],
+    tools: toolsConfig ? [{
+      functionDeclarations: toolsConfig
+    }] : undefined,
     speechConfig: {
       voiceConfig: {
         prebuiltVoiceConfig: {
@@ -587,7 +600,7 @@ async function createWebSocketConnection(
         get inputSampleRate() {
           return 24000
         },
- 
+
         get outputSampleRate() {
           return 24000
         },

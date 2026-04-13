@@ -40,9 +40,10 @@ export function elevenlabsRealtime(
 
     async connect(
       token: RealtimeToken,
+      _config: RealtimeSessionConfig,
       clientToolDefs?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
-      return createElevenLabsConnection(token, options, clientToolDefs)
+      return createElevenLabsConnection(token, clientToolDefs)
     },
   }
 }
@@ -52,7 +53,6 @@ export function elevenlabsRealtime(
  */
 async function createElevenLabsConnection(
   token: RealtimeToken,
-  _options: ElevenLabsRealtimeOptions,
   clientToolDefs?: ReadonlyArray<AnyClientTool>,
 ): Promise<RealtimeConnection> {
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()

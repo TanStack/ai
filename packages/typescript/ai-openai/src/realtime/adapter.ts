@@ -7,7 +7,7 @@ import type {
   RealtimeMode,
   RealtimeSessionConfig,
   RealtimeStatus,
-  RealtimeToken,
+  RealtimeToken
 } from '@tanstack/ai'
 import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { OpenAIRealtimeOptions } from './types'
@@ -43,10 +43,11 @@ export function openaiRealtime(
 
     async connect(
       token: RealtimeToken,
-      config: RealtimeSessionConfig,
+      _config: RealtimeSessionConfig,
+      _clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
       if (connectionMode === 'webrtc') {
-        return createWebRTCConnection(token, config)
+        return createWebRTCConnection(token)
       }
       throw new Error('WebSocket connection mode not yet implemented')
     },
@@ -58,7 +59,6 @@ export function openaiRealtime(
  */
 async function createWebRTCConnection(
   token: RealtimeToken,
-  config: RealtimeSessionConfig,
 ): Promise<RealtimeConnection> {
   const model = token.config.model ?? 'gpt-4o-realtime-preview'
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
@@ -490,9 +490,9 @@ async function createWebRTCConnection(
       const imageContent = isUrl
         ? { type: 'input_image', image_url: imageData }
         : {
-            type: 'input_image',
-            image_url: `data:${mimeType};base64,${imageData}`,
-          }
+          type: 'input_image',
+          image_url: `data:${mimeType};base64,${imageData}`,
+        }
 
       sendEvent({
         type: 'conversation.item.create',
