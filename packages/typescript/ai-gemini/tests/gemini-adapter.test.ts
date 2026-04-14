@@ -394,12 +394,19 @@ describe('GeminiAdapter through AI', () => {
     expect(payload.contents[1].role).toBe('model')
     expect(payload.contents[2].role).toBe('user')
 
-    // Last user message should contain both functionResponse and text
+    // Last user message should contain functionResponse (no redundant text part
+    // for the tool result) and the follow-up user text
     const lastParts = payload.contents[2].parts
     const hasFunctionResponse = lastParts.some((p: any) => p.functionResponse)
-    const hasText = lastParts.some((p: any) => p.text === 'What about Paris?')
+    const hasFollowUp = lastParts.some(
+      (p: any) => p.text === 'What about Paris?',
+    )
+    const hasToolResultText = lastParts.some(
+      (p: any) => p.text === '{"temp":72}',
+    )
     expect(hasFunctionResponse).toBe(true)
-    expect(hasText).toBe(true)
+    expect(hasFollowUp).toBe(true)
+    expect(hasToolResultText).toBe(false)
   })
 
   it('handles full multi-turn with duplicate tool results and empty model message', async () => {
@@ -487,15 +494,16 @@ describe('GeminiAdapter through AI', () => {
     expect(payload.contents).toHaveLength(3)
 
     // Last user should have deduplicated functionResponses + follow-up text
+    // (no redundant text parts for tool results)
     const lastParts = payload.contents[2].parts
     const functionResponses = lastParts.filter((p: any) => p.functionResponse)
     // 2 unique tool call IDs, not 3 (duplicate removed)
     expect(functionResponses).toHaveLength(2)
 
-    const textParts = lastParts.filter(
-      (p: any) => p.text === "what's a good electric guitar?",
-    )
+    const textParts = lastParts.filter((p: any) => p.text)
+    // Only the follow-up user message text, no tool result text parts
     expect(textParts).toHaveLength(1)
+    expect(textParts[0].text).toBe("what's a good electric guitar?")
   })
 
   it('preserves thoughtSignature in functionCall parts when sending history back to Gemini', async () => {
