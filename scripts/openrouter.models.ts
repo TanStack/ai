@@ -771,8 +771,8 @@ export const models: Array<OpenRouterModel> = [
     },
     top_provider: {
       context_length: 200000,
-      max_completion_tokens: 64000,
-      is_moderated: false,
+      max_completion_tokens: 128000,
+      is_moderated: true,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -896,7 +896,7 @@ export const models: Array<OpenRouterModel> = [
     top_provider: {
       context_length: 200000,
       max_completion_tokens: 32000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -937,7 +937,7 @@ export const models: Array<OpenRouterModel> = [
     top_provider: {
       context_length: 200000,
       max_completion_tokens: 32000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -1093,7 +1093,7 @@ export const models: Array<OpenRouterModel> = [
     created: 1747930371,
     description:
       'Claude Sonnet 4 significantly enhances the capabilities of its predecessor, Sonnet 3.7, excelling in both coding and reasoning tasks with improved precision and controllability. Achieving state-of-the-art performance on SWE-bench (72.7%),...',
-    context_length: 200000,
+    context_length: 1000000,
     architecture: {
       modality: 'text+image+file->text',
       input_modalities: ['image', 'text', 'file'],
@@ -1109,9 +1109,9 @@ export const models: Array<OpenRouterModel> = [
       input_cache_write: '0.00000375',
     },
     top_provider: {
-      context_length: 200000,
+      context_length: 1000000,
       max_completion_tokens: 64000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -1386,6 +1386,7 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000022',
       completion: '0.00000085',
+      input_cache_read: '0.00000006',
     },
     top_provider: {
       context_length: 262144,
@@ -1873,6 +1874,7 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000001',
       completion: '0.0000002',
+      input_cache_read: '0.0000001',
     },
     top_provider: {
       context_length: 128000,
@@ -2332,13 +2334,13 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: 'deepseek-r1',
     },
     pricing: {
-      prompt: '0.00000045',
+      prompt: '0.0000005',
       completion: '0.00000215',
-      input_cache_read: '0.000000225',
+      input_cache_read: '0.00000035',
     },
     top_provider: {
       context_length: 163840,
-      max_completion_tokens: 65536,
+      max_completion_tokens: null,
       is_moderated: false,
     },
     per_request_limits: null,
@@ -2627,45 +2629,6 @@ export const models: Array<OpenRouterModel> = [
       'seed',
       'stop',
       'structured_outputs',
-      'temperature',
-      'top_k',
-      'top_p',
-    ],
-  },
-  {
-    id: 'eleutherai/llemma_7b',
-    canonical_slug: 'eleutherai/llemma_7b',
-    hugging_face_id: 'EleutherAI/llemma_7b',
-    name: 'EleutherAI: Llemma 7b',
-    created: 1744643225,
-    description:
-      'Llemma 7B is a language model for mathematics. It was initialized with Code Llama 7B weights, and trained on the Proof-Pile-2 for 200B tokens. Llemma models are particularly strong at...',
-    context_length: 4096,
-    architecture: {
-      modality: 'text->text',
-      input_modalities: ['text'],
-      output_modalities: ['text'],
-      tokenizer: 'Other',
-      instruct_type: 'code-llama',
-    },
-    pricing: {
-      prompt: '0.0000008',
-      completion: '0.0000012',
-    },
-    top_provider: {
-      context_length: 4096,
-      max_completion_tokens: 4096,
-      is_moderated: false,
-    },
-    per_request_limits: null,
-    supported_parameters: [
-      'frequency_penalty',
-      'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'seed',
-      'stop',
       'temperature',
       'top_k',
       'top_p',
@@ -3795,12 +3758,13 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.00000013',
-      completion: '0.0000004',
+      prompt: '0.00000008',
+      completion: '0.00000035',
+      input_cache_read: '0.00000001',
     },
     top_provider: {
       context_length: 262144,
-      max_completion_tokens: 262144,
+      max_completion_tokens: null,
       is_moderated: false,
     },
     per_request_limits: null,
@@ -3810,6 +3774,7 @@ export const models: Array<OpenRouterModel> = [
       'logit_bias',
       'logprobs',
       'max_tokens',
+      'min_p',
       'presence_penalty',
       'reasoning',
       'repetition_penalty',
@@ -3880,12 +3845,13 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.00000014',
-      completion: '0.0000004',
+      prompt: '0.00000013',
+      completion: '0.00000038',
+      input_cache_read: '0.0000000199999995',
     },
     top_provider: {
       context_length: 262144,
-      max_completion_tokens: 131072,
+      max_completion_tokens: null,
       is_moderated: false,
     },
     per_request_limits: null,
@@ -3893,8 +3859,8 @@ export const models: Array<OpenRouterModel> = [
       'frequency_penalty',
       'include_reasoning',
       'logit_bias',
-      'logprobs',
       'max_tokens',
+      'min_p',
       'presence_penalty',
       'reasoning',
       'repetition_penalty',
@@ -3906,7 +3872,6 @@ export const models: Array<OpenRouterModel> = [
       'tool_choice',
       'tools',
       'top_k',
-      'top_logprobs',
       'top_p',
     ],
   },
@@ -4476,51 +4441,6 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
-    id: 'meituan/longcat-flash-chat',
-    canonical_slug: 'meituan/longcat-flash-chat',
-    hugging_face_id: 'meituan-longcat/LongCat-Flash-Chat',
-    name: 'Meituan: LongCat Flash Chat',
-    created: 1757427658,
-    description:
-      'LongCat-Flash-Chat is a large-scale Mixture-of-Experts (MoE) model with 560B total parameters, of which 18.6B–31.3B (≈27B on average) are dynamically activated per input. It introduces a shortcut-connected MoE design to reduce...',
-    context_length: 131072,
-    architecture: {
-      modality: 'text->text',
-      input_modalities: ['text'],
-      output_modalities: ['text'],
-      tokenizer: 'Other',
-      instruct_type: null,
-    },
-    pricing: {
-      prompt: '0.0000002',
-      completion: '0.0000008',
-      input_cache_read: '0.0000002',
-    },
-    top_provider: {
-      context_length: 131072,
-      max_completion_tokens: 131072,
-      is_moderated: false,
-    },
-    per_request_limits: null,
-    supported_parameters: [
-      'frequency_penalty',
-      'logit_bias',
-      'max_tokens',
-      'min_p',
-      'presence_penalty',
-      'repetition_penalty',
-      'response_format',
-      'seed',
-      'stop',
-      'structured_outputs',
-      'temperature',
-      'tool_choice',
-      'tools',
-      'top_k',
-      'top_p',
-    ],
-  },
-  {
     id: 'meta-llama/llama-3-70b-instruct',
     canonical_slug: 'meta-llama/llama-3-70b-instruct',
     hugging_face_id: 'meta-llama/Meta-Llama-3-70B-Instruct',
@@ -4705,8 +4625,8 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: 'llama3',
     },
     pricing: {
-      prompt: '0.000000049',
-      completion: '0.000000049',
+      prompt: '0.000000245',
+      completion: '0.000000245',
     },
     top_provider: {
       context_length: 131072,
@@ -5436,7 +5356,7 @@ export const models: Array<OpenRouterModel> = [
     },
     top_provider: {
       context_length: 196608,
-      max_completion_tokens: 196608,
+      max_completion_tokens: 8192,
       is_moderated: true,
     },
     per_request_limits: null,
@@ -5459,7 +5379,7 @@ export const models: Array<OpenRouterModel> = [
     created: 1773836697,
     description:
       'MiniMax-M2.7 is a next-generation large language model designed for autonomous, real-world productivity and continuous improvement. Built to actively participate in its own evolution, M2.7 integrates advanced agentic capabilities through multi-agent...',
-    context_length: 204800,
+    context_length: 196608,
     architecture: {
       modality: 'text->text',
       input_modalities: ['text'],
@@ -5470,22 +5390,32 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000003',
       completion: '0.0000012',
-      input_cache_read: '0.00000006',
+      input_cache_read: '0.000000059',
     },
     top_provider: {
-      context_length: 204800,
-      max_completion_tokens: 131072,
+      context_length: 196608,
+      max_completion_tokens: null,
       is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
+      'frequency_penalty',
       'include_reasoning',
+      'logit_bias',
+      'logprobs',
       'max_tokens',
+      'min_p',
+      'presence_penalty',
       'reasoning',
+      'repetition_penalty',
       'response_format',
+      'stop',
+      'structured_outputs',
       'temperature',
       'tool_choice',
       'tools',
+      'top_k',
+      'top_logprobs',
       'top_p',
     ],
   },
@@ -6244,7 +6174,7 @@ export const models: Array<OpenRouterModel> = [
     created: 1742238937,
     description:
       'Mistral Small 3.1 24B Instruct is an upgraded variant of Mistral Small 3 (2501), featuring 24 billion parameters with advanced multimodal capabilities. It provides state-of-the-art performance in text-based reasoning and...',
-    context_length: 131072,
+    context_length: 128000,
     architecture: {
       modality: 'text+image->text',
       input_modalities: ['text', 'image'],
@@ -6253,13 +6183,12 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.00000003',
-      completion: '0.00000011',
-      input_cache_read: '0.000000015',
+      prompt: '0.00000035',
+      completion: '0.00000056',
     },
     top_provider: {
-      context_length: 131072,
-      max_completion_tokens: 131072,
+      context_length: 128000,
+      max_completion_tokens: null,
       is_moderated: false,
     },
     per_request_limits: null,
@@ -6268,10 +6197,7 @@ export const models: Array<OpenRouterModel> = [
       'max_tokens',
       'presence_penalty',
       'repetition_penalty',
-      'response_format',
       'seed',
-      'stop',
-      'structured_outputs',
       'temperature',
       'top_k',
       'top_p',
@@ -6419,7 +6345,6 @@ export const models: Array<OpenRouterModel> = [
     per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
-      'logit_bias',
       'max_tokens',
       'min_p',
       'presence_penalty',
@@ -6588,7 +6513,6 @@ export const models: Array<OpenRouterModel> = [
       'logit_bias',
       'logprobs',
       'max_tokens',
-      'min_p',
       'presence_penalty',
       'repetition_penalty',
       'response_format',
@@ -7885,13 +7809,12 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.000002',
       completion: '0.000008',
-      web_search: '0.01',
       input_cache_read: '0.0000005',
     },
     top_provider: {
       context_length: 1047576,
-      max_completion_tokens: 32768,
-      is_moderated: true,
+      max_completion_tokens: null,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -8005,12 +7928,11 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000025',
       completion: '0.00001',
-      input_cache_read: '0.00000125',
     },
     top_provider: {
       context_length: 128000,
       max_completion_tokens: 16384,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -8055,7 +7977,7 @@ export const models: Array<OpenRouterModel> = [
     top_provider: {
       context_length: 128000,
       max_completion_tokens: 4096,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -8236,7 +8158,7 @@ export const models: Array<OpenRouterModel> = [
     top_provider: {
       context_length: 128000,
       max_completion_tokens: 16384,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -8434,13 +8356,12 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000125',
       completion: '0.00001',
-      web_search: '0.01',
       input_cache_read: '0.000000125',
     },
     top_provider: {
       context_length: 400000,
       max_completion_tokens: 128000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -8681,13 +8602,12 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000005',
       completion: '0.0000004',
-      web_search: '0.01',
-      input_cache_read: '0.000000005',
+      input_cache_read: '0.00000001',
     },
     top_provider: {
       context_length: 400000,
-      max_completion_tokens: 128000,
-      is_moderated: true,
+      max_completion_tokens: null,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -8759,13 +8679,12 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000125',
       completion: '0.00001',
-      web_search: '0.01',
-      input_cache_read: '0.000000125',
+      input_cache_read: '0.00000013',
     },
     top_provider: {
       context_length: 400000,
       max_completion_tokens: 128000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -8916,12 +8835,12 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000025',
       completion: '0.000002',
-      input_cache_read: '0.000000025',
+      input_cache_read: '0.00000003',
     },
     top_provider: {
       context_length: 400000,
-      max_completion_tokens: 100000,
-      is_moderated: true,
+      max_completion_tokens: 128000,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -8955,13 +8874,12 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000175',
       completion: '0.000014',
-      web_search: '0.01',
       input_cache_read: '0.000000175',
     },
     top_provider: {
       context_length: 400000,
       max_completion_tokens: 128000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -8995,13 +8913,12 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000175',
       completion: '0.000014',
-      web_search: '0.01',
       input_cache_read: '0.000000175',
     },
     top_provider: {
       context_length: 128000,
-      max_completion_tokens: 16384,
-      is_moderated: true,
+      max_completion_tokens: 32000,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -9033,13 +8950,12 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000175',
       completion: '0.000014',
-      web_search: '0.01',
       input_cache_read: '0.000000175',
     },
     top_provider: {
       context_length: 400000,
       max_completion_tokens: 128000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -9195,7 +9111,7 @@ export const models: Array<OpenRouterModel> = [
     top_provider: {
       context_length: 1050000,
       max_completion_tokens: 128000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -9235,7 +9151,7 @@ export const models: Array<OpenRouterModel> = [
     top_provider: {
       context_length: 400000,
       max_completion_tokens: 128000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -9275,7 +9191,7 @@ export const models: Array<OpenRouterModel> = [
     top_provider: {
       context_length: 400000,
       max_completion_tokens: 128000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -9314,7 +9230,7 @@ export const models: Array<OpenRouterModel> = [
     top_provider: {
       context_length: 1050000,
       max_completion_tokens: 128000,
-      is_moderated: true,
+      is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
@@ -9521,12 +9437,11 @@ export const models: Array<OpenRouterModel> = [
     },
     pricing: {
       prompt: '0.00000003',
-      completion: '0.00000011',
-      input_cache_read: '0.000000015',
+      completion: '0.00000014',
     },
     top_provider: {
       context_length: 131072,
-      max_completion_tokens: 131072,
+      max_completion_tokens: null,
       is_moderated: false,
     },
     per_request_limits: null,
@@ -9575,7 +9490,7 @@ export const models: Array<OpenRouterModel> = [
     },
     top_provider: {
       context_length: 131072,
-      max_completion_tokens: 131072,
+      max_completion_tokens: 8192,
       is_moderated: true,
     },
     per_request_limits: null,
@@ -10106,6 +10021,42 @@ export const models: Array<OpenRouterModel> = [
     },
     per_request_limits: null,
     supported_parameters: [],
+  },
+  {
+    id: 'openrouter/elephant-alpha',
+    canonical_slug: 'openrouter/elephant-alpha',
+    hugging_face_id: null,
+    name: 'Elephant',
+    created: 1776052598,
+    description:
+      'Elephant Alpha is a 100B-parameter text model focused on intelligence efficiency, delivering strong reasoning performance while minimizing token usage. It supports a 256K context window with up to 32K output...',
+    context_length: 262144,
+    architecture: {
+      modality: 'text->text',
+      input_modalities: ['text'],
+      output_modalities: ['text'],
+      tokenizer: 'Other',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0',
+      completion: '0',
+    },
+    top_provider: {
+      context_length: 262144,
+      max_completion_tokens: 32768,
+      is_moderated: false,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'max_tokens',
+      'response_format',
+      'structured_outputs',
+      'temperature',
+      'tool_choice',
+      'tools',
+      'top_p',
+    ],
   },
   {
     id: 'openrouter/free',
@@ -11448,13 +11399,13 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.00000012',
-      completion: '0.00000075',
-      input_cache_read: '0.00000006',
+      prompt: '0.00000015',
+      completion: '0.0000008',
+      input_cache_read: '0.00000012',
     },
     top_provider: {
       context_length: 262144,
-      max_completion_tokens: 65536,
+      max_completion_tokens: 262144,
       is_moderated: false,
     },
     per_request_limits: null,
@@ -12835,6 +12786,7 @@ export const models: Array<OpenRouterModel> = [
       'min_p',
       'presence_penalty',
       'reasoning',
+      'reasoning_effort',
       'repetition_penalty',
       'response_format',
       'seed',
@@ -12939,6 +12891,7 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.0000003',
       completion: '0.0000005',
+      input_cache_read: '0.00000015',
     },
     top_provider: {
       context_length: 131072,
@@ -13024,6 +12977,7 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000055',
       completion: '0.0000008',
+      input_cache_read: '0.00000025',
     },
     top_provider: {
       context_length: 32768,
@@ -13880,7 +13834,6 @@ export const models: Array<OpenRouterModel> = [
       'response_format',
       'seed',
       'stop',
-      'structured_outputs',
       'temperature',
       'tool_choice',
       'tools',
@@ -14309,12 +14262,13 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.00000126',
-      completion: '0.00000396',
+      prompt: '0.00000095',
+      completion: '0.00000315',
+      input_cache_read: '0.000000475',
     },
     top_provider: {
       context_length: 202752,
-      max_completion_tokens: null,
+      max_completion_tokens: 65535,
       is_moderated: false,
     },
     per_request_limits: null,
@@ -14325,8 +14279,10 @@ export const models: Array<OpenRouterModel> = [
       'logprobs',
       'max_tokens',
       'min_p',
+      'parallel_tool_calls',
       'presence_penalty',
       'reasoning',
+      'reasoning_effort',
       'repetition_penalty',
       'response_format',
       'seed',
