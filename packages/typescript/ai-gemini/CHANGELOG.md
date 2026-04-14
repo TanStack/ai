@@ -1,5 +1,11 @@
 # @tanstack/ai-gemini
 
+## 0.8.7
+
+### Patch Changes
+
+- Fix 400 error when sending tool results to Gemini API by removing redundant text part from functionResponse messages. Newer models (gemini-3.1-flash-lite, gemma-4) reject messages that mix text and functionResponse parts. ([#448](https://github.com/TanStack/ai/pull/448))
+
 ## 0.8.6
 
 ### Patch Changes

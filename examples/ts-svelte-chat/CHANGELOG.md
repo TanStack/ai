@@ -1,5 +1,12 @@
 # ts-svelte-chat
 
+## 0.1.31
+
+### Patch Changes
+
+- Updated dependencies [[`4990150`](https://github.com/TanStack/ai/commit/4990150957bfba72663b6a76f8057f2605e4ac62)]:
+  - @tanstack/ai-gemini@0.8.7
+
 ## 0.1.30
 
 ### Patch Changes
