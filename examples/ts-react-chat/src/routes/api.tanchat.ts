@@ -108,6 +108,68 @@ const loggingMiddleware: ChatMiddleware = {
   },
 }
 
+// ===========================
+// TypedStreamChunk showcase — type-safe tool call events
+// ===========================
+//
+// When `chat()` receives tools with typed schemas, the returned stream
+// carries type information on TOOL_CALL_START and TOOL_CALL_END events.
+// No casts, no `as any` — just narrow by `chunk.type` and everything is typed.
+
+const tools = [
+  getGuitars,
+  recommendGuitarToolDef,
+  addToCartToolServer,
+  addToWishListToolDef,
+  getPersonalGuitarPreferenceToolDef,
+  compareGuitars,
+  calculateFinancing,
+  searchGuitars,
+] as const
+
+async function typedStreamShowcase() {
+  const stream = chat({
+    adapter: openaiText('gpt-4o'),
+    messages: [{ role: 'user' as const, content: 'Recommend an acoustic guitar' }],
+    tools,
+  })
+
+  for await (const chunk of stream) {
+    switch (chunk.type) {
+      case 'TOOL_CALL_START':
+        // ✅ chunk.toolName is typed as the union of all tool name literals:
+        //    'getGuitars' | 'recommendGuitar' | 'addToCart' | 'addToWishList'
+        //    | 'getPersonalGuitarPreference' | 'compareGuitars'
+        //    | 'calculateFinancing' | 'searchGuitars'
+        //
+        // ❌ Without TypedStreamChunk, this would just be `string`
+        console.log(`Tool call started: ${chunk.toolName}`)
+        break
+
+      case 'TOOL_CALL_END':
+        // ✅ chunk.toolName — same typed literal union as above
+        // ✅ chunk.input   — union of all tool input types, inferred from Zod schemas:
+        //    | {}
+        //    | { id: string | number }
+        //    | { guitarId: string; quantity: number }
+        //    | { guitarId: string }
+        //    | { guitarIds: number[] }
+        //    | { guitarId: number; months: number }
+        //    | { query: string }
+        console.log(`Tool call ended: ${chunk.toolName}`, chunk.input)
+        break
+
+      case 'TEXT_MESSAGE_CONTENT':
+        // Non-tool events are unaffected — still fully typed
+        console.log(chunk.delta)
+        break
+    }
+  }
+}
+
+// Suppress unused warning — this is a showcase, not called at runtime
+void typedStreamShowcase
+
 export const Route = createFileRoute('/api/tanchat')({
   server: {
     handlers: {

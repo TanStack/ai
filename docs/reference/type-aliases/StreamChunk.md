@@ -9,7 +9,41 @@ title: StreamChunk
 type StreamChunk = AGUIEvent;
 ```
 
-Defined in: [types.ts:976](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L976)
+Defined in: [types.ts:989](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L989)
 
 Chunk returned by the SDK during streaming chat completions.
 Uses the AG-UI protocol event format.
+
+# Type Alias: TypedStreamChunk
+
+```ts
+type TypedStreamChunk<TTools extends ReadonlyArray<Tool<any, any, any>> = ReadonlyArray<Tool<any, any, any>>>
+```
+
+Defined in: [types.ts:1033](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1033)
+
+A variant of `StreamChunk` parameterized by the tools array. When specific tool types are provided (e.g. from `chat({ tools: [myTool] })`):
+
+- `TOOL_CALL_START` and `TOOL_CALL_END` events have `toolName` narrowed to the union of known tool name literals.
+- `TOOL_CALL_END` events have `input` typed as the union of tool input types.
+
+When tools are untyped or absent, `TypedStreamChunk` degrades to the same type as `StreamChunk`.
+
+This is the type returned by `chat()` when streaming is enabled (the default). You don't typically need to reference it directly unless annotating function parameters or return types.
+
+```ts
+import type { TypedStreamChunk } from "@tanstack/ai";
+import { toolDefinition } from "@tanstack/ai";
+
+// Given tools created with toolDefinition():
+const weatherTool = toolDefinition({ name: "get_weather", description: "...", inputSchema: /* Zod schema */ });
+const searchTool = toolDefinition({ name: "search", description: "...", inputSchema: /* Zod schema */ });
+
+// Without type args — equivalent to StreamChunk
+type Chunk = TypedStreamChunk;
+
+// With specific tools — tool call events are typed
+type TypedChunk = TypedStreamChunk<[typeof weatherTool, typeof searchTool]>;
+```
+
+See [Streaming - Type-Safe Tool Call Events](../../chat/streaming) for a practical walkthrough.
