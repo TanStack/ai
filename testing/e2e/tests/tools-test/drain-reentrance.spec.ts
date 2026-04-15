@@ -85,9 +85,7 @@ test.describe('Drain Re-Entrancy Guard (Regression #302)', () => {
 
     // The follow-up text from the continuation round should be present
     const allTextParts = assistantMessages.flatMap((m: any) =>
-      m.parts
-        .filter((p: any) => p.type === 'text')
-        .map((p: any) => p.content),
+      m.parts.filter((p: any) => p.type === 'text').map((p: any) => p.content),
     )
     const allText = allTextParts.join(' ')
     expect(allText).toContain('All displayed')
