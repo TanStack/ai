@@ -7,9 +7,7 @@
       },
       "response": {
         "content": "Let me check the system status.",
-        "toolCalls": [
-          { "name": "check_status", "arguments": "null" }
-        ]
+        "toolCalls": [{ "name": "check_status", "arguments": "null" }]
       }
     },
     {

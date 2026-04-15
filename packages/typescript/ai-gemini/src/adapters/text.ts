@@ -440,8 +440,7 @@ export class GeminiTextAdapter<
           let parsedInput: unknown = {}
           try {
             const parsed = JSON.parse(toolCallData.args)
-            parsedInput =
-              parsed && typeof parsed === 'object' ? parsed : {}
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = {}
           }

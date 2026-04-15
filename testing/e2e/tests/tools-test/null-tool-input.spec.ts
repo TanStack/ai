@@ -81,9 +81,7 @@ test.describe('Null Tool Input E2E Tests (Regression #265)', () => {
     expect(assistantMessages.length).toBeGreaterThanOrEqual(2)
 
     const lastAssistant = assistantMessages[assistantMessages.length - 1]
-    const textParts = lastAssistant.parts.filter(
-      (p: any) => p.type === 'text',
-    )
+    const textParts = lastAssistant.parts.filter((p: any) => p.type === 'text')
     const allText = textParts.map((p: any) => p.content).join(' ')
     expect(allText).toContain('status check is complete')
   })
