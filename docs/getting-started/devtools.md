@@ -31,7 +31,7 @@ npm install -D @tanstack/preact-ai-devtools @tanstack/preact-devtools
 
 ## Usage
 
-Import and include the Devtools component in your application:
+Import and include the TanStackDevtools component in your application:
 
 ```tsx
 import { TanStackDevtools } from '@tanstack/react-devtools'
