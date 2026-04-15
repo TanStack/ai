@@ -412,10 +412,12 @@ export class GeminiTextAdapter<
                 // Emit TOOL_CALL_END with parsed input
                 let parsedInput: unknown = {}
                 try {
-                  parsedInput =
+                  const parsed =
                     typeof functionArgs === 'string'
                       ? JSON.parse(functionArgs)
                       : functionArgs
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
                 } catch {
                   parsedInput = {}
                 }
@@ -437,7 +439,9 @@ export class GeminiTextAdapter<
         for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
           let parsedInput: unknown = {}
           try {
-            parsedInput = JSON.parse(toolCallData.args)
+            const parsed = JSON.parse(toolCallData.args)
+            parsedInput =
+              parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = {}
           }
