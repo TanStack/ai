@@ -1,29 +1,4 @@
-import type { ApplyPatchTool } from './apply-patch-tool'
-import type { CodeInterpreterTool } from './code-interpreter-tool'
-import type { ComputerUseTool } from './computer-use-tool'
-import type { CustomTool } from './custom-tool'
-import type { FileSearchTool } from './file-search-tool'
-import type { FunctionTool } from './function-tool'
-import type { ImageGenerationTool } from './image-generation-tool'
-import type { LocalShellTool } from './local-shell-tool'
-import type { MCPTool } from './mcp-tool'
-import type { ShellTool } from './shell-tool'
-import type { WebSearchPreviewTool } from './web-search-preview-tool'
-import type { WebSearchTool } from './web-search-tool'
-
-export type OpenAITool =
-  | ApplyPatchTool
-  | CodeInterpreterTool
-  | ComputerUseTool
-  | CustomTool
-  | FileSearchTool
-  | FunctionTool
-  | ImageGenerationTool
-  | LocalShellTool
-  | MCPTool
-  | ShellTool
-  | WebSearchPreviewTool
-  | WebSearchTool
+export { type OpenAITool } from '@tanstack/openai-base'
 
 export * from './apply-patch-tool'
 export * from './code-interpreter-tool'

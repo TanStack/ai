@@ -47,6 +47,8 @@
     "zod": "^4.0.0"
   },
   "dependencies": {
+    "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/openai-base": "workspace:*",
     "groq-sdk": "^0.37.0"
   }
 }

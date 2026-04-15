@@ -1,7 +1,6 @@
 export {
-  createGrokClient,
   getGrokApiKeyFromEnv,
-  generateId,
+  toCompatibleConfig,
   type GrokClientConfig,
 } from './client'
 export {
