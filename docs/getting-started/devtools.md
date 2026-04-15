@@ -74,6 +74,3 @@ export async function register() {
          await bus.start();
      }
 }
-
-This sets globalThis.__TANSTACK_EVENT_TARGET__ so the server-side devtoolsMiddleware (which runs automatically inside every chat() call) can emit tool call events to the bus, which then forwards them to the devtools panel.
-```
