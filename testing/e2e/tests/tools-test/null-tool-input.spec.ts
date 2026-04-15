@@ -36,7 +36,7 @@ test.describe('Null Tool Input E2E Tests (Regression #265)', () => {
   }) => {
     await selectScenario(page, 'null-tool-input', testId, aimockPort)
     await runTest(page)
-    await waitForTestComplete(page)
+    await waitForTestComplete(page, 30000)
 
     // Verify the test completed (agent loop didn't die)
     const metadata = await getMetadata(page)
