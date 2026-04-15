@@ -1,3 +1,4 @@
+import type { ContextWindowCompressionConfig, ProactivityConfig, ThinkingConfig } from "@google/genai";
 
 /**
  * Gemini realtime voice options
@@ -60,6 +61,13 @@ export interface GeminiRealtimeTokenOptions {
 }
 
 /**
- * Gemini Realtime session response from the API
+ * Gemini Realtime provider options
  */
-export interface GeminiRealtimeSessionResponse {}
+
+export interface GeminiRealtimeProviderOptions {
+  languageCode?: string
+  contextWindowCompression?: ContextWindowCompressionConfig
+  proactivity?: ProactivityConfig
+  enableAffectiveDialog?: boolean,
+  thinkingConfig?: ThinkingConfig
+}

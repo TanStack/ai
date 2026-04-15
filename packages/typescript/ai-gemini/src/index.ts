@@ -83,8 +83,16 @@ export type {
   GeminiMessageMetadataByModality,
 } from './message-types'
 
-// Realtime adapter
-export {
-  geminiRealtime,
-  geminiRealtimeToken,
+// ============================================================================
+// Realtime (Voice) Adapters
+// ============================================================================
+
+export { geminiRealtime, geminiRealtimeToken } from './realtime/index'
+
+export type {
+  GeminiRealtimeModel,
+  GeminiRealtimeOptions,
+  GeminiRealtimeTokenOptions,
+  GeminiRealtimeVoice,
+  GeminiRealtimeEvent
 } from './realtime/index'

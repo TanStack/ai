@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
+import { GoogleGenAI, Modality } from '@google/genai'
 import {
   convertSchemaToJsonSchema,
 } from "@tanstack/ai"
@@ -11,9 +11,9 @@ import type {
   RealtimeSessionConfig,
   RealtimeToken
 } from '@tanstack/ai'
-import type { LiveConnectConfig, Modality } from '@google/genai'
+import type { LiveConnectConfig } from '@google/genai'
 import type { AnyClientTool, RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
-import type { GeminiRealtimeOptions } from './types'
+import type { GeminiRealtimeOptions, GeminiRealtimeProviderOptions } from './types'
 
 const textEncoder = new TextEncoder()
 const workletCode = `
@@ -91,8 +91,6 @@ async function createWebSocketConnection(
   const model = token.config.model ?? 'gemini-live-2.5-flash-native-audio'
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
-  const responseModalities = config.outputModalities?.map(modality => modality.toUpperCase()) as Array<Modality>
-
   const toolsConfig = tools
     ? tools.map((t) => ({
       name: t.name,
@@ -106,8 +104,18 @@ async function createWebSocketConnection(
     }))
     : undefined
 
+  const {
+    languageCode,
+    contextWindowCompression,
+    proactivity,
+    enableAffectiveDialog,
+    thinkingConfig
+  } = config.providerOptions as GeminiRealtimeProviderOptions
+
+  config.outputModalities
+
   const liveConfig: LiveConnectConfig = {
-    responseModalities,
+    responseModalities: [Modality.AUDIO],
     tools: toolsConfig ? [{
       functionDeclarations: toolsConfig
     }] : undefined,
@@ -116,13 +124,22 @@ async function createWebSocketConnection(
         prebuiltVoiceConfig: {
           voiceName: config.voice
         }
-      }
+      },
+      languageCode
     },
     maxOutputTokens: config.maxOutputTokens !== 'inf' ? config.maxOutputTokens : undefined,
     systemInstruction: config.instructions,
     temperature: config.temperature,
-    ...config.providerOptions
+    contextWindowCompression,
+    proactivity,
+    enableAffectiveDialog,
+    thinkingConfig,
   };
+
+  if (config.outputModalities?.includes("text")) {
+    liveConfig.inputAudioTranscription = {}
+    liveConfig.outputAudioTranscription = {}
+  }
 
   // Audio context
   let audioContext: AudioContext | null = null
@@ -217,6 +234,10 @@ async function createWebSocketConnection(
         const content = response.serverContent;
         const inputTranscription = content?.inputTranscription;
         const outputTranscription = content?.outputTranscription;
+
+        if (response.goAway) {
+          emit("go_away", { timeLeft: response.goAway.timeLeft })
+        }
 
         if (response.data) {
           // TODO: Decode chunk and play using an `AudioWorklet` or
@@ -479,9 +500,9 @@ async function createWebSocketConnection(
     sendImage(imageData: string, mimeType: string) {
       // Only accepts raw image data, not URLs
       session.sendRealtimeInput({
-        media: {
+        video: {
           data: imageData,
-          mimeType: mimeType,
+          mimeType: mimeType
         }
       })
       currentMode = 'thinking'

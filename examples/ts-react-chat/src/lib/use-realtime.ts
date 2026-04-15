@@ -7,12 +7,14 @@ import {
   elevenlabsRealtimeToken,
 } from '@tanstack/ai-elevenlabs'
 import { geminiRealtime, geminiRealtimeToken } from '@tanstack/ai-gemini'
+import type { GeminiRealtimeVoice } from "@tanstack/ai-gemini"
+import type { OpenAIRealtimeVoice } from "@tanstack/ai-openai"
 import { realtimeClientTools } from '@/lib/realtime-tools'
 
 type Provider = 'openai' | 'elevenlabs' | 'gemini'
 
 const getRealtimeTokenFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { provider: Provider; agentId?: string }) => {
+  .inputValidator((data: { provider?: Provider; agentId?: string }) => {
     if (!data.provider) throw new Error('Provider is required')
     return data
   })
@@ -53,6 +55,7 @@ export function useRealtime({
   temperature,
   maxOutputTokens,
   semanticEagerness,
+  voice
 }: {
   provider: Provider
   agentId: string
@@ -60,6 +63,7 @@ export function useRealtime({
   temperature?: number
   maxOutputTokens?: number | 'inf'
   semanticEagerness?: 'low' | 'medium' | 'high'
+  voice?: OpenAIRealtimeVoice | GeminiRealtimeVoice
 }) {
   const adapter =
     provider === 'openai'
@@ -89,7 +93,7 @@ Keep your responses concise and conversational since this is a voice interface.
 When using tools, briefly explain what you're doing and then share the results naturally.
 If the user sends an image, describe what you see and answer any questions about it.
 Be friendly and engaging!`,
-    voice: 'alloy',
+    voice: voice || provider === 'gemini' ? 'Puck' : 'alloy',
     tools: realtimeClientTools,
     outputModalities,
     temperature,

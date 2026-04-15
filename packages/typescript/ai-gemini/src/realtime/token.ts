@@ -39,7 +39,7 @@ export function geminiRealtimeToken(
     provider: 'gemini',
     async generateToken(): Promise<RealtimeToken> {
       const model: GeminiRealtimeModel =
-        options.model ?? 'gemini-live-2.5-flash-native-audio'
+        options.model ?? 'gemini-3.1-flash-live-preview'
 
       const token = await client.authTokens.create({
         config: {
