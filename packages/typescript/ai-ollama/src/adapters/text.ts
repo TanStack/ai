@@ -249,7 +249,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             ? actualToolCall.function.arguments
             : JSON.stringify(actualToolCall.function.arguments)
         try {
-          parsedInput = JSON.parse(argsStr)
+          const parsed = JSON.parse(argsStr)
+          parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
         } catch {
           parsedInput = actualToolCall.function.arguments
         }
