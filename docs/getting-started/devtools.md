@@ -54,3 +54,26 @@ const App = () => {
   )
 }
 ```
+
+## Using with Next.js (or without a Vite plugin)
+
+`connectToServerBus: true` relies on a WebSocket/SSE server on port 4206 that is normally started by `@tanstack/devtools-vite`. If you're using Next.js (or any non-Vite bundler), you need to start `ServerEventBus` manually at server boot.
+
+In Next.js, do this in `instrumentation.ts`:
+
+```ts
+export async function register() {
+     if (
+         process.env["NEXT_RUNTIME"] === "nodejs" &&
+         process.env.NODE_ENV === "development"
+     ) {
+         const { ServerEventBus } = await import(
+             "@tanstack/devtools-event-bus/server"
+         );
+         const bus = new ServerEventBus();
+         await bus.start();
+     }
+}
+```
+
+This sets globalThis.__TANSTACK_EVENT_TARGET__ so the server-side devtoolsMiddleware (which runs automatically inside every chat() call) can emit tool call events to the bus, which then forwards them to the devtools panel.
