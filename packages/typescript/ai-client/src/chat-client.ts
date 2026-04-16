@@ -396,8 +396,9 @@ export class ChatClient {
       // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
       // (redundant if onStreamEnd already resolved it, harmless)
       if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-        if (chunk.runId) {
-          this.activeRunIds.delete(chunk.runId)
+        const runId = chunk.type === 'RUN_FINISHED' ? chunk.runId : undefined
+        if (runId) {
+          this.activeRunIds.delete(runId)
         } else if (chunk.type === 'RUN_ERROR') {
           // RUN_ERROR without runId is a session-level error; clear all runs
           this.activeRunIds.clear()

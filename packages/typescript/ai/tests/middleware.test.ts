@@ -1348,6 +1348,9 @@ describe('chat() middleware', () => {
         // Tool execution phase
         'onBeforeToolCall:myTool',
         'onAfterToolCall:myTool:true',
+        // Tool result events (piped through middleware)
+        'onChunk:TOOL_CALL_END',
+        'onChunk:TOOL_CALL_RESULT',
         // Second model call (beforeModel phase)
         'onConfig:beforeModel',
         'onChunk:RUN_STARTED',
@@ -1418,11 +1421,22 @@ describe('chat() middleware', () => {
         .map((e) => e.phase)
       expect(configPhases).toEqual(['init', 'beforeModel', 'beforeModel'])
 
-      // onChunk should be in 'modelStream' phase
+      // onChunk phases: model stream chunks are 'modelStream', tool result chunks are 'afterTools'
       const chunkPhases = phaseLog
         .filter((e) => e.hook === 'onChunk')
         .map((e) => e.phase)
-      expect(chunkPhases.every((p) => p === 'modelStream')).toBe(true)
+      // All chunk phases should be either 'modelStream' or 'afterTools'
+      expect(
+        chunkPhases.every((p) => p === 'modelStream' || p === 'afterTools'),
+      ).toBe(true)
+      // At least one should be 'modelStream' (from the adapter stream)
+      expect(
+        chunkPhases.filter((p) => p === 'modelStream').length,
+      ).toBeGreaterThan(0)
+      // Tool result chunks should be in 'afterTools' phase
+      expect(
+        chunkPhases.filter((p) => p === 'afterTools').length,
+      ).toBeGreaterThan(0)
 
       // onBeforeToolCall should be in 'beforeTools' phase
       const beforeToolPhases = phaseLog

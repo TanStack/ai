@@ -97,14 +97,14 @@ class MockTextAdapter<TModel extends MockModel> extends BaseTextAdapter<
       delta: 'Hello',
       content: 'Hello',
       model: this.model,
-    }
+    } as unknown as StreamChunk
     yield {
       type: 'RUN_FINISHED',
       runId: 'mock-id',
       timestamp: Date.now(),
       finishReason: 'stop',
       model: this.model,
-    }
+    } as unknown as StreamChunk
   }
   /* eslint-enable @typescript-eslint/require-await */
 

@@ -57,6 +57,7 @@
     "tanstack-intent"
   ],
   "dependencies": {
+    "@ag-ui/core": "0.0.49",
     "@tanstack/ai-event-client": "workspace:*",
     "partial-json": "^0.1.7"
   },

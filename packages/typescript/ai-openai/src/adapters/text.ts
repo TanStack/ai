@@ -39,6 +39,11 @@ import type {
 } from '../message-types'
 import type { OpenAIClientConfig } from '../utils/client'
 
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 /**
  * Configuration for OpenAI text adapter
  */
@@ -257,9 +262,12 @@ export class OpenAITextAdapter<
     let model: string = options.model
 
     // AG-UI lifecycle tracking
-    const runId = genId()
+    const runId = options.runId ?? genId()
+    const threadId = options.threadId ?? genId()
     const messageId = genId()
     let stepId: string | null = null
+    let reasoningMessageId: string | null = null
+    let hasClosedReasoning = false
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
     let hasEmittedStepStarted = false
@@ -271,12 +279,13 @@ export class OpenAITextAdapter<
         // Emit RUN_STARTED on first chunk
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
-          yield {
+          yield asChunk({
             type: 'RUN_STARTED',
             runId,
+            threadId,
             model: model || options.model,
             timestamp,
-          }
+          })
         }
 
         const handleContentPart = (
@@ -287,36 +296,39 @@ export class OpenAITextAdapter<
         ): StreamChunk => {
           if (contentPart.type === 'output_text') {
             accumulatedContent += contentPart.text
-            return {
+            return asChunk({
               type: 'TEXT_MESSAGE_CONTENT',
               messageId,
               model: model || options.model,
               timestamp,
               delta: contentPart.text,
               content: accumulatedContent,
-            }
+            })
           }
 
           if (contentPart.type === 'reasoning_text') {
             accumulatedReasoning += contentPart.text
-            return {
+            const currentStepId = stepId || genId()
+            return asChunk({
               type: 'STEP_FINISHED',
-              stepId: stepId || genId(),
+              stepName: currentStepId,
+              stepId: currentStepId,
               model: model || options.model,
               timestamp,
               delta: contentPart.text,
               content: accumulatedReasoning,
-            }
+            })
           }
-          return {
+          return asChunk({
             type: 'RUN_ERROR',
             runId,
+            message: contentPart.refusal,
             model: model || options.model,
             timestamp,
             error: {
               message: contentPart.refusal,
             },
-          }
+          })
         }
         // handle general response events
         if (
@@ -330,27 +342,34 @@ export class OpenAITextAdapter<
           hasStreamedReasoningDeltas = false
           hasEmittedTextMessageStart = false
           hasEmittedStepStarted = false
+          reasoningMessageId = null
+          hasClosedReasoning = false
           accumulatedContent = ''
           accumulatedReasoning = ''
           if (chunk.response.error) {
-            yield {
+            yield asChunk({
               type: 'RUN_ERROR',
               runId,
+              message: chunk.response.error.message,
+              code: chunk.response.error.code,
               model: chunk.response.model,
               timestamp,
               error: chunk.response.error,
-            }
+            })
           }
           if (chunk.response.incomplete_details) {
-            yield {
+            const incompleteMessage =
+              chunk.response.incomplete_details.reason ?? ''
+            yield asChunk({
               type: 'RUN_ERROR',
               runId,
+              message: incompleteMessage,
               model: chunk.response.model,
               timestamp,
               error: {
-                message: chunk.response.incomplete_details.reason ?? '',
+                message: incompleteMessage,
               },
-            }
+            })
           }
         }
         // Handle output text deltas (token-by-token streaming)
@@ -364,28 +383,45 @@ export class OpenAITextAdapter<
               : ''
 
           if (textDelta) {
+            // Close reasoning events before text starts
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield asChunk({
+                type: 'REASONING_MESSAGE_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+            }
+
             // Emit TEXT_MESSAGE_START on first text content
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
-              yield {
+              yield asChunk({
                 type: 'TEXT_MESSAGE_START',
                 messageId,
                 model: model || options.model,
                 timestamp,
                 role: 'assistant',
-              }
+              })
             }
 
             accumulatedContent += textDelta
             hasStreamedContentDeltas = true
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_CONTENT',
               messageId,
               model: model || options.model,
               timestamp,
               delta: textDelta,
               content: accumulatedContent,
-            }
+            })
           }
         }
 
@@ -400,29 +436,60 @@ export class OpenAITextAdapter<
               : ''
 
           if (reasoningDelta) {
-            // Emit STEP_STARTED on first reasoning content
+            // Emit STEP_STARTED and REASONING_START on first reasoning content
             if (!hasEmittedStepStarted) {
               hasEmittedStepStarted = true
               stepId = genId()
-              yield {
+              reasoningMessageId = genId()
+
+              // Spec REASONING events
+              yield asChunk({
+                type: 'REASONING_START',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_MESSAGE_START',
+                messageId: reasoningMessageId,
+                role: 'reasoning' as const,
+                model: model || options.model,
+                timestamp,
+              })
+
+              // Legacy STEP events (kept during transition)
+              yield asChunk({
                 type: 'STEP_STARTED',
+                stepName: stepId,
                 stepId,
                 model: model || options.model,
                 timestamp,
                 stepType: 'thinking',
-              }
+              })
             }
 
             accumulatedReasoning += reasoningDelta
             hasStreamedReasoningDeltas = true
-            yield {
+
+            // Spec REASONING content event
+            yield asChunk({
+              type: 'REASONING_MESSAGE_CONTENT',
+              messageId: reasoningMessageId!,
+              delta: reasoningDelta,
+              model: model || options.model,
+              timestamp,
+            })
+
+            // Legacy STEP event
+            yield asChunk({
               type: 'STEP_FINISHED',
+              stepName: stepId || genId(),
               stepId: stepId || genId(),
               model: model || options.model,
               timestamp,
               delta: reasoningDelta,
               content: accumulatedReasoning,
-            }
+            })
           }
         }
 
@@ -436,60 +503,129 @@ export class OpenAITextAdapter<
             typeof chunk.delta === 'string' ? chunk.delta : ''
 
           if (summaryDelta) {
-            // Emit STEP_STARTED on first reasoning content
+            // Emit STEP_STARTED and REASONING_START on first reasoning content
             if (!hasEmittedStepStarted) {
               hasEmittedStepStarted = true
               stepId = genId()
-              yield {
+              reasoningMessageId = genId()
+
+              // Spec REASONING events
+              yield asChunk({
+                type: 'REASONING_START',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_MESSAGE_START',
+                messageId: reasoningMessageId,
+                role: 'reasoning' as const,
+                model: model || options.model,
+                timestamp,
+              })
+
+              // Legacy STEP events (kept during transition)
+              yield asChunk({
                 type: 'STEP_STARTED',
+                stepName: stepId,
                 stepId,
                 model: model || options.model,
                 timestamp,
                 stepType: 'thinking',
-              }
+              })
             }
 
             accumulatedReasoning += summaryDelta
             hasStreamedReasoningDeltas = true
-            yield {
+
+            // Spec REASONING content event
+            yield asChunk({
+              type: 'REASONING_MESSAGE_CONTENT',
+              messageId: reasoningMessageId!,
+              delta: summaryDelta,
+              model: model || options.model,
+              timestamp,
+            })
+
+            // Legacy STEP event
+            yield asChunk({
               type: 'STEP_FINISHED',
+              stepName: stepId || genId(),
               stepId: stepId || genId(),
               model: model || options.model,
               timestamp,
               delta: summaryDelta,
               content: accumulatedReasoning,
-            }
+            })
           }
         }
 
         // handle content_part added events for text, reasoning and refusals
         if (chunk.type === 'response.content_part.added') {
           const contentPart = chunk.part
+          // Close reasoning before text starts
+          if (contentPart.type === 'output_text') {
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield asChunk({
+                type: 'REASONING_MESSAGE_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+            }
+          }
+
           // Emit TEXT_MESSAGE_START if this is text content
           if (
             contentPart.type === 'output_text' &&
             !hasEmittedTextMessageStart
           ) {
             hasEmittedTextMessageStart = true
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_START',
               messageId,
               model: model || options.model,
               timestamp,
               role: 'assistant',
-            }
+            })
           }
-          // Emit STEP_STARTED if this is reasoning content
+          // Emit STEP_STARTED and REASONING events if this is reasoning content
           if (contentPart.type === 'reasoning_text' && !hasEmittedStepStarted) {
             hasEmittedStepStarted = true
             stepId = genId()
-            yield {
+            reasoningMessageId = genId()
+
+            // Spec REASONING events
+            yield asChunk({
+              type: 'REASONING_START',
+              messageId: reasoningMessageId,
+              model: model || options.model,
+              timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_MESSAGE_START',
+              messageId: reasoningMessageId,
+              role: 'reasoning' as const,
+              model: model || options.model,
+              timestamp,
+            })
+
+            // Legacy STEP events (kept during transition)
+            yield asChunk({
               type: 'STEP_STARTED',
+              stepName: stepId,
               stepId,
               model: model || options.model,
               timestamp,
               stepType: 'thinking',
-            }
+            })
           }
           yield handleContentPart(contentPart)
         }
@@ -528,14 +664,15 @@ export class OpenAITextAdapter<
               })
             }
             // Emit TOOL_CALL_START
-            yield {
+            yield asChunk({
               type: 'TOOL_CALL_START',
               toolCallId: item.id,
+              toolCallName: item.name || '',
               toolName: item.name || '',
               model: model || options.model,
               timestamp,
               index: chunk.output_index,
-            }
+            })
             toolCallMetadata.get(item.id)!.started = true
           }
         }
@@ -546,14 +683,14 @@ export class OpenAITextAdapter<
           chunk.delta
         ) {
           const metadata = toolCallMetadata.get(chunk.item_id)
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_ARGS',
             toolCallId: chunk.item_id,
             model: model || options.model,
             timestamp,
             delta: chunk.delta,
             args: metadata ? undefined : chunk.delta, // We don't accumulate here, let caller handle it
-          }
+          })
         }
 
         if (chunk.type === 'response.function_call_arguments.done') {
@@ -572,25 +709,43 @@ export class OpenAITextAdapter<
             parsedInput = {}
           }
 
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_END',
             toolCallId: item_id,
+            toolCallName: name,
             toolName: name,
             model: model || options.model,
             timestamp,
             input: parsedInput,
-          }
+          })
         }
 
         if (chunk.type === 'response.completed') {
+          // Close reasoning events if still open
+          if (reasoningMessageId && !hasClosedReasoning) {
+            hasClosedReasoning = true
+            yield asChunk({
+              type: 'REASONING_MESSAGE_END',
+              messageId: reasoningMessageId,
+              model: model || options.model,
+              timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_END',
+              messageId: reasoningMessageId,
+              model: model || options.model,
+              timestamp,
+            })
+          }
+
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_END',
               messageId,
               model: model || options.model,
               timestamp,
-            }
+            })
           }
 
           // Determine finish reason based on output
@@ -600,9 +755,10 @@ export class OpenAITextAdapter<
               (item as { type: string }).type === 'function_call',
           )
 
-          yield {
+          yield asChunk({
             type: 'RUN_FINISHED',
             runId,
+            threadId,
             model: model || options.model,
             timestamp,
             usage: {
@@ -611,20 +767,22 @@ export class OpenAITextAdapter<
               totalTokens: chunk.response.usage?.total_tokens || 0,
             },
             finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
-          }
+          })
         }
 
         if (chunk.type === 'error') {
-          yield {
+          yield asChunk({
             type: 'RUN_ERROR',
             runId,
+            message: chunk.message,
+            code: chunk.code ?? undefined,
             model: model || options.model,
             timestamp,
             error: {
               message: chunk.message,
               code: chunk.code ?? undefined,
             },
-          }
+          })
         }
       }
     } catch (error: unknown) {
@@ -636,16 +794,18 @@ export class OpenAITextAdapter<
           error: err.message,
         },
       )
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId,
+        message: err.message || 'Unknown error occurred',
+        code: err.code,
         model: options.model,
         timestamp,
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code,
         },
-      }
+      })
     }
   }
 
