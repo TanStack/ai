@@ -117,6 +117,7 @@ When multiple tools are provided, tool call events form a **discriminated union*
 ```typescript
 const searchTool = toolDefinition({
   name: "search",
+  description: "Search the web",
   inputSchema: z.object({ query: z.string() }),
 });
 
@@ -129,10 +130,12 @@ const stream = chat({
 for await (const chunk of stream) {
   if (chunk.type === "TOOL_CALL_END") {
     if (chunk.toolName === "get_weather") {
-      chunk.input; // ✅ { location: string; unit?: "celsius" | "fahrenheit" }
+      // ✅ input is narrowed to { location: string; unit?: "celsius" | "fahrenheit" }
+      console.log(`Weather in ${chunk.input?.location}`);
     }
     if (chunk.toolName === "search") {
-      chunk.input; // ✅ { query: string }
+      // ✅ input is narrowed to { query: string }
+      console.log(`Searched for: ${chunk.input?.query}`);
     }
   }
 }

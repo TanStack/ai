@@ -9,7 +9,7 @@ title: StreamChunk
 type StreamChunk = AGUIEvent;
 ```
 
-Defined in: [types.ts:989](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L989)
+Defined in: [types.ts:990](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L990)
 
 Chunk returned by the SDK during streaming chat completions.
 Uses the AG-UI protocol event format.
@@ -20,7 +20,7 @@ Uses the AG-UI protocol event format.
 type TypedStreamChunk<TTools extends ReadonlyArray<Tool<any, any, any>> = ReadonlyArray<Tool<any, any, any>>>
 ```
 
-Defined in: [types.ts:1033](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1033)
+Defined in: [types.ts:1066](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1066)
 
 A variant of `StreamChunk` parameterized by the tools array. When specific tool types are provided (e.g. from `chat({ tools: [myTool] })`):
 
