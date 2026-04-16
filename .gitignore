@@ -71,4 +71,5 @@ docs/superpowers
 # Only .claude.settings.json should be committed
 .claude/settings.local.json
 .claude/worktrees/*
+.agentsroom
 solo.yml
