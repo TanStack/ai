@@ -502,10 +502,11 @@ describe('GeminiAdapter through AI', () => {
     expect(textParts[0].text).toBe("what's a good electric guitar?")
   })
 
-  it('preserves thoughtSignature in functionCall parts when sending history back to Gemini', async () => {
+  it('reads Part-level thoughtSignature from Gemini 3.x streaming response', async () => {
     const thoughtSig = 'base64-encoded-thought-signature-xyz'
 
-    // First stream: model returns a function call with a thoughtSignature (thinking model)
+    // Gemini 3.x emits thoughtSignature at the Part level, as a sibling of
+    // functionCall (per @google/genai Part type), not nested inside functionCall.
     const firstStream = [
       {
         candidates: [
@@ -513,11 +514,11 @@ describe('GeminiAdapter through AI', () => {
             content: {
               parts: [
                 {
+                  thoughtSignature: thoughtSig,
                   functionCall: {
                     id: 'fc_001',
                     name: 'sum_tool',
                     args: { numbers: [1, 2, 5] },
-                    thoughtSignature: thoughtSig,
                   },
                 },
               ],
@@ -533,7 +534,6 @@ describe('GeminiAdapter through AI', () => {
       },
     ]
 
-    // Second stream: model returns the final answer
     const secondStream = [
       {
         candidates: [
@@ -587,8 +587,93 @@ describe('GeminiAdapter through AI', () => {
     const functionCallPart = modelTurn.parts.find((p: any) => p.functionCall)
     expect(functionCallPart).toBeDefined()
     expect(functionCallPart.functionCall.name).toBe('sum_tool')
-    // The thoughtSignature must be preserved in the model turn's functionCall
-    expect(functionCallPart.functionCall.thoughtSignature).toBe(thoughtSig)
+    // thoughtSignature must be at the Part level, NOT nested in functionCall
+    expect(functionCallPart.thoughtSignature).toBe(thoughtSig)
+    expect(functionCallPart.functionCall.thoughtSignature).toBeUndefined()
+  })
+
+  it('falls back to functionCall.thoughtSignature for Gemini 2.x models', async () => {
+    const thoughtSig = 'legacy-thought-signature'
+
+    // Gemini 2.x nests thoughtSignature inside functionCall
+    const firstStream = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    id: 'fc_legacy',
+                    name: 'sum_tool',
+                    args: { numbers: [3, 4] },
+                    thoughtSignature: thoughtSig,
+                  },
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
+      },
+    ]
+
+    const secondStream = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'The sum is 7.' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 20,
+          candidatesTokenCount: 5,
+          totalTokenCount: 25,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy
+      .mockResolvedValueOnce(createStream(firstStream))
+      .mockResolvedValueOnce(createStream(secondStream))
+
+    const adapter = createTextAdapter()
+
+    const sumTool: Tool = {
+      name: 'sum_tool',
+      description: 'Sums an array of numbers.',
+      execute: async (input: any) => ({
+        result: input.numbers.reduce((a: number, b: number) => a + b, 0),
+      }),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      tools: [sumTool],
+      messages: [{ role: 'user', content: 'What is 3 + 4?' }],
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+
+    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]
+    const modelTurn = secondPayload.contents.find(
+      (c: any) => c.role === 'model',
+    )
+    expect(modelTurn).toBeDefined()
+
+    const functionCallPart = modelTurn.parts.find((p: any) => p.functionCall)
+    expect(functionCallPart).toBeDefined()
+    // Even for legacy input, the write side should emit at Part level
+    expect(functionCallPart.thoughtSignature).toBe(thoughtSig)
+    expect(functionCallPart.functionCall.thoughtSignature).toBeUndefined()
   })
 
   it('uses function name (not toolCallId) in functionResponse and preserves the call id', async () => {
