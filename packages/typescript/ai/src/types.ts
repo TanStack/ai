@@ -1018,7 +1018,7 @@ type HasTypedTools<TTools extends ReadonlyArray<Tool<any, any, any>>> = [
  * produces `any` (e.g. for plain JSON Schema tools).
  * @internal
  */
-type SafeToolInput<T extends Tool<any, any, any>> = T extends {
+type SafeToolInput<T> = T extends {
   inputSchema?: infer TInput
 }
   ? IsAny<InferSchemaType<NonNullable<TInput>>> extends true
@@ -1048,7 +1048,7 @@ type DistributedToolCallStart<
 type DistributedToolCallEnd<TTools extends ReadonlyArray<Tool<any, any, any>>> =
   TTools[number] extends infer T
     ? T extends Tool<any, any, infer TName>
-      ? ToolCallEndEvent<TName, SafeToolInput<T & Tool<any, any, any>>>
+      ? ToolCallEndEvent<TName, SafeToolInput<T>>
       : never
     : never
 
@@ -1058,7 +1058,7 @@ type DistributedToolCallEnd<TTools extends ReadonlyArray<Tool<any, any, any>>> =
  * When specific tool types are provided (e.g. from `chat({ tools: [myTool] })`):
  * - `TOOL_CALL_START` and `TOOL_CALL_END` events form a **discriminated union**
  *   over tool names — checking `toolName === 'x'` narrows `input` to that tool's type.
- * - `TOOL_CALL_END` events have `input` typed per-tool via Zod schema inference.
+ * - `TOOL_CALL_END` events have `input` typed per-tool via Standard Schema inference.
  *
  * When tools are untyped or absent, degrades to the same type as `StreamChunk`.
  */

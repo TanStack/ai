@@ -105,7 +105,7 @@ const stream = chat({
 for await (const chunk of stream) {
   if (chunk.type === "TOOL_CALL_END") {
     chunk.toolName; // ✅ typed as "get_weather" (not string)
-    chunk.input;    // ✅ typed as { location: string; unit?: "celsius" | "fahrenheit" }
+    chunk.input;    // ✅ typed as { location: string; unit?: "celsius" | "fahrenheit" } | undefined
   }
 }
 ```

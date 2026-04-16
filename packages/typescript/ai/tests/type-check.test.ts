@@ -311,8 +311,7 @@ describe('TypedStreamChunk tool call type safety', () => {
       }>()
 
       type SearchEnd = Extract<End, { toolName: 'search' }>
-      // searchClientTool doesn't have a Zod inputSchema on the client variant,
-      // so its input should be narrowed per-tool (query: string from the base def)
+      // .client() preserves the original inputSchema type from the base definition
       expectTypeOf<Exclude<SearchEnd['input'], undefined>>().toEqualTypeOf<{
         query: string
       }>()
@@ -344,6 +343,42 @@ describe('TypedStreamChunk tool call type safety', () => {
       expectTypeOf<E['start']['toolName']>().toEqualTypeOf<
         'get_weather' | 'search'
       >()
+    })
+
+    it('should narrow input through chat() with server/client tools', () => {
+      const stream = chat({
+        adapter: mockAdapter,
+        messages: [],
+        tools: [weatherServerTool, searchClientTool],
+      })
+      type Chunk = ChunkOf<typeof stream>
+      type End = Extract<Chunk, { type: 'TOOL_CALL_END' }>
+
+      type WeatherEnd = Extract<End, { toolName: 'get_weather' }>
+      expectTypeOf<Exclude<WeatherEnd['input'], undefined>>().toEqualTypeOf<{
+        location: string
+        unit?: 'celsius' | 'fahrenheit'
+      }>()
+
+      type SearchEnd = Extract<End, { toolName: 'search' }>
+      expectTypeOf<Exclude<SearchEnd['input'], undefined>>().toEqualTypeOf<{
+        query: string
+      }>()
+    })
+  })
+
+  describe('mixed schema types', () => {
+    it('should narrow per-tool when mixing Zod and JSON Schema tools', () => {
+      type Chunk = TypedStreamChunk<[typeof searchTool, typeof jsonSchemaTool]>
+      type End = Extract<Chunk, { type: 'TOOL_CALL_END' }>
+
+      type SearchEnd = Extract<End, { toolName: 'search' }>
+      expectTypeOf<Exclude<SearchEnd['input'], undefined>>().toEqualTypeOf<{
+        query: string
+      }>()
+
+      type JsonEnd = Extract<End, { toolName: 'json_tool' }>
+      expectTypeOf<Exclude<JsonEnd['input'], undefined>>().toBeUnknown()
     })
   })
 

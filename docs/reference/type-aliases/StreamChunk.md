@@ -20,13 +20,13 @@ Uses the AG-UI protocol event format.
 type TypedStreamChunk<TTools extends ReadonlyArray<Tool<any, any, any>> = ReadonlyArray<Tool<any, any, any>>>
 ```
 
-Defined in: [types.ts:1066](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1066)
+Defined in: [types.ts:1065](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1065)
 
 A variant of `StreamChunk` parameterized by the tools array. When specific tool types are provided (e.g. from `chat({ tools: [myTool] })`):
 
 - `TOOL_CALL_START` and `TOOL_CALL_END` events form a **discriminated union** over tool names.
 - Checking `toolName === 'x'` narrows `input` to that specific tool's input type.
-- `TOOL_CALL_END` events have `input` typed per-tool via Zod schema inference.
+- `TOOL_CALL_END` events have `input` typed per-tool via Standard Schema inference.
 
 When tools are untyped or absent, `TypedStreamChunk` degrades to the same type as `StreamChunk`.
 
