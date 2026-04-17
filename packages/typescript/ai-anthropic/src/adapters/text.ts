@@ -15,6 +15,7 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   Base64ImageSource,
   Base64PDFSource,
@@ -118,9 +119,14 @@ export class AnthropicTextAdapter<
   async *chatStream(
     options: TextOptions<AnthropicTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
+    const { logger } = options
     try {
       const requestParams = this.mapCommonOptionsToAnthropic(options)
 
+      logger.request(
+        `activity=chat provider=anthropic model=${this.model} messages=${options.messages?.length ?? 0} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'anthropic', model: this.model },
+      )
       const stream = await this.client.beta.messages.create(
         { ...requestParams, stream: true },
         {
@@ -129,11 +135,18 @@ export class AnthropicTextAdapter<
         },
       )
 
-      yield* this.processAnthropicStream(stream, options.model, () =>
-        generateId(this.name),
+      yield* this.processAnthropicStream(
+        stream,
+        options.model,
+        () => generateId(this.name),
+        logger,
       )
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
+      logger.errors('anthropic.chatStream fatal', {
+        error,
+        source: 'anthropic.chatStream',
+      })
       yield {
         type: 'RUN_ERROR',
         model: options.model,
@@ -156,6 +169,7 @@ export class AnthropicTextAdapter<
     options: StructuredOutputOptions<AnthropicTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
+    const { logger } = chatOptions
 
     const requestParams = this.mapCommonOptionsToAnthropic(chatOptions)
 
@@ -173,6 +187,10 @@ export class AnthropicTextAdapter<
     }
 
     try {
+      logger.request(
+        `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages?.length ?? 0} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'anthropic', model: this.model },
+      )
       // Make non-streaming request with tool_choice forced to our structured output tool
       const response = await this.client.messages.create(
         {
@@ -224,6 +242,10 @@ export class AnthropicTextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error
+      logger.errors('anthropic.structuredOutput fatal', {
+        error,
+        source: 'anthropic.structuredOutput',
+      })
       throw new Error(
         `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
       )
@@ -525,6 +547,7 @@ export class AnthropicTextAdapter<
     stream: AsyncIterable<Anthropic_SDK.Beta.BetaRawMessageStreamEvent>,
     model: string,
     genId: () => string,
+    logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     let accumulatedThinking = ''
@@ -547,6 +570,10 @@ export class AnthropicTextAdapter<
 
     try {
       for await (const event of stream) {
+        logger.provider(
+          `provider=anthropic type=${event.type ?? '<unknown>'}`,
+          { event },
+        )
         // Emit RUN_STARTED on first event
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
@@ -764,6 +791,10 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
 
+      logger.errors('anthropic.processAnthropicStream fatal', {
+        error,
+        source: 'anthropic.processAnthropicStream',
+      })
       yield {
         type: 'RUN_ERROR',
         runId,
