@@ -1094,7 +1094,14 @@ class TextEngine<
     const chunks: Array<StreamChunk> = []
 
     for (const result of results) {
-      const content = JSON.stringify(result.result)
+      const fullContent = JSON.stringify(result.result)
+
+      // Apply clientOutput filter if the tool defines one
+      const tool = this.tools.find((t) => t.name === result.toolName)
+      const clientContent =
+        tool?.clientOutput && result.state !== 'output-error'
+          ? JSON.stringify(tool.clientOutput(result.result))
+          : fullContent
 
       // Emit TOOL_CALL_START + TOOL_CALL_ARGS before TOOL_CALL_END so that
       // the client can reconstruct the full tool call during continuations.
@@ -1124,14 +1131,14 @@ class TextEngine<
         model: finishEvent.model,
         toolCallId: result.toolCallId,
         toolName: result.toolName,
-        result: content,
+        result: clientContent,
       })
 
       this.messages = [
         ...this.messages,
         {
           role: 'tool',
-          content,
+          content: fullContent,
           toolCallId: result.toolCallId,
         },
       ]

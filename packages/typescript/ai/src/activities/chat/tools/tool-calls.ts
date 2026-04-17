@@ -168,6 +168,7 @@ export class ToolCallManager {
       const tool = this.tools.find((t) => t.name === toolCall.function.name)
 
       let toolResultContent: string
+      let clientResultContent: string | undefined
       if (tool?.execute) {
         try {
           // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
@@ -222,6 +223,13 @@ export class ToolCallManager {
 
           toolResultContent =
             typeof result === 'string' ? result : JSON.stringify(result)
+
+          // Apply clientOutput filter if the tool defines one
+          if (tool.clientOutput) {
+            const parsed =
+              typeof result === 'string' ? JSON.parse(result) : result
+            clientResultContent = JSON.stringify(tool.clientOutput(parsed))
+          }
         } catch (error: unknown) {
           // If tool execution fails, add error message
           const message =
@@ -240,7 +248,7 @@ export class ToolCallManager {
         toolName: toolCall.function.name,
         model: finishEvent.model,
         timestamp: Date.now(),
-        result: toolResultContent,
+        result: clientResultContent ?? toolResultContent,
       }
 
       // Add tool result message
