@@ -57,6 +57,8 @@ chat({
 
 If you want to see ONLY a specific set of categories, set the rest to `false` explicitly:
 
+// Errors default to true; keep them on unless you really want total silence.
+
 ```typescript
 chat({
   adapter: openaiText("gpt-4o"),
@@ -68,7 +70,7 @@ chat({
     tools: false,
     agentLoop: false,
     config: false,
-    errors: false,
+    errors: true,         // keep errors on — they're cheap and important
     request: false,
   },
 });

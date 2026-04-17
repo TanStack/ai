@@ -229,9 +229,9 @@ async function createElevenLabsConnection(
 
     sendImage(_imageData: string, _mimeType: string) {
       // ElevenLabs does not support direct image input in the conversation API
-      console.warn(
-        'ElevenLabs realtime does not support sending images directly.',
-      )
+      logger.errors('elevenlabs.realtime sendImage not supported', {
+        source: 'elevenlabs.realtime',
+      })
     },
 
     sendToolResult(_callId: string, _result: string) {
@@ -241,9 +241,9 @@ async function createElevenLabsConnection(
 
     updateSession(_config: Partial<RealtimeSessionConfig>) {
       // ElevenLabs session config is set at creation time
-      console.warn(
-        'ElevenLabs does not support runtime session updates. Configure at connection time.',
-      )
+      logger.errors('elevenlabs.realtime updateSession not supported', {
+        source: 'elevenlabs.realtime',
+      })
     },
 
     interrupt() {

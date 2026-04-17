@@ -141,7 +141,6 @@ async function createWebRTCConnection(
         error: e,
         source: 'openai.realtime',
       })
-      console.error('Failed to parse realtime event:', e)
     }
   }
 
@@ -308,10 +307,10 @@ async function createWebRTCConnection(
         const name = event.name as string
         const args = event.arguments as string
         if (!callId) {
-          console.warn(
-            '[openaiRealtime] function_call_arguments.done missing call_id/item_id',
+          logger.errors('openai.realtime function_call_arguments.done missing ids', {
             event,
-          )
+            source: 'openai.realtime',
+          })
           break
         }
         try {
@@ -389,7 +388,10 @@ async function createWebRTCConnection(
     audioElement.autoplay = true
     // Some browsers require this for autoplay
     audioElement.play().catch((e) => {
-      console.warn('Audio autoplay failed:', e)
+      logger.errors('openai.realtime audio autoplay failed', {
+        error: e,
+        source: 'openai.realtime',
+      })
     })
 
     // Set up AudioContext for visualization only (not playback)
