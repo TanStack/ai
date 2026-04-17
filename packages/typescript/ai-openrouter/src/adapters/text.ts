@@ -1,5 +1,6 @@
 import { OpenRouter } from '@openrouter/sdk'
 import { RequestAbortedError } from '@openrouter/sdk/models/errors'
+import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools'
 import {
@@ -208,6 +209,14 @@ export class OpenRouterTextAdapter<
 
     const requestParams = this.mapTextOptionsToSDK(chatOptions)
 
+    // OpenRouter uses OpenAI-style strict JSON schema. Upstream providers
+    // (OpenAI especially) reject schemas that aren't strict-compatible — all
+    // properties required, additionalProperties: false, optional fields
+    // nullable. Apply that transformation before sending.
+    const strictSchema = convertSchemaToJsonSchema(outputSchema, {
+      forStructuredOutput: true,
+    })
+
     try {
       const result = await this.client.chat.send(
         {
@@ -218,7 +227,7 @@ export class OpenRouterTextAdapter<
               type: 'json_schema',
               jsonSchema: {
                 name: 'structured_output',
-                schema: outputSchema,
+                schema: strictSchema,
                 strict: true,
               },
             },

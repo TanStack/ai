@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
+import { ChatRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterText } from '../src/adapters/text'
 import type { OpenRouterTextModelOptions } from '../src/adapters/text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
-import { ChatRequest$outboundSchema } from '@openrouter/sdk/models'
 // Declare mockSend at module level
 let mockSend: any
 
@@ -902,20 +902,144 @@ describe('OpenRouter structured output', () => {
     expect(result.data).toEqual({ name: 'Alice', age: 30 })
     expect(result.rawText).toBe('{"name":"Alice","age":30}')
 
-    // Verify SDK was called with responseFormat, not tools
+    // Verify SDK was called with responseFormat, not tools. The schema is
+    // transformed to be OpenAI-strict compatible before being sent:
+    // additionalProperties defaults to false even if the caller didn't set it.
     const [rawParams] = mockSend.mock.calls[0]!
     const params = rawParams.chatRequest
     expect(params.responseFormat).toEqual({
       type: 'json_schema',
       jsonSchema: {
         name: 'structured_output',
-        schema: outputSchema,
+        schema: {
+          ...outputSchema,
+          additionalProperties: false,
+        },
         strict: true,
       },
     })
     expect(params.tools).toBeUndefined()
     expect(params.toolChoice).toBeUndefined()
     expect(params.stream).toBe(false)
+  })
+
+  it('makes schema OpenAI-strict compatible before sending', async () => {
+    // Regression: upstream providers (OpenAI) reject json_schema requests with
+    // strict: true unless every object sets additionalProperties: false and
+    // lists every property in required. Prior to the fix, the adapter forwarded
+    // the schema unchanged and OpenRouter returned "Provider returned error".
+    const nonStreamResponse = {
+      choices: [
+        {
+          message: { content: '{"title":"x","tags":["a"]}' },
+        },
+      ],
+    }
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    const outputSchema = {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        description: { type: 'string' },
+        tags: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              weight: { type: 'number' },
+            },
+            required: ['name'],
+          },
+        },
+      },
+      required: ['title'],
+    }
+
+    await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Generate' }],
+      },
+      outputSchema,
+    })
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const sentSchema = rawParams.chatRequest.responseFormat.jsonSchema.schema
+
+    // Root object: all props required, additionalProperties: false
+    expect(sentSchema.additionalProperties).toBe(false)
+    expect(sentSchema.required).toEqual(['title', 'description', 'tags'])
+    // Optional field is made nullable
+    expect(sentSchema.properties.description.type).toEqual(['string', 'null'])
+    // Nested array items: same transformation applied recursively
+    expect(sentSchema.properties.tags.items.additionalProperties).toBe(false)
+    expect(sentSchema.properties.tags.items.required).toEqual([
+      'name',
+      'weight',
+    ])
+    expect(sentSchema.properties.tags.items.properties.weight.type).toEqual([
+      'number',
+      'null',
+    ])
+  })
+
+  it('flows through core chat() entrypoint with strict transformation', async () => {
+    // End-to-end via chat(): schema converted by the core, then made
+    // strict-compatible by the adapter before the SDK call.
+    const outputSchema = {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        age: { type: 'number' },
+        nickname: { type: 'string' },
+      },
+      // nickname is intentionally optional — it should be made nullable and
+      // added to required[] by the adapter's strict transformation.
+      required: ['name', 'age'],
+    }
+
+    const nonStreamResponse = {
+      choices: [
+        { message: { content: '{"name":"Alice","age":30,"nickname":null}' } },
+      ],
+    }
+
+    setupMockSdkClient(
+      [
+        // The agentic loop runs one streaming pass before the structured
+        // output call — provide a trivial stream that terminates immediately.
+        {
+          id: 'c1',
+          model: 'openai/gpt-4o-mini',
+          choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+        },
+      ],
+      nonStreamResponse,
+    )
+    const adapter = createAdapter()
+
+    const result = await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Give me a person' }],
+      outputSchema,
+    })
+
+    expect(result).toEqual({ name: 'Alice', age: 30, nickname: null })
+
+    // Find the non-streaming call (the structured output request).
+    const structuredCall = mockSend.mock.calls.find(
+      ([args]: Array<any>) => args.chatRequest.stream === false,
+    )
+    expect(structuredCall).toBeDefined()
+    const sentSchema =
+      structuredCall[0].chatRequest.responseFormat.jsonSchema.schema
+
+    expect(sentSchema.additionalProperties).toBe(false)
+    expect(sentSchema.required).toEqual(['name', 'age', 'nickname'])
+    expect(sentSchema.properties.nickname.type).toEqual(['string', 'null'])
   })
 
   it('parses JSON response content correctly', async () => {
