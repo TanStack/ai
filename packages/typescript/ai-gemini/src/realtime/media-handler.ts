@@ -28,8 +28,6 @@ class PCMProcessor extends AudioWorkletProcessor {
 
 registerProcessor("pcm-processor", PCMProcessor);
 `
-const workletBlob = new Blob([workletCode], { type: 'application/javascript' })
-const workletUrl = URL.createObjectURL(workletBlob)
 
 export class MediaHandler {
 
@@ -54,10 +52,17 @@ export class MediaHandler {
 
   public isRecording = false
 
+  private workletUrl: string | null = null
+
+  constructor() {
+    const workletBlob = new Blob([workletCode], { type: 'application/javascript' })
+    this.workletUrl = URL.createObjectURL(workletBlob)
+  }
+
   async initializeAudio() {
     if (!this.audioContext) {
       this.audioContext = new AudioContext()
-      await this.audioContext.audioWorklet.addModule(workletUrl)
+      await this.audioContext.audioWorklet.addModule(this.workletUrl!)
     }
 
     if (this.audioContext.state === 'suspended') {
@@ -220,21 +225,7 @@ export class MediaHandler {
     }
   }
 
-  /**
-   * Returns the current input (microphone) audio level as a normalized value [0, 1].
-   */
-  getInputLevel(): number {
-    if (!this.inputAnalyser) return 0
 
-    const data = new Uint8Array(this.inputAnalyser.frequencyBinCount)
-    this.inputAnalyser.getByteFrequencyData(data)
-
-    let sum = 0
-    for (const i of data) {
-      sum += i
-    }
-    return sum / (data.length * 255)
-  }
 
   // Helper to calculate audio level from time domain data
   // Uses peak amplitude which is more responsive for voice audio meters
@@ -340,5 +331,9 @@ export class MediaHandler {
       bytes[i] = binaryString.charCodeAt(i);
     }
     return bytes.buffer;
+  }
+
+  convertArrayBufferToBase64(arrayBuffer: ArrayBuffer): string {
+    return btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
   }
 }

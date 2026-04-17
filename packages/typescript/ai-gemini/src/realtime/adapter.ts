@@ -154,12 +154,11 @@ async function createWebSocketConnection(
         }
 
         // Handle token usage
-        const { totalTokenCount, promptTokenCount, responseTokenCount, responseTokensDetails } = response.usageMetadata ?? {}
-        if (totalTokenCount && promptTokenCount && responseTokenCount) {
+        if (response.usageMetadata) {
           emit("usage", {
-            completionTokens: responseTokenCount,
-            promptTokens: promptTokenCount,
-            totalTokens: totalTokenCount,
+            completionTokens: response.usageMetadata.responseTokenCount ?? 0,
+            promptTokens: response.usageMetadata.promptTokenCount ?? 0,
+            totalTokens: response.usageMetadata.totalTokenCount ?? 0,
           })
         }
 
@@ -234,7 +233,7 @@ async function createWebSocketConnection(
           currentMode = 'listening'
           emit('mode_change', { mode: 'listening' })
 
-          if (response.serverContent.modelTurn?.role == 'model') {
+          if (response.serverContent.modelTurn?.role === 'model') {
             currentMessageId = generateMessageId()
             const message: RealtimeMessage = {
               id: currentMessageId,
@@ -268,16 +267,17 @@ async function createWebSocketConnection(
   });
 
   // Request microphone access
-  mediaHandler.startAudio((data) => {
+  await mediaHandler.startAudio((data) => {
     session.sendRealtimeInput({
       audio: {
-        data: Buffer.from(data).toString("base64"),
+        data: mediaHandler.convertArrayBufferToBase64(data),
         mimeType: 'audio/pcm;rate=16000'
       }
     })
   })
 
   await mediaHandler.setupInputAudioAnalysis()
+  await mediaHandler.setupOutputAudioAnalysis()
 
   const connection: RealtimeConnection = {
     async disconnect() {
@@ -324,12 +324,12 @@ async function createWebSocketConnection(
 
     sendToolResult(callId: string, result: string) {
       session.sendToolResponse({
-        functionResponses: {
+        functionResponses: [{
           id: callId,
           response: {
             result
           }
-        }
+        }]
       })
     },
 
