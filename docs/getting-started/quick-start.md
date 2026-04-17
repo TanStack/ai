@@ -1,10 +1,12 @@
 ---
-title: Quick Start
+title: "Quick Start: React"
 id: quick-start
 order: 2
 ---
 
 Get started with TanStack AI in minutes. This guide will walk you through creating a simple chat application using the React integration and OpenAI adapter.
+
+> **Using a different framework?** See quick-starts for [Vue](./quick-start-vue), [Svelte](./quick-start-svelte), or [server-only Node.js](./quick-start-server).
 
 > **Tip:** If you'd prefer not to sign up with individual AI providers, [OpenRouter](../adapters/openrouter) gives you access to 300+ models with a single API key and is the easiest way to get started.
 
@@ -260,6 +262,6 @@ chat({
 
 ## Next Steps
 
-- Learn about [Tools](../guides/tools) to add function calling
-- Check out [Client Tools](../guides/client-tools) for frontend operations
+- Learn about [Tools](../tools/tools) to add function calling
+- Check out [Client Tools](../tools/client-tools) for frontend operations
 - See the [API Reference](../api/ai) for more options

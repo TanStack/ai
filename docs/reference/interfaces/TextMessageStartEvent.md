@@ -5,7 +5,7 @@ title: TextMessageStartEvent
 
 # Interface: TextMessageStartEvent
 
-Defined in: [types.ts:805](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L805)
+Defined in: [types.ts:811](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L811)
 
 Emitted when a text message starts.
 
@@ -21,7 +21,7 @@ Emitted when a text message starts.
 messageId: string;
 ```
 
-Defined in: [types.ts:808](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L808)
+Defined in: [types.ts:814](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L814)
 
 Unique identifier for this message
 
@@ -33,7 +33,7 @@ Unique identifier for this message
 optional model: string;
 ```
 
-Defined in: [types.ts:750](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L750)
+Defined in: [types.ts:756](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L756)
 
 Model identifier for multi-model support
 
@@ -49,7 +49,7 @@ Model identifier for multi-model support
 optional rawEvent: unknown;
 ```
 
-Defined in: [types.ts:752](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L752)
+Defined in: [types.ts:758](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L758)
 
 Original provider event for debugging/advanced use cases
 
@@ -62,12 +62,12 @@ Original provider event for debugging/advanced use cases
 ### role
 
 ```ts
-role: "assistant";
+role: "user" | "assistant" | "tool" | "system";
 ```
 
-Defined in: [types.ts:810](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L810)
+Defined in: [types.ts:816](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L816)
 
-Role is always assistant for generated messages
+Role of the message sender
 
 ***
 
@@ -77,7 +77,7 @@ Role is always assistant for generated messages
 timestamp: number;
 ```
 
-Defined in: [types.ts:748](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L748)
+Defined in: [types.ts:754](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L754)
 
 #### Inherited from
 
@@ -91,7 +91,7 @@ Defined in: [types.ts:748](https://github.com/TanStack/ai/blob/main/packages/typ
 type: "TEXT_MESSAGE_START";
 ```
 
-Defined in: [types.ts:806](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L806)
+Defined in: [types.ts:812](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L812)
 
 #### Overrides
 

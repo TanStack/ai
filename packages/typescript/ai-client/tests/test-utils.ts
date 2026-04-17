@@ -1,4 +1,4 @@
-import type { ConnectionAdapter } from '../src/connection-adapters'
+import type { ConnectConnectionAdapter } from '../src/connection-adapters'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '../src/types'
 /**
@@ -55,7 +55,7 @@ interface MockConnectionAdapterOptions {
  */
 export function createMockConnectionAdapter(
   options: MockConnectionAdapterOptions = {},
-): ConnectionAdapter {
+): ConnectConnectionAdapter {
   const {
     chunks = [],
     chunkDelay = 0,

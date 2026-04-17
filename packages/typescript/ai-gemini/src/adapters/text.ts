@@ -198,7 +198,13 @@ export class GeminiTextAdapter<
     let accumulatedThinking = ''
     const toolCallMap = new Map<
       string,
-      { name: string; args: string; index: number; started: boolean }
+      {
+        name: string
+        args: string
+        index: number
+        started: boolean
+        thoughtSignature?: string
+      }
     >()
     let nextToolIndex = 0
 
@@ -293,6 +299,8 @@ export class GeminiTextAdapter<
                     : JSON.stringify(functionArgs),
                 index: nextToolIndex++,
                 started: false,
+                thoughtSignature:
+                  (functionCall as any).thoughtSignature || undefined,
               }
               toolCallMap.set(toolCallId, toolCallData)
             } else {
@@ -322,6 +330,11 @@ export class GeminiTextAdapter<
                 model,
                 timestamp,
                 index: toolCallData.index,
+                ...(toolCallData.thoughtSignature && {
+                  providerMetadata: {
+                    thoughtSignature: toolCallData.thoughtSignature,
+                  },
+                }),
               }
             }
 
@@ -399,10 +412,12 @@ export class GeminiTextAdapter<
                 // Emit TOOL_CALL_END with parsed input
                 let parsedInput: unknown = {}
                 try {
-                  parsedInput =
+                  const parsed =
                     typeof functionArgs === 'string'
                       ? JSON.parse(functionArgs)
                       : functionArgs
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
                 } catch {
                   parsedInput = {}
                 }
@@ -424,7 +439,8 @@ export class GeminiTextAdapter<
         for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
           let parsedInput: unknown = {}
           try {
-            parsedInput = JSON.parse(toolCallData.args)
+            const parsed = JSON.parse(toolCallData.args)
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = {}
           }
@@ -530,6 +546,17 @@ export class GeminiTextAdapter<
   private formatMessages(
     messages: Array<ModelMessage>,
   ): GenerateContentParameters['contents'] {
+    // Build a lookup from toolCallId → function name so functionResponse uses the
+    // correct name instead of the raw call ID.
+    const toolCallIdToName = new Map<string, string>()
+    for (const msg of messages) {
+      if (msg.role === 'assistant' && msg.toolCalls) {
+        for (const tc of msg.toolCalls) {
+          toolCallIdToName.set(tc.id, tc.function.name)
+        }
+      }
+    }
+
     const formatted = messages.map((msg) => {
       const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
       const parts: Array<Part> = []
@@ -538,7 +565,7 @@ export class GeminiTextAdapter<
         for (const contentPart of msg.content) {
           parts.push(this.convertContentPartToGemini(contentPart))
         }
-      } else if (msg.content) {
+      } else if (msg.content && msg.role !== 'tool') {
         parts.push({ text: msg.content })
       }
 
@@ -559,23 +586,30 @@ export class GeminiTextAdapter<
             >
           }
 
+          const thoughtSignature = toolCall.providerMetadata
+            ?.thoughtSignature as string | undefined
           parts.push({
             functionCall: {
+              id: toolCall.id,
               name: toolCall.function.name,
               args: parsedArgs,
-            },
+              ...(thoughtSignature && { thoughtSignature }),
+            } as any,
           })
         }
       }
 
       if (msg.role === 'tool' && msg.toolCallId) {
+        const functionName =
+          toolCallIdToName.get(msg.toolCallId) || msg.toolCallId
         parts.push({
           functionResponse: {
-            name: msg.toolCallId,
+            id: msg.toolCallId,
+            name: functionName,
             response: {
               content: msg.content || '',
             },
-          },
+          } as any,
         })
       }
 

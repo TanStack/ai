@@ -91,6 +91,8 @@ export interface ToolCall {
     name: string
     arguments: string // JSON string
   }
+  /** Provider-specific metadata to carry through the tool call lifecycle */
+  providerMetadata?: Record<string, unknown>
 }
 
 // ============================================================================
@@ -493,6 +495,9 @@ export interface Tool<
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
 
+  /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat(). */
+  lazy?: boolean
+
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any>
 }
@@ -730,6 +735,7 @@ export type AGUIEventType =
   | 'TOOL_CALL_END'
   | 'STEP_STARTED'
   | 'STEP_FINISHED'
+  | 'MESSAGES_SNAPSHOT'
   | 'STATE_SNAPSHOT'
   | 'STATE_DELTA'
   | 'CUSTOM'
@@ -806,8 +812,8 @@ export interface TextMessageStartEvent extends BaseAGUIEvent {
   type: 'TEXT_MESSAGE_START'
   /** Unique identifier for this message */
   messageId: string
-  /** Role is always assistant for generated messages */
-  role: 'assistant'
+  /** Role of the message sender */
+  role: 'user' | 'assistant' | 'system' | 'tool'
 }
 
 /**
@@ -841,8 +847,12 @@ export interface ToolCallStartEvent extends BaseAGUIEvent {
   toolCallId: string
   /** Name of the tool being called */
   toolName: string
+  /** ID of the parent message that initiated this tool call */
+  parentMessageId?: string
   /** Index for parallel tool calls */
   index?: number
+  /** Provider-specific metadata to carry into the ToolCall */
+  providerMetadata?: Record<string, unknown>
 }
 
 /**
@@ -898,6 +908,19 @@ export interface StepFinishedEvent extends BaseAGUIEvent {
 }
 
 /**
+ * Emitted to provide a snapshot of all messages in a conversation.
+ *
+ * Unlike StateSnapshot (which carries arbitrary application state),
+ * MessagesSnapshot specifically delivers the conversation transcript.
+ * This is a first-class AG-UI event type.
+ */
+export interface MessagesSnapshotEvent extends BaseAGUIEvent {
+  type: 'MESSAGES_SNAPSHOT'
+  /** Complete array of messages in the conversation */
+  messages: Array<UIMessage>
+}
+
+/**
  * Emitted to provide a full state snapshot.
  */
 export interface StateSnapshotEvent extends BaseAGUIEvent {
@@ -941,6 +964,7 @@ export type AGUIEvent =
   | ToolCallEndEvent
   | StepStartedEvent
   | StepFinishedEvent
+  | MessagesSnapshotEvent
   | StateSnapshotEvent
   | StateDeltaEvent
   | CustomEvent

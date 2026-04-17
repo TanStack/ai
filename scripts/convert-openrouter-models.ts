@@ -40,32 +40,6 @@ function finalPrice(price: number): number {
   // Round to a reasonable number of decimal places
   return Math.round(result * 1e10) / 1e10
 }
-function snakeToCamel(s: string): string {
-  return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
-}
-
-const API_PARAM_OVERRIDES: Record<string, string> = {
-  max_tokens: 'maxCompletionTokens',
-  structured_outputs: 'responseFormat',
-  reasoning_effort: 'reasoning',
-}
-
-function mapApiParam(p: string): string {
-  return API_PARAM_OVERRIDES[p] ?? snakeToCamel(p)
-}
-
-const SKIPPED_PARAMS = new Set([
-  'tools',
-  'parallel_tool_calls',
-  'top_k',
-  'min_p',
-  'top_a',
-  'repetition_penalty',
-  'include_reasoning',
-  'web_search_options',
-  'verbosity',
-])
-
 const perModelProviderOptions: Record<string, string> = {}
 const perModelInputModalities: Record<string, string> = {}
 
@@ -74,9 +48,16 @@ const chatModels = new Set<string>([])
 const videoModels = new Set<string>([])
 
 function generateChatModelsArray(): string {
-  const modelIds = Array.from(chatModels).sort()
+  const modelIds = Array.from(chatModels)
   if (modelIds.length === 0) {
     return ''
+  }
+  if (
+    !modelIds.some(
+      (id) => id.includes('openrouter/auto') || id === 'OPENROUTER_AUTO.id',
+    )
+  ) {
+    modelIds.push(`"openrouter/auto"`)
   }
   return `export const OPENROUTER_CHAT_MODELS = [\n${modelIds
     .map((id) => `  ${id},`)
@@ -84,7 +65,7 @@ function generateChatModelsArray(): string {
 }
 
 function generateImageModelsArray(): string {
-  const modelIds = Array.from(imageModels).sort()
+  const modelIds = Array.from(imageModels)
   if (modelIds.length === 0) {
     return ''
   }
@@ -94,7 +75,7 @@ function generateImageModelsArray(): string {
 }
 
 function generateVideoModelsArray(): string {
-  const modelIds = Array.from(videoModels).sort()
+  const modelIds = Array.from(videoModels)
   if (modelIds.length === 0) {
     return ''
   }
@@ -104,22 +85,39 @@ function generateVideoModelsArray(): string {
 }
 
 function createPerModelModelOptions(): string {
-  const entries = Object.entries(perModelProviderOptions)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([modelId, typeStr]) => `  [${modelId}]: ${typeStr};`)
+  const entries = Object.entries(perModelProviderOptions).map(
+    ([modelId, typeStr]) => `  [${modelId}]: ${typeStr};`,
+  )
+  if (
+    !Object.keys(perModelProviderOptions).some((k) =>
+      k.includes('OPENROUTER_AUTO'),
+    )
+  ) {
+    entries.push(
+      `  "openrouter/auto": OpenRouterCommonOptions & OpenRouterBaseOptions;`,
+    )
+  }
+
   return `\nexport type OpenRouterModelOptionsByName  = {\n${entries.join(
     '\n',
   )}\n}`
 }
 
 function createPerModelInputModalities(): string {
-  const entries = Object.entries(perModelInputModalities)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(
-      ([modelId, modalitiesStr]) =>
-        `  [${modelId}]: ReadonlyArray<${modalitiesStr}>;`,
-    )
+  const entries = Object.entries(perModelInputModalities).map(
+    ([modelId, modalitiesStr]) =>
+      `  [${modelId}]: ReadonlyArray<${modalitiesStr}>;`,
+  )
 
+  if (
+    !Object.keys(perModelInputModalities).some((k) =>
+      k.includes('OPENROUTER_AUTO'),
+    )
+  ) {
+    entries.push(
+      `  "openrouter/auto": ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>;`,
+    )
+  }
   return `\nexport type OpenRouterModelInputModalitiesByName  = {\n${entries.join(
     '\n',
   )}\n}`
@@ -142,7 +140,11 @@ function generateModelMetaString(model: OpenRouterModel): string {
   if (!inputModalities.includes('text')) {
     inputModalities.unshift('text')
   }
-  if (outputModalities.includes('text')) {
+  const nonChatFamilies = ['lyria', 'veo', 'imagen', 'sora', 'dall-e', 'tts']
+  const isNonChat = nonChatFamilies.some((f) =>
+    model.id.toLowerCase().includes(f),
+  )
+  if (outputModalities.includes('text') && !isNonChat) {
     chatModels.add(`${constName}.id`)
   }
   if (outputModalities.includes('image')) {
@@ -161,6 +163,30 @@ function generateModelMetaString(model: OpenRouterModel): string {
     model.pricing.input_cache_write ?? '0',
   )
 
+  const paramNameMap: Record<string, string> = {
+    max_tokens: 'maxCompletionTokens',
+    frequency_penalty: 'frequencyPenalty',
+    presence_penalty: 'presencePenalty',
+    repetition_penalty: 'repetitionPenalty',
+    logit_bias: 'logitBias',
+    top_logprobs: 'topLogprobs',
+    top_k: 'topK',
+    top_p: 'topP',
+    top_a: 'topA',
+    min_p: 'minP',
+    response_format: 'responseFormat',
+    tool_choice: 'toolChoice',
+    include_reasoning: 'includeReasoning',
+    max_completion_tokens: 'maxCompletionTokens',
+    web_search_options: 'webSearchOptions',
+    parallel_tool_calls: 'parallelToolCalls',
+  }
+  const excludedParams = new Set([
+    'tools',
+    'reasoning_effort',
+    'structured_outputs',
+  ])
+
   // Build the object as a formatted string
   const lines: Array<string> = []
   lines.push(`const ${constName} =  {`)
@@ -174,7 +200,12 @@ function generateModelMetaString(model: OpenRouterModel): string {
     `      output: [${outputModalities.map((m) => `'${m}'`).join(', ')}],`,
   )
   lines.push(
-    `      supports: [${model.supported_parameters?.map((p) => `'${p}'`).join(', ') || ''}],`,
+    `      supports: [${
+      model.supported_parameters
+        ?.filter((p) => !excludedParams.has(p))
+        .map((p) => `'${paramNameMap[p] ?? p}'`)
+        .join(', ') || ''
+    }],`,
   )
   lines.push(`    },`)
 
@@ -204,8 +235,12 @@ function generateModelMetaString(model: OpenRouterModel): string {
 
   const supportedParams =
     model.supported_parameters
-      ?.filter((p) => !SKIPPED_PARAMS.has(p))
-      .map((p) => `'${mapApiParam(p)}'`) ?? []
+      ?.map((p) => {
+        if (excludedParams.has(p)) return ''
+        const mapped = paramNameMap[p] ?? p
+        return `'${mapped}'`
+      })
+      .filter(Boolean) ?? []
   perModelProviderOptions[`${constName}.id`] =
     supportedParams.length > 0
       ? `OpenRouterCommonOptions & Pick<OpenRouterBaseOptions,${
@@ -218,9 +253,8 @@ function generateModelMetaString(model: OpenRouterModel): string {
   return lines.join('\n')
 }
 
-function convertModels(modelsInput: Array<OpenRouterModel>): string {
-  const sorted = [...modelsInput].sort((a, b) => a.id.localeCompare(b.id))
-  const modelStrings = sorted.map(generateModelMetaString)
+function convertModels(models: Array<OpenRouterModel>): string {
+  const modelStrings = models.map(generateModelMetaString)
   return modelStrings.join('\n')
 }
 

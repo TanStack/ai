@@ -1,5 +1,144 @@
 # ts-vue-chat
 
+## 0.1.31
+
+### Patch Changes
+
+- Updated dependencies [[`4990150`](https://github.com/TanStack/ai/commit/4990150957bfba72663b6a76f8057f2605e4ac62)]:
+  - @tanstack/ai-gemini@0.8.7
+
+## 0.1.30
+
+### Patch Changes
+
+- Updated dependencies [[`4445410`](https://github.com/TanStack/ai/commit/44454100e5825f948bab0ce52c57c80d70c0ebe7)]:
+  - @tanstack/ai@0.10.2
+  - @tanstack/ai-anthropic@0.7.3
+  - @tanstack/ai-client@0.7.9
+  - @tanstack/ai-gemini@0.8.6
+  - @tanstack/ai-ollama@0.6.5
+  - @tanstack/ai-openai@0.7.4
+  - @tanstack/ai-vue@0.6.14
+  - @tanstack/ai-vue-ui@0.1.25
+
+## 0.1.29
+
+### Patch Changes
+
+- Updated dependencies [[`1bdd07c`](https://github.com/TanStack/ai/commit/1bdd07c941859da4a2848a486a18dd3057a605a6), [`ca1ca44`](https://github.com/TanStack/ai/commit/ca1ca44866030a06599133f64c699c4f2f42353c)]:
+  - @tanstack/ai-anthropic@0.7.3
+  - @tanstack/ai-gemini@0.8.6
+  - @tanstack/ai-openai@0.7.4
+  - @tanstack/ai-ollama@0.6.5
+
+## 0.1.28
+
+### Patch Changes
+
+- Updated dependencies [[`1d1c58f`](https://github.com/TanStack/ai/commit/1d1c58f33188ff98893edb626efd66ac73b8eadb)]:
+  - @tanstack/ai@0.10.1
+  - @tanstack/ai-anthropic@0.7.2
+  - @tanstack/ai-client@0.7.8
+  - @tanstack/ai-gemini@0.8.5
+  - @tanstack/ai-ollama@0.6.4
+  - @tanstack/ai-openai@0.7.3
+  - @tanstack/ai-vue@0.6.13
+  - @tanstack/ai-vue-ui@0.1.24
+
+## 0.1.27
+
+### Patch Changes
+
+- Updated dependencies [[`54abae0`](https://github.com/TanStack/ai/commit/54abae063c91b8b04b91ecb2c6785f5ff9168a7c)]:
+  - @tanstack/ai@0.10.0
+  - @tanstack/ai-ollama@0.6.4
+  - @tanstack/ai-openai@0.7.3
+  - @tanstack/ai-client@0.7.7
+  - @tanstack/ai-anthropic@0.7.2
+  - @tanstack/ai-gemini@0.8.5
+  - @tanstack/ai-vue@0.6.12
+  - @tanstack/ai-vue-ui@0.1.23
+
+## 0.1.26
+
+### Patch Changes
+
+- Updated dependencies [[`c0ae603`](https://github.com/TanStack/ai/commit/c0ae603b4febbfc2d5f549a67e107a4bd0ec09cc)]:
+  - @tanstack/ai-client@0.7.6
+  - @tanstack/ai-openai@0.7.2
+  - @tanstack/ai-vue@0.6.11
+  - @tanstack/ai-vue-ui@0.1.22
+
+## 0.1.25
+
+### Patch Changes
+
+- Updated dependencies [[`26d8243`](https://github.com/TanStack/ai/commit/26d8243bab564a547fed8adb5e129d981ba228ea)]:
+  - @tanstack/ai@0.9.2
+  - @tanstack/ai-anthropic@0.7.1
+  - @tanstack/ai-client@0.7.5
+  - @tanstack/ai-gemini@0.8.4
+  - @tanstack/ai-ollama@0.6.3
+  - @tanstack/ai-openai@0.7.2
+  - @tanstack/ai-vue@0.6.10
+  - @tanstack/ai-vue-ui@0.1.21
+
+## 0.1.24
+
+### Patch Changes
+
+- Updated dependencies [[`b8cc69e`](https://github.com/TanStack/ai/commit/b8cc69e15eda49ce68cc48848284b0d74a55a97c)]:
+  - @tanstack/ai-gemini@0.8.4
+  - @tanstack/ai@0.9.1
+  - @tanstack/ai-anthropic@0.7.1
+  - @tanstack/ai-client@0.7.4
+  - @tanstack/ai-ollama@0.6.3
+  - @tanstack/ai-openai@0.7.2
+  - @tanstack/ai-vue@0.6.9
+  - @tanstack/ai-vue-ui@0.1.20
+
+## 0.1.23
+
+### Patch Changes
+
+- Updated dependencies [[`842e119`](https://github.com/TanStack/ai/commit/842e119a07377307ba0834ccca0e224dcb5c46ea)]:
+  - @tanstack/ai@0.9.0
+  - @tanstack/ai-anthropic@0.7.1
+  - @tanstack/ai-client@0.7.3
+  - @tanstack/ai-gemini@0.8.3
+  - @tanstack/ai-ollama@0.6.3
+  - @tanstack/ai-openai@0.7.2
+  - @tanstack/ai-vue@0.6.8
+  - @tanstack/ai-vue-ui@0.1.19
+
+## 0.1.22
+
+### Patch Changes
+
+- Updated dependencies [[`b7d6194`](https://github.com/TanStack/ai/commit/b7d619470a2d03e8c0ceed0c13be31bab1e68017), [`64b9cba`](https://github.com/TanStack/ai/commit/64b9cba2ebf89162b809ba575c49ef12c0e87ee7), [`dc53e1b`](https://github.com/TanStack/ai/commit/dc53e1b89fddf6fc744e4788731e8ca64ec3d250)]:
+  - @tanstack/ai-anthropic@0.7.0
+  - @tanstack/ai@0.8.1
+  - @tanstack/ai-client@0.7.2
+  - @tanstack/ai-vue@0.6.7
+  - @tanstack/ai-gemini@0.8.2
+  - @tanstack/ai-ollama@0.6.2
+  - @tanstack/ai-openai@0.7.1
+  - @tanstack/ai-vue-ui@0.1.18
+
+## 0.1.21
+
+### Patch Changes
+
+- Updated dependencies [[`f62eeb0`](https://github.com/TanStack/ai/commit/f62eeb0d7efd002894435c7f2c8a9f2790f0b6d7)]:
+  - @tanstack/ai@0.8.0
+  - @tanstack/ai-client@0.7.1
+  - @tanstack/ai-anthropic@0.6.2
+  - @tanstack/ai-gemini@0.8.2
+  - @tanstack/ai-ollama@0.6.2
+  - @tanstack/ai-openai@0.7.1
+  - @tanstack/ai-vue@0.6.6
+  - @tanstack/ai-vue-ui@0.1.17
+
 ## 0.1.20
 
 ### Patch Changes

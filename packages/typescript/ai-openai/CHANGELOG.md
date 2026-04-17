@@ -1,5 +1,42 @@
 # @tanstack/ai-openai
 
+## 0.7.4
+
+### Patch Changes
+
+- Update model metadata from OpenRouter API ([#433](https://github.com/TanStack/ai/pull/433))
+
+## 0.7.3
+
+### Patch Changes
+
+- Add code mode and isolate packages for secure AI code execution ([#362](https://github.com/TanStack/ai/pull/362))
+
+  Also includes fixes for Ollama tool call argument streaming and usage
+  reporting, OpenAI realtime adapter handling of missing call_id/item_id,
+  realtime client guards for missing toolCallId, and new DevtoolsChatMiddleware
+  type export from ai-event-client.
+
+- Updated dependencies [[`54abae0`](https://github.com/TanStack/ai/commit/54abae063c91b8b04b91ecb2c6785f5ff9168a7c)]:
+  - @tanstack/ai@0.10.0
+  - @tanstack/ai-client@0.7.7
+
+## 0.7.2
+
+### Patch Changes
+
+- Updated dependencies [[`842e119`](https://github.com/TanStack/ai/commit/842e119a07377307ba0834ccca0e224dcb5c46ea)]:
+  - @tanstack/ai@0.9.0
+  - @tanstack/ai-client@0.7.3
+
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [[`f62eeb0`](https://github.com/TanStack/ai/commit/f62eeb0d7efd002894435c7f2c8a9f2790f0b6d7)]:
+  - @tanstack/ai@0.8.0
+  - @tanstack/ai-client@0.7.1
+
 ## 0.7.0
 
 ### Minor Changes

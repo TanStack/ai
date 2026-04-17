@@ -1,6 +1,7 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
+import type { OllamaClientConfig } from '../utils/client'
 
 import type {
   OLLAMA_TEXT_MODELS,
@@ -119,12 +120,22 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
   private client: Ollama
 
-  constructor(hostOrClient: string | Ollama | undefined, model: TModel) {
+  constructor(
+    hostOrClientOrConfig: string | Ollama | OllamaClientConfig | undefined,
+    model: TModel,
+  ) {
     super({}, model)
-    if (typeof hostOrClient === 'string' || hostOrClient === undefined) {
-      this.client = createOllamaClient({ host: hostOrClient })
+    if (
+      typeof hostOrClientOrConfig === 'string' ||
+      hostOrClientOrConfig === undefined
+    ) {
+      this.client = createOllamaClient({ host: hostOrClientOrConfig })
+    } else if ('chat' in hostOrClientOrConfig) {
+      // Ollama client instance (has a chat method)
+      this.client = hostOrClientOrConfig
     } else {
-      this.client = hostOrClient
+      // OllamaClientConfig object
+      this.client = createOllamaClient(hostOrClientOrConfig)
     }
   }
 
@@ -231,16 +242,30 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           })
         }
 
-        // Parse input
+        // Serialize arguments to a string for the TOOL_CALL_ARGS event
         let parsedInput: unknown = {}
         const argsStr =
           typeof actualToolCall.function.arguments === 'string'
             ? actualToolCall.function.arguments
             : JSON.stringify(actualToolCall.function.arguments)
         try {
-          parsedInput = JSON.parse(argsStr)
+          const parsed = JSON.parse(argsStr)
+          parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
         } catch {
           parsedInput = actualToolCall.function.arguments
+        }
+
+        // Emit TOOL_CALL_ARGS so the stream processor accumulates the
+        // arguments string (matches OpenAI/Anthropic adapter behavior)
+        if (argsStr) {
+          events.push({
+            type: 'TOOL_CALL_ARGS',
+            toolCallId,
+            model: chunk.model,
+            timestamp,
+            delta: argsStr,
+            args: argsStr,
+          })
         }
 
         // Emit TOOL_CALL_END
@@ -282,6 +307,12 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           model: chunk.model,
           timestamp,
           finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
+          usage: {
+            promptTokens: chunk.prompt_eval_count || 0,
+            completionTokens: chunk.eval_count || 0,
+            totalTokens:
+              (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
+          },
         }
         continue
       }
@@ -457,14 +488,14 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 }
 
 /**
- * Creates an Ollama chat adapter with explicit host.
+ * Creates an Ollama chat adapter with explicit host and optional config.
  * Type resolution happens here at the call site.
  */
 export function createOllamaChat<TModel extends string>(
   model: TModel,
-  host?: string,
+  hostOrConfig?: string | OllamaClientConfig,
 ): OllamaTextAdapter<TModel> {
-  return new OllamaTextAdapter(host, model)
+  return new OllamaTextAdapter(hostOrConfig, model)
 }
 
 /**

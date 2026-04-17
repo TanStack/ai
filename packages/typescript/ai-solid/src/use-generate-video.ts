@@ -7,7 +7,7 @@ import {
 } from 'solid-js'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
-  ConnectionAdapter,
+  ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
   InferGenerationOutput,
@@ -23,13 +23,13 @@ import type { Accessor } from 'solid-js'
  * @template TOutput - The transformed output type (defaults to VideoGenerateResult)
  */
 export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
-  /** Connection adapter for streaming transport (server handles polling) */
-  connection?: ConnectionAdapter
+  /** Connect-based adapter for streaming transport (server handles polling) */
+  connection?: ConnectConnectionAdapter
   /** Direct async function that returns a completed video result */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
   /** Unique identifier for this generation instance */
   id?: string
-  /** Additional body parameters to send with ConnectionAdapter requests */
+  /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /**
    * Callback when video generation completes. Can optionally return a transformed value.
@@ -47,7 +47,7 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   onJobCreated?: (jobId: string) => void
   /** Callback on each status update */
   onStatusUpdate?: (status: VideoStatusInfo) => void
-  /** Callback for each stream chunk (ConnectionAdapter mode only) */
+  /** Callback for each stream chunk (connect-based adapter mode only) */
   onChunk?: (chunk: StreamChunk) => void
 }
 

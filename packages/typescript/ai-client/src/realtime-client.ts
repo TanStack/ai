@@ -410,6 +410,13 @@ export class RealtimeClient {
       this.connection.on(
         'tool_call',
         async ({ toolCallId, toolName, input }) => {
+          if (!toolCallId) {
+            console.error(
+              '[RealtimeClient] tool_call missing toolCallId',
+              toolName,
+            )
+            return
+          }
           const tool = this.clientTools.get(toolName)
           if (tool?.execute) {
             try {
@@ -426,6 +433,13 @@ export class RealtimeClient {
                 JSON.stringify({ error: errMsg }),
               )
             }
+          } else {
+            this.connection?.sendToolResult(
+              toolCallId,
+              JSON.stringify({
+                error: `Unknown or non-executable tool: ${String(toolName)}`,
+              }),
+            )
           }
         },
       ),

@@ -16,14 +16,19 @@ jobs:
   autofix:
     name: autofix
     runs-on: ubuntu-latest
+    env:
+      # Run JS actions (e.g. autofix-ci/action, still `node20` runtime) on Node 24 per
+      # https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v6.0.1
+        uses: actions/checkout@v6.0.2
       - name: Setup Tools
-        uses: tanstack/config/.github/setup@main
+        uses: TanStack/config/.github/setup@main
       - name: Fix formatting
         run: pnpm format
       - name: Apply fixes
-        uses: autofix-ci/action@635ffb0c9798bd160680f18fd73371e355b85f27
+        # v1.3.3 — API endpoint reliability (see https://github.com/autofix-ci/action/releases/tag/v1.3.3)
+        uses: autofix-ci/action@7a166d7532b277f34e16238930461bf77f9d7ed8
         with:
           commit-message: 'ci: apply automated fixes'

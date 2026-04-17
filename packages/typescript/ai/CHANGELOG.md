@@ -1,5 +1,107 @@
 # @tanstack/ai
 
+## 0.10.2
+
+### Patch Changes
+
+- Emit TOOL_CALL_START and TOOL_CALL_ARGS for pending tool calls during continuation re-executions ([#372](https://github.com/TanStack/ai/pull/372))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.2
+
+## 0.10.1
+
+### Patch Changes
+
+- Add @tanstack/intent agent skills for AI coding assistants ([#432](https://github.com/TanStack/ai/pull/432))
+
+  Adds 10 skill files covering chat-experience, tool-calling, media-generation,
+  code-mode, structured-outputs, adapter-configuration, ag-ui-protocol,
+  middleware, and custom-backend-integration. Skills guide AI agents to generate
+  correct TanStack AI code patterns and avoid common mistakes.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.1
+
+## 0.10.0
+
+### Minor Changes
+
+- Add code mode and isolate packages for secure AI code execution ([#362](https://github.com/TanStack/ai/pull/362))
+
+  Also includes fixes for Ollama tool call argument streaming and usage
+  reporting, OpenAI realtime adapter handling of missing call_id/item_id,
+  realtime client guards for missing toolCallId, and new DevtoolsChatMiddleware
+  type export from ai-event-client.
+
+### Patch Changes
+
+- Updated dependencies [[`54abae0`](https://github.com/TanStack/ai/commit/54abae063c91b8b04b91ecb2c6785f5ff9168a7c)]:
+  - @tanstack/ai-event-client@0.2.0
+
+## 0.9.2
+
+### Patch Changes
+
+- fix: handle errors from fal result fetch on completed jobs ([#396](https://github.com/TanStack/ai/pull/396))
+
+  fal.ai does not return a FAILED queue status — invalid jobs report COMPLETED, and the real error (e.g. 422 validation) only surfaces when fetching results. `getVideoUrl()` now catches these errors and extracts detailed validation messages. `getVideoJobStatus()` returns `status: 'failed'` when the result fetch throws on a "completed" job.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.4
+
+## 0.9.1
+
+### Patch Changes
+
+- Fix Gemini adapter tool call handling: preserve thoughtSignature for Gemini 3+ thinking models through the tool call lifecycle, use correct function name (instead of call ID) in functionResponse parts, and include the call ID in both functionCall and functionResponse for proper correlation. ([#401](https://github.com/TanStack/ai/pull/401))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.3
+
+## 0.9.0
+
+### Minor Changes
+
+- feat: Add lazy tool discovery for `chat()` ([#360](https://github.com/TanStack/ai/pull/360))
+
+  Tools marked with `lazy: true` are not sent to the LLM upfront. Instead, a synthetic discovery tool lets the LLM selectively discover lazy tools by name, receiving their descriptions and schemas on demand. Discovered tools are dynamically injected as normal tools. This reduces token usage and improves response quality when applications have many tools.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.2
+
+## 0.8.1
+
+### Patch Changes
+
+- Add an explicit subscription lifecycle to `ChatClient` with `subscribe()`/`unsubscribe()`, `isSubscribed`, `connectionStatus`, and `sessionGenerating`, while keeping request lifecycle state separate from long-lived connection state for durable chat sessions. ([#356](https://github.com/TanStack/ai/pull/356))
+
+  Update the React, Preact, Solid, Svelte, and Vue chat bindings with `live` mode plus reactive subscription/session state, and improve `StreamProcessor` handling for concurrent runs and reconnects so active sessions do not finalize early or duplicate resumed assistant messages.
+
+- Add durable `subscribe()`/`send()` transport support to `ChatClient` while preserving compatibility with existing `connect()` adapters. This also introduces shared generation clients for one-shot streaming tasks and updates the framework wrappers to use the new generation transport APIs. ([#286](https://github.com/TanStack/ai/pull/286))
+
+  Improve core stream processing to better handle concurrent runs and resumed streams so shared sessions stay consistent during reconnects and overlapping generations.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.1
+
+## 0.8.0
+
+### Minor Changes
+
+- feat: add middleware system and content guard middleware ([#367](https://github.com/TanStack/ai/pull/367))
+  - **@tanstack/ai**: New `@tanstack/ai/middlewares` subpath with composable chat middleware architecture. Includes `contentGuardMiddleware` (delta and buffered strategies) and `toolCacheMiddleware`. Middleware hooks: `onStart`, `onIteration`, `onChunk`, `onToolPhaseComplete`, `onFinish`.
+  - **@tanstack/ai-event-client**: Initial release. Extracted `devtoolsMiddleware` from `@tanstack/ai` core into a standalone package for tree-shaking. Emits all DevTools events as an observation-only middleware.
+  - **@tanstack/ai-client**: Updated event types for middleware integration.
+  - **@tanstack/ai-devtools**: Updated iteration timeline and conversation UI for middleware-aware event handling.
+
+### Patch Changes
+
+- Updated dependencies [[`f62eeb0`](https://github.com/TanStack/ai/commit/f62eeb0d7efd002894435c7f2c8a9f2790f0b6d7)]:
+  - @tanstack/ai-event-client@0.1.0
+
 ## 0.7.0
 
 ### Minor Changes

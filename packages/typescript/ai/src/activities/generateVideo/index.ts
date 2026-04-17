@@ -427,25 +427,25 @@ export async function getVideoJobStatus<
         url: urlResult.url,
       }
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to get video URL'
       aiEventClient.emit('video:request:completed', {
         requestId,
         provider: adapter.name,
         model: adapter.model,
         requestType: 'status',
         jobId,
-        status: statusResult.status,
+        status: 'failed',
         progress: statusResult.progress,
-        error:
-          error instanceof Error ? error.message : 'Failed to get video URL',
+        error: errorMessage,
         duration: Date.now() - startTime,
         timestamp: Date.now(),
       })
-      // If URL fetch fails, still return status
+      // Provider reported completed but result fetch failed — treat as failed
       return {
-        status: statusResult.status,
+        status: 'failed' as const,
         progress: statusResult.progress,
-        error:
-          error instanceof Error ? error.message : 'Failed to get video URL',
+        error: errorMessage,
       }
     }
   }
