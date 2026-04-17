@@ -289,34 +289,6 @@ export const models: Array<OpenRouterModel> = [
     ],
   },
   {
-    id: 'allenai/olmo-2-0325-32b-instruct',
-    canonical_slug: 'allenai/olmo-2-0325-32b-instruct',
-    hugging_face_id: 'allenai/OLMo-2-0325-32B-Instruct',
-    name: 'AllenAI: Olmo 2 32B Instruct',
-    created: 1741988556,
-    description:
-      'OLMo-2 32B Instruct is a supervised instruction-finetuned variant of the OLMo-2 32B March 2025 base model. It excels in complex reasoning and instruction-following tasks across diverse benchmarks such as GSM8K,...',
-    context_length: 128000,
-    architecture: {
-      modality: 'text->text',
-      input_modalities: ['text'],
-      output_modalities: ['text'],
-      tokenizer: 'Other',
-      instruct_type: null,
-    },
-    pricing: {
-      prompt: '0.00000005',
-      completion: '0.0000002',
-    },
-    top_provider: {
-      context_length: 128000,
-      max_completion_tokens: null,
-      is_moderated: false,
-    },
-    per_request_limits: null,
-    supported_parameters: [],
-  },
-  {
     id: 'allenai/olmo-3-32b-think',
     canonical_slug: 'allenai/olmo-3-32b-think-20251121',
     hugging_face_id: 'allenai/Olmo-3-32B-Think',
@@ -1082,6 +1054,47 @@ export const models: Array<OpenRouterModel> = [
       'tool_choice',
       'tools',
       'top_p',
+      'verbosity',
+    ],
+  },
+  {
+    id: 'anthropic/claude-opus-4.7',
+    canonical_slug: 'anthropic/claude-4.7-opus-20260416',
+    hugging_face_id: null,
+    name: 'Anthropic: Claude Opus 4.7',
+    created: 1776351100,
+    description:
+      "Opus 4.7 is the next generation of Anthropic's Opus family, built for long-running, asynchronous agents. Building on the coding and agentic strengths of Opus 4.6, it delivers stronger performance on...",
+    context_length: 1000000,
+    architecture: {
+      modality: 'text+image->text',
+      input_modalities: ['text', 'image'],
+      output_modalities: ['text'],
+      tokenizer: 'Claude',
+      instruct_type: null,
+    },
+    pricing: {
+      prompt: '0.000005',
+      completion: '0.000025',
+      web_search: '0.01',
+      input_cache_read: '0.0000005',
+      input_cache_write: '0.00000625',
+    },
+    top_provider: {
+      context_length: 1000000,
+      max_completion_tokens: 128000,
+      is_moderated: true,
+    },
+    per_request_limits: null,
+    supported_parameters: [
+      'include_reasoning',
+      'max_tokens',
+      'reasoning',
+      'response_format',
+      'stop',
+      'structured_outputs',
+      'tool_choice',
+      'tools',
       'verbosity',
     ],
   },
@@ -3722,13 +3735,13 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.00000008',
-      completion: '0.00000035',
-      input_cache_read: '0.00000001',
+      prompt: '0.00000007',
+      completion: '0.0000004',
+      input_cache_read: '0.00000004',
     },
     top_provider: {
       context_length: 262144,
-      max_completion_tokens: null,
+      max_completion_tokens: 262144,
       is_moderated: false,
     },
     per_request_limits: null,
@@ -6380,21 +6393,25 @@ export const models: Array<OpenRouterModel> = [
     },
     top_provider: {
       context_length: 131072,
-      max_completion_tokens: 131072,
+      max_completion_tokens: 32768,
       is_moderated: false,
     },
     per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
+      'logprobs',
       'max_tokens',
       'presence_penalty',
       'repetition_penalty',
+      'response_format',
       'seed',
       'stop',
+      'structured_outputs',
       'temperature',
       'tool_choice',
       'tools',
       'top_k',
+      'top_logprobs',
       'top_p',
     ],
   },
@@ -6426,7 +6443,9 @@ export const models: Array<OpenRouterModel> = [
     per_request_limits: null,
     supported_parameters: [
       'frequency_penalty',
+      'logit_bias',
       'max_tokens',
+      'min_p',
       'presence_penalty',
       'repetition_penalty',
       'response_format',
@@ -7061,6 +7080,7 @@ export const models: Array<OpenRouterModel> = [
     supported_parameters: [
       'frequency_penalty',
       'include_reasoning',
+      'logit_bias',
       'max_tokens',
       'min_p',
       'presence_penalty',
@@ -10392,6 +10412,7 @@ export const models: Array<OpenRouterModel> = [
       prompt: '0.00000026',
       completion: '0.00000078',
       input_cache_read: '0.000000052',
+      input_cache_write: '0.000000325',
     },
     top_provider: {
       context_length: 1000000,
@@ -10429,6 +10450,7 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000026',
       completion: '0.00000078',
+      input_cache_write: '0.000000325',
     },
     top_provider: {
       context_length: 1000000,
@@ -10467,6 +10489,7 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000026',
       completion: '0.00000078',
+      input_cache_write: '0.000000325',
     },
     top_provider: {
       context_length: 1000000,
@@ -10647,7 +10670,7 @@ export const models: Array<OpenRouterModel> = [
     created: 1738410311,
     description:
       'Qwen2.5-VL is proficient in recognizing common objects such as flowers, birds, fish, and insects. It is also highly capable of analyzing texts, charts, icons, graphics, and layouts within images.',
-    context_length: 32768,
+    context_length: 32000,
     architecture: {
       modality: 'text+image->text',
       input_modalities: ['text', 'image'],
@@ -10656,12 +10679,12 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: null,
     },
     pricing: {
-      prompt: '0.0000008',
-      completion: '0.0000008',
+      prompt: '0.00000025',
+      completion: '0.00000075',
     },
     top_provider: {
-      context_length: 32768,
-      max_completion_tokens: 32768,
+      context_length: 32000,
+      max_completion_tokens: null,
       is_moderated: false,
     },
     per_request_limits: null,
@@ -10823,7 +10846,7 @@ export const models: Array<OpenRouterModel> = [
     created: 1753449557,
     description:
       'Qwen3-235B-A22B-Thinking-2507 is a high-performance, open-weight Mixture-of-Experts (MoE) language model optimized for complex reasoning tasks. It activates 22B of its 235B parameters per forward pass and natively supports up to 262,144...',
-    context_length: 131072,
+    context_length: 262144,
     architecture: {
       modality: 'text->text',
       input_modalities: ['text'],
@@ -10832,12 +10855,12 @@ export const models: Array<OpenRouterModel> = [
       instruct_type: 'qwen3',
     },
     pricing: {
-      prompt: '0.0000001495',
-      completion: '0.000001495',
+      prompt: '0.00000013',
+      completion: '0.0000006',
     },
     top_provider: {
-      context_length: 131072,
-      max_completion_tokens: null,
+      context_length: 262144,
+      max_completion_tokens: 262144,
       is_moderated: false,
     },
     per_request_limits: null,
@@ -11200,6 +11223,7 @@ export const models: Array<OpenRouterModel> = [
       prompt: '0.000000195',
       completion: '0.000000975',
       input_cache_read: '0.000000039',
+      input_cache_write: '0.00000024375',
     },
     top_provider: {
       context_length: 1000000,
@@ -11283,6 +11307,7 @@ export const models: Array<OpenRouterModel> = [
       prompt: '0.00000065',
       completion: '0.00000325',
       input_cache_read: '0.00000013',
+      input_cache_write: '0.0000008125',
     },
     top_provider: {
       context_length: 1000000,
@@ -11360,6 +11385,7 @@ export const models: Array<OpenRouterModel> = [
       prompt: '0.00000078',
       completion: '0.0000039',
       input_cache_read: '0.000000156',
+      input_cache_write: '0.000000975',
     },
     top_provider: {
       context_length: 262144,
@@ -12009,6 +12035,7 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000039',
       completion: '0.00000234',
+      input_cache_read: '0.000000195',
     },
     top_provider: {
       context_length: 262144,
@@ -12020,6 +12047,7 @@ export const models: Array<OpenRouterModel> = [
       'frequency_penalty',
       'include_reasoning',
       'logit_bias',
+      'logprobs',
       'max_tokens',
       'min_p',
       'presence_penalty',
@@ -12033,6 +12061,7 @@ export const models: Array<OpenRouterModel> = [
       'tool_choice',
       'tools',
       'top_k',
+      'top_logprobs',
       'top_p',
     ],
   },
@@ -12102,6 +12131,7 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.000000065',
       completion: '0.00000026',
+      input_cache_write: '0.00000008125',
     },
     top_provider: {
       context_length: 1000000,
@@ -12142,6 +12172,7 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.00000026',
       completion: '0.00000156',
+      input_cache_write: '0.000000325',
     },
     top_provider: {
       context_length: 1000000,
@@ -12182,6 +12213,7 @@ export const models: Array<OpenRouterModel> = [
     pricing: {
       prompt: '0.000000325',
       completion: '0.00000195',
+      input_cache_write: '0.00000040625',
     },
     top_provider: {
       context_length: 1000000,

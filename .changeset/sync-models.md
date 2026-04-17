@@ -1,4 +1,5 @@
 ---
+'@tanstack/ai-anthropic': patch
 '@tanstack/ai-openrouter': patch
 ---
 

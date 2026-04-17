@@ -2,9 +2,13 @@
 '@tanstack/ai-openrouter': patch
 ---
 
-- Bump `@openrouter/sdk` to 0.9.11
-- Updated model list with latest models (Opus 4.6, Sonnet 4.6, Gemini 3.1 Pro, etc.)
-- Native structured output support for OpenRouter
-- Refactored text-provider-options to derive types from SDK's `ChatGenerationParams`
-- Refactored options passthrough to use camelCase naming convention
-- Improved error handling
+- Upgrade `@openrouter/sdk` to 0.12.13 (from 0.8.0)
+- Migrate adapters and tests to the SDK's renamed chat types (`ChatGenerationParams` → `ChatRequest`, `ChatResponse` → `ChatResult`) and the renamed `chatRequest` key on `chat.send`
+- Derive `text-provider-options` types from the SDK's `ChatRequest` so provider options stay in lockstep with the SDK surface
+- Drop `topK` / `topA` / `minP` / `repetitionPenalty` / `includeReasoning` / `verbosity` / `webSearchOptions` from `OpenRouterBaseOptions` now that the SDK narrows `ChatRequest` to OpenAI-compatible fields — callers passing these previously saw them silently stripped at runtime, and now get a TypeScript error instead
+- Add those same keys to `excludedParams` in the model-catalog generator so future syncs don't reintroduce them
+- Add native structured output support using JSON Schema response formats
+- Refactor options passthrough to use camelCase naming convention
+- Refresh the model catalog with the latest OpenRouter models (Opus 4.6, Sonnet 4.6, Gemini 3.1 Pro, etc.) and remove the deprecated `openrouter/auto` model
+- Unify the outbound request payload envelope
+- Improve error handling and add tests for nested payloads, structured output parsing, and error cases

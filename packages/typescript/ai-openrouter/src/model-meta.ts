@@ -191,28 +191,6 @@ const ALIBABA_TONGYI_DEEPRESEARCH_30B_A3B = {
     image: 0,
   },
 } as const
-const ALLENAI_OLMO_2_0325_32B_INSTRUCT = {
-  id: 'allenai/olmo-2-0325-32b-instruct',
-  name: 'AllenAI: Olmo 2 32B Instruct',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [],
-  },
-  context_window: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.05,
-        cached: 0,
-      },
-      output: {
-        normal: 0.2,
-      },
-    },
-    image: 0,
-  },
-} as const
 const ALLENAI_OLMO_3_32B_THINK = {
   id: 'allenai/olmo-3-32b-think',
   name: 'AllenAI: Olmo 3 32B Think',
@@ -769,6 +747,35 @@ const ANTHROPIC_CLAUDE_OPUS_4_6_FAST = {
       },
       output: {
         normal: 150,
+      },
+    },
+    image: 0,
+  },
+} as const
+const ANTHROPIC_CLAUDE_OPUS_4_7 = {
+  id: 'anthropic/claude-opus-4.7',
+  name: 'Anthropic: Claude Opus 4.7',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    supports: [
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'stop',
+      'toolChoice',
+    ],
+  },
+  context_window: 1000000,
+  max_output_tokens: 128000,
+  pricing: {
+    text: {
+      input: {
+        normal: 5,
+        cached: 6.75,
+      },
+      output: {
+        normal: 25,
       },
     },
     image: 0,
@@ -2799,14 +2806,15 @@ const GOOGLE_GEMMA_4_26B_A4B_IT = {
     ],
   },
   context_window: 262144,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.08,
-        cached: 0.01,
+        normal: 0.07,
+        cached: 0.04,
       },
       output: {
-        normal: 0.35,
+        normal: 0.4,
       },
     },
     image: 0,
@@ -4853,17 +4861,20 @@ const MOONSHOTAI_KIMI_K2 = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
+      'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
       'toolChoice',
+      'topLogprobs',
       'topP',
     ],
   },
   context_window: 131072,
-  max_output_tokens: 131072,
+  max_output_tokens: 32768,
   pricing: {
     text: {
       input: {
@@ -4885,6 +4896,7 @@ const MOONSHOTAI_KIMI_K2_0905 = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
+      'logitBias',
       'maxCompletionTokens',
       'presencePenalty',
       'responseFormat',
@@ -5378,6 +5390,7 @@ const NVIDIA_NEMOTRON_3_SUPER_120B_A12B = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
+      'logitBias',
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
@@ -7987,7 +8000,7 @@ const QWEN_QWEN_PLUS = {
     text: {
       input: {
         normal: 0.26,
-        cached: 0.052,
+        cached: 0.377,
       },
       output: {
         normal: 0.78,
@@ -8018,7 +8031,7 @@ const QWEN_QWEN_PLUS_2025_07_28 = {
     text: {
       input: {
         normal: 0.26,
-        cached: 0,
+        cached: 0.325,
       },
       output: {
         normal: 0.78,
@@ -8050,7 +8063,7 @@ const QWEN_QWEN_PLUS_2025_07_28_THINKING = {
     text: {
       input: {
         normal: 0.26,
-        cached: 0,
+        cached: 0.325,
       },
       output: {
         normal: 0.78,
@@ -8200,16 +8213,15 @@ const QWEN_QWEN2_5_VL_72B_INSTRUCT = {
       'topP',
     ],
   },
-  context_window: 32768,
-  max_output_tokens: 32768,
+  context_window: 32000,
   pricing: {
     text: {
       input: {
-        normal: 0.8,
+        normal: 0.25,
         cached: 0,
       },
       output: {
-        normal: 0.8,
+        normal: 0.75,
       },
     },
     image: 0,
@@ -8339,15 +8351,16 @@ const QWEN_QWEN3_235B_A22B_THINKING_2507 = {
       'topP',
     ],
   },
-  context_window: 131072,
+  context_window: 262144,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.1495,
+        normal: 0.13,
         cached: 0,
       },
       output: {
-        normal: 1.495,
+        normal: 0.6,
       },
     },
     image: 0,
@@ -8616,7 +8629,7 @@ const QWEN_QWEN3_CODER_FLASH = {
     text: {
       input: {
         normal: 0.195,
-        cached: 0.039,
+        cached: 0.28275,
       },
       output: {
         normal: 0.975,
@@ -8681,7 +8694,7 @@ const QWEN_QWEN3_CODER_PLUS = {
     text: {
       input: {
         normal: 0.65,
-        cached: 0.13,
+        cached: 0.9425,
       },
       output: {
         normal: 3.25,
@@ -8743,7 +8756,7 @@ const QWEN_QWEN3_MAX = {
     text: {
       input: {
         normal: 0.78,
-        cached: 0.156,
+        cached: 1.131,
       },
       output: {
         normal: 3.9,
@@ -9235,6 +9248,7 @@ const QWEN_QWEN3_5_397B_A17B = {
     supports: [
       'frequencyPenalty',
       'logitBias',
+      'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
@@ -9243,6 +9257,7 @@ const QWEN_QWEN3_5_397B_A17B = {
       'stop',
       'temperature',
       'toolChoice',
+      'topLogprobs',
       'topP',
     ],
   },
@@ -9252,7 +9267,7 @@ const QWEN_QWEN3_5_397B_A17B = {
     text: {
       input: {
         normal: 0.39,
-        cached: 0,
+        cached: 0.195,
       },
       output: {
         normal: 2.34,
@@ -9320,7 +9335,7 @@ const QWEN_QWEN3_5_FLASH_02_23 = {
     text: {
       input: {
         normal: 0.065,
-        cached: 0,
+        cached: 0.08125,
       },
       output: {
         normal: 0.26,
@@ -9352,7 +9367,7 @@ const QWEN_QWEN3_5_PLUS_02_15 = {
     text: {
       input: {
         normal: 0.26,
-        cached: 0,
+        cached: 0.325,
       },
       output: {
         normal: 1.56,
@@ -9384,7 +9399,7 @@ const QWEN_QWEN3_6_PLUS = {
     text: {
       input: {
         normal: 0.325,
-        cached: 0,
+        cached: 0.40625,
       },
       output: {
         normal: 1.95,
@@ -10962,8 +10977,6 @@ export type OpenRouterModelOptionsByName = {
       | 'toolChoice'
       | 'topP'
     >
-  [ALLENAI_OLMO_2_0325_32B_INSTRUCT.id]: OpenRouterCommonOptions &
-    OpenRouterBaseOptions
   [ALLENAI_OLMO_3_32B_THINK.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -11145,6 +11158,15 @@ export type OpenRouterModelOptionsByName = {
       | 'temperature'
       | 'toolChoice'
       | 'topP'
+    >
+  [ANTHROPIC_CLAUDE_OPUS_4_7.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'stop'
+      | 'toolChoice'
     >
   [ANTHROPIC_CLAUDE_SONNET_4.id]: OpenRouterCommonOptions &
     Pick<
@@ -12680,18 +12702,22 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
+      | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
       | 'toolChoice'
+      | 'topLogprobs'
       | 'topP'
     >
   [MOONSHOTAI_KIMI_K2_0905.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
+      | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'responseFormat'
@@ -12870,6 +12896,7 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
+      | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
@@ -14349,6 +14376,7 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'logitBias'
+      | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
@@ -14357,6 +14385,7 @@ export type OpenRouterModelOptionsByName = {
       | 'stop'
       | 'temperature'
       | 'toolChoice'
+      | 'topLogprobs'
       | 'topP'
     >
   [QWEN_QWEN3_5_9B.id]: OpenRouterCommonOptions &
@@ -15007,7 +15036,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [AION_LABS_AION_RP_LLAMA_3_1_8B.id]: ReadonlyArray<'text'>
   [ALFREDPROS_CODELLAMA_7B_INSTRUCT_SOLIDITY.id]: ReadonlyArray<'text'>
   [ALIBABA_TONGYI_DEEPRESEARCH_30B_A3B.id]: ReadonlyArray<'text'>
-  [ALLENAI_OLMO_2_0325_32B_INSTRUCT.id]: ReadonlyArray<'text'>
   [ALLENAI_OLMO_3_32B_THINK.id]: ReadonlyArray<'text'>
   [ALLENAI_OLMO_3_1_32B_INSTRUCT.id]: ReadonlyArray<'text'>
   [ALPINDALE_GOLIATH_120B.id]: ReadonlyArray<'text'>
@@ -15031,6 +15059,7 @@ export type OpenRouterModelInputModalitiesByName = {
   [ANTHROPIC_CLAUDE_OPUS_4_5.id]: ReadonlyArray<'document' | 'image' | 'text'>
   [ANTHROPIC_CLAUDE_OPUS_4_6.id]: ReadonlyArray<'text' | 'image'>
   [ANTHROPIC_CLAUDE_OPUS_4_6_FAST.id]: ReadonlyArray<'text' | 'image'>
+  [ANTHROPIC_CLAUDE_OPUS_4_7.id]: ReadonlyArray<'text' | 'image'>
   [ANTHROPIC_CLAUDE_SONNET_4.id]: ReadonlyArray<'image' | 'text' | 'document'>
   [ANTHROPIC_CLAUDE_SONNET_4_5.id]: ReadonlyArray<'text' | 'image' | 'document'>
   [ANTHROPIC_CLAUDE_SONNET_4_6.id]: ReadonlyArray<'text' | 'image'>
@@ -15391,7 +15420,6 @@ export const OPENROUTER_CHAT_MODELS = [
   AION_LABS_AION_RP_LLAMA_3_1_8B.id,
   ALFREDPROS_CODELLAMA_7B_INSTRUCT_SOLIDITY.id,
   ALIBABA_TONGYI_DEEPRESEARCH_30B_A3B.id,
-  ALLENAI_OLMO_2_0325_32B_INSTRUCT.id,
   ALLENAI_OLMO_3_32B_THINK.id,
   ALLENAI_OLMO_3_1_32B_INSTRUCT.id,
   ALPINDALE_GOLIATH_120B.id,
@@ -15411,6 +15439,7 @@ export const OPENROUTER_CHAT_MODELS = [
   ANTHROPIC_CLAUDE_OPUS_4_5.id,
   ANTHROPIC_CLAUDE_OPUS_4_6.id,
   ANTHROPIC_CLAUDE_OPUS_4_6_FAST.id,
+  ANTHROPIC_CLAUDE_OPUS_4_7.id,
   ANTHROPIC_CLAUDE_SONNET_4.id,
   ANTHROPIC_CLAUDE_SONNET_4_5.id,
   ANTHROPIC_CLAUDE_SONNET_4_6.id,
