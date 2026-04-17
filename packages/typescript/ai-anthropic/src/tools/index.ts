@@ -27,7 +27,6 @@ export {
 } from './computer-use-tool'
 export {
   customTool,
-  type AnthropicCustomTool,
   type CustomToolConfig,
   type CustomTool,
 } from './custom-tool'

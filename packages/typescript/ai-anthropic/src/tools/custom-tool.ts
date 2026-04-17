@@ -1,4 +1,4 @@
-import type { JSONSchema, ProviderTool, SchemaInput, Tool } from '@tanstack/ai'
+import type { JSONSchema, SchemaInput, Tool } from '@tanstack/ai'
 import type { CacheControl } from '../text/text-provider-options'
 
 export interface CustomToolConfig {
@@ -25,8 +25,6 @@ export interface CustomToolConfig {
 
 /** @deprecated Renamed to `CustomToolConfig`. Will be removed in a future release. */
 export type CustomTool = CustomToolConfig
-
-export type AnthropicCustomTool = ProviderTool<'anthropic', 'custom'>
 
 export function convertCustomToolToAdapterFormat(tool: Tool): CustomToolConfig {
   const metadata =
@@ -58,8 +56,7 @@ export function customTool(
   description: string,
   inputSchema: SchemaInput,
   cacheControl?: CacheControl | null,
-): AnthropicCustomTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
+): Tool {
   return {
     name,
     description,
@@ -67,5 +64,5 @@ export function customTool(
     metadata: {
       cacheControl,
     },
-  } as unknown as AnthropicCustomTool
+  }
 }
