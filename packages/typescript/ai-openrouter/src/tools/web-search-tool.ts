@@ -9,7 +9,7 @@ export interface WebSearchToolConfig {
   }
 }
 
-/** @deprecated Renamed to `WebSearchToolConfig`. */
+/** @deprecated Renamed to `WebSearchToolConfig`. Will be removed in a future release. */
 export type WebSearchTool = WebSearchToolConfig
 
 export type OpenRouterWebSearchTool = ProviderTool<'openrouter', 'web_search'>
