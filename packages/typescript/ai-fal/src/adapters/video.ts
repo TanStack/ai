@@ -80,24 +80,41 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
       FalModelVideoSize<TModel>
     >,
   ): Promise<VideoJobResult> {
-    const { prompt, size, duration, modelOptions } = options
-    const sizeParams = mapVideoSizeToFalFormat(size)
+    const { prompt, size, duration, modelOptions, logger } = options
 
-    const input = {
-      ...modelOptions,
-      ...sizeParams,
-      prompt,
-      ...(duration ? { duration } : {}),
-    } as FalModelInput<TModel>
+    logger.request(
+      `activity=generateVideo provider=fal model=${this.model}`,
+      {
+        provider: 'fal',
+        model: this.model,
+      },
+    )
 
-    // Submit to queue and get request ID
-    const { request_id } = await fal.queue.submit(this.model, {
-      input,
-    })
+    try {
+      const sizeParams = mapVideoSizeToFalFormat(size)
 
-    return {
-      jobId: request_id,
-      model: this.model,
+      const input = {
+        ...modelOptions,
+        ...sizeParams,
+        prompt,
+        ...(duration ? { duration } : {}),
+      } as FalModelInput<TModel>
+
+      // Submit to queue and get request ID
+      const { request_id } = await fal.queue.submit(this.model, {
+        input,
+      })
+
+      return {
+        jobId: request_id,
+        model: this.model,
+      }
+    } catch (error) {
+      logger.errors('fal.createVideoJob fatal', {
+        error,
+        source: 'fal.createVideoJob',
+      })
+      throw error
     }
   }
 
