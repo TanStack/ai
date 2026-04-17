@@ -60,8 +60,11 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       id: clientId,
       initialMessages: messagesToUse,
       body: optionsRef.current.body,
-      onResponse: optionsRef.current.onResponse,
-      onChunk: optionsRef.current.onChunk,
+      // Wrap every callback so the latest options are read at call time.
+      // Capturing the function reference directly would freeze it to whatever
+      // the parent passed on the first render.
+      onResponse: (response) => optionsRef.current.onResponse?.(response),
+      onChunk: (chunk) => optionsRef.current.onChunk?.(chunk),
       onFinish: (message) => {
         optionsRef.current.onFinish?.(message)
       },
@@ -135,9 +138,8 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     }
   }, [client, options.live])
 
-  // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
-  // are captured at client creation time. Changes to these callbacks require
-  // remounting the component or changing the connection to recreate the client.
+  // All callback options are read through optionsRef at call time, so fresh
+  // closures from each render are picked up without recreating the client.
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {
       await client.sendMessage(content)
