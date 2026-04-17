@@ -86,9 +86,7 @@ describe('selectRelevantSkills', () => {
   it('strips markdown code fences around the JSON response', async () => {
     const skill = makeSkill({ name: 'github_stats' })
     const storage = createMemorySkillStorage([skill])
-    chatMock.mockReturnValueOnce(
-      streamChunks('```json\n["github_stats"]\n```'),
-    )
+    chatMock.mockReturnValueOnce(streamChunks('```json\n["github_stats"]\n```'))
 
     const result = await selectRelevantSkills({
       adapter: dummyAdapter,

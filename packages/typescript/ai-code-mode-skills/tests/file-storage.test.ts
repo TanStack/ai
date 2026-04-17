@@ -129,7 +129,10 @@ describe('createFileSkillStorage', () => {
 
   it('exposes the configured trust strategy', () => {
     const strategy = createAlwaysTrustedStrategy()
-    const s = createFileSkillStorage({ directory: dir, trustStrategy: strategy })
+    const s = createFileSkillStorage({
+      directory: dir,
+      trustStrategy: strategy,
+    })
     expect(s.trustStrategy).toBe(strategy)
   })
 })

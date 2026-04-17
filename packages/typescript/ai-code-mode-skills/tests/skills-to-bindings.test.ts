@@ -144,7 +144,9 @@ describe('skillsToBindings', () => {
     const malicious = `"); throw new Error("escaped"); ("`
     await bindings.skill_x!.execute(malicious)
 
-    const wrappedCode = (executeInSandbox.mock.calls[0] as unknown as [string, unknown])[0]
+    const wrappedCode = (
+      executeInSandbox.mock.calls[0] as unknown as [string, unknown]
+    )[0]
     // JSON.stringify quotes & escapes the whole thing — it becomes a string literal
     expect(wrappedCode).toContain(`const input = ${JSON.stringify(malicious)}`)
     // Ensure the raw payload is not present unquoted
@@ -164,7 +166,9 @@ describe('skillsToBindings', () => {
 
     const input = { complex: { nested: [1, 2] } }
     await bindings.skill_x!.execute(input)
-    expect((executeInSandbox.mock.calls[0] as unknown as [string, unknown])[1]).toBe(input)
+    expect(
+      (executeInSandbox.mock.calls[0] as unknown as [string, unknown])[1],
+    ).toBe(input)
   })
 })
 

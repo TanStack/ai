@@ -260,7 +260,10 @@ describe('createSkillManagementTools', () => {
         trustStrategy: createAlwaysTrustedStrategy(),
       })
       const tool = getTool(tools, 'register_skill')
-      await tool.execute!(validRegisterInput({ name: 's1' }), mockContext() as any)
+      await tool.execute!(
+        validRegisterInput({ name: 's1' }),
+        mockContext() as any,
+      )
       const saved = await storage.get('s1')
       expect(saved!.trustLevel).toBe('trusted')
     })
@@ -274,7 +277,10 @@ describe('createSkillManagementTools', () => {
         trustStrategy: createDefaultTrustStrategy(),
       })
       const tool = getTool(tools, 'register_skill')
-      await tool.execute!(validRegisterInput({ name: 's1' }), mockContext() as any)
+      await tool.execute!(
+        validRegisterInput({ name: 's1' }),
+        mockContext() as any,
+      )
       const saved = await storage.get('s1')
       expect(saved!.trustLevel).toBe('untrusted')
     })
@@ -285,7 +291,10 @@ describe('createSkillManagementTools', () => {
       })
       const tools = createSkillManagementTools({ storage })
       const tool = getTool(tools, 'register_skill')
-      await tool.execute!(validRegisterInput({ name: 's1' }), mockContext() as any)
+      await tool.execute!(
+        validRegisterInput({ name: 's1' }),
+        mockContext() as any,
+      )
       const saved = await storage.get('s1')
       expect(saved!.trustLevel).toBe('trusted')
     })

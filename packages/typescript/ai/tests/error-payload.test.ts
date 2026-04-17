@@ -26,18 +26,16 @@ describe('toRunErrorPayload', () => {
   })
 
   it('narrows plain objects with string message + code fields', () => {
-    expect(
-      toRunErrorPayload({ message: 'rate-limited', code: '429' }),
-    ).toEqual({
-      message: 'rate-limited',
-      code: '429',
-    })
+    expect(toRunErrorPayload({ message: 'rate-limited', code: '429' })).toEqual(
+      {
+        message: 'rate-limited',
+        code: '429',
+      },
+    )
   })
 
   it('ignores non-string code fields (returns undefined)', () => {
-    expect(
-      toRunErrorPayload({ message: 'x', code: 500 }),
-    ).toEqual({
+    expect(toRunErrorPayload({ message: 'x', code: 500 })).toEqual({
       message: 'x',
       code: undefined,
     })

@@ -100,7 +100,8 @@ describe('OllamaTextAdapter.chatStream (content streaming)', () => {
 
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
-      adapter.chatStream({ model: 'llama3.2',
+      adapter.chatStream({
+        model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
       }),
     )
@@ -151,7 +152,8 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
 
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
-      adapter.chatStream({ model: 'llama3.2',
+      adapter.chatStream({
+        model: 'llama3.2',
         messages: [{ role: 'user', content: 'find cats' }],
         tools: [searchTool],
       }),
@@ -194,7 +196,8 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
 
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
-      adapter.chatStream({ model: 'llama3.2',
+      adapter.chatStream({
+        model: 'llama3.2',
         messages: [{ role: 'user', content: 'find' }],
         tools: [searchTool],
       }),
@@ -218,7 +221,8 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
 
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
-      adapter.chatStream({ model: 'llama3.2',
+      adapter.chatStream({
+        model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
         tools: [searchTool],
       }),
@@ -247,7 +251,8 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     )
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
-      adapter.chatStream({ model: 'llama3.2',
+      adapter.chatStream({
+        model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
       }),
     )
@@ -264,7 +269,10 @@ describe('OllamaTextAdapter.structuredOutput', () => {
     const adapter = createOllamaChat('llama3.2')
     const result = await adapter.structuredOutput({
       chatOptions: { messages: [{ role: 'user', content: 'q' }] },
-      outputSchema: { type: 'object', properties: { result: { type: 'number' } } },
+      outputSchema: {
+        type: 'object',
+        properties: { result: { type: 'number' } },
+      },
     } as any)
     expect(result.data).toEqual({ result: 42 })
     expect(result.rawText).toBe('{"result":42}')

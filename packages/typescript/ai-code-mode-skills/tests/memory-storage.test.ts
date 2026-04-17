@@ -191,7 +191,9 @@ describe('createMemorySkillStorage', () => {
   describe('updateStats', () => {
     it('is a no-op when the skill does not exist', async () => {
       const storage = createMemorySkillStorage([])
-      await expect(storage.updateStats('nothing', true)).resolves.toBeUndefined()
+      await expect(
+        storage.updateStats('nothing', true),
+      ).resolves.toBeUndefined()
     })
 
     it('increments execution count and recalculates success rate', async () => {

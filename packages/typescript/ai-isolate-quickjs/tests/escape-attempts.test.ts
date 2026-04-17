@@ -56,9 +56,7 @@ describe('QuickJS isolate — sandbox escape attempts', () => {
     const ctxA = await driver.createContext({ bindings: {} })
     const ctxB = await driver.createContext({ bindings: {} })
     try {
-      await ctxA.execute(
-        `Object.prototype.__qjsCtxProbe = 'a'; return 1;`,
-      )
+      await ctxA.execute(`Object.prototype.__qjsCtxProbe = 'a'; return 1;`)
       const res = await ctxB.execute(`return ({}).__qjsCtxProbe`)
       expect(res.success).toBe(true)
       expect(res.value).toBeUndefined()

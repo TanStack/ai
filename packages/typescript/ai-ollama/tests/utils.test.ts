@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../src/utils'
+import {
+  createOllamaClient,
+  generateId,
+  getOllamaHostFromEnv,
+} from '../src/utils'
 import { estimateTokens } from '../src/utils/client'
 
 vi.mock('ollama', () => {
@@ -16,7 +20,9 @@ afterEach(() => {
 
 describe('createOllamaClient', () => {
   it('defaults to http://localhost:11434 when no host is given', () => {
-    const client = createOllamaClient() as unknown as { config: { host: string } }
+    const client = createOllamaClient() as unknown as {
+      config: { host: string }
+    }
     expect(client.config.host).toBe('http://localhost:11434')
   })
 

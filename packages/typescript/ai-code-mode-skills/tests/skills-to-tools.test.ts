@@ -33,7 +33,11 @@ function createMockDriver(
     success: true,
     value: 42,
   },
-): { driver: IsolateDriver; executeSpy: ReturnType<typeof vi.fn>; disposeSpy: ReturnType<typeof vi.fn> } {
+): {
+  driver: IsolateDriver
+  executeSpy: ReturnType<typeof vi.fn>
+  disposeSpy: ReturnType<typeof vi.fn>
+} {
   const executeSpy = vi.fn().mockResolvedValue({
     ...result,
     logs: [],
@@ -148,9 +152,9 @@ describe('skillToTool', () => {
       storage,
     })
     const ctx = mockContext()
-    await expect(
-      tool.execute!({ value: 1 }, ctx as any),
-    ).rejects.toThrow('boom')
+    await expect(tool.execute!({ value: 1 }, ctx as any)).rejects.toThrow(
+      'boom',
+    )
     const eventNames = (ctx.emitCustomEvent as any).mock.calls.map(
       ([name]: [string]) => name,
     )

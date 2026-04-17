@@ -73,7 +73,9 @@ describe.skipIf(!addonAvailable)(
       `)
       // Inside the sandbox, the pollution is possible but scoped to the
       // isolate's own Object constructor. It MUST NOT leak to the host process.
-      expect((Object.prototype as { __sandboxLeak?: unknown }).__sandboxLeak).toBeUndefined()
+      expect(
+        (Object.prototype as { __sandboxLeak?: unknown }).__sandboxLeak,
+      ).toBeUndefined()
       // Cleanup just in case
       delete (Object.prototype as { __sandboxLeak?: unknown }).__sandboxLeak
       expect(res.success).toBe(true)
@@ -84,9 +86,7 @@ describe.skipIf(!addonAvailable)(
       const ctxA = await driver.createContext({ bindings: {} })
       const ctxB = await driver.createContext({ bindings: {} })
       try {
-        await ctxA.execute(
-          `Object.prototype.__ctxAProbe = 'a'; return 1;`,
-        )
+        await ctxA.execute(`Object.prototype.__ctxAProbe = 'a'; return 1;`)
         const res = await ctxB.execute(`return ({}).__ctxAProbe`)
         expect(res.success).toBe(true)
         expect(res.value).toBeUndefined()

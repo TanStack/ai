@@ -19,7 +19,7 @@ describe('Cloudflare wrapCode — injection resilience', () => {
   it('escapes tool-result values via JSON.stringify so quotes are backslash-escaped', () => {
     const payload = '"); process.exit(1); (function leak(){ return `'
     const toolResults: Record<string, ToolResultPayload> = {
-      'search_0': { success: true, value: payload },
+      search_0: { success: true, value: payload },
     }
     const wrapped = wrapCode('return 1', [benignTool], toolResults)
     // JSON.stringify must have escaped the leading quote; verify the escaped
@@ -32,7 +32,7 @@ describe('Cloudflare wrapCode — injection resilience', () => {
   it('lands tool-result errors inside a JSON object literal, not a template literal', () => {
     const error = 'with `backtick` and ${alert(1)} template-looking stuff'
     const toolResults: Record<string, ToolResultPayload> = {
-      'search_0': { success: false, error },
+      search_0: { success: false, error },
     }
     const wrapped = wrapCode('return 1', [benignTool], toolResults)
     // JSON strings are always double-quoted, and `${…}` has no meaning inside
