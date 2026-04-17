@@ -65,3 +65,5 @@ export type GoogleGeminiTool =
   | GoogleSearchRetrievalTool
   | GoogleSearchTool
   | UrlContextTool
+
+export { convertToolsToProviderFormat } from './tool-converter'
