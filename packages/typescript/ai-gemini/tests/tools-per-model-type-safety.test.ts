@@ -11,6 +11,7 @@ import {
   computerUseTool,
   fileSearchTool,
   googleMapsTool,
+  googleSearchRetrievalTool,
   googleSearchTool,
   urlContextTool,
 } from '../src/tools'
@@ -51,6 +52,12 @@ describe('Gemini per-model tool gating', () => {
       fileSearchTool(fileSearchConfig),
       googleSearchTool(),
       urlContextTool(),
+      // @ts-expect-error - gemini-3.1-pro-preview does not support computer_use
+      computerUseTool({ environment: 'ENVIRONMENT_BROWSER', excludedPredefinedFunctions: [] }),
+      // @ts-expect-error - gemini-3.1-pro-preview does not support google_maps
+      googleMapsTool(),
+      // @ts-expect-error - gemini-3.1-pro-preview does not support google_search_retrieval
+      googleSearchRetrievalTool(),
     ])
   })
 
