@@ -122,7 +122,15 @@ export class AnthropicTextAdapter<
       const requestParams = this.mapCommonOptionsToAnthropic(options)
 
       const stream = await this.client.beta.messages.create(
-        { ...requestParams, stream: true },
+        {
+          ...requestParams,
+          stream: true,
+          tools: requestParams.tools
+            ? (requestParams.tools as unknown as Parameters<
+                typeof this.client.beta.messages.create
+              >[0]['tools'])
+            : undefined,
+        },
         {
           signal: options.request?.signal,
           headers: options.request?.headers,
@@ -178,7 +186,9 @@ export class AnthropicTextAdapter<
         {
           ...requestParams,
           stream: false,
-          tools: [structuredOutputTool],
+          tools: [structuredOutputTool] as unknown as Parameters<
+            typeof this.client.messages.create
+          >[0]['tools'],
           tool_choice: { type: 'tool', name: 'structured_output' },
         },
         {

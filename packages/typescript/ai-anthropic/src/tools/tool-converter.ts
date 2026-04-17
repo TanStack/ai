@@ -41,21 +41,21 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
 
     switch (name) {
       case 'bash':
-        return convertBashToolToAdapterFormat(tool)
+        return convertBashToolToAdapterFormat(tool) as unknown as AnthropicTool
       case 'code_execution':
-        return convertCodeExecutionToolToAdapterFormat(tool)
+        return convertCodeExecutionToolToAdapterFormat(tool) as unknown as AnthropicTool
       case 'computer':
-        return convertComputerUseToolToAdapterFormat(tool)
+        return convertComputerUseToolToAdapterFormat(tool) as unknown as AnthropicTool
       case 'memory':
-        return convertMemoryToolToAdapterFormat(tool)
+        return convertMemoryToolToAdapterFormat(tool) as unknown as AnthropicTool
       case 'str_replace_editor':
-        return convertTextEditorToolToAdapterFormat(tool)
+        return convertTextEditorToolToAdapterFormat(tool) as unknown as AnthropicTool
       case 'web_fetch':
-        return convertWebFetchToolToAdapterFormat(tool)
+        return convertWebFetchToolToAdapterFormat(tool) as unknown as AnthropicTool
       case 'web_search':
-        return convertWebSearchToolToAdapterFormat(tool)
+        return convertWebSearchToolToAdapterFormat(tool) as unknown as AnthropicTool
       default:
-        return convertCustomToolToAdapterFormat(tool)
+        return convertCustomToolToAdapterFormat(tool) as unknown as AnthropicTool
     }
   })
 }

@@ -1,11 +1,11 @@
-import type { BashTool } from './bash-tool'
-import type { CodeExecutionTool } from './code-execution-tool'
-import type { ComputerUseTool } from './computer-use-tool'
-import type { CustomTool } from './custom-tool'
-import type { MemoryTool } from './memory-tool'
-import type { TextEditorTool } from './text-editor-tool'
-import type { WebFetchTool } from './web-fetch-tool'
-import type { WebSearchTool } from './web-search-tool'
+import type { AnthropicBashTool } from './bash-tool'
+import type { AnthropicCodeExecutionTool } from './code-execution-tool'
+import type { AnthropicComputerUseTool } from './computer-use-tool'
+import type { AnthropicCustomTool } from './custom-tool'
+import type { AnthropicMemoryTool } from './memory-tool'
+import type { AnthropicTextEditorTool } from './text-editor-tool'
+import type { AnthropicWebFetchTool } from './web-fetch-tool'
+import type { AnthropicWebSearchTool } from './web-search-tool'
 
 export {
   bashTool,
@@ -58,11 +58,11 @@ export {
 
 // Keep the discriminated union defined inline (no barrel exports).
 export type AnthropicTool =
-  | BashTool
-  | CodeExecutionTool
-  | ComputerUseTool
-  | CustomTool
-  | MemoryTool
-  | TextEditorTool
-  | WebFetchTool
-  | WebSearchTool
+  | AnthropicBashTool
+  | AnthropicCodeExecutionTool
+  | AnthropicComputerUseTool
+  | AnthropicCustomTool
+  | AnthropicMemoryTool
+  | AnthropicTextEditorTool
+  | AnthropicWebFetchTool
+  | AnthropicWebSearchTool
