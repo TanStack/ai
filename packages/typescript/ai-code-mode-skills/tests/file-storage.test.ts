@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createFileSkillStorage } from '../src/storage/file-storage'
 import { createAlwaysTrustedStrategy } from '../src/trust-strategies'
 import type { SkillStorage } from '../src/types'
@@ -76,14 +76,23 @@ describe('createFileSkillStorage', () => {
   })
 
   it('preserves createdAt when updating an existing skill', async () => {
-    const first = await storage.save(makeSkillInput({ name: 'x' }))
-    await new Promise((r) => setTimeout(r, 5))
-    const second = await storage.save(
-      makeSkillInput({ name: 'x', description: 'updated' }),
-    )
-    expect(second.createdAt).toBe(first.createdAt)
-    expect(second.updatedAt).not.toBe(first.updatedAt)
-    expect(second.description).toBe('updated')
+    // Deterministic clock: real timer sleeps are flaky because
+    // Date.prototype.toISOString() has millisecond resolution and on fast
+    // machines two saves can land in the same millisecond.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+      const first = await storage.save(makeSkillInput({ name: 'x' }))
+      vi.setSystemTime(new Date('2026-01-01T00:00:01.000Z'))
+      const second = await storage.save(
+        makeSkillInput({ name: 'x', description: 'updated' }),
+      )
+      expect(second.createdAt).toBe(first.createdAt)
+      expect(second.updatedAt).not.toBe(first.updatedAt)
+      expect(second.description).toBe('updated')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('deletes a skill including its directory and index entry', async () => {

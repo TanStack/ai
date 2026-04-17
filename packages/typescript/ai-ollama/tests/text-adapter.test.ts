@@ -9,11 +9,13 @@ import type { StreamChunk, Tool } from '@tanstack/ai'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let chatMock: Mock<(...args: Array<any>) => any>
+let ollamaConstructorCalls: Array<{ host?: string } | undefined>
 
 vi.mock('ollama', () => {
   class Ollama {
     chat: (...args: Array<unknown>) => unknown
-    constructor() {
+    constructor(config?: { host?: string }) {
+      ollamaConstructorCalls.push(config)
       this.chat = (...args) => chatMock(...args)
     }
   }
@@ -44,6 +46,7 @@ const searchTool: Tool = {
 
 beforeEach(() => {
   chatMock = vi.fn()
+  ollamaConstructorCalls = []
 })
 
 afterEach(() => {
@@ -71,10 +74,15 @@ describe('OllamaTextAdapter construction', () => {
     expect(adapter).toBeInstanceOf(OllamaTextAdapter)
   })
 
-  it('ollamaText reads OLLAMA_HOST from env', () => {
+  it('ollamaText reads OLLAMA_HOST from env and forwards it to the Ollama client', () => {
     vi.stubEnv('OLLAMA_HOST', 'http://from-env:11434')
     const adapter = ollamaText('llama3.2')
     expect(adapter.model).toBe('llama3.2')
+    // The adapter must instantiate the Ollama client with the env-derived host —
+    // asserting only on adapter.model would pass even if OLLAMA_HOST were ignored.
+    expect(ollamaConstructorCalls).toContainEqual(
+      expect.objectContaining({ host: 'http://from-env:11434' }),
+    )
   })
 })
 

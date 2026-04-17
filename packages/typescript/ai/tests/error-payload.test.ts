@@ -41,6 +41,14 @@ describe('toRunErrorPayload', () => {
     })
   })
 
+  it('ignores non-string code fields on Error instances too', () => {
+    const err = Object.assign(new Error('numeric code'), { code: 500 })
+    expect(toRunErrorPayload(err)).toEqual({
+      message: 'numeric code',
+      code: undefined,
+    })
+  })
+
   it('accepts a bare string as a thrown value', () => {
     expect(toRunErrorPayload('plain string error')).toEqual({
       message: 'plain string error',

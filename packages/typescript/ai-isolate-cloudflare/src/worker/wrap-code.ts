@@ -11,10 +11,29 @@ import type { ToolResultPayload, ToolSchema } from '../types'
 // break out of the wrapper.
 const VALID_TOOL_NAME = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/
 
+// Reserved words and contextual keywords that look like identifiers but can't
+// be used as JS function names. Catching them here gives callers a clear
+// "Invalid tool name" error at generation time instead of a cryptic
+// SyntaxError when the wrapped code is eval'd.
+const RESERVED_TOOL_NAMES = new Set([
+  'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',
+  'default', 'delete', 'do', 'else', 'enum', 'export', 'extends', 'false',
+  'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'new',
+  'null', 'return', 'super', 'switch', 'this', 'throw', 'true', 'try',
+  'typeof', 'var', 'void', 'while', 'with', 'yield',
+  'let', 'static', 'implements', 'interface', 'package', 'private',
+  'protected', 'public', 'await', 'async',
+])
+
 function assertSafeToolName(name: string): void {
   if (!VALID_TOOL_NAME.test(name)) {
     throw new Error(
       `Invalid tool name '${name}': must match ${VALID_TOOL_NAME} (letters, digits, _, $; cannot start with a digit)`,
+    )
+  }
+  if (RESERVED_TOOL_NAMES.has(name)) {
+    throw new Error(
+      `Invalid tool name '${name}': reserved JavaScript keyword`,
     )
   }
 }

@@ -11,9 +11,10 @@ export function toRunErrorPayload(
   fallbackMessage = 'Unknown error occurred',
 ): { message: string; code: string | undefined } {
   if (error instanceof Error) {
+    const codeField = (error as Error & { code?: unknown }).code
     return {
       message: error.message || fallbackMessage,
-      code: (error as Error & { code?: unknown }).code as string | undefined,
+      code: typeof codeField === 'string' ? codeField : undefined,
     }
   }
   if (typeof error === 'object' && error !== null) {

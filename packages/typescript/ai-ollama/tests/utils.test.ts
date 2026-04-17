@@ -47,7 +47,7 @@ describe('getOllamaHostFromEnv', () => {
     expect(getOllamaHostFromEnv()).toBe('http://custom-host:9999')
   })
 
-  it('falls back to localhost:11434 when OLLAMA_HOST is unset', () => {
+  it('falls back to localhost:11434 when OLLAMA_HOST is empty', () => {
     vi.stubEnv('OLLAMA_HOST', '')
     expect(getOllamaHostFromEnv()).toBe('http://localhost:11434')
   })

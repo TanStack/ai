@@ -81,6 +81,17 @@ describe('generateToolWrappers', () => {
     ).toThrow(/Invalid tool name/)
   })
 
+  it('rejects reserved JS keywords that would pass the regex but break eval', () => {
+    const reserved = ['return', 'class', 'function', 'if', 'await', 'import']
+    for (const name of reserved) {
+      expect(
+        () =>
+          generateToolWrappers([{ name, description: '', inputSchema: {} }]),
+        `should reject reserved: ${name}`,
+      ).toThrow(/reserved JavaScript keyword/)
+    }
+  })
+
   it('accepts conventional identifiers (camelCase, snake_case, $_)', () => {
     const valid = ['camelCase', 'snake_case', '_leading_underscore', '$dollar']
     for (const name of valid) {
