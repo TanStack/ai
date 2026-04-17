@@ -1,5 +1,5 @@
 ---
-'@tanstack/ai-gemini': patch
+'@tanstack/ai-gemini': minor
 ---
 
 Expose provider-tool factories (`codeExecutionTool`, `fileSearchTool`, `googleSearchTool`, `googleSearchRetrievalTool`, `googleMapsTool`, `urlContextTool`, `computerUseTool`) on a new `/tools` subpath, each returning a branded type gated against the selected model's `supports.tools` list.

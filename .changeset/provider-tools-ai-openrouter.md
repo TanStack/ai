@@ -1,5 +1,5 @@
 ---
-'@tanstack/ai-openrouter': patch
+'@tanstack/ai-openrouter': minor
 ---
 
 **Breaking export change.** `createWebSearchTool` has been removed from the package root. Import `webSearchTool` from `@tanstack/ai-openrouter/tools` instead. See Migration Guide §6 for the before/after snippet.
