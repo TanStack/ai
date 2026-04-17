@@ -31,6 +31,7 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | image-gen             | 7         | `tests/image-gen.spec.ts`             |
 | tts                   | 7         | `tests/tts.spec.ts`                   |
 | transcription         | 7         | `tests/transcription.spec.ts`         |
+| audio-gen             | 1         | `tests/audio-gen.spec.ts`             |
 
 ### Tools-test page
 
@@ -122,7 +123,7 @@ Clean up the fixture:
 }
 ```
 
-Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`.
+Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[audiogen]`, `[abort-test]`, `[error-test]`.
 
 ## 4. Writing a Test
 

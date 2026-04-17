@@ -339,6 +339,9 @@ importers:
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-elevenlabs
+      '@tanstack/ai-fal':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-fal
       '@tanstack/ai-gemini':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-gemini
