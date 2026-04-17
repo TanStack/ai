@@ -7,6 +7,7 @@
 
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import { streamToText } from '../../stream-to-response.js'
+import { resolveDebugOption } from '../../logger/resolve'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
   MiddlewareAbortError,
@@ -50,6 +51,8 @@ import type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
 } from './middleware/types'
+import type { InternalLogger } from '../../logger/internal-logger'
+import type { DebugOption } from '../../logger/types'
 
 // ===========================
 // Activity Kind
@@ -163,6 +166,13 @@ export interface TextActivityOptions<
    * Can be used to pass request-scoped data (e.g., user ID, request context).
    */
   context?: unknown
+  /**
+   * Enable debug logging. Pass `true` to enable all categories with the default
+   * console logger, `false` to silence everything, or a `DebugConfig` object for
+   * granular control and/or a custom `Logger`. Defaults to `undefined`, which
+   * means only the `errors` category is active.
+   */
+  debug?: DebugOption
 }
 
 // ===========================
@@ -271,7 +281,13 @@ class TextEngine<
   private middlewareAbortController?: AbortController
   private terminalHookCalled = false
 
-  constructor(config: TextEngineConfig<TAdapter, TParams>) {
+  private readonly logger: InternalLogger
+
+  constructor(
+    config: TextEngineConfig<TAdapter, TParams>,
+    logger: InternalLogger,
+  ) {
+    this.logger = logger
     this.adapter = config.adapter
     this.params = config.params
     this.systemPrompts = config.params.systemPrompts || []
@@ -310,7 +326,7 @@ class TextEngine<
 
     // Initialize middleware — devtools middleware is always first
     const allMiddleware = [devtoolsMiddleware(), ...(config.middleware || [])]
-    this.middlewareRunner = new MiddlewareRunner(allMiddleware)
+    this.middlewareRunner = new MiddlewareRunner(allMiddleware, logger)
     this.middlewareAbortController = new AbortController()
     this.middlewareCtx = {
       requestId: this.requestId,
@@ -362,6 +378,9 @@ class TextEngine<
 
   async *run(): AsyncGenerator<StreamChunk> {
     this.beforeRun()
+    this.logger.agentLoop('run started', {
+      conversationId: this.middlewareCtx.conversationId,
+    })
 
     try {
       // Run initial onConfig (phase = init)
@@ -386,6 +405,11 @@ class TextEngine<
           return
         }
 
+        this.logger.agentLoop(
+          `iteration=${this.middlewareCtx.iteration}`,
+          { iteration: this.middlewareCtx.iteration },
+        )
+
         await this.beginCycle()
 
         if (this.cyclePhase === 'processText') {
@@ -406,6 +430,10 @@ class TextEngine<
 
         this.endCycle()
       } while (this.shouldContinue())
+
+      this.logger.agentLoop('run finished', {
+        finishReason: this.lastFinishReason,
+      })
 
       // Call terminal onFinish hook (skip when waiting for client — stream is paused, not finished)
       if (!this.terminalHookCalled && this.toolPhase !== 'wait') {
@@ -429,6 +457,10 @@ class TextEngine<
           })
         } else {
           // Genuine error — call onError
+          this.logger.errors('chat run failed', {
+            error,
+            conversationId: this.middlewareCtx.conversationId,
+          })
           await this.middlewareRunner.runOnError(this.middlewareCtx, {
             error,
             duration: Date.now() - this.streamStartTime,
@@ -524,6 +556,18 @@ class TextEngine<
 
     this.middlewareCtx.phase = 'modelStream'
 
+    const providerName =
+      (this.adapter as { provider?: string }).provider ?? this.adapter.name
+    this.logger.request(
+      `activity=chat provider=${providerName} model=${this.params.model} messages=${this.messages.length} tools=${this.tools.length} stream=true`,
+      {
+        provider: providerName,
+        model: this.params.model,
+        messageCount: this.messages.length,
+        toolCount: this.tools.length,
+      },
+    )
+
     for await (const chunk of this.adapter.chatStream({
       model: this.params.model,
       messages: this.messages,
@@ -535,6 +579,7 @@ class TextEngine<
       request: this.effectiveRequest,
       modelOptions,
       systemPrompts: this.systemPrompts,
+      logger: this.logger,
     })) {
       if (this.isCancelled()) {
         break
@@ -548,6 +593,7 @@ class TextEngine<
         chunk,
       )
       for (const outputChunk of outputChunks) {
+        this.logger.output(`type=${outputChunk.type}`, { chunk: outputChunk })
         yield outputChunk
         this.handleStreamChunk(outputChunk)
         this.middlewareCtx.chunkIndex++
@@ -693,6 +739,10 @@ class TextEngine<
       (eventName, data) => this.createCustomEventChunk(eventName, data),
       {
         onBeforeToolCall: async (toolCall, tool, args) => {
+          this.logger.tools(`phase=before name=${toolCall.function.name}`, {
+            name: toolCall.function.name,
+            args,
+          })
           const hookCtx = {
             toolCall,
             tool,
@@ -706,6 +756,10 @@ class TextEngine<
           )
         },
         onAfterToolCall: async (info) => {
+          this.logger.tools(`phase=after name=${info.toolName}`, {
+            name: info.toolName,
+            result: info.result,
+          })
           await this.middlewareRunner.runOnAfterToolCall(
             this.middlewareCtx,
             info,
@@ -846,6 +900,10 @@ class TextEngine<
       (eventName, data) => this.createCustomEventChunk(eventName, data),
       {
         onBeforeToolCall: async (toolCall, tool, args) => {
+          this.logger.tools(`phase=before name=${toolCall.function.name}`, {
+            name: toolCall.function.name,
+            args,
+          })
           const hookCtx = {
             toolCall,
             tool,
@@ -859,6 +917,10 @@ class TextEngine<
           )
         },
         onAfterToolCall: async (info) => {
+          this.logger.tools(`phase=after name=${info.toolName}`, {
+            name: info.toolName,
+            result: info.result,
+          })
           await this.middlewareRunner.runOnAfterToolCall(
             this.middlewareCtx,
             info,
@@ -1413,18 +1475,22 @@ export function chat<
 async function* runStreamingText(
   options: TextActivityOptions<AnyTextAdapter, undefined, true>,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, middleware, context, ...textOptions } = options
+  const { adapter, middleware, context, debug, ...textOptions } = options
   const model = adapter.model
+  const logger = resolveDebugOption(debug)
 
-  const engine = new TextEngine({
-    adapter,
-    params: { ...textOptions, model } as TextOptions<
-      Record<string, any>,
-      Record<string, any>
-    >,
-    middleware,
-    context,
-  })
+  const engine = new TextEngine(
+    {
+      adapter,
+      params: { ...textOptions, model, logger } as TextOptions<
+        Record<string, any>,
+        Record<string, any>
+      >,
+      middleware,
+      context,
+    },
+    logger,
+  )
 
   for await (const chunk of engine.run()) {
     yield chunk
@@ -1455,23 +1521,28 @@ function runNonStreamingText(
 async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
   options: TextActivityOptions<AnyTextAdapter, TSchema, boolean>,
 ): Promise<InferSchemaType<TSchema>> {
-  const { adapter, outputSchema, middleware, context, ...textOptions } = options
+  const { adapter, outputSchema, middleware, context, debug, ...textOptions } =
+    options
   const model = adapter.model
+  const logger = resolveDebugOption(debug)
 
   if (!outputSchema) {
     throw new Error('outputSchema is required for structured output')
   }
 
   // Create the engine and run the agentic loop
-  const engine = new TextEngine({
-    adapter,
-    params: { ...textOptions, model } as TextOptions<
-      Record<string, unknown>,
-      Record<string, unknown>
-    >,
-    middleware,
-    context,
-  })
+  const engine = new TextEngine(
+    {
+      adapter,
+      params: { ...textOptions, model, logger } as TextOptions<
+        Record<string, unknown>,
+        Record<string, unknown>
+      >,
+      middleware,
+      context,
+    },
+    logger,
+  )
 
   // Consume the stream to run the agentic loop
   for await (const _chunk of engine.run()) {
@@ -1495,6 +1566,17 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     throw new Error('Failed to convert output schema to JSON Schema')
   }
 
+  const providerName =
+    (adapter as { provider?: string }).provider ?? adapter.name
+  logger.request(
+    `activity=chat-structured provider=${providerName} model=${model} messages=${finalMessages.length}`,
+    {
+      provider: providerName,
+      model,
+      messageCount: finalMessages.length,
+    },
+  )
+
   // Call the adapter's structured output method with the conversation context
   // The adapter receives JSON Schema and can apply vendor-specific patches
   const result = await adapter.structuredOutput({
@@ -1502,8 +1584,10 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
       ...structuredTextOptions,
       model,
       messages: finalMessages,
+      logger,
     },
     outputSchema: jsonSchema,
+    logger,
   })
 
   // Validate the result against the schema if it's a Standard Schema

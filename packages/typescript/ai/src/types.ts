@@ -1,4 +1,5 @@
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
+import type { InternalLogger } from './logger/internal-logger'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -712,6 +713,13 @@ export interface TextOptions<
    * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortController
    */
   abortController?: AbortController
+
+  /**
+   * Internal logger threaded from the chat entry point. Adapter implementations
+   * must call `logger.request()` before SDK calls, `logger.provider()` for each
+   * chunk received, and `logger.errors()` in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 // ============================================================================

@@ -1,5 +1,6 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import type { StreamChunk } from '../../../types'
+import type { InternalLogger } from '../../../logger/internal-logger'
 import type {
   AbortInfo,
   AfterToolCallInfo,
@@ -36,9 +37,14 @@ function instrumentCtx(ctx: ChatMiddlewareContext) {
  */
 export class MiddlewareRunner {
   private readonly middlewares: ReadonlyArray<ChatMiddleware>
+  private readonly logger: InternalLogger
 
-  constructor(middlewares: ReadonlyArray<ChatMiddleware>) {
+  constructor(
+    middlewares: ReadonlyArray<ChatMiddleware>,
+    logger: InternalLogger,
+  ) {
     this.middlewares = middlewares
+    this.logger = logger
   }
 
   get hasMiddleware(): boolean {
@@ -63,6 +69,13 @@ export class MiddlewareRunner {
         const hasTransform = result !== undefined && result !== null
         if (hasTransform) {
           current = { ...current, ...result }
+          this.logger.config(
+            `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result as object).join(',')}`,
+            {
+              middleware: mw.name ?? 'unnamed',
+              changes: result,
+            },
+          )
         }
         if (!skip) {
           const base = instrumentCtx(ctx)
@@ -97,6 +110,10 @@ export class MiddlewareRunner {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         await mw.onStart(ctx)
+        this.logger.middleware(
+          `hook=onStart middleware=${mw.name ?? 'unnamed'}`,
+          { middleware: mw.name ?? 'unnamed', hook: 'onStart' },
+        )
         if (!skip) {
           aiEventClient.emit('middleware:hook:executed', {
             ...instrumentCtx(ctx),
@@ -132,9 +149,21 @@ export class MiddlewareRunner {
 
       const nextChunks: Array<StreamChunk> = []
       for (const c of chunks) {
+        this.logger.middleware(
+          `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${c.type}`,
+          { middleware: mw.name ?? 'unnamed', hook: 'onChunk', in: c },
+        )
         const result = await mw.onChunk(ctx, c)
         if (result === null) {
           // Drop this chunk
+          this.logger.middleware(
+            `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${c.type} out=<dropped>`,
+            {
+              middleware: mw.name ?? 'unnamed',
+              hook: 'onChunk',
+              dropped: true,
+            },
+          )
           if (!skip) {
             aiEventClient.emit('middleware:chunk:transformed', {
               ...instrumentCtx(ctx),
@@ -151,6 +180,15 @@ export class MiddlewareRunner {
         } else if (Array.isArray(result)) {
           // Expand
           nextChunks.push(...result)
+          this.logger.middleware(
+            `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${c.type} out=[${result.map((r: StreamChunk) => r.type).join(',')}]`,
+            {
+              middleware: mw.name ?? 'unnamed',
+              hook: 'onChunk',
+              in: c,
+              out: result,
+            },
+          )
           if (!skip) {
             aiEventClient.emit('middleware:chunk:transformed', {
               ...instrumentCtx(ctx),
@@ -163,6 +201,15 @@ export class MiddlewareRunner {
         } else {
           // Replace
           nextChunks.push(result)
+          this.logger.middleware(
+            `hook=onChunk middleware=${mw.name ?? 'unnamed'} in=${c.type} out=${result.type}`,
+            {
+              middleware: mw.name ?? 'unnamed',
+              hook: 'onChunk',
+              in: c,
+              out: result,
+            },
+          )
           if (!skip) {
             aiEventClient.emit('middleware:chunk:transformed', {
               ...instrumentCtx(ctx),
@@ -194,6 +241,10 @@ export class MiddlewareRunner {
         const start = Date.now()
         const decision = await mw.onBeforeToolCall(ctx, hookCtx)
         const hasTransform = decision !== undefined && decision !== null
+        this.logger.middleware(
+          `hook=onBeforeToolCall middleware=${mw.name ?? 'unnamed'}`,
+          { middleware: mw.name ?? 'unnamed', hook: 'onBeforeToolCall' },
+        )
         if (!skip) {
           aiEventClient.emit('middleware:hook:executed', {
             ...instrumentCtx(ctx),
@@ -224,6 +275,10 @@ export class MiddlewareRunner {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         await mw.onAfterToolCall(ctx, info)
+        this.logger.middleware(
+          `hook=onAfterToolCall middleware=${mw.name ?? 'unnamed'}`,
+          { middleware: mw.name ?? 'unnamed', hook: 'onAfterToolCall' },
+        )
         if (!skip) {
           aiEventClient.emit('middleware:hook:executed', {
             ...instrumentCtx(ctx),
@@ -250,6 +305,10 @@ export class MiddlewareRunner {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         await mw.onUsage(ctx, usage)
+        this.logger.middleware(
+          `hook=onUsage middleware=${mw.name ?? 'unnamed'}`,
+          { middleware: mw.name ?? 'unnamed', hook: 'onUsage' },
+        )
         if (!skip) {
           aiEventClient.emit('middleware:hook:executed', {
             ...instrumentCtx(ctx),
@@ -276,6 +335,10 @@ export class MiddlewareRunner {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         await mw.onFinish(ctx, info)
+        this.logger.middleware(
+          `hook=onFinish middleware=${mw.name ?? 'unnamed'}`,
+          { middleware: mw.name ?? 'unnamed', hook: 'onFinish' },
+        )
         if (!skip) {
           aiEventClient.emit('middleware:hook:executed', {
             ...instrumentCtx(ctx),
@@ -299,6 +362,10 @@ export class MiddlewareRunner {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         await mw.onAbort(ctx, info)
+        this.logger.middleware(
+          `hook=onAbort middleware=${mw.name ?? 'unnamed'}`,
+          { middleware: mw.name ?? 'unnamed', hook: 'onAbort' },
+        )
         if (!skip) {
           aiEventClient.emit('middleware:hook:executed', {
             ...instrumentCtx(ctx),
@@ -322,6 +389,10 @@ export class MiddlewareRunner {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         await mw.onError(ctx, info)
+        this.logger.middleware(
+          `hook=onError middleware=${mw.name ?? 'unnamed'}`,
+          { middleware: mw.name ?? 'unnamed', hook: 'onError' },
+        )
         if (!skip) {
           aiEventClient.emit('middleware:hook:executed', {
             ...instrumentCtx(ctx),
@@ -349,6 +420,10 @@ export class MiddlewareRunner {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         await mw.onIteration(ctx, info)
+        this.logger.middleware(
+          `hook=onIteration middleware=${mw.name ?? 'unnamed'}`,
+          { middleware: mw.name ?? 'unnamed', hook: 'onIteration' },
+        )
         if (!skip) {
           aiEventClient.emit('middleware:hook:executed', {
             ...instrumentCtx(ctx),
@@ -376,6 +451,10 @@ export class MiddlewareRunner {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
         await mw.onToolPhaseComplete(ctx, info)
+        this.logger.middleware(
+          `hook=onToolPhaseComplete middleware=${mw.name ?? 'unnamed'}`,
+          { middleware: mw.name ?? 'unnamed', hook: 'onToolPhaseComplete' },
+        )
         if (!skip) {
           aiEventClient.emit('middleware:hook:executed', {
             ...instrumentCtx(ctx),

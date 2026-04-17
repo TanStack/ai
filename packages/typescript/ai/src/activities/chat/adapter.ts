@@ -5,6 +5,7 @@ import type {
   StreamChunk,
   TextOptions,
 } from '../../types'
+import type { InternalLogger } from '../../logger/internal-logger'
 
 /**
  * Configuration for adapter instances
@@ -25,6 +26,12 @@ export interface StructuredOutputOptions<TProviderOptions extends object> {
   chatOptions: TextOptions<TProviderOptions>
   /** JSON Schema for structured output - already converted from Zod in the ai layer */
   outputSchema: JSONSchema
+  /**
+   * Internal logger threaded from the chat entry point. Adapter implementations
+   * must call `logger.request()` before SDK calls, `logger.provider()` for each
+   * chunk received, and `logger.errors()` in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
