@@ -32,6 +32,7 @@ export class ChatClient {
   private uniqueId: string
   private body: Record<string, any> = {}
   private pendingMessageBody: Record<string, any> | undefined = undefined
+  private context: unknown = undefined
   private isLoading = false
   private isSubscribed = false
   private error: Error | undefined = undefined
@@ -81,6 +82,7 @@ export class ChatClient {
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.body = options.body || {}
+    this.context = options.context
     this.connection = normalizeConnectionAdapter(options.connection)
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
@@ -202,7 +204,7 @@ export class ChatClient {
             // Create and track the execution promise
             const executionPromise = (async () => {
               try {
-                const output = await executeFunc(args.input)
+                const output = await executeFunc(args.input, { userContext: this.context })
                 await this.addToolResult({
                   toolCallId: args.toolCallId,
                   tool: args.toolName,
@@ -955,6 +957,7 @@ export class ChatClient {
   updateOptions(options: {
     connection?: ConnectionAdapter
     body?: Record<string, any>
+    context?: unknown
     tools?: ReadonlyArray<AnyClientTool>
     onResponse?: (response?: Response) => void | Promise<void>
     onChunk?: (chunk: StreamChunk) => void
@@ -992,6 +995,9 @@ export class ChatClient {
     }
     if (options.body !== undefined) {
       this.body = options.body
+    }
+    if (options.context !== undefined) {
+      this.context = options.context
     }
     if (options.tools !== undefined) {
       this.clientToolsRef.current = new Map()

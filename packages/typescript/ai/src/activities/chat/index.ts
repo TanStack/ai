@@ -712,6 +712,7 @@ class TextEngine<
           )
         },
       },
+      this.params.context,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -865,6 +866,7 @@ class TextEngine<
           )
         },
       },
+      this.params.context,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
