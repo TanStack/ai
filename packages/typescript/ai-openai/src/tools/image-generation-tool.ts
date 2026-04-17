@@ -6,7 +6,10 @@ export type ImageGenerationToolConfig = OpenAI.Responses.Tool.ImageGeneration
 /** @deprecated Renamed to `ImageGenerationToolConfig`. Will be removed in a future release. */
 export type ImageGenerationTool = ImageGenerationToolConfig
 
-export type OpenAIImageGenerationTool = ProviderTool<'openai', 'image_generation'>
+export type OpenAIImageGenerationTool = ProviderTool<
+  'openai',
+  'image_generation'
+>
 
 const validatePartialImages = (value: number | undefined) => {
   if (value !== undefined && (value < 0 || value > 3)) {

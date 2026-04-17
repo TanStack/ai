@@ -20,7 +20,9 @@ export function convertComputerUseToolToAdapterFormat(
   return metadata
 }
 
-export function computerUseTool(config: ComputerUseToolConfig): AnthropicComputerUseTool {
+export function computerUseTool(
+  config: ComputerUseToolConfig,
+): AnthropicComputerUseTool {
   // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'computer',

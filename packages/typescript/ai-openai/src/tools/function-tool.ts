@@ -18,7 +18,9 @@ export type FunctionTool = FunctionToolConfig
  *
  * This enables strict mode for all tools automatically.
  */
-export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionToolConfig {
+export function convertFunctionToolToAdapterFormat(
+  tool: Tool,
+): FunctionToolConfig {
   // Tool schemas are already converted to JSON Schema in the ai layer
   // Apply OpenAI-specific transformations for strict mode
   const inputSchema = (tool.inputSchema ?? {

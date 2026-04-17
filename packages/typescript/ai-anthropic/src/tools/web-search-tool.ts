@@ -50,7 +50,9 @@ const validateUserLocation = (tool: WebSearchToolConfig) => {
   }
 }
 
-export function convertWebSearchToolToAdapterFormat(tool: Tool): WebSearchToolConfig {
+export function convertWebSearchToolToAdapterFormat(
+  tool: Tool,
+): WebSearchToolConfig {
   const metadata = tool.metadata as {
     allowedDomains?: Array<string> | null
     blockedDomains?: Array<string> | null
@@ -75,7 +77,9 @@ export function convertWebSearchToolToAdapterFormat(tool: Tool): WebSearchToolCo
   }
 }
 
-export function webSearchTool(config: WebSearchToolConfig): AnthropicWebSearchTool {
+export function webSearchTool(
+  config: WebSearchToolConfig,
+): AnthropicWebSearchTool {
   validateDomains(config)
   validateUserLocation(config)
   // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.

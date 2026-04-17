@@ -6,7 +6,10 @@ export type GoogleSearchRetrievalToolConfig = GoogleSearchRetrieval
 /** @deprecated Renamed to `GoogleSearchRetrievalToolConfig`. Will be removed in a future release. */
 export type GoogleSearchRetrievalTool = GoogleSearchRetrievalToolConfig
 
-export type GeminiGoogleSearchRetrievalTool = ProviderTool<'gemini', 'google_search_retrieval'>
+export type GeminiGoogleSearchRetrievalTool = ProviderTool<
+  'gemini',
+  'google_search_retrieval'
+>
 
 export function convertGoogleSearchRetrievalToolToAdapterFormat(tool: Tool) {
   const metadata = tool.metadata as GoogleSearchRetrievalToolConfig

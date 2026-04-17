@@ -15,7 +15,9 @@ export function convertFileSearchToolToAdapterFormat(tool: Tool) {
   }
 }
 
-export function fileSearchTool(config: FileSearchToolConfig): GeminiFileSearchTool {
+export function fileSearchTool(
+  config: FileSearchToolConfig,
+): GeminiFileSearchTool {
   // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'file_search',

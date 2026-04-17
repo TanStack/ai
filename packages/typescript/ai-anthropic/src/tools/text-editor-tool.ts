@@ -24,7 +24,9 @@ export function convertTextEditorToolToAdapterFormat(
   }
 }
 
-export function textEditorTool<T extends TextEditorToolConfig>(config: T): AnthropicTextEditorTool {
+export function textEditorTool<T extends TextEditorToolConfig>(
+  config: T,
+): AnthropicTextEditorTool {
   // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'str_replace_editor',

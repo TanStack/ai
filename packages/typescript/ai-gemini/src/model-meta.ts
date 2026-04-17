@@ -65,12 +65,7 @@ const GEMINI_3_1_PRO = {
       'structured_output',
       'thinking',
     ],
-    tools: [
-      'code_execution',
-      'file_search',
-      'google_search',
-      'url_context',
-    ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -105,12 +100,7 @@ const GEMINI_3_PRO = {
       'structured_output',
       'thinking',
     ],
-    tools: [
-      'code_execution',
-      'file_search',
-      'google_search',
-      'url_context',
-    ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -145,12 +135,7 @@ const GEMINI_3_FLASH = {
       'structured_output',
       'thinking',
     ],
-    tools: [
-      'code_execution',
-      'file_search',
-      'google_search',
-      'url_context',
-    ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -178,14 +163,8 @@ const GEMINI_3_PRO_IMAGE = {
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
-    capabilities: [
-      'batch_api',
-      'structured_output',
-      'thinking',
-    ],
-    tools: [
-      'google_search',
-    ],
+    capabilities: ['batch_api', 'structured_output', 'thinking'],
+    tools: ['google_search'],
   },
   pricing: {
     input: {
@@ -213,14 +192,8 @@ const GEMINI_3_1_FLASH_IMAGE = {
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
-    capabilities: [
-      'batch_api',
-      'structured_output',
-      'thinking',
-    ],
-    tools: [
-      'google_search',
-    ],
+    capabilities: ['batch_api', 'structured_output', 'thinking'],
+    tools: ['google_search'],
   },
   pricing: {
     input: {
@@ -254,12 +227,7 @@ const GEMINI_3_1_FLASH_LITE = {
       'structured_output',
       'thinking',
     ],
-    tools: [
-      'code_execution',
-      'file_search',
-      'google_search',
-      'url_context',
-    ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -399,12 +367,7 @@ const GEMINI_2_5_FLASH_PREVIEW = {
       'structured_output',
       'thinking',
     ],
-    tools: [
-      'code_execution',
-      'file_search',
-      'google_search',
-      'url_context',
-    ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -431,14 +394,8 @@ const GEMINI_2_5_FLASH_IMAGE = {
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
-    capabilities: [
-      'batch_api',
-      'caching',
-      'structured_output',
-    ],
-    tools: [
-      'file_search',
-    ],
+    capabilities: ['batch_api', 'caching', 'structured_output'],
+    tools: ['file_search'],
   },
   pricing: {
     input: {
@@ -530,12 +487,7 @@ const GEMINI_2_5_FLASH_LITE = {
       'structured_output',
       'thinking',
     ],
-    tools: [
-      'code_execution',
-      'google_maps',
-      'google_search',
-      'url_context',
-    ],
+    tools: ['code_execution', 'google_maps', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -569,11 +521,7 @@ const GEMINI_2_5_FLASH_LITE_PREVIEW = {
       'structured_output',
       'thinking',
     ],
-    tools: [
-      'code_execution',
-      'google_search',
-      'url_context',
-    ],
+    tools: ['code_execution', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -607,11 +555,7 @@ const GEMINI_2_FLASH = {
       'live_api',
       'structured_output',
     ],
-    tools: [
-      'code_execution',
-      'google_maps',
-      'google_search',
-    ],
+    tools: ['code_execution', 'google_maps', 'google_search'],
   },
   pricing: {
     input: {
@@ -637,11 +581,7 @@ const GEMINI_2_FLASH_IMAGE = {
   supports: {
     input: ['text', 'image', 'audio', 'video'],
     output: ['text'],
-    capabilities: [
-      'batch_api',
-      'caching',
-      'structured_output',
-    ],
+    capabilities: ['batch_api', 'caching', 'structured_output'],
     tools: [],
   },
   pricing: {

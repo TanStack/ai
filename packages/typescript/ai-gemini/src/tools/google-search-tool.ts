@@ -15,7 +15,9 @@ export function convertGoogleSearchToolToAdapterFormat(tool: Tool) {
   }
 }
 
-export function googleSearchTool(config?: GoogleSearchToolConfig): GeminiGoogleSearchTool {
+export function googleSearchTool(
+  config?: GoogleSearchToolConfig,
+): GeminiGoogleSearchTool {
   // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'google_search',

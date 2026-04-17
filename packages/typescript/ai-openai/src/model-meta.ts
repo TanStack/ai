@@ -1328,7 +1328,13 @@ const GPT_4O = {
       'fine_tuning',
       'predicted_outcomes',
     ],
-    tools: ['web_search', 'file_search', 'image_generation', 'code_interpreter', 'mcp'],
+    tools: [
+      'web_search',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1398,7 +1404,13 @@ const GPT_4O_MINI = {
       'fine_tuning',
       'predicted_outcomes',
     ],
-    tools: ['web_search', 'file_search', 'image_generation', 'code_interpreter', 'mcp'],
+    tools: [
+      'web_search',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &

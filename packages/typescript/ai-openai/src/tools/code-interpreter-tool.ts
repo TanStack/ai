@@ -6,7 +6,10 @@ export type CodeInterpreterToolConfig = OpenAI.Responses.Tool.CodeInterpreter
 /** @deprecated Renamed to `CodeInterpreterToolConfig`. Will be removed in a future release. */
 export type CodeInterpreterTool = CodeInterpreterToolConfig
 
-export type OpenAICodeInterpreterTool = ProviderTool<'openai', 'code_interpreter'>
+export type OpenAICodeInterpreterTool = ProviderTool<
+  'openai',
+  'code_interpreter'
+>
 
 /**
  * Converts a standard Tool to OpenAI CodeInterpreterTool format
@@ -24,7 +27,9 @@ export function convertCodeInterpreterToolToAdapterFormat(
 /**
  * Creates a standard Tool from CodeInterpreterTool parameters
  */
-export function codeInterpreterTool(container: CodeInterpreterToolConfig): OpenAICodeInterpreterTool {
+export function codeInterpreterTool(
+  container: CodeInterpreterToolConfig,
+): OpenAICodeInterpreterTool {
   // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'code_interpreter',

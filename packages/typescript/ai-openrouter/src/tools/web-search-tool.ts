@@ -17,7 +17,9 @@ export type OpenRouterWebSearchTool = ProviderTool<'openrouter', 'web_search'>
 /**
  * Converts a standard Tool to OpenRouter WebSearchTool format.
  */
-export function convertWebSearchToolToAdapterFormat(tool: Tool): WebSearchToolConfig {
+export function convertWebSearchToolToAdapterFormat(
+  tool: Tool,
+): WebSearchToolConfig {
   const metadata = tool.metadata as WebSearchToolConfig
   return metadata
 }

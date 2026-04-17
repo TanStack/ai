@@ -15,7 +15,9 @@ export function convertGoogleMapsToolToAdapterFormat(tool: Tool) {
   }
 }
 
-export function googleMapsTool(config?: GoogleMapsToolConfig): GeminiGoogleMapsTool {
+export function googleMapsTool(
+  config?: GoogleMapsToolConfig,
+): GeminiGoogleMapsTool {
   // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'google_maps',

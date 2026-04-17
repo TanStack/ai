@@ -8,7 +8,9 @@ export type WebFetchTool = WebFetchToolConfig
 
 export type AnthropicWebFetchTool = ProviderTool<'anthropic', 'web_fetch'>
 
-export function convertWebFetchToolToAdapterFormat(tool: Tool): WebFetchToolConfig {
+export function convertWebFetchToolToAdapterFormat(
+  tool: Tool,
+): WebFetchToolConfig {
   const metadata = tool.metadata as Omit<WebFetchToolConfig, 'type' | 'name'>
   return {
     name: 'web_fetch',

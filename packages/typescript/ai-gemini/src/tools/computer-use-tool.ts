@@ -18,7 +18,9 @@ export function convertComputerUseToolToAdapterFormat(tool: Tool) {
   }
 }
 
-export function computerUseTool(config: ComputerUseToolConfig): GeminiComputerUseTool {
+export function computerUseTool(
+  config: ComputerUseToolConfig,
+): GeminiComputerUseTool {
   // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'computer_use',

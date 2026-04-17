@@ -11,7 +11,9 @@ export type OpenAIWebSearchTool = ProviderTool<'openai', 'web_search'>
 /**
  * Converts a standard Tool to OpenAI WebSearchTool format
  */
-export function convertWebSearchToolToAdapterFormat(tool: Tool): WebSearchToolConfig {
+export function convertWebSearchToolToAdapterFormat(
+  tool: Tool,
+): WebSearchToolConfig {
   const metadata = tool.metadata as WebSearchToolConfig
   return metadata
 }
@@ -19,7 +21,9 @@ export function convertWebSearchToolToAdapterFormat(tool: Tool): WebSearchToolCo
 /**
  * Creates a standard Tool from WebSearchTool parameters
  */
-export function webSearchTool(toolData: WebSearchToolConfig): OpenAIWebSearchTool {
+export function webSearchTool(
+  toolData: WebSearchToolConfig,
+): OpenAIWebSearchTool {
   // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'web_search',

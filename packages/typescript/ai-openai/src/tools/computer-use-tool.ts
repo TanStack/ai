@@ -26,7 +26,9 @@ export function convertComputerUseToolToAdapterFormat(
 /**
  * Creates a standard Tool from ComputerUseTool parameters
  */
-export function computerUseTool(toolData: ComputerUseToolConfig): OpenAIComputerUseTool {
+export function computerUseTool(
+  toolData: ComputerUseToolConfig,
+): OpenAIComputerUseTool {
   // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'computer_use_preview',

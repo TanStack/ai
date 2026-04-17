@@ -77,7 +77,8 @@ interface AGUIState {
 
 export class OpenRouterTextAdapter<
   TModel extends OpenRouterTextModels,
-  TToolCapabilities extends ReadonlyArray<string> = ResolveToolCapabilities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
