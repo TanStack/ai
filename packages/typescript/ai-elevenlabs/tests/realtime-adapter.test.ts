@@ -5,7 +5,7 @@ import type { AnyClientTool, RealtimeMessage } from '@tanstack/ai'
 // Capture the session options passed to Conversation.startSession
 let capturedSessionOptions: Record<string, any> = {}
 
-vi.mock('@11labs/client', () => ({
+vi.mock('@elevenlabs/client', () => ({
   Conversation: {
     startSession: vi.fn(async (options: Record<string, any>) => {
       capturedSessionOptions = options
@@ -33,6 +33,7 @@ describe('elevenlabsRealtime adapter', () => {
   const fakeToken = {
     token: 'wss://fake-signed-url',
     expiresAt: Date.now() + 60_000,
+    config: {},
   }
 
   async function createConnection(
@@ -145,8 +146,163 @@ describe('elevenlabsRealtime adapter', () => {
     })
   })
 
+  describe('overrides', () => {
+    const fakeTokenWithInstructions = {
+      token: 'wss://fake-signed-url',
+      expiresAt: Date.now() + 60_000,
+      config: { instructions: 'Be concise.' },
+    }
+
+    async function createConnectionWithOptions(
+      adapterOptions: import('../src/realtime/types').ElevenLabsRealtimeOptions,
+      token: typeof fakeToken = fakeToken,
+    ): Promise<RealtimeConnection> {
+      const adapter = elevenlabsRealtime(adapterOptions)
+      return adapter.connect(token as any, undefined)
+    }
+
+    it('should not include overrides when no instructions and no overrides option', async () => {
+      await createConnectionWithOptions({}, { ...fakeToken, config: {} } as any)
+
+      expect(capturedSessionOptions.overrides).toBeUndefined()
+    })
+
+    it('should set agent prompt from token instructions', async () => {
+      await createConnectionWithOptions({}, fakeTokenWithInstructions as any)
+
+      expect(capturedSessionOptions.overrides).toMatchObject({
+        agent: {
+          prompt: { prompt: 'Be concise.' },
+        },
+      })
+    })
+
+    it('should set agent prompt from options, ignoring token instructions', async () => {
+      await createConnectionWithOptions(
+        {
+          overrides: {
+            agent: { prompt: { prompt: 'Custom system prompt.' } },
+          },
+        },
+        fakeTokenWithInstructions as any,
+      )
+
+      expect(capturedSessionOptions.overrides?.agent?.prompt?.prompt).toBe(
+        'Custom system prompt.',
+      )
+    })
+
+    it('should fall back to token instructions when options prompt is absent', async () => {
+      await createConnectionWithOptions(
+        {
+          overrides: {
+            agent: { firstMessage: 'Hello!' },
+          },
+        },
+        fakeTokenWithInstructions as any,
+      )
+
+      expect(capturedSessionOptions.overrides?.agent?.prompt?.prompt).toBe(
+        'Be concise.',
+      )
+      expect(capturedSessionOptions.overrides?.agent?.firstMessage).toBe(
+        'Hello!',
+      )
+    })
+
+    it('should set agent firstMessage and language', async () => {
+      await createConnectionWithOptions(
+        {
+          overrides: {
+            agent: {
+              firstMessage: 'Hola!',
+              language: 'es',
+            },
+          },
+        },
+        { ...fakeToken, config: {} } as any,
+      )
+
+      expect(capturedSessionOptions.overrides?.agent?.firstMessage).toBe(
+        'Hola!',
+      )
+      expect(capturedSessionOptions.overrides?.agent?.language).toBe('es')
+    })
+
+    it('should set tts overrides correctly', async () => {
+      await createConnectionWithOptions(
+        {
+          overrides: {
+            tts: {
+              voiceId: 'voice-abc',
+              speed: 1.2,
+              stability: 0.7,
+              similarityBoost: 0.9,
+            },
+          },
+        },
+        { ...fakeToken, config: {} } as any,
+      )
+
+      expect(capturedSessionOptions.overrides?.tts).toMatchObject({
+        voiceId: 'voice-abc',
+        speed: 1.2,
+        stability: 0.7,
+        similarityBoost: 0.9,
+      })
+    })
+
+    it('should set conversation textOnly override', async () => {
+      await createConnectionWithOptions(
+        {
+          overrides: {
+            conversation: { textOnly: true },
+          },
+        },
+        { ...fakeToken, config: {} } as any,
+      )
+
+      expect(capturedSessionOptions.overrides?.conversation?.textOnly).toBe(
+        true,
+      )
+    })
+
+    it('should set all override sections simultaneously', async () => {
+      await createConnectionWithOptions(
+        {
+          overrides: {
+            agent: {
+              prompt: { prompt: 'Full test prompt.' },
+              firstMessage: 'Hi there!',
+              language: 'fr',
+            },
+            tts: {
+              voiceId: 'voice-xyz',
+              speed: 0.9,
+            },
+            conversation: { textOnly: false },
+          },
+        },
+        { ...fakeToken, config: {} } as any,
+      )
+
+      expect(capturedSessionOptions.overrides).toMatchObject({
+        agent: {
+          prompt: { prompt: 'Full test prompt.' },
+          firstMessage: 'Hi there!',
+          language: 'fr',
+        },
+        tts: {
+          voiceId: 'voice-xyz',
+          speed: 0.9,
+        },
+        conversation: { textOnly: false },
+      })
+    })
+  })
+
   describe('clientTools registration', () => {
-    it('should pass client tools as plain functions to @11labs/client', async () => {
+    it('should pass client tools as plain functions to @elevenlabs/client', async () => {
       const mockTool: AnyClientTool = {
         name: 'get_weather',
         description: 'Get current weather',
