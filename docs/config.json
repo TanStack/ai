@@ -164,6 +164,10 @@
           "to": "advanced/middleware"
         },
         {
+          "label": "Debug Logging",
+          "to": "advanced/debug-logging"
+        },
+        {
           "label": "Observability",
           "to": "advanced/observability"
         },
