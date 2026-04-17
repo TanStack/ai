@@ -55,9 +55,7 @@ chat({
 });
 ```
 
-If you want to see ONLY a specific set of categories, set the rest to `false` explicitly:
-
-// Errors default to true; keep them on unless you really want total silence.
+If you want to see ONLY a specific set of categories, set the rest to `false` explicitly. Errors default to `true` — keep them on unless you really want total silence:
 
 ```typescript
 chat({
