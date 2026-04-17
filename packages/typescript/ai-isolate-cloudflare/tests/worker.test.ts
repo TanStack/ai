@@ -47,6 +47,48 @@ describe('generateToolWrappers', () => {
     expect(code).toContain('result.error')
     expect(code).toContain('return result.value')
   })
+
+  it('rejects tool names that would break out of the function identifier', () => {
+    const malicious: ToolSchema = {
+      name: "foo'); process.exit(1); (function bar() {",
+      description: '',
+      inputSchema: {},
+    }
+    expect(() => generateToolWrappers([malicious])).toThrow(/Invalid tool name/)
+  })
+
+  it('rejects tool names containing whitespace, quotes, or backticks', () => {
+    const cases = [
+      'has space',
+      'with`backtick',
+      "with'quote",
+      'with"quote',
+      'with;semi',
+      'with\nnewline',
+    ]
+    for (const name of cases) {
+      expect(() =>
+        generateToolWrappers([{ name, description: '', inputSchema: {} }]),
+      ).toThrow(/Invalid tool name/)
+    }
+  })
+
+  it('rejects tool names that start with a digit', () => {
+    expect(() =>
+      generateToolWrappers([
+        { name: '123tool', description: '', inputSchema: {} },
+      ]),
+    ).toThrow(/Invalid tool name/)
+  })
+
+  it('accepts conventional identifiers (camelCase, snake_case, $_)', () => {
+    const valid = ['camelCase', 'snake_case', '_leading_underscore', '$dollar']
+    for (const name of valid) {
+      expect(() =>
+        generateToolWrappers([{ name, description: '', inputSchema: {} }]),
+      ).not.toThrow()
+    }
+  })
 })
 
 describe('wrapCode', () => {
@@ -137,6 +179,9 @@ describe('Worker fetch handler', () => {
     expect(json.status).toBe('error')
     expect(json.error.name).toBe('UnsafeEvalNotAvailable')
     expect(json.error.message).toContain('UNSAFE_EVAL')
+    expect(json.error.message).toContain('wrangler.toml')
+    // No longer steers users to Workers for Platforms
+    expect(json.error.message).not.toContain('Workers for Platforms')
   })
 
   it('returns 500 with RequestError when body is invalid JSON', async () => {

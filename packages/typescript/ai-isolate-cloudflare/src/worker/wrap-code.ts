@@ -5,6 +5,20 @@
 
 import type { ToolResultPayload, ToolSchema } from '../types'
 
+// Tool names are interpolated into generated JS as (1) function identifiers
+// and (2) string literals. Rejecting anything outside this pattern closes
+// the injection vector that would otherwise let a malicious tool name
+// break out of the wrapper.
+const VALID_TOOL_NAME = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/
+
+function assertSafeToolName(name: string): void {
+  if (!VALID_TOOL_NAME.test(name)) {
+    throw new Error(
+      `Invalid tool name '${name}': must match ${VALID_TOOL_NAME} (letters, digits, _, $; cannot start with a digit)`,
+    )
+  }
+}
+
 /**
  * Generate tool wrapper code that collects calls or returns cached results.
  *
@@ -19,6 +33,7 @@ export function generateToolWrappers(
   const wrappers: Array<string> = []
 
   for (const tool of tools) {
+    assertSafeToolName(tool.name)
     if (toolResults) {
       wrappers.push(`
         async function ${tool.name}(input) {
