@@ -4,6 +4,7 @@
  * implementations to support `stream: true`.
  */
 
+import { toRunErrorPayload } from './error-payload'
 import type { StreamChunk } from '../types'
 
 function createId(prefix: string): string {
@@ -48,14 +49,11 @@ export async function* streamGenerationResult<TResult>(
       finishReason: 'stop',
       timestamp: Date.now(),
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     yield {
       type: 'RUN_ERROR',
       runId,
-      error: {
-        message: error.message || 'Generation failed',
-        code: error.code,
-      },
+      error: toRunErrorPayload(error, 'Generation failed'),
       timestamp: Date.now(),
     }
   }
