@@ -10,6 +10,7 @@ import {
   bashTool,
   codeExecutionTool,
   computerUseTool,
+  customTool,
   memoryTool,
   textEditorTool,
   webFetchTool,
@@ -91,6 +92,20 @@ describe('Anthropic per-model tool gating', () => {
       }),
       // @ts-expect-error - claude-3-haiku does not support memory
       memoryTool(),
+    ])
+  })
+
+  it('customTool is accepted on any model (returns plain Tool, not a branded ProviderTool)', () => {
+    // Full-featured model
+    const fullAdapter = anthropicText('claude-opus-4-6')
+    typedTools(fullAdapter, [
+      customTool('lookup_user', 'Look up a user by ID', z.object({ userId: z.number() })),
+    ])
+
+    // Restricted model — customTool must still compile without @ts-expect-error
+    const restrictedAdapter = anthropicText('claude-3-haiku')
+    typedTools(restrictedAdapter, [
+      customTool('lookup_user', 'Look up a user by ID', z.object({ userId: z.number() })),
     ])
   })
 
