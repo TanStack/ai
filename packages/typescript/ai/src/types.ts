@@ -1224,6 +1224,12 @@ export interface TranscriptionOptions<
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Model-specific options for transcription */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateTranscription() entry point.
+   * Adapters must call logger.request() before the SDK call and logger.errors()
+   * in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
