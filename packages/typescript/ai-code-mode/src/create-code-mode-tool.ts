@@ -5,6 +5,7 @@ import {
   toolsToBindings,
 } from './bindings/tool-to-binding'
 import { stripTypeScript } from './strip-typescript'
+import { warnIfBindingsExposeSecrets } from './validate-bindings'
 import type { ServerTool, ToolExecutionContext } from '@tanstack/ai'
 import type {
   CodeModeTool,
@@ -102,6 +103,8 @@ export function createCodeModeTool(
 
   // Transform tools to bindings with external_ prefix (static bindings)
   const staticBindings = toolsToBindings(tools, 'external_')
+
+  warnIfBindingsExposeSecrets(Object.values(staticBindings))
 
   // Create the tool definition
   const definition = toolDefinition({
