@@ -1,3 +1,4 @@
+import { createRealtimeEventEmitter } from '@tanstack/ai'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -61,7 +62,7 @@ async function createWebRTCConnection(
   token: RealtimeToken,
 ): Promise<RealtimeConnection> {
   const model = token.config.model ?? 'gpt-4o-realtime-preview'
-  const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
+  const { emit, on: realtimeEventEmitterOn } = createRealtimeEventEmitter()
 
   // WebRTC peer connection
   const pc = new RTCPeerConnection()
@@ -88,19 +89,6 @@ async function createWebRTCConnection(
   // frequencyBinCount = fftSize / 2 = 1024
   const emptyFrequencyData = new Uint8Array(1024)
   const emptyTimeDomainData = new Uint8Array(2048).fill(128) // 128 is silence
-
-  // Helper to emit events (defined early so it can be used during setup)
-  function emit<TEvent extends RealtimeEvent>(
-    event: TEvent,
-    payload: Parameters<RealtimeEventHandler<TEvent>>[0],
-  ) {
-    const handlers = eventHandlers.get(event)
-    if (handlers) {
-      for (const handler of handlers) {
-        handler(payload)
-      }
-    }
-  }
 
   // Set up data channel for bidirectional communication
   dataChannel = pc.createDataChannel('oai-events')
@@ -588,19 +576,7 @@ async function createWebRTCConnection(
       emit('interrupted', { messageId: currentMessageId ?? undefined })
     },
 
-    on<TEvent extends RealtimeEvent>(
-      event: TEvent,
-      handler: RealtimeEventHandler<TEvent>,
-    ): () => void {
-      if (!eventHandlers.has(event)) {
-        eventHandlers.set(event, new Set())
-      }
-      eventHandlers.get(event)!.add(handler)
-
-      return () => {
-        eventHandlers.get(event)?.delete(handler)
-      }
-    },
+    on: realtimeEventEmitterOn,
 
     getAudioVisualization(): AudioVisualization {
       // Helper to calculate audio level from time domain data

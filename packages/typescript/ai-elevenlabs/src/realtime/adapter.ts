@@ -1,4 +1,5 @@
 import { Conversation } from '@11labs/client'
+import { createRealtimeEventEmitter } from '@tanstack/ai'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -55,7 +56,7 @@ async function createElevenLabsConnection(
   token: RealtimeToken,
   clientToolDefs?: ReadonlyArray<AnyClientTool>,
 ): Promise<RealtimeConnection> {
-  const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
+  const { emit, on: realtimeEventEmitterOn } = createRealtimeEventEmitter()
   let conversation: Awaited<
     ReturnType<typeof Conversation.startSession>
   > | null = null
@@ -64,19 +65,6 @@ async function createElevenLabsConnection(
   // Empty arrays for when visualization isn't available
   const emptyFrequencyData = new Uint8Array(128)
   const emptyTimeDomainData = new Uint8Array(128).fill(128)
-
-  // Helper to emit events
-  function emit<TEvent extends RealtimeEvent>(
-    event: TEvent,
-    payload: Parameters<RealtimeEventHandler<TEvent>>[0],
-  ) {
-    const handlers = eventHandlers.get(event)
-    if (handlers) {
-      for (const handler of handlers) {
-        handler(payload)
-      }
-    }
-  }
 
   function generateMessageId(): string {
     return `el-msg-${Date.now()}-${++messageIdCounter}`
@@ -223,19 +211,7 @@ async function createElevenLabsConnection(
       emit('interrupted', {})
     },
 
-    on<TEvent extends RealtimeEvent>(
-      event: TEvent,
-      handler: RealtimeEventHandler<TEvent>,
-    ): () => void {
-      if (!eventHandlers.has(event)) {
-        eventHandlers.set(event, new Set())
-      }
-      eventHandlers.get(event)!.add(handler)
-
-      return () => {
-        eventHandlers.get(event)?.delete(handler)
-      }
-    },
+    on: realtimeEventEmitterOn,
 
     getAudioVisualization(): AudioVisualization {
       return {

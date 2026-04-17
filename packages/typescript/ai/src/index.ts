@@ -94,7 +94,7 @@ export * from './types'
 export { detectImageMimeType } from './utils'
 
 // Realtime
-export { realtimeToken } from './realtime/index'
+export { realtimeToken, createRealtimeEventEmitter } from './realtime/index'
 export type {
   RealtimeToken,
   RealtimeTokenAdapter,

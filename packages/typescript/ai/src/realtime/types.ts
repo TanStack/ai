@@ -246,6 +246,7 @@ export type RealtimeEvent =
   | 'interrupted'
   | 'error'
   | 'go_away' // Event that signals that the current connection will soon be terminated
+  | 'usage'
 
 /**
  * Event payloads for realtime events
@@ -263,7 +264,12 @@ export interface RealtimeEventPayloads {
   message_complete: { message: RealtimeMessage }
   interrupted: { messageId?: string }
   error: { error: Error }
-  go_away: { timeLeft: string }
+  go_away: { timeLeft?: string }
+  usage: {
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+  }
 }
 
 /**

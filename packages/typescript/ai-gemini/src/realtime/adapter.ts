@@ -1,51 +1,19 @@
 import { GoogleGenAI, Modality } from '@google/genai'
 import {
   convertSchemaToJsonSchema,
+  createRealtimeEventEmitter,
 } from "@tanstack/ai"
+import { MediaHandler } from './media-handler'
 import type {
   AudioVisualization,
-  RealtimeEvent,
-  RealtimeEventHandler,
   RealtimeMessage,
   RealtimeMode,
   RealtimeSessionConfig,
-  RealtimeToken
+  RealtimeToken,
 } from '@tanstack/ai'
-import type { LiveConnectConfig } from '@google/genai'
+import type { LiveConnectConfig, LiveServerSessionResumptionUpdate } from '@google/genai'
 import type { AnyClientTool, RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { GeminiRealtimeOptions, GeminiRealtimeProviderOptions } from './types'
-
-const textEncoder = new TextEncoder()
-const workletCode = `
-class PCMProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.bufferSize = 4096;
-    this.buffer = new Float32Array(this.bufferSize);
-    this.bufferIndex = 0;
-  }
-
-  process(inputs, outputs, parameters) {
-    const input = inputs[0];
-    if (!input || !input.length) return true;
-
-    const channelData = input[0];
-
-    for (let i = 0; i < channelData.length; i++) {
-      this.buffer[this.bufferIndex++] = channelData[i];
-
-      if (this.bufferIndex >= this.bufferSize) {
-        this.port.postMessage(this.buffer);
-        this.bufferIndex = 0;
-      }
-    }
-
-    return true;
-  }
-}
-
-registerProcessor("pcm-processor", PCMProcessor);
-`
 
 /**
  * Creates a Gemini realtime adapter for client-side use.
@@ -88,8 +56,10 @@ async function createWebSocketConnection(
   config: RealtimeSessionConfig,
   tools?: ReadonlyArray<AnyClientTool>,
 ): Promise<RealtimeConnection> {
+
+  const { emit, on: realtimeEventEmitterOn } = createRealtimeEventEmitter()
+
   const model = token.config.model ?? 'gemini-live-2.5-flash-native-audio'
-  const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
   const toolsConfig = tools
     ? tools.map((t) => ({
@@ -110,9 +80,7 @@ async function createWebSocketConnection(
     proactivity,
     enableAffectiveDialog,
     thinkingConfig
-  } = config.providerOptions as GeminiRealtimeProviderOptions
-
-  config.outputModalities
+  } = (config.providerOptions ?? {}) as GeminiRealtimeProviderOptions
 
   const liveConfig: LiveConnectConfig = {
     responseModalities: [Modality.AUDIO],
@@ -141,82 +109,23 @@ async function createWebSocketConnection(
     liveConfig.outputAudioTranscription = {}
   }
 
-  // Audio context
-  let audioContext: AudioContext | null = null
-  let inputAnalyser: AnalyserNode | null = null
-  let outputAnalyser: AnalyserNode | null = null
-  let inputSource: MediaStreamAudioSourceNode | null = null
-  let localStream: MediaStream | null = null
-
-  // Audio element for playback (more reliable than AudioContext.destination)
-  let nextPlayTime = 0
-  let scheduledSources: Array<AudioBufferSourceNode> = []
-  // let audioElement: HTMLAudioElement | null = null
+  const mediaHandler = new MediaHandler()
 
   // Current state
   let currentMode: RealtimeMode = 'idle'
   let currentMessageId: string | null = null
   let messageIdCounter = 0
-
-  // Empty arrays for when visualization isn't available
-  // frequencyBinCount = fftSize / 2 = 1024
-  const emptyFrequencyData = new Uint8Array(1024)
-  const emptyTimeDomainData = new Uint8Array(2048).fill(128) // 128 is silence
-
-  // Helper to emit events (defined early so it can be used during setup)
-  function emit<TEvent extends RealtimeEvent>(
-    event: TEvent,
-    payload: Parameters<RealtimeEventHandler<TEvent>>[0],
-  ) {
-    const handlers = eventHandlers.get(event)
-    if (handlers) {
-      for (const handler of handlers) {
-        handler(payload)
-      }
-    }
-  }
+  let sessionResumptionUpdate: LiveServerSessionResumptionUpdate | null = null
 
   function generateMessageId(): string {
     return `gemini-msg-${Date.now()}-${++messageIdCounter}`
   }
 
-  function downsampleBuffer(buffer: Float32Array, sampleRate: number, outSampleRate: number) {
-    if (outSampleRate === sampleRate) return buffer;
-    const ratio = sampleRate / outSampleRate;
-    const newLength = Math.round(buffer.length / ratio);
-    const result = new Float32Array(newLength);
-    let offsetResult = 0;
-    let offsetBuffer = 0;
-    while (offsetResult < result.length) {
-      const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
-      let accum = 0,
-        count = 0;
-      for (
-        let i = offsetBuffer;
-        i < nextOffsetBuffer && i < buffer.length;
-        i++
-      ) {
-        accum += buffer[i]!;
-        count++;
-      }
-      result[offsetResult] = accum / count;
-      offsetResult++;
-      offsetBuffer = nextOffsetBuffer;
-    }
-    return result;
-  }
-
-  function convertFloat32ToInt16(buffer: Float32Array) {
-    let l = buffer.length;
-    const buf = new Int16Array(l);
-    while (l--) {
-      buf[l] = Math.min(1, Math.max(-1, buffer[l]!)) * 0x7fff;
-    }
-    return buf.toString();
-  }
-
   const ai = new GoogleGenAI({
-    apiKey: token.token
+    apiKey: token.token,
+    httpOptions: {
+      apiVersion: 'v1alpha'
+    }
   });
 
   const session = await ai.live.connect({
@@ -239,21 +148,26 @@ async function createWebSocketConnection(
           emit("go_away", { timeLeft: response.goAway.timeLeft })
         }
 
-        if (response.data) {
-          // TODO: Decode chunk and play using an `AudioWorklet` or
-          // buffer them into an AudioContext
-
-          playIncomingAudioChunk(textEncoder.encode(response.data).buffer)
-
-          if (currentMode !== 'speaking') {
-            currentMode = 'speaking'
-            emit('mode_change', { mode: 'speaking' })
-          }
+        // TODO: implement session resumption
+        if (response.sessionResumptionUpdate) {
+          sessionResumptionUpdate = response.sessionResumptionUpdate
         }
 
+        // TODO: Handle usage metadata
+        if (response.usageMetadata) {
+        }
+
+        // Handle interruption by the model
+        if (response.serverContent?.interrupted) {
+          mediaHandler.stopAudioPlayback()
+          currentMode = 'listening'
+          emit('mode_change', { mode: 'listening' })
+          emit('interrupted', { messageId: currentMessageId ?? undefined })
+        }
+
+        // Handle input transcription
         if (
-          inputTranscription &&
-          inputTranscription.text != undefined &&
+          inputTranscription?.text &&
           inputTranscription.finished != undefined
         ) {
           if (inputTranscription.finished && currentMode !== 'thinking') {
@@ -268,9 +182,9 @@ async function createWebSocketConnection(
           })
         }
 
+        // Handle output transcription
         if (
-          outputTranscription &&
-          outputTranscription.text != undefined &&
+          outputTranscription?.text &&
           outputTranscription.finished != undefined
         ) {
           emit('transcript', {
@@ -280,8 +194,8 @@ async function createWebSocketConnection(
           })
         }
 
+        // Handle tool calls
         if (response.toolCall?.functionCalls) {
-
           for (const fc of response.toolCall.functionCalls) {
             if (!fc.id || !fc.name) {
               continue;
@@ -294,6 +208,22 @@ async function createWebSocketConnection(
           }
         }
 
+        // Play audio as it comes
+        if (response.serverContent?.modelTurn?.parts) {
+          for (const part of response.serverContent.modelTurn.parts) {
+            if (part.inlineData?.data) {
+              const audioData = mediaHandler.convertBase64ToArrayBuffer(part.inlineData.data);
+              mediaHandler.playAudio(audioData)
+
+              if (currentMode !== 'speaking') {
+                currentMode = 'speaking'
+                emit('mode_change', { mode: 'speaking' })
+              }
+            }
+          }
+        }
+
+        // Handle turn complete
         if (response.serverContent?.turnComplete) {
           currentMode = 'listening'
           emit('mode_change', { mode: 'listening' })
@@ -307,18 +237,20 @@ async function createWebSocketConnection(
               parts: []
             }
 
-            for (const item of response.serverContent.modelTurn.parts || []) {
-              if (item.text) {
+            for (const part of response.serverContent.modelTurn.parts || []) {
+              console.log(part)
+
+              if (part.inlineData?.data && outputTranscription?.finished && outputTranscription.text) {
                 message.parts.push({
-                  type: 'audio',
-                  transcript: item.text
+                  type: "audio",
+                  transcript: outputTranscription.text,
+                  audioData: mediaHandler.convertBase64ToArrayBuffer(part.inlineData.data),
                 })
               }
             }
 
             emit('message_complete', { message })
           }
-
         }
       },
       onerror(event) {
@@ -330,137 +262,20 @@ async function createWebSocketConnection(
   });
 
   // Request microphone access
-  try {
-    localStream = await navigator.mediaDevices.getUserMedia({
+  mediaHandler.startAudio((data) => {
+    session.sendRealtimeInput({
       audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        sampleRate: 24000,
-      },
-    })
-  } catch (error) {
-    throw new Error(
-      `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
-    )
-  }
-
-  // Set up audio analysis now that we have the stream
-  await setupAudioAnalysis(localStream)
-
-  // Set up audio analysis for input
-  async function setupAudioAnalysis(stream: MediaStream) {
-    if (!audioContext) {
-      // Best to specify Gemini's 16kHz here if possible for the whole context
-      audioContext = new AudioContext()
-
-      const blob = new Blob([workletCode], { type: 'application/javascript' })
-      const workletUrl = URL.createObjectURL(blob)
-
-      await audioContext.audioWorklet.addModule(workletUrl)
-    }
-
-    // Resume AudioContext if suspended (browsers require user interaction)
-    if (audioContext.state === 'suspended') {
-      audioContext.resume().catch(() => {
-        // Ignore - visualization just won't work
-      })
-    }
-
-    // 1. Setup Input (Microphone) Analyser
-    inputAnalyser = audioContext.createAnalyser()
-    inputAnalyser.fftSize = 2048 // Larger size for more accurate level detection
-    inputAnalyser.smoothingTimeConstant = 0.3
-
-    inputSource = audioContext.createMediaStreamSource(stream)
-    inputSource.connect(inputAnalyser)
-
-    // 2. Setup Output (Gemini) Analyser
-    outputAnalyser = audioContext.createAnalyser()
-    outputAnalyser.fftSize = 2048
-    outputAnalyser.smoothingTimeConstant = 0.3
-
-    // Connect output analyser directly to speakers
-    outputAnalyser.connect(audioContext.destination)
-
-    const source = audioContext.createMediaStreamSource(
-      stream
-    );
-    const audioWorkletNode = new AudioWorkletNode(
-      audioContext,
-      "pcm-processor"
-    );
-
-    audioWorkletNode.port.onmessage = (event) => {
-      if (currentMode === 'listening') {
-        const downsampled = downsampleBuffer(
-          event.data,
-          audioContext!.sampleRate,
-          16000
-        );
-        const pcm16 = convertFloat32ToInt16(downsampled);
-        session.sendRealtimeInput({
-          audio: {
-            data: pcm16,
-            mimeType: 'audio/pcm;rate=16000'
-          }
-        })
+        data: Buffer.from(data).toString("base64"),
+        mimeType: 'audio/pcm;rate=16000'
       }
-    };
+    })
+  })
 
-    source.connect(audioWorkletNode);
-  }
-
-  // Play incoming audio chunk from WebSocket connection
-  function playIncomingAudioChunk(arrayBuffer: ArrayBuffer) {
-    if (!audioContext) return
-    if (audioContext.state === 'suspended') {
-      audioContext.resume().catch(() => {
-        // Ignore - visualization just won't work
-      })
-    }
-
-    const pcmData = new Int16Array(arrayBuffer)
-    const float32Data = new Float32Array(pcmData.length)
-    for (let i = 0; i < pcmData.length; i++) {
-      float32Data[i] = pcmData[i]! / 32768.0;
-    }
-
-    const buffer = audioContext.createBuffer(1, float32Data.length, 24000);
-    buffer.getChannelData(0).set(float32Data);
-
-    const source = audioContext.createBufferSource();
-    source.buffer = buffer;
-    if (outputAnalyser) {
-      source.connect(outputAnalyser)
-    } else {
-      source.connect(audioContext.destination);
-    }
-
-    const now = audioContext.currentTime;
-    nextPlayTime = Math.max(now, nextPlayTime);
-    source.start(nextPlayTime);
-    nextPlayTime += buffer.duration;
-
-    scheduledSources.push(source);
-    source.onended = () => {
-      const idx = scheduledSources.indexOf(source);
-      if (idx > -1) scheduledSources.splice(idx, 1);
-    };
-  }
+  await mediaHandler.setupInputAudioAnalysis()
 
   const connection: RealtimeConnection = {
     async disconnect() {
-      if (localStream) {
-        for (const track of localStream.getTracks()) {
-          track.stop()
-        }
-        localStream = null
-      }
-
-      if (audioContext) {
-        await audioContext.close()
-        audioContext = null
-      }
+      mediaHandler.stopAudio()
 
       await session.close();
 
@@ -471,22 +286,14 @@ async function createWebSocketConnection(
     async startAudioCapture() {
       // Audio capture is established during connection setup
       // This method enables the tracks and signals listening mode
-      if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
-          track.enabled = true
-        }
-      }
+      mediaHandler.startAudioCapture()
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
     },
 
     stopAudioCapture() {
       // Disable tracks rather than stopping them to allow re-enabling
-      if (localStream) {
-        for (const track of localStream.getAudioTracks()) {
-          track.enabled = false
-        }
-      }
+      mediaHandler.stopAudioCapture()
       currentMode = 'idle'
       emit('mode_change', { mode: 'idle' })
     },
@@ -526,96 +333,36 @@ async function createWebSocketConnection(
     },
 
     interrupt() {
-      scheduledSources.forEach((s) => {
-        try {
-          s.stop();
-        } catch (e) { }
-      });
-      scheduledSources = [];
-      if (audioContext) {
-        nextPlayTime = audioContext.currentTime;
-      }
-
+      mediaHandler.stopAudioPlayback()
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
       emit('interrupted', { messageId: currentMessageId ?? undefined })
     },
-
-    on<TEvent extends RealtimeEvent>(
-      event: TEvent,
-      handler: RealtimeEventHandler<TEvent>
-    ): () => void {
-      if (!eventHandlers.has(event)) {
-        eventHandlers.set(event, new Set());
-      }
-      eventHandlers.get(event)!.add(handler)
-
-      return () => {
-        eventHandlers.get(event)!.delete(handler)
-      }
-    },
-
+    on: realtimeEventEmitterOn,
     getAudioVisualization(): AudioVisualization {
-      // Helper to calculate audio level from time domain data
-      // Uses peak amplitude which is more responsive for voice audio meters
-      function calculateLevel(analyser: AnalyserNode): number {
-        const data = new Uint8Array(analyser.fftSize)
-        analyser.getByteTimeDomainData(data)
-
-        // Find peak deviation from center (128 is silence)
-        // This is more responsive than RMS for voice level meters
-        let maxDeviation = 0
-        for (const sample of data) {
-          const deviation = Math.abs(sample - 128)
-          if (deviation > maxDeviation) {
-            maxDeviation = deviation
-          }
-        }
-
-        // Normalize to 0-1 range (max deviation is 128)
-        // Scale by 1.5x so that ~66% amplitude reads as full scale
-        // This provides good visual feedback without pegging too early
-        const normalized = maxDeviation / 128
-        return Math.min(1, normalized * 1.5)
-      }
-
       return {
         get inputLevel() {
-          if (!inputAnalyser) return 0
-          return calculateLevel(inputAnalyser)
+          return mediaHandler.inputLevel
         },
 
         get outputLevel() {
-          if (!outputAnalyser) return 0
-          return calculateLevel(outputAnalyser)
+          return mediaHandler.outputLevel
         },
 
         getInputFrequencyData() {
-          if (!inputAnalyser) return emptyFrequencyData
-          const data = new Uint8Array(inputAnalyser.frequencyBinCount)
-          inputAnalyser.getByteFrequencyData(data)
-          return data
+          return mediaHandler.inputFrequencyData
         },
 
         getOutputFrequencyData() {
-          if (!outputAnalyser) return emptyFrequencyData
-          const data = new Uint8Array(outputAnalyser.frequencyBinCount)
-          outputAnalyser.getByteFrequencyData(data)
-          return data
+          return mediaHandler.outputFrequencyData
         },
 
         getInputTimeDomainData() {
-          if (!inputAnalyser) return emptyTimeDomainData
-          const data = new Uint8Array(inputAnalyser.fftSize)
-          inputAnalyser.getByteTimeDomainData(data)
-          return data
+          return mediaHandler.inputTimeDomainData
         },
 
         getOutputTimeDomainData() {
-          if (!outputAnalyser) return emptyTimeDomainData
-          const data = new Uint8Array(outputAnalyser.fftSize)
-          outputAnalyser.getByteTimeDomainData(data)
-          return data
+          return mediaHandler.outputTimeDomainData
         },
 
         get inputSampleRate() {

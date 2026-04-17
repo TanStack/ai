@@ -94,5 +94,4 @@ export type {
   GeminiRealtimeOptions,
   GeminiRealtimeTokenOptions,
   GeminiRealtimeVoice,
-  GeminiRealtimeEvent
 } from './realtime/index'

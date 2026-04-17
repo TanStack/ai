@@ -1,5 +1,7 @@
 import type { RealtimeToken, RealtimeTokenOptions } from './types'
 
+export { createRealtimeEventEmitter } from './event-emitter'
+
 // Re-export all types
 export * from './types'
 
