@@ -92,6 +92,7 @@ export function createMockAdapter(options: {
         video: undefined as unknown,
         document: undefined as unknown,
       },
+      toolCapabilities: [] as ReadonlyArray<string>,
     },
     chatStream: (opts: any) => {
       calls.push(opts)
