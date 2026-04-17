@@ -127,8 +127,7 @@ export class ElevenLabsMusicAdapter<
     options: AudioGenerationOptions<ElevenLabsMusicProviderOptions>,
   ): Promise<AudioGenerationResult> {
     const config = this.config as ElevenLabsMusicConfig
-    const outputFormat =
-      options.modelOptions?.outputFormat ?? 'mp3_44100_128'
+    const outputFormat = options.modelOptions?.outputFormat ?? 'mp3_44100_128'
 
     const url = `${resolveBaseUrl(config)}/v1/music?output_format=${encodeURIComponent(
       outputFormat,
@@ -142,9 +141,7 @@ export class ElevenLabsMusicAdapter<
       JSON.stringify(body),
     )
 
-    const { contentType: fallbackContentType } = parseOutputFormat(
-      outputFormat,
-    )
+    const { contentType: fallbackContentType } = parseOutputFormat(outputFormat)
 
     return {
       id: generateId(this.name),

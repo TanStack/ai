@@ -114,11 +114,15 @@ export class ElevenLabsTranscriptionAdapter<
     if (options.language) form.append('language_code', options.language)
     appendProviderOptions(form, options.modelOptions)
 
-    const body = await postForJson<ElevenLabsTranscriptionResponse>(url, {
-      ...buildHeaders(config),
-    }, {
-      body: form,
-    })
+    const body = await postForJson<ElevenLabsTranscriptionResponse>(
+      url,
+      {
+        ...buildHeaders(config),
+      },
+      {
+        body: form,
+      },
+    )
 
     return transformResponse(body, this.model, (prefix) => generateId(prefix))
   }
@@ -165,9 +169,10 @@ function appendAudio(
   }
 
   // File or Blob
-  const name = typeof (audio as File).name === 'string'
-    ? (audio as File).name
-    : 'audio.bin'
+  const name =
+    typeof (audio as File).name === 'string'
+      ? (audio as File).name
+      : 'audio.bin'
   form.append('file', audio, name)
   return true
 }
@@ -253,7 +258,12 @@ function buildTimeline(words: Array<ElevenLabsWord> | undefined): {
   const outWords: Array<TranscriptionWord> = []
 
   let currentSpeaker: string | null | undefined = undefined
-  let pending: { start: number; end: number; text: string; speaker?: string } | null = null
+  let pending: {
+    start: number
+    end: number
+    text: string
+    speaker?: string
+  } | null = null
 
   for (const w of words) {
     if (w.type === 'word') {

@@ -74,8 +74,7 @@ export class ElevenLabsSoundEffectsAdapter<
     options: AudioGenerationOptions<ElevenLabsSoundEffectsProviderOptions>,
   ): Promise<AudioGenerationResult> {
     const config = this.config as ElevenLabsSoundEffectsConfig
-    const outputFormat =
-      options.modelOptions?.outputFormat ?? 'mp3_44100_128'
+    const outputFormat = options.modelOptions?.outputFormat ?? 'mp3_44100_128'
 
     const url = `${resolveBaseUrl(config)}/v1/sound-generation?output_format=${encodeURIComponent(
       outputFormat,

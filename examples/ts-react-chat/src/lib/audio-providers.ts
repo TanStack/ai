@@ -89,7 +89,8 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
       id: 'elevenlabs',
       label: 'ElevenLabs Scribe',
       model: 'scribe_v2',
-      description: 'ElevenLabs Scribe supports diarization and entity detection.',
+      description:
+        'ElevenLabs Scribe supports diarization and entity detection.',
     },
     {
       id: 'fal',

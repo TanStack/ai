@@ -41,7 +41,10 @@ export type TranscriptionProviderOptions<TAdapter> =
  * @template TStream - Whether to stream the output
  */
 export interface TranscriptionActivityOptions<
-  TAdapter extends TranscriptionAdapter<string, TranscriptionProviderOptions<TAdapter>>,
+  TAdapter extends TranscriptionAdapter<
+    string,
+    TranscriptionProviderOptions<TAdapter>
+  >,
   TStream extends boolean = false,
 > {
   /** The transcription adapter to use (must be created with a model) */
@@ -132,7 +135,10 @@ function createId(prefix: string): string {
  * ```
  */
 export function generateTranscription<
-  TAdapter extends TranscriptionAdapter<string, TranscriptionProviderOptions<TAdapter>>,
+  TAdapter extends TranscriptionAdapter<
+    string,
+    TranscriptionProviderOptions<TAdapter>
+  >,
   TStream extends boolean = false,
 >(
   options: TranscriptionActivityOptions<TAdapter, TStream>,
@@ -152,7 +158,10 @@ export function generateTranscription<
  * Run non-streaming transcription
  */
 async function runGenerateTranscription<
-  TAdapter extends TranscriptionAdapter<string, TranscriptionProviderOptions<TAdapter>>,
+  TAdapter extends TranscriptionAdapter<
+    string,
+    TranscriptionProviderOptions<TAdapter>
+  >,
 >(
   options: TranscriptionActivityOptions<TAdapter, boolean>,
 ): Promise<TranscriptionResult> {
@@ -197,7 +206,10 @@ async function runGenerateTranscription<
  * Create typed options for the generateTranscription() function without executing.
  */
 export function createTranscriptionOptions<
-  TAdapter extends TranscriptionAdapter<string, TranscriptionProviderOptions<TAdapter>>,
+  TAdapter extends TranscriptionAdapter<
+    string,
+    TranscriptionProviderOptions<TAdapter>
+  >,
   TStream extends boolean = false,
 >(
   options: TranscriptionActivityOptions<TAdapter, TStream>,

@@ -8,14 +8,9 @@ import {
   postForAudio,
   resolveBaseUrl,
 } from '../utils'
-import type {
-  ElevenLabsClientConfig,
-} from '../utils'
+import type { ElevenLabsClientConfig } from '../utils'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type {
-  ElevenLabsOutputFormat,
-  ElevenLabsTTSModel,
-} from '../model-meta'
+import type { ElevenLabsOutputFormat, ElevenLabsTTSModel } from '../model-meta'
 
 /**
  * Voice settings accepted by ElevenLabs TTS.
@@ -106,10 +101,7 @@ export class ElevenLabsSpeechAdapter<
 > extends BaseTTSAdapter<TModel, ElevenLabsSpeechProviderOptions> {
   readonly name = 'elevenlabs' as const
 
-  constructor(
-    config: ElevenLabsSpeechConfig,
-    model: TModel,
-  ) {
+  constructor(config: ElevenLabsSpeechConfig, model: TModel) {
     super(config, model)
   }
 
@@ -141,9 +133,8 @@ export class ElevenLabsSpeechAdapter<
       JSON.stringify(body),
     )
 
-    const { format, contentType: fallbackContentType } = parseOutputFormat(
-      outputFormat,
-    )
+    const { format, contentType: fallbackContentType } =
+      parseOutputFormat(outputFormat)
 
     return {
       id: generateId(this.name),

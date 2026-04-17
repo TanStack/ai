@@ -135,10 +135,7 @@ async function readError(
  * Convert an ArrayBuffer to a base64 string in a cross-runtime way.
  */
 export function arrayBufferToBase64(bytes: ArrayBuffer): string {
-  if (
-    typeof Buffer !== 'undefined' &&
-    typeof Buffer.from === 'function'
-  ) {
+  if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
     return Buffer.from(bytes).toString('base64')
   }
   const view = new Uint8Array(bytes)

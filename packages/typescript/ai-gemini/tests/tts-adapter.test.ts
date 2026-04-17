@@ -64,18 +64,16 @@ describe('Gemini TTS Adapter', () => {
       ],
     })
 
-    const adapter = createGeminiSpeech(
-      'gemini-2.5-flash-preview-tts',
-      'key',
-    )
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
     const result = await generateSpeech({ adapter, text: 'Hello friend' })
 
     expect(mockGenerateContent).toHaveBeenCalledTimes(1)
     const args = mockGenerateContent.mock.calls[0]![0]
     expect(args.model).toBe('gemini-2.5-flash-preview-tts')
     expect(args.config.responseModalities).toEqual(['AUDIO'])
-    expect(args.config.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName)
-      .toBe('Kore')
+    expect(
+      args.config.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName,
+    ).toBe('Kore')
 
     expect(result.audio).toBe('BASE64AUDIO')
     expect(result.format).toBe('wav')
@@ -87,18 +85,13 @@ describe('Gemini TTS Adapter', () => {
       candidates: [
         {
           content: {
-            parts: [
-              { inlineData: { mimeType: 'audio/wav', data: 'B' } },
-            ],
+            parts: [{ inlineData: { mimeType: 'audio/wav', data: 'B' } }],
           },
         },
       ],
     })
 
-    const adapter = createGeminiSpeech(
-      'gemini-2.5-flash-preview-tts',
-      'key',
-    )
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
 
     await generateSpeech({
       adapter,
@@ -135,25 +128,19 @@ describe('Gemini TTS Adapter', () => {
     mockGenerateContent.mockResolvedValueOnce({
       candidates: [{ content: { parts: [{ text: 'no audio' }] } }],
     })
-    const adapter = createGeminiSpeech(
-      'gemini-2.5-flash-preview-tts',
-      'key',
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+    await expect(generateSpeech({ adapter, text: 'hi' })).rejects.toThrow(
+      /No audio data/,
     )
-    await expect(
-      generateSpeech({ adapter, text: 'hi' }),
-    ).rejects.toThrow(/No audio data/)
   })
 
   it('throws when the response has no candidate parts', async () => {
     mockGenerateContent.mockResolvedValueOnce({
       candidates: [{ content: { parts: [] } }],
     })
-    const adapter = createGeminiSpeech(
-      'gemini-2.5-flash-preview-tts',
-      'key',
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+    await expect(generateSpeech({ adapter, text: 'hi' })).rejects.toThrow(
+      /No audio output/,
     )
-    await expect(
-      generateSpeech({ adapter, text: 'hi' }),
-    ).rejects.toThrow(/No audio output/)
   })
 })

@@ -128,9 +128,7 @@ export async function generateAudio<
  */
 export function createAudioOptions<
   TAdapter extends AudioAdapter<string, AudioProviderOptions<TAdapter>>,
->(
-  options: AudioActivityOptions<TAdapter>,
-): AudioActivityOptions<TAdapter> {
+>(options: AudioActivityOptions<TAdapter>): AudioActivityOptions<TAdapter> {
   return options
 }
 

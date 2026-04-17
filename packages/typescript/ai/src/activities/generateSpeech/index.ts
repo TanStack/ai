@@ -131,9 +131,9 @@ export function generateSpeech<
 /**
  * Run the core TTS generation logic (non-streaming).
  */
-async function runGenerateSpeech<TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>>(
-  options: TTSActivityOptions<TAdapter, boolean>,
-): Promise<TTSResult> {
+async function runGenerateSpeech<
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
+>(options: TTSActivityOptions<TAdapter, boolean>): Promise<TTSResult> {
   const { adapter, stream: _stream, ...rest } = options
   const model = adapter.model
   const requestId = createId('speech')

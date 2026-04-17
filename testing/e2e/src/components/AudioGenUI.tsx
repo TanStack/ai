@@ -58,10 +58,10 @@ export function AudioGenUI({
   }
 
   const audioSrc = result
-    ? result.audio.url ??
+    ? (result.audio.url ??
       (result.audio.b64Json
         ? `data:${result.audio.contentType ?? 'audio/mpeg'};base64,${result.audio.b64Json}`
-        : undefined)
+        : undefined))
     : undefined
 
   const statusText = isLoading

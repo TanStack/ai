@@ -83,8 +83,8 @@ describe('Gemini Audio (Lyria) Adapter', () => {
       candidates: [{ content: { parts: [] } }],
     })
     const adapter = createGeminiAudio('lyria-3-clip-preview', 'key')
-    await expect(
-      generateAudio({ adapter, prompt: 'silence' }),
-    ).rejects.toThrow(/No audio data/)
+    await expect(generateAudio({ adapter, prompt: 'silence' })).rejects.toThrow(
+      /No audio data/,
+    )
   })
 })

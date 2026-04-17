@@ -28,9 +28,27 @@ describe('ElevenLabs Transcription Adapter', () => {
           language_code: 'en',
           audio_duration_secs: 1.2,
           words: [
-            { text: 'hello', start: 0, end: 0.4, type: 'word', speaker_id: 'spk_0' },
-            { text: ' ', start: 0.4, end: 0.5, type: 'spacing', speaker_id: 'spk_0' },
-            { text: 'world', start: 0.5, end: 1.2, type: 'word', speaker_id: 'spk_1' },
+            {
+              text: 'hello',
+              start: 0,
+              end: 0.4,
+              type: 'word',
+              speaker_id: 'spk_0',
+            },
+            {
+              text: ' ',
+              start: 0.4,
+              end: 0.5,
+              type: 'spacing',
+              speaker_id: 'spk_0',
+            },
+            {
+              text: 'world',
+              start: 0.5,
+              end: 1.2,
+              type: 'word',
+              speaker_id: 'spk_1',
+            },
           ],
         }),
         {

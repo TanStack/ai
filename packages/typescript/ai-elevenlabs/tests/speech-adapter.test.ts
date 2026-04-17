@@ -45,9 +45,9 @@ describe('ElevenLabs Speech Adapter', () => {
 
   it('throws when no voice id is provided', async () => {
     const adapter = elevenlabsSpeech('eleven_v3')
-    await expect(
-      generateSpeech({ adapter, text: 'hi' }),
-    ).rejects.toThrow(/requires a voice id/)
+    await expect(generateSpeech({ adapter, text: 'hi' })).rejects.toThrow(
+      /requires a voice id/,
+    )
   })
 
   it('forwards voice settings and format options', async () => {
