@@ -1,13 +1,11 @@
 import { makeOpenAIStructuredOutputCompatible } from '../utils/schema-converter'
-import type { JSONSchema, ProviderTool, Tool } from '@tanstack/ai'
+import type { JSONSchema, Tool } from '@tanstack/ai'
 import type OpenAI from 'openai'
 
 export type FunctionToolConfig = OpenAI.Responses.FunctionTool
 
 /** @deprecated Renamed to `FunctionToolConfig`. Will be removed in a future release. */
 export type FunctionTool = FunctionToolConfig
-
-export type OpenAIFunctionTool = ProviderTool<'openai', 'function'>
 
 /**
  * Converts a standard Tool to OpenAI FunctionTool format.

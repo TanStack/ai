@@ -52,7 +52,6 @@ export {
 export {
   customTool,
   convertCustomToolToAdapterFormat,
-  type OpenAICustomTool,
   type CustomToolConfig,
   type CustomTool,
 } from './custom-tool'
@@ -65,7 +64,6 @@ export {
 } from './file-search-tool'
 export {
   convertFunctionToolToAdapterFormat,
-  type OpenAIFunctionTool,
   type FunctionToolConfig,
   type FunctionTool,
 } from './function-tool'
