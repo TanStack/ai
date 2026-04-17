@@ -21,7 +21,7 @@ interface ModelMeta<
     extended_thinking?: boolean
     adaptive_thinking?: boolean
     priority_tier?: boolean
-    tools?: ReadonlyArray<
+    tools?: Array<
       | 'web_search'
       | 'web_fetch'
       | 'code_execution'
