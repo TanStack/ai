@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest'
-import type { DebugCategories, DebugConfig, DebugOption, Logger } from './types'
+import type { DebugCategories, DebugConfig, DebugOption, Logger } from '../../src/logger/types'
 
 describe('logger types', () => {
   it('Logger has debug/info/warn/error methods accepting (message, meta?)', () => {
