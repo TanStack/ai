@@ -2,7 +2,7 @@
 '@tanstack/ai-openrouter': patch
 ---
 
-- Upgrade `@openrouter/sdk` to 0.12.13 (from 0.8.0)
+- Upgrade `@openrouter/sdk` to 0.12.14 (from 0.3.15)
 - Migrate adapters and tests to the SDK's renamed chat types (`ChatGenerationParams` → `ChatRequest`, `ChatResponse` → `ChatResult`) and the renamed `chatRequest` key on `chat.send`
 - Derive `text-provider-options` types from the SDK's `ChatRequest` so provider options stay in lockstep with the SDK surface
 - Drop `topK` / `topA` / `minP` / `repetitionPenalty` / `includeReasoning` / `verbosity` / `webSearchOptions` from `OpenRouterBaseOptions` now that the SDK narrows `ChatRequest` to OpenAI-compatible fields — callers passing these previously saw them silently stripped at runtime, and now get a TypeScript error instead
