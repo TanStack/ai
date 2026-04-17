@@ -289,6 +289,15 @@ export class GeminiTextAdapter<
               `${functionCall.name}_${Date.now()}_${nextToolIndex}`
             const functionArgs = functionCall.args || {}
 
+            // Gemini 3.x emits thoughtSignature as a Part-level sibling of
+            // functionCall (see @google/genai Part type), not nested inside
+            // functionCall. Read from the Part first, fall back to
+            // functionCall for older Gemini 2.x models.
+            const partThoughtSignature =
+              (part as any).thoughtSignature ||
+              (functionCall as any).thoughtSignature ||
+              undefined
+
             let toolCallData = toolCallMap.get(toolCallId)
             if (!toolCallData) {
               toolCallData = {
@@ -299,11 +308,13 @@ export class GeminiTextAdapter<
                     : JSON.stringify(functionArgs),
                 index: nextToolIndex++,
                 started: false,
-                thoughtSignature:
-                  (functionCall as any).thoughtSignature || undefined,
+                thoughtSignature: partThoughtSignature,
               }
               toolCallMap.set(toolCallId, toolCallData)
             } else {
+              if (!toolCallData.thoughtSignature && partThoughtSignature) {
+                toolCallData.thoughtSignature = partThoughtSignature
+              }
               try {
                 const existingArgs = JSON.parse(toolCallData.args)
                 const newArgs =
@@ -588,14 +599,18 @@ export class GeminiTextAdapter<
 
           const thoughtSignature = toolCall.providerMetadata
             ?.thoughtSignature as string | undefined
+          // Gemini 3.x requires thoughtSignature at the Part level (sibling
+          // of functionCall), not nested inside functionCall. Nesting it
+          // causes the API to reject the next turn with
+          // "Function call is missing a thought_signature".
           parts.push({
             functionCall: {
               id: toolCall.id,
               name: toolCall.function.name,
               args: parsedArgs,
-              ...(thoughtSignature && { thoughtSignature }),
-            } as any,
-          })
+            },
+            ...(thoughtSignature && { thoughtSignature }),
+          } as Part)
         }
       }
 
