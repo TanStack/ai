@@ -6,11 +6,11 @@
  * for positive inference checks.
  */
 import { describe, it, expectTypeOf } from 'vitest'
+import { z } from 'zod'
 import type { ProviderTool } from '../src/index'
 import type { TextActivityOptions } from '../src/activities/chat/index'
 import type { TextAdapter } from '../src/activities/chat/adapter'
 import { toolDefinition } from '../src/index'
-import { z } from 'zod'
 
 // ---- Mock adapter wired with a fixed toolCapabilities union ----
 
@@ -61,6 +61,17 @@ describe('TextActivityOptions["tools"] type gating', () => {
   it('rejects provider tools whose kind is not in supports.tools', () => {
     // @ts-expect-error - 'computer_use' is not in MockToolCapabilities
     const _tools: Array<MockToolsOption> = [unsupportedProviderTool]
+    void _tools
+  })
+
+  it('rejects provider tools with broad string TKind', () => {
+    const broadTool = {
+      name: 'x',
+      description: '',
+      metadata: {},
+    } as ProviderTool<'x', string>
+    // @ts-expect-error - broad `string` TKind is not assignable to the model's specific toolCapabilities union
+    const _tools: Array<MockToolsOption> = [broadTool]
     void _tools
   })
 
