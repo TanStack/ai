@@ -41,7 +41,7 @@ export type TTSProviderOptions<TAdapter> =
  * @template TStream - Whether to stream the output
  */
 export interface TTSActivityOptions<
-  TAdapter extends TTSAdapter<string, object>,
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 > {
   /** The TTS adapter to use (must be created with a model) */
@@ -117,7 +117,7 @@ function createId(prefix: string): string {
  * ```
  */
 export function generateSpeech<
-  TAdapter extends TTSAdapter<string, object>,
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 >(options: TTSActivityOptions<TAdapter, TStream>): TTSActivityResult<TStream> {
   if (options.stream) {
@@ -131,7 +131,7 @@ export function generateSpeech<
 /**
  * Run the core TTS generation logic (non-streaming).
  */
-async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
+async function runGenerateSpeech<TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>>(
   options: TTSActivityOptions<TAdapter, boolean>,
 ): Promise<TTSResult> {
   const { adapter, stream: _stream, ...rest } = options
@@ -179,7 +179,7 @@ async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
  * Create typed options for the generateSpeech() function without executing.
  */
 export function createSpeechOptions<
-  TAdapter extends TTSAdapter<string, object>,
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 >(
   options: TTSActivityOptions<TAdapter, TStream>,
