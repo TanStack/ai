@@ -6,19 +6,37 @@ import {
 } from '../utils'
 import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type { GoogleGenAI } from '@google/genai'
+import type { GoogleGenAI, SpeechConfig } from '@google/genai'
 import type { GeminiClientConfig } from '../utils'
+
+/**
+ * Configuration for a single speaker in a multi-speaker dialogue.
+ * Supported by Gemini 3.1 Flash TTS Preview and the 2.5 TTS models.
+ */
+export interface GeminiSpeakerVoiceConfig {
+  /** A name used in the prompt to refer to this speaker */
+  speaker: string
+  /** Voice configuration for this speaker */
+  voiceConfig: {
+    prebuiltVoiceConfig: {
+      voiceName: GeminiTTSVoice
+    }
+  }
+}
 
 /**
  * Provider-specific options for Gemini TTS
  *
  * @experimental Gemini TTS is an experimental feature.
  * @see https://ai.google.dev/gemini-api/docs/speech-generation
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-tts-preview
  */
 export interface GeminiTTSProviderOptions {
   /**
-   * Voice configuration for TTS.
+   * Voice configuration for single-speaker TTS.
    * Choose from 30 available voices with different characteristics.
+   *
+   * Use `multiSpeakerVoiceConfig` instead for dialogues.
    */
   voiceConfig?: {
     prebuiltVoiceConfig?: {
@@ -31,9 +49,29 @@ export interface GeminiTTSProviderOptions {
   }
 
   /**
+   * Multi-speaker voice configuration (up to 2 speakers).
+   * Supported by Gemini 3.1 Flash TTS Preview and the 2.5 TTS models.
+   *
+   * Each speaker's lines in the prompt are prefixed with the name defined
+   * here, e.g.:
+   *
+   * ```text
+   * Joe: Hey, how's it going?
+   * Jane: Not bad, you?
+   * ```
+   */
+  multiSpeakerVoiceConfig?: {
+    speakerVoiceConfigs: Array<GeminiSpeakerVoiceConfig>
+  }
+
+  /**
    * System instruction for controlling speech style.
    * Use natural language to describe the desired speaking style,
    * pace, tone, accent, or other characteristics.
+   *
+   * With Gemini 3.1 Flash TTS, you can also use inline audio tags like
+   * `[whispering]`, `[laughs]`, `[excited]` directly in the input text
+   * to control delivery.
    *
    * @example "Speak slowly and calmly, as if telling a bedtime story"
    * @example "Use an upbeat, enthusiastic tone with moderate pace"
@@ -43,8 +81,8 @@ export interface GeminiTTSProviderOptions {
 
   /**
    * Language code hint for the speech synthesis.
-   * Gemini TTS supports 24 languages and can auto-detect,
-   * but you can provide a hint for better results.
+   * Gemini 3.1 Flash TTS supports 70+ languages with auto-detection;
+   * the 2.5 TTS models support 24 languages.
    *
    * @example "en-US" for American English
    * @example "es-ES" for Spanish (Spain)
@@ -100,10 +138,19 @@ export class GeminiTTSAdapter<
   ): Promise<TTSResult> {
     const { model, text, modelOptions } = options
 
-    const voiceConfig = modelOptions?.voiceConfig || {
-      prebuiltVoiceConfig: {
-        voiceName: 'Kore',
-      },
+    const speechConfig: SpeechConfig = {}
+
+    if (modelOptions?.multiSpeakerVoiceConfig) {
+      speechConfig.multiSpeakerVoiceConfig =
+        modelOptions.multiSpeakerVoiceConfig
+    } else {
+      speechConfig.voiceConfig = modelOptions?.voiceConfig ?? {
+        prebuiltVoiceConfig: { voiceName: 'Kore' },
+      }
+    }
+
+    if (modelOptions?.languageCode) {
+      speechConfig.languageCode = modelOptions.languageCode
     }
 
     const response = await this.client.models.generateContent({
@@ -116,12 +163,7 @@ export class GeminiTTSAdapter<
       ],
       config: {
         responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig,
-          ...(modelOptions?.languageCode && {
-            languageCode: modelOptions.languageCode,
-          }),
-        },
+        speechConfig,
       },
       ...(modelOptions?.systemInstruction && {
         systemInstruction: modelOptions.systemInstruction,
