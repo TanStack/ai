@@ -7,6 +7,7 @@
 import { describe, it, beforeAll } from 'vitest'
 import { openaiText } from '../src'
 import {
+  customTool,
   webSearchTool,
   webSearchPreviewTool,
   fileSearchTool,
@@ -72,10 +73,43 @@ describe('OpenAI per-model tool gating', () => {
       userTool,
       // @ts-expect-error - gpt-3.5-turbo does not support web_search
       webSearchTool({ type: 'web_search' }),
-      // @ts-expect-error - gpt-3.5-turbo does not support code_interpreter
-      codeInterpreterTool({ type: 'code_interpreter', container: { type: 'auto' } }),
+      // @ts-expect-error - gpt-3.5-turbo does not support web_search_preview
+      webSearchPreviewTool({ type: 'web_search_preview' }),
       // @ts-expect-error - gpt-3.5-turbo does not support file_search
       fileSearchTool({ type: 'file_search', vector_store_ids: ['vs_123'] }),
+      // @ts-expect-error - gpt-3.5-turbo does not support image_generation
+      imageGenerationTool({}),
+      // @ts-expect-error - gpt-3.5-turbo does not support code_interpreter
+      codeInterpreterTool({ type: 'code_interpreter', container: { type: 'auto' } }),
+      // @ts-expect-error - gpt-3.5-turbo does not support mcp
+      mcpTool({ server_label: 'my-server', server_url: 'https://example.com/mcp' }),
+      // @ts-expect-error - gpt-3.5-turbo does not support computer_use
+      computerUseTool({
+        type: 'computer_use_preview',
+        display_height: 768,
+        display_width: 1024,
+        environment: 'linux',
+      }),
+      // @ts-expect-error - gpt-3.5-turbo does not support local_shell
+      localShellTool(),
+      // @ts-expect-error - gpt-3.5-turbo does not support shell
+      shellTool(),
+      // @ts-expect-error - gpt-3.5-turbo does not support apply_patch
+      applyPatchTool(),
+    ])
+  })
+
+  it('customTool is accepted on any model (returns plain Tool, not a branded ProviderTool)', () => {
+    // Full-featured model
+    const fullAdapter = openaiText('gpt-5.2')
+    typedTools(fullAdapter, [
+      customTool({ type: 'custom', name: 'lookup_order', description: 'Look up an order' }),
+    ])
+
+    // Restricted model — customTool must still compile without @ts-expect-error
+    const restrictedAdapter = openaiText('gpt-3.5-turbo')
+    typedTools(restrictedAdapter, [
+      customTool({ type: 'custom', name: 'lookup_order', description: 'Look up an order' }),
     ])
   })
 
