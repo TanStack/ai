@@ -10,6 +10,7 @@ import {
 } from '../utils'
 import type {
   GROK_CHAT_MODELS,
+  GrokChatModelToolCapabilitiesByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
@@ -20,16 +21,25 @@ import type {
 import type OpenAI_SDK from 'openai'
 import type {
   ContentPart,
+  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type { InternalTextProviderOptions } from '../text/text-provider-options'
+import type {
+  ExternalTextProviderOptions as GrokTextProviderOptions,
+  InternalTextProviderOptions,
+} from '../text/text-provider-options'
 import type {
   GrokImageMetadata,
   GrokMessageMetadataByModality,
 } from '../message-types'
 import type { GrokClientConfig } from '../utils'
+
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof GrokChatModelToolCapabilitiesByName
+    ? NonNullable<GrokChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
 
 /**
  * Configuration for Grok text adapter
@@ -49,11 +59,15 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  */
 export class GrokTextAdapter<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
+  TProviderOptions extends object = ResolveProviderOptions<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> = ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> = ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>,
-  GrokMessageMetadataByModality
+  TProviderOptions,
+  TInputModalities,
+  GrokMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'grok' as const
@@ -66,7 +80,7 @@ export class GrokTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<ResolveProviderOptions<TModel>>,
+    options: TextOptions<GrokTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const requestParams = this.mapTextOptionsToGrok(options)
     const timestamp = Date.now()
@@ -132,7 +146,7 @@ export class GrokTextAdapter<
    * We apply Grok-specific transformations for structured output compatibility.
    */
   async structuredOutput(
-    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+    options: StructuredOutputOptions<GrokTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapTextOptionsToGrok(chatOptions)
