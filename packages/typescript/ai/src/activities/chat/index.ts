@@ -1587,7 +1587,6 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
       logger,
     },
     outputSchema: jsonSchema,
-    logger,
   })
 
   // Validate the result against the schema if it's a Standard Schema

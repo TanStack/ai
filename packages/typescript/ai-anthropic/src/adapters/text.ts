@@ -572,7 +572,7 @@ export class AnthropicTextAdapter<
       for await (const event of stream) {
         logger.provider(
           `provider=anthropic type=${event.type ?? '<unknown>'}`,
-          { event },
+          { chunk: event },
         )
         // Emit RUN_STARTED on first event
         if (!hasEmittedRunStarted) {
