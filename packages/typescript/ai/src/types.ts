@@ -1044,6 +1044,11 @@ export interface ImageGenerationOptions<
   size?: TSize
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateImage() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
