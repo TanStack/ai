@@ -94,7 +94,7 @@ describe('Anthropic per-model tool gating', () => {
     ])
   })
 
-  it('claude-3-5-haiku accepts web tools, rejects code/shell/memory', () => {
+  it('claude-3-5-haiku accepts only web tools', () => {
     const adapter = anthropicText('claude-3-5-haiku')
     typedTools(adapter, [
       userTool,
@@ -105,8 +105,17 @@ describe('Anthropic per-model tool gating', () => {
         name: 'code_execution',
         type: 'code_execution_20250825',
       }),
+      // @ts-expect-error - claude-3-5-haiku does not support computer_use
+      computerUseTool({
+        type: 'computer_20250124',
+        name: 'computer',
+        display_width_px: 1024,
+        display_height_px: 768,
+      }),
       // @ts-expect-error - claude-3-5-haiku does not support bash
       bashTool({ name: 'bash', type: 'bash_20250124' }),
+      // @ts-expect-error - claude-3-5-haiku does not support text_editor
+      textEditorTool({ type: 'text_editor_20250124', name: 'str_replace_editor' }),
       // @ts-expect-error - claude-3-5-haiku does not support memory
       memoryTool(),
     ])
