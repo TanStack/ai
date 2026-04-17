@@ -28,11 +28,11 @@ import type {
   OpenRouterMessageMetadataByModality,
 } from '../message-types'
 import type {
-  ChatGenerationParams,
-  ChatGenerationTokenUsage,
-  ChatMessageContentItem,
-  ChatStreamingChoice,
-  Message,
+  ChatContentItems,
+  ChatMessages,
+  ChatRequest,
+  ChatStreamChoice,
+  ChatUsage,
 } from '@openrouter/sdk/models'
 
 export interface OpenRouterConfig extends SDKOptions {}
@@ -108,7 +108,7 @@ export class OpenRouterTextAdapter<
     try {
       const requestParams = this.mapTextOptionsToSDK(options)
       const stream = await this.client.chat.send(
-        { chatGenerationParams: { ...requestParams, stream: true } },
+        { chatRequest: { ...requestParams, stream: true } },
         { signal: options.request?.signal },
       )
 
@@ -211,7 +211,7 @@ export class OpenRouterTextAdapter<
     try {
       const result = await this.client.chat.send(
         {
-          chatGenerationParams: {
+          chatRequest: {
             ...requestParams,
             stream: false,
             responseFormat: {
@@ -254,12 +254,12 @@ export class OpenRouterTextAdapter<
   }
 
   private *processChoice(
-    choice: ChatStreamingChoice,
+    choice: ChatStreamChoice,
     toolCallBuffers: Map<number, ToolCallBuffer>,
     meta: { id: string; model: string; timestamp: number },
     accumulated: { reasoning: string; content: string },
     updateAccumulated: (reasoning: string, content: string) => void,
-    usage: ChatGenerationTokenUsage | undefined,
+    usage: ChatUsage | undefined,
     aguiState: AGUIState,
   ): Iterable<StreamChunk> {
     const delta = choice.delta
@@ -479,7 +479,7 @@ export class OpenRouterTextAdapter<
 
   private mapTextOptionsToSDK(
     options: TextOptions<ResolveProviderOptions<TModel>>,
-  ): ChatGenerationParams {
+  ): ChatRequest {
     const modelOptions = options.modelOptions
 
     const messages = this.convertMessages(options.messages)
@@ -491,7 +491,7 @@ export class OpenRouterTextAdapter<
       })
     }
 
-    const request: ChatGenerationParams = {
+    const request: ChatRequest = {
       ...modelOptions,
       model:
         options.model +
@@ -512,7 +512,7 @@ export class OpenRouterTextAdapter<
     return request
   }
 
-  private convertMessages(messages: Array<ModelMessage>): Array<Message> {
+  private convertMessages(messages: Array<ModelMessage>): Array<ChatMessages> {
     return messages.map((msg) => {
       if (msg.role === 'tool') {
         return {
@@ -552,11 +552,11 @@ export class OpenRouterTextAdapter<
 
   private convertContentParts(
     content: string | null | Array<ContentPart>,
-  ): Array<ChatMessageContentItem> {
+  ): Array<ChatContentItems> {
     if (!content) return [{ type: 'text', text: '' }]
     if (typeof content === 'string') return [{ type: 'text', text: content }]
 
-    const parts: Array<ChatMessageContentItem> = []
+    const parts: Array<ChatContentItems> = []
     for (const part of content) {
       switch (part.type) {
         case 'text':

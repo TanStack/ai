@@ -17,7 +17,7 @@ import type {
   ImageGenerationResult,
 } from '@tanstack/ai'
 import type { OPENROUTER_IMAGE_MODELS } from '../model-meta'
-import type { ChatResponse } from '@openrouter/sdk/models'
+import type { ChatResult } from '@openrouter/sdk/models'
 
 export interface OpenRouterImageConfig extends OpenRouterClientConfig {}
 
@@ -71,7 +71,7 @@ export class OpenRouterImageAdapter<
 
     try {
       const response = await this.client.chat.send({
-        chatGenerationParams: {
+        chatRequest: {
           model,
           messages: [
             {
@@ -98,12 +98,12 @@ export class OpenRouterImageAdapter<
         },
       })
 
-      // Check for error in response
-      if ('error' in response && response.error) {
+      const maybeError = (response as { error?: unknown }).error
+      if (maybeError) {
         const errorMsg =
-          typeof response.error === 'object' && 'message' in response.error
-            ? (response.error as { message: string }).message
-            : String(response.error)
+          typeof maybeError === 'object' && 'message' in maybeError
+            ? String((maybeError as { message: unknown }).message)
+            : String(maybeError)
         throw new Error(`Image generation failed: ${errorMsg}`)
       }
 
@@ -120,7 +120,7 @@ export class OpenRouterImageAdapter<
 
   private transformResponse(
     model: string,
-    response: ChatResponse,
+    response: ChatResult,
   ): ImageGenerationResult {
     const images: Array<GeneratedImage> = []
 

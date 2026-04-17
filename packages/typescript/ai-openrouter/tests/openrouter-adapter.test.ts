@@ -3,7 +3,7 @@ import { chat } from '@tanstack/ai'
 import { createOpenRouterText } from '../src/adapters/text'
 import type { OpenRouterTextModelOptions } from '../src/adapters/text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
-import { ChatGenerationParams$outboundSchema } from '@openrouter/sdk/models'
+import { ChatRequest$outboundSchema } from '@openrouter/sdk/models'
 // Declare mockSend at module level
 let mockSend: any
 
@@ -53,7 +53,7 @@ function setupMockSdkClient(
   nonStreamResponse?: Record<string, unknown>,
 ) {
   mockSend = vi.fn().mockImplementation((params) => {
-    if (params.chatGenerationParams?.stream) {
+    if (params.chatRequest?.stream) {
       return Promise.resolve(createAsyncIterable(streamChunks))
     }
     return Promise.resolve(nonStreamResponse)
@@ -133,7 +133,7 @@ describe('OpenRouter adapter option mapping', () => {
     expect(mockSend).toHaveBeenCalledTimes(1)
 
     const [rawParams] = mockSend.mock.calls[0]!
-    const params = rawParams.chatGenerationParams
+    const params = rawParams.chatRequest
 
     expect(params.model).toBe('openai/gpt-4o-mini')
     expect(params.temperature).toBe(0.25)
@@ -151,7 +151,7 @@ describe('OpenRouter adapter option mapping', () => {
 
     // Check how the paramaters are serialized through to the openrouter endpoint
     // Openrouter runs the params through an outbound Zod schema that expects camelCase
-    const serialized = ChatGenerationParams$outboundSchema.parse(params)
+    const serialized = ChatRequest$outboundSchema.parse(params)
 
     // keys and remaps them to snake_case for the wire format.
     expect(serialized).toHaveProperty('model', 'openai/gpt-4o-mini')
@@ -364,7 +364,7 @@ describe('OpenRouter adapter option mapping', () => {
     }
 
     const [rawParams] = mockSend.mock.calls[0]!
-    const params = rawParams.chatGenerationParams
+    const params = rawParams.chatRequest
 
     const contentParts = params.messages[0].content
     expect(contentParts[0]).toMatchObject({
@@ -904,7 +904,7 @@ describe('OpenRouter structured output', () => {
 
     // Verify SDK was called with responseFormat, not tools
     const [rawParams] = mockSend.mock.calls[0]!
-    const params = rawParams.chatGenerationParams
+    const params = rawParams.chatRequest
     expect(params.responseFormat).toEqual({
       type: 'json_schema',
       jsonSchema: {
@@ -1054,7 +1054,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     }
 
     const [rawParams] = mockSend.mock.calls[0]!
-    const params = rawParams.chatGenerationParams
+    const params = rawParams.chatRequest
     expect(params.frequencyPenalty).toBe(0.5)
     expect(params.presencePenalty).toBe(0.3)
     expect(params.maxCompletionTokens).toBe(2048)
@@ -1088,7 +1088,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     }
 
     const [rawParams] = mockSend.mock.calls[0]!
-    const params = rawParams.chatGenerationParams
+    const params = rawParams.chatRequest
     expect(params.provider).toEqual({
       order: ['openai'],
       allowFallbacks: false,
@@ -1120,7 +1120,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     }
 
     const [rawParams] = mockSend.mock.calls[0]!
-    const params = rawParams.chatGenerationParams
+    const params = rawParams.chatRequest
     // Top-level values should win because modelOptions has those keys Omitted
     expect(params.temperature).toBe(0.5)
     expect(params.topP).toBe(0.8)
@@ -1140,7 +1140,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     }
 
     const [rawParams] = mockSend.mock.calls[0]!
-    const params = rawParams.chatGenerationParams
+    const params = rawParams.chatRequest
     expect(params.model).toBe('openai/gpt-4o-mini:free')
   })
 
@@ -1162,7 +1162,7 @@ describe('OpenRouter modelOptions pass-through', () => {
     }
 
     const [rawParams] = mockSend.mock.calls[0]!
-    const params = rawParams.chatGenerationParams
+    const params = rawParams.chatRequest
     expect(params.toolChoice).toBe('required')
   })
 })
