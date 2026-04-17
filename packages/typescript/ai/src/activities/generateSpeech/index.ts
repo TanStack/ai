@@ -189,9 +189,9 @@ async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
     })
 
     logger.output(
-      `activity=generateSpeech bytes=${result.audio?.length ?? 0}`,
+      `activity=generateSpeech bytes=${result.audio.length}`,
       {
-        bytes: result.audio?.length ?? 0,
+        bytes: result.audio.length,
         contentType: result.contentType,
       },
     )

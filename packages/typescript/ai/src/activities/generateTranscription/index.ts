@@ -207,7 +207,7 @@ async function runGenerateTranscription<
     })
 
     logger.output(
-      `activity=generateTranscription length=${result.text?.length ?? 0}`,
+      `activity=generateTranscription length=${result.text.length}`,
       { hasText: !!result.text },
     )
 
