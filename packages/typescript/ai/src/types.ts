@@ -1004,6 +1004,11 @@ export interface SummarizationOptions {
   maxLength?: number
   style?: 'bullet-points' | 'paragraph' | 'concise'
   focus?: Array<string>
+  /**
+   * Internal logger threaded from the summarize() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 export interface SummarizationResult {
