@@ -31,8 +31,6 @@ import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from '../text/text-provider-options'
-
-type GroqTextProviderOptions = ExternalTextProviderOptions
 import type {
   ChatCompletionContentPart,
   ChatCompletionMessageParam,
@@ -40,6 +38,8 @@ import type {
   GroqMessageMetadataByModality,
 } from '../message-types'
 import type { GroqClientConfig } from '../utils'
+
+type GroqTextProviderOptions = ExternalTextProviderOptions
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GroqChatModelToolCapabilitiesByName
