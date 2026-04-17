@@ -2,6 +2,8 @@
 // Token Types
 // ============================================================================
 
+import type { UsageInfo } from "../activities/chat/middleware"
+
 /**
  * Voice activity detection configuration
  */
@@ -265,11 +267,7 @@ export interface RealtimeEventPayloads {
   interrupted: { messageId?: string }
   error: { error: Error }
   go_away: { timeLeft?: string }
-  usage: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage: UsageInfo
 }
 
 /**

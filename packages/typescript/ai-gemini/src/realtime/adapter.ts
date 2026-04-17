@@ -153,8 +153,14 @@ async function createWebSocketConnection(
           sessionResumptionUpdate = response.sessionResumptionUpdate
         }
 
-        // TODO: Handle usage metadata
-        if (response.usageMetadata) {
+        // Handle token usage
+        const { totalTokenCount, promptTokenCount, responseTokenCount, responseTokensDetails } = response.usageMetadata ?? {}
+        if (totalTokenCount && promptTokenCount && responseTokenCount) {
+          emit("usage", {
+            completionTokens: responseTokenCount,
+            promptTokens: promptTokenCount,
+            totalTokens: totalTokenCount,
+          })
         }
 
         // Handle interruption by the model

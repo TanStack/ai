@@ -8,6 +8,7 @@ import type {
   RealtimeSessionConfig,
   RealtimeStatus,
   RealtimeToken,
+  UsageInfo,
 } from '@tanstack/ai'
 
 // ============================================================================
@@ -162,6 +163,8 @@ export interface RealtimeClientOptions {
   onConnect?: () => void
   onDisconnect?: () => void
   onInterrupted?: () => void
+  onUsage?: (usage: UsageInfo) => void
+  onGoAway?: (timeLeft?: string) => void
 }
 
 // ============================================================================

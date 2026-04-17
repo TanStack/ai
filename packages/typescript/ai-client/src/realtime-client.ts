@@ -494,6 +494,18 @@ export class RealtimeClient {
         this.options.onError?.(error)
       }),
     )
+
+    this.unsubscribers.push(
+      this.connection.on('go_away', ({ timeLeft }) => {
+        this.options.onGoAway?.(timeLeft)
+      }),
+    )
+
+    this.unsubscribers.push(
+      this.connection.on('usage', (usage) => {
+        this.options.onUsage?.(usage)
+      }),
+    )
   }
 
   private applySessionConfig(): void {
