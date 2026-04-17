@@ -7,8 +7,10 @@ async function runDebugRun(
   payload: Record<string, unknown>,
 ): Promise<Array<LogEntry>> {
   const res = await request.post('/api/debug-logging', { data: payload })
-  expect(res.ok(), `expected 200 from /api/debug-logging, got ${res.status()}`)
-    .toBe(true)
+  expect(
+    res.ok(),
+    `expected 200 from /api/debug-logging, got ${res.status()}`,
+  ).toBe(true)
   const body = (await res.json()) as {
     logs: Array<LogEntry>
     error?: string

@@ -49,10 +49,10 @@ export function openaiRealtime(
       _clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
       const model = token.config.model ?? 'gpt-4o-realtime-preview'
-      logger.request(
-        `activity=realtime provider=openai model=${model}`,
-        { provider: 'openai', model },
-      )
+      logger.request(`activity=realtime provider=openai model=${model}`, {
+        provider: 'openai',
+        model,
+      })
 
       if (connectionMode === 'webrtc') {
         return createWebRTCConnection(token, logger)
@@ -307,10 +307,13 @@ async function createWebRTCConnection(
         const name = event.name as string
         const args = event.arguments as string
         if (!callId) {
-          logger.errors('openai.realtime function_call_arguments.done missing ids', {
-            event,
-            source: 'openai.realtime',
-          })
+          logger.errors(
+            'openai.realtime function_call_arguments.done missing ids',
+            {
+              event,
+              source: 'openai.realtime',
+            },
+          )
           break
         }
         try {

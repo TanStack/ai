@@ -405,10 +405,9 @@ class TextEngine<
           return
         }
 
-        this.logger.agentLoop(
-          `iteration=${this.middlewareCtx.iteration}`,
-          { iteration: this.middlewareCtx.iteration },
-        )
+        this.logger.agentLoop(`iteration=${this.middlewareCtx.iteration}`, {
+          iteration: this.middlewareCtx.iteration,
+        })
 
         await this.beginCycle()
 

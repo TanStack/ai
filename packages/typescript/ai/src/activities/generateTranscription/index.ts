@@ -186,10 +186,10 @@ async function runGenerateTranscription<
     timestamp: startTime,
   })
 
-  logger.request(
-    `activity=generateTranscription provider=${providerName}`,
-    { provider: providerName, model },
-  )
+  logger.request(`activity=generateTranscription provider=${providerName}`, {
+    provider: providerName,
+    model,
+  })
 
   try {
     const result = await adapter.transcribe({ ...rest, model, logger })

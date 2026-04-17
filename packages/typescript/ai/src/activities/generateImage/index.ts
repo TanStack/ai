@@ -246,10 +246,9 @@ async function runGenerateImage<
       })
     }
 
-    logger.output(
-      `activity=generateImage count=${result.images.length}`,
-      { count: result.images.length },
-    )
+    logger.output(`activity=generateImage count=${result.images.length}`, {
+      count: result.images.length,
+    })
 
     return result
   } catch (error) {

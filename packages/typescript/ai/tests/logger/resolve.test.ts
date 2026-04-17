@@ -74,7 +74,10 @@ describe('resolveDebugOption', () => {
     const custom = makeCustomLogger()
     const il = resolveDebugOption({ logger: custom })
     il.provider('x')
-    expect(custom.debug).toHaveBeenCalledWith('[tanstack-ai:provider] x', undefined)
+    expect(custom.debug).toHaveBeenCalledWith(
+      '[tanstack-ai:provider] x',
+      undefined,
+    )
     for (const cat of ALL_CATEGORIES) expect(il.isEnabled(cat)).toBe(true)
   })
 
@@ -84,7 +87,10 @@ describe('resolveDebugOption', () => {
     expect(il.isEnabled('tools')).toBe(false)
     expect(il.isEnabled('provider')).toBe(true)
     il.provider('p')
-    expect(custom.debug).toHaveBeenCalledWith('[tanstack-ai:provider] p', undefined)
+    expect(custom.debug).toHaveBeenCalledWith(
+      '[tanstack-ai:provider] p',
+      undefined,
+    )
   })
 
   it('default instance routes through a ConsoleLogger', () => {

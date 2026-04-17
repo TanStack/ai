@@ -65,15 +65,15 @@ describe('debug logging — chat integration', () => {
     await collectChunks(stream as AsyncIterable<StreamChunk>)
 
     const debugMsgs = logPrefixes(logger.debug.mock.calls)
-    expect(
-      debugMsgs.some((m) => m.startsWith('[tanstack-ai:request]')),
-    ).toBe(true)
-    expect(
-      debugMsgs.some((m) => m.startsWith('[tanstack-ai:output]')),
-    ).toBe(true)
-    expect(
-      debugMsgs.some((m) => m.startsWith('[tanstack-ai:agentLoop]')),
-    ).toBe(true)
+    expect(debugMsgs.some((m) => m.startsWith('[tanstack-ai:request]'))).toBe(
+      true,
+    )
+    expect(debugMsgs.some((m) => m.startsWith('[tanstack-ai:output]'))).toBe(
+      true,
+    )
+    expect(debugMsgs.some((m) => m.startsWith('[tanstack-ai:agentLoop]'))).toBe(
+      true,
+    )
   })
 
   it('debug: { middleware: false } silences middleware logs only', async () => {
@@ -107,9 +107,9 @@ describe('debug logging — chat integration', () => {
     expect(
       debugMsgs.some((m) => m.startsWith('[tanstack-ai:middleware]')),
     ).toBe(false)
-    expect(
-      debugMsgs.some((m) => m.startsWith('[tanstack-ai:output]')),
-    ).toBe(true)
+    expect(debugMsgs.some((m) => m.startsWith('[tanstack-ai:output]'))).toBe(
+      true,
+    )
   })
 
   it('granular flags: middleware logs fire when middleware: true', async () => {
@@ -192,15 +192,11 @@ describe('debug logging — chat integration', () => {
     }
 
     const msgs = logPrefixes(errSpy.mock.calls)
-    expect(
-      msgs.some((m) => m.startsWith('[tanstack-ai:errors]')),
-    ).toBe(true)
+    expect(msgs.some((m) => m.startsWith('[tanstack-ai:errors]'))).toBe(true)
 
     // No debug-level category should have leaked when `debug` is unspecified.
     const debugMsgs = logPrefixes(debugSpy.mock.calls)
-    expect(
-      debugMsgs.some((m) => m.startsWith('[tanstack-ai:')),
-    ).toBe(false)
+    expect(debugMsgs.some((m) => m.startsWith('[tanstack-ai:'))).toBe(false)
 
     errSpy.mockRestore()
     debugSpy.mockRestore()
@@ -254,9 +250,9 @@ describe('debug logging — chat integration', () => {
 
     expect(logger.error).toHaveBeenCalled()
     const prefixes = logPrefixes(logger.error.mock.calls)
-    expect(
-      prefixes.some((m) => m.startsWith('[tanstack-ai:errors]')),
-    ).toBe(true)
+    expect(prefixes.some((m) => m.startsWith('[tanstack-ai:errors]'))).toBe(
+      true,
+    )
   })
 
   it('debug: true with failing adapter still routes error to errors category', async () => {
@@ -276,9 +272,7 @@ describe('debug logging — chat integration', () => {
     }
 
     const errMsgs = logPrefixes(errSpy.mock.calls)
-    expect(
-      errMsgs.some((m) => m.startsWith('[tanstack-ai:errors]')),
-    ).toBe(true)
+    expect(errMsgs.some((m) => m.startsWith('[tanstack-ai:errors]'))).toBe(true)
 
     errSpy.mockRestore()
     debugSpy.mockRestore()

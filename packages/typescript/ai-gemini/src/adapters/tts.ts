@@ -101,10 +101,10 @@ export class GeminiTTSAdapter<
     const { logger } = options
     const { model, text, modelOptions } = options
 
-    logger.request(
-      `activity=generateSpeech provider=gemini model=${model}`,
-      { provider: 'gemini', model },
-    )
+    logger.request(`activity=generateSpeech provider=gemini model=${model}`, {
+      provider: 'gemini',
+      model,
+    })
 
     const voiceConfig = modelOptions?.voiceConfig || {
       prebuiltVoiceConfig: {

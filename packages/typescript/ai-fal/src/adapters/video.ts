@@ -82,13 +82,10 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   ): Promise<VideoJobResult> {
     const { prompt, size, duration, modelOptions, logger } = options
 
-    logger.request(
-      `activity=generateVideo provider=fal model=${this.model}`,
-      {
-        provider: 'fal',
-        model: this.model,
-      },
-    )
+    logger.request(`activity=generateVideo provider=fal model=${this.model}`, {
+      provider: 'fal',
+      model: this.model,
+    })
 
     try {
       const sizeParams = mapVideoSizeToFalFormat(size)

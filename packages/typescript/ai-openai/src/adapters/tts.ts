@@ -53,10 +53,10 @@ export class OpenAITTSAdapter<
     const { logger } = options
     const { model, text, voice, format, speed, modelOptions } = options
 
-    logger.request(
-      `activity=generateSpeech provider=openai model=${model}`,
-      { provider: 'openai', model },
-    )
+    logger.request(`activity=generateSpeech provider=openai model=${model}`, {
+      provider: 'openai',
+      model,
+    })
 
     // Validate inputs using existing validators
     const audioOptions = {

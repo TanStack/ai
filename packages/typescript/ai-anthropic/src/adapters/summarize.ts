@@ -120,7 +120,9 @@ export class AnthropicSummarizeAdapter<
       })
 
       for await (const event of stream) {
-        logger.provider(`provider=anthropic type=${event.type}`, { chunk: event })
+        logger.provider(`provider=anthropic type=${event.type}`, {
+          chunk: event,
+        })
 
         if (event.type === 'message_start') {
           inputTokens = event.message.usage.input_tokens

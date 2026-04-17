@@ -270,10 +270,10 @@ async function runCreateVideoJob<
       modelOptions,
       logger,
     })
-    logger.output(
-      `activity=generateVideo jobId=${result.jobId}`,
-      { jobId: result.jobId, model: result.model },
-    )
+    logger.output(`activity=generateVideo jobId=${result.jobId}`, {
+      jobId: result.jobId,
+      model: result.model,
+    })
     return result
   } catch (error) {
     logger.errors('generateVideo activity failed', {
@@ -312,10 +312,13 @@ async function* runStreamingVideoGeneration<
     timestamp: Date.now(),
   }
 
-  logger.request(`activity=generateVideo provider=${providerName} stream=true`, {
-    provider: providerName,
-    model,
-  })
+  logger.request(
+    `activity=generateVideo provider=${providerName} stream=true`,
+    {
+      provider: providerName,
+      model,
+    },
+  )
 
   try {
     // Create the video generation job
