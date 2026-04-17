@@ -491,6 +491,9 @@ export class OpenRouterTextAdapter<
       })
     }
 
+    // Spread modelOptions first, then conditionally override with explicit
+    // top-level options so undefined values don't clobber modelOptions. Fixes
+    // #310, where the reverse order silently dropped user-set values.
     const request: ChatRequest = {
       ...modelOptions,
       model:
