@@ -14,6 +14,7 @@ Audio transcription is handled by transcription adapters that follow the same tr
 
 Currently supported:
 - **OpenAI**: Whisper-1, GPT-4o-transcribe, GPT-4o-mini-transcribe
+- **fal.ai**: Whisper, Wizper, speech-to-text turbo, ElevenLabs speech-to-text
 
 ## Basic Usage
 
@@ -64,6 +65,29 @@ const result = await generateTranscription({
   adapter: openaiTranscription('whisper-1'),
   audio: dataUrl,
 })
+```
+
+### fal.ai Transcription
+
+fal.ai offers Whisper, Wizper, and other STT models. The `audio` input accepts a URL, `File`, `Blob`, or `ArrayBuffer` (auto-wrapped in a `Blob`).
+
+```typescript
+import { generateTranscription } from '@tanstack/ai'
+import { falTranscription } from '@tanstack/ai-fal'
+
+const result = await generateTranscription({
+  adapter: falTranscription('fal-ai/whisper'),
+  audio: 'https://example.com/recording.mp3',
+  language: 'en',
+})
+
+console.log(result.text)
+console.log(result.language)
+
+// Models that return word/chunk timestamps populate result.segments
+for (const segment of result.segments ?? []) {
+  console.log(`[${segment.start}s → ${segment.end}s] ${segment.text}`)
+}
 ```
 
 ## Options

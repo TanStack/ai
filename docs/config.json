@@ -139,6 +139,10 @@
           "to": "media/transcription"
         },
         {
+          "label": "Audio Generation",
+          "to": "media/audio-generation"
+        },
+        {
           "label": "Image Generation",
           "to": "media/image-generation"
         },
