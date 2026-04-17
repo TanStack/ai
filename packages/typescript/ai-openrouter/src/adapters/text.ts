@@ -1,5 +1,6 @@
 import { OpenRouter } from '@openrouter/sdk'
 import { RequestAbortedError } from '@openrouter/sdk/models/errors'
+import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools'
 import {
@@ -22,20 +23,17 @@ import type {
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type {
-  ExternalTextProviderOptions,
-  InternalTextProviderOptions,
-} from '../text/text-provider-options'
+import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
   OpenRouterMessageMetadataByModality,
 } from '../message-types'
 import type {
-  ChatGenerationParams,
-  ChatGenerationTokenUsage,
-  ChatMessageContentItem,
-  ChatStreamingChoice,
-  Message,
+  ChatContentItems,
+  ChatMessages,
+  ChatRequest,
+  ChatStreamChoice,
+  ChatUsage,
 } from '@openrouter/sdk/models'
 
 export interface OpenRouterConfig extends SDKOptions {}
@@ -111,7 +109,7 @@ export class OpenRouterTextAdapter<
     try {
       const requestParams = this.mapTextOptionsToSDK(options)
       const stream = await this.client.chat.send(
-        { ...requestParams, stream: true },
+        { chatRequest: { ...requestParams, stream: true } },
         { signal: options.request?.signal },
       )
 
@@ -211,58 +209,47 @@ export class OpenRouterTextAdapter<
 
     const requestParams = this.mapTextOptionsToSDK(chatOptions)
 
-    const structuredOutputTool = {
-      type: 'function' as const,
-      function: {
-        name: 'structured_output',
-        description:
-          'Use this tool to provide your response in the required structured format.',
-        parameters: outputSchema,
-      },
-    }
+    // OpenRouter uses OpenAI-style strict JSON schema. Upstream providers
+    // (OpenAI especially) reject schemas that aren't strict-compatible — all
+    // properties required, additionalProperties: false, optional fields
+    // nullable. Apply that transformation before sending.
+    const strictSchema = convertSchemaToJsonSchema(outputSchema, {
+      forStructuredOutput: true,
+    })
 
     try {
       const result = await this.client.chat.send(
         {
-          ...requestParams,
-          stream: false,
-          tools: [structuredOutputTool],
-          toolChoice: {
-            type: 'function',
-            function: { name: 'structured_output' },
+          chatRequest: {
+            ...requestParams,
+            stream: false,
+            responseFormat: {
+              type: 'json_schema',
+              jsonSchema: {
+                name: 'structured_output',
+                schema: strictSchema,
+                strict: true,
+              },
+            },
           },
         },
         { signal: chatOptions.request?.signal },
       )
-
-      const message = result.choices[0]?.message
-      const toolCall = message?.toolCalls?.[0]
-
-      if (toolCall && toolCall.function.name === 'structured_output') {
-        const parsed = JSON.parse(toolCall.function.arguments || '{}')
-        return {
-          data: parsed,
-          rawText: toolCall.function.arguments || '',
-        }
+      const content = result.choices[0]?.message.content
+      const rawText = typeof content === 'string' ? content : ''
+      if (!rawText) {
+        throw new Error('Structured output response contained no content')
       }
-
-      const content = (message?.content as any) || ''
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(content)
-      } catch {
-        throw new Error(
-          `Failed to parse structured output as JSON. Content: ${content.slice(0, 200)}${content.length > 200 ? '...' : ''}`,
-        )
-      }
-
-      return {
-        data: parsed,
-        rawText: content,
-      }
+      const parsed = JSON.parse(rawText)
+      return { data: parsed, rawText }
     } catch (error: unknown) {
       if (error instanceof RequestAbortedError) {
         throw new Error('Structured output generation aborted')
+      }
+      if (error instanceof SyntaxError) {
+        throw new Error(
+          `Failed to parse structured output as JSON: ${error.message}`,
+        )
       }
       const err = error as Error
       throw new Error(
@@ -276,12 +263,12 @@ export class OpenRouterTextAdapter<
   }
 
   private *processChoice(
-    choice: ChatStreamingChoice,
+    choice: ChatStreamChoice,
     toolCallBuffers: Map<number, ToolCallBuffer>,
     meta: { id: string; model: string; timestamp: number },
     accumulated: { reasoning: string; content: string },
     updateAccumulated: (reasoning: string, content: string) => void,
-    usage: ChatGenerationTokenUsage | undefined,
+    usage: ChatUsage | undefined,
     aguiState: AGUIState,
   ): Iterable<StreamChunk> {
     const delta = choice.delta
@@ -501,10 +488,8 @@ export class OpenRouterTextAdapter<
 
   private mapTextOptionsToSDK(
     options: TextOptions<ResolveProviderOptions<TModel>>,
-  ): ChatGenerationParams {
-    const modelOptions = options.modelOptions as
-      | Omit<InternalTextProviderOptions, 'model' | 'messages' | 'tools'>
-      | undefined
+  ): ChatRequest {
+    const modelOptions = options.modelOptions
 
     const messages = this.convertMessages(options.messages)
 
@@ -515,15 +500,22 @@ export class OpenRouterTextAdapter<
       })
     }
 
-    const request: ChatGenerationParams = {
+    // Spread modelOptions first, then conditionally override with explicit
+    // top-level options so undefined values don't clobber modelOptions. Fixes
+    // #310, where the reverse order silently dropped user-set values.
+    const request: ChatRequest = {
+      ...modelOptions,
       model:
         options.model +
         (modelOptions?.variant ? `:${modelOptions.variant}` : ''),
       messages,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-      topP: options.topP,
-      ...modelOptions,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.maxTokens !== undefined && {
+        maxCompletionTokens: options.maxTokens,
+      }),
+      ...(options.topP !== undefined && { topP: options.topP }),
       tools: options.tools
         ? convertToolsToProviderFormat(options.tools)
         : undefined,
@@ -532,7 +524,7 @@ export class OpenRouterTextAdapter<
     return request
   }
 
-  private convertMessages(messages: Array<ModelMessage>): Array<Message> {
+  private convertMessages(messages: Array<ModelMessage>): Array<ChatMessages> {
     return messages.map((msg) => {
       if (msg.role === 'tool') {
         return {
@@ -572,11 +564,11 @@ export class OpenRouterTextAdapter<
 
   private convertContentParts(
     content: string | null | Array<ContentPart>,
-  ): Array<ChatMessageContentItem> {
+  ): Array<ChatContentItems> {
     if (!content) return [{ type: 'text', text: '' }]
     if (typeof content === 'string') return [{ type: 'text', text: content }]
 
-    const parts: Array<ChatMessageContentItem> = []
+    const parts: Array<ChatContentItems> = []
     for (const part of content) {
       switch (part.type) {
         case 'text':

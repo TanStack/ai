@@ -17,7 +17,7 @@ import type {
   ImageGenerationResult,
 } from '@tanstack/ai'
 import type { OPENROUTER_IMAGE_MODELS } from '../model-meta'
-import type { ChatResponse } from '@openrouter/sdk/models'
+import type { ChatResult } from '@openrouter/sdk/models'
 
 export interface OpenRouterImageConfig extends OpenRouterClientConfig {}
 
@@ -71,37 +71,40 @@ export class OpenRouterImageAdapter<
 
     try {
       const response = await this.client.chat.send({
-        model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
+        chatRequest: {
+          model,
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          modalities: ['image'],
+          stream: false,
+          // OpenRouter filters out invalid config per provider specifications
+          imageConfig: {
+            ...(numberOfImages ? { n: numberOfImages, numberOfImages } : {}),
+            ...(aspectRatio
+              ? {
+                  aspect_ratio: aspectRatio,
+                }
+              : {}),
+            ...(modelOptions?.image_size
+              ? {
+                  image_size: modelOptions.image_size,
+                }
+              : {}),
           },
-        ],
-        modalities: ['image'],
-        stream: false,
-        // OpenRouter filters out invalid config per provider specifications
-        imageConfig: {
-          ...(numberOfImages ? { n: numberOfImages, numberOfImages } : {}),
-          ...(aspectRatio
-            ? {
-                aspect_ratio: aspectRatio,
-              }
-            : {}),
-          ...(modelOptions?.image_size
-            ? {
-                image_size: modelOptions.image_size,
-              }
-            : {}),
         },
       })
 
       // Check for error in response
       if ('error' in response && response.error) {
+        const { error } = response
         const errorMsg =
-          typeof response.error === 'object' && 'message' in response.error
-            ? (response.error as { message: string }).message
-            : String(response.error)
+          typeof error === 'object' && 'message' in error
+            ? String(error.message)
+            : String(error)
         throw new Error(`Image generation failed: ${errorMsg}`)
       }
 
@@ -118,7 +121,7 @@ export class OpenRouterImageAdapter<
 
   private transformResponse(
     model: string,
-    response: ChatResponse,
+    response: ChatResult,
   ): ImageGenerationResult {
     const images: Array<GeneratedImage> = []
 

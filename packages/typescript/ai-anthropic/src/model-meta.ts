@@ -453,6 +453,36 @@ const CLAUDE_OPUS_4_6_FAST = {
     AnthropicSamplingOptions
 >
 
+const CLAUDE_OPUS_4_7 = {
+  name: 'claude-opus-4.7',
+  id: 'claude-opus-4.7',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image'],
+    extended_thinking: true,
+    priority_tier: true,
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 25,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
 export const ANTHROPIC_MODELS = [
   CLAUDE_OPUS_4_6.id,
   CLAUDE_OPUS_4_5.id,
@@ -467,6 +497,8 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_HAIKU_3.id,
 
   CLAUDE_OPUS_4_6_FAST.id,
+
+  CLAUDE_OPUS_4_7.id,
 ] as const
 
 // const ANTHROPIC_IMAGE_MODELS = [] as const
@@ -577,6 +609,14 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicThinkingOptions &
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions
+  [CLAUDE_OPUS_4_7.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
 }
 
 /**
@@ -603,4 +643,5 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_HAIKU_3_5.id]: typeof CLAUDE_HAIKU_3_5.supports.input
   [CLAUDE_HAIKU_3.id]: typeof CLAUDE_HAIKU_3.supports.input
   [CLAUDE_OPUS_4_6_FAST.id]: typeof CLAUDE_OPUS_4_6_FAST.supports.input
+  [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.input
 }

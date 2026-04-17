@@ -51,12 +51,16 @@ export type {
 } from './message-types'
 export type {
   WebPlugin,
+  PluginResponseHealing,
+  PdfParserOptions,
+  PluginFileParser,
+  PluginModeration,
+  PluginAutoRouter,
+  Plugin,
   ProviderPreferences,
   ReasoningOptions,
   StreamOptions,
   ImageConfig,
-  PredictionOptions,
-  WebSearchOptions,
 } from './text/text-provider-options'
 
 // ============================================================================
