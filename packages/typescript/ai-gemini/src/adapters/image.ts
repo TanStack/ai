@@ -81,27 +81,43 @@ export class GeminiImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<GeminiImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt } = options
+    const { model, prompt, logger } = options
 
-    validatePrompt({ prompt, model })
+    logger.request(
+      `activity=generateImage provider=gemini model=${this.model}`,
+      {
+        provider: 'gemini',
+        model: this.model,
+      },
+    )
 
-    if (this.isGeminiImageModel(model)) {
-      return this.generateWithGeminiApi(options)
+    try {
+      validatePrompt({ prompt, model })
+
+      if (this.isGeminiImageModel(model)) {
+        return await this.generateWithGeminiApi(options)
+      }
+
+      // Imagen models path (generateImages API)
+      validateImageSize(model, options.size)
+      validateNumberOfImages(model, options.numberOfImages)
+
+      const config = this.buildImagenConfig(options)
+
+      const response = await this.client.models.generateImages({
+        model,
+        prompt,
+        config,
+      })
+
+      return this.transformImagenResponse(model, response)
+    } catch (error) {
+      logger.errors('gemini.generateImage fatal', {
+        error,
+        source: 'gemini.generateImage',
+      })
+      throw error
     }
-
-    // Imagen models path (generateImages API)
-    validateImageSize(model, options.size)
-    validateNumberOfImages(model, options.numberOfImages)
-
-    const config = this.buildImagenConfig(options)
-
-    const response = await this.client.models.generateImages({
-      model,
-      prompt,
-      config,
-    })
-
-    return this.transformImagenResponse(model, response)
   }
 
   private isGeminiImageModel(model: string): boolean {
