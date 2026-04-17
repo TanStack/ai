@@ -16,13 +16,53 @@ const VALID_TOOL_NAME = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/
 // "Invalid tool name" error at generation time instead of a cryptic
 // SyntaxError when the wrapped code is eval'd.
 const RESERVED_TOOL_NAMES = new Set([
-  'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',
-  'default', 'delete', 'do', 'else', 'enum', 'export', 'extends', 'false',
-  'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'new',
-  'null', 'return', 'super', 'switch', 'this', 'throw', 'true', 'try',
-  'typeof', 'var', 'void', 'while', 'with', 'yield',
-  'let', 'static', 'implements', 'interface', 'package', 'private',
-  'protected', 'public', 'await', 'async',
+  'break',
+  'case',
+  'catch',
+  'class',
+  'const',
+  'continue',
+  'debugger',
+  'default',
+  'delete',
+  'do',
+  'else',
+  'enum',
+  'export',
+  'extends',
+  'false',
+  'finally',
+  'for',
+  'function',
+  'if',
+  'import',
+  'in',
+  'instanceof',
+  'new',
+  'null',
+  'return',
+  'super',
+  'switch',
+  'this',
+  'throw',
+  'true',
+  'try',
+  'typeof',
+  'var',
+  'void',
+  'while',
+  'with',
+  'yield',
+  'let',
+  'static',
+  'implements',
+  'interface',
+  'package',
+  'private',
+  'protected',
+  'public',
+  'await',
+  'async',
 ])
 
 function assertSafeToolName(name: string): void {
@@ -32,9 +72,7 @@ function assertSafeToolName(name: string): void {
     )
   }
   if (RESERVED_TOOL_NAMES.has(name)) {
-    throw new Error(
-      `Invalid tool name '${name}': reserved JavaScript keyword`,
-    )
+    throw new Error(`Invalid tool name '${name}': reserved JavaScript keyword`)
   }
 }
 
