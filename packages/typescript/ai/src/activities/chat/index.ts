@@ -98,7 +98,7 @@ export interface TextActivityOptions<
    *    compile-time error on the array element.
    */
   tools?: Array<
-    | Tool
+    | (Tool & { readonly '~toolKind'?: never })
     | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
   >
   /** Controls the randomness of the output. Higher values make output more random. Range: [0.0, 2.0] */
