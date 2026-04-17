@@ -98,12 +98,13 @@ export class OpenRouterImageAdapter<
         },
       })
 
-      const maybeError = (response as { error?: unknown }).error
-      if (maybeError) {
+      // Check for error in response
+      if ('error' in response && response.error) {
+        const { error } = response
         const errorMsg =
-          typeof maybeError === 'object' && 'message' in maybeError
-            ? String((maybeError as { message: unknown }).message)
-            : String(maybeError)
+          typeof error === 'object' && 'message' in error
+            ? String(error.message)
+            : String(error)
         throw new Error(`Image generation failed: ${errorMsg}`)
       }
 

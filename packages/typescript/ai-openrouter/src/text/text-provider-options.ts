@@ -57,7 +57,14 @@ export type OpenRouterCommonOptions = Pick<
   | 'parallelToolCalls'
   | 'modalities'
 > & {
+  /**
+   * A list of model IDs to use as fallbacks if the primary model is unavailable.
+   */
   models?: Array<OpenRouterChatModel>
+  /**
+   * The model variant to use, if supported by the model.
+   * Will be appended to the model ID.
+   */
   variant?: 'free' | 'nitro' | 'online' | 'exacto' | 'extended' | 'thinking'
 }
 

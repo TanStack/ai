@@ -7,7 +7,7 @@
 - Derive `text-provider-options` types from the SDK's `ChatRequest` so provider options stay in lockstep with the SDK surface
 - Drop `topK` / `topA` / `minP` / `repetitionPenalty` / `includeReasoning` / `verbosity` / `webSearchOptions` from `OpenRouterBaseOptions` now that the SDK narrows `ChatRequest` to OpenAI-compatible fields — callers passing these previously saw them silently stripped at runtime, and now get a TypeScript error instead
 - Add those same keys to `excludedParams` in the model-catalog generator so future syncs don't reintroduce them
-- Add native structured output support using JSON Schema response formats
+- Switch `structuredOutput` to the SDK's native `responseFormat: { type: 'json_schema' }` instead of coercing the model via a forced `structured_output` tool call — the schema now flows straight to the provider, yielding cleaner responses and dropping the dummy-tool round-trip
 - Refactor options passthrough to use camelCase naming convention
 - Refresh the model catalog with the latest OpenRouter models (Opus 4.6, Sonnet 4.6, Gemini 3.1 Pro, etc.) and remove the deprecated `openrouter/auto` model
 - Unify the outbound request payload envelope
