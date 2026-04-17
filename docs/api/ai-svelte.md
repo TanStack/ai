@@ -2,6 +2,15 @@
 title: "@tanstack/ai-svelte"
 id: ai-svelte
 order: 6
+description: "API reference for @tanstack/ai-svelte — Svelte 5 reactive factory functions for streaming chat built on runes."
+keywords:
+  - tanstack ai
+  - "@tanstack/ai-svelte"
+  - svelte
+  - svelte 5
+  - createChat
+  - runes
+  - api reference
 ---
 
 Svelte 5 bindings for TanStack AI, providing reactive factory functions for the headless client using Svelte runes.

@@ -2,6 +2,16 @@
 title: Tools
 id: tools
 order: 1
+description: "Define isomorphic AI tools in TanStack AI with toolDefinition() for type-safe server- and client-side function calling across any framework."
+keywords:
+  - tanstack ai
+  - tools
+  - function calling
+  - toolDefinition
+  - isomorphic tools
+  - server tools
+  - client tools
+  - type safety
 ---
 
 Tools (also called "function calling") allow AI models to interact with external systems, APIs, or perform computations. TanStack AI provides an isomorphic tool system that enables type-safe, framework-agnostic tool definitions that work on both server and client.

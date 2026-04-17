@@ -2,6 +2,15 @@
 title: ElevenLabs
 id: elevenlabs-adapter
 order: 9
+description: "Build realtime voice-to-voice conversational AI with ElevenLabs agents in TanStack AI via the @tanstack/ai-elevenlabs adapter."
+keywords:
+  - tanstack ai
+  - elevenlabs
+  - realtime voice ai
+  - conversational ai
+  - voice chat
+  - voice agents
+  - adapter
 ---
 
 The ElevenLabs adapter provides realtime conversational voice AI for TanStack AI. Unlike text-focused adapters, the ElevenLabs adapter is **voice-focused** -- it integrates with TanStack AI's realtime system to enable voice-to-voice conversations. It does not support `chat()`, `embedding()`, or `summarize()`.

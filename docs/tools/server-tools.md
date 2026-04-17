@@ -2,6 +2,14 @@
 title: Server Tools
 id: server-tools
 order: 3
+description: "Server tools in TanStack AI execute automatically with full access to databases, APIs, and environment variables. Patterns, examples, and security."
+keywords:
+  - tanstack ai
+  - server tools
+  - function calling
+  - backend tools
+  - tool execute
+  - database access
 ---
 
 Server tools execute automatically when called by the LLM. They have full access to server resources like databases, APIs, and environment variables.

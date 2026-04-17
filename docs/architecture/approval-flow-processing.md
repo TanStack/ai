@@ -1,3 +1,18 @@
+---
+title: Approval Flow Processing Architecture
+id: approval-flow-processing
+description: "Internal architecture of TanStack AI's tool approval system — state machine, streaming protocol, concurrency control, and chained approval mechanics."
+keywords:
+  - tanstack ai
+  - approval flow
+  - tool approval
+  - architecture
+  - state machine
+  - streaming protocol
+  - internals
+  - concurrency
+---
+
 # Approval Flow Processing Architecture
 
 > Internal architecture reference for the tool approval system in TanStack AI.

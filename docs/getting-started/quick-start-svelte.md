@@ -2,6 +2,16 @@
 title: "Quick Start: Svelte"
 id: quick-start-svelte
 order: 4
+description: "Add a streaming TanStack AI chat component to a SvelteKit app using Svelte 5 runes and the OpenAI adapter."
+keywords:
+  - tanstack ai
+  - svelte
+  - sveltekit
+  - svelte 5
+  - quick start
+  - streaming chat
+  - openai
+  - runes
 ---
 
 You have a SvelteKit app and want to add AI chat. By the end of this guide, you'll have a streaming chat component powered by TanStack AI and OpenAI.

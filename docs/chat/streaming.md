@@ -2,6 +2,15 @@
 title: Streaming
 id: streaming-responses
 order: 2
+description: "Stream AI responses in real time with TanStack AI — async iterable chunks, chunk strategies, and partial JSON for responsive chat UIs."
+keywords:
+  - tanstack ai
+  - streaming
+  - streaming responses
+  - real-time ai
+  - async iterable
+  - chunks
+  - partial json
 ---
 
 TanStack AI supports streaming responses for real-time chat experiences. Streaming allows you to display responses as they're generated, rather than waiting for the complete response.
