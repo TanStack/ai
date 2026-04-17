@@ -47,21 +47,24 @@ const stream = chat({
 
 ## Type-level guard
 
-Every provider-tool factory returns a `ProviderTool<TProvider, TKind>` brand.
-The adapter's `toolCapabilities` (derived from each model's `supports.tools`
-list) gates which brands are assignable to `tools`.
+Every provider-specific tool factory (e.g. `webSearchTool`, `computerUseTool`)
+returns a `ProviderTool<TProvider, TKind>` brand. The adapter's
+`toolCapabilities` (derived from each model's `supports.tools` list) gates
+which brands are assignable to `tools`.
 
 Paste a `computerUseTool(...)` into a model that doesn't expose it, and
 TypeScript reports an error on that array element — not on the factory call,
 not at runtime. User-defined `toolDefinition()` tools stay unbranded and
-always assignable.
+always assignable. The `customTool` factories exported from `ai-anthropic` and
+`ai-openai` also return a plain `Tool` (not a `ProviderTool` brand) and are
+therefore universally accepted by any chat model, just like `toolDefinition()`.
 
 ## Available tools
 
 | Provider | Tools |
 |---|---|
-| Anthropic | `webSearchTool`, `webFetchTool`, `codeExecutionTool`, `computerUseTool`, `bashTool`, `textEditorTool`, `memoryTool`, `customTool` — see [Anthropic adapter](../adapters/anthropic.md#provider-tools). |
-| OpenAI | `webSearchTool`, `webSearchPreviewTool`, `fileSearchTool`, `imageGenerationTool`, `codeInterpreterTool`, `mcpTool`, `computerUseTool`, `localShellTool`, `shellTool`, `applyPatchTool`, `customTool` — see [OpenAI adapter](../adapters/openai.md#provider-tools). |
+| Anthropic | `webSearchTool`, `webFetchTool`, `codeExecutionTool`, `computerUseTool`, `bashTool`, `textEditorTool`, `memoryTool` — see [Anthropic adapter](../adapters/anthropic.md#provider-tools). |
+| OpenAI | `webSearchTool`, `webSearchPreviewTool`, `fileSearchTool`, `imageGenerationTool`, `codeInterpreterTool`, `mcpTool`, `computerUseTool`, `localShellTool`, `shellTool`, `applyPatchTool` — see [OpenAI adapter](../adapters/openai.md#provider-tools). |
 | Gemini | `codeExecutionTool`, `fileSearchTool`, `googleSearchTool`, `googleSearchRetrievalTool`, `googleMapsTool`, `urlContextTool`, `computerUseTool` — see [Gemini adapter](../adapters/gemini.md#provider-tools). |
 | OpenRouter | `webSearchTool` — see [OpenRouter adapter](../adapters/openrouter.md#provider-tools). |
 | Grok | function tools only (no provider-specific tools). |

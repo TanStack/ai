@@ -398,9 +398,10 @@ const stream = chat({
 
 ### `customTool`
 
-Creates a fully custom Anthropic-native tool with an inline JSON Schema input
-definition instead of going through `toolDefinition()`. Useful when you need
-fine-grained control over the schema shape or want to add `cache_control`.
+Creates a tool with an inline JSON Schema input definition instead of going
+through `toolDefinition()`. Useful when you need fine-grained control over the
+schema shape or want to add `cache_control`. Unlike branded provider tools,
+`customTool` returns a plain `Tool` and is accepted by any chat model.
 
 ```typescript
 import { chat } from "@tanstack/ai";

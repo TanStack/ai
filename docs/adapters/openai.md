@@ -569,8 +569,10 @@ const stream = chat({
 
 ### `customTool`
 
-Defines a fully custom Responses API tool with an explicit name, description,
-and format. Use this when none of the structured tool types fits your use case.
+Defines a custom Responses API tool with an explicit name, description, and
+format. Use this when none of the structured tool types fits your use case.
+Unlike branded provider tools, `customTool` returns a plain `Tool` and is
+accepted by any chat model.
 
 ```typescript
 import { chat } from "@tanstack/ai";
