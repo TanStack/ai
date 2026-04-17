@@ -1105,6 +1105,11 @@ export interface VideoGenerationOptions<
   duration?: number
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateVideo() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
