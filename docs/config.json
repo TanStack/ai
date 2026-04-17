@@ -52,6 +52,10 @@
           "to": "tools/tools"
         },
         {
+          "label": "Provider Tools",
+          "to": "tools/provider-tools"
+        },
+        {
           "label": "Tool Architecture",
           "to": "tools/tool-architecture"
         },
