@@ -90,11 +90,15 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
       prompt: z.string(),
       duration: z.number().optional(),
       provider: AUDIO_PROVIDER_SCHEMA,
+      model: z.string().optional(),
     }),
   )
   .handler(async ({ data }) => {
     return generateAudio({
-      adapter: buildAudioAdapter(data.provider ?? 'elevenlabs-music'),
+      adapter: buildAudioAdapter(
+        data.provider ?? 'elevenlabs-music',
+        data.model,
+      ),
       prompt: data.prompt,
       duration: data.duration,
     })

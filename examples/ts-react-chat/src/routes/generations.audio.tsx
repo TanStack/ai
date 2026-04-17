@@ -37,6 +37,7 @@ async function generateViaRoute(input: {
   prompt: string
   duration?: number
   provider: AudioProviderId
+  model?: string
 }): Promise<AudioGenerationResult> {
   const response = await fetch('/api/generate/audio', {
     method: 'POST',
@@ -61,6 +62,7 @@ function AudioGenerationForm({
   const [duration, setDuration] = useState<number | undefined>(
     config.defaultDuration,
   )
+  const [selectedModel, setSelectedModel] = useState<string>(config.model)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<AudioResultState | null>(null)
@@ -75,6 +77,7 @@ function AudioGenerationForm({
           prompt: prompt.trim(),
           duration,
           provider: config.id,
+          model: selectedModel,
         }
         const response =
           mode === 'server-fn'
@@ -92,15 +95,40 @@ function AudioGenerationForm({
         setIsLoading(false)
       }
     },
-    [prompt, duration, config.id, mode],
+    [prompt, duration, config.id, mode, selectedModel],
   )
 
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <p className="text-xs text-gray-400">
-          Model: <span className="text-gray-200">{config.model}</span>
-        </p>
+        {config.models && config.models.length > 1 ? (
+          <div className="flex items-center gap-3">
+            <label
+              htmlFor="audio-model-select"
+              className="text-xs text-gray-400"
+            >
+              Model:
+            </label>
+            <select
+              id="audio-model-select"
+              data-testid="audio-model-select"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              disabled={isLoading}
+              className="flex-1 rounded-md border border-orange-500/20 bg-gray-800/50 px-2 py-1 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+            >
+              {config.models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label} — {m.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">
+            Model: <span className="text-gray-200">{config.model}</span>
+          </p>
+        )}
         <p className="text-xs text-gray-500">{config.description}</p>
       </div>
 
@@ -115,6 +143,25 @@ function AudioGenerationForm({
           rows={4}
           disabled={isLoading}
         />
+        {config.samplePrompts.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <span className="text-xs text-gray-500 self-center">Try:</span>
+            {config.samplePrompts.map((sample) => (
+              <button
+                key={sample.label}
+                type="button"
+                onClick={() => setPrompt(sample.prompt)}
+                disabled={isLoading}
+                data-testid={`audio-sample-${sample.label
+                  .toLowerCase()
+                  .replace(/\s+/g, '-')}`}
+                className="px-3 py-1 rounded-full border border-orange-500/30 bg-orange-500/10 text-xs text-orange-200 hover:bg-orange-500/20 hover:border-orange-500/50 disabled:opacity-50 transition-colors"
+              >
+                {sample.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {config.defaultDuration != null && (

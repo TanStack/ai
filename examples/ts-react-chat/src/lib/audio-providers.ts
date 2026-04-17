@@ -109,11 +109,19 @@ export type AudioProviderId =
 export interface AudioProviderConfig {
   id: AudioProviderId
   label: string
+  /** Default model when the provider does not expose a chooser. */
   model: string
   description: string
   placeholder: string
   /** Default generation length in seconds, when the provider accepts one. */
   defaultDuration?: number
+  /** Ready-made prompts the UI can offer as one-click suggestions. */
+  samplePrompts: ReadonlyArray<{ label: string; prompt: string }>
+  /**
+   * Optional list of alternate models the UI can expose via a dropdown.
+   * When present, the first entry should match {@link model}.
+   */
+  models?: ReadonlyArray<{ id: string; label: string }>
 }
 
 export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
@@ -124,6 +132,28 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
     description: 'Generate full songs with vocals and arrangement.',
     placeholder: 'An upbeat indie rock track with driving drums…',
     defaultDuration: 30,
+    samplePrompts: [
+      {
+        label: 'Cinematic orchestra',
+        prompt:
+          'A cinematic orchestral piece with swelling strings, heroic brass, and a triumphant finale.',
+      },
+      {
+        label: 'Synthwave drive',
+        prompt:
+          'Retro synthwave with analog warmth, gated reverb drums, and a driving arpeggiated bassline.',
+      },
+      {
+        label: 'Death metal laundry',
+        prompt:
+          'A death metal ballad about losing your favorite socks in the dryer, complete with guttural vocals.',
+      },
+      {
+        label: 'Broadway Monday',
+        prompt:
+          'An overly dramatic Broadway musical number about how much someone hates Monday mornings.',
+      },
+    ],
   },
   {
     id: 'elevenlabs-sfx',
@@ -132,6 +162,27 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
     description: 'Generate short sound effects from natural language.',
     placeholder: 'Glass shattering on a tile floor',
     defaultDuration: 3,
+    samplePrompts: [
+      {
+        label: 'Rain on tin roof',
+        prompt: 'Steady rain pattering on a corrugated metal roof at night.',
+      },
+      {
+        label: 'Marble hallway steps',
+        prompt:
+          'Slow leather-soled footsteps echoing through an empty marble hallway.',
+      },
+      {
+        label: 'Interrogated duck',
+        prompt:
+          'A rubber duck being dramatically interrogated under a swinging lamp, squeaks only.',
+      },
+      {
+        label: 'Cartoon banana slip',
+        prompt:
+          'Classic cartoon banana slip: quick slide, comedic boing, and a distant crash.',
+      },
+    ],
   },
   {
     id: 'gemini-lyria',
@@ -139,13 +190,70 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
     model: 'lyria-3-clip-preview',
     description: 'Google Lyria 3 music generation (30s clips).',
     placeholder: 'Ambient piano with warm pads and soft strings',
+    samplePrompts: [
+      {
+        label: 'Late-night jazz trio',
+        prompt:
+          'A contemplative jazz trio with brushed drums, walking upright bass, and smoky piano chords.',
+      },
+      {
+        label: 'Hero at dawn',
+        prompt:
+          'An epic film score for a hero cresting a mountain at dawn: horns, choir, and taiko drums.',
+      },
+      {
+        label: 'Haunted elevator',
+        prompt:
+          'Cheerful 1950s elevator music, but subtly out of tune, like the elevator is haunted.',
+      },
+      {
+        label: 'Polka funeral',
+        prompt:
+          'A funeral dirge unexpectedly remixed as an upbeat accordion polka.',
+      },
+    ],
   },
   {
     id: 'fal-audio',
     label: 'Fal Audio',
-    model: 'fal-ai/diffrhythm',
+    model: 'fal-ai/minimax-music/v2.6',
+    models: [
+      { id: 'fal-ai/minimax-music/v2.6', label: 'MiniMax Music v2.6 (latest)' },
+      { id: 'fal-ai/minimax-music/v2.5', label: 'MiniMax Music v2.5' },
+      { id: 'fal-ai/minimax-music/v2', label: 'MiniMax Music v2' },
+      { id: 'fal-ai/diffrhythm', label: 'DiffRhythm' },
+      { id: 'fal-ai/ace-step', label: 'ACE-Step' },
+      {
+        id: 'fal-ai/stable-audio-25/text-to-audio',
+        label: 'Stable Audio 2.5',
+      },
+      { id: 'fal-ai/lyria2', label: 'Lyria 2' },
+      { id: 'fal-ai/yue', label: 'YuE' },
+    ],
     description: 'Fal-hosted open music generation models.',
     placeholder: 'A lo-fi hip-hop beat with vinyl crackle',
     defaultDuration: 10,
+    samplePrompts: [
+      {
+        label: 'Lo-fi study beat',
+        prompt:
+          'A mellow lo-fi hip-hop beat with warm vinyl crackle, dusty Rhodes chords, and soft swing.',
+      },
+      {
+        label: 'Ambient drone',
+        prompt:
+          'A slow ambient drone with shimmering reverb, distant field recordings, and evolving pads.',
+      },
+      {
+        label: 'Seagull Eurovision',
+        prompt:
+          'A Eurovision-style power ballad performed entirely by a choir of disgruntled seagulls.',
+      },
+      {
+        label: 'Hydrophobic pirate',
+        prompt:
+          'The rousing theme song for a swashbuckling pirate who is terrified of water.',
+      },
+    ],
   },
 ]

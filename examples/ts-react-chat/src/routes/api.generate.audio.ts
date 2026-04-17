@@ -8,13 +8,17 @@ export const Route = createFileRoute('/api/generate/audio')({
     handlers: {
       POST: async ({ request }) => {
         const body = await request.json()
-        const { prompt, duration, provider } = body.data as {
+        const { prompt, duration, provider, model } = body.data as {
           prompt: string
           duration?: number
           provider?: AudioProviderId
+          model?: string
         }
 
-        const adapter = buildAudioAdapter(provider ?? 'elevenlabs-music')
+        const adapter = buildAudioAdapter(
+          provider ?? 'elevenlabs-music',
+          model,
+        )
 
         try {
           const result = await generateAudio({

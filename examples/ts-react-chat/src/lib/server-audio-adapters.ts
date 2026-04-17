@@ -65,16 +65,29 @@ export function buildTranscriptionAdapter(
   }
 }
 
-export function buildAudioAdapter(provider: AudioProviderId): AnyAudioAdapter {
+export function buildAudioAdapter(
+  provider: AudioProviderId,
+  modelOverride?: string,
+): AnyAudioAdapter {
   const config = findConfig(AUDIO_PROVIDERS, provider)
+  const model = resolveModel(config, modelOverride)
   switch (config.id) {
     case 'elevenlabs-music':
-      return elevenlabsMusic(config.model)
+      return elevenlabsMusic(model)
     case 'elevenlabs-sfx':
-      return elevenlabsSoundEffects(config.model)
+      return elevenlabsSoundEffects(model)
     case 'gemini-lyria':
-      return geminiAudio(config.model as 'lyria-3-clip-preview')
+      return geminiAudio(model as 'lyria-3-clip-preview')
     case 'fal-audio':
-      return falAudio(config.model)
+      return falAudio(model)
   }
+}
+
+function resolveModel(
+  config: (typeof AUDIO_PROVIDERS)[number],
+  modelOverride: string | undefined,
+): string {
+  if (!modelOverride) return config.model
+  const allowed = config.models?.some((m) => m.id === modelOverride)
+  return allowed ? modelOverride : config.model
 }
