@@ -158,7 +158,10 @@ export function createCostCaptureHook(
 ): (res: Response, req: Request) => void {
   return (res, req) => {
     if (!isChatCompletionsRequest(req.url)) return
-    const contentType = res.headers.get('content-type') ?? ''
+    // Content-Type is case-insensitive per RFC 9110. OpenRouter today
+    // serves lowercase `text/event-stream`, but a proxy on the path could
+    // legitimately return a different casing — normalize before matching.
+    const contentType = (res.headers.get('content-type') ?? '').toLowerCase()
     // Cost capture is only wired for streaming chat completions. Non-SSE
     // responses on `/chat/completions` (e.g. `structuredOutput()` which
     // calls `chat.send({ stream: false })`) never consume `costStore` —
