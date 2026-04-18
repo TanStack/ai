@@ -253,6 +253,10 @@ class TextEngine<
   private totalChunkCount = 0
   private currentMessageId: string | null = null
   private accumulatedContent = ''
+  private accumulatedThinking: Array<{ content: string; signature?: string }> =
+    []
+  private currentThinkingContent = ''
+  private currentThinkingSignature = ''
   private eventOptions?: Record<string, unknown>
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -494,6 +498,9 @@ class TextEngine<
   private async beginIteration(): Promise<void> {
     this.currentMessageId = this.createId('msg')
     this.accumulatedContent = ''
+    this.accumulatedThinking = []
+    this.currentThinkingContent = ''
+    this.currentThinkingSignature = ''
     this.finishedEvent = null
 
     // Update mutable context fields
@@ -585,12 +592,15 @@ class TextEngine<
       case 'RUN_ERROR':
         this.handleRunErrorEvent(chunk)
         break
+      case 'STEP_STARTED':
+        this.handleStepStartedEvent()
+        break
       case 'STEP_FINISHED':
         this.handleStepFinishedEvent(chunk)
         break
 
       default:
-        // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END, STEP_STARTED,
+        // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END,
         // STATE_SNAPSHOT, STATE_DELTA, CUSTOM
         // - no special handling needed in chat activity
         break
@@ -633,10 +643,32 @@ class TextEngine<
     this.earlyTermination = true
   }
 
+  private finalizeCurrentThinkingStep(): void {
+    if (this.currentThinkingContent) {
+      this.accumulatedThinking.push({
+        content: this.currentThinkingContent,
+        ...(this.currentThinkingSignature && {
+          signature: this.currentThinkingSignature,
+        }),
+      })
+      this.currentThinkingContent = ''
+      this.currentThinkingSignature = ''
+    }
+  }
+
+  private handleStepStartedEvent(): void {
+    this.finalizeCurrentThinkingStep()
+  }
+
   private handleStepFinishedEvent(
-    _chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
+    chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
-    // State tracking for STEP_FINISHED is handled by middleware
+    if (chunk.delta) {
+      this.currentThinkingContent += chunk.delta
+    }
+    if (chunk.signature) {
+      this.currentThinkingSignature = chunk.signature
+    }
   }
 
   private async *checkForPendingToolCalls(): AsyncGenerator<
@@ -948,12 +980,17 @@ class TextEngine<
   }
 
   private addAssistantToolCallMessage(toolCalls: Array<ToolCall>): void {
+    this.finalizeCurrentThinkingStep()
+
     this.messages = [
       ...this.messages,
       {
         role: 'assistant',
         content: this.accumulatedContent || null,
         toolCalls,
+        ...(this.accumulatedThinking.length > 0 && {
+          thinking: this.accumulatedThinking,
+        }),
       },
     ]
   }

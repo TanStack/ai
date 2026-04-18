@@ -270,6 +270,7 @@ export interface ModelMessage<
   name?: string
   toolCalls?: Array<ToolCall>
   toolCallId?: string
+  thinking?: Array<{ content: string; signature?: string }>
 }
 
 /**
@@ -308,6 +309,8 @@ export interface ToolResultPart {
 export interface ThinkingPart {
   type: 'thinking'
   content: string
+  stepId?: string
+  signature?: string
 }
 
 export type MessagePart =
@@ -905,6 +908,8 @@ export interface StepFinishedEvent extends BaseAGUIEvent {
   delta: string
   /** Full accumulated thinking content (optional, for debugging) */
   content?: string
+  /** Provider signature for the thinking block */
+  signature?: string
 }
 
 /**

@@ -777,24 +777,31 @@ describe('message-updaters', () => {
   describe('updateThinkingPart', () => {
     it('should add a new thinking part', () => {
       const messages = [createMessage('msg-1')]
-      const result = updateThinkingPart(messages, 'msg-1', 'Let me think...')
+      const result = updateThinkingPart(
+        messages,
+        'msg-1',
+        'step-1',
+        'Let me think...',
+      )
 
       expect(result[0]?.parts).toHaveLength(1)
       expect(result[0]?.parts[0]).toEqual({
         type: 'thinking',
         content: 'Let me think...',
+        stepId: 'step-1',
       })
     })
 
-    it('should update existing thinking part', () => {
+    it('should update existing thinking part by stepId', () => {
       const messages = [
         createMessage('msg-1', 'assistant', [
-          { type: 'thinking', content: 'Let me think' },
+          { type: 'thinking', content: 'Let me think', stepId: 'step-1' },
         ]),
       ]
       const result = updateThinkingPart(
         messages,
         'msg-1',
+        'step-1',
         'Let me think about this',
       )
 
@@ -802,26 +809,29 @@ describe('message-updaters', () => {
       expect(result[0]?.parts[0]).toEqual({
         type: 'thinking',
         content: 'Let me think about this',
+        stepId: 'step-1',
       })
     })
 
-    it('should only update the first thinking part if multiple exist', () => {
+    it('should create separate parts for different stepIds', () => {
       const messages = [
         createMessage('msg-1', 'assistant', [
-          { type: 'thinking', content: 'First' },
+          { type: 'thinking', content: 'First', stepId: 'step-1' },
           { type: 'text', content: 'Some text' },
-          { type: 'thinking', content: 'Second' },
         ]),
       ]
-      const result = updateThinkingPart(messages, 'msg-1', 'Updated first')
+      const result = updateThinkingPart(messages, 'msg-1', 'step-2', 'Second')
 
+      expect(result[0]?.parts).toHaveLength(3)
       expect(result[0]?.parts[0]).toEqual({
         type: 'thinking',
-        content: 'Updated first',
+        content: 'First',
+        stepId: 'step-1',
       })
       expect(result[0]?.parts[2]).toEqual({
         type: 'thinking',
         content: 'Second',
+        stepId: 'step-2',
       })
     })
 
@@ -830,7 +840,12 @@ describe('message-updaters', () => {
         createMessage('msg-1'),
         createMessage('msg-2', 'user', [{ type: 'text', content: 'Hi' }]),
       ]
-      const result = updateThinkingPart(messages, 'msg-1', 'Thinking...')
+      const result = updateThinkingPart(
+        messages,
+        'msg-1',
+        'step-1',
+        'Thinking...',
+      )
 
       expect(result[0]?.parts).toHaveLength(1)
       expect(result[1]?.parts).toHaveLength(1)
