@@ -777,18 +777,45 @@ export interface RunStartedEvent extends BaseAGUIEvent {
 /**
  * Emitted when a run completes successfully.
  */
+/**
+ * Per-run token and cost totals, shared between `RunFinishedEvent.usage`
+ * and the middleware `UsageInfo` so the two can never drift.
+ */
+export interface UsageTotals {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  /**
+   * USD cost. Optional because most providers don't report cost per
+   * request — the canonical source is the user's billing dashboard, not
+   * the response. Adapters MUST forward only what the provider returned;
+   * they MUST NOT multiply tokens × price tables, since stale or wrong
+   * pricing data would silently corrupt accounting.
+   */
+  cost?: number
+  /**
+   * Provider-reported cost breakdown. Loosely typed because providers
+   * disagree on what to expose (BYOK upstream costs, cache discounts,
+   * per-tier rates, ...) and locking the shape down would force every
+   * new adapter to either lie or back-fill. The named fields are
+   * whatever OpenRouter currently reports; other adapters may report
+   * numeric fields under their own keys via the index signature.
+   */
+  costDetails?: {
+    upstreamInferenceCost?: number | null
+    cacheDiscount?: number | null
+    [key: string]: number | null | undefined
+  }
+}
+
 export interface RunFinishedEvent extends BaseAGUIEvent {
   type: 'RUN_FINISHED'
   /** Run identifier */
   runId: string
   /** Why the generation stopped */
   finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  /** Token usage statistics */
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  /** Token and cost totals */
+  usage?: UsageTotals
 }
 
 /**

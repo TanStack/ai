@@ -7,6 +7,8 @@ import {
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
 } from '../utils'
+import { CostStore, attachCostCapture } from './cost-capture'
+import type { CostInfo } from './cost-capture'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
   OPENROUTER_CHAT_MODELS,
@@ -20,6 +22,7 @@ import type {
 import type {
   ContentPart,
   ModelMessage,
+  RunFinishedEvent,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
@@ -36,7 +39,7 @@ import type {
   ChatUsage,
 } from '@openrouter/sdk/models'
 
-export interface OpenRouterConfig extends SDKOptions {}
+export type OpenRouterConfig = SDKOptions
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
 export type OpenRouterTextModelOptions = ExternalTextProviderOptions
@@ -81,10 +84,18 @@ export class OpenRouterTextAdapter<
   readonly name = 'openrouter' as const
 
   private client: OpenRouter
+  private costStore: CostStore
 
   constructor(config: OpenRouterConfig, model: TModel) {
     super({}, model)
-    this.client = new OpenRouter(config)
+    this.costStore = new CostStore()
+    // Wrap the caller's HTTPClient (if any) by cloning and appending a
+    // response hook — their fetcher, retries, tracing, and pre-registered
+    // hooks are preserved, but their instance stays untouched.
+    this.client = new OpenRouter({
+      ...config,
+      httpClient: attachCostCapture(this.costStore, config.httpClient),
+    })
   }
 
   async *chatStream(
@@ -96,6 +107,8 @@ export class OpenRouterTextAdapter<
     let accumulatedContent = ''
     let responseId: string | null = null
     let currentModel = options.model
+    let finalUsage: ChatUsage | undefined
+    let finalFinishReason: 'stop' | 'length' | 'tool_calls' | null = null
     // AG-UI lifecycle tracking
     const aguiState: AGUIState = {
       runId: this.generateId(),
@@ -113,53 +126,99 @@ export class OpenRouterTextAdapter<
         { signal: options.request?.signal },
       )
 
-      for await (const chunk of stream) {
-        if (chunk.id) responseId = chunk.id
-        if (chunk.model) currentModel = chunk.model
+      try {
+        for await (const chunk of stream) {
+          if (chunk.id) responseId = chunk.id
+          if (chunk.model) currentModel = chunk.model
+          // OpenAI-compatible streams send the final usage totals in a
+          // trailing chunk whose `choices` is empty, so capture usage at the
+          // chunk level — capturing it inside the choice loop would miss it.
+          if (chunk.usage) finalUsage = chunk.usage
 
-        // Emit RUN_STARTED on first chunk
-        if (!aguiState.hasEmittedRunStarted) {
-          aguiState.hasEmittedRunStarted = true
-          yield {
-            type: 'RUN_STARTED',
-            runId: aguiState.runId,
-            model: currentModel || options.model,
-            timestamp,
-          }
-        }
-
-        if (chunk.error) {
-          // Emit AG-UI RUN_ERROR
-          yield {
-            type: 'RUN_ERROR',
-            runId: aguiState.runId,
-            model: currentModel || options.model,
-            timestamp,
-            error: {
-              message: chunk.error.message || 'Unknown error',
-              code: String(chunk.error.code),
-            },
-          }
-          continue
-        }
-
-        for (const choice of chunk.choices) {
-          yield* this.processChoice(
-            choice,
-            toolCallBuffers,
-            {
-              id: responseId || this.generateId(),
-              model: currentModel,
+          // Emit RUN_STARTED on first chunk
+          if (!aguiState.hasEmittedRunStarted) {
+            aguiState.hasEmittedRunStarted = true
+            yield {
+              type: 'RUN_STARTED',
+              runId: aguiState.runId,
+              model: currentModel || options.model,
               timestamp,
-            },
-            { reasoning: accumulatedReasoning, content: accumulatedContent },
-            (r, c) => {
-              accumulatedReasoning = r
-              accumulatedContent = c
-            },
-            chunk.usage,
-            aguiState,
-          )
+            }
+          }
+
+          if (chunk.error) {
+            // Emit AG-UI RUN_ERROR
+            yield {
+              type: 'RUN_ERROR',
+              runId: aguiState.runId,
+              model: currentModel || options.model,
+              timestamp,
+              error: {
+                message: chunk.error.message || 'Unknown error',
+                code: String(chunk.error.code),
+              },
+            }
+            continue
+          }
+
+          for (const choice of chunk.choices) {
+            const reason = yield* this.processChoice(
+              choice,
+              toolCallBuffers,
+              {
+                id: responseId || this.generateId(),
+                model: currentModel,
+                timestamp,
+              },
+              { reasoning: accumulatedReasoning, content: accumulatedContent },
+              (r, c) => {
+                accumulatedReasoning = r
+                accumulatedContent = c
+              },
+              aguiState,
+            )
+            if (reason !== null) finalFinishReason = reason
+          }
+        }
+      } catch (error) {
+        // If we already saw a terminal `finishReason`, the run is logically
+        // complete — a late abort/error (e.g. the connection dropping
+        // between finishReason and the trailing usage chunk) must not
+        // downgrade a successful completion to RUN_ERROR. Swallow and fall
+        // through to emit RUN_FINISHED with whatever cost we collected.
+        if (finalFinishReason === null) throw error
+      }
+
+      if (finalFinishReason !== null) {
+        // Deferral: RUN_FINISHED waits for the stream to fully drain (not
+        // just for `finishReason`) because OpenRouter delivers `usage` and
+        // `usage.cost` in a trailing `choices: []` chunk that arrives after
+        // finishReason. The cost/tokens are part of `RUN_FINISHED.usage`
+        // per the cross-package contract, and the middleware `onUsage`
+        // hook fires off this exact payload — so emitting early would
+        // force callers into a separate event to retrieve cost (or drop
+        // it entirely). The added latency is bounded by how long the
+        // server needs to flush the trailing usage chunk — typically on
+        // the order of a single SSE write (~10-20ms) — not an additional
+        // network round-trip; the same TCP/HTTP connection stays open and
+        // no new request is issued.
+        //
+        // Cost is captured by the HTTPClient response hook while the SDK
+        // was draining the stream; we read it from the side-channel keyed
+        // by the upstream response id. `take()` awaits the matching parse
+        // only, so overlapping chat sends don't block each other. If
+        // absent (cost not in response, or id never seen), RUN_FINISHED
+        // simply omits `usage.cost`.
+        const costInfo = responseId
+          ? await this.costStore.take(responseId)
+          : undefined
+        yield {
+          type: 'RUN_FINISHED',
+          runId: aguiState.runId,
+          model: currentModel || options.model,
+          timestamp,
+          usage: this.buildRunFinishedUsage(finalUsage, costInfo),
+          finishReason: finalFinishReason,
         }
       }
     } catch (error) {
@@ -268,9 +327,8 @@ export class OpenRouterTextAdapter<
     meta: { id: string; model: string; timestamp: number },
     accumulated: { reasoning: string; content: string },
     updateAccumulated: (reasoning: string, content: string) => void,
-    usage: ChatUsage | undefined,
     aguiState: AGUIState,
-  ): Iterable<StreamChunk> {
+  ): Generator<StreamChunk, 'stop' | 'length' | 'tool_calls' | null, void> {
     const delta = choice.delta
     const finishReason = choice.finishReason
 
@@ -468,21 +526,29 @@ export class OpenRouterTextAdapter<
         }
       }
 
-      // Emit AG-UI RUN_FINISHED
-      yield {
-        type: 'RUN_FINISHED',
-        runId: aguiState.runId,
-        model: meta.model,
-        timestamp: meta.timestamp,
-        usage: usage
-          ? {
-              promptTokens: usage.promptTokens || 0,
-              completionTokens: usage.completionTokens || 0,
-              totalTokens: usage.totalTokens || 0,
-            }
-          : undefined,
-        finishReason: computedFinishReason,
-      }
+      return computedFinishReason
+    }
+
+    return null
+  }
+
+  private buildRunFinishedUsage(
+    usage: ChatUsage | undefined,
+    costInfo: CostInfo | undefined,
+  ): RunFinishedEvent['usage'] {
+    // If no token counts arrived (e.g. the stream aborted before the
+    // trailing usage chunk), emit no usage at all — even if `costInfo` was
+    // captured via the tee. Synthesizing `promptTokens/completionTokens/
+    // totalTokens = 0` alongside a non-zero cost would feed billing and
+    // telemetry a "successful run with zero tokens but $X cost" signal,
+    // which is worse than an absent usage payload.
+    if (!usage) return undefined
+    return {
+      promptTokens: usage.promptTokens || 0,
+      completionTokens: usage.completionTokens || 0,
+      totalTokens: usage.totalTokens || 0,
+      ...(costInfo?.cost !== undefined && { cost: costInfo.cost }),
+      ...(costInfo?.costDetails && { costDetails: costInfo.costDetails }),
     }
   }
 
@@ -622,14 +688,14 @@ export class OpenRouterTextAdapter<
 export function createOpenRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel> {
   return new OpenRouterTextAdapter({ apiKey, ...config }, model)
 }
 
 export function openRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterText(model, apiKey, config)
