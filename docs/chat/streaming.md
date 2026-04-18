@@ -87,6 +87,71 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 
 > **Tip:** Some models expose their internal reasoning as thinking content that streams before the response. See [Thinking & Reasoning](./thinking-content).
 
+### Type-Safe Tool Call Events
+
+When you pass typed tools (defined with `toolDefinition()` and Zod schemas) to `chat()`, the stream chunks automatically carry type information for tool call events. The `toolName` field narrows to the union of your tool name literals, and the `input` field on `TOOL_CALL_END` events is typed as the union of your tool input schemas:
+
+```typescript
+import { chat, toolDefinition } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const weatherTool = toolDefinition({
+  name: "get_weather",
+  description: "Get weather for a location",
+  inputSchema: z.object({
+    location: z.string(),
+    unit: z.enum(["celsius", "fahrenheit"]).optional(),
+  }),
+});
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages,
+  tools: [weatherTool],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "TOOL_CALL_END") {
+    chunk.toolName; // ✅ typed as "get_weather" (not string)
+    chunk.input;    // ✅ typed as { location: string; unit?: "celsius" | "fahrenheit" } | undefined
+  }
+}
+```
+
+Without typed tools, `toolName` defaults to `string` and `input` defaults to `unknown` — the same behavior as before. The type narrowing is automatic when you use `toolDefinition()` with Zod schemas.
+
+When multiple tools are provided, tool call events form a **discriminated union** — checking `toolName` narrows `input` to that specific tool's type:
+
+```typescript
+const searchTool = toolDefinition({
+  name: "search",
+  description: "Search the web",
+  inputSchema: z.object({ query: z.string() }),
+});
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages,
+  tools: [weatherTool, searchTool],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "TOOL_CALL_END") {
+    if (chunk.toolName === "get_weather") {
+      // ✅ input is narrowed to { location: string; unit?: "celsius" | "fahrenheit" }
+      console.log(`Weather in ${chunk.input?.location}`);
+    }
+    if (chunk.toolName === "search") {
+      // ✅ input is narrowed to { query: string }
+      console.log(`Searched for: ${chunk.input?.query}`);
+    }
+  }
+}
+```
+
+> **Tip:** The typed stream chunk type is exported as `TypedStreamChunk<TTools>` if you need to annotate variables or function parameters. When used without type arguments, `TypedStreamChunk` is equivalent to `StreamChunk`.
+
 ### Thinking Chunks
 
 Thinking/reasoning is represented by AG-UI events `STEP_STARTED` and `STEP_FINISHED`. They stream separately from the final response text:

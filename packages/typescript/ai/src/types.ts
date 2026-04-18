@@ -840,13 +840,19 @@ export interface TextMessageEndEvent extends BaseAGUIEvent {
 
 /**
  * Emitted when a tool call starts.
+ *
+ * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
+ *   When the stream is returned from `chat()` with typed tools, this narrows to
+ *   the union of tool name literals.
  */
-export interface ToolCallStartEvent extends BaseAGUIEvent {
+export interface ToolCallStartEvent<
+  TToolName extends string = string,
+> extends BaseAGUIEvent {
   type: 'TOOL_CALL_START'
   /** Unique identifier for this tool call */
   toolCallId: string
   /** Name of the tool being called */
-  toolName: string
+  toolName: TToolName
   /** ID of the parent message that initiated this tool call */
   parentMessageId?: string
   /** Index for parallel tool calls */
@@ -870,15 +876,23 @@ export interface ToolCallArgsEvent extends BaseAGUIEvent {
 
 /**
  * Emitted when a tool call completes.
+ *
+ * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
+ * @typeParam TInput - Constrained input arguments type. Defaults to `unknown` (untyped).
+ *   When the stream is returned from `chat()` with typed tools, these narrow to
+ *   the union of tool name literals and the union of tool input types respectively.
  */
-export interface ToolCallEndEvent extends BaseAGUIEvent {
+export interface ToolCallEndEvent<
+  TToolName extends string = string,
+  TInput = unknown,
+> extends BaseAGUIEvent {
   type: 'TOOL_CALL_END'
   /** Tool call identifier */
   toolCallId: string
   /** Name of the tool */
-  toolName: string
+  toolName: TToolName
   /** Final parsed input arguments */
-  input?: unknown
+  input?: TInput
   /** Tool execution result (if executed) */
   result?: string
 }
@@ -974,6 +988,94 @@ export type AGUIEvent =
  * Uses the AG-UI protocol event format.
  */
 export type StreamChunk = AGUIEvent
+
+// ============================================================================
+// Typed Stream Chunks (tool-aware)
+// ============================================================================
+
+/**
+ * Detect the `any` type. Returns `true` for `any`, `false` for everything else.
+ * @internal
+ */
+type IsAny<T> = 0 extends 1 & T ? true : false
+
+/**
+ * Check whether the tools array carries typed tool definitions.
+ * Returns `false` for empty arrays or arrays with generic `string` names.
+ * @internal
+ */
+type HasTypedTools<TTools extends ReadonlyArray<Tool<any, any, any>>> = [
+  TTools[number],
+] extends [never]
+  ? false
+  : string extends TTools[number]['name']
+    ? false
+    : true
+
+/**
+ * Safely infer input type for a single tool, guarding against `any` leaks.
+ * Returns `unknown` when the tool has no inputSchema or when InferSchemaType
+ * produces `any` (e.g. for plain JSON Schema tools).
+ * @internal
+ */
+type SafeToolInput<T> = T extends {
+  inputSchema?: infer TInput
+}
+  ? IsAny<InferSchemaType<NonNullable<TInput>>> extends true
+    ? unknown
+    : InferSchemaType<NonNullable<TInput>>
+  : unknown
+
+/**
+ * Distribute over each tool to create a per-tool `ToolCallStartEvent`.
+ * This produces a discriminated union — one variant per tool name literal.
+ * @internal
+ */
+type DistributedToolCallStart<
+  TTools extends ReadonlyArray<Tool<any, any, any>>,
+> = TTools[number] extends infer T
+  ? T extends Tool<any, any, infer TName>
+    ? ToolCallStartEvent<TName>
+    : never
+  : never
+
+/**
+ * Distribute over each tool to create a per-tool `ToolCallEndEvent`.
+ * Each variant pairs the tool's name literal with its specific input type,
+ * enabling discriminated narrowing: checking `toolName === 'x'` narrows `input`.
+ * @internal
+ */
+type DistributedToolCallEnd<TTools extends ReadonlyArray<Tool<any, any, any>>> =
+  TTools[number] extends infer T
+    ? T extends Tool<any, any, infer TName>
+      ? ToolCallEndEvent<TName, SafeToolInput<T>>
+      : never
+    : never
+
+/**
+ * Stream chunk type parameterized by the tools array for type-safe tool call events.
+ *
+ * When specific tool types are provided (e.g. from `chat({ tools: [myTool] })`):
+ * - `TOOL_CALL_START` and `TOOL_CALL_END` events form a **discriminated union**
+ *   over tool names — checking `toolName === 'x'` narrows `input` to that tool's type.
+ * - `TOOL_CALL_END` events have `input` typed per-tool via Standard Schema inference.
+ *
+ * When tools are untyped or absent, degrades to the same type as `StreamChunk`.
+ */
+export type TypedStreamChunk<
+  TTools extends ReadonlyArray<Tool<any, any, any>> = ReadonlyArray<
+    Tool<any, any, any>
+  >,
+> =
+  HasTypedTools<TTools> extends true
+    ?
+        | Exclude<
+            StreamChunk,
+            { type: 'TOOL_CALL_START' } | { type: 'TOOL_CALL_END' }
+          >
+        | DistributedToolCallStart<TTools>
+        | DistributedToolCallEnd<TTools>
+    : StreamChunk
 
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()

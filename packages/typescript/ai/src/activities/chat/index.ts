@@ -43,6 +43,7 @@ import type {
   ToolCallArgsEvent,
   ToolCallEndEvent,
   ToolCallStartEvent,
+  TypedStreamChunk,
 } from '../../types'
 import type {
   ChatMiddleware,
@@ -69,11 +70,15 @@ export const kind = 'text' as const
  * @template TAdapter - The text adapter type (created by a provider function)
  * @template TSchema - Optional Standard Schema for structured output
  * @template TStream - Whether to stream the output (default: true)
+ * @template TTools - The tools array type for type-safe tool call events in the stream
  */
 export interface TextActivityOptions<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined,
   TStream extends boolean,
+  TTools extends ReadonlyArray<Tool<any, any, any>> = ReadonlyArray<
+    Tool<any, any, any>
+  >,
 > {
   /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
   adapter: TAdapter
@@ -87,7 +92,7 @@ export interface TextActivityOptions<
   /** System prompts to prepend to the conversation */
   systemPrompts?: TextOptions['systemPrompts']
   /** Tools for function calling (auto-executed when called) */
-  tools?: TextOptions['tools']
+  tools?: TTools
   /** Controls the randomness of the output. Higher values make output more random. Range: [0.0, 2.0] */
   temperature?: TextOptions['temperature']
   /** Nucleus sampling parameter. The model considers tokens with topP probability mass. */
@@ -125,7 +130,7 @@ export interface TextActivityOptions<
   outputSchema?: TSchema
   /**
    * Whether to stream the text result.
-   * When true (default), returns an AsyncIterable<StreamChunk> for streaming output.
+   * When true (default), returns an AsyncIterable<TypedStreamChunk<TTools>> for streaming output.
    * When false, returns a Promise<string> with the collected text content.
    *
    * Note: If outputSchema is provided, this option is ignored and the result
@@ -186,9 +191,12 @@ export function createChatOptions<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined = undefined,
   TStream extends boolean = true,
+  TTools extends ReadonlyArray<Tool<any, any, any>> = ReadonlyArray<
+    Tool<any, any, any>
+  >,
 >(
-  options: TextActivityOptions<TAdapter, TSchema, TStream>,
-): TextActivityOptions<TAdapter, TSchema, TStream> {
+  options: TextActivityOptions<TAdapter, TSchema, TStream, TTools>,
+): TextActivityOptions<TAdapter, TSchema, TStream, TTools> {
   return options
 }
 
@@ -200,16 +208,22 @@ export function createChatOptions<
  * Result type for the text activity.
  * - If outputSchema is provided: Promise<InferSchemaType<TSchema>>
  * - If stream is false: Promise<string>
- * - Otherwise (stream is true, default): AsyncIterable<StreamChunk>
+ * - Otherwise (stream is true, default): AsyncIterable<TypedStreamChunk<TTools>>
+ *
+ * When tools with typed schemas are provided, the stream chunks include
+ * type-safe `toolName` and `input` fields on tool call events.
  */
 export type TextActivityResult<
   TSchema extends SchemaInput | undefined,
   TStream extends boolean = true,
+  TTools extends ReadonlyArray<Tool<any, any, any>> = ReadonlyArray<
+    Tool<any, any, any>
+  >,
 > = TSchema extends SchemaInput
   ? Promise<InferSchemaType<TSchema>>
   : TStream extends false
     ? Promise<string>
-    : AsyncIterable<StreamChunk>
+    : AsyncIterable<TypedStreamChunk<TTools>>
 
 // ===========================
 // ChatEngine Implementation
@@ -1374,9 +1388,12 @@ export function chat<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined = undefined,
   TStream extends boolean = true,
+  TTools extends ReadonlyArray<Tool<any, any, any>> = ReadonlyArray<
+    Tool<any, any, any>
+  >,
 >(
-  options: TextActivityOptions<TAdapter, TSchema, TStream>,
-): TextActivityResult<TSchema, TStream> {
+  options: TextActivityOptions<TAdapter, TSchema, TStream, TTools>,
+): TextActivityResult<TSchema, TStream, TTools> {
   const { outputSchema, stream } = options
 
   // If outputSchema is provided, run agentic structured output
@@ -1387,7 +1404,7 @@ export function chat<
         SchemaInput,
         boolean
       >,
-    ) as TextActivityResult<TSchema, TStream>
+    ) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // If stream is explicitly false, run non-streaming text
@@ -1398,13 +1415,13 @@ export function chat<
         undefined,
         false
       >,
-    ) as TextActivityResult<TSchema, TStream>
+    ) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // Otherwise, run streaming text (default)
   return runStreamingText(
     options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
-  ) as TextActivityResult<TSchema, TStream>
+  ) as TextActivityResult<TSchema, TStream, TTools>
 }
 
 /**
