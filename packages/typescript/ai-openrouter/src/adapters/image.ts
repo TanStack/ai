@@ -65,9 +65,18 @@ export class OpenRouterImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<OpenRouterImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, modelOptions } = options
+    const { model, prompt, numberOfImages, size, modelOptions, logger } =
+      options
     // Use provided aspect_ratio or derive from size
     const aspectRatio = size ? SIZE_TO_ASPECT_RATIO[size] : undefined
+
+    logger.request(
+      `activity=generateImage provider=openrouter model=${this.model}`,
+      {
+        provider: 'openrouter',
+        model: this.model,
+      },
+    )
 
     try {
       const response = await this.client.chat.send({
@@ -110,6 +119,10 @@ export class OpenRouterImageAdapter<
 
       return this.transformResponse(model, response)
     } catch (error) {
+      logger.errors('openrouter.generateImage fatal', {
+        error,
+        source: 'openrouter.generateImage',
+      })
       const message = (error as Error).message || 'Unknown error'
       throw new Error(`Image generation failed: ${message}`)
     }

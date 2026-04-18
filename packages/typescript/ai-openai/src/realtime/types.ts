@@ -1,4 +1,4 @@
-import type { VADConfig } from '@tanstack/ai'
+import type { DebugOption, VADConfig } from '@tanstack/ai'
 
 /**
  * OpenAI realtime voice options
@@ -64,6 +64,13 @@ export interface OpenAIRealtimeTokenOptions {
 export interface OpenAIRealtimeOptions {
   /** Connection mode (default: 'webrtc' in browser) */
   connectionMode?: 'webrtc' | 'websocket'
+  /**
+   * Enable debug logging for this adapter.
+   *
+   * - `true` enables all categories (`request`, `response`, `provider`, `errors`).
+   * - A {@link DebugConfig} object selects categories and/or a custom sink.
+   */
+  debug?: DebugOption
 }
 
 /**

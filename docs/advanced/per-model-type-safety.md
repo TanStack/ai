@@ -1,7 +1,7 @@
 ---
 title: Per-Model Type Safety
 id: per-model-type-safety
-order: 4
+order: 5
 description: "TanStack AI narrows modelOptions and content types to the specific model you select, enforcing capabilities at compile time."
 keywords:
   - tanstack ai

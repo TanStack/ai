@@ -7,6 +7,9 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
+import { resolveDebugOption } from '../../logger/resolve'
+import type { InternalLogger } from '../../logger/internal-logger'
+import type { DebugOption } from '../../logger/types'
 import type { TTSAdapter } from './adapter'
 import type { StreamChunk, TTSResult } from '../../types'
 
@@ -64,6 +67,12 @@ export interface TTSActivityOptions<
    * @default false
    */
   stream?: TStream
+  /**
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
+  debug?: DebugOption
 }
 
 // ===========================
@@ -134,10 +143,15 @@ export function generateSpeech<
 async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
   options: TTSActivityOptions<TAdapter, boolean>,
 ): Promise<TTSResult> {
-  const { adapter, stream: _stream, ...rest } = options
+  const { adapter, stream: _stream, debug: _debug, ...rest } = options
   const model = adapter.model
   const requestId = createId('speech')
   const startTime = Date.now()
+  const logger: InternalLogger = resolveDebugOption(options.debug)
+  const providerName =
+    (adapter as { name?: string; provider?: string }).provider ??
+    (adapter as { name?: string }).name ??
+    'unknown'
 
   aiEventClient.emit('speech:request:started', {
     requestId,
@@ -151,7 +165,14 @@ async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
     timestamp: startTime,
   })
 
-  return adapter.generateSpeech({ ...rest, model }).then((result) => {
+  logger.request(`activity=generateSpeech provider=${providerName}`, {
+    provider: providerName,
+    model,
+  })
+
+  try {
+    const result = await adapter.generateSpeech({ ...rest, model, logger })
+
     const duration = Date.now() - startTime
 
     aiEventClient.emit('speech:request:completed', {
@@ -167,8 +188,19 @@ async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
       timestamp: Date.now(),
     })
 
+    logger.output(`activity=generateSpeech bytes=${result.audio.length}`, {
+      bytes: result.audio.length,
+      contentType: result.contentType,
+    })
+
     return result
-  })
+  } catch (error) {
+    logger.errors('generateSpeech activity failed', {
+      error,
+      source: 'generateSpeech',
+    })
+    throw error
+  }
 }
 
 // ===========================

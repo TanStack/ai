@@ -56,22 +56,35 @@ export class GrokImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<GrokImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size } = options
+    const { model, prompt, numberOfImages, size, logger } = options
 
-    // Validate inputs
-    validatePrompt({ prompt, model })
-    validateImageSize(model, size)
-    validateNumberOfImages(model, numberOfImages)
-
-    // Build request based on model type
-    const request = this.buildRequest(options)
-
-    const response = await this.client.images.generate({
-      ...request,
-      stream: false,
+    logger.request(`activity=generateImage provider=grok model=${this.model}`, {
+      provider: 'grok',
+      model: this.model,
     })
 
-    return this.transformResponse(model, response)
+    try {
+      // Validate inputs
+      validatePrompt({ prompt, model })
+      validateImageSize(model, size)
+      validateNumberOfImages(model, numberOfImages)
+
+      // Build request based on model type
+      const request = this.buildRequest(options)
+
+      const response = await this.client.images.generate({
+        ...request,
+        stream: false,
+      })
+
+      return this.transformResponse(model, response)
+    } catch (error) {
+      logger.errors('grok.generateImage fatal', {
+        error,
+        source: 'grok.generateImage',
+      })
+      throw error
+    }
   }
 
   private buildRequest(

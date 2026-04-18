@@ -19,6 +19,9 @@ The `@tanstack/ai` package offers you an event client for observability and debu
 It's a fully type-safe decoupled event-driven system that emits events whenever they are internally
 triggered and you can subscribe to those events for observability.
 
+> **Looking for quick diagnostic console output instead of a programmatic event stream?**
+> See [Debug Logging](./debug-logging) for turning on category-toggleable logging across every adapter and middleware hook.
+
 Because the same event client is used for both the TanStack Devtools system and observability locally it will work
 by subscribing to the event bus and emitting events to/from the event bus into the listeners by default. If you 
 want to subscribe to events in production as well you need to pass in a third argument to the `on` function,

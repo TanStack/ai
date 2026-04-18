@@ -20,6 +20,7 @@ import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
+import { Route as ApiDebugLoggingRouteImport } from './routes/api.debug-logging'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
@@ -82,6 +83,11 @@ const ApiImageRoute = ApiImageRouteImport.update({
   path: '/api/image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDebugLoggingRoute = ApiDebugLoggingRouteImport.update({
+  id: '/api/debug-logging',
+  path: '/api/debug-logging',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/debug-logging': typeof ApiDebugLoggingRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -138,6 +145,7 @@ export interface FileRoutesByTo {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/debug-logging': typeof ApiDebugLoggingRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -158,6 +166,7 @@ export interface FileRoutesById {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/debug-logging': typeof ApiDebugLoggingRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/chat'
+    | '/api/debug-logging'
     | '/api/image'
     | '/api/middleware-test'
     | '/api/summarize'
@@ -198,6 +208,7 @@ export interface FileRouteTypes {
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/chat'
+    | '/api/debug-logging'
     | '/api/image'
     | '/api/middleware-test'
     | '/api/summarize'
@@ -217,6 +228,7 @@ export interface FileRouteTypes {
     | '/tools-test'
     | '/$provider/$feature'
     | '/api/chat'
+    | '/api/debug-logging'
     | '/api/image'
     | '/api/middleware-test'
     | '/api/summarize'
@@ -237,6 +249,7 @@ export interface RootRouteChildren {
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiDebugLoggingRoute: typeof ApiDebugLoggingRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -324,6 +337,13 @@ declare module '@tanstack/react-router' {
       path: '/api/image'
       fullPath: '/api/image'
       preLoaderRoute: typeof ApiImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/debug-logging': {
+      id: '/api/debug-logging'
+      path: '/api/debug-logging'
+      fullPath: '/api/debug-logging'
+      preLoaderRoute: typeof ApiDebugLoggingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -423,6 +443,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiDebugLoggingRoute: ApiDebugLoggingRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,

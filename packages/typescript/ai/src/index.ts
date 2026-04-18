@@ -164,3 +164,12 @@ export type {
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'
 export type { ExtendedModelDef } from './extend-adapter'
+
+// Logger
+export type {
+  Logger,
+  DebugCategories,
+  DebugConfig,
+  DebugOption,
+} from './logger/types'
+export { ConsoleLogger } from './logger/console-logger'

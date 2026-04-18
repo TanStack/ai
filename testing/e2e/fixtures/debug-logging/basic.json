@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[debug-logging] hello" },
+      "response": {
+        "content": "Hello from the assistant."
+      }
+    }
+  ]
+}

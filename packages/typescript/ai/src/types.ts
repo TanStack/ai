@@ -1,4 +1,5 @@
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
+import type { InternalLogger } from './logger/internal-logger'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -712,6 +713,13 @@ export interface TextOptions<
    * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortController
    */
   abortController?: AbortController
+
+  /**
+   * Internal logger threaded from the chat entry point. Adapter implementations
+   * must call `logger.request()` before SDK calls, `logger.provider()` for each
+   * chunk received, and `logger.errors()` in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 // ============================================================================
@@ -996,6 +1004,11 @@ export interface SummarizationOptions {
   maxLength?: number
   style?: 'bullet-points' | 'paragraph' | 'concise'
   focus?: Array<string>
+  /**
+   * Internal logger threaded from the summarize() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 export interface SummarizationResult {
@@ -1031,6 +1044,11 @@ export interface ImageGenerationOptions<
   size?: TSize
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateImage() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
@@ -1087,6 +1105,11 @@ export interface VideoGenerationOptions<
   duration?: number
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateVideo() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
@@ -1152,6 +1175,12 @@ export interface TTSOptions<TProviderOptions extends object = object> {
   speed?: number
   /** Model-specific options for TTS generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateSpeech() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
@@ -1195,6 +1224,12 @@ export interface TranscriptionOptions<
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Model-specific options for transcription */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateTranscription() entry point.
+   * Adapters must call logger.request() before the SDK call and logger.errors()
+   * in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**

@@ -49,6 +49,9 @@ const stream = chat({
 });
 ```
 
+> **Just want to see chunks flowing through your middleware during development?**
+> Use `debug: { middleware: true }` on your `chat()` call — no custom middleware required. See [Debug Logging](./debug-logging).
+
 ## Lifecycle Overview
 
 Every `chat()` invocation follows a predictable lifecycle. Middleware hooks fire at specific phases:

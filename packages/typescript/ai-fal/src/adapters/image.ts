@@ -56,9 +56,24 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       FalModelImageSize<TModel>
     >,
   ): Promise<ImageGenerationResult> {
-    const input = this.buildInput(options)
-    const result = await fal.subscribe(this.model, { input })
-    return this.transformResponse(result)
+    const { logger } = options
+
+    logger.request(`activity=generateImage provider=fal model=${this.model}`, {
+      provider: 'fal',
+      model: this.model,
+    })
+
+    try {
+      const input = this.buildInput(options)
+      const result = await fal.subscribe(this.model, { input })
+      return this.transformResponse(result)
+    } catch (error) {
+      logger.errors('fal.generateImage fatal', {
+        error,
+        source: 'fal.generateImage',
+      })
+      throw error
+    }
   }
 
   private buildInput(

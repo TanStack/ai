@@ -98,7 +98,13 @@ export class GeminiTTSAdapter<
   async generateSpeech(
     options: TTSOptions<GeminiTTSProviderOptions>,
   ): Promise<TTSResult> {
+    const { logger } = options
     const { model, text, modelOptions } = options
+
+    logger.request(`activity=generateSpeech provider=gemini model=${model}`, {
+      provider: 'gemini',
+      model,
+    })
 
     const voiceConfig = modelOptions?.voiceConfig || {
       prebuiltVoiceConfig: {
@@ -106,55 +112,63 @@ export class GeminiTTSAdapter<
       },
     }
 
-    const response = await this.client.models.generateContent({
-      model,
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text }],
+    try {
+      const response = await this.client.models.generateContent({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text }],
+          },
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig,
+            ...(modelOptions?.languageCode && {
+              languageCode: modelOptions.languageCode,
+            }),
+          },
         },
-      ],
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig,
-          ...(modelOptions?.languageCode && {
-            languageCode: modelOptions.languageCode,
-          }),
-        },
-      },
-      ...(modelOptions?.systemInstruction && {
-        systemInstruction: modelOptions.systemInstruction,
-      }),
-    })
+        ...(modelOptions?.systemInstruction && {
+          systemInstruction: modelOptions.systemInstruction,
+        }),
+      })
 
-    // Extract audio data from response
-    const candidate = response.candidates?.[0]
-    const parts = candidate?.content?.parts
+      // Extract audio data from response
+      const candidate = response.candidates?.[0]
+      const parts = candidate?.content?.parts
 
-    if (!parts || parts.length === 0) {
-      throw new Error('No audio output received from Gemini TTS')
-    }
+      if (!parts || parts.length === 0) {
+        throw new Error('No audio output received from Gemini TTS')
+      }
 
-    // Look for inline data (audio)
-    const audioPart = parts.find((part: any) =>
-      part.inlineData?.mimeType?.startsWith('audio/'),
-    )
+      // Look for inline data (audio)
+      const audioPart = parts.find((part: any) =>
+        part.inlineData?.mimeType?.startsWith('audio/'),
+      )
 
-    if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
-      throw new Error('No audio data in Gemini TTS response')
-    }
+      if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
+        throw new Error('No audio data in Gemini TTS response')
+      }
 
-    const audioBase64 = audioPart.inlineData.data
-    const mimeType = audioPart.inlineData.mimeType || 'audio/wav'
-    const format = mimeType.split('/')[1] || 'wav'
+      const audioBase64 = audioPart.inlineData.data
+      const mimeType = audioPart.inlineData.mimeType || 'audio/wav'
+      const format = mimeType.split('/')[1] || 'wav'
 
-    return {
-      id: generateId(this.name),
-      model,
-      audio: audioBase64,
-      format,
-      contentType: mimeType,
+      return {
+        id: generateId(this.name),
+        model,
+        audio: audioBase64,
+        format,
+        contentType: mimeType,
+      }
+    } catch (error) {
+      logger.errors('gemini.generateSpeech fatal', {
+        error,
+        source: 'gemini.generateSpeech',
+      })
+      throw error
     }
   }
 }

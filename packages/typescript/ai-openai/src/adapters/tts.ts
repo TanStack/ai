@@ -50,7 +50,13 @@ export class OpenAITTSAdapter<
   async generateSpeech(
     options: TTSOptions<OpenAITTSProviderOptions>,
   ): Promise<TTSResult> {
+    const { logger } = options
     const { model, text, voice, format, speed, modelOptions } = options
+
+    logger.request(`activity=generateSpeech provider=openai model=${model}`, {
+      provider: 'openai',
+      model,
+    })
 
     // Validate inputs using existing validators
     const audioOptions = {
@@ -76,22 +82,30 @@ export class OpenAITTSAdapter<
       ...modelOptions,
     }
 
-    // Call OpenAI API
-    const response = await this.client.audio.speech.create(request)
+    try {
+      // Call OpenAI API
+      const response = await this.client.audio.speech.create(request)
 
-    // Convert response to base64
-    const arrayBuffer = await response.arrayBuffer()
-    const base64 = Buffer.from(arrayBuffer).toString('base64')
+      // Convert response to base64
+      const arrayBuffer = await response.arrayBuffer()
+      const base64 = Buffer.from(arrayBuffer).toString('base64')
 
-    const outputFormat = format || 'mp3'
-    const contentType = this.getContentType(outputFormat)
+      const outputFormat = format || 'mp3'
+      const contentType = this.getContentType(outputFormat)
 
-    return {
-      id: generateId(this.name),
-      model,
-      audio: base64,
-      format: outputFormat,
-      contentType,
+      return {
+        id: generateId(this.name),
+        model,
+        audio: base64,
+        format: outputFormat,
+        contentType,
+      }
+    } catch (error) {
+      logger.errors('openai.generateSpeech fatal', {
+        error,
+        source: 'openai.generateSpeech',
+      })
+      throw error
     }
   }
 

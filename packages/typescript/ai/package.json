@@ -24,6 +24,10 @@
     "./middlewares": {
       "types": "./dist/esm/middlewares/index.d.ts",
       "import": "./dist/esm/middlewares/index.js"
+    },
+    "./adapter-internals": {
+      "types": "./dist/esm/adapter-internals.d.ts",
+      "import": "./dist/esm/adapter-internals.js"
     }
   },
   "sideEffects": false,
