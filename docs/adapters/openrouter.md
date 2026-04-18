@@ -115,6 +115,32 @@ Set your API key in environment variables:
 OPENROUTER_API_KEY=sk-or-...
 ```
 
+## Cost Tracking
+
+The OpenRouter adapter attaches the authoritative per-request cost to the `RUN_FINISHED` event under `usage.cost` (USD). OpenRouter [reports cost inline in every chat response](https://openrouter.ai/docs/use-cases/usage-accounting), so cost arrives in the same SSE stream as the model output — there is **no extra HTTP request** and **no added latency**.
+
+Why we don't compute cost locally from tokens × price: OpenRouter routes the same model id to different upstream providers (primary, fallback, BYOK), each with different pricing, plus applies cache discounts and BYOK upstream costs. A static price table would silently drift and produce wrong numbers.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+const stream = chat({
+  adapter: openRouterText("openai/gpt-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_FINISHED") {
+    console.log("USD cost:", chunk.usage?.cost);
+    console.log("Upstream inference cost:", chunk.usage?.costDetails?.upstreamInferenceCost);
+    console.log("Cache discount:", chunk.usage?.costDetails?.cacheDiscount);
+  }
+}
+```
+
+If a particular response doesn't include cost (rare — for example if a future OpenRouter response shape change moves the field), `RUN_FINISHED` still emits with token usage; only the `cost` field is omitted. Cost tracking will never break a chat stream.
+
 ## Model Routing
 
 OpenRouter can automatically route requests to the best available provider:

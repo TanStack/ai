@@ -7,6 +7,8 @@ import {
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
 } from '../utils'
+import { CostStore, attachCostCapture } from './cost-capture'
+import type { CostInfo } from './cost-capture'
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
   OPENROUTER_CHAT_MODELS,
@@ -20,6 +22,7 @@ import type {
 import type {
   ContentPart,
   ModelMessage,
+  RunFinishedEvent,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
@@ -36,7 +39,7 @@ import type {
   ChatUsage,
 } from '@openrouter/sdk/models'
 
-export interface OpenRouterConfig extends SDKOptions {}
+export type OpenRouterConfig = SDKOptions
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
 export type OpenRouterTextModelOptions = ExternalTextProviderOptions
@@ -81,10 +84,18 @@ export class OpenRouterTextAdapter<
   readonly name = 'openrouter' as const
 
   private client: OpenRouter
+  private costStore: CostStore
 
   constructor(config: OpenRouterConfig, model: TModel) {
     super({}, model)
-    this.client = new OpenRouter(config)
+    this.costStore = new CostStore()
+    // Wrap the caller's HTTPClient (if any) by cloning and appending a
+    // response hook — their fetcher, retries, tracing, and pre-registered
+    // hooks are preserved, but their instance stays untouched.
+    this.client = new OpenRouter({
+      ...config,
+      httpClient: attachCostCapture(this.costStore, config.httpClient),
+    })
   }
 
   async *chatStream(
@@ -96,6 +107,8 @@ export class OpenRouterTextAdapter<
     let accumulatedContent = ''
     let responseId: string | null = null
     let currentModel = options.model
+    let finalUsage: ChatUsage | undefined
+    let finalFinishReason: 'stop' | 'length' | 'tool_calls' | null = null
     // AG-UI lifecycle tracking
     const aguiState: AGUIState = {
       runId: this.generateId(),
@@ -116,6 +129,10 @@ export class OpenRouterTextAdapter<
       for await (const chunk of stream) {
         if (chunk.id) responseId = chunk.id
         if (chunk.model) currentModel = chunk.model
+        // OpenAI-compatible streams send the final usage totals in a
+        // trailing chunk whose `choices` is empty, so capture usage at the
+        // chunk level — capturing it inside the choice loop would miss it.
+        if (chunk.usage) finalUsage = chunk.usage
 
         // Emit RUN_STARTED on first chunk
         if (!aguiState.hasEmittedRunStarted) {
@@ -144,7 +161,7 @@ export class OpenRouterTextAdapter<
         }
 
         for (const choice of chunk.choices) {
-          yield* this.processChoice(
+          const reason = yield* this.processChoice(
             choice,
             toolCallBuffers,
             {
@@ -157,9 +174,30 @@ export class OpenRouterTextAdapter<
               accumulatedReasoning = r
               accumulatedContent = c
             },
-            chunk.usage,
             aguiState,
           )
+          if (reason !== null) finalFinishReason = reason
+        }
+      }
+
+      if (finalFinishReason !== null) {
+        // Cost is captured by the HTTPClient response hook while the stream
+        // was draining — read it from the side-channel keyed by the upstream
+        // response id. `take()` awaits any still-running parse so cost is
+        // deterministic even if the tee'd reader has not yet called
+        // `store.set` by the time the SDK's stream consumer exits. If
+        // absent (cost not in response, or id never seen), RUN_FINISHED
+        // simply omits `usage.cost`.
+        const costInfo = responseId
+          ? await this.costStore.take(responseId)
+          : undefined
+        yield {
+          type: 'RUN_FINISHED',
+          runId: aguiState.runId,
+          model: currentModel || options.model,
+          timestamp,
+          usage: this.buildRunFinishedUsage(finalUsage, costInfo),
+          finishReason: finalFinishReason,
         }
       }
     } catch (error) {
@@ -268,9 +306,8 @@ export class OpenRouterTextAdapter<
     meta: { id: string; model: string; timestamp: number },
     accumulated: { reasoning: string; content: string },
     updateAccumulated: (reasoning: string, content: string) => void,
-    usage: ChatUsage | undefined,
     aguiState: AGUIState,
-  ): Iterable<StreamChunk> {
+  ): Generator<StreamChunk, 'stop' | 'length' | 'tool_calls' | null, void> {
     const delta = choice.delta
     const finishReason = choice.finishReason
 
@@ -468,21 +505,23 @@ export class OpenRouterTextAdapter<
         }
       }
 
-      // Emit AG-UI RUN_FINISHED
-      yield {
-        type: 'RUN_FINISHED',
-        runId: aguiState.runId,
-        model: meta.model,
-        timestamp: meta.timestamp,
-        usage: usage
-          ? {
-              promptTokens: usage.promptTokens || 0,
-              completionTokens: usage.completionTokens || 0,
-              totalTokens: usage.totalTokens || 0,
-            }
-          : undefined,
-        finishReason: computedFinishReason,
-      }
+      return computedFinishReason
+    }
+
+    return null
+  }
+
+  private buildRunFinishedUsage(
+    usage: ChatUsage | undefined,
+    costInfo: CostInfo | undefined,
+  ): RunFinishedEvent['usage'] {
+    if (!usage && !costInfo) return undefined
+    return {
+      promptTokens: usage?.promptTokens || 0,
+      completionTokens: usage?.completionTokens || 0,
+      totalTokens: usage?.totalTokens || 0,
+      ...(costInfo?.cost !== undefined && { cost: costInfo.cost }),
+      ...(costInfo?.costDetails && { costDetails: costInfo.costDetails }),
     }
   }
 
@@ -622,14 +661,14 @@ export class OpenRouterTextAdapter<
 export function createOpenRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel> {
   return new OpenRouterTextAdapter({ apiKey, ...config }, model)
 }
 
 export function openRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterText(model, apiKey, config)
