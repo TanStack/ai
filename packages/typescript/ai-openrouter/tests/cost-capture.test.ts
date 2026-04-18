@@ -121,8 +121,11 @@ describe('createCostCaptureHook — SSE chat-completion responses', () => {
   })
 })
 
-describe('createCostCaptureHook — non-streaming JSON responses', () => {
-  it('extracts cost from a single JSON response body', async () => {
+describe('createCostCaptureHook — non-streaming responses are skipped', () => {
+  // Non-SSE responses on /chat/completions come from `structuredOutput()`
+  // (stream: false). These never consume the cost store, so cloning and
+  // re-parsing them is wasted work — the hook should bail early.
+  it('does not clone or parse a JSON response on the chat completions endpoint', async () => {
     const payload = {
       id: 'gen-json-1',
       choices: [{ message: { content: '{}' } }],
@@ -134,15 +137,14 @@ describe('createCostCaptureHook — non-streaming JSON responses', () => {
         cost_details: { upstream_inference_cost: 0.0005 },
       },
     }
+    const json = JSON.stringify(payload)
 
     const { client, store } = buildClient(makeJsonResponse(payload))
     const res = await client.request(makeChatRequest())
-    await readAll(res.body)
 
-    expect(await store.take('gen-json-1')).toEqual({
-      cost: 0.0008,
-      costDetails: { upstreamInferenceCost: 0.0005 },
-    })
+    // Body is delivered to the caller unchanged and nothing is cached.
+    expect(await res.text()).toBe(json)
+    expect(await store.take('gen-json-1')).toBeUndefined()
   })
 })
 

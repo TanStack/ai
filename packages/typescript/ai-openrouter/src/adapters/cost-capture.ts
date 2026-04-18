@@ -158,6 +158,13 @@ export function createCostCaptureHook(
 ): (res: Response, req: Request) => void {
   return (res, req) => {
     if (!isChatCompletionsRequest(req.url)) return
+    const contentType = res.headers.get('content-type') ?? ''
+    // Cost capture is only wired for streaming chat completions. Non-SSE
+    // responses on `/chat/completions` (e.g. `structuredOutput()` which
+    // calls `chat.send({ stream: false })`) never consume `costStore` —
+    // skipping them here avoids cloning the response and second-parsing
+    // potentially large JSON bodies for no downstream consumer.
+    if (!contentType.includes('text/event-stream')) return
     if (!res.body) return
     let copy: Response
     try {
@@ -170,7 +177,6 @@ export function createCostCaptureHook(
       return
     }
     if (!copy.body) return
-    const contentType = res.headers.get('content-type') ?? ''
     // Announce the id the moment the parser sees it so concurrent `take(id)`
     // calls can await only *this* parse instead of every in-flight one.
     // Forward-ref: the parser needs a callback that references `parse`, but
@@ -180,9 +186,7 @@ export function createCostCaptureHook(
     // async read, by which point the swap has happened.
     let announce: (id: string) => void = () => {}
     const onId = (id: string) => announce(id)
-    const parse = parseAndStore(copy.body, contentType, store, onId).catch(
-      () => {},
-    )
+    const parse = parseSseAndStore(copy.body, store, onId).catch(() => {})
     announce = (id) => store.announceId(id, parse)
     store.recordParse(parse)
   }
@@ -208,19 +212,6 @@ function isChatCompletionsRequest(url: string): boolean {
   // Match path segment to avoid false positives on hosts whose name happens
   // to end in "/chat/completions". The SDK always sends absolute URLs.
   return /\/chat\/completions(?:[/?#]|$)/.test(url)
-}
-
-async function parseAndStore(
-  body: ReadableStream<Uint8Array>,
-  contentType: string,
-  store: CostStore,
-  onId?: (id: string) => void,
-): Promise<void> {
-  if (contentType.includes('text/event-stream')) {
-    await parseSseAndStore(body, store, onId)
-  } else {
-    await parseJsonAndStore(body, store, onId)
-  }
 }
 
 async function parseSseAndStore(
@@ -284,22 +275,6 @@ async function parseSseAndStore(
     reader.releaseLock()
   }
   if (responseId && cost) store.set(responseId, cost)
-}
-
-async function parseJsonAndStore(
-  body: ReadableStream<Uint8Array>,
-  store: CostStore,
-  onId?: (id: string) => void,
-): Promise<void> {
-  const text = await new Response(body).text()
-  const parsed = safeParseJson(text)
-  if (!parsed) return
-  const id = typeof parsed.id === 'string' ? parsed.id : undefined
-  if (id) onId?.(id)
-  const usage = parsed.usage as Record<string, unknown> | undefined
-  if (!id || !usage) return
-  const cost = extractCostFromUsage(usage)
-  if (cost) store.set(id, cost)
 }
 
 function extractDataPayload(event: string): string | undefined {
