@@ -1449,4 +1449,55 @@ describe('OpenRouter cost tracking', () => {
 
     expect(finished?.usage).toMatchObject({ cost: 0.75 })
   })
+
+  // Regression: deferring RUN_FINISHED until the stream drains (so we can
+  // read the trailing usage chunk) used to convert a late abort/disconnect
+  // into a user-visible RUN_ERROR — even when the run was logically
+  // complete. A terminal finishReason must still produce RUN_FINISHED.
+  it('still emits RUN_FINISHED when the stream errors after finishReason', async () => {
+    const id = 'gen-late-abort'
+    const okChunks = [
+      {
+        id,
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hi' }, finishReason: null }],
+      },
+      {
+        id,
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      },
+    ]
+    mockSend = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        [Symbol.asyncIterator]() {
+          let i = 0
+          return {
+            async next() {
+              if (i < okChunks.length) return { value: okChunks[i++]!, done: false }
+              throw new Error('connection dropped after finishReason')
+            },
+          }
+        },
+      }),
+    )
+
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key')
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    const errored = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(errored).toBeUndefined()
+    expect(finished).toBeDefined()
+    if (finished?.type === 'RUN_FINISHED') {
+      expect(finished.finishReason).toBe('stop')
+    }
+  })
 })

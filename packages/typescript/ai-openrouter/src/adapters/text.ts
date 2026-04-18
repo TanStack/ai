@@ -126,58 +126,67 @@ export class OpenRouterTextAdapter<
         { signal: options.request?.signal },
       )
 
-      for await (const chunk of stream) {
-        if (chunk.id) responseId = chunk.id
-        if (chunk.model) currentModel = chunk.model
-        // OpenAI-compatible streams send the final usage totals in a
-        // trailing chunk whose `choices` is empty, so capture usage at the
-        // chunk level — capturing it inside the choice loop would miss it.
-        if (chunk.usage) finalUsage = chunk.usage
+      try {
+        for await (const chunk of stream) {
+          if (chunk.id) responseId = chunk.id
+          if (chunk.model) currentModel = chunk.model
+          // OpenAI-compatible streams send the final usage totals in a
+          // trailing chunk whose `choices` is empty, so capture usage at the
+          // chunk level — capturing it inside the choice loop would miss it.
+          if (chunk.usage) finalUsage = chunk.usage
 
-        // Emit RUN_STARTED on first chunk
-        if (!aguiState.hasEmittedRunStarted) {
-          aguiState.hasEmittedRunStarted = true
-          yield {
-            type: 'RUN_STARTED',
-            runId: aguiState.runId,
-            model: currentModel || options.model,
-            timestamp,
-          }
-        }
-
-        if (chunk.error) {
-          // Emit AG-UI RUN_ERROR
-          yield {
-            type: 'RUN_ERROR',
-            runId: aguiState.runId,
-            model: currentModel || options.model,
-            timestamp,
-            error: {
-              message: chunk.error.message || 'Unknown error',
-              code: String(chunk.error.code),
-            },
-          }
-          continue
-        }
-
-        for (const choice of chunk.choices) {
-          const reason = yield* this.processChoice(
-            choice,
-            toolCallBuffers,
-            {
-              id: responseId || this.generateId(),
-              model: currentModel,
+          // Emit RUN_STARTED on first chunk
+          if (!aguiState.hasEmittedRunStarted) {
+            aguiState.hasEmittedRunStarted = true
+            yield {
+              type: 'RUN_STARTED',
+              runId: aguiState.runId,
+              model: currentModel || options.model,
               timestamp,
-            },
-            { reasoning: accumulatedReasoning, content: accumulatedContent },
-            (r, c) => {
-              accumulatedReasoning = r
-              accumulatedContent = c
-            },
-            aguiState,
-          )
-          if (reason !== null) finalFinishReason = reason
+            }
+          }
+
+          if (chunk.error) {
+            // Emit AG-UI RUN_ERROR
+            yield {
+              type: 'RUN_ERROR',
+              runId: aguiState.runId,
+              model: currentModel || options.model,
+              timestamp,
+              error: {
+                message: chunk.error.message || 'Unknown error',
+                code: String(chunk.error.code),
+              },
+            }
+            continue
+          }
+
+          for (const choice of chunk.choices) {
+            const reason = yield* this.processChoice(
+              choice,
+              toolCallBuffers,
+              {
+                id: responseId || this.generateId(),
+                model: currentModel,
+                timestamp,
+              },
+              { reasoning: accumulatedReasoning, content: accumulatedContent },
+              (r, c) => {
+                accumulatedReasoning = r
+                accumulatedContent = c
+              },
+              aguiState,
+            )
+            if (reason !== null) finalFinishReason = reason
+          }
         }
+      } catch (error) {
+        // If we already saw a terminal `finishReason`, the run is logically
+        // complete — a late abort/error (e.g. the connection dropping
+        // between finishReason and the trailing usage chunk) must not
+        // downgrade a successful completion to RUN_ERROR. Swallow and fall
+        // through to emit RUN_FINISHED with whatever cost we collected.
+        if (finalFinishReason === null) throw error
       }
 
       if (finalFinishReason !== null) {
