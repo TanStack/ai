@@ -1644,7 +1644,6 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_0324 = {
       'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
-      'reasoning',
       'responseFormat',
       'seed',
       'stop',
@@ -1897,14 +1896,15 @@ const DEEPSEEK_DEEPSEEK_V3_2 = {
     ],
   },
   context_window: 163840,
+  max_output_tokens: 163840,
   pricing: {
     text: {
       input: {
-        normal: 0.26,
-        cached: 0.13,
+        normal: 0.259,
+        cached: 0.135,
       },
       output: {
-        normal: 0.38,
+        normal: 0.42,
       },
     },
     image: 0,
@@ -2027,7 +2027,7 @@ const GOOGLE_GEMINI_2_0_FLASH_001 = {
       'topP',
     ],
   },
-  context_window: 1048576,
+  context_window: 1000000,
   max_output_tokens: 8192,
   pricing: {
     text: {
@@ -2806,15 +2806,14 @@ const GOOGLE_GEMMA_4_26B_A4B_IT = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.07,
-        cached: 0.04,
+        normal: 0.08,
+        cached: 0.01,
       },
       output: {
-        normal: 0.4,
+        normal: 0.35,
       },
     },
     image: 0,
@@ -3714,29 +3713,6 @@ const META_LLAMA_LLAMA_GUARD_4_12B = {
       },
       output: {
         normal: 0.18,
-      },
-    },
-    image: 0,
-  },
-} as const
-const META_LLAMA_LLAMA_GUARD_4_12B_FREE = {
-  id: 'meta-llama/llama-guard-4-12b:free',
-  name: 'Meta: Llama Guard 4 12B (free)',
-  supports: {
-    input: ['image', 'text'],
-    output: ['text'],
-    supports: ['maxCompletionTokens', 'seed', 'temperature', 'topP'],
-  },
-  context_window: 163840,
-  max_output_tokens: 65000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
       },
     },
     image: 0,
@@ -4861,15 +4837,12 @@ const MOONSHOTAI_KIMI_K2 = {
     output: ['text'],
     supports: [
       'frequencyPenalty',
-      'logprobs',
       'maxCompletionTokens',
       'presencePenalty',
-      'responseFormat',
       'seed',
       'stop',
       'temperature',
       'toolChoice',
-      'topLogprobs',
       'topP',
     ],
   },
@@ -4980,16 +4953,15 @@ const MOONSHOTAI_KIMI_K2_5 = {
       'topP',
     ],
   },
-  context_window: 262144,
-  max_output_tokens: 65535,
+  context_window: 256000,
   pricing: {
     text: {
       input: {
-        normal: 0.3827,
-        cached: 0.19135,
+        normal: 0,
+        cached: 0,
       },
       output: {
-        normal: 1.72,
+        normal: 0,
       },
     },
     image: 0,
@@ -5406,11 +5378,11 @@ const NVIDIA_NEMOTRON_3_SUPER_120B_A12B = {
   pricing: {
     text: {
       input: {
-        normal: 0.1,
-        cached: 0.1,
+        normal: 0.09,
+        cached: 0,
       },
       output: {
-        normal: 0.5,
+        normal: 0.45,
       },
     },
     image: 0,
@@ -8164,37 +8136,6 @@ const QWEN_QWEN_VL_PLUS = {
     image: 0,
   },
 } as const
-const QWEN_QWEN2_5_VL_32B_INSTRUCT = {
-  id: 'qwen/qwen2.5-vl-32b-instruct',
-  name: 'Qwen: Qwen2.5 VL 32B Instruct',
-  supports: {
-    input: ['text', 'image'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'maxCompletionTokens',
-      'presencePenalty',
-      'responseFormat',
-      'seed',
-      'stop',
-      'temperature',
-      'topP',
-    ],
-  },
-  context_window: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 0.2,
-        cached: 0,
-      },
-      output: {
-        normal: 0.6,
-      },
-    },
-    image: 0,
-  },
-} as const
 const QWEN_QWEN2_5_VL_72B_INSTRUCT = {
   id: 'qwen/qwen2.5-vl-72b-instruct',
   name: 'Qwen: Qwen2.5 VL 72B Instruct',
@@ -9297,12 +9238,11 @@ const QWEN_QWEN3_5_9B = {
       'topP',
     ],
   },
-  context_window: 256000,
-  max_output_tokens: 32768,
+  context_window: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.05,
+        normal: 0.1,
         cached: 0,
       },
       output: {
@@ -11493,7 +11433,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -12262,11 +12201,6 @@ export type OpenRouterModelOptionsByName = {
       | 'temperature'
       | 'topP'
     >
-  [META_LLAMA_LLAMA_GUARD_4_12B_FREE.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'seed' | 'temperature' | 'topP'
-    >
   [MICROSOFT_PHI_4.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -12702,15 +12636,12 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
-      | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
       | 'toolChoice'
-      | 'topLogprobs'
       | 'topP'
     >
   [MOONSHOTAI_KIMI_K2_0905.id]: OpenRouterCommonOptions &
@@ -13926,18 +13857,6 @@ export type OpenRouterModelOptionsByName = {
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
-      | 'temperature'
-      | 'topP'
-    >
-  [QWEN_QWEN2_5_VL_32B_INSTRUCT.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'maxCompletionTokens'
-      | 'presencePenalty'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
       | 'temperature'
       | 'topP'
     >
@@ -15177,7 +15096,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [META_LLAMA_LLAMA_4_SCOUT.id]: ReadonlyArray<'text' | 'image'>
   [META_LLAMA_LLAMA_GUARD_3_8B.id]: ReadonlyArray<'text'>
   [META_LLAMA_LLAMA_GUARD_4_12B.id]: ReadonlyArray<'image' | 'text'>
-  [META_LLAMA_LLAMA_GUARD_4_12B_FREE.id]: ReadonlyArray<'image' | 'text'>
   [MICROSOFT_PHI_4.id]: ReadonlyArray<'text'>
   [MICROSOFT_WIZARDLM_2_8X22B.id]: ReadonlyArray<'text'>
   [MINIMAX_MINIMAX_01.id]: ReadonlyArray<'text' | 'image'>
@@ -15326,7 +15244,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [QWEN_QWEN_TURBO.id]: ReadonlyArray<'text'>
   [QWEN_QWEN_VL_MAX.id]: ReadonlyArray<'text' | 'image'>
   [QWEN_QWEN_VL_PLUS.id]: ReadonlyArray<'text' | 'image'>
-  [QWEN_QWEN2_5_VL_32B_INSTRUCT.id]: ReadonlyArray<'text' | 'image'>
   [QWEN_QWEN2_5_VL_72B_INSTRUCT.id]: ReadonlyArray<'text' | 'image'>
   [QWEN_QWEN3_14B.id]: ReadonlyArray<'text'>
   [QWEN_QWEN3_235B_A22B.id]: ReadonlyArray<'text'>
@@ -15531,7 +15448,6 @@ export const OPENROUTER_CHAT_MODELS = [
   META_LLAMA_LLAMA_4_SCOUT.id,
   META_LLAMA_LLAMA_GUARD_3_8B.id,
   META_LLAMA_LLAMA_GUARD_4_12B.id,
-  META_LLAMA_LLAMA_GUARD_4_12B_FREE.id,
   MICROSOFT_PHI_4.id,
   MICROSOFT_WIZARDLM_2_8X22B.id,
   MINIMAX_MINIMAX_01.id,
@@ -15672,7 +15588,6 @@ export const OPENROUTER_CHAT_MODELS = [
   QWEN_QWEN_TURBO.id,
   QWEN_QWEN_VL_MAX.id,
   QWEN_QWEN_VL_PLUS.id,
-  QWEN_QWEN2_5_VL_32B_INSTRUCT.id,
   QWEN_QWEN2_5_VL_72B_INSTRUCT.id,
   QWEN_QWEN3_14B.id,
   QWEN_QWEN3_235B_A22B.id,
