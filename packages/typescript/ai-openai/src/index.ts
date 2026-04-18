@@ -77,6 +77,7 @@ export type { OpenAITranscriptionProviderOptions } from './audio/transcription-p
 
 export type {
   OpenAIChatModelProviderOptionsByName,
+  OpenAIChatModelToolCapabilitiesByName,
   OpenAIModelInputModalitiesByName,
   OpenAIChatModel,
   OpenAIImageModel,

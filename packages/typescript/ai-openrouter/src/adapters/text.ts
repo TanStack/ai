@@ -10,6 +10,7 @@ import {
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
   OPENROUTER_CHAT_MODELS,
+  OpenRouterChatModelToolCapabilitiesByName,
   OpenRouterModelInputModalitiesByName,
   OpenRouterModelOptionsByName,
 } from '../model-meta'
@@ -51,6 +52,11 @@ type ResolveInputModalities<TModel extends string> =
     ? OpenRouterModelInputModalitiesByName[TModel]
     : readonly ['text', 'image']
 
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof OpenRouterChatModelToolCapabilitiesByName
+    ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
 // Internal buffer for accumulating streamed tool calls
 interface ToolCallBuffer {
   id: string
@@ -71,11 +77,14 @@ interface AGUIState {
 
 export class OpenRouterTextAdapter<
   TModel extends OpenRouterTextModels,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>,
-  OpenRouterMessageMetadataByModality
+  OpenRouterMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'openrouter' as const
@@ -623,14 +632,14 @@ export function createOpenRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
   config?: Omit<SDKOptions, 'apiKey'>,
-): OpenRouterTextAdapter<TModel> {
+): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   return new OpenRouterTextAdapter({ apiKey, ...config }, model)
 }
 
 export function openRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   config?: Omit<SDKOptions, 'apiKey'>,
-): OpenRouterTextAdapter<TModel> {
+): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterText(model, apiKey, config)
 }

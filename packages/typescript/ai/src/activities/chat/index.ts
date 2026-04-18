@@ -50,6 +50,7 @@ import type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
 } from './middleware/types'
+import type { ProviderTool } from '../../tools/provider-tool'
 
 // ===========================
 // Activity Kind
@@ -86,8 +87,20 @@ export interface TextActivityOptions<
   >
   /** System prompts to prepend to the conversation */
   systemPrompts?: TextOptions['systemPrompts']
-  /** Tools for function calling (auto-executed when called) */
-  tools?: TextOptions['tools']
+  /**
+   * Tools for function calling (auto-executed when called).
+   *
+   * Accepts two shapes:
+   *  - User-defined tools via `toolDefinition()` — plain `Tool`, always assignable.
+   *  - Provider tools from `@tanstack/ai-<provider>/tools` (e.g. `webSearchTool`)
+   *    — branded and type-checked against the selected model's
+   *    `supports.tools` list. Passing an unsupported tool produces a
+   *    compile-time error on the array element.
+   */
+  tools?: Array<
+    | (Tool & { readonly '~toolKind'?: never })
+    | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
+  >
   /** Controls the randomness of the output. Higher values make output more random. Range: [0.0, 2.0] */
   temperature?: TextOptions['temperature']
   /** Nucleus sampling parameter. The model considers tokens with topP probability mass. */

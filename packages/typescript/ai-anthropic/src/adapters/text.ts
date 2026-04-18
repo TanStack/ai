@@ -9,6 +9,7 @@ import {
 import type {
   ANTHROPIC_MODELS,
   AnthropicChatModelProviderOptionsByName,
+  AnthropicChatModelToolCapabilitiesByName,
   AnthropicModelInputModalitiesByName,
 } from '../model-meta'
 import type {
@@ -84,6 +85,11 @@ type ResolveInputModalities<TModel extends string> =
     ? AnthropicModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'document']
 
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof AnthropicChatModelToolCapabilitiesByName
+    ? NonNullable<AnthropicChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
 // ===========================
 // Adapter Implementation
 // ===========================
@@ -99,11 +105,14 @@ export class AnthropicTextAdapter<
   TProviderOptions extends object = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
-  AnthropicMessageMetadataByModality
+  AnthropicMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'anthropic' as const

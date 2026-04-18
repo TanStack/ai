@@ -137,5 +137,44 @@ const stream = chat({
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about tools 
+- [Tools Guide](../tools/tools) - Learn about tools
+
+## Provider Tools
+
+> **Migrated from `createWebSearchTool`?** This factory was renamed to
+> `webSearchTool` and moved to the `/tools` subpath in this release.
+> See [Migration Guide §6](../migration/migration.md#6-provider-tools-moved-to-tools-subpath)
+> for the exact before/after.
+
+OpenRouter's gateway exposes web search via a plugin that works across
+any proxied chat model. Import it from `@tanstack/ai-openrouter/tools`.
+
+> For the full concept, a comparison matrix, and type-gating details, see
+> [Provider Tools](../tools/provider-tools.md).
+
+### `webSearchTool`
+
+Adds web search capability to any OpenRouter-proxied chat model. Choose the
+search `engine` (`native` or `exa`), cap results with `maxResults`, and
+optionally provide a `searchPrompt` to guide query formation.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+import { webSearchTool } from "@tanstack/ai-openrouter/tools";
+
+const stream = chat({
+  adapter: openRouterText("openai/gpt-5"),
+  messages: [{ role: "user", content: "What's new in AI this week?" }],
+  tools: [
+    webSearchTool({
+      engine: "exa",
+      maxResults: 5,
+      searchPrompt: "Recent AI news and research papers",
+    }),
+  ],
+});
+```
+
+**Supported models:** all OpenRouter chat models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
