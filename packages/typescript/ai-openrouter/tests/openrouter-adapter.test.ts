@@ -1450,6 +1450,64 @@ describe('OpenRouter cost tracking', () => {
     expect(finished?.usage).toMatchObject({ cost: 0.75 })
   })
 
+  // Regression: when the stream aborts after finishReason but before the
+  // trailing usage chunk, the tee'd cost parser can still populate cost
+  // (it reads independently of the SDK consumer). Emitting RUN_FINISHED
+  // with zero-token usage alongside a non-zero cost would be worse than
+  // no usage at all — billing/telemetry consumers would see a bogus
+  // "0 tokens, $X cost" signal. Drop usage entirely if tokens are absent.
+  it('does not synthesize zero-token usage when the trailing usage chunk never arrives', async () => {
+    const id = 'gen-late-abort-no-usage'
+    // No `usage` on the finishReason chunk — OpenRouter normally delivers
+    // it in a separate trailing chunk that this scenario never receives.
+    const okChunks = [
+      {
+        id,
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hi' }, finishReason: null }],
+      },
+      {
+        id,
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+      },
+    ]
+    mockSend = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        [Symbol.asyncIterator]() {
+          let i = 0
+          return {
+            async next() {
+              if (i < okChunks.length) return { value: okChunks[i++]!, done: false }
+              throw new Error('aborted before usage chunk')
+            },
+          }
+        },
+      }),
+    )
+
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key')
+    // Simulate the tee'd parser beating the SDK consumer to the usage
+    // chunk: cost is in the store even though `finalUsage` will stay
+    // undefined for the SDK-visible stream.
+    getCostStore(adapter).set(id, { cost: 0.05 })
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(finished).toBeDefined()
+    if (finished?.type === 'RUN_FINISHED') {
+      expect(finished.usage).toBeUndefined()
+      expect(finished.finishReason).toBe('stop')
+    }
+  })
+
   // Regression: deferring RUN_FINISHED until the stream drains (so we can
   // read the trailing usage chunk) used to convert a late abort/disconnect
   // into a user-visible RUN_ERROR — even when the run was logically

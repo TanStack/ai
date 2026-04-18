@@ -524,11 +524,17 @@ export class OpenRouterTextAdapter<
     usage: ChatUsage | undefined,
     costInfo: CostInfo | undefined,
   ): RunFinishedEvent['usage'] {
-    if (!usage && !costInfo) return undefined
+    // If no token counts arrived (e.g. the stream aborted before the
+    // trailing usage chunk), emit no usage at all — even if `costInfo` was
+    // captured via the tee. Synthesizing `promptTokens/completionTokens/
+    // totalTokens = 0` alongside a non-zero cost would feed billing and
+    // telemetry a "successful run with zero tokens but $X cost" signal,
+    // which is worse than an absent usage payload.
+    if (!usage) return undefined
     return {
-      promptTokens: usage?.promptTokens || 0,
-      completionTokens: usage?.completionTokens || 0,
-      totalTokens: usage?.totalTokens || 0,
+      promptTokens: usage.promptTokens || 0,
+      completionTokens: usage.completionTokens || 0,
+      totalTokens: usage.totalTokens || 0,
       ...(costInfo?.cost !== undefined && { cost: costInfo.cost }),
       ...(costInfo?.costDetails && { costDetails: costInfo.costDetails }),
     }
