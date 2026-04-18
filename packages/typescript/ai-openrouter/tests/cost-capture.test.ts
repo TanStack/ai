@@ -208,6 +208,28 @@ describe('createCostCaptureHook — robustness', () => {
 
     expect(await store.take('gen-crlf')).toEqual({ cost: 0.3 })
   })
+
+  // Regression: EOF-terminated SSE (proxies omitting the trailing blank
+  // line) used to drop the final usage chunk because the read loop broke
+  // on `done` before flushing `buffer`.
+  it('flushes the trailing SSE frame when the stream ends without a blank line', async () => {
+    const body = `data: ${JSON.stringify({
+      id: 'gen-eof',
+      choices: [],
+      usage: {
+        prompt_tokens: 1,
+        completion_tokens: 1,
+        total_tokens: 2,
+        cost: 0.2,
+      },
+    })}\n`
+
+    const { client, store } = buildClient(makeSseResponse(body))
+    const res = await client.request(makeChatRequest())
+    await readAll(res.body)
+
+    expect(await store.take('gen-eof')).toEqual({ cost: 0.2 })
+  })
 })
 
 describe('attachCostCapture', () => {
@@ -348,6 +370,36 @@ describe('CostStore', () => {
 
     resolveSlow()
     await slowParse
+  })
+
+  // Regression: a parse that announces its id but never produces cost
+  // (response simply had no `usage.cost`) used to lose its `idToParse`
+  // entry in `parse.finally`, forcing a subsequent `take(id)` to fall
+  // through to the pending-parses wait — which could then block on an
+  // unrelated concurrent stream. The settled parse must stay resolvable
+  // until `take(id)` consumes it (or TTL expires).
+  it('take(id) returns undefined promptly when the matching parse finished without cost', async () => {
+    const store = new CostStore()
+
+    // Parse A announces id but never calls `set`, then settles.
+    const parseA = Promise.resolve()
+    store.recordParse(parseA)
+    store.announceId('A', parseA)
+    await parseA
+
+    // Parse B stays in flight and never announces 'A'.
+    let resolveB!: () => void
+    const parseB = new Promise<void>((resolve) => {
+      resolveB = resolve
+    })
+    store.recordParse(parseB)
+    store.announceId('B', parseB)
+
+    const info = await store.take('A')
+    expect(info).toBeUndefined()
+
+    resolveB()
+    await parseB
   })
 })
 

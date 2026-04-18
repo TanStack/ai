@@ -13,6 +13,11 @@ interface CostEntry {
   timer: ReturnType<typeof setTimeout>
 }
 
+interface ParseEntry {
+  parse: Promise<unknown>
+  timer?: ReturnType<typeof setTimeout>
+}
+
 /**
  * Per-response cost cache, keyed by upstream response id.
  *
@@ -38,7 +43,7 @@ interface CostEntry {
 export class CostStore {
   private entries = new Map<string, CostEntry>()
   private pendingParses = new Set<Promise<unknown>>()
-  private idToParse = new Map<string, Promise<unknown>>()
+  private idToParse = new Map<string, ParseEntry>()
   private announcementWaiters = new Set<() => void>()
   private readonly ttlMs: number
 
@@ -62,9 +67,21 @@ export class CostStore {
   }
 
   announceId(id: string, parse: Promise<unknown>): void {
-    this.idToParse.set(id, parse)
+    const existing = this.idToParse.get(id)
+    if (existing?.timer) clearTimeout(existing.timer)
+    const entry: ParseEntry = { parse }
+    this.idToParse.set(id, entry)
+    // After the parse settles, keep the entry around briefly so a late
+    // `take(id)` can resolve without falling through to the pending-parses
+    // wait (which would reintroduce head-of-line blocking on unrelated
+    // concurrent streams — especially for responses that announce an id
+    // but never produce `usage.cost`). TTL eventually drops it.
     parse.finally(() => {
-      if (this.idToParse.get(id) === parse) this.idToParse.delete(id)
+      const timer = setTimeout(() => {
+        if (this.idToParse.get(id) === entry) this.idToParse.delete(id)
+      }, this.ttlMs)
+      if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+      entry.timer = timer
     })
     // Wake every `take()` that was parked waiting for *some* announcement —
     // the ones whose id doesn't match will fall back into the wait loop.
@@ -88,9 +105,11 @@ export class CostStore {
     // parse hasn't announced yet, park on the next announcement or on the
     // current wave of parses draining (whichever happens first), then loop.
     for (;;) {
-      const matching = this.idToParse.get(id)
-      if (matching) {
-        await matching.catch(() => {})
+      const match = this.idToParse.get(id)
+      if (match) {
+        await match.parse.catch(() => {})
+        if (match.timer) clearTimeout(match.timer)
+        if (this.idToParse.get(id) === match) this.idToParse.delete(id)
         break
       }
       if (this.pendingParses.size === 0) break
@@ -114,6 +133,9 @@ export class CostStore {
 
   clear(): void {
     for (const { timer } of this.entries.values()) clearTimeout(timer)
+    for (const entry of this.idToParse.values()) {
+      if (entry.timer) clearTimeout(entry.timer)
+    }
     this.entries.clear()
     this.pendingParses.clear()
     this.idToParse.clear()
@@ -211,6 +233,21 @@ async function parseSseAndStore(
   let buffer = ''
   let responseId: string | undefined
   let cost: CostInfo | undefined
+  const applyEvent = (event: string): void => {
+    const payload = extractDataPayload(event)
+    if (!payload || payload === '[DONE]') return
+    const parsed = safeParseJson(payload)
+    if (!parsed) return
+    if (!responseId && typeof parsed.id === 'string') {
+      responseId = parsed.id
+      onId?.(responseId)
+    }
+    const usage = parsed.usage as Record<string, unknown> | undefined
+    if (usage) {
+      const extracted = extractCostFromUsage(usage)
+      if (extracted) cost = extracted
+    }
+  }
   try {
     for (;;) {
       const { value, done } = await reader.read()
@@ -225,19 +262,15 @@ async function parseSseAndStore(
       while ((sep = buffer.indexOf('\n\n')) !== -1) {
         const event = buffer.slice(0, sep)
         buffer = buffer.slice(sep + 2)
-        const payload = extractDataPayload(event)
-        if (!payload || payload === '[DONE]') continue
-        const parsed = safeParseJson(payload)
-        if (!parsed) continue
-        if (!responseId && typeof parsed.id === 'string') {
-          responseId = parsed.id
-          onId?.(responseId)
-        }
-        const usage = parsed.usage as Record<string, unknown> | undefined
-        if (usage) {
-          const extracted = extractCostFromUsage(usage)
-          if (extracted) cost = extracted
-        }
+        applyEvent(event)
+      }
+      if (done) {
+        // EOF-terminated SSE can legitimately omit the final `\n\n`
+        // separator (especially through proxies). Flush whatever is left
+        // as a final event so the trailing usage chunk isn't silently
+        // dropped.
+        if (buffer.length > 0) applyEvent(buffer)
+        break
       }
       // Cost arrives in the trailing usage chunk, after which there's no
       // more data we care about. Cancel our clone early so the upstream
@@ -246,7 +279,6 @@ async function parseSseAndStore(
         await reader.cancel().catch(() => {})
         break
       }
-      if (done) break
     }
   } finally {
     reader.releaseLock()
