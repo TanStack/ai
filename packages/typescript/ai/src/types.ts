@@ -813,12 +813,6 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
 }
 
 /**
- * Emitted when a run completes successfully.
- *
- * @ag-ui/core provides: `threadId`, `runId`, `result?`
- * TanStack AI adds: `model?`, `finishReason?`, `usage?`
- */
-/**
  * Per-run token and cost totals, shared between `RunFinishedEvent.usage`
  * and the middleware `UsageInfo` so the two can never drift.
  */
@@ -838,14 +832,23 @@ export interface UsageTotals {
    * Provider-reported cost breakdown. Loosely typed because providers
    * disagree on what to expose (BYOK upstream costs, cache discounts,
    * per-tier rates, ...) and locking the shape down would force every
-   * new adapter to either lie or back-fill.
+   * new adapter to either lie or back-fill. The named fields are
+   * whatever OpenRouter currently reports; other adapters may report
+   * numeric fields under their own keys via the index signature.
    */
   costDetails?: {
     upstreamInferenceCost?: number | null
     cacheDiscount?: number | null
+    [key: string]: number | null | undefined
   }
 }
 
+/**
+ * Emitted when a run completes successfully.
+ *
+ * @ag-ui/core provides: `threadId`, `runId`, `result?`
+ * TanStack AI adds: `model?`, `finishReason?`, `usage?`
+ */
 export interface RunFinishedEvent extends AGUIRunFinishedEvent {
   /** Model identifier for multi-model support */
   model?: string
