@@ -3,10 +3,13 @@ import { chat } from '@tanstack/ai'
 import { HTTPClient } from '@openrouter/sdk'
 import { ChatRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterText } from '../src/adapters/text'
-import type { OpenRouterTextAdapter } from '../src/adapters/text'
-import type { OpenRouterTextModelOptions } from '../src/adapters/text'
+import type {
+  OpenRouterTextAdapter,
+  OpenRouterTextModelOptions,
+} from '../src/adapters/text'
 import type { CostStore } from '../src/adapters/cost-capture'
 import type { StreamChunk, Tool } from '@tanstack/ai'
+import type * as OpenRouterSDK from '@openrouter/sdk'
 // Declare mocks at module level
 let mockSend: any
 
@@ -15,8 +18,7 @@ let mockSend: any
 // the caller's HTTPClient via `attachCostCapture` — a stubbed HTTPClient
 // would break that path and hide regressions.
 vi.mock('@openrouter/sdk', async () => {
-  const actual =
-    await vi.importActual<typeof import('@openrouter/sdk')>('@openrouter/sdk')
+  const actual = await vi.importActual<typeof OpenRouterSDK>('@openrouter/sdk')
   return {
     ...actual,
     OpenRouter: class {
