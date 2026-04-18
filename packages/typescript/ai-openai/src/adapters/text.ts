@@ -111,33 +111,27 @@ export class OpenAITextAdapter<
     >()
     const requestArguments = this.mapTextOptionsToOpenAI(options)
 
-    try {
-      const response = await this.client.responses.create(
-        {
-          ...requestArguments,
-          stream: true,
-        },
-        {
-          headers: options.request?.headers,
-          signal: options.request?.signal,
-        },
-      )
+    // No try/catch here: SDK errors carry the original request (which can
+    // include auth headers), so we deliberately avoid logging them inside
+    // the library. Upstream callers should convert errors into structured
+    // events themselves.
+    const response = await this.client.responses.create(
+      {
+        ...requestArguments,
+        stream: true,
+      },
+      {
+        headers: options.request?.headers,
+        signal: options.request?.signal,
+      },
+    )
 
-      // Chat Completions API uses SSE format - iterate directly
-      yield* this.processOpenAIStreamChunks(
-        response,
-        toolCallMetadata,
-        options,
-        () => generateId(this.name),
-      )
-    } catch (error: unknown) {
-      const err = error as Error
-      console.error('>>> chatStream: Fatal error during response creation <<<')
-      console.error('>>> Error message:', err.message)
-      console.error('>>> Error stack:', err.stack)
-      console.error('>>> Full error:', err)
-      throw error
-    }
+    yield* this.processOpenAIStreamChunks(
+      response,
+      toolCallMetadata,
+      options,
+      () => generateId(this.name),
+    )
   }
 
   /**

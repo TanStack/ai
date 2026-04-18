@@ -8,6 +8,7 @@
  */
 
 import { aiEventClient } from '@tanstack/ai-event-client'
+import { toRunErrorPayload } from '../error-payload'
 import type { VideoAdapter } from './adapter'
 import type {
   StreamChunk,
@@ -340,14 +341,11 @@ async function* runStreamingVideoGeneration<
     }
 
     throw new Error('Video generation timed out')
-  } catch (error: any) {
+  } catch (error: unknown) {
     yield {
       type: 'RUN_ERROR',
       runId,
-      error: {
-        message: error.message || 'Video generation failed',
-        code: error.code,
-      },
+      error: toRunErrorPayload(error, 'Video generation failed'),
       timestamp: Date.now(),
     }
   }
