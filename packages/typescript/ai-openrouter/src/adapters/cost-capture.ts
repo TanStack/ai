@@ -214,6 +214,14 @@ function isChatCompletionsRequest(url: string): boolean {
   return /\/chat\/completions(?:[/?#]|$)/.test(url)
 }
 
+// Event separators per SSE spec: a blank line between events may use any of
+// `\n\n`, `\r\n\r\n`, or `\r\r`. Matching all three directly (instead of
+// pre-normalizing line endings) avoids a chunk-boundary bug where a lone
+// `\r` at the end of one read would be rewritten to `\n` before the paired
+// `\n` of a CRLF landed in the next read, producing a false `\n\n` frame
+// split in the middle of a line.
+const SSE_EVENT_SEPARATOR = /\r\n\r\n|\r\r|\n\n/
+
 async function parseSseAndStore(
   body: ReadableStream<Uint8Array>,
   store: CostStore,
@@ -242,24 +250,21 @@ async function parseSseAndStore(
   try {
     for (;;) {
       const { value, done } = await reader.read()
-      // Normalize CRLF and lone CR to LF so spec-compliant `\r\n\r\n` and
-      // `\r\r` event separators split identically to the `\n\n` convention
-      // OpenRouter normally emits. Some proxies/runtimes insert CRLF.
-      buffer += decoder.decode(value, { stream: true }).replace(/\r\n?/g, '\n')
+      buffer += decoder.decode(value, { stream: true })
       // Network reads may split SSE events or batch several together — drain
-      // only \n\n-delimited frames and keep any trailing partial in `buffer`
+      // separator-delimited frames and keep any trailing partial in `buffer`
       // for the next read so we never parse a half-received JSON payload.
-      let sep: number
-      while ((sep = buffer.indexOf('\n\n')) !== -1) {
-        const event = buffer.slice(0, sep)
-        buffer = buffer.slice(sep + 2)
+      for (;;) {
+        const match = SSE_EVENT_SEPARATOR.exec(buffer)
+        if (!match) break
+        const event = buffer.slice(0, match.index)
+        buffer = buffer.slice(match.index + match[0].length)
         applyEvent(event)
       }
       if (done) {
-        // EOF-terminated SSE can legitimately omit the final `\n\n`
-        // separator (especially through proxies). Flush whatever is left
-        // as a final event so the trailing usage chunk isn't silently
-        // dropped.
+        // EOF-terminated SSE can legitimately omit the final separator
+        // (especially through proxies). Flush whatever is left as a final
+        // event so the trailing usage chunk isn't silently dropped.
         if (buffer.length > 0) applyEvent(buffer)
         break
       }
@@ -279,7 +284,10 @@ async function parseSseAndStore(
 
 function extractDataPayload(event: string): string | undefined {
   const lines: Array<string> = []
-  for (const line of event.split('\n')) {
+  // Split on any single-line terminator per SSE spec (`\r\n`, `\r`, or
+  // `\n`) so we don't leave a trailing `\r` in the payload when servers
+  // use CRLF inside a frame.
+  for (const line of event.split(/\r\n|\r|\n/)) {
     if (!line.startsWith('data:')) continue
     lines.push(line.slice(5).replace(/^ /, ''))
   }
