@@ -186,6 +186,28 @@ describe('createCostCaptureHook — robustness', () => {
     const res = await client.request(makeChatRequest())
     expect(res.status).toBe(204)
   })
+
+  // Regression: proxies and some runtimes emit spec-compliant CRLF-framed
+  // SSE (`\r\n\r\n`). Splitting only on `\n\n` used to silently drop cost.
+  it('parses SSE with CRLF-delimited frames', async () => {
+    const body =
+      `data: ${JSON.stringify({
+        id: 'gen-crlf',
+        choices: [],
+        usage: {
+          prompt_tokens: 1,
+          completion_tokens: 1,
+          total_tokens: 2,
+          cost: 0.3,
+        },
+      })}\r\n\r\ndata: [DONE]\r\n\r\n`
+
+    const { client, store } = buildClient(makeSseResponse(body))
+    const res = await client.request(makeChatRequest())
+    await readAll(res.body)
+
+    expect(await store.take('gen-crlf')).toEqual({ cost: 0.3 })
+  })
 })
 
 describe('attachCostCapture', () => {
@@ -288,6 +310,44 @@ describe('CostStore', () => {
     await takePromise
 
     expect(taken).toEqual({ cost: 7 })
+  })
+
+  // Regression: a shared adapter can have overlapping `chat.send` calls.
+  // Previously `take(id)` awaited *every* in-flight parse, so a long-
+  // running concurrent stream could block an already-completed request's
+  // RUN_FINISHED. Per-id announcements mean `take(id)` awaits only the
+  // matching parse.
+  it('take(id) does not block on an unrelated in-flight parse', async () => {
+    const store = new CostStore()
+
+    let resolveFast!: () => void
+    const fastParse = new Promise<void>((resolve) => {
+      resolveFast = resolve
+    }).then(() => {
+      store.set('fast', { cost: 1 })
+    })
+    store.recordParse(fastParse)
+    store.announceId('fast', fastParse)
+
+    let resolveSlow!: () => void
+    const slowParse = new Promise<void>((resolve) => {
+      resolveSlow = resolve
+    })
+    store.recordParse(slowParse)
+    store.announceId('slow', slowParse)
+
+    let taken: CostInfo | undefined
+    const takePromise = store.take('fast').then((info) => {
+      taken = info
+    })
+
+    resolveFast()
+    await takePromise
+
+    expect(taken).toEqual({ cost: 1 })
+
+    resolveSlow()
+    await slowParse
   })
 })
 

@@ -25,9 +25,12 @@ interface CostEntry {
  * The hook runs the parse as a fire-and-forget Promise, so by the time the
  * adapter's `for await` loop exits, `store.set(id, cost)` may not yet have
  * run — there's no direct happens-before relationship between the SDK's
- * stream consumer and the tee'd parse reader. `take()` awaits any in-flight
- * parses (registered via `recordParse`) before reading, so cost is
- * deterministic even under fast responses or heavy event-loop pressure.
+ * stream consumer and the tee'd parse reader. `take(id)` awaits **only the
+ * parse that has announced this id** (via `announceId`), so overlapping
+ * `chat.send` calls on the same adapter cannot block each other's cost
+ * delivery. If no parse has announced the id yet, `take(id)` waits for the
+ * next announcement or for all currently-pending parses to settle,
+ * whichever comes first.
  *
  * Entries also auto-expire so a missing read (errored stream, missing id,
  * etc.) cannot leak memory across long-lived adapters.
@@ -35,6 +38,8 @@ interface CostEntry {
 export class CostStore {
   private entries = new Map<string, CostEntry>()
   private pendingParses = new Set<Promise<unknown>>()
+  private idToParse = new Map<string, Promise<unknown>>()
+  private announcementWaiters = new Set<() => void>()
   private readonly ttlMs: number
 
   constructor(ttlMs = 60_000) {
@@ -56,23 +61,49 @@ export class CostStore {
     parse.finally(() => this.pendingParses.delete(parse))
   }
 
+  announceId(id: string, parse: Promise<unknown>): void {
+    this.idToParse.set(id, parse)
+    parse.finally(() => {
+      if (this.idToParse.get(id) === parse) this.idToParse.delete(id)
+    })
+    // Wake every `take()` that was parked waiting for *some* announcement —
+    // the ones whose id doesn't match will fall back into the wait loop.
+    const waiters = [...this.announcementWaiters]
+    this.announcementWaiters.clear()
+    for (const w of waiters) w()
+  }
+
   async take(id: string): Promise<CostInfo | undefined> {
     // Fast path: the tee'd parser typically finishes before the SDK's
     // stream consumer exits (less work per chunk than the Zod pipeline),
-    // so skip the allSettled barrier entirely when the entry is already
-    // populated. This also prevents over-waiting on unrelated in-flight
-    // parses from a concurrent chat.send on the same adapter.
+    // so skip the wait entirely when the entry is already populated.
     const preset = this.entries.get(id)
     if (preset) {
       clearTimeout(preset.timer)
       this.entries.delete(id)
       return preset.info
     }
-    // Slow path: parse may still be running; await outstanding ones so
-    // `store.set` has a chance to run before we decide there is no cost
-    // for this id.
-    if (this.pendingParses.size > 0) {
-      await Promise.allSettled([...this.pendingParses])
+    // Slow path: prefer per-id matching so an unrelated long-running stream
+    // on the same adapter cannot delay our RUN_FINISHED. If the matching
+    // parse hasn't announced yet, park on the next announcement or on the
+    // current wave of parses draining (whichever happens first), then loop.
+    for (;;) {
+      const matching = this.idToParse.get(id)
+      if (matching) {
+        await matching.catch(() => {})
+        break
+      }
+      if (this.pendingParses.size === 0) break
+      let resolveSignal: () => void = () => {}
+      const nextAnnouncement = new Promise<void>((resolve) => {
+        resolveSignal = resolve
+        this.announcementWaiters.add(resolve)
+      })
+      const currentWaveDrained = Promise.allSettled([
+        ...this.pendingParses,
+      ]).then(() => {})
+      await Promise.race([nextAnnouncement, currentWaveDrained])
+      this.announcementWaiters.delete(resolveSignal)
     }
     const entry = this.entries.get(id)
     if (!entry) return undefined
@@ -85,6 +116,8 @@ export class CostStore {
     for (const { timer } of this.entries.values()) clearTimeout(timer)
     this.entries.clear()
     this.pendingParses.clear()
+    this.idToParse.clear()
+    this.announcementWaiters.clear()
   }
 }
 
@@ -116,7 +149,19 @@ export function createCostCaptureHook(
     }
     if (!copy.body) return
     const contentType = res.headers.get('content-type') ?? ''
-    const parse = parseAndStore(copy.body, contentType, store).catch(() => {})
+    // Announce the id the moment the parser sees it so concurrent `take(id)`
+    // calls can await only *this* parse instead of every in-flight one.
+    // Forward-ref: the parser needs a callback that references `parse`, but
+    // `parse` isn't bound yet at construction time. The stable `onId`
+    // trampoline delegates to `announce`, which we swap in right after
+    // `parse` is assigned — the parser only fires `onId` after its first
+    // async read, by which point the swap has happened.
+    let announce: (id: string) => void = () => {}
+    const onId = (id: string) => announce(id)
+    const parse = parseAndStore(copy.body, contentType, store, onId).catch(
+      () => {},
+    )
+    announce = (id) => store.announceId(id, parse)
     store.recordParse(parse)
   }
 }
@@ -147,17 +192,19 @@ async function parseAndStore(
   body: ReadableStream<Uint8Array>,
   contentType: string,
   store: CostStore,
+  onId?: (id: string) => void,
 ): Promise<void> {
   if (contentType.includes('text/event-stream')) {
-    await parseSseAndStore(body, store)
+    await parseSseAndStore(body, store, onId)
   } else {
-    await parseJsonAndStore(body, store)
+    await parseJsonAndStore(body, store, onId)
   }
 }
 
 async function parseSseAndStore(
   body: ReadableStream<Uint8Array>,
   store: CostStore,
+  onId?: (id: string) => void,
 ): Promise<void> {
   const reader = body.getReader()
   const decoder = new TextDecoder()
@@ -167,7 +214,10 @@ async function parseSseAndStore(
   try {
     for (;;) {
       const { value, done } = await reader.read()
-      buffer += decoder.decode(value, { stream: true })
+      // Normalize CRLF and lone CR to LF so spec-compliant `\r\n\r\n` and
+      // `\r\r` event separators split identically to the `\n\n` convention
+      // OpenRouter normally emits. Some proxies/runtimes insert CRLF.
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n?/g, '\n')
       // Network reads may split SSE events or batch several together — drain
       // only \n\n-delimited frames and keep any trailing partial in `buffer`
       // for the next read so we never parse a half-received JSON payload.
@@ -181,6 +231,7 @@ async function parseSseAndStore(
         if (!parsed) continue
         if (!responseId && typeof parsed.id === 'string') {
           responseId = parsed.id
+          onId?.(responseId)
         }
         const usage = parsed.usage as Record<string, unknown> | undefined
         if (usage) {
@@ -206,11 +257,13 @@ async function parseSseAndStore(
 async function parseJsonAndStore(
   body: ReadableStream<Uint8Array>,
   store: CostStore,
+  onId?: (id: string) => void,
 ): Promise<void> {
   const text = await new Response(body).text()
   const parsed = safeParseJson(text)
   if (!parsed) return
   const id = typeof parsed.id === 'string' ? parsed.id : undefined
+  if (id) onId?.(id)
   const usage = parsed.usage as Record<string, unknown> | undefined
   if (!id || !usage) return
   const cost = extractCostFromUsage(usage)
