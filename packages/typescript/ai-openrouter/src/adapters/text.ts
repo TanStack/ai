@@ -190,11 +190,23 @@ export class OpenRouterTextAdapter<
       }
 
       if (finalFinishReason !== null) {
-        // Cost is captured by the HTTPClient response hook while the stream
-        // was draining — read it from the side-channel keyed by the upstream
-        // response id. `take()` awaits any still-running parse so cost is
-        // deterministic even if the tee'd reader has not yet called
-        // `store.set` by the time the SDK's stream consumer exits. If
+        // Deferral: RUN_FINISHED waits for the stream to fully drain (not
+        // just for `finishReason`) because OpenRouter delivers `usage` and
+        // `usage.cost` in a trailing `choices: []` chunk that arrives after
+        // finishReason. The cost/tokens are part of `RUN_FINISHED.usage`
+        // per the cross-package contract, and the middleware `onUsage`
+        // hook fires off this exact payload — so emitting early would
+        // force callers into a separate event to retrieve cost (or drop
+        // it entirely). The added latency is bounded by how long the
+        // server needs to flush the trailing usage chunk — typically on
+        // the order of a single SSE write (~10-20ms) — not an additional
+        // network round-trip; the same TCP/HTTP connection stays open and
+        // no new request is issued.
+        //
+        // Cost is captured by the HTTPClient response hook while the SDK
+        // was draining the stream; we read it from the side-channel keyed
+        // by the upstream response id. `take()` awaits the matching parse
+        // only, so overlapping chat sends don't block each other. If
         // absent (cost not in response, or id never seen), RUN_FINISHED
         // simply omits `usage.cost`.
         const costInfo = responseId
