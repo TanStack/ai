@@ -8,6 +8,7 @@ export const providers: Provider[] = [
   'groq',
   'grok',
   'openrouter',
+  'mistral',
 ]
 
 const supportMatrix: Record<Feature, Set<Provider>> = {
@@ -19,6 +20,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -28,6 +30,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini']),
   'multi-turn': new Set([
@@ -38,6 +41,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -47,6 +51,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -55,6 +60,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'tool-approval': new Set([
     'openai',
@@ -63,6 +69,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'text-tool-text': new Set([
     'openai',
@@ -71,6 +78,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'structured-output': new Set([
     'openai',
@@ -80,6 +88,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -89,7 +98,9 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
+  // Mistral excluded: mistral-large-latest is text-only; vision requires pixtral
   'multimodal-image': new Set([
     'openai',
     'anthropic',
@@ -111,6 +122,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -119,6 +131,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'image-gen': new Set(['openai', 'grok']),
   tts: new Set(['openai']),
