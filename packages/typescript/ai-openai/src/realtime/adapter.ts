@@ -2,8 +2,6 @@ import { createRealtimeEventEmitter } from '@tanstack/ai'
 import type {
   AnyClientTool,
   AudioVisualization,
-  RealtimeEvent,
-  RealtimeEventHandler,
   RealtimeMessage,
   RealtimeMode,
   RealtimeSessionConfig,

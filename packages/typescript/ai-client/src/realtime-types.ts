@@ -66,6 +66,8 @@ export interface RealtimeConnection {
   // Session management
   /** Update session configuration */
   updateSession: (config: Partial<RealtimeSessionConfig>) => void
+  /** Update token */
+  updateToken?: (token: RealtimeToken) => void
   /** Interrupt the current response */
   interrupt: () => void
 

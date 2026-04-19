@@ -374,6 +374,7 @@ export class RealtimeClient {
     try {
       this.token = await this.options.getToken()
       this.scheduleTokenRefresh()
+      this.connection?.updateToken?.(this.token)
       // Note: Some providers may require reconnection with new token
       // This is handled by the adapter implementation
     } catch (error) {

@@ -1,9 +1,9 @@
-import { GoogleGenAI, Modality } from '@google/genai'
 import {
-  convertSchemaToJsonSchema,
   createRealtimeEventEmitter,
 } from "@tanstack/ai"
-import { MediaHandler } from './media-handler'
+import { AudioPlayer, AudioStreamer, base64ToArrayBuffer } from './utils'
+import { GeminiLiveClient } from './client'
+import type { LiveResponse } from './client'
 import type {
   AudioVisualization,
   RealtimeMessage,
@@ -11,9 +11,8 @@ import type {
   RealtimeSessionConfig,
   RealtimeToken,
 } from '@tanstack/ai'
-import type { LiveConnectConfig, LiveServerSessionResumptionUpdate } from '@google/genai'
 import type { AnyClientTool, RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
-import type { GeminiRealtimeOptions, GeminiRealtimeProviderOptions } from './types'
+import type { GeminiRealtimeModel, GeminiRealtimeOptions } from './types'
 
 /**
  * Creates a Gemini realtime adapter for client-side use.
@@ -59,287 +58,180 @@ async function createWebSocketConnection(
 
   const { emit, on: realtimeEventEmitterOn } = createRealtimeEventEmitter()
 
-  const model = token.config.model ?? 'gemini-live-2.5-flash-native-audio'
-
-  const toolsConfig = tools
-    ? tools.map((t) => ({
-      name: t.name,
-      description: t.description,
-      inputSchema: t.inputSchema
-        ? convertSchemaToJsonSchema(t.inputSchema)
-        : undefined,
-      outputSchema: t.outputSchema
-        ? convertSchemaToJsonSchema(t.outputSchema)
-        : undefined,
-    }))
-    : undefined
-
-  const {
-    languageCode,
-    contextWindowCompression,
-    proactivity,
-    enableAffectiveDialog,
-    thinkingConfig
-  } = (config.providerOptions ?? {}) as GeminiRealtimeProviderOptions
-
-  const liveConfig: LiveConnectConfig = {
-    responseModalities: [Modality.AUDIO],
-    tools: toolsConfig ? [{
-      functionDeclarations: toolsConfig
-    }] : undefined,
-    speechConfig: {
-      voiceConfig: {
-        prebuiltVoiceConfig: {
-          voiceName: config.voice
-        }
-      },
-      languageCode
-    },
-    maxOutputTokens: config.maxOutputTokens !== 'inf' ? config.maxOutputTokens : undefined,
-    systemInstruction: config.instructions,
-    temperature: config.temperature,
-    contextWindowCompression,
-    proactivity,
-    enableAffectiveDialog,
-    thinkingConfig,
-  };
-
-  if (config.outputModalities?.includes("text")) {
-    liveConfig.inputAudioTranscription = {}
-    liveConfig.outputAudioTranscription = {}
-  }
-
-  const mediaHandler = new MediaHandler()
+  const model = (token.config.model ?? 'gemini-3.1-flash-live-preview') as GeminiRealtimeModel
 
   // Current state
   let currentMode: RealtimeMode = 'idle'
   let currentMessageId: string | null = null
   let messageIdCounter = 0
-  let sessionResumptionUpdate: LiveServerSessionResumptionUpdate | null = null
 
   function generateMessageId(): string {
     return `gemini-msg-${Date.now()}-${++messageIdCounter}`
   }
 
-  const ai = new GoogleGenAI({
-    apiKey: token.token,
-    httpOptions: {
-      apiVersion: 'v1alpha'
-    }
-  });
+  const client = new GeminiLiveClient(token.token, model, tools)
+  const audioStreamer = new AudioStreamer(client)
+  const audioPlayer = new AudioPlayer()
+  await audioPlayer.init()
 
-  const session = await ai.live.connect({
-    model: model,
-    config: liveConfig,
-    callbacks: {
-      onopen() {
-        emit("status_change", { status: "connected" })
-      },
-      onclose() {
-        emit("status_change", { status: "idle" })
-      },
-      onmessage(response) {
+  client.connect()
 
-        const content = response.serverContent;
-        const inputTranscription = content?.inputTranscription;
-        const outputTranscription = content?.outputTranscription;
+  audioStreamer.start()
 
-        if (response.goAway) {
-          emit("go_away", { timeLeft: response.goAway.timeLeft })
+  let message: RealtimeMessage = {
+    id: '',
+    role: 'assistant',
+    timestamp: 0,
+    parts: []
+  }
+
+  client.onReceiveResponse = (response: LiveResponse) => {
+    switch (response.type) {
+      case 'text':
+        message.parts.push({
+          type: 'text',
+          content: response.data,
+        })
+        break;
+      case 'audio':
+        message.parts.push({
+          type: 'audio',
+          transcript: response.data.transcript,
+          audioData: base64ToArrayBuffer(response.data.audioData)
+        })
+        if (currentMode !== 'speaking') {
+          currentMode = 'speaking'
+          emit('mode_change', { mode: 'speaking' })
         }
-
-        // TODO: implement session resumption
-        if (response.sessionResumptionUpdate) {
-          sessionResumptionUpdate = response.sessionResumptionUpdate
+        audioPlayer.play(response.data.audioData)
+        break;
+      case 'go_away':
+        emit("go_away", { timeLeft: response.data.timeLeft })
+        break;
+      case 'usage_metadata':
+        emit("usage", {
+          completionTokens: response.data.responseTokenCount ?? 0,
+          promptTokens: response.data.promptTokenCount ?? 0,
+          totalTokens: response.data.totalTokenCount ?? 0,
+        })
+        break;
+      case 'input_transcription':
+        if (response.data.finished && currentMode !== 'thinking') {
+          currentMode = 'thinking'
+          emit('mode_change', { mode: 'thinking' })
         }
-
-        // Handle token usage
-        if (response.usageMetadata) {
-          emit("usage", {
-            completionTokens: response.usageMetadata.responseTokenCount ?? 0,
-            promptTokens: response.usageMetadata.promptTokenCount ?? 0,
-            totalTokens: response.usageMetadata.totalTokenCount ?? 0,
-          })
-        }
-
-        // Handle interruption by the model
-        if (response.serverContent?.interrupted) {
-          mediaHandler.stopAudioPlayback()
-          currentMode = 'listening'
-          emit('mode_change', { mode: 'listening' })
-          emit('interrupted', { messageId: currentMessageId ?? undefined })
-        }
-
-        // Handle input transcription
-        if (
-          inputTranscription?.text &&
-          inputTranscription.finished != undefined
-        ) {
-          if (inputTranscription.finished && currentMode !== 'thinking') {
-            currentMode = 'thinking'
-            emit('mode_change', { mode: 'thinking' })
-          }
-
-          emit('transcript', {
-            isFinal: inputTranscription.finished,
-            transcript: inputTranscription.text,
-            role: 'user',
-          })
-        }
-
-        // Handle output transcription
-        if (
-          outputTranscription?.text &&
-          outputTranscription.finished != undefined
-        ) {
-          emit('transcript', {
-            isFinal: outputTranscription.finished,
-            transcript: outputTranscription.text,
-            role: 'assistant',
-          })
-        }
-
-        // Handle tool calls
-        if (response.toolCall?.functionCalls) {
-          for (const fc of response.toolCall.functionCalls) {
-            if (!fc.id || !fc.name) {
-              continue;
-            }
+        emit('transcript', {
+          isFinal: response.data.finished,
+          transcript: response.data.text,
+          role: 'user',
+        })
+        break;
+      case 'output_transcription':
+        emit('transcript', {
+          isFinal: response.data.finished,
+          transcript: response.data.text,
+          role: 'assistant',
+        })
+        break;
+      case 'interrupted':
+        audioPlayer.interrupt()
+        currentMode = 'listening'
+        emit('mode_change', { mode: 'listening' })
+        emit('interrupted', { messageId: currentMessageId ?? undefined })
+        break;
+      case 'tool_call':
+        for (const tool of response.data) {
+          if (tool.id && tool.name) {
             emit('tool_call', {
-              toolCallId: fc.id,
-              input: fc.args,
-              toolName: fc.name
+              toolCallId: tool.id,
+              input: tool.args,
+              toolName: tool.name
             })
           }
         }
+        break;
+      case 'turn_complete':
+        currentMessageId = generateMessageId()
+        message.id = currentMessageId
+        message.timestamp = Date.now()
 
-        // Play audio as it comes
-        if (response.serverContent?.modelTurn?.parts) {
-          for (const part of response.serverContent.modelTurn.parts) {
-            if (part.inlineData?.data) {
-              const audioData = mediaHandler.convertBase64ToArrayBuffer(part.inlineData.data);
-              mediaHandler.playAudio(audioData)
-
-              if (currentMode !== 'speaking') {
-                currentMode = 'speaking'
-                emit('mode_change', { mode: 'speaking' })
-              }
-            }
-          }
+        emit('message_complete', { message })
+        message = {
+          id: '',
+          role: 'assistant',
+          timestamp: 0,
+          parts: []
         }
-
-        // Handle turn complete
-        if (response.serverContent?.turnComplete) {
-          currentMode = 'listening'
-          emit('mode_change', { mode: 'listening' })
-
-          if (response.serverContent.modelTurn?.role === 'model') {
-            currentMessageId = generateMessageId()
-            const message: RealtimeMessage = {
-              id: currentMessageId,
-              role: 'assistant',
-              timestamp: Date.now(),
-              parts: []
-            }
-
-            for (const part of response.serverContent.modelTurn.parts || []) {
-              console.log(part)
-
-              if (part.inlineData?.data && outputTranscription?.finished && outputTranscription.text) {
-                message.parts.push({
-                  type: "audio",
-                  transcript: outputTranscription.text,
-                  audioData: mediaHandler.convertBase64ToArrayBuffer(part.inlineData.data),
-                })
-              }
-            }
-
-            emit('message_complete', { message })
-          }
-        }
-      },
-      onerror(event) {
-        emit("error", {
-          error: new Error(event.message)
+        currentMode = 'listening'
+        emit('mode_change', { mode: 'listening' })
+        break;
+      case 'setup_complete':
+        emit('status_change', { status: 'connected' })
+        break;
+      case 'error':
+        emit('error', {
+          error: new Error(response.data)
         })
-      },
+        break;
     }
-  });
+  }
 
-  // Request microphone access
-  await mediaHandler.startAudio((data) => {
-    session.sendRealtimeInput({
-      audio: {
-        data: mediaHandler.convertArrayBufferToBase64(data),
-        mimeType: 'audio/pcm;rate=16000'
-      }
-    })
-  })
-
-  await mediaHandler.setupInputAudioAnalysis()
-  await mediaHandler.setupOutputAudioAnalysis()
 
   const connection: RealtimeConnection = {
     async disconnect() {
-      mediaHandler.stopAudio()
-
-      await session.close();
-
+      audioStreamer.stop()
+      audioPlayer.destroy()
+      client.disconnect()
       currentMode = 'idle'
       emit('status_change', { status: 'idle' })
     },
 
     async startAudioCapture() {
       // Audio capture is established during connection setup
-      // This method enables the tracks and signals listening mode
-      mediaHandler.startAudioCapture()
+      audioStreamer.startAudioCapture()
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
     },
 
     stopAudioCapture() {
-      // Disable tracks rather than stopping them to allow re-enabling
-      mediaHandler.stopAudioCapture()
+      audioStreamer.stopAudioCapture()
       currentMode = 'idle'
       emit('mode_change', { mode: 'idle' })
     },
 
     sendText(text: string) {
-      session.sendRealtimeInput({ text })
+      client.sendTextMessage(text)
       currentMode = 'thinking'
       emit('mode_change', { mode: 'thinking' })
     },
 
     sendImage(imageData: string, mimeType: string) {
-      // Only accepts raw image data, not URLs
-      session.sendRealtimeInput({
-        video: {
-          data: imageData,
-          mimeType: mimeType
-        }
-      })
+      client.sendImageMessage(imageData, mimeType)
       currentMode = 'thinking'
       emit('mode_change', { mode: 'thinking' })
     },
 
     sendToolResult(callId: string, result: string) {
-      session.sendToolResponse({
-        functionResponses: [{
+      client.sendToolResponse([{
           id: callId,
           response: {
             result
           }
-        }]
-      })
+      }])
     },
 
-    updateSession() {
-      // No equivalent of updateSession() exists dynamically as it does in OpenAI
-      // for updating system instructions, tools, etc mid-session.
+    updateSession(config) {
+      client.updateSession(config)
+      emit('status_change', { status: 'reconnecting' })
+    },
+
+    updateToken(token) {
+      client.updateToken(token)
+      emit('status_change', { status: 'reconnecting' })
     },
 
     interrupt() {
-      mediaHandler.stopAudioPlayback()
+      audioPlayer.interrupt()
       currentMode = 'listening'
       emit('mode_change', { mode: 'listening' })
       emit('interrupted', { messageId: currentMessageId ?? undefined })
@@ -348,35 +240,35 @@ async function createWebSocketConnection(
     getAudioVisualization(): AudioVisualization {
       return {
         get inputLevel() {
-          return mediaHandler.inputLevel
+          return audioStreamer.inputLevel
         },
 
         get outputLevel() {
-          return mediaHandler.outputLevel
+          return audioPlayer.outputLevel
         },
 
         getInputFrequencyData() {
-          return mediaHandler.inputFrequencyData
+          return audioStreamer.inputFrequencyData
         },
 
         getOutputFrequencyData() {
-          return mediaHandler.outputFrequencyData
+          return audioPlayer.outputFrequencyData
         },
 
         getInputTimeDomainData() {
-          return mediaHandler.inputTimeDomainData
+          return audioStreamer.inputTimeDomainData
         },
 
         getOutputTimeDomainData() {
-          return mediaHandler.outputTimeDomainData
+          return audioPlayer.outputTimeDomainData
         },
 
         get inputSampleRate() {
-          return 24000
+          return audioStreamer.inputSampleRate
         },
 
         get outputSampleRate() {
-          return 24000
+          return audioPlayer.outputSampleRate
         },
       }
     },
