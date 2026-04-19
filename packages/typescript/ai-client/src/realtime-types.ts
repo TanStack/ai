@@ -31,7 +31,7 @@ export interface RealtimeAdapter {
    */
   connect: (
     token: RealtimeToken,
-    config: RealtimeSessionConfig,
+    config: RealtimeClientOptions,
     clientTools?: ReadonlyArray<AnyClientTool>,
   ) => Promise<RealtimeConnection>
 }
@@ -155,7 +155,7 @@ export interface RealtimeClientOptions {
   /**
    * Provider-specific options
    */
-  providerOptions?: Record<string, unknown>
+  modelOptions?: Record<string, unknown>
 
   // Callbacks
   onStatusChange?: (status: RealtimeStatus) => void

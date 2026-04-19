@@ -52,7 +52,7 @@ export interface RealtimeSessionConfig {
   /** Eagerness level for semantic VAD ('low', 'medium', 'high') */
   semanticEagerness?: 'low' | 'medium' | 'high'
   /** Provider-specific options */
-  providerOptions?: Record<string, any>
+  modelOptions?: Record<string, any>
 }
 
 /**

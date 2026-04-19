@@ -101,29 +101,9 @@ export class RealtimeClient {
           ? Array.from(this.clientTools.values())
           : undefined
 
-      const {
-        instructions,
-        voice,
-        vadMode,
-        outputModalities,
-        temperature,
-        maxOutputTokens,
-        semanticEagerness,
-        providerOptions,
-      } = this.options
-
       this.connection = await this.options.adapter.connect(
-        this.token, 
-        {
-          instructions,
-          voice,
-          vadMode,
-          outputModalities,
-          temperature,
-          maxOutputTokens,
-          semanticEagerness,
-          providerOptions,
-        },
+        this.token,
+        this.options,
         toolsList,
       )
 

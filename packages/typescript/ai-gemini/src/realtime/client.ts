@@ -347,20 +347,20 @@ export class GeminiLiveClient {
       this.voiceName = config.voice as GeminiRealtimeVoice
     }
 
-    if (config.providerOptions?.googleGrounding) {
-      this.googleGrounding = config.providerOptions.googleGrounding
+    if (config.modelOptions?.googleGrounding) {
+      this.googleGrounding = config.modelOptions.googleGrounding
     }
 
-    if (config.providerOptions?.proactivity) {
-      this.proactiveAudio = config.providerOptions.proactivity
+    if (config.modelOptions?.proactivity) {
+      this.proactiveAudio = config.modelOptions.proactivity
     }
 
-    if (config.providerOptions?.enableAffectiveDialog) {
-      this.enableAffectiveDialog = config.providerOptions.enableAffectiveDialog
+    if (config.modelOptions?.enableAffectiveDialog) {
+      this.enableAffectiveDialog = config.modelOptions.enableAffectiveDialog
     }
 
-    if (config.providerOptions?.contextWindowCompression) {
-      this.contextWindowCompression = config.providerOptions.contextWindowCompression
+    if (config.modelOptions?.contextWindowCompression) {
+      this.contextWindowCompression = config.modelOptions.contextWindowCompression
     }
 
     const includeTranscription = config.outputModalities?.includes("text") || false

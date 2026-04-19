@@ -11,7 +11,7 @@ import type {
   RealtimeSessionConfig,
   RealtimeToken,
 } from '@tanstack/ai'
-import type { AnyClientTool, RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
+import type { AnyClientTool, RealtimeAdapter, RealtimeClientOptions, RealtimeConnection } from '@tanstack/ai-client'
 import type { GeminiRealtimeModel, GeminiRealtimeOptions } from './types'
 
 /**
@@ -39,7 +39,7 @@ export function geminiRealtime(
 
     connect(
       token: RealtimeToken,
-      config: RealtimeSessionConfig,
+      config: RealtimeClientOptions,
       clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
       return createWebSocketConnection(token, config, clientTools)
@@ -52,7 +52,7 @@ export function geminiRealtime(
  */
 async function createWebSocketConnection(
   token: RealtimeToken,
-  config: RealtimeSessionConfig,
+  config: RealtimeClientOptions,
   tools?: ReadonlyArray<AnyClientTool>,
 ): Promise<RealtimeConnection> {
 
