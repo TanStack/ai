@@ -501,6 +501,35 @@ export interface TranscriptionUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Audio Events
+// ===========================
+
+/** Emitted when an audio generation request starts. */
+export interface AudioRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  prompt: string
+  duration?: number
+}
+
+/** Emitted when an audio generation request completes. */
+export interface AudioRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  audio: { url?: string; b64Json?: string; contentType?: string }
+  duration: number
+}
+
+/** Emitted when audio usage metrics are available. */
+export interface AudioUsageEvent extends BaseEventContext {
+  requestId: string
+  model: string
+  usage: ImageUsage
+}
+
+// ===========================
 // Video Events
 // ===========================
 
@@ -631,6 +660,11 @@ export interface AIDevtoolsEventMap {
   'transcription:request:started': TranscriptionRequestStartedEvent
   'transcription:request:completed': TranscriptionRequestCompletedEvent
   'transcription:usage': TranscriptionUsageEvent
+
+  // Audio events
+  'audio:request:started': AudioRequestStartedEvent
+  'audio:request:completed': AudioRequestCompletedEvent
+  'audio:usage': AudioUsageEvent
 
   // Video events
   'video:request:started': VideoRequestStartedEvent

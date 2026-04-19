@@ -4,7 +4,7 @@ import {
   createOpenaiTranscription,
   createOpenaiVideo,
 } from '@tanstack/ai-openai'
-import { createGeminiImage } from '@tanstack/ai-gemini'
+import { createGeminiAudio, createGeminiImage } from '@tanstack/ai-gemini'
 import { createGrokImage } from '@tanstack/ai-grok'
 import type { Provider } from '@/lib/types'
 
@@ -103,5 +103,22 @@ export function createVideoAdapter(
   }
   const factory = factories[provider]
   if (!factory) throw new Error(`No video adapter for provider: ${provider}`)
+  return factory()
+}
+
+export function createAudioAdapter(
+  provider: Provider,
+  aimockPort?: number,
+  testId?: string,
+) {
+  const headers = testHeaders(testId)
+  const factories: Record<string, () => any> = {
+    gemini: () =>
+      createGeminiAudio('lyria-3-clip-preview', DUMMY_KEY, {
+        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
+      }),
+  }
+  const factory = factories[provider]
+  if (!factory) throw new Error(`No audio adapter for provider: ${provider}`)
   return factory()
 }

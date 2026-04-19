@@ -117,6 +117,8 @@ const matrix: Record<Feature, Set<Provider>> = {
   tts: new Set(['openai']),
   transcription: new Set(['openai']),
   'video-gen': new Set(['openai']),
+  // Gemini Lyria (generateContent with AUDIO modality)
+  'audio-gen': new Set(['gemini']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

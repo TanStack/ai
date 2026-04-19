@@ -119,3 +119,30 @@ export type FalVideoProviderOptions<TModel extends string> =
   TModel extends keyof EndpointTypeMap
     ? Omit<FalModelInput<TModel>, 'prompt'>
     : Record<string, any>
+
+/**
+ * Provider options for TTS, excluding fields TanStack AI handles.
+ * Use this for the `modelOptions` parameter in speech generation.
+ */
+export type FalSpeechProviderOptions<TModel extends string> = Omit<
+  FalModelInput<TModel>,
+  'prompt' | 'text'
+>
+
+/**
+ * Provider options for transcription, excluding fields TanStack AI handles.
+ * Use this for the `modelOptions` parameter in transcription.
+ */
+export type FalTranscriptionProviderOptions<TModel extends string> = Omit<
+  FalModelInput<TModel>,
+  'audio_url'
+>
+
+/**
+ * Provider options for audio generation, excluding fields TanStack AI handles.
+ * Use this for the `modelOptions` parameter in audio generation.
+ */
+export type FalAudioProviderOptions<TModel extends string> = Omit<
+  FalModelInput<TModel>,
+  'prompt'
+>

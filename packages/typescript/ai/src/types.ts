@@ -1064,6 +1064,59 @@ export interface ImageGenerationResult {
 }
 
 // ============================================================================
+// Audio Generation Types
+// ============================================================================
+
+/**
+ * Options for audio generation (music, sound effects, etc.).
+ * These are the common options supported across providers.
+ */
+export interface AudioGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for audio generation */
+  model: string
+  /** Text description of the desired audio */
+  prompt: string
+  /** Desired duration in seconds */
+  duration?: number
+  /** Model-specific options for audio generation */
+  modelOptions?: TProviderOptions
+}
+
+/**
+ * A single generated audio output
+ */
+export interface GeneratedAudio {
+  /** URL to the generated audio (may be temporary) */
+  url?: string
+  /** Base64-encoded audio data */
+  b64Json?: string
+  /** Content type of the audio (e.g., 'audio/wav', 'audio/mp3') */
+  contentType?: string
+  /** Duration of the generated audio in seconds */
+  duration?: number
+}
+
+/**
+ * Result of audio generation
+ */
+export interface AudioGenerationResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** The generated audio */
+  audio: GeneratedAudio
+  /** Token usage information (if available) */
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+  }
+}
+
+// ============================================================================
 // Video Generation Types (Experimental)
 // ============================================================================
 

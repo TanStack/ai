@@ -28,6 +28,7 @@ export type Feature =
   | 'tts'
   | 'transcription'
   | 'video-gen'
+  | 'audio-gen'
 
 export const ALL_PROVIDERS: Provider[] = [
   'openai',
@@ -58,4 +59,5 @@ export const ALL_FEATURES: Feature[] = [
   'tts',
   'transcription',
   'video-gen',
+  'audio-gen',
 ]
