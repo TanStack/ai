@@ -32,11 +32,11 @@ interface ModelMeta<TProviderOptions = unknown> {
 
 const MISTRAL_LARGE_LATEST = {
   name: 'mistral-large-latest',
-  context_window: 131_072,
+  context_window: 256_000,
   max_completion_tokens: 8_192,
   pricing: {
-    input: { normal: 2 },
-    output: { normal: 6 },
+    input: { normal: 0.5 },
+    output: { normal: 1.5 },
   },
   supports: {
     input: ['text'],

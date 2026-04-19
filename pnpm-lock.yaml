@@ -1570,6 +1570,9 @@ importers:
       '@tanstack/ai-groq':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-groq
+      '@tanstack/ai-mistral':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-mistral
       '@tanstack/ai-ollama':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-ollama

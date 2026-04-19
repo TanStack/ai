@@ -1,4 +1,4 @@
-import { Mistral } from '@mistralai/mistralai'
+import { Mistral, HTTPClient } from '@mistralai/mistralai'
 
 export interface MistralClientConfig {
   /** Mistral API key. */
@@ -9,17 +9,33 @@ export interface MistralClientConfig {
 
   /** Optional request timeout (ms). */
   timeoutMs?: number
+
+  /** Optional default headers to include with every request. */
+  defaultHeaders?: Record<string, string>
 }
 
 /**
  * Creates a Mistral SDK client instance.
  */
 export function createMistralClient(config: MistralClientConfig): Mistral {
-  const { apiKey, serverURL, timeoutMs } = config
+  const { apiKey, serverURL, timeoutMs, defaultHeaders } = config
+
+  let httpClient: HTTPClient | undefined
+  if (defaultHeaders && Object.keys(defaultHeaders).length > 0) {
+    httpClient = new HTTPClient()
+    httpClient.addHook('beforeRequest', (req) => {
+      for (const [key, value] of Object.entries(defaultHeaders)) {
+        req.headers.set(key, value)
+      }
+      return req
+    })
+  }
+
   return new Mistral({
     apiKey,
-    ...(serverURL ? { serverURL } : {}),
-    ...(timeoutMs ? { timeoutMs } : {}),
+    ...(serverURL !== undefined ? { serverURL } : {}),
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+    ...(httpClient !== undefined ? { httpClient } : {}),
   })
 }
 
@@ -49,5 +65,5 @@ export function getMistralApiKeyFromEnv(): string {
  * Generates a unique ID with a prefix.
  */
 export function generateId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  return `${prefix}-${crypto.randomUUID()}`
 }

@@ -11,46 +11,74 @@ import { createMistralText, mistralText } from '../src/adapters/text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
 // Declare mocks at module level
-let mockStream: Mock<(...args: Array<unknown>) => unknown>
 let mockComplete: Mock<(...args: Array<unknown>) => unknown>
 
-// Mock the Mistral SDK
+// Mock the Mistral SDK (constructor still used for structuredOutput)
 vi.mock('@mistralai/mistralai', () => {
   return {
     Mistral: class {
       chat = {
-        stream: (...args: Array<unknown>) => mockStream(...args),
         complete: (...args: Array<unknown>) => mockComplete(...args),
       }
+      HTTPClient = class {}
+    },
+    HTTPClient: class {
+      addHook() {}
     },
   }
 })
 
-// Helper to create async iterable from chunks
-function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
-  return {
-    [Symbol.asyncIterator]() {
-      let index = 0
+function toApiChunk(chunk: Record<string, unknown>): Record<string, unknown> {
+  const choices = (chunk.choices as Array<Record<string, unknown>>) ?? []
+  const result: Record<string, unknown> = {
+    id: chunk.id,
+    model: chunk.model,
+    object: 'chat.completion.chunk',
+    created: 0,
+    choices: choices.map((choice) => {
+      const delta = (choice.delta as Record<string, unknown>) ?? {}
+      const toolCalls = delta.toolCalls as
+        | Array<Record<string, unknown>>
+        | undefined
       return {
-        async next() {
-          if (index < chunks.length) {
-            return { value: chunks[index++]!, done: false }
-          }
-          return { value: undefined as T, done: true }
+        index: choice.index ?? 0,
+        delta: {
+          role: delta.role,
+          content: delta.content,
+          ...(toolCalls ? { tool_calls: toolCalls } : {}),
         },
+        finish_reason: choice.finishReason ?? null,
       }
-    },
+    }),
   }
+  if (chunk.usage) {
+    const u = chunk.usage as Record<string, unknown>
+    result.usage = {
+      prompt_tokens: u.promptTokens,
+      completion_tokens: u.completionTokens,
+      total_tokens: u.totalTokens,
+    }
+  }
+  return result
 }
 
 function setupMockStream(chunks: Array<Record<string, unknown>>) {
-  mockStream = vi
-    .fn()
-    .mockImplementation(() =>
-      Promise.resolve(
-        createAsyncIterable(chunks.map((data) => ({ data }))),
-      ),
-    )
+  const sseBody =
+    chunks.map((c) => `data: ${JSON.stringify(toApiChunk(c))}`).join('\n\n') +
+    '\n\ndata: [DONE]\n\n'
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(sseBody))
+          controller.close()
+        },
+      }),
+    }),
+  )
   mockComplete = vi.fn()
 }
 
@@ -62,6 +90,7 @@ const weatherTool: Tool = {
 describe('Mistral adapters', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
   })
 
   describe('Text adapter', () => {
@@ -113,6 +142,7 @@ describe('Mistral AG-UI event emission', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
   })
 
   it('emits RUN_STARTED as the first event', async () => {
@@ -369,43 +399,33 @@ describe('Mistral AG-UI event emission', () => {
     }
 
     const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(runFinishedChunk).toBeDefined()
     if (runFinishedChunk?.type === 'RUN_FINISHED') {
       expect(runFinishedChunk.finishReason).toBe('tool_calls')
     }
   })
 
   it('emits RUN_ERROR on stream error', async () => {
-    const streamChunks = [
-      {
-        data: {
-          id: 'cmpl-123',
-          model: 'mistral-large-latest',
-          choices: [
-            {
-              index: 0,
-              delta: { content: 'Hello' },
-              finishReason: null,
-            },
-          ],
-        },
-      },
-    ]
-
-    const errorIterable = {
-      [Symbol.asyncIterator]() {
-        let index = 0
-        return {
-          async next() {
-            if (index < streamChunks.length) {
-              return { value: streamChunks[index++]!, done: false }
-            }
-            throw new Error('Stream interrupted')
+    const firstChunk = JSON.stringify({
+      id: 'cmpl-123',
+      model: 'mistral-large-latest',
+      choices: [{ index: 0, delta: { content: 'Hello' }, finish_reason: null }],
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(`data: ${firstChunk}\n\n`),
+            )
+            controller.error(new Error('Stream interrupted'))
           },
-        }
-      },
-    }
-
-    mockStream = vi.fn().mockResolvedValue(errorIterable)
+        }),
+      }),
+    )
     mockComplete = vi.fn()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')

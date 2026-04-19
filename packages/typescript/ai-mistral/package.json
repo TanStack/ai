@@ -16,6 +16,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./adapters/text": {
+      "types": "./dist/esm/adapters/text.d.ts",
+      "import": "./dist/esm/adapters/text.js"
     }
   },
   "files": [

@@ -9,6 +9,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -18,6 +19,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini']),
   'multi-turn': new Set([
@@ -28,6 +30,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -37,6 +40,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -45,6 +49,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   'tool-approval': new Set([
@@ -54,6 +59,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -63,6 +69,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'structured-output': new Set([
     'openai',
@@ -72,6 +79,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -81,7 +89,9 @@ const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'mistral',
   ]),
+  // Mistral excluded: mistral-large-latest is text-only; vision requires pixtral
   'multimodal-image': new Set([
     'openai',
     'anthropic',
@@ -103,6 +113,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -111,6 +122,7 @@ const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'grok',
     'openrouter',
+    'mistral',
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),

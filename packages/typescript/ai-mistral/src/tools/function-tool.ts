@@ -14,22 +14,21 @@ export type FunctionTool = ChatCompletionTool
  * - additionalProperties: false
  */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
-  const inputSchema = (tool.inputSchema ?? {
+  const baseSchema = (tool.inputSchema ?? {
     type: 'object',
     properties: {},
     required: [],
   }) as JSONSchema
 
-  if (inputSchema.type === 'object' && !inputSchema.properties) {
-    inputSchema.properties = {}
-  }
+  const inputSchema: JSONSchema =
+    baseSchema.type === 'object' && !baseSchema.properties
+      ? { ...baseSchema, properties: {} }
+      : { ...baseSchema }
 
   const jsonSchema = makeMistralStructuredOutputCompatible(
     inputSchema,
     inputSchema.required || [],
   )
-
-  jsonSchema.additionalProperties = false
 
   return {
     type: 'function',

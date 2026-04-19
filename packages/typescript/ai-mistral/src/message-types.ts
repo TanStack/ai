@@ -143,7 +143,7 @@ export interface ResponseFormatJsonSchema {
   jsonSchema: {
     name: string
     description?: string
-    schemaDefinition?: { [key: string]: unknown }
+    schemaDefinition: { [key: string]: unknown }
     strict?: boolean
   }
 }
@@ -151,7 +151,7 @@ export interface ResponseFormatJsonSchema {
 /**
  * Metadata for Mistral text content parts.
  */
-export interface MistralTextMetadata {}
+export type MistralTextMetadata = Record<string, never>
 
 /**
  * Metadata for Mistral image content parts.
@@ -168,19 +168,19 @@ export interface MistralImageMetadata {
  * Metadata for Mistral audio content parts.
  * Mistral does not currently support audio input.
  */
-export interface MistralAudioMetadata {}
+export type MistralAudioMetadata = Record<string, never>
 
 /**
  * Metadata for Mistral video content parts.
  * Mistral does not currently support video input.
  */
-export interface MistralVideoMetadata {}
+export type MistralVideoMetadata = Record<string, never>
 
 /**
  * Metadata for Mistral document content parts.
  * Used with document understanding models via `document_url` parts.
  */
-export interface MistralDocumentMetadata {}
+export type MistralDocumentMetadata = Record<string, never>
 
 /**
  * Map of modality types to their Mistral-specific metadata types.
