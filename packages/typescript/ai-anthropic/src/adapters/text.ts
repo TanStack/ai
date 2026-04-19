@@ -286,7 +286,11 @@ export class AnthropicTextAdapter<
       temperature: options.temperature,
       top_p: options.topP,
       messages: formattedMessages,
-      system: options.systemPrompts?.join('\n'),
+      system: options.systemPrompts?.length
+        ? options.systemPrompts.map(
+            (text): TextBlockParam => ({ type: 'text', text }),
+          )
+        : undefined,
       tools: tools,
       ...validProviderOptions,
     }
