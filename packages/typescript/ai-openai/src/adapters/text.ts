@@ -99,7 +99,7 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export class OpenAITextAdapter<
   TModel extends OpenAIChatModel,
-  TProviderOptions extends object = ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
@@ -122,7 +122,7 @@ export class OpenAITextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<OpenAITextProviderOptions>,
+    options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
@@ -175,7 +175,7 @@ export class OpenAITextAdapter<
    * We apply OpenAI-specific transformations for structured output compatibility.
    */
   async structuredOutput(
-    options: StructuredOutputOptions<OpenAITextProviderOptions>,
+    options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestArguments = this.mapTextOptionsToOpenAI(chatOptions)

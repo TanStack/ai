@@ -5,12 +5,12 @@
  * `@ts-expect-error` to assert compile-time rejections and `expectTypeOf`
  * for positive inference checks.
  */
-import { describe, it, expectTypeOf } from 'vitest'
+import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
+import { toolDefinition } from '../src/index'
 import type { ProviderTool } from '../src/index'
 import type { TextActivityOptions } from '../src/activities/chat/index'
 import type { TextAdapter } from '../src/activities/chat/adapter'
-import { toolDefinition } from '../src/index'
 
 // ---- Mock adapter wired with a fixed toolCapabilities union ----
 

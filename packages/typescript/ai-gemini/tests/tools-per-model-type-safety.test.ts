@@ -4,8 +4,10 @@
  * Positive cases: each supported (model, tool) pair compiles cleanly.
  * Negative cases: unsupported (model, tool) pairs produce a `@ts-expect-error`.
  */
-import { describe, it, beforeAll } from 'vitest'
+import { beforeAll, describe, it } from 'vitest'
+import { z } from 'zod'
 import { Environment } from '@google/genai'
+import { toolDefinition } from '@tanstack/ai'
 import { geminiText } from '../src'
 import {
   codeExecutionTool,
@@ -17,8 +19,6 @@ import {
   urlContextTool,
 } from '../src/tools'
 import type { TextActivityOptions } from '@tanstack/ai/adapters'
-import { toolDefinition } from '@tanstack/ai'
-import { z } from 'zod'
 
 // Helper — keeps each `it` body to one call (test-hygiene Rule 1).
 function typedTools<A extends ReturnType<typeof geminiText>>(

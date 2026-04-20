@@ -366,7 +366,7 @@ import { webSearchTool } from "@tanstack/ai-openai/tools";
 const stream = chat({
   adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
-  tools: [webSearchTool({ type: "web_search_preview" })],
+  tools: [webSearchTool({ type: "web_search" })],
 });
 ```
 
@@ -538,7 +538,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** Codex CLI and agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `shellTool`
 
@@ -557,7 +557,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** Codex CLI and agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `applyPatchTool`
 
@@ -576,7 +576,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** Codex CLI and agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `customTool`
 

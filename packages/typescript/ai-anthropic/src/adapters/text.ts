@@ -107,7 +107,7 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export class AnthropicTextAdapter<
   TModel extends (typeof ANTHROPIC_MODELS)[number],
-  TProviderOptions extends object = ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
@@ -130,7 +130,7 @@ export class AnthropicTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<AnthropicTextProviderOptions>,
+    options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     try {
       const requestParams = this.mapCommonOptionsToAnthropic(options)
@@ -169,7 +169,7 @@ export class AnthropicTextAdapter<
    * The outputSchema is already JSON Schema (converted in the ai layer).
    */
   async structuredOutput(
-    options: StructuredOutputOptions<AnthropicTextProviderOptions>,
+    options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
 

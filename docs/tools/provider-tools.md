@@ -34,7 +34,7 @@ import { webSearchTool } from '@tanstack/ai-anthropic/tools'
 
 const stream = chat({
   adapter: anthropicText('claude-opus-4-6'),
-  messages: [{ role: 'user', content: 'Summarize todays AI news.' }],
+  messages: [{ role: 'user', content: "Summarize today's AI news." }],
   tools: [
     webSearchTool({
       name: 'web_search',

@@ -93,7 +93,7 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export class GeminiTextAdapter<
   TModel extends (typeof GEMINI_MODELS)[number],
-  TProviderOptions extends object = ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =

@@ -440,7 +440,7 @@ const stream = chat({
   messages: [{ role: "user", content: "Find the quarterly revenue figures" }],
   tools: [
     fileSearchTool({
-      fileIds: ["file-abc123"],
+      fileSearchStoreNames: ["fileSearchStores/my-file-search-store-123"],
     }),
   ],
 });

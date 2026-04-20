@@ -4,24 +4,24 @@
  * Positive cases: each supported (model, tool) pair compiles cleanly.
  * Negative cases: unsupported (model, tool) pairs produce a `@ts-expect-error`.
  */
-import { describe, it, beforeAll } from 'vitest'
+import { beforeAll, describe, it } from 'vitest'
+import { z } from 'zod'
+import { toolDefinition } from '@tanstack/ai'
 import { openaiText } from '../src'
 import {
+  applyPatchTool,
+  codeInterpreterTool,
+  computerUseTool,
   customTool,
-  webSearchTool,
-  webSearchPreviewTool,
   fileSearchTool,
   imageGenerationTool,
-  codeInterpreterTool,
-  mcpTool,
-  computerUseTool,
   localShellTool,
+  mcpTool,
   shellTool,
-  applyPatchTool,
+  webSearchPreviewTool,
+  webSearchTool,
 } from '../src/tools'
 import type { TextActivityOptions } from '@tanstack/ai/adapters'
-import { toolDefinition } from '@tanstack/ai'
-import { z } from 'zod'
 
 // Helper — keeps each `it` body to one call (test-hygiene Rule 1).
 function typedTools<A extends ReturnType<typeof openaiText>>(
