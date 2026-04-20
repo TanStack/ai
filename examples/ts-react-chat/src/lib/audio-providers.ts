@@ -97,7 +97,9 @@ export interface AudioProviderConfig {
   samplePrompts: ReadonlyArray<{ label: string; prompt: string }>
   /**
    * Optional list of alternate models the UI can expose via a dropdown.
-   * When present, the first entry should match {@link model}.
+   * By convention the entry matching {@link model} is listed first so it
+   * appears at the top of the selector, but nothing enforces that — the UI
+   * seeds the selection from {@link model} directly.
    */
   models?: ReadonlyArray<{ id: string; label: string }>
 }

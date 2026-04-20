@@ -75,5 +75,9 @@ function resolveModel(
 ): string {
   if (!modelOverride) return config.model
   const allowed = config.models?.some((m) => m.id === modelOverride)
-  return allowed ? modelOverride : config.model
+  if (allowed) return modelOverride
+  console.warn(
+    `[audio] rejected model override "${modelOverride}" for provider "${config.id}"; falling back to "${config.model}"`,
+  )
+  return config.model
 }
