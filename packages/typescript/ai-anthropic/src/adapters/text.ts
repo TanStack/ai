@@ -570,10 +570,9 @@ export class AnthropicTextAdapter<
 
     try {
       for await (const event of stream) {
-        logger.provider(
-          `provider=anthropic type=${event.type}`,
-          { chunk: event },
-        )
+        logger.provider(`provider=anthropic type=${event.type}`, {
+          chunk: event,
+        })
         // Emit RUN_STARTED on first event
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
