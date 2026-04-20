@@ -2,6 +2,15 @@
 title: Migration Guide
 id: migration
 order: 1
+description: "Migrate existing TanStack AI code to the latest version — adapter function splits, flattened options, renamed modelOptions, and removed embeddings."
+keywords:
+  - tanstack ai
+  - migration
+  - upgrade
+  - breaking changes
+  - tree-shaking
+  - modelOptions
+  - toServerSentEventsStream
 ---
 
 # Migration Guide

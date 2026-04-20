@@ -2,6 +2,16 @@
 title: Google Gemini
 id: gemini-adapter
 order: 3
+description: "Use Google Gemini with TanStack AI — text, image generation via Imagen and Gemini native (NanoBanana), and experimental TTS via @tanstack/ai-gemini."
+keywords:
+  - tanstack ai
+  - gemini
+  - google gemini
+  - imagen
+  - nano banana
+  - image generation
+  - adapter
+  - google ai
 ---
 
 The Google Gemini adapter provides access to Google's Gemini models, including text generation, image generation with both Imagen and Gemini native image models (NanoBanana), and experimental text-to-speech.

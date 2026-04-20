@@ -2,6 +2,15 @@
 title: Client Tools
 id: client-tools
 order: 4
+description: "Client tools in TanStack AI run in the browser for UI updates, localStorage, and browser API access with type-safe onToolCall handling."
+keywords:
+  - tanstack ai
+  - client tools
+  - browser tools
+  - ui tools
+  - onToolCall
+  - clientTools
+  - localStorage
 ---
 
 Client tools execute in the browser, enabling UI updates, local storage access, and browser API interactions. Unlike server tools, client tools don't have an `execute` function in their server definition.

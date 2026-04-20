@@ -2,6 +2,14 @@
 title: Soniox
 id: soniox-adapter
 order: 3
+description: "Transcribe audio with Soniox speech-to-text models in TanStack AI via the Soniox community adapter."
+keywords:
+  - tanstack ai
+  - soniox
+  - transcription
+  - speech-to-text
+  - asr
+  - community adapter
 ---
 
 The Soniox adapter provides access to Soniox transcription models.

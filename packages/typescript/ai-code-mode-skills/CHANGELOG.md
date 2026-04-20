@@ -1,5 +1,13 @@
 # @tanstack/ai-code-mode-skills
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [[`c780bc1`](https://github.com/TanStack/ai/commit/c780bc127755ecf7e900343bf0e4d4823ff526ca)]:
+  - @tanstack/ai@0.10.3
+  - @tanstack/ai-code-mode@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes
