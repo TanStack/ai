@@ -2,6 +2,16 @@
 title: Generation Hooks
 id: generation-hooks
 order: 7
+description: "Framework hooks for every TanStack AI media generation type — useGenerateImage, useGenerateSpeech, useTranscription, useSummarize, useGenerateVideo."
+keywords:
+  - tanstack ai
+  - generation hooks
+  - useGenerateImage
+  - useGenerateSpeech
+  - useTranscription
+  - useSummarize
+  - useGenerateVideo
+  - react hooks
 ---
 
 # Generation Hooks

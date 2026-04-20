@@ -1,6 +1,16 @@
 ---
 title: fal.ai
 id: fal-adapter
+description: "Generate images and videos with 600+ models on fal.ai using TanStack AI — Nano Banana Pro, FLUX, and more via the @tanstack/ai-fal adapter."
+keywords:
+  - tanstack ai
+  - fal.ai
+  - fal
+  - image generation
+  - video generation
+  - flux
+  - nano banana
+  - adapter
 ---
 
 The fal.ai adapter provides access to 600+ models on the fal.ai platform for image generation and video generation. Unlike text-focused adapters, the fal adapter is **media-focused** — it supports `generateImage()` and `generateVideo()` but does not support `chat()` or tools. Audio and speech support are coming soon.

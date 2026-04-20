@@ -2,6 +2,15 @@
 title: Text-to-Speech
 id: text-to-speech
 order: 3
+description: "Convert text to spoken audio with OpenAI TTS and Gemini voice models via TanStack AI's generateSpeech() API."
+keywords:
+  - tanstack ai
+  - text-to-speech
+  - tts
+  - generateSpeech
+  - openai tts
+  - voice synthesis
+  - speech generation
 ---
 
 # Text-to-Speech (TTS)

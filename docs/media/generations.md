@@ -2,6 +2,16 @@
 title: Generations
 id: generations
 order: 1
+description: "The unified pattern for non-chat activities in TanStack AI — image generation, text-to-speech, transcription, summarization, and video."
+keywords:
+  - tanstack ai
+  - generations
+  - media generation
+  - image generation
+  - transcription
+  - tts
+  - summarization
+  - video generation
 ---
 
 # Generations

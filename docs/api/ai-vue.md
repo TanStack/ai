@@ -2,6 +2,15 @@
 title: "@tanstack/ai-vue"
 id: ai-vue
 order: 5
+description: "API reference for @tanstack/ai-vue — Vue 3 composables including useChat for streaming chat with full type safety."
+keywords:
+  - tanstack ai
+  - "@tanstack/ai-vue"
+  - vue
+  - vue 3
+  - useChat
+  - composables
+  - api reference
 ---
 
 Vue composables for TanStack AI, providing convenient Vue 3 bindings for the headless client.

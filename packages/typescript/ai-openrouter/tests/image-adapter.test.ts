@@ -62,7 +62,7 @@ describe('OpenRouter Image Adapter', () => {
 
     expect(mockSend).toHaveBeenCalledTimes(1)
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs).toMatchObject({
       model: 'google/gemini-2.5-flash-image',
       modalities: ['image'],
@@ -96,7 +96,7 @@ describe('OpenRouter Image Adapter', () => {
       numberOfImages: 2,
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs.imageConfig).toMatchObject({
       n: 2,
       numberOfImages: 2,
@@ -143,7 +143,7 @@ describe('OpenRouter Image Adapter', () => {
       size: '1344x768', // 16:9
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs.imageConfig).toMatchObject({
       aspect_ratio: '16:9',
     })
@@ -164,7 +164,7 @@ describe('OpenRouter Image Adapter', () => {
       size: '1024x1024',
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs.imageConfig).toMatchObject({
       aspect_ratio: '1:1',
     })
@@ -217,7 +217,7 @@ describe('OpenRouter Image Adapter', () => {
       },
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs.imageConfig).toMatchObject({
       image_size: '4K',
     })

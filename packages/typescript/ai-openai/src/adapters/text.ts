@@ -703,7 +703,8 @@ export class OpenAITextAdapter<
           // Parse arguments
           let parsedInput: unknown = {}
           try {
-            parsedInput = chunk.arguments ? JSON.parse(chunk.arguments) : {}
+            const parsed = chunk.arguments ? JSON.parse(chunk.arguments) : {}
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = {}
           }

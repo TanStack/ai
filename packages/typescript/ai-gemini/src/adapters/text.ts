@@ -476,10 +476,12 @@ export class GeminiTextAdapter<
                 // Emit TOOL_CALL_END with parsed input
                 let parsedInput: unknown = {}
                 try {
-                  parsedInput =
+                  const parsed =
                     typeof functionArgs === 'string'
                       ? JSON.parse(functionArgs)
                       : functionArgs
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
                 } catch {
                   parsedInput = {}
                 }
@@ -502,7 +504,8 @@ export class GeminiTextAdapter<
         for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
           let parsedInput: unknown = {}
           try {
-            parsedInput = JSON.parse(toolCallData.args)
+            const parsed = JSON.parse(toolCallData.args)
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = {}
           }
@@ -649,7 +652,7 @@ export class GeminiTextAdapter<
         for (const contentPart of msg.content) {
           parts.push(this.convertContentPartToGemini(contentPart))
         }
-      } else if (msg.content) {
+      } else if (msg.content && msg.role !== 'tool') {
         parts.push({ text: msg.content })
       }
 

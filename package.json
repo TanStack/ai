@@ -39,7 +39,7 @@
     "dev": "pnpm run watch",
     "format": "prettier --experimental-cli --ignore-unknown '**/*' --write",
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
-    "generate:models": "pnpm generate:models:fetch && pnpm regenerate:models && tsx scripts/sync-provider-models.ts",
+    "generate:models": "pnpm generate:models:fetch && pnpm regenerate:models && tsx scripts/sync-provider-models.ts && pnpm format",
     "generate:models:fetch": "tsx scripts/fetch-openrouter-models.ts",
     "regenerate:models": "tsx scripts/convert-openrouter-models.ts",
     "sync-docs-config": "node scripts/sync-docs-config.ts",
