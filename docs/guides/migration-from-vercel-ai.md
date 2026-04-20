@@ -26,17 +26,20 @@ TanStack AI provides several advantages:
 | `@ai-sdk/openai` | `@tanstack/ai-openai` |
 | `@ai-sdk/anthropic` | `@tanstack/ai-anthropic` |
 | `@ai-sdk/google` | `@tanstack/ai-gemini` |
-| `ai/react` | `@tanstack/ai-react` |
-| `ai/vue` | `@tanstack/ai-vue` |
-| `ai/solid` | `@tanstack/ai-solid` |
-| `ai/svelte` | `@tanstack/ai-svelte` |
+| `@ai-sdk/react` | `@tanstack/ai-react` |
+| `@ai-sdk/vue` | `@tanstack/ai-vue` |
+| `@ai-sdk/solid` | `@tanstack/ai-solid` |
+| `@ai-sdk/svelte` | `@tanstack/ai-svelte` |
+
+> **Note:** Since AI SDK v5, framework hooks moved from `ai/react` (v4) to dedicated packages like `@ai-sdk/react`. If you are on v4, swap the old subpaths for their v5 equivalents.
 
 ## Installation
 
 ### Before (Vercel AI SDK)
 
 ```bash
-npm install ai @ai-sdk/openai @ai-sdk/anthropic
+# v5+ (framework hook lives in @ai-sdk/react)
+npm install ai @ai-sdk/react @ai-sdk/openai @ai-sdk/anthropic
 ```
 
 ### After (TanStack AI)
@@ -70,7 +73,7 @@ export async function POST(request: Request) {
 #### After (TanStack AI)
 
 ```typescript
-import { chat, toStreamResponse } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
@@ -81,7 +84,7 @@ export async function POST(request: Request) {
     messages,
   })
 
-  return toStreamResponse(stream)
+  return toServerSentEventsResponse(stream)
 }
 ```
 
@@ -91,7 +94,7 @@ export async function POST(request: Request) {
 |--------------|-------------|-------|
 | `streamText()` | `chat()` | Main text generation function |
 | `openai('gpt-4o')` | `openaiText('gpt-4o')` | Activity-specific adapters |
-| `result.toDataStreamResponse()` | `toStreamResponse(stream)` | Separate utility function |
+| `result.toUIMessageStreamResponse()` / `.toTextStreamResponse()` | `toServerSentEventsResponse(stream)` / `toHttpResponse(stream)` | Separate utility functions |
 | `model` parameter | `adapter` parameter | Model baked into adapter |
 
 ### Generation Options
@@ -103,10 +106,10 @@ const result = streamText({
   model: openai('gpt-4o'),
   messages,
   temperature: 0.7,
-  maxTokens: 1000,
+  maxOutputTokens: 1000, // (v5+); `maxTokens` on v4
   topP: 0.9,
-  // Provider-specific options
-  experimental_providerMetadata: {
+  // Provider-specific options (v5+)
+  providerOptions: {
     openai: {
       responseFormat: { type: 'json_object' },
     },
@@ -132,6 +135,8 @@ const stream = chat({
 
 ### System Messages
 
+TanStack AI accepts system prompts at the **root level** via the `systemPrompts` option. You pass an array of strings, and each adapter merges them into whatever format the provider expects. You don't manually prepend a `system` message to the `messages` array.
+
 #### Before (Vercel AI SDK)
 
 ```typescript
@@ -147,10 +152,22 @@ const result = streamText({
 ```typescript
 const stream = chat({
   adapter: openaiText('gpt-4o'),
-  messages: [
-    { role: 'system', content: 'You are a helpful assistant.' },
-    ...messages,
+  systemPrompts: ['You are a helpful assistant.'],
+  messages,
+})
+```
+
+Multiple system prompts are supported — useful for composing persona, policies, and tool-usage guidance without string concatenation:
+
+```typescript
+const stream = chat({
+  adapter: openaiText('gpt-4o'),
+  systemPrompts: [
+    'You are a helpful assistant.',
+    'Respond in concise, plain English.',
+    'Never fabricate citations.',
   ],
+  messages,
 })
 ```
 
@@ -158,25 +175,37 @@ const stream = chat({
 
 ### Basic useChat Hook
 
-#### Before (Vercel AI SDK)
+#### Before (Vercel AI SDK v5+)
 
 ```typescript
-import { useChat } from 'ai/react'
+import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport } from 'ai'
+import { useState } from 'react'
 
 export function Chat() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: '/api/chat',
+  const [input, setInput] = useState('')
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({ api: '/api/chat' }),
   })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (input.trim() && status !== 'streaming') {
+      sendMessage({ text: input })
+      setInput('')
+    }
+  }
 
   return (
     <div>
       {messages.map((m) => (
         <div key={m.id}>
-          {m.role}: {m.content}
+          {m.role}:{' '}
+          {m.parts.map((p, i) => (p.type === 'text' ? <span key={i}>{p.text}</span> : null))}
         </div>
       ))}
       <form onSubmit={handleSubmit}>
-        <input value={input} onChange={handleInputChange} />
+        <input value={input} onChange={(e) => setInput(e.target.value)} />
         <button type="submit">Send</button>
       </form>
     </div>
@@ -225,16 +254,19 @@ export function Chat() {
 
 ### useChat API Differences
 
-| Vercel AI SDK | TanStack AI | Notes |
-|--------------|-------------|-------|
-| `api: '/api/chat'` | `connection: fetchServerSentEvents('/api/chat')` | Explicit connection adapter |
-| `input`, `handleInputChange` | Manage state yourself | More control, less magic |
-| `handleSubmit` | `sendMessage(input)` | Direct message sending |
-| `m.content` | `message.parts` | Content in structured parts |
-| `append(message)` | `append(message)` | Same pattern |
-| `reload()` | `reload()` | Same pattern |
-| `stop()` | `stop()` | Same pattern |
-| `setMessages()` | `setMessages()` | Same pattern |
+Vercel AI SDK v5+ already moved away from the magic `input`/`handleInputChange`/`handleSubmit` of v4 and now expects you to manage your own input state. TanStack AI follows that same philosophy — the hook is headless and gives you building blocks instead of form glue.
+
+| Vercel AI SDK (v5+) | TanStack AI | Notes |
+|--------------------|-------------|-------|
+| `transport: new DefaultChatTransport({ api: '/api/chat' })` | `connection: fetchServerSentEvents('/api/chat')` | Pluggable connection adapter |
+| `sendMessage({ text })` | `sendMessage(text)` | Accepts plain string; pass `UIMessage` objects via `append()` |
+| `status` (`'submitted' \| 'streaming' \| 'ready' \| 'error'`) | `isLoading` (boolean) | Coarser in TanStack; full stream state available via events |
+| `regenerate()` | `reload()` | Re-runs the last assistant turn |
+| `stop()` | `stop()` | Cancel the in-flight stream |
+| `setMessages(messages)` | `setMessages(messages)` | Direct message replacement |
+| `addToolResult({ tool, toolCallId, output })` | `addToolResult({ tool, toolCallId, output })` | Resolve a tool call from the client |
+| N/A | `addToolApprovalResponse({ id, approved })` | First-class user-approval flow for tools |
+| `m.parts` (typed union) | `message.parts` (typed union) | Both render via structured parts |
 
 ### Message Structure
 
@@ -252,18 +284,63 @@ interface Message {
 #### After (TanStack AI)
 
 ```typescript
-interface UIMessage {
+interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
   id: string
-  role: 'user' | 'assistant' | 'system'
-  parts: MessagePart[]  // Structured content parts
+  role: 'system' | 'user' | 'assistant'
+  parts: Array<MessagePart<TTools>>
+  createdAt?: Date
 }
 
-type MessagePart =
-  | { type: 'text'; content: string }
-  | { type: 'thinking'; content: string }
-  | { type: 'tool-call'; id: string; name: string; input: unknown; output?: unknown; state: ToolCallState }
-  | { type: 'tool-result'; toolCallId: string; output: unknown }
+type MessagePart<TTools> =
+  | TextPart
+  | ToolCallPart<TTools>
+  | ToolResultPart
+  | ThinkingPart
+
+interface TextPart {
+  type: 'text'
+  content: string
+}
+
+interface ThinkingPart {
+  type: 'thinking'
+  content: string
+}
+
+interface ToolCallPart {
+  type: 'tool-call'
+  id: string
+  name: string
+  arguments: string          // Raw JSON string (may be partial while streaming)
+  input?: unknown            // Parsed input (typed when tools are typed)
+  output?: unknown           // Execution output once available
+  state: ToolCallState
+  approval?: {
+    id: string               // Approval request ID
+    needsApproval: boolean
+    approved?: boolean       // undefined until the user responds
+  }
+}
+
+interface ToolResultPart {
+  type: 'tool-result'
+  toolCallId: string
+  content: string
+  state: ToolResultState
+  error?: string             // Present when state is 'error'
+}
+
+type ToolCallState =
+  | 'awaiting-input'
+  | 'input-streaming'
+  | 'input-complete'
+  | 'approval-requested'
+  | 'approval-responded'
+
+type ToolResultState = 'streaming' | 'complete' | 'error'
 ```
+
+> TanStack AI does not have separate `reasoning`, `source-url`, `source-document`, or `file` part types that you may have seen in other SDKs. Provider-specific reasoning traces arrive as `thinking` parts; citations and inline files are surfaced through `metadata` on text parts or through your tool outputs.
 
 ### Rendering Messages
 
@@ -314,7 +391,7 @@ TanStack AI uses an isomorphic tool system where you define the schema once and 
 
 ### Basic Tool Definition
 
-#### Before (Vercel AI SDK)
+#### Before (Vercel AI SDK v5+)
 
 ```typescript
 import { streamText, tool } from 'ai'
@@ -327,7 +404,7 @@ const result = streamText({
   tools: {
     getWeather: tool({
       description: 'Get weather for a location',
-      parameters: z.object({
+      inputSchema: z.object({ // renamed from `parameters` in v5
         location: z.string(),
       }),
       execute: async ({ location }) => {
@@ -377,22 +454,30 @@ const stream = chat({
 
 | Vercel AI SDK | TanStack AI |
 |--------------|-------------|
-| `parameters` | `inputSchema` |
-| N/A | `outputSchema` (optional, enables full type safety) |
-| `execute` inline | `.server()` or `.client()` methods |
-| Object with tool names as keys | Array of tools |
+| `parameters` (v4) / `inputSchema` (v5+) | `inputSchema` |
+| N/A | `outputSchema` (optional — enables end-to-end type safety) |
+| `execute` inline on the server | `.server()` or `.client()` methods (isomorphic definition) |
+| Object with tool names as keys | Array of tool instances |
 
 ### Client-Side Tools
 
-#### Before (Vercel AI SDK)
+#### Before (Vercel AI SDK v5+)
 
 ```typescript
-const { messages } = useChat({
-  api: '/api/chat',
+import { tool } from 'ai'
+import { z } from 'zod'
+import { useChat } from '@ai-sdk/react'
+
+const { messages, addToolResult } = useChat({
+  transport: new DefaultChatTransport({ api: '/api/chat' }),
   onToolCall: async ({ toolCall }) => {
     if (toolCall.toolName === 'showNotification') {
-      showNotification(toolCall.args.message)
-      return { success: true }
+      showNotification(toolCall.input.message)
+      addToolResult({
+        tool: 'showNotification',
+        toolCallId: toolCall.toolCallId,
+        output: { success: true },
+      })
     }
   },
 })
@@ -448,22 +533,33 @@ const { messages, addToolApprovalResponse } = useChat({
 })
 
 // Render approval UI
-{message.parts.map((part) => {
-  if (part.type === 'tool-call' && part.state === 'approval-requested') {
+{message.parts.map((part, idx) => {
+  if (
+    part.type === 'tool-call' &&
+    part.state === 'approval-requested' &&
+    part.approval
+  ) {
     return (
-      <div>
-        <p>Approve booking flight {part.input.flightId}?</p>
-        <button onClick={() => addToolApprovalResponse({ id: part.approval.id, approved: true })}>
+      <div key={idx}>
+        <p>Approve booking flight {part.input?.flightId}?</p>
+        <button
+          onClick={() => addToolApprovalResponse({ id: part.approval!.id, approved: true })}
+        >
           Approve
         </button>
-        <button onClick={() => addToolApprovalResponse({ id: part.approval.id, approved: false })}>
+        <button
+          onClick={() => addToolApprovalResponse({ id: part.approval!.id, approved: false })}
+        >
           Deny
         </button>
       </div>
     )
   }
+  return null
 })}
 ```
+
+> `part.input` is the **parsed** tool input (typed when your tools are typed via `clientTools()` + `InferChatMessages`). The raw streaming JSON is available as `part.arguments` if you need to show progress before input parsing completes.
 
 ## Provider Adapters
 
@@ -543,27 +639,36 @@ chat({ adapter: geminiText('gemini-1.5-pro'), ... })
 
 ### Server Response Formats
 
-#### Before (Vercel AI SDK)
+#### Before (Vercel AI SDK v5+)
 
 ```typescript
-// Data stream (default)
-return result.toDataStreamResponse()
+// UI message stream (default, for useChat)
+return result.toUIMessageStreamResponse()
 
-// Text stream
+// Plain text stream
 return result.toTextStreamResponse()
 ```
 
 #### After (TanStack AI)
 
 ```typescript
-import { chat, toStreamResponse, toServerSentEventsStream, toHttpStream } from '@tanstack/ai'
+import {
+  chat,
+  toServerSentEventsResponse,
+  toServerSentEventsStream,
+  toHttpResponse,
+  toHttpStream,
+} from '@tanstack/ai'
 
 const stream = chat({ adapter: openaiText('gpt-4o'), messages })
 
-// SSE format (recommended)
-return toStreamResponse(stream)
+// SSE response (recommended; pairs with fetchServerSentEvents on the client)
+return toServerSentEventsResponse(stream)
 
-// Or manual SSE
+// Newline-delimited JSON response (pairs with fetchHttpStream on the client)
+return toHttpResponse(stream)
+
+// Lower-level: get the ReadableStream and build your own Response
 const sseStream = toServerSentEventsStream(stream, abortController)
 return new Response(sseStream, {
   headers: {
@@ -573,7 +678,6 @@ return new Response(sseStream, {
   },
 })
 
-// HTTP stream (newline-delimited JSON)
 const httpStream = toHttpStream(stream, abortController)
 return new Response(httpStream, {
   headers: { 'Content-Type': 'application/x-ndjson' },
@@ -582,11 +686,14 @@ return new Response(httpStream, {
 
 ### Client Connection Adapters
 
-#### Before (Vercel AI SDK)
+#### Before (Vercel AI SDK v5+)
 
 ```typescript
-// Automatic based on response headers
-useChat({ api: '/api/chat' })
+import { DefaultChatTransport } from 'ai'
+
+useChat({
+  transport: new DefaultChatTransport({ api: '/api/chat' }),
+})
 ```
 
 #### After (TanStack AI)
@@ -594,7 +701,7 @@ useChat({ api: '/api/chat' })
 ```typescript
 import { fetchServerSentEvents, fetchHttpStream, stream } from '@tanstack/ai-react'
 
-// SSE (matches toStreamResponse)
+// SSE (matches toServerSentEventsResponse)
 useChat({ connection: fetchServerSentEvents('/api/chat') })
 
 // HTTP stream (matches toHttpStream)
@@ -611,7 +718,7 @@ useChat({
 
 ## AbortController / Cancellation
 
-#### Before (Vercel AI SDK)
+### Before (Vercel AI SDK)
 
 ```typescript
 const result = streamText({
@@ -621,7 +728,9 @@ const result = streamText({
 })
 ```
 
-#### After (TanStack AI)
+### After (TanStack AI)
+
+TanStack AI takes an `AbortController` (not a bare signal) so helpers like `toServerSentEventsStream` can wire cancellation into the response stream for you.
 
 ```typescript
 const abortController = new AbortController()
@@ -640,13 +749,12 @@ abortController.abort()
 
 ### Stream Callbacks
 
-#### Before (Vercel AI SDK)
+#### Before (Vercel AI SDK v5+)
 
 ```typescript
 const { messages } = useChat({
-  api: '/api/chat',
-  onResponse: (response) => console.log('Response started'),
-  onFinish: (message) => console.log('Finished:', message),
+  transport: new DefaultChatTransport({ api: '/api/chat' }),
+  onFinish: ({ message }) => console.log('Finished:', message),
   onError: (error) => console.error('Error:', error),
 })
 ```
@@ -662,6 +770,8 @@ const { messages } = useChat({
   onError: (error) => console.error('Error:', error),
 })
 ```
+
+TanStack AI also lets you hook into the **server-side** stream lifecycle by subscribing to the async iterable returned from `chat()`, which preserves the full typed `StreamChunk` union — useful for logging, analytics, or sending custom SSE events alongside the response.
 
 ## Multimodal Content
 
@@ -806,11 +916,11 @@ const text = await streamToText(stream)
 
 ## Complete Migration Example
 
-### Before (Vercel AI SDK)
+### Before (Vercel AI SDK v5+)
 
 ```typescript
 // server/api/chat.ts
-import { streamText, tool } from 'ai'
+import { streamText, tool, convertToModelMessages } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 
@@ -820,33 +930,52 @@ export async function POST(request: Request) {
   const result = streamText({
     model: openai('gpt-4o'),
     system: 'You are a helpful assistant.',
-    messages,
+    messages: convertToModelMessages(messages),
     temperature: 0.7,
     tools: {
       getWeather: tool({
         description: 'Get weather',
-        parameters: z.object({ city: z.string() }),
+        inputSchema: z.object({ city: z.string() }),
         execute: async ({ city }) => fetchWeather(city),
       }),
     },
   })
 
-  return result.toDataStreamResponse()
+  return result.toUIMessageStreamResponse()
 }
 
 // components/Chat.tsx
-import { useChat } from 'ai/react'
+import { useState } from 'react'
+import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport } from 'ai'
 
 export function Chat() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat()
+  const [input, setInput] = useState('')
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({ api: '/api/chat' }),
+  })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (input.trim() && status !== 'streaming') {
+      sendMessage({ text: input })
+      setInput('')
+    }
+  }
 
   return (
     <div>
       {messages.map((m) => (
-        <div key={m.id}>{m.content}</div>
+        <div key={m.id}>
+          {m.parts.map((p, i) => (p.type === 'text' ? <span key={i}>{p.text}</span> : null))}
+        </div>
       ))}
       <form onSubmit={handleSubmit}>
-        <input value={input} onChange={handleInputChange} disabled={isLoading} />
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          disabled={status === 'streaming'}
+        />
         <button type="submit">Send</button>
       </form>
     </div>
@@ -858,7 +987,7 @@ export function Chat() {
 
 ```typescript
 // server/api/chat.ts
-import { chat, toStreamResponse, toolDefinition } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
@@ -876,15 +1005,13 @@ export async function POST(request: Request) {
 
   const stream = chat({
     adapter: openaiText('gpt-4o'),
-    messages: [
-      { role: 'system', content: 'You are a helpful assistant.' },
-      ...messages,
-    ],
+    systemPrompts: ['You are a helpful assistant.'],
+    messages,
     temperature: 0.7,
     tools: [getWeather],
   })
 
-  return toStreamResponse(stream)
+  return toServerSentEventsResponse(stream)
 }
 
 // components/Chat.tsx
