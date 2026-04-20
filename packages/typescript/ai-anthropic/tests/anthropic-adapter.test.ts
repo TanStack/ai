@@ -686,4 +686,71 @@ describe('Anthropic stream processing', () => {
       type: 'RUN_FINISHED',
     })
   })
+
+  it('emits parentMessageId on tool-first tool call chunks', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: 'toolu_weather',
+          name: 'lookup_weather',
+          input: {},
+        },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"location":"Berlin"}',
+        },
+      }
+      yield { type: 'content_block_stop', index: 0 }
+      yield {
+        type: 'content_block_start',
+        index: 1,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 1,
+        delta: { type: 'text_delta', text: 'It is sunny.' },
+      }
+      yield { type: 'content_block_stop', index: 1 }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 7 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const textStart = chunks.find(
+      (chunk): chunk is Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }> =>
+        chunk.type === 'TEXT_MESSAGE_START',
+    )
+    const toolStart = chunks.find(
+      (chunk): chunk is Extract<StreamChunk, { type: 'TOOL_CALL_START' }> =>
+        chunk.type === 'TOOL_CALL_START',
+    )
+
+    expect(textStart).toBeDefined()
+    expect(toolStart).toBeDefined()
+    expect(toolStart?.parentMessageId).toBe(textStart?.messageId)
+  })
 })
