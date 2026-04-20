@@ -1,5 +1,23 @@
 # @tanstack/ai
 
+## 0.11.0
+
+### Minor Changes
+
+- **AG-UI core interop — spec-compliant event types.** `StreamChunk` now re-uses `@ag-ui/core`'s `EventType` enum and event shapes directly. Practical changes: ([#474](https://github.com/TanStack/ai/pull/474))
+  - `RunErrorEvent` is flat (`{ message, code }` at the top level) instead of nested under `error: {...}`.
+  - `TOOL_CALL_START` / `TOOL_CALL_END` events expose `toolCallName` (the deprecated `toolName` alias is retained as a passthrough for now).
+  - Adapters now emit `REASONING_*` events (`REASONING_START`, `REASONING_MESSAGE_START`, `REASONING_MESSAGE_CONTENT`, `REASONING_MESSAGE_END`, `REASONING_END`) alongside the legacy `STEP_*` events; consumers rendering thinking content should migrate to the `REASONING_*` channel.
+  - `TOOL_CALL_RESULT` events are emitted after tool execution in the agent loop.
+  - New `stripToSpecMiddleware` (always injected last) removes non-spec fields (`model`, `content`, `args`, `finishReason`, `usage`, `toolName`, `stepId`, …) from events before they reach consumers. Internal state management sees the full un-stripped chunks.
+  - `ChatOptions` gained optional `threadId` and `runId` for AG-UI run correlation; they flow through to `RUN_STARTED` / `RUN_FINISHED`.
+  - `StateDeltaEvent.delta` is now a JSON Patch `any[]` per the AG-UI spec.
+
+### Patch Changes
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7)]:
+  - @tanstack/ai-event-client@0.2.4
+
 ## 0.10.3
 
 ### Patch Changes

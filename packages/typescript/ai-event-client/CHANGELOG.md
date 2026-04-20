@@ -1,5 +1,14 @@
 # @tanstack/ai-event-client
 
+## 0.2.4
+
+### Patch Changes
+
+- Update the devtools middleware to match `@tanstack/ai`'s AG-UI-compliant event shapes so emitted instrumentation remains accurate after the strip-to-spec pass. ([#474](https://github.com/TanStack/ai/pull/474))
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7)]:
+  - @tanstack/ai@0.11.0
+
 ## 0.2.3
 
 ### Patch Changes
