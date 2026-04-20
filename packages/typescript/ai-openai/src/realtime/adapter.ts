@@ -320,7 +320,11 @@ async function createWebRTCConnection(
           const input = JSON.parse(args)
           emit('tool_call', { toolCallId: callId, toolName: name, input })
         } catch {
-          emit('tool_call', { toolCallId: callId, toolName: name, input: args })
+          emit('tool_call', {
+            toolCallId: callId,
+            toolName: name,
+            input: args,
+          })
         }
         break
       }

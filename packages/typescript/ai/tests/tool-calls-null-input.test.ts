@@ -3,6 +3,7 @@ import {
   ToolCallManager,
   executeToolCalls,
 } from '../src/activities/chat/tools/tool-calls'
+import { EventType } from '../src/types'
 import type { Tool, ToolCall } from '../src/types'
 
 /**
@@ -103,20 +104,17 @@ describe('null tool input normalization', () => {
 
       // Register a tool call
       manager.addToolCallStartEvent({
-        type: 'TOOL_CALL_START',
+        type: EventType.TOOL_CALL_START,
         toolCallId: 'tc-1',
+        toolCallName: 'test_tool',
         toolName: 'test_tool',
-        model: 'test',
         timestamp: Date.now(),
-        index: 0,
       })
 
       // Complete with null input (simulating Anthropic empty tool_use)
       manager.completeToolCall({
-        type: 'TOOL_CALL_END',
+        type: EventType.TOOL_CALL_END,
         toolCallId: 'tc-1',
-        toolName: 'test_tool',
-        model: 'test',
         timestamp: Date.now(),
         input: null as unknown,
       })
@@ -131,19 +129,16 @@ describe('null tool input normalization', () => {
       const manager = new ToolCallManager([])
 
       manager.addToolCallStartEvent({
-        type: 'TOOL_CALL_START',
+        type: EventType.TOOL_CALL_START,
         toolCallId: 'tc-1',
+        toolCallName: 'test_tool',
         toolName: 'test_tool',
-        model: 'test',
         timestamp: Date.now(),
-        index: 0,
       })
 
       manager.completeToolCall({
-        type: 'TOOL_CALL_END',
+        type: EventType.TOOL_CALL_END,
         toolCallId: 'tc-1',
-        toolName: 'test_tool',
-        model: 'test',
         timestamp: Date.now(),
         input: { location: 'NYC' },
       })

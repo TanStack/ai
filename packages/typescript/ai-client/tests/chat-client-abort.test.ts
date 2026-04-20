@@ -3,6 +3,10 @@ import { ChatClient } from '../src/chat-client'
 import type { ConnectionAdapter } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
 
+/** Cast an event object to StreamChunk for type compatibility with EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 describe('ChatClient - Abort Signal Handling', () => {
   let mockAdapter: ConnectionAdapter
   let receivedAbortSignal: AbortSignal | undefined
@@ -16,29 +20,29 @@ describe('ChatClient - Abort Signal Handling', () => {
         receivedAbortSignal = abortSignal
 
         // Simulate streaming chunks (AG-UI format)
-        yield {
+        yield asChunk({
           type: 'TEXT_MESSAGE_CONTENT',
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        }
-        yield {
+        })
+        yield asChunk({
           type: 'TEXT_MESSAGE_CONTENT',
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: ' World',
           content: 'Hello World',
-        }
-        yield {
+        })
+        yield asChunk({
           type: 'RUN_FINISHED',
           runId: 'run-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        }
+        })
       },
     }
   })
@@ -78,24 +82,24 @@ describe('ChatClient - Abort Signal Handling', () => {
         }
 
         try {
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: '1',
             model: 'test',
             timestamp: Date.now(),
             delta: 'Hello',
             content: 'Hello',
-          }
+          })
           // Simulate long-running stream
           await new Promise((resolve) => setTimeout(resolve, 100))
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: '1',
             model: 'test',
             timestamp: Date.now(),
             delta: ' World',
             content: 'Hello World',
-          }
+          })
         } catch (err) {
           // Abort errors are expected
           if (err instanceof Error && err.name === 'AbortError') {
@@ -133,28 +137,28 @@ describe('ChatClient - Abort Signal Handling', () => {
     const adapterWithPartial: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
-        yield {
+        yield asChunk({
           type: 'TEXT_MESSAGE_CONTENT',
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        }
+        })
         yieldedChunks++
 
         if (abortSignal?.aborted) {
           return
         }
 
-        yield {
+        yield asChunk({
           type: 'TEXT_MESSAGE_CONTENT',
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: ' World',
           content: 'Hello World',
-        }
+        })
         yieldedChunks++
       },
     }
@@ -190,14 +194,14 @@ describe('ChatClient - Abort Signal Handling', () => {
     const adapterWithAbort: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
-        yield {
+        yield asChunk({
           type: 'TEXT_MESSAGE_CONTENT',
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        }
+        })
 
         if (abortSignal?.aborted) {
           return
@@ -230,14 +234,14 @@ describe('ChatClient - Abort Signal Handling', () => {
   it('should set isLoading to false after abort', async () => {
     const adapterWithAbort: ConnectionAdapter = {
       async *connect(_messages, _data, _abortSignal) {
-        yield {
+        yield asChunk({
           type: 'TEXT_MESSAGE_CONTENT',
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        }
+        })
         await new Promise((resolve) => setTimeout(resolve, 50))
       },
     }
@@ -272,13 +276,13 @@ describe('ChatClient - Abort Signal Handling', () => {
         if (abortSignal) {
           abortSignals.push(abortSignal)
         }
-        yield {
+        yield asChunk({
           type: 'RUN_FINISHED',
           runId: 'run-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        }
+        })
       },
     }
 

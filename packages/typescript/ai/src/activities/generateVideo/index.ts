@@ -306,11 +306,14 @@ async function* runStreamingVideoGeneration<
     (adapter as { name?: string }).name ??
     'unknown'
 
+  const threadId = createId('thread')
+
   yield {
     type: 'RUN_STARTED',
     runId,
+    threadId,
     timestamp: Date.now(),
-  }
+  } as StreamChunk
 
   logger.request(
     `activity=generateVideo provider=${providerName} stream=true`,
@@ -336,7 +339,7 @@ async function* runStreamingVideoGeneration<
       name: 'video:job:created',
       value: { jobId: jobResult.jobId },
       timestamp: Date.now(),
-    }
+    } as StreamChunk
 
     // Poll for completion
     const startTime = Date.now()
@@ -355,7 +358,7 @@ async function* runStreamingVideoGeneration<
           error: statusResult.error,
         },
         timestamp: Date.now(),
-      }
+      } as StreamChunk
 
       if (statusResult.status === 'completed') {
         const urlResult = await adapter.getVideoUrl(jobResult.jobId)
@@ -378,14 +381,15 @@ async function* runStreamingVideoGeneration<
             expiresAt: urlResult.expiresAt,
           },
           timestamp: Date.now(),
-        }
+        } as StreamChunk
 
         yield {
           type: 'RUN_FINISHED',
           runId,
+          threadId,
           finishReason: 'stop',
           timestamp: Date.now(),
-        }
+        } as StreamChunk
         return
       }
 
@@ -403,12 +407,15 @@ async function* runStreamingVideoGeneration<
     yield {
       type: 'RUN_ERROR',
       runId,
+      threadId,
+      message: error.message || 'Video generation failed',
+      code: error.code,
       error: {
         message: error.message || 'Video generation failed',
         code: error.code,
       },
       timestamp: Date.now(),
-    }
+    } as StreamChunk
   }
 }
 

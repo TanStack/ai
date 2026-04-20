@@ -1,5 +1,18 @@
 # @tanstack/ai-code-mode-models-eval
 
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies [[`c780bc1`](https://github.com/TanStack/ai/commit/c780bc127755ecf7e900343bf0e4d4823ff526ca), [`cb07e01`](https://github.com/TanStack/ai/commit/cb07e015f2d4a27289d830a61dba48f8aa72cc6c)]:
+  - @tanstack/ai@0.10.3
+  - @tanstack/ai-openai@0.7.5
+  - @tanstack/ai-gemini@0.8.8
+  - @tanstack/ai-ollama@0.6.6
+  - @tanstack/ai-anthropic@0.7.4
+  - @tanstack/ai-code-mode@0.1.3
+  - @tanstack/ai-isolate-node@0.1.3
+
 ## 0.0.5
 
 ### Patch Changes

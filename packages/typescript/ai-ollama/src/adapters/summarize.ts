@@ -14,6 +14,10 @@ import type {
   SummarizationResult,
 } from '@tanstack/ai'
 
+/** Cast an event object to StreamChunk. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 export type OllamaSummarizeModel =
   | (typeof OllamaSummarizeModels)[number]
   | (string & {})
@@ -149,20 +153,20 @@ export class OllamaSummarizeAdapter<
 
         if (chunk.response) {
           accumulatedContent += chunk.response
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: id,
             model: chunk.model,
             timestamp: Date.now(),
             delta: chunk.response,
             content: accumulatedContent,
-          }
+          })
         }
 
         if (chunk.done) {
           const promptTokens = estimateTokens(prompt)
           const completionTokens = estimateTokens(accumulatedContent)
-          yield {
+          yield asChunk({
             type: 'RUN_FINISHED',
             runId: id,
             model: chunk.model,
@@ -173,7 +177,7 @@ export class OllamaSummarizeAdapter<
               completionTokens,
               totalTokens: promptTokens + completionTokens,
             },
-          }
+          })
         }
       }
     } catch (error) {

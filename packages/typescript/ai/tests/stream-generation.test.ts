@@ -96,7 +96,7 @@ describe('generateImage({ stream: true })', () => {
 
     expect(chunks[1]!.type).toBe('RUN_ERROR')
     if (chunks[1]!.type === 'RUN_ERROR') {
-      expect(chunks[1]!.error.message).toBe('Image generation failed')
+      expect(chunks[1]!.error!.message).toBe('Image generation failed')
     }
   })
 
@@ -266,7 +266,7 @@ describe('generateVideo({ stream: true })', () => {
 
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
     if (error?.type === 'RUN_ERROR') {
-      expect(error.error.message).toBe('Video processing error')
+      expect(error.error!.message).toBe('Video processing error')
     }
   })
 
@@ -311,7 +311,7 @@ describe('generateVideo({ stream: true })', () => {
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(error).toBeDefined()
     if (error?.type === 'RUN_ERROR') {
-      expect(error.error.message).toBe('Video generation timed out')
+      expect(error.error!.message).toBe('Video generation timed out')
     }
   })
 
@@ -339,7 +339,7 @@ describe('generateVideo({ stream: true })', () => {
 
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
     if (error?.type === 'RUN_ERROR') {
-      expect(error.error.message).toBe('Job creation failed')
+      expect(error.error!.message).toBe('Job creation failed')
     }
   })
 
@@ -361,7 +361,7 @@ describe('generateVideo({ stream: true })', () => {
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(error).toBeDefined()
     if (error?.type === 'RUN_ERROR') {
-      expect(error.error.message).toBe('Failed to retrieve video URL')
+      expect(error.error!.message).toBe('Failed to retrieve video URL')
     }
   })
 
@@ -385,7 +385,7 @@ describe('generateVideo({ stream: true })', () => {
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(error).toBeDefined()
     if (error?.type === 'RUN_ERROR') {
-      expect(error.error.message).toBe('Content policy violation')
+      expect(error.error!.message).toBe('Content policy violation')
     }
   })
 
@@ -408,7 +408,7 @@ describe('generateVideo({ stream: true })', () => {
     const error = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(error).toBeDefined()
     if (error?.type === 'RUN_ERROR') {
-      expect(error.error.message).toBe('Video generation failed')
+      expect(error.error!.message).toBe('Video generation failed')
     }
   })
 })
@@ -497,7 +497,7 @@ describe('generateSpeech({ stream: true })', () => {
 
     expect(chunks[1]!.type).toBe('RUN_ERROR')
     if (chunks[1]!.type === 'RUN_ERROR') {
-      expect(chunks[1]!.error.message).toBe('Speech generation failed')
+      expect(chunks[1]!.error!.message).toBe('Speech generation failed')
     }
   })
 })
@@ -584,7 +584,7 @@ describe('generateTranscription({ stream: true })', () => {
 
     expect(chunks[1]!.type).toBe('RUN_ERROR')
     if (chunks[1]!.type === 'RUN_ERROR') {
-      expect(chunks[1]!.error.message).toBe('Transcription failed')
+      expect(chunks[1]!.error!.message).toBe('Transcription failed')
     }
   })
 })
