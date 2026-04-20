@@ -5,10 +5,10 @@
 **Pluggable debug logging across every activity.** `chat`, `summarize`, `generateImage`, `generateVideo`, `generateSpeech`, and `generateTranscription` now accept a `debug?: DebugOption` that turns on structured per-category logs (`request`, `provider`, `output`, `middleware`, `tools`, `agentLoop`, `config`, `errors`).
 
 ```ts
-chat({ adapter, messages, debug: true })                    // all categories on
-chat({ adapter, messages, debug: false })                   // silent (incl. errors)
-chat({ adapter, messages, debug: { middleware: false } })   // all except middleware
-chat({ adapter, messages, debug: { logger: pino } })        // route to a custom logger
+chat({ adapter, messages, debug: true }) // all categories on
+chat({ adapter, messages, debug: false }) // silent (incl. errors)
+chat({ adapter, messages, debug: { middleware: false } }) // all except middleware
+chat({ adapter, messages, debug: { logger: pino } }) // route to a custom logger
 ```
 
 Additions:
