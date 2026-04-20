@@ -52,8 +52,8 @@ describe('debug logging — non-chat activities', () => {
     })
 
     const msgs = logPrefixes(logger.debug.mock.calls)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:request]'))).toBe(true)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:output]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:request]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:output]'))).toBe(true)
   })
 
   it('generateImage emits request and output categories', async () => {
@@ -73,8 +73,8 @@ describe('debug logging — non-chat activities', () => {
     })
 
     const msgs = logPrefixes(logger.debug.mock.calls)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:request]'))).toBe(true)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:output]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:request]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:output]'))).toBe(true)
   })
 
   it('generateSpeech emits request and output categories', async () => {
@@ -96,8 +96,8 @@ describe('debug logging — non-chat activities', () => {
     })
 
     const msgs = logPrefixes(logger.debug.mock.calls)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:request]'))).toBe(true)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:output]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:request]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:output]'))).toBe(true)
   })
 
   it('generateTranscription emits request and output categories', async () => {
@@ -118,8 +118,8 @@ describe('debug logging — non-chat activities', () => {
     })
 
     const msgs = logPrefixes(logger.debug.mock.calls)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:request]'))).toBe(true)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:output]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:request]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:output]'))).toBe(true)
   })
 
   it('generateVideo emits request and output categories', async () => {
@@ -142,8 +142,8 @@ describe('debug logging — non-chat activities', () => {
     })
 
     const msgs = logPrefixes(logger.debug.mock.calls)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:request]'))).toBe(true)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:output]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:request]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:output]'))).toBe(true)
   })
 
   it('chat-only categories never fire for non-chat activities', async () => {
@@ -162,7 +162,7 @@ describe('debug logging — non-chat activities', () => {
 
     const msgs = logPrefixes(logger.debug.mock.calls)
     for (const cat of ['middleware', 'tools', 'agentLoop', 'config']) {
-      expect(msgs.some((m) => m.startsWith(`[tanstack-ai:${cat}]`))).toBe(false)
+      expect(msgs.some((m) => m.includes(`[tanstack-ai:${cat}]`))).toBe(false)
     }
   })
 
@@ -182,7 +182,7 @@ describe('debug logging — non-chat activities', () => {
     ).rejects.toThrow('boom')
 
     const msgs = logPrefixes(errSpy.mock.calls)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:errors]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:errors]'))).toBe(true)
     errSpy.mockRestore()
   })
 
@@ -206,7 +206,7 @@ describe('debug logging — non-chat activities', () => {
 
     expect(logger.error).toHaveBeenCalled()
     const msgs = logPrefixes(logger.error.mock.calls)
-    expect(msgs.some((m) => m.startsWith('[tanstack-ai:errors]'))).toBe(true)
+    expect(msgs.some((m) => m.includes('[tanstack-ai:errors]'))).toBe(true)
   })
 
   it('debug: false on non-chat activity silences errors too', async () => {

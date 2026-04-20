@@ -75,7 +75,7 @@ describe('resolveDebugOption', () => {
     const il = resolveDebugOption({ logger: custom })
     il.provider('x')
     expect(custom.debug).toHaveBeenCalledWith(
-      '[tanstack-ai:provider] x',
+      '📥 [tanstack-ai:provider] 📥 x',
       undefined,
     )
     for (const cat of ALL_CATEGORIES) expect(il.isEnabled(cat)).toBe(true)
@@ -88,7 +88,7 @@ describe('resolveDebugOption', () => {
     expect(il.isEnabled('provider')).toBe(true)
     il.provider('p')
     expect(custom.debug).toHaveBeenCalledWith(
-      '[tanstack-ai:provider] p',
+      '📥 [tanstack-ai:provider] 📥 p',
       undefined,
     )
   })
@@ -96,7 +96,7 @@ describe('resolveDebugOption', () => {
   it('default instance routes through a ConsoleLogger', () => {
     const spy = vi.spyOn(console, 'debug').mockImplementation(() => {})
     resolveDebugOption(true).provider('hi')
-    expect(spy).toHaveBeenCalledWith('[tanstack-ai:provider] hi')
+    expect(spy).toHaveBeenCalledWith('📥 [tanstack-ai:provider] 📥 hi')
     spy.mockRestore()
   })
 })

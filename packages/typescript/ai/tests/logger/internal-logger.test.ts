@@ -46,7 +46,7 @@ const allOff = {
 }
 
 describe('InternalLogger', () => {
-  it('prepends [tanstack-ai:<category>] prefix on each category method', () => {
+  it('prepends emoji + [tanstack-ai:<category>] + emoji prefix on each category method', () => {
     const { logger, calls } = makeSpyLogger()
     const il = new InternalLogger(logger, allOn)
     il.provider('received', { type: 'text' })
@@ -58,14 +58,14 @@ describe('InternalLogger', () => {
     il.errors('boom', { err: new Error('x') })
     il.request('started')
     expect(calls).toEqual([
-      ['debug', '[tanstack-ai:provider] received', { type: 'text' }],
-      ['debug', '[tanstack-ai:output] yielded', undefined],
-      ['debug', '[tanstack-ai:middleware] before', undefined],
-      ['debug', '[tanstack-ai:tools] called', undefined],
-      ['debug', '[tanstack-ai:agentLoop] iter 1', undefined],
-      ['debug', '[tanstack-ai:config] transform', undefined],
-      ['error', '[tanstack-ai:errors] boom', { err: expect.any(Error) }],
-      ['debug', '[tanstack-ai:request] started', undefined],
+      ['debug', '📥 [tanstack-ai:provider] 📥 received', { type: 'text' }],
+      ['debug', '📨 [tanstack-ai:output] 📨 yielded', undefined],
+      ['debug', '🧩 [tanstack-ai:middleware] 🧩 before', undefined],
+      ['debug', '🔧 [tanstack-ai:tools] 🔧 called', undefined],
+      ['debug', '🔁 [tanstack-ai:agentLoop] 🔁 iter 1', undefined],
+      ['debug', '⚙️ [tanstack-ai:config] ⚙️ transform', undefined],
+      ['error', '❌ [tanstack-ai:errors] ❌ boom', { err: expect.any(Error) }],
+      ['debug', '📤 [tanstack-ai:request] 📤 started', undefined],
     ])
   })
 
@@ -74,7 +74,9 @@ describe('InternalLogger', () => {
     const il = new InternalLogger(logger, { ...allOn, middleware: false })
     il.middleware('x')
     il.provider('y')
-    expect(calls).toEqual([['debug', '[tanstack-ai:provider] y', undefined]])
+    expect(calls).toEqual([
+      ['debug', '📥 [tanstack-ai:provider] 📥 y', undefined],
+    ])
   })
 
   it('all categories off produces zero calls', () => {

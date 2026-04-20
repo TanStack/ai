@@ -17,6 +17,22 @@ export type ResolvedCategories = Required<DebugCategories>
  * Not exported from the package root. Adapter packages consume it via the
  * `@tanstack/ai/adapter-internals` subpath export.
  */
+/**
+ * Emoji marker per category — bracketing the `[tanstack-ai:<cat>]` tag on
+ * both sides makes it trivial to visually pick out a category when scanning
+ * dense streaming logs.
+ */
+const CATEGORY_EMOJI: Record<keyof ResolvedCategories, string> = {
+  request: '📤',
+  provider: '📥',
+  output: '📨',
+  middleware: '🧩',
+  tools: '🔧',
+  agentLoop: '🔁',
+  config: '⚙️',
+  errors: '❌',
+}
+
 export class InternalLogger {
   constructor(
     private readonly logger: Logger,
@@ -35,7 +51,8 @@ export class InternalLogger {
     meta?: Record<string, unknown>,
   ): void {
     if (!this.categories[category]) return
-    const prefixed = `[tanstack-ai:${category}] ${message}`
+    const emoji = CATEGORY_EMOJI[category]
+    const prefixed = `${emoji} [tanstack-ai:${category}] ${emoji} ${message}`
     if (level === 'error') this.logger.error(prefixed, meta)
     else this.logger.debug(prefixed, meta)
   }
