@@ -1,5 +1,5 @@
 ---
-'@tanstack/ai': major
+'@tanstack/ai': minor
 ---
 
 **AG-UI core interop — spec-compliant event types.** `StreamChunk` now re-uses `@ag-ui/core`'s `EventType` enum and event shapes directly. Practical changes:
