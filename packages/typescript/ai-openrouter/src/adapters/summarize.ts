@@ -87,7 +87,7 @@ export class OpenRouterSummarizeAdapter<
       }
       // AG-UI RUN_ERROR event
       if (chunk.type === 'RUN_ERROR') {
-        throw new Error(`Error during summarization: ${chunk.error.message}`)
+        throw new Error(`Error during summarization: ${chunk.error?.message}`)
       }
     }
 

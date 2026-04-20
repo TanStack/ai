@@ -1,7 +1,5 @@
 ---
-'@tanstack/ai': patch
+'@tanstack/ai-client': patch
 ---
 
-fix(ai): move @standard-schema/spec from devDependencies to dependencies
-
-Without this package installed, all types that depend on `StandardJSONSchemaV1` silently degrade to `any` — tool definitions lose type inference and `chat()` return types become `any`.
+fix(ai-client): add `@standard-schema/spec` to devDependencies so the type references `@tanstack/ai` forwards through `InferToolInput` / `InferToolOutput` resolve at build time. Types-only dep with no runtime cost; prevents tool-definition input/output inference from silently collapsing to `unknown` for consumers of `useChat` / `ChatClient`.

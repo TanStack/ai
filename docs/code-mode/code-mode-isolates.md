@@ -2,6 +2,16 @@
 title: Code Mode Isolate Drivers
 id: code-mode-isolates
 order: 4
+description: "Compare Code Mode sandbox drivers — Node isolated-vm, QuickJS WASM, and Cloudflare Workers — and choose the right runtime for your deployment."
+keywords:
+  - tanstack ai
+  - code mode
+  - isolate driver
+  - isolated-vm
+  - quickjs
+  - cloudflare workers
+  - sandbox
+  - secure execution
 ---
 
 Isolate drivers provide the secure sandbox runtimes that [Code Mode](./code-mode.md) uses to execute generated TypeScript. All drivers implement the same `IsolateDriver` interface, so you can swap them without changing any other code.

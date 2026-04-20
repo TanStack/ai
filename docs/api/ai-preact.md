@@ -2,6 +2,14 @@
 title: "@tanstack/ai-preact"
 slug: /api/ai-preact
 order: 5
+description: "API reference for @tanstack/ai-preact — Preact hooks including useChat for streaming chat with full type safety in Preact apps."
+keywords:
+  - tanstack ai
+  - "@tanstack/ai-preact"
+  - preact
+  - useChat
+  - preact hooks
+  - api reference
 ---
 
 Preact hooks for TanStack AI, providing convenient Preact bindings for the headless client.

@@ -2,6 +2,16 @@
 title: Image Generation
 id: image-generation
 order: 5
+description: "Generate images with OpenAI DALL-E, Gemini NanoBanana and Imagen, and fal.ai models via TanStack AI's unified generateImage() API."
+keywords:
+  - tanstack ai
+  - image generation
+  - generateImage
+  - dall-e
+  - imagen
+  - nano banana
+  - flux
+  - fal.ai
 ---
 
 # Image Generation

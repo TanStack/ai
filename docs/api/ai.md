@@ -2,6 +2,15 @@
 title: "@tanstack/ai"
 id: tanstack-ai-api
 order: 1
+description: "API reference for @tanstack/ai — the core TanStack AI library providing chat(), generateImage(), toolDefinition(), and streaming utilities."
+keywords:
+  - tanstack ai
+  - "@tanstack/ai"
+  - api reference
+  - chat
+  - toolDefinition
+  - generateImage
+  - core library
 ---
 
 The core AI library for TanStack AI.

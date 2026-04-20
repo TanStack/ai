@@ -2,6 +2,16 @@
 title: TanStack AI vs Vercel AI SDK
 id: vercel-ai-sdk
 order: 1
+description: "How TanStack AI compares to the Vercel AI SDK — feature matrix, philosophy, type safety, tool calling, streaming, and framework support."
+keywords:
+  - tanstack ai
+  - vercel ai sdk
+  - comparison
+  - ai sdk
+  - alternatives
+  - typescript ai sdk
+  - tool calling
+  - llm
 ---
 
 Both TanStack AI and Vercel AI SDK are open-source TypeScript toolkits for building AI-powered applications. They share common ground - streaming chat, tool calling, multi-provider support, and deploy-anywhere flexibility - but they approach the problem from fundamentally different directions.

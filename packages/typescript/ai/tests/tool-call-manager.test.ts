@@ -4,16 +4,56 @@ import {
   ToolCallManager,
   executeToolCalls,
 } from '../src/activities/chat/tools/tool-calls'
-import type { RunFinishedEvent, Tool, ToolCall } from '../src/types'
+import type {
+  RunFinishedEvent,
+  Tool,
+  ToolCall,
+  ToolCallStartEvent,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+} from '../src/types'
+
+/** Helper to create a ToolCallStartEvent from plain fields (avoids EventType enum issues). */
+function toolCallStart(
+  fields: Omit<ToolCallStartEvent, 'type' | 'timestamp'>,
+): ToolCallStartEvent {
+  return {
+    type: 'TOOL_CALL_START' as any,
+    timestamp: Date.now(),
+    ...fields,
+  } as ToolCallStartEvent
+}
+
+/** Helper to create a ToolCallArgsEvent from plain fields. */
+function toolCallArgs(
+  fields: Omit<ToolCallArgsEvent, 'type' | 'timestamp'>,
+): ToolCallArgsEvent {
+  return {
+    type: 'TOOL_CALL_ARGS' as any,
+    timestamp: Date.now(),
+    ...fields,
+  } as ToolCallArgsEvent
+}
+
+/** Helper to create a ToolCallEndEvent from plain fields. */
+function toolCallEnd(
+  fields: Omit<ToolCallEndEvent, 'type' | 'timestamp'>,
+): ToolCallEndEvent {
+  return {
+    type: 'TOOL_CALL_END' as any,
+    timestamp: Date.now(),
+    ...fields,
+  } as ToolCallEndEvent
+}
 
 describe('ToolCallManager', () => {
-  const mockFinishedEvent: RunFinishedEvent = {
+  const mockFinishedEvent = {
     type: 'RUN_FINISHED',
     runId: 'test-run-id',
     model: 'gpt-4',
     timestamp: Date.now(),
     finishReason: 'tool_calls',
-  }
+  } as unknown as RunFinishedEvent
 
   const mockWeatherTool: Tool = {
     name: 'get_weather',
@@ -44,27 +84,27 @@ describe('ToolCallManager', () => {
   it('should accumulate tool call events', () => {
     const manager = new ToolCallManager([mockWeatherTool])
 
-    manager.addToolCallStartEvent({
-      type: 'TOOL_CALL_START',
-      toolCallId: 'call_123',
-      toolName: 'get_weather',
-      timestamp: Date.now(),
-      index: 0,
-    })
+    manager.addToolCallStartEvent(
+      toolCallStart({
+        toolCallId: 'call_123',
+        toolCallName: 'get_weather',
+        index: 0,
+      }),
+    )
 
-    manager.addToolCallArgsEvent({
-      type: 'TOOL_CALL_ARGS',
-      toolCallId: 'call_123',
-      timestamp: Date.now(),
-      delta: '{"loc',
-    })
+    manager.addToolCallArgsEvent(
+      toolCallArgs({
+        toolCallId: 'call_123',
+        delta: '{"loc',
+      }),
+    )
 
-    manager.addToolCallArgsEvent({
-      type: 'TOOL_CALL_ARGS',
-      toolCallId: 'call_123',
-      timestamp: Date.now(),
-      delta: 'ation":"Paris"}',
-    })
+    manager.addToolCallArgsEvent(
+      toolCallArgs({
+        toolCallId: 'call_123',
+        delta: 'ation":"Paris"}',
+      }),
+    )
 
     const toolCalls = manager.getToolCalls()
     expect(toolCalls).toHaveLength(1)
@@ -77,29 +117,29 @@ describe('ToolCallManager', () => {
     const manager = new ToolCallManager([mockWeatherTool])
 
     // Add complete tool call
-    manager.addToolCallStartEvent({
-      type: 'TOOL_CALL_START',
-      toolCallId: 'call_123',
-      toolName: 'get_weather',
-      timestamp: Date.now(),
-      index: 0,
-    })
+    manager.addToolCallStartEvent(
+      toolCallStart({
+        toolCallId: 'call_123',
+        toolCallName: 'get_weather',
+        index: 0,
+      }),
+    )
 
-    manager.addToolCallArgsEvent({
-      type: 'TOOL_CALL_ARGS',
-      toolCallId: 'call_123',
-      timestamp: Date.now(),
-      delta: '{}',
-    })
+    manager.addToolCallArgsEvent(
+      toolCallArgs({
+        toolCallId: 'call_123',
+        delta: '{}',
+      }),
+    )
 
     // Add incomplete tool call (no name - empty toolName)
-    manager.addToolCallStartEvent({
-      type: 'TOOL_CALL_START',
-      toolCallId: 'call_456',
-      toolName: '',
-      timestamp: Date.now(),
-      index: 1,
-    })
+    manager.addToolCallStartEvent(
+      toolCallStart({
+        toolCallId: 'call_456',
+        toolCallName: '',
+        index: 1,
+      }),
+    )
 
     const toolCalls = manager.getToolCalls()
     expect(toolCalls).toHaveLength(1)
@@ -109,20 +149,20 @@ describe('ToolCallManager', () => {
   it('should execute tools and emit TOOL_CALL_END events', async () => {
     const manager = new ToolCallManager([mockWeatherTool])
 
-    manager.addToolCallStartEvent({
-      type: 'TOOL_CALL_START',
-      toolCallId: 'call_123',
-      toolName: 'get_weather',
-      timestamp: Date.now(),
-      index: 0,
-    })
+    manager.addToolCallStartEvent(
+      toolCallStart({
+        toolCallId: 'call_123',
+        toolCallName: 'get_weather',
+        index: 0,
+      }),
+    )
 
-    manager.addToolCallArgsEvent({
-      type: 'TOOL_CALL_ARGS',
-      toolCallId: 'call_123',
-      timestamp: Date.now(),
-      delta: '{"location":"Paris"}',
-    })
+    manager.addToolCallArgsEvent(
+      toolCallArgs({
+        toolCallId: 'call_123',
+        delta: '{"location":"Paris"}',
+      }),
+    )
 
     const { chunks: emittedChunks, result: finalResult } =
       await collectGeneratorOutput(manager.executeTools(mockFinishedEvent))
@@ -154,20 +194,20 @@ describe('ToolCallManager', () => {
 
     const manager = new ToolCallManager([errorTool])
 
-    manager.addToolCallStartEvent({
-      type: 'TOOL_CALL_START',
-      toolCallId: 'call_123',
-      toolName: 'error_tool',
-      timestamp: Date.now(),
-      index: 0,
-    })
+    manager.addToolCallStartEvent(
+      toolCallStart({
+        toolCallId: 'call_123',
+        toolCallName: 'error_tool',
+        index: 0,
+      }),
+    )
 
-    manager.addToolCallArgsEvent({
-      type: 'TOOL_CALL_ARGS',
-      toolCallId: 'call_123',
-      timestamp: Date.now(),
-      delta: '{}',
-    })
+    manager.addToolCallArgsEvent(
+      toolCallArgs({
+        toolCallId: 'call_123',
+        delta: '{}',
+      }),
+    )
 
     // Properly consume the generator
     const { chunks, result: toolResults } = await collectGeneratorOutput(
@@ -194,20 +234,20 @@ describe('ToolCallManager', () => {
 
     const manager = new ToolCallManager([noExecuteTool])
 
-    manager.addToolCallStartEvent({
-      type: 'TOOL_CALL_START',
-      toolCallId: 'call_123',
-      toolName: 'no_execute',
-      timestamp: Date.now(),
-      index: 0,
-    })
+    manager.addToolCallStartEvent(
+      toolCallStart({
+        toolCallId: 'call_123',
+        toolCallName: 'no_execute',
+        index: 0,
+      }),
+    )
 
-    manager.addToolCallArgsEvent({
-      type: 'TOOL_CALL_ARGS',
-      toolCallId: 'call_123',
-      timestamp: Date.now(),
-      delta: '{}',
-    })
+    manager.addToolCallArgsEvent(
+      toolCallArgs({
+        toolCallId: 'call_123',
+        delta: '{}',
+      }),
+    )
 
     const { chunks, result: toolResults } = await collectGeneratorOutput(
       manager.executeTools(mockFinishedEvent),
@@ -223,13 +263,13 @@ describe('ToolCallManager', () => {
   it('should clear tool calls', () => {
     const manager = new ToolCallManager([mockWeatherTool])
 
-    manager.addToolCallStartEvent({
-      type: 'TOOL_CALL_START',
-      toolCallId: 'call_123',
-      toolName: 'get_weather',
-      timestamp: Date.now(),
-      index: 0,
-    })
+    manager.addToolCallStartEvent(
+      toolCallStart({
+        toolCallId: 'call_123',
+        toolCallName: 'get_weather',
+        index: 0,
+      }),
+    )
 
     expect(manager.hasToolCalls()).toBe(true)
 
@@ -254,35 +294,35 @@ describe('ToolCallManager', () => {
     const manager = new ToolCallManager([mockWeatherTool, calculateTool])
 
     // Add two different tool calls
-    manager.addToolCallStartEvent({
-      type: 'TOOL_CALL_START',
-      toolCallId: 'call_weather',
-      toolName: 'get_weather',
-      timestamp: Date.now(),
-      index: 0,
-    })
+    manager.addToolCallStartEvent(
+      toolCallStart({
+        toolCallId: 'call_weather',
+        toolCallName: 'get_weather',
+        index: 0,
+      }),
+    )
 
-    manager.addToolCallArgsEvent({
-      type: 'TOOL_CALL_ARGS',
-      toolCallId: 'call_weather',
-      timestamp: Date.now(),
-      delta: '{"location":"Paris"}',
-    })
+    manager.addToolCallArgsEvent(
+      toolCallArgs({
+        toolCallId: 'call_weather',
+        delta: '{"location":"Paris"}',
+      }),
+    )
 
-    manager.addToolCallStartEvent({
-      type: 'TOOL_CALL_START',
-      toolCallId: 'call_calc',
-      toolName: 'calculate',
-      timestamp: Date.now(),
-      index: 1,
-    })
+    manager.addToolCallStartEvent(
+      toolCallStart({
+        toolCallId: 'call_calc',
+        toolCallName: 'calculate',
+        index: 1,
+      }),
+    )
 
-    manager.addToolCallArgsEvent({
-      type: 'TOOL_CALL_ARGS',
-      toolCallId: 'call_calc',
-      timestamp: Date.now(),
-      delta: '{"expression":"5+3"}',
-    })
+    manager.addToolCallArgsEvent(
+      toolCallArgs({
+        toolCallId: 'call_calc',
+        delta: '{"expression":"5+3"}',
+      }),
+    )
 
     const toolCalls = manager.getToolCalls()
     expect(toolCalls).toHaveLength(2)
@@ -306,13 +346,13 @@ describe('ToolCallManager', () => {
     it('should handle TOOL_CALL_START events', () => {
       const manager = new ToolCallManager([mockWeatherTool])
 
-      manager.addToolCallStartEvent({
-        type: 'TOOL_CALL_START',
-        toolCallId: 'call_123',
-        toolName: 'get_weather',
-        timestamp: Date.now(),
-        index: 0,
-      })
+      manager.addToolCallStartEvent(
+        toolCallStart({
+          toolCallId: 'call_123',
+          toolCallName: 'get_weather',
+          index: 0,
+        }),
+      )
 
       const toolCalls = manager.getToolCalls()
       expect(toolCalls).toHaveLength(1)
@@ -324,27 +364,27 @@ describe('ToolCallManager', () => {
     it('should accumulate TOOL_CALL_ARGS events', () => {
       const manager = new ToolCallManager([mockWeatherTool])
 
-      manager.addToolCallStartEvent({
-        type: 'TOOL_CALL_START',
-        toolCallId: 'call_123',
-        toolName: 'get_weather',
-        timestamp: Date.now(),
-        index: 0,
-      })
+      manager.addToolCallStartEvent(
+        toolCallStart({
+          toolCallId: 'call_123',
+          toolCallName: 'get_weather',
+          index: 0,
+        }),
+      )
 
-      manager.addToolCallArgsEvent({
-        type: 'TOOL_CALL_ARGS',
-        toolCallId: 'call_123',
-        timestamp: Date.now(),
-        delta: '{"loc',
-      })
+      manager.addToolCallArgsEvent(
+        toolCallArgs({
+          toolCallId: 'call_123',
+          delta: '{"loc',
+        }),
+      )
 
-      manager.addToolCallArgsEvent({
-        type: 'TOOL_CALL_ARGS',
-        toolCallId: 'call_123',
-        timestamp: Date.now(),
-        delta: 'ation":"Paris"}',
-      })
+      manager.addToolCallArgsEvent(
+        toolCallArgs({
+          toolCallId: 'call_123',
+          delta: 'ation":"Paris"}',
+        }),
+      )
 
       const toolCalls = manager.getToolCalls()
       expect(toolCalls).toHaveLength(1)
@@ -354,21 +394,21 @@ describe('ToolCallManager', () => {
     it('should complete tool calls with TOOL_CALL_END events', () => {
       const manager = new ToolCallManager([mockWeatherTool])
 
-      manager.addToolCallStartEvent({
-        type: 'TOOL_CALL_START',
-        toolCallId: 'call_123',
-        toolName: 'get_weather',
-        timestamp: Date.now(),
-        index: 0,
-      })
+      manager.addToolCallStartEvent(
+        toolCallStart({
+          toolCallId: 'call_123',
+          toolCallName: 'get_weather',
+          index: 0,
+        }),
+      )
 
-      manager.completeToolCall({
-        type: 'TOOL_CALL_END',
-        toolCallId: 'call_123',
-        toolName: 'get_weather',
-        timestamp: Date.now(),
-        input: { location: 'New York' },
-      })
+      manager.completeToolCall(
+        toolCallEnd({
+          toolCallId: 'call_123',
+          toolCallName: 'get_weather',
+          input: { location: 'New York' },
+        }),
+      )
 
       const toolCalls = manager.getToolCalls()
       expect(toolCalls).toHaveLength(1)

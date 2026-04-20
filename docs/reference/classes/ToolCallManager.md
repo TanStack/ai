@@ -113,7 +113,7 @@ Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
 clear(): void;
 ```
 
-Defined in: [activities/chat/tools/tool-calls.ts:256](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L256)
+Defined in: [activities/chat/tools/tool-calls.ts:260](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L260)
 
 Clear the tool calls map for the next iteration
 
@@ -155,7 +155,7 @@ executeTools(finishEvent): AsyncGenerator<ToolCallEndEvent, ModelMessage<
 | null>[], void>;
 ```
 
-Defined in: [activities/chat/tools/tool-calls.ts:158](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L158)
+Defined in: [activities/chat/tools/tool-calls.ts:161](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L161)
 
 Execute all tool calls and return tool result messages
 Yields TOOL_CALL_END events for streaming
@@ -183,7 +183,7 @@ RUN_FINISHED event from the stream
 getToolCalls(): ToolCall[];
 ```
 
-Defined in: [activities/chat/tools/tool-calls.ts:147](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L147)
+Defined in: [activities/chat/tools/tool-calls.ts:150](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L150)
 
 Get all complete tool calls (filtered for valid ID and name)
 
@@ -199,7 +199,7 @@ Get all complete tool calls (filtered for valid ID and name)
 hasToolCalls(): boolean;
 ```
 
-Defined in: [activities/chat/tools/tool-calls.ts:140](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L140)
+Defined in: [activities/chat/tools/tool-calls.ts:143](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L143)
 
 Check if there are any complete tool calls to execute
 

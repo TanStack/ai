@@ -2,6 +2,15 @@
 title: Cencori
 id: cencori-adapter
 order: 3
+description: "Access 14+ AI providers (OpenAI, Anthropic, Google, xAI, and more) through Cencori's unified interface with built-in security, observability, and cost tracking in TanStack AI."
+keywords:
+  - tanstack ai
+  - cencori
+  - multi-provider
+  - observability
+  - cost tracking
+  - security
+  - community adapter
 ---
 
 The Cencori adapter provides access to 14+ AI providers (OpenAI, Anthropic, Google, xAI, and more) through a unified interface with built-in security, observability, and cost tracking.

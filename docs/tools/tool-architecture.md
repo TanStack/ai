@@ -2,6 +2,15 @@
 title: Tool Architecture
 id: tool-architecture
 order: 2
+description: "The architecture behind TanStack AI's tool system — server tools, client tools, call states, approval flow, and the agentic cycle."
+keywords:
+  - tanstack ai
+  - tool architecture
+  - server tools
+  - client tools
+  - call states
+  - approval flow
+  - agentic cycle
 ---
 
 The TanStack AI tool system provides a powerful, flexible architecture for enabling AI agents to interact with external systems:

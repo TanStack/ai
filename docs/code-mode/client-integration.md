@@ -2,6 +2,15 @@
 title: Showing Code Mode in the UI
 id: code-mode-client-integration
 order: 2
+description: "Stream Code Mode execution events to your React app — console output, external calls, and results as they happen, via onCustomEvent."
+keywords:
+  - tanstack ai
+  - code mode
+  - react ui
+  - custom events
+  - onCustomEvent
+  - streaming ui
+  - execution progress
 ---
 
 You have [Code Mode](./code-mode) working on your server — the LLM writes and executes TypeScript, and you get results back. But your users see nothing while the sandbox runs. By the end of this guide, your React app will show real-time execution progress: console output, external function calls, and final results as they stream in.

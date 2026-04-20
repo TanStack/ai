@@ -1,5 +1,28 @@
 # @tanstack/ai-gemini
 
+## 0.8.8
+
+### Patch Changes
+
+- fix(ai, ai-openai, ai-gemini, ai-ollama): normalize null tool input to empty object ([#430](https://github.com/TanStack/ai/pull/430))
+
+  When a model produces a `tool_use` block with no input, `JSON.parse('null')` returns `null` which fails Zod schema validation and silently kills the agent loop. Normalize null/non-object parsed tool input to `{}` in `executeToolCalls`, `ToolCallManager.completeToolCall`, `ToolCallManager.executeTools`, and the OpenAI/Gemini/Ollama adapter `TOOL_CALL_END` emissions. The Anthropic adapter already had this fix.
+
+- Updated dependencies [[`c780bc1`](https://github.com/TanStack/ai/commit/c780bc127755ecf7e900343bf0e4d4823ff526ca)]:
+  - @tanstack/ai@0.10.3
+
+## 0.8.7
+
+### Patch Changes
+
+- Fix 400 error when sending tool results to Gemini API by removing redundant text part from functionResponse messages. Newer models (gemini-3.1-flash-lite, gemma-4) reject messages that mix text and functionResponse parts. ([#448](https://github.com/TanStack/ai/pull/448))
+
+## 0.8.6
+
+### Patch Changes
+
+- Update model metadata from OpenRouter API ([#433](https://github.com/TanStack/ai/pull/433))
+
 ## 0.8.5
 
 ### Patch Changes

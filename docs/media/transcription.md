@@ -2,6 +2,15 @@
 title: Transcription
 id: transcription
 order: 4
+description: "Transcribe audio to text with OpenAI Whisper and GPT-4o-transcribe via TanStack AI's generateTranscription() API."
+keywords:
+  - tanstack ai
+  - transcription
+  - speech-to-text
+  - asr
+  - whisper
+  - generateTranscription
+  - openai
 ---
 
 # Audio Transcription
