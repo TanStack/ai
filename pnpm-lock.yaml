@@ -852,6 +852,9 @@ importers:
         specifier: workspace:*
         version: link:../ai-event-client
     devDependencies:
+      '@standard-schema/spec':
+        specifier: ^1.1.0
+        version: 1.1.0
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.1.4)
@@ -15259,7 +15262,7 @@ snapshots:
 
   '@vitest/expect@4.0.15':
     dependencies:
-      '@standard-schema/spec': 1.0.0
+      '@standard-schema/spec': 1.1.0
       '@types/chai': 5.2.3
       '@vitest/spy': 4.0.15
       '@vitest/utils': 4.0.15
