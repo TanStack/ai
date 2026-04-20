@@ -68,9 +68,7 @@ describe('debug logging — chat integration', () => {
     expect(debugMsgs.some((m) => m.includes('[tanstack-ai:request]'))).toBe(
       true,
     )
-    expect(debugMsgs.some((m) => m.includes('[tanstack-ai:output]'))).toBe(
-      true,
-    )
+    expect(debugMsgs.some((m) => m.includes('[tanstack-ai:output]'))).toBe(true)
     expect(debugMsgs.some((m) => m.includes('[tanstack-ai:agentLoop]'))).toBe(
       true,
     )
@@ -104,12 +102,10 @@ describe('debug logging — chat integration', () => {
     await collectChunks(stream as AsyncIterable<StreamChunk>)
 
     const debugMsgs = logPrefixes(logger.debug.mock.calls)
-    expect(
-      debugMsgs.some((m) => m.includes('[tanstack-ai:middleware]')),
-    ).toBe(false)
-    expect(debugMsgs.some((m) => m.includes('[tanstack-ai:output]'))).toBe(
-      true,
+    expect(debugMsgs.some((m) => m.includes('[tanstack-ai:middleware]'))).toBe(
+      false,
     )
+    expect(debugMsgs.some((m) => m.includes('[tanstack-ai:output]'))).toBe(true)
   })
 
   it('granular flags: middleware logs fire when middleware: true', async () => {
@@ -140,9 +136,9 @@ describe('debug logging — chat integration', () => {
     await collectChunks(stream as AsyncIterable<StreamChunk>)
 
     const debugMsgs = logPrefixes(logger.debug.mock.calls)
-    expect(
-      debugMsgs.some((m) => m.includes('[tanstack-ai:middleware]')),
-    ).toBe(true)
+    expect(debugMsgs.some((m) => m.includes('[tanstack-ai:middleware]'))).toBe(
+      true,
+    )
   })
 
   it('debug: false produces zero logs, even when adapter throws', async () => {
@@ -250,9 +246,7 @@ describe('debug logging — chat integration', () => {
 
     expect(logger.error).toHaveBeenCalled()
     const prefixes = logPrefixes(logger.error.mock.calls)
-    expect(prefixes.some((m) => m.includes('[tanstack-ai:errors]'))).toBe(
-      true,
-    )
+    expect(prefixes.some((m) => m.includes('[tanstack-ai:errors]'))).toBe(true)
   })
 
   it('debug: true with failing adapter still routes error to errors category', async () => {
