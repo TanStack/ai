@@ -2695,7 +2695,7 @@ export const models: Array<OpenRouterModel> = [
     created: 1738769413,
     description:
       'Gemini Flash 2.0 offers a significantly faster time to first token (TTFT) compared to [Gemini Flash 1.5](/google/gemini-flash-1.5), while maintaining quality on par with larger models like [Gemini Pro 1.5](/google/gemini-pro-1.5). It...',
-    context_length: 1000000,
+    context_length: 1048576,
     architecture: {
       modality: 'text+image+file+audio+video->text',
       input_modalities: ['text', 'image', 'file', 'audio', 'video'],
@@ -2713,7 +2713,7 @@ export const models: Array<OpenRouterModel> = [
       input_cache_write: '0.00000008333333333333334',
     },
     top_provider: {
-      context_length: 1000000,
+      context_length: 1048576,
       max_completion_tokens: 8192,
       is_moderated: false,
     },

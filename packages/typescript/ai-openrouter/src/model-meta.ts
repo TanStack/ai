@@ -2025,7 +2025,7 @@ const GOOGLE_GEMINI_2_0_FLASH_001 = {
       'topP',
     ],
   },
-  context_window: 1000000,
+  context_window: 1048576,
   max_output_tokens: 8192,
   pricing: {
     text: {
