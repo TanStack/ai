@@ -9,7 +9,7 @@ title: generateMessageId
 function generateMessageId(): string;
 ```
 
-Defined in: [activities/chat/messages.ts:280](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/messages.ts#L280)
+Defined in: [packages/typescript/ai/src/activities/chat/messages.ts:434](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/messages.ts#L434)
 
 Generate a unique message ID
 

@@ -1,10 +1,15 @@
 import type {
   AnyClientTool,
+  AudioPart,
   ChunkStrategy,
+  ContentPart,
+  DocumentPart,
+  ImagePart,
   InferToolInput,
   InferToolOutput,
   ModelMessage,
   StreamChunk,
+  VideoPart,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
 
@@ -25,6 +30,49 @@ export type ToolResultState =
   | 'streaming' // Placeholder for future streamed output
   | 'complete' // Result is complete
   | 'error' // Error occurred
+
+/**
+ * ChatClient state - track the lifecycle of a chat
+ */
+export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
+
+/**
+ * Connection lifecycle state for the subscription loop.
+ */
+export type ConnectionStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'error'
+
+/**
+ * Multimodal content input for sending messages with rich media.
+ * Allows sending text, images, audio, video, and documents to the LLM.
+ *
+ * @example
+ * ```ts
+ * // Send an image with a question
+ * client.sendMessage({
+ *   content: [
+ *     { type: 'text', content: 'What is in this image?' },
+ *     { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
+ *   ],
+ *   id: 'custom-message-id' // optional
+ * })
+ * ```
+ */
+export interface MultimodalContent {
+  /**
+   * The content of the message.
+   * Can be a simple string or an array of content parts for multimodal messages.
+   */
+  content: string | Array<ContentPart>
+  /**
+   * Optional custom ID for the message.
+   * If not provided, a unique ID will be generated.
+   */
+  id?: string
+}
 
 /**
  * Message parts - building blocks of UIMessage
@@ -116,6 +164,10 @@ export interface ThinkingPart {
 
 export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
   | TextPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
   | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart
@@ -135,8 +187,9 @@ export interface ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > {
   /**
-   * Connection adapter for streaming
-   * Use fetchServerSentEvents(), fetchHttpStream(), or stream() to create adapters
+   * Connection adapter for streaming.
+   * Supports mutually exclusive modes: request-response via `connect()`, or
+   * subscribe/send mode via `subscribe()` + `send()`.
    */
   connection: ConnectionAdapter
 
@@ -190,6 +243,44 @@ export interface ChatClientOptions<
    * Callback when error state changes
    */
   onErrorChange?: (error: Error | undefined) => void
+
+  /**
+   * Callback when chat status changes
+   */
+  onStatusChange?: (status: ChatClientState) => void
+
+  /**
+   * Callback when subscription lifecycle changes.
+   * This is independent from request lifecycle (`isLoading`, `status`).
+   */
+  onSubscriptionChange?: (isSubscribed: boolean) => void
+
+  /**
+   * Callback when connection lifecycle changes.
+   */
+  onConnectionStatusChange?: (status: ConnectionStatus) => void
+
+  /**
+   * Callback when session generation activity changes.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `onLoadingChange` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
+  onSessionGeneratingChange?: (isGenerating: boolean) => void
+
+  /**
+   * Callback when a custom event is received from a server-side tool.
+   * Custom events are emitted by tools using `context.emitCustomEvent()` during execution.
+   *
+   * @param eventType - The name of the custom event
+   * @param data - The event payload data
+   * @param context - Additional context including the toolCallId that emitted the event
+   */
+  onCustomEvent?: (
+    eventType: string,
+    data: unknown,
+    context: { toolCallId?: string },
+  ) => void
 
   /**
    * Client-side tools with execution logic

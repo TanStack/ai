@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { GeminiImageAdapter, createGeminiImage } from '../src/adapters/image'
 import {
+  parseNativeImageSize,
   sizeToAspectRatio,
   validateImageSize,
   validateNumberOfImages,
@@ -115,8 +116,32 @@ describe('Gemini Image Adapter', () => {
     })
   })
 
+  describe('parseNativeImageSize', () => {
+    it('parses template literal sizes into components', () => {
+      expect(parseNativeImageSize('16:9_4K')).toEqual({
+        aspectRatio: '16:9',
+        resolution: '4K',
+      })
+      expect(parseNativeImageSize('1:1_2K')).toEqual({
+        aspectRatio: '1:1',
+        resolution: '2K',
+      })
+      expect(parseNativeImageSize('21:9_1K')).toEqual({
+        aspectRatio: '21:9',
+        resolution: '1K',
+      })
+    })
+
+    it('returns undefined for invalid formats', () => {
+      expect(parseNativeImageSize('1024x1024')).toBeUndefined()
+      expect(parseNativeImageSize('invalid')).toBeUndefined()
+      expect(parseNativeImageSize('16:9')).toBeUndefined()
+      expect(parseNativeImageSize('4K')).toBeUndefined()
+    })
+  })
+
   describe('generateImages', () => {
-    it('calls the Gemini models.generateImages API', async () => {
+    it('calls the Gemini models.generateImages API for Imagen models', async () => {
       const mockResponse = {
         generatedImages: [
           {
@@ -129,7 +154,10 @@ describe('Gemini Image Adapter', () => {
 
       const mockGenerateImages = vi.fn().mockResolvedValueOnce(mockResponse)
 
-      const adapter = createGeminiImage('test-api-key')
+      const adapter = createGeminiImage(
+        'imagen-3.0-generate-002',
+        'test-api-key',
+      )
       // Replace the internal Gemini SDK client with our mock
       ;(
         adapter as unknown as {
@@ -169,7 +197,10 @@ describe('Gemini Image Adapter', () => {
 
       const mockGenerateImages = vi.fn().mockResolvedValue(mockResponse)
 
-      const adapter = createGeminiImage('test-api-key')
+      const adapter = createGeminiImage(
+        'imagen-3.0-generate-002',
+        'test-api-key',
+      )
       ;(
         adapter as unknown as {
           client: { models: { generateImages: unknown } }
@@ -193,6 +224,296 @@ describe('Gemini Image Adapter', () => {
       expect(result1.id).not.toBe(result2.id)
       expect(result1.id).toMatch(/^gemini-/)
       expect(result2.id).toMatch(/^gemini-/)
+    })
+
+    it('calls generateContent API for Gemini image models', async () => {
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: 'image/png',
+                    data: 'gemini-base64-image',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }
+
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: mockGenerateContent,
+        },
+      }
+
+      const result = await adapter.generateImages({
+        model: 'gemini-3.1-flash-image-preview',
+        prompt: 'A futuristic city',
+        size: '16:9_4K',
+      })
+
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: 'A futuristic city',
+        config: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: {
+            aspectRatio: '16:9',
+            imageSize: '4K',
+          },
+        },
+      })
+
+      expect(result.model).toBe('gemini-3.1-flash-image-preview')
+      expect(result.images).toHaveLength(1)
+      expect(result.images[0].b64Json).toBe('gemini-base64-image')
+    })
+
+    it('calls generateContent without imageConfig when no size provided', async () => {
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: 'image/png',
+                    data: 'gemini-base64-image',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }
+
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: mockGenerateContent,
+        },
+      }
+
+      const result = await adapter.generateImages({
+        model: 'gemini-3.1-flash-image-preview',
+        prompt: 'A simple sketch',
+      })
+
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: 'A simple sketch',
+        config: {
+          responseModalities: ['TEXT', 'IMAGE'],
+        },
+      })
+
+      expect(result.images).toHaveLength(1)
+    })
+
+    it('handles empty response from Gemini image model', async () => {
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [],
+            },
+          },
+        ],
+      }
+
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: mockGenerateContent,
+        },
+      }
+
+      const result = await adapter.generateImages({
+        model: 'gemini-3.1-flash-image-preview',
+        prompt: 'A test prompt',
+      })
+
+      expect(result.images).toHaveLength(0)
+    })
+
+    it('augments prompt when numberOfImages > 1 for Gemini models', async () => {
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: { mimeType: 'image/png', data: 'img1' },
+                },
+                {
+                  text: 'Here is the second image:',
+                },
+                {
+                  inlineData: { mimeType: 'image/png', data: 'img2' },
+                },
+              ],
+            },
+          },
+        ],
+      }
+
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: mockGenerateContent,
+        },
+      }
+
+      const result = await adapter.generateImages({
+        model: 'gemini-3.1-flash-image-preview',
+        prompt: 'A futuristic city',
+        numberOfImages: 3,
+      })
+
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: 'A futuristic city Generate 3 distinct images.',
+        config: {
+          responseModalities: ['TEXT', 'IMAGE'],
+        },
+      })
+
+      // Collects all inlineData parts, skipping text parts
+      expect(result.images).toHaveLength(2)
+      expect(result.images[0].b64Json).toBe('img1')
+      expect(result.images[1].b64Json).toBe('img2')
+    })
+
+    it('does not augment prompt when numberOfImages is 1', async () => {
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: { mimeType: 'image/png', data: 'img1' },
+                },
+              ],
+            },
+          },
+        ],
+      }
+
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: mockGenerateContent,
+        },
+      }
+
+      await adapter.generateImages({
+        model: 'gemini-3.1-flash-image-preview',
+        prompt: 'A simple sketch',
+        numberOfImages: 1,
+      })
+
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: 'A simple sketch',
+        config: {
+          responseModalities: ['TEXT', 'IMAGE'],
+        },
+      })
+    })
+
+    it('does not augment prompt when numberOfImages is undefined', async () => {
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: { mimeType: 'image/png', data: 'img1' },
+                },
+              ],
+            },
+          },
+        ],
+      }
+
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: mockGenerateContent,
+        },
+      }
+
+      await adapter.generateImages({
+        model: 'gemini-3.1-flash-image-preview',
+        prompt: 'A simple sketch',
+      })
+
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: 'A simple sketch',
+        config: {
+          responseModalities: ['TEXT', 'IMAGE'],
+        },
+      })
     })
   })
 })

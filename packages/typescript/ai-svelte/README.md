@@ -65,8 +65,8 @@ This library uses Svelte 5 runes (`$state`) internally, providing a clean API wh
 
 ```svelte
 <script>
-  const chat = createChat({ ... })
-  
+  const chat = createChat({})
+
   // No $ needed - these are reactive getters!
   console.log(chat.messages)
   console.log(chat.isLoading)

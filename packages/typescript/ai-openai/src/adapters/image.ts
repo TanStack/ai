@@ -3,13 +3,13 @@ import {
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
-} from '../utils'
+} from '../utils/client'
 import {
   validateImageSize,
   validateNumberOfImages,
   validatePrompt,
 } from '../image/image-provider-options'
-import type { OPENAI_IMAGE_MODELS } from '../model-meta'
+import type { OpenAIImageModel } from '../model-meta'
 import type {
   OpenAIImageModelProviderOptionsByName,
   OpenAIImageModelSizeByName,
@@ -21,15 +21,12 @@ import type {
   ImageGenerationResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
-import type { OpenAIClientConfig } from '../utils'
+import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI image adapter
  */
 export interface OpenAIImageConfig extends OpenAIClientConfig {}
-
-/** Model type for OpenAI Image */
-export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
 
 /**
  * OpenAI Image Generation Adapter

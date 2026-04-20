@@ -1,7 +1,13 @@
 import { ChatClient } from '@tanstack/ai-client'
-import { onScopeDispose, readonly, shallowRef, useId } from 'vue'
+import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
-import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
+import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
+import type {
+  MultimodalContent,
+  UIMessage,
+  UseChatOptions,
+  UseChatReturn,
+} from './types'
 
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   options: UseChatOptions<TTools> = {} as UseChatOptions<TTools>,
@@ -14,6 +20,10 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   )
   const isLoading = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
+  const status = shallowRef<ChatClientState>('ready')
+  const isSubscribed = shallowRef(false)
+  const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
+  const sessionGenerating = shallowRef(false)
 
   // Create ChatClient instance with callbacks to sync state
   const client = new ChatClient({
@@ -23,9 +33,14 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     body: options.body,
     onResponse: options.onResponse,
     onChunk: options.onChunk,
-    onFinish: options.onFinish,
-    onError: options.onError,
+    onFinish: (message) => {
+      options.onFinish?.(message)
+    },
+    onError: (err) => {
+      options.onError?.(err)
+    },
     tools: options.tools,
+    onCustomEvent: options.onCustomEvent,
     streamProcessor: options.streamProcessor,
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages.value = newMessages
@@ -33,22 +48,59 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     onLoadingChange: (newIsLoading: boolean) => {
       isLoading.value = newIsLoading
     },
+    onStatusChange: (newStatus: ChatClientState) => {
+      status.value = newStatus
+    },
     onErrorChange: (newError: Error | undefined) => {
       error.value = newError
     },
+    onSubscriptionChange: (nextIsSubscribed: boolean) => {
+      isSubscribed.value = nextIsSubscribed
+    },
+    onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+      connectionStatus.value = nextStatus
+    },
+    onSessionGeneratingChange: (isGenerating: boolean) => {
+      sessionGenerating.value = isGenerating
+    },
   })
+
+  // Sync body changes to the client
+  // This allows dynamic body values (like model selection) to be updated without recreating the client
+  watch(
+    () => options.body,
+    (newBody) => {
+      client.updateOptions({ body: newBody })
+    },
+  )
+
+  watch(
+    () => options.live,
+    (live) => {
+      if (live) {
+        client.subscribe()
+      } else {
+        client.unsubscribe()
+      }
+    },
+    { immediate: true },
+  )
 
   // Cleanup on unmount: stop any in-flight requests
   // Note: client.stop() is safe to call even if nothing is in progress
   onScopeDispose(() => {
-    client.stop()
+    if (options.live) {
+      client.unsubscribe()
+    } else {
+      client.stop()
+    }
   })
 
   // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
   // are captured at client creation time. Changes to these callbacks require
   // remounting the component or changing the connection to recreate the client.
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string | MultimodalContent) => {
     await client.sendMessage(content)
   }
 
@@ -97,6 +149,10 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     stop,
     isLoading: readonly(isLoading),
     error: readonly(error),
+    status: readonly(status),
+    isSubscribed: readonly(isSubscribed),
+    connectionStatus: readonly(connectionStatus),
+    sessionGenerating: readonly(sessionGenerating),
     setMessages: setMessagesManually,
     clear,
     addToolResult,

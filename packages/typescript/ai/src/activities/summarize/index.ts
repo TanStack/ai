@@ -5,7 +5,8 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
-import { aiEventClient } from '../../event-client.js'
+import { aiEventClient } from '@tanstack/ai-event-client'
+import { streamGenerationResult } from '../stream-generation-result.js'
 import type { SummarizeAdapter } from './adapter'
 import type {
   StreamChunk,
@@ -180,8 +181,9 @@ async function runSummarize(
   const inputLength = text.length
   const startTime = Date.now()
 
-  aiEventClient.emit('summarize:started', {
+  aiEventClient.emit('summarize:request:started', {
     requestId,
+    provider: adapter.name,
     model,
     inputLength,
     timestamp: startTime,
@@ -200,8 +202,9 @@ async function runSummarize(
   const duration = Date.now() - startTime
   const outputLength = result.summary.length
 
-  aiEventClient.emit('summarize:completed', {
+  aiEventClient.emit('summarize:request:completed', {
     requestId,
+    provider: adapter.name,
     model,
     inputLength,
     outputLength,
@@ -237,29 +240,8 @@ async function* runStreamingSummarize(
     return
   }
 
-  // Fall back to non-streaming and yield as a single chunk
-  const result = await adapter.summarize(summarizeOptions)
-
-  // Yield content chunk with the summary
-  yield {
-    type: 'content',
-    id: result.id,
-    model: result.model,
-    timestamp: Date.now(),
-    delta: result.summary,
-    content: result.summary,
-    role: 'assistant',
-  }
-
-  // Yield done chunk
-  yield {
-    type: 'done',
-    id: result.id,
-    model: result.model,
-    timestamp: Date.now(),
-    finishReason: 'stop',
-    usage: result.usage,
-  }
+  // Fall back to non-streaming — wrap result with streamGenerationResult
+  yield* streamGenerationResult(() => adapter.summarize(summarizeOptions))
 }
 
 // ===========================

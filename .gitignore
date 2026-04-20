@@ -53,3 +53,22 @@ test-traces
 **/adapters/output
 .nitro
 .output
+
+# Playwright
+playwright-report
+test-results
+
+solo.yml
+.structured-output-skills
+
+STATUS_*.md
+
+# models-eval run artifacts (full candidate/gold text per model)
+packages/typescript/ai-code-mode/models-eval/log/
+
+.skills
+docs/superpowers
+# Only .claude.settings.json should be committed
+.claude/settings.local.json
+.claude/worktrees/*
+solo.yml

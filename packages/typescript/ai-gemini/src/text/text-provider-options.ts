@@ -22,40 +22,39 @@ This will be enforced on the GenerateContentRequest.contents and GenerateContent
   safetySettings?: Array<SafetySetting>
 }
 
-export interface GeminiGenerationConfigOptions {
+export interface GeminiCommonConfigOptions {
   /**
    * Configuration options for model generation and outputs.
    */
-  generationConfig?: {
-    /**
-     * The set of character sequences (up to 5) that will stop output generation. If specified, the API will stop at the first appearance of a stop_sequence. The stop sequence will not be included as part of the response.
-     */
-    stopSequences?: Array<string>
-    /**
+  /**
+   * The set of character sequences (up to 5) that will stop output generation. If specified, the API will stop at the first appearance of a stop_sequence. The stop sequence will not be included as part of the response.
+   */
+  stopSequences?: Array<string>
+  /**
      * The requested modalities of the response. Represents the set of modalities that the model can return, and should be expected in the response. This is an exact match to the modalities of the response.
 
 A model may have multiple combinations of supported modalities. If the requested modalities do not match any of the supported combinations, an error will be returned.
      */
-    responseModalities?: Array<
-      'MODALITY_UNSPECIFIED' | 'TEXT' | 'IMAGE' | 'AUDIO'
-    >
-    /**
-     *  Number of generated responses to return. If unset, this will default to 1. Please note that this doesn't work for previous generation models (Gemini 1.0 family)
-     */
-    candidateCount?: number
-    /**
+  responseModalities?: Array<
+    'MODALITY_UNSPECIFIED' | 'TEXT' | 'IMAGE' | 'AUDIO'
+  >
+  /**
+   *  Number of generated responses to return. If unset, this will default to 1. Please note that this doesn't work for previous generation models (Gemini 1.0 family)
+   */
+  candidateCount?: number
+  /**
      * The maximum number of tokens to consider when sampling.
 
 Gemini models use Top-p (nucleus) sampling or a combination of Top-k and nucleus sampling. Top-k sampling considers the set of topK most probable tokens. Models running with nucleus sampling don't allow topK setting.
 
 Note: The default value varies by Model and is specified by theModel.top_p attribute returned from the getModel function. An empty topK attribute indicates that the model doesn't apply top-k sampling and doesn't allow setting topK on requests.
      */
-    topK?: number
-    /**
-     * Seed used in decoding. If not set, the request uses a randomly generated seed.
-     */
-    seed?: number
-    /**
+  topK?: number
+  /**
+   * Seed used in decoding. If not set, the request uses a randomly generated seed.
+   */
+  seed?: number
+  /**
      * Presence penalty applied to the next token's logprobs if the token has already been seen in the response.
 
 This penalty is binary on/off and not dependant on the number of times the token is used (after the first). Use frequencyPenalty for a penalty that increases with each use.
@@ -64,107 +63,105 @@ A positive penalty will discourage the use of tokens that have already been used
 
 A negative penalty will encourage the use of tokens that have already been used in the response, decreasing the vocabulary.
      */
-    presencePenalty?: number
-    /**
+  presencePenalty?: number
+  /**
      * Frequency penalty applied to the next token's logprobs, multiplied by the number of times each token has been seen in the respponse so far.
 
 A positive penalty will discourage the use of tokens that have already been used, proportional to the number of times the token has been used: The more a token is used, the more difficult it is for the model to use that token again increasing the vocabulary of responses.
 
 Caution: A negative penalty will encourage the model to reuse tokens proportional to the number of times the token has been used. Small negative values will reduce the vocabulary of a response. Larger negative values will cause the model to start repeating a common token until it hits the maxOutputTokens limit.
      */
-    frequencyPenalty?: number
-    /**
-     *  If true, export the logprobs results in response.
-     */
-    responseLogprobs?: boolean
+  frequencyPenalty?: number
+  /**
+   *  If true, export the logprobs results in response.
+   */
+  responseLogprobs?: boolean
 
-    /**
-     * Only valid if responseLogprobs=True. This sets the number of top logprobs to return at each decoding step in the Candidate.logprobs_result. The number must be in the range of [0, 20].
-     */
-    logprobs?: number
+  /**
+   * Only valid if responseLogprobs=True. This sets the number of top logprobs to return at each decoding step in the Candidate.logprobs_result. The number must be in the range of [0, 20].
+   */
+  logprobs?: number
 
-    /**
-     *  Enables enhanced civic answers. It may not be available for all models.
-     */
-    enableEnhancedCivicAnswers?: boolean
+  /**
+   *  Enables enhanced civic answers. It may not be available for all models.
+   */
+  enableEnhancedCivicAnswers?: boolean
 
-    /**
-     * The speech generation config.
-     */
-    speechConfig?: {
-      voiceConfig: {
-        prebuiltVoiceConfig: {
-          voiceName: string
-        }
+  /**
+   * The speech generation config.
+   */
+  speechConfig?: {
+    voiceConfig: {
+      prebuiltVoiceConfig: {
+        voiceName: string
       }
+    }
 
-      multiSpeakerVoiceConfig?: {
-        speakerVoiceConfigs?: Array<{
-          speaker: string
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: string
-            }
+    multiSpeakerVoiceConfig?: {
+      speakerVoiceConfigs?: Array<{
+        speaker: string
+        voiceConfig: {
+          prebuiltVoiceConfig: {
+            voiceName: string
           }
-        }>
-      }
-      /**
+        }
+      }>
+    }
+    /**
        * Language code (in BCP 47 format, e.g. "en-US") for speech synthesis.
 
 Valid values are: de-DE, en-AU, en-GB, en-IN, en-US, es-US, fr-FR, hi-IN, pt-BR, ar-XA, es-ES, fr-CA, id-ID, it-IT, ja-JP, tr-TR, vi-VN, bn-IN, gu-IN, kn-IN, ml-IN, mr-IN, ta-IN, te-IN, nl-NL, ko-KR, cmn-CN, pl-PL, ru-RU, and th-TH.
        */
-      languageCode?:
-        | 'de-DE'
-        | 'en-AU'
-        | 'en-GB'
-        | 'en-IN'
-        | 'en-US'
-        | 'es-US'
-        | 'fr-FR'
-        | 'hi-IN'
-        | 'pt-BR'
-        | 'ar-XA'
-        | 'es-ES'
-        | 'fr-CA'
-        | 'id-ID'
-        | 'it-IT'
-        | 'ja-JP'
-        | 'tr-TR'
-        | 'vi-VN'
-        | 'bn-IN'
-        | 'gu-IN'
-        | 'kn-IN'
-        | 'ml-IN'
-        | 'mr-IN'
-        | 'ta-IN'
-        | 'te-IN'
-        | 'nl-NL'
-        | 'ko-KR'
-        | 'cmn-CN'
-        | 'pl-PL'
-        | 'ru-RU'
-        | 'th-TH'
-    }
-    /**
-     * Config for image generation. An error will be returned if this field is set for models that don't support these config options.
-     */
-    imageConfig?: {
-      aspectRatio?:
-        | '1:1'
-        | '2:3'
-        | '3:2'
-        | '3:4'
-        | '4:3'
-        | '9:16'
-        | '16:9'
-        | '21:9'
-    }
-    /**
-     * If specified, the media resolution specified will be used.
-     */
-    mediaResolution?: MediaResolution
-  } & GeminiThinkingOptions &
-    GeminiStructuredOutputOptions
+    languageCode?:
+      | 'de-DE'
+      | 'en-AU'
+      | 'en-GB'
+      | 'en-IN'
+      | 'en-US'
+      | 'es-US'
+      | 'fr-FR'
+      | 'hi-IN'
+      | 'pt-BR'
+      | 'ar-XA'
+      | 'es-ES'
+      | 'fr-CA'
+      | 'id-ID'
+      | 'it-IT'
+      | 'ja-JP'
+      | 'tr-TR'
+      | 'vi-VN'
+      | 'bn-IN'
+      | 'gu-IN'
+      | 'kn-IN'
+      | 'ml-IN'
+      | 'mr-IN'
+      | 'ta-IN'
+      | 'te-IN'
+      | 'nl-NL'
+      | 'ko-KR'
+      | 'cmn-CN'
+      | 'pl-PL'
+      | 'ru-RU'
+      | 'th-TH'
+  }
+  /**
+   * Config for image generation. An error will be returned if this field is set for models that don't support these config options.
+   */
+  imageConfig?: {
+    aspectRatio?:
+      | '1:1'
+      | '2:3'
+      | '3:2'
+      | '3:4'
+      | '4:3'
+      | '9:16'
+      | '16:9'
+      | '21:9'
+  }
+  /**
+   * If specified, the media resolution specified will be used.
+   */
+  mediaResolution?: MediaResolution
 }
 
 export interface GeminiCachedContentOptions {
@@ -232,15 +229,26 @@ export interface GeminiThinkingOptions {
     /**
      * The number of thoughts tokens that the model should generate.
      */
-    thinkingBudget: number
+    thinkingBudget?: number
+  }
+}
+
+export interface GeminiThinkingAdvancedOptions {
+  /**
+   * Config for thinking features. An error will be returned if this field is set for models that don't support thinking.
+   */
+  thinkingConfig?: {
     /**
      * The level of thoughts tokens that the model should generate.
      */
-    thinkingLevel?: ThinkingLevel
+    thinkingLevel?: keyof typeof ThinkingLevel
   }
 }
 
 export type ExternalTextProviderOptions = GeminiToolConfigOptions &
   GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions
+  GeminiCommonConfigOptions &
+  GeminiCachedContentOptions &
+  GeminiThinkingOptions &
+  GeminiThinkingAdvancedOptions &
+  GeminiStructuredOutputOptions

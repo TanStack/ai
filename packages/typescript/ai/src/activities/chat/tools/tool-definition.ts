@@ -4,6 +4,7 @@ import type {
   JSONSchema,
   SchemaInput,
   Tool,
+  ToolExecutionContext,
 } from '../../../types'
 
 /**
@@ -31,6 +32,7 @@ export interface ClientTool<
   inputSchema?: TInput
   outputSchema?: TOutput
   needsApproval?: boolean
+  lazy?: boolean
   metadata?: Record<string, unknown>
   execute?: (
     args: InferSchemaType<TInput>,
@@ -95,6 +97,7 @@ export interface ToolDefinitionConfig<
   inputSchema?: TInput
   outputSchema?: TOutput
   needsApproval?: boolean
+  lazy?: boolean
   metadata?: Record<string, unknown>
 }
 
@@ -112,6 +115,7 @@ export interface ToolDefinition<
   server: (
     execute: (
       args: InferSchemaType<TInput>,
+      context?: ToolExecutionContext,
     ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
   ) => ServerTool<TInput, TOutput, TName>
 
@@ -193,6 +197,7 @@ export function toolDefinition<
     server(
       execute: (
         args: InferSchemaType<TInput>,
+        context?: ToolExecutionContext,
       ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
     ): ServerTool<TInput, TOutput, TName> {
       return {

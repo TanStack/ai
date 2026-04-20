@@ -5,7 +5,7 @@ title: Tool
 
 # Interface: Tool\<TInput, TOutput, TName\>
 
-Defined in: [types.ts:328](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L328)
+Defined in: [packages/typescript/ai/src/types.ts:416](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L416)
 
 Tool/Function definition for function calling.
 
@@ -48,7 +48,7 @@ or plain JSON Schema objects for runtime validation and type safety.
 description: string;
 ```
 
-Defined in: [types.ts:351](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L351)
+Defined in: [packages/typescript/ai/src/types.ts:439](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L439)
 
 Clear description of what the tool does.
 
@@ -66,10 +66,10 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 ### execute()?
 
 ```ts
-optional execute: (args) => any;
+optional execute: (args, context?) => any;
 ```
 
-Defined in: [types.ts:431](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L431)
+Defined in: [packages/typescript/ai/src/types.ts:519](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L519)
 
 Optional function to execute when the model calls this tool.
 
@@ -85,6 +85,10 @@ Can return any value - will be automatically stringified if needed.
 `any`
 
 The arguments parsed from the model's tool call (validated against inputSchema)
+
+##### context?
+
+[`ToolExecutionContext`](ToolExecutionContext.md)
 
 #### Returns
 
@@ -109,7 +113,7 @@ execute: async (args) => {
 optional inputSchema: TInput;
 ```
 
-Defined in: [types.ts:391](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L391)
+Defined in: [packages/typescript/ai/src/types.ts:479](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L479)
 
 Schema describing the tool's input parameters.
 
@@ -157,13 +161,25 @@ type({
 
 ***
 
+### lazy?
+
+```ts
+optional lazy: boolean;
+```
+
+Defined in: [packages/typescript/ai/src/types.ts:525](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L525)
+
+If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat().
+
+***
+
 ### metadata?
 
 ```ts
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [types.ts:437](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L437)
+Defined in: [packages/typescript/ai/src/types.ts:528](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L528)
 
 Additional metadata for adapters or custom extensions
 
@@ -175,7 +191,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [types.ts:341](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L341)
+Defined in: [packages/typescript/ai/src/types.ts:429](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L429)
 
 Unique name of the tool (used by the model to call it).
 
@@ -196,7 +212,7 @@ Must be unique within the tools array.
 optional needsApproval: boolean;
 ```
 
-Defined in: [types.ts:434](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L434)
+Defined in: [packages/typescript/ai/src/types.ts:522](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L522)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -208,7 +224,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema: TOutput;
 ```
 
-Defined in: [types.ts:412](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L412)
+Defined in: [packages/typescript/ai/src/types.ts:500](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L500)
 
 Optional schema for validating tool output.
 

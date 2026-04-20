@@ -1,0 +1,4 @@
+{
+  "name": "@tanstack/ai-event-client",
+  "implicitDependencies": ["!@tanstack/ai"]
+}

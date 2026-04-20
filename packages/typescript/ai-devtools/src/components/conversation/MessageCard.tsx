@@ -1,6 +1,7 @@
 import { For, Show } from 'solid-js'
+import { JsonTree } from '@tanstack/devtools-ui'
 import { useStyles } from '../../styles/use-styles'
-import { formatTimestamp } from '../utils'
+import { formatDuration, formatTimestamp } from '../utils'
 import { ToolCallDisplay } from './ToolCallDisplay'
 import { ChunksCollapsible } from './ChunksCollapsible'
 import type { Message } from '../../store/ai-store'
@@ -31,13 +32,30 @@ export const MessageCard: Component<MessageCardProps> = (props) => {
     return `${base} ${styles().conversationDetails.messageCardServer}`
   }
 
-  // Check if this is a non-user message (needs source banner and content wrapper)
-  const isSourcedMessage = () => msg().role !== 'user'
+  const parseJsonContent = () => {
+    const content = msg().content
+    if (typeof content !== 'string') return null
+    const trimmed = content.trim()
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null
+    try {
+      return JSON.parse(trimmed) as Record<string, unknown> | Array<unknown>
+    } catch {
+      return null
+    }
+  }
+
+  const toolDuration = () => {
+    const durations = msg()
+      .toolCalls?.map((tool) => tool.duration || 0)
+      .filter((duration) => duration > 0)
+    if (!durations || durations.length === 0) return 0
+    return durations.reduce((total, duration) => total + duration, 0)
+  }
 
   return (
     <div class={getCardClass()}>
       {/* Source indicator banner at top of card */}
-      <Show when={isSourcedMessage()}>
+      <Show when={msg().role === 'assistant'}>
         <div
           class={`${styles().conversationDetails.sourceBanner} ${
             isClientMessage()
@@ -56,9 +74,9 @@ export const MessageCard: Component<MessageCardProps> = (props) => {
       {/* Content wrapper with padding */}
       <div
         class={
-          isSourcedMessage()
-            ? styles().conversationDetails.messageCardContent
-            : ''
+          msg().role === 'user'
+            ? ''
+            : styles().conversationDetails.messageCardContent
         }
       >
         <div class={styles().conversationDetails.messageHeader}>
@@ -100,6 +118,14 @@ export const MessageCard: Component<MessageCardProps> = (props) => {
               <span>{msg().usage?.completionTokens.toLocaleString()} out</span>
             </div>
           </Show>
+          <Show when={toolDuration() > 0}>
+            <div class={styles().conversationDetails.messageUsage}>
+              <span class={styles().conversationDetails.messageUsageIcon}>
+                ⏱️
+              </span>
+              <span>{formatDuration(toolDuration())}</span>
+            </div>
+          </Show>
         </div>
 
         {/* Thinking content (for extended thinking models) */}
@@ -114,9 +140,18 @@ export const MessageCard: Component<MessageCardProps> = (props) => {
           </details>
         </Show>
 
-        <div class={styles().conversationDetails.messageContent}>
-          {msg().content}
-        </div>
+        <Show
+          when={msg().role === 'tool' && parseJsonContent() !== null}
+          fallback={
+            <div class={styles().conversationDetails.messageContent}>
+              {msg().content}
+            </div>
+          }
+        >
+          <div class={styles().conversationDetails.toolJsonContainer}>
+            <JsonTree value={parseJsonContent()!} />
+          </div>
+        </Show>
 
         {/* Tool Calls Display */}
         <Show when={msg().toolCalls && msg().toolCalls!.length > 0}>

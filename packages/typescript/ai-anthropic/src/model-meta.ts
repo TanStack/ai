@@ -19,6 +19,7 @@ interface ModelMeta<
   supports: {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     extended_thinking?: boolean
+    adaptive_thinking?: boolean
     priority_tier?: boolean
   }
   context_window?: number
@@ -46,6 +47,98 @@ interface ModelMeta<
    */
   messageCapabilities?: TMessageCapabilities
 }
+
+const CLAUDE_OPUS_4_6 = {
+  name: 'claude-opus-4-6',
+  id: 'claude-opus-4-6',
+  context_window: 200_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2025-05-01',
+  pricing: {
+    input: {
+      normal: 5,
+    },
+    output: {
+      normal: 25,
+    },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    priority_tier: true,
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_OPUS_4_5 = {
+  name: 'claude-opus-4-5',
+  id: 'claude-opus-4-5',
+  context_window: 200_000,
+  max_output_tokens: 32_000,
+  knowledge_cutoff: '2025-11-01',
+  pricing: {
+    input: {
+      normal: 15,
+    },
+    output: {
+      normal: 75,
+    },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    priority_tier: true,
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_SONNET_4_6 = {
+  name: 'claude-sonnet-4-6',
+  id: 'claude-sonnet-4-6',
+  context_window: 1_000_000,
+  max_output_tokens: 64_000,
+  knowledge_cutoff: '2025-08-01',
+  pricing: {
+    input: {
+      normal: 3,
+    },
+    output: {
+      normal: 15,
+    },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    adaptive_thinking: true,
+    priority_tier: true,
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
 const CLAUDE_SONNET_4_5 = {
   name: 'claude-sonnet-4-5',
   id: 'claude-sonnet-4-5',
@@ -112,36 +205,6 @@ const CLAUDE_OPUS_4_1 = {
   context_window: 200_000,
   max_output_tokens: 64_000,
   knowledge_cutoff: '2025-08-05',
-  pricing: {
-    input: {
-      normal: 15,
-    },
-    output: {
-      normal: 75,
-    },
-  },
-  supports: {
-    input: ['text', 'image', 'document'],
-    extended_thinking: true,
-    priority_tier: true,
-  },
-} as const satisfies ModelMeta<
-  AnthropicContainerOptions &
-    AnthropicContextManagementOptions &
-    AnthropicMCPOptions &
-    AnthropicServiceTierOptions &
-    AnthropicStopSequencesOptions &
-    AnthropicThinkingOptions &
-    AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
->
-
-const CLAUDE_OPUS_4_5 = {
-  name: 'claude-opus-4-5',
-  id: 'claude-opus-4-5',
-  context_window: 200_000,
-  max_output_tokens: 32_000,
-  knowledge_cutoff: '2025-11-01',
   pricing: {
     input: {
       normal: 15,
@@ -360,8 +423,70 @@ const CLAUDE_HAIKU_3 = {
   ? TMessageCapabilities
   : unknown */
 
+const CLAUDE_OPUS_4_6_FAST = {
+  name: 'claude-opus-4.6-fast',
+  id: 'claude-opus-4.6-fast',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image'],
+    extended_thinking: true,
+    priority_tier: true,
+  },
+  pricing: {
+    input: {
+      normal: 30,
+      cached: 3,
+    },
+    output: {
+      normal: 150,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_OPUS_4_7 = {
+  name: 'claude-opus-4.7',
+  id: 'claude-opus-4.7',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image'],
+    extended_thinking: true,
+    priority_tier: true,
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 25,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
 export const ANTHROPIC_MODELS = [
+  CLAUDE_OPUS_4_6.id,
   CLAUDE_OPUS_4_5.id,
+  CLAUDE_SONNET_4_6.id,
   CLAUDE_SONNET_4_5.id,
   CLAUDE_HAIKU_4_5.id,
   CLAUDE_OPUS_4_1.id,
@@ -370,6 +495,10 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_OPUS_4.id,
   CLAUDE_HAIKU_3_5.id,
   CLAUDE_HAIKU_3.id,
+
+  CLAUDE_OPUS_4_6_FAST.id,
+
+  CLAUDE_OPUS_4_7.id,
 ] as const
 
 // const ANTHROPIC_IMAGE_MODELS = [] as const
@@ -378,12 +507,28 @@ export const ANTHROPIC_MODELS = [
 // const ANTHROPIC_VIDEO_MODELS = [] as const
 
 /*  type AnthropicModel = (typeof ANTHROPIC_MODELS)[number] */
-
+export type AnthropicChatModel = (typeof ANTHROPIC_MODELS)[number]
 // Manual type map for per-model provider options
 // Models are differentiated by extended_thinking and priority_tier support
 export type AnthropicChatModelProviderOptionsByName = {
   // Models with both extended_thinking and priority_tier
+  [CLAUDE_OPUS_4_6.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
   [CLAUDE_OPUS_4_5.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_SONNET_4_6.id]: AnthropicContainerOptions &
     AnthropicContextManagementOptions &
     AnthropicMCPOptions &
     AnthropicServiceTierOptions &
@@ -456,6 +601,22 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions
+  [CLAUDE_OPUS_4_6_FAST.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_OPUS_4_7.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
 }
 
 /**
@@ -470,7 +631,9 @@ export type AnthropicChatModelProviderOptionsByName = {
  * @see https://docs.anthropic.com/claude/docs/pdf-support
  */
 export type AnthropicModelInputModalitiesByName = {
+  [CLAUDE_OPUS_4_6.id]: typeof CLAUDE_OPUS_4_6.supports.input
   [CLAUDE_OPUS_4_5.id]: typeof CLAUDE_OPUS_4_5.supports.input
+  [CLAUDE_SONNET_4_6.id]: typeof CLAUDE_SONNET_4_6.supports.input
   [CLAUDE_SONNET_4_5.id]: typeof CLAUDE_SONNET_4_5.supports.input
   [CLAUDE_HAIKU_4_5.id]: typeof CLAUDE_HAIKU_4_5.supports.input
   [CLAUDE_OPUS_4_1.id]: typeof CLAUDE_OPUS_4_1.supports.input
@@ -479,4 +642,6 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_OPUS_4.id]: typeof CLAUDE_OPUS_4.supports.input
   [CLAUDE_HAIKU_3_5.id]: typeof CLAUDE_HAIKU_3_5.supports.input
   [CLAUDE_HAIKU_3.id]: typeof CLAUDE_HAIKU_3.supports.input
+  [CLAUDE_OPUS_4_6_FAST.id]: typeof CLAUDE_OPUS_4_6_FAST.supports.input
+  [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.input
 }

@@ -52,6 +52,7 @@ export {
 } from './adapters/tts'
 
 // Re-export models from model-meta for convenience
+export { GEMINI_MODELS } from './model-meta'
 export { GEMINI_MODELS as GeminiTextModels } from './model-meta'
 export { GEMINI_IMAGE_MODELS as GeminiImageModels } from './model-meta'
 export { GEMINI_TTS_MODELS as GeminiTTSModels } from './model-meta'
@@ -79,9 +80,5 @@ export type {
   GeminiAudioMetadata,
   GeminiVideoMetadata,
   GeminiDocumentMetadata,
-  GeminiImageMimeType,
-  GeminiAudioMimeType,
-  GeminiVideoMimeType,
-  GeminiDocumentMimeType,
   GeminiMessageMetadataByModality,
 } from './message-types'

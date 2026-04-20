@@ -2,6 +2,17 @@
 title: OpenAI
 id: openai-adapter
 order: 1
+description: "Use OpenAI models with TanStack AI — GPT-4o, GPT-5, DALL-E image generation, TTS, and Whisper transcription via @tanstack/ai-openai."
+keywords:
+  - tanstack ai
+  - openai
+  - gpt-4o
+  - gpt-5
+  - dall-e
+  - whisper
+  - openai tts
+  - adapter
+  - chatgpt
 ---
 
 The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, image generation (DALL-E), text-to-speech (TTS), and audio transcription (Whisper).
@@ -19,7 +30,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -35,7 +46,7 @@ const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, {
 });
 
 const stream = chat({
-  adapter: adapter("gpt-4o"),
+  adapter: adapter("gpt-5.2"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -63,7 +74,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-4o"),
+    adapter: openaiText("gpt-5.2"),
     messages,
   });
 
@@ -92,7 +103,7 @@ const getWeather = getWeatherDef.server(async ({ location }) => {
 });
 
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   tools: [getWeather],
 });
@@ -104,7 +115,7 @@ OpenAI supports various provider-specific options:
 
 ```typescript
 const stream = chat({
-  adapter: openaiText("gpt-4o"),
+  adapter: openaiText("gpt-5.2"),
   messages,
   modelOptions: {
     temperature: 0.7,
@@ -141,7 +152,7 @@ import { summarize } from "@tanstack/ai";
 import { openaiSummarize } from "@tanstack/ai-openai";
 
 const result = await summarize({
-  adapter: openaiSummarize("gpt-4o-mini"),
+  adapter: openaiSummarize("gpt-5-mini"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -329,5 +340,5 @@ Creates an OpenAI transcription adapter with an explicit API key.
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
+- [Tools Guide](../tools/tools) - Learn about tools
 - [Other Adapters](./anthropic) - Explore other providers

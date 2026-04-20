@@ -9,16 +9,29 @@ import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import { openRouterText } from '@tanstack/ai-openrouter'
+import { grokText } from '@tanstack/ai-grok'
+import { groqText } from '@tanstack/ai-groq'
+import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {
   addToCartToolDef,
   addToWishListToolDef,
+  calculateFinancing,
+  compareGuitars,
   getGuitars,
   getPersonalGuitarPreferenceToolDef,
   recommendGuitarToolDef,
+  searchGuitars,
 } from '@/lib/guitar-tools'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider =
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'ollama'
+  | 'grok'
+  | 'groq'
+  | 'openrouter'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -39,16 +52,61 @@ IMPORTANT:
 Example workflow:
 User: "I want an acoustic guitar"
 Step 1: Call getGuitars()
-Step 2: Call recommendGuitar(id: "6") 
+Step 2: Call recommendGuitar(id: "6")
 Step 3: Done - do NOT add any text after calling recommendGuitar
+
 `
-const addToCartToolServer = addToCartToolDef.server((args) => ({
-  success: true,
-  cartId: 'CART_' + Date.now(),
-  guitarId: args.guitarId,
-  quantity: args.quantity,
-  totalItems: args.quantity,
-}))
+const addToCartToolServer = addToCartToolDef.server((args, context) => {
+  context?.emitCustomEvent('tool:progress', {
+    tool: 'addToCart',
+    message: `Adding ${args.quantity}x guitar ${args.guitarId} to cart`,
+  })
+  const cartId = 'CART_' + Date.now()
+  context?.emitCustomEvent('tool:progress', {
+    tool: 'addToCart',
+    message: `Cart ${cartId} created successfully`,
+  })
+  return {
+    success: true,
+    cartId,
+    guitarId: args.guitarId,
+    quantity: args.quantity,
+    totalItems: args.quantity,
+  }
+})
+
+const loggingMiddleware: ChatMiddleware = {
+  name: 'logging',
+  onConfig(ctx, config) {
+    console.log(
+      `[logging] onConfig iteration=${ctx.iteration} model=${ctx.model} tools=${config.tools.length}`,
+    )
+  },
+  onStart(ctx) {
+    console.log(`[logging] onStart requestId=${ctx.requestId}`)
+  },
+  onIteration(ctx, info) {
+    console.log(`[logging] onIteration iteration=${info.iteration}`)
+  },
+  onBeforeToolCall(ctx, toolCtx) {
+    console.log(`[logging] onBeforeToolCall tool=${toolCtx.toolName}`)
+  },
+  onAfterToolCall(ctx, info) {
+    console.log(
+      `[logging] onAfterToolCall tool=${info.toolName} result=${JSON.stringify(info.result).slice(0, 100)}`,
+    )
+  },
+  onFinish(ctx, info) {
+    console.log(
+      `[logging] onFinish reason=${info.finishReason} iterations=${ctx.iteration}`,
+    )
+  },
+  onUsage(ctx, usage) {
+    console.log(
+      `[logging] onUsage tokens=${usage.totalTokens} input=${usage.promptTokens} output=${usage.completionTokens}, total: ${usage.totalTokens}`,
+    )
+  },
+}
 
 export const Route = createFileRoute('/api/tanchat')({
   server: {
@@ -84,22 +142,47 @@ export const Route = createFileRoute('/api/tanchat')({
                 (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
               ),
             }),
+          openrouter: () =>
+            createChatOptions({
+              adapter: openRouterText('openai/gpt-5.1'),
+              modelOptions: {
+                reasoning: {
+                  effort: 'medium',
+                },
+              },
+            }),
           gemini: () =>
             createChatOptions({
               adapter: geminiText(
                 (model || 'gemini-2.5-flash') as 'gemini-2.5-flash',
+              ),
+              modelOptions: {
+                thinkingConfig: {
+                  includeThoughts: true,
+                  thinkingBudget: 100,
+                },
+              },
+            }),
+          grok: () =>
+            createChatOptions({
+              adapter: grokText((model || 'grok-3') as 'grok-3'),
+              modelOptions: {},
+            }),
+          groq: () =>
+            createChatOptions({
+              adapter: groqText(
+                (model ||
+                  'llama-3.3-70b-versatile') as 'llama-3.3-70b-versatile',
               ),
             }),
           ollama: () =>
             createChatOptions({
               adapter: ollamaText((model || 'gpt-oss:120b') as 'gpt-oss:120b'),
               modelOptions: { think: 'low', options: { top_k: 1 } },
-              temperature: 12,
             }),
           openai: () =>
             createChatOptions({
               adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
-              temperature: 2,
               modelOptions: {},
             }),
         }
@@ -119,7 +202,12 @@ export const Route = createFileRoute('/api/tanchat')({
               addToCartToolServer,
               addToWishListToolDef,
               getPersonalGuitarPreferenceToolDef,
+              // Lazy tools - discovered on demand
+              compareGuitars,
+              calculateFinancing,
+              searchGuitars,
             ],
+            middleware: [loggingMiddleware],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages,

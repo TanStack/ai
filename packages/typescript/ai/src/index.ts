@@ -70,11 +70,60 @@ export {
   combineStrategies,
 } from './activities/chat/agent-loop-strategies'
 
+// Tool registry
+export {
+  createToolRegistry,
+  createFrozenRegistry,
+  type ToolRegistry,
+} from './tool-registry'
+
+// Chat middleware
+export type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+  ChatMiddlewarePhase,
+  ChatMiddlewareConfig,
+  ToolCallHookContext,
+  BeforeToolCallDecision,
+  AfterToolCallInfo,
+  IterationInfo,
+  ToolPhaseCompleteInfo,
+  UsageInfo,
+  FinishInfo,
+  AbortInfo,
+  ErrorInfo,
+} from './activities/chat/middleware/index'
+
 // All types
 export * from './types'
 
-// Event client
-export { aiEventClient } from './event-client'
+// Utility functions
+export { detectImageMimeType } from './utils'
+
+// Realtime
+export { realtimeToken } from './realtime/index'
+export type {
+  RealtimeToken,
+  RealtimeTokenAdapter,
+  RealtimeTokenOptions,
+  RealtimeSessionConfig,
+  VADConfig,
+  RealtimeMessage,
+  RealtimeMessagePart,
+  RealtimeTextPart,
+  RealtimeAudioPart,
+  RealtimeToolCallPart,
+  RealtimeToolResultPart,
+  RealtimeImagePart,
+  RealtimeStatus,
+  RealtimeMode,
+  AudioVisualization,
+  RealtimeEvent,
+  RealtimeEventPayloads,
+  RealtimeEventHandler,
+  RealtimeErrorCode,
+  RealtimeError,
+} from './realtime/index'
 
 // Message converters
 export {
@@ -106,9 +155,12 @@ export type {
   ProcessorResult,
   ProcessorState,
   StreamProcessorEvents,
-  StreamProcessorHandlers,
   StreamProcessorOptions,
   ToolCallState,
   ToolResultState,
   JSONParser,
 } from './activities/chat/stream/index'
+
+// Adapter extension utilities
+export { createModel, extendAdapter } from './extend-adapter'
+export type { ExtendedModelDef } from './extend-adapter'

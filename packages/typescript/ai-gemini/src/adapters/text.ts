@@ -16,10 +16,12 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
+  Content,
   GenerateContentParameters,
   GenerateContentResponse,
   GoogleGenAI,
   Part,
+  ThinkingLevel,
 } from '@google/genai'
 import type {
   ContentPart,
@@ -29,14 +31,13 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
-import type {
-  GeminiAudioMetadata,
-  GeminiDocumentMetadata,
-  GeminiImageMetadata,
-  GeminiMessageMetadataByModality,
-  GeminiVideoMetadata,
-} from '../message-types'
+import type { GeminiMessageMetadataByModality } from '../message-types'
 import type { GeminiClientConfig } from '../utils'
+
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
 
 /**
  * Configuration for Gemini text adapter
@@ -110,21 +111,24 @@ export class GeminiTextAdapter<
       const result =
         await this.client.models.generateContentStream(mappedOptions)
 
-      yield* this.processStreamChunks(result, options.model)
+      yield* this.processStreamChunks(result, options)
     } catch (error) {
       const timestamp = Date.now()
-      yield {
-        type: 'error',
-        id: generateId(this.name),
+      yield asChunk({
+        type: 'RUN_ERROR',
         model: options.model,
         timestamp,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'An unknown error occurred during the chat stream.',
         error: {
           message:
             error instanceof Error
               ? error.message
               : 'An unknown error occurred during the chat stream.',
         },
-      }
+      })
     }
   }
 
@@ -196,38 +200,155 @@ export class GeminiTextAdapter<
 
   private async *processStreamChunks(
     result: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
-    model: string,
+    options: TextOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
+    const model = options.model
     const timestamp = Date.now()
     let accumulatedContent = ''
+    let accumulatedThinking = ''
     const toolCallMap = new Map<
       string,
-      { name: string; args: string; index: number }
+      {
+        name: string
+        args: string
+        index: number
+        started: boolean
+        thoughtSignature?: string
+      }
     >()
     let nextToolIndex = 0
 
+    // AG-UI lifecycle tracking
+    const runId = options.runId ?? generateId(this.name)
+    const threadId = options.threadId ?? generateId(this.name)
+    const messageId = generateId(this.name)
+    let stepId: string | null = null
+    let reasoningMessageId: string | null = null
+    let hasClosedReasoning = false
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedStepStarted = false
+
     for await (const chunk of result) {
+      // Emit RUN_STARTED on first chunk
+      if (!hasEmittedRunStarted) {
+        hasEmittedRunStarted = true
+        yield asChunk({
+          type: 'RUN_STARTED',
+          runId,
+          threadId,
+          model,
+          timestamp,
+        })
+      }
+
       if (chunk.candidates?.[0]?.content?.parts) {
         const parts = chunk.candidates[0].content.parts
 
         for (const part of parts) {
           if (part.text) {
-            accumulatedContent += part.text
-            yield {
-              type: 'content',
-              id: generateId(this.name),
-              model,
-              timestamp,
-              delta: part.text,
-              content: accumulatedContent,
-              role: 'assistant',
+            if (part.thought) {
+              // Emit STEP_STARTED and REASONING events on first thinking content
+              if (!hasEmittedStepStarted) {
+                hasEmittedStepStarted = true
+                stepId = generateId(this.name)
+                reasoningMessageId = generateId(this.name)
+
+                // Spec REASONING events
+                yield asChunk({
+                  type: 'REASONING_START',
+                  messageId: reasoningMessageId,
+                  model,
+                  timestamp,
+                })
+                yield asChunk({
+                  type: 'REASONING_MESSAGE_START',
+                  messageId: reasoningMessageId,
+                  role: 'reasoning' as const,
+                  model,
+                  timestamp,
+                })
+
+                // Legacy STEP events (kept during transition)
+                yield asChunk({
+                  type: 'STEP_STARTED',
+                  stepName: stepId,
+                  stepId,
+                  model,
+                  timestamp,
+                  stepType: 'thinking',
+                })
+              }
+
+              accumulatedThinking += part.text
+
+              // Spec REASONING content event
+              yield asChunk({
+                type: 'REASONING_MESSAGE_CONTENT',
+                messageId: reasoningMessageId!,
+                delta: part.text,
+                model,
+                timestamp,
+              })
+
+              // Legacy STEP event
+              yield asChunk({
+                type: 'STEP_FINISHED',
+                stepName: stepId || generateId(this.name),
+                stepId: stepId || generateId(this.name),
+                model,
+                timestamp,
+                delta: part.text,
+                content: accumulatedThinking,
+              })
+            } else if (part.text.trim()) {
+              // Close reasoning before text starts
+              if (reasoningMessageId && !hasClosedReasoning) {
+                hasClosedReasoning = true
+                yield asChunk({
+                  type: 'REASONING_MESSAGE_END',
+                  messageId: reasoningMessageId,
+                  model,
+                  timestamp,
+                })
+                yield asChunk({
+                  type: 'REASONING_END',
+                  messageId: reasoningMessageId,
+                  model,
+                  timestamp,
+                })
+              }
+
+              // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
+              // Emit TEXT_MESSAGE_START on first text content
+              if (!hasEmittedTextMessageStart) {
+                hasEmittedTextMessageStart = true
+                yield asChunk({
+                  type: 'TEXT_MESSAGE_START',
+                  messageId,
+                  model,
+                  timestamp,
+                  role: 'assistant',
+                })
+              }
+
+              accumulatedContent += part.text
+              yield asChunk({
+                type: 'TEXT_MESSAGE_CONTENT',
+                messageId,
+                model,
+                timestamp,
+                delta: part.text,
+                content: accumulatedContent,
+              })
             }
           }
 
           const functionCall = part.functionCall
           if (functionCall) {
             const toolCallId =
-              functionCall.name || `call_${Date.now()}_${nextToolIndex}`
+              functionCall.id ||
+              `${functionCall.name}_${Date.now()}_${nextToolIndex}`
             const functionArgs = functionCall.args || {}
 
             let toolCallData = toolCallMap.get(toolCallId)
@@ -239,6 +360,9 @@ export class GeminiTextAdapter<
                     ? functionArgs
                     : JSON.stringify(functionArgs),
                 index: nextToolIndex++,
+                started: false,
+                thoughtSignature:
+                  (functionCall as any).thoughtSignature || undefined,
               }
               toolCallMap.set(toolCallId, toolCallData)
             } else {
@@ -258,34 +382,59 @@ export class GeminiTextAdapter<
               }
             }
 
-            yield {
-              type: 'tool_call',
-              id: generateId(this.name),
+            // Emit TOOL_CALL_START if not already started
+            if (!toolCallData.started) {
+              toolCallData.started = true
+              yield asChunk({
+                type: 'TOOL_CALL_START',
+                toolCallId,
+                toolCallName: toolCallData.name,
+                toolName: toolCallData.name,
+                model,
+                timestamp,
+                index: toolCallData.index,
+                ...(toolCallData.thoughtSignature && {
+                  providerMetadata: {
+                    thoughtSignature: toolCallData.thoughtSignature,
+                  },
+                }),
+              })
+            }
+
+            // Emit TOOL_CALL_ARGS
+            yield asChunk({
+              type: 'TOOL_CALL_ARGS',
+              toolCallId,
               model,
               timestamp,
-              toolCall: {
-                id: toolCallId,
-                type: 'function',
-                function: {
-                  name: toolCallData.name,
-                  arguments: toolCallData.args,
-                },
-              },
-              index: toolCallData.index,
-            }
+              delta: toolCallData.args,
+              args: toolCallData.args,
+            })
           }
         }
-      } else if (chunk.data) {
+      } else if (chunk.data && chunk.data.trim()) {
+        // Skip whitespace-only data (e.g. "\n" during auto-continuation)
+        // Emit TEXT_MESSAGE_START on first text content
+        if (!hasEmittedTextMessageStart) {
+          hasEmittedTextMessageStart = true
+          yield asChunk({
+            type: 'TEXT_MESSAGE_START',
+            messageId,
+            model,
+            timestamp,
+            role: 'assistant',
+          })
+        }
+
         accumulatedContent += chunk.data
-        yield {
-          type: 'content',
-          id: generateId(this.name),
+        yield asChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId,
           model,
           timestamp,
           delta: chunk.data,
           content: accumulatedContent,
-          role: 'assistant',
-        }
+        })
       }
 
       if (chunk.candidates?.[0]?.finishReason) {
@@ -297,56 +446,134 @@ export class GeminiTextAdapter<
               const functionCall = part.functionCall
               if (functionCall) {
                 const toolCallId =
-                  functionCall.name || `call_${Date.now()}_${nextToolIndex}`
+                  functionCall.id ||
+                  `${functionCall.name}_${Date.now()}_${nextToolIndex}`
                 const functionArgs = functionCall.args || {}
+
+                const argsString =
+                  typeof functionArgs === 'string'
+                    ? functionArgs
+                    : JSON.stringify(functionArgs)
 
                 toolCallMap.set(toolCallId, {
                   name: functionCall.name || '',
-                  args:
-                    typeof functionArgs === 'string'
-                      ? functionArgs
-                      : JSON.stringify(functionArgs),
+                  args: argsString,
                   index: nextToolIndex++,
+                  started: true,
                 })
 
-                yield {
-                  type: 'tool_call',
-                  id: generateId(this.name),
+                // Emit TOOL_CALL_START
+                yield asChunk({
+                  type: 'TOOL_CALL_START',
+                  toolCallId,
+                  toolCallName: functionCall.name || '',
+                  toolName: functionCall.name || '',
                   model,
                   timestamp,
-                  toolCall: {
-                    id: toolCallId,
-                    type: 'function',
-                    function: {
-                      name: functionCall.name || '',
-                      arguments:
-                        typeof functionArgs === 'string'
-                          ? functionArgs
-                          : JSON.stringify(functionArgs),
-                    },
-                  },
                   index: nextToolIndex - 1,
+                })
+
+                // Emit TOOL_CALL_END with parsed input
+                let parsedInput: unknown = {}
+                try {
+                  const parsed =
+                    typeof functionArgs === 'string'
+                      ? JSON.parse(functionArgs)
+                      : functionArgs
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
+                } catch {
+                  parsedInput = {}
                 }
+
+                yield asChunk({
+                  type: 'TOOL_CALL_END',
+                  toolCallId,
+                  toolCallName: functionCall.name || '',
+                  toolName: functionCall.name || '',
+                  model,
+                  timestamp,
+                  input: parsedInput,
+                })
               }
             }
           }
         }
-        if (finishReason === FinishReason.MAX_TOKENS) {
-          yield {
-            type: 'error',
-            id: generateId(this.name),
+
+        // Emit TOOL_CALL_END for all tracked tool calls
+        for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
+          let parsedInput: unknown = {}
+          try {
+            const parsed = JSON.parse(toolCallData.args)
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+          } catch {
+            parsedInput = {}
+          }
+
+          yield asChunk({
+            type: 'TOOL_CALL_END',
+            toolCallId,
+            toolCallName: toolCallData.name,
+            toolName: toolCallData.name,
             model,
             timestamp,
+            input: parsedInput,
+          })
+        }
+
+        // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
+        if (toolCallMap.size > 0) {
+          hasEmittedTextMessageStart = false
+        }
+
+        if (finishReason === FinishReason.MAX_TOKENS) {
+          yield asChunk({
+            type: 'RUN_ERROR',
+            runId,
+            model,
+            timestamp,
+            message:
+              'The response was cut off because the maximum token limit was reached.',
+            code: 'max_tokens',
             error: {
               message:
                 'The response was cut off because the maximum token limit was reached.',
+              code: 'max_tokens',
             },
-          }
+          })
         }
 
-        yield {
-          type: 'done',
-          id: generateId(this.name),
+        // Close reasoning events if still open
+        if (reasoningMessageId && !hasClosedReasoning) {
+          hasClosedReasoning = true
+          yield asChunk({
+            type: 'REASONING_MESSAGE_END',
+            messageId: reasoningMessageId,
+            model,
+            timestamp,
+          })
+          yield asChunk({
+            type: 'REASONING_END',
+            messageId: reasoningMessageId,
+            model,
+            timestamp,
+          })
+        }
+
+        // Emit TEXT_MESSAGE_END if we had text content
+        if (hasEmittedTextMessageStart) {
+          yield asChunk({
+            type: 'TEXT_MESSAGE_END',
+            messageId,
+            model,
+            timestamp,
+          })
+        }
+
+        yield asChunk({
+          type: 'RUN_FINISHED',
+          runId,
+          threadId,
           model,
           timestamp,
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
@@ -357,26 +584,12 @@ export class GeminiTextAdapter<
                 totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
               }
             : undefined,
-        }
+        })
       }
     }
   }
 
   private convertContentPartToGemini(part: ContentPart): Part {
-    const getDefaultFileType = (
-      part: 'image' | 'audio' | 'video' | 'document',
-    ) => {
-      switch (part) {
-        case 'image':
-          return 'image/jpeg'
-        case 'audio':
-          return 'audio/mp3'
-        case 'video':
-          return 'video/mp4'
-        case 'document':
-          return 'application/pdf'
-      }
-    }
     switch (part.type) {
       case 'text':
         return { text: part.content }
@@ -384,24 +597,26 @@ export class GeminiTextAdapter<
       case 'audio':
       case 'video':
       case 'document': {
-        const metadata = part.metadata as
-          | GeminiDocumentMetadata
-          | GeminiImageMetadata
-          | GeminiVideoMetadata
-          | GeminiAudioMetadata
-          | undefined
         if (part.source.type === 'data') {
           return {
             inlineData: {
               data: part.source.value,
-              mimeType: metadata?.mimeType ?? getDefaultFileType(part.type),
+              mimeType: part.source.mimeType,
             },
           }
         } else {
+          // For URL sources, use provided mimeType or fall back to reasonable defaults
+          const defaultMimeType = {
+            image: 'image/jpeg',
+            audio: 'audio/mp3',
+            video: 'video/mp4',
+            document: 'application/pdf',
+          }[part.type]
+
           return {
             fileData: {
               fileUri: part.source.value,
-              mimeType: metadata?.mimeType ?? getDefaultFileType(part.type),
+              mimeType: part.source.mimeType ?? defaultMimeType,
             },
           }
         }
@@ -418,7 +633,18 @@ export class GeminiTextAdapter<
   private formatMessages(
     messages: Array<ModelMessage>,
   ): GenerateContentParameters['contents'] {
-    return messages.map((msg) => {
+    // Build a lookup from toolCallId → function name so functionResponse uses the
+    // correct name instead of the raw call ID.
+    const toolCallIdToName = new Map<string, string>()
+    for (const msg of messages) {
+      if (msg.role === 'assistant' && msg.toolCalls) {
+        for (const tc of msg.toolCalls) {
+          toolCallIdToName.set(tc.id, tc.function.name)
+        }
+      }
+    }
+
+    const formatted = messages.map((msg) => {
       const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
       const parts: Array<Part> = []
 
@@ -426,7 +652,7 @@ export class GeminiTextAdapter<
         for (const contentPart of msg.content) {
           parts.push(this.convertContentPartToGemini(contentPart))
         }
-      } else if (msg.content) {
+      } else if (msg.content && msg.role !== 'tool') {
         parts.push({ text: msg.content })
       }
 
@@ -447,23 +673,30 @@ export class GeminiTextAdapter<
             >
           }
 
+          const thoughtSignature = toolCall.providerMetadata
+            ?.thoughtSignature as string | undefined
           parts.push({
             functionCall: {
+              id: toolCall.id,
               name: toolCall.function.name,
               args: parsedArgs,
-            },
+              ...(thoughtSignature && { thoughtSignature }),
+            } as any,
           })
         }
       }
 
       if (msg.role === 'tool' && msg.toolCallId) {
+        const functionName =
+          toolCallIdToName.get(msg.toolCallId) || msg.toolCallId
         parts.push({
           functionResponse: {
-            name: msg.toolCallId,
+            id: msg.toolCallId,
+            name: functionName,
             response: {
               content: msg.content || '',
             },
-          },
+          } as any,
         })
       }
 
@@ -472,21 +705,92 @@ export class GeminiTextAdapter<
         parts: parts.length > 0 ? parts : [{ text: '' }],
       }
     })
+
+    // Post-process: Gemini requires strictly alternating user/model roles.
+    // Tool results are mapped to role:'user', which can create consecutive
+    // user messages when followed by a new user message. Merge them.
+    return this.mergeConsecutiveSameRoleMessages(formatted)
   }
 
-  private mapCommonOptionsToGemini(options: TextOptions) {
-    const providerOpts = options.modelOptions
+  /**
+   * Merge consecutive messages of the same role into a single message.
+   * Gemini's API requires strictly alternating user/model roles.
+   * Tool results are mapped to role:'user', which can collide with actual
+   * user messages in multi-turn conversations.
+   *
+   * Also filters out empty model messages (e.g., from a previous failed request)
+   * and deduplicates functionResponse parts with the same name (tool call ID).
+   */
+  private mergeConsecutiveSameRoleMessages(
+    messages: Array<Content>,
+  ): Array<Content> {
+    const merged: Array<Content> = []
+
+    for (const msg of messages) {
+      const parts = msg.parts || []
+
+      // Skip empty model messages (no parts or only empty text)
+      if (msg.role === 'model') {
+        const hasContent =
+          parts.length > 0 &&
+          !parts.every(
+            (p) => 'text' in p && (p as { text: string }).text === '',
+          )
+        if (!hasContent) {
+          continue
+        }
+      }
+
+      const prev = merged[merged.length - 1]
+      if (prev && prev.role === msg.role) {
+        // Merge parts arrays
+        prev.parts = [...(prev.parts || []), ...parts]
+      } else {
+        merged.push({ ...msg, parts: [...parts] })
+      }
+    }
+
+    // Deduplicate functionResponse parts with the same name (tool call ID)
+    for (const msg of merged) {
+      if (!msg.parts) continue
+      const seenFunctionResponseNames = new Set<string>()
+      msg.parts = msg.parts.filter((part) => {
+        if ('functionResponse' in part && part.functionResponse?.name) {
+          if (seenFunctionResponseNames.has(part.functionResponse.name)) {
+            return false
+          }
+          seenFunctionResponseNames.add(part.functionResponse.name)
+        }
+        return true
+      })
+    }
+
+    return merged
+  }
+
+  private mapCommonOptionsToGemini(
+    options: TextOptions<GeminiTextProviderOptions>,
+  ) {
+    const modelOpts = options.modelOptions
+    const thinkingConfig = modelOpts?.thinkingConfig
     const requestOptions: GenerateContentParameters = {
       model: options.model,
       contents: this.formatMessages(options.messages),
       config: {
-        ...providerOpts,
+        ...modelOpts,
         temperature: options.temperature,
         topP: options.topP,
         maxOutputTokens: options.maxTokens,
+        thinkingConfig: thinkingConfig
+          ? {
+              ...thinkingConfig,
+              thinkingLevel: thinkingConfig.thinkingLevel
+                ? // Enum is provided by the SDK, we use it for the type but cast it to string constants, here we just cast them back
+                  (thinkingConfig.thinkingLevel as ThinkingLevel)
+                : undefined,
+            }
+          : undefined,
         systemInstruction: options.systemPrompts?.join('\n'),
-        ...((providerOpts as Record<string, unknown> | undefined)
-          ?.generationConfig as Record<string, unknown> | undefined),
         tools: convertToolsToProviderFormat(options.tools),
       },
     }

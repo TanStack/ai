@@ -1,0 +1,50 @@
+{
+  "name": "@tanstack/ai-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3010",
+    "build": "vite build",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "record": "LLMOCK_RECORD=true pnpm dev",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "@copilotkit/aimock": "latest",
+    "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-gemini": "workspace:*",
+    "@tanstack/ai-grok": "workspace:*",
+    "@tanstack/ai-groq": "workspace:*",
+    "@tanstack/ai-ollama": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-openrouter": "workspace:*",
+    "@tanstack/ai-react": "workspace:*",
+    "@tanstack/ai-react-ui": "workspace:*",
+    "@tanstack/nitro-v2-vite-plugin": "^1.154.7",
+    "@tanstack/react-router": "^1.158.4",
+    "@tanstack/react-start": "^1.159.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
+    "tailwindcss": "^4.1.18",
+    "vite-tsconfig-paths": "^5.1.4",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "typescript": "5.9.3",
+    "vite": "^7.2.7"
+  }
+}

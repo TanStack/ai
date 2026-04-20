@@ -1,6 +1,14 @@
 ---
 title: Server-Sent Events (SSE) Protocol
 id: sse-protocol
+description: "TanStack AI's Server-Sent Events protocol spec — the recommended streaming transport for chat and media generations, with auto-reconnection."
+keywords:
+  - tanstack ai
+  - sse
+  - server-sent events
+  - streaming protocol
+  - protocol spec
+  - eventsource
 ---
 
 Server-Sent Events (SSE) is a standard HTTP-based protocol for server-to-client streaming. It provides:
@@ -74,19 +82,19 @@ data: {JSON_ENCODED_CHUNK}\n\n
 #### Content Chunk
 
 ```
-data: {"type":"content","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello","role":"assistant"}\n\n
+data: {"type":"content","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567890,"delta":"Hello","content":"Hello","role":"assistant"}\n\n
 ```
 
 #### Tool Call Chunk
 
 ```
-data: {"type":"tool_call","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567891,"toolCall":{"id":"call_xyz","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"SF\"}"}},"index":0}\n\n
+data: {"type":"tool_call","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567891,"toolCall":{"id":"call_xyz","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"SF\"}"}},"index":0}\n\n
 ```
 
 #### Done Chunk
 
 ```
-data: {"type":"done","id":"chatcmpl-abc123","model":"gpt-4o","timestamp":1701234567892,"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":5,"totalTokens":15}}\n\n
+data: {"type":"done","id":"chatcmpl-abc123","model":"gpt-5.2","timestamp":1701234567892,"finishReason":"stop","usage":{"promptTokens":10,"completionTokens":5,"totalTokens":15}}\n\n
 ```
 
 ---
@@ -120,11 +128,11 @@ Connection: keep-alive
 The server sends multiple `data:` events as chunks are generated:
 
 ```
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"The","content":"The"}\n\n
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" weather","content":"The weather"}\n\n
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567892,"delta":" is","content":"The weather is"}\n\n
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567893,"delta":" sunny","content":"The weather is sunny"}\n\n
-data: {"type":"done","id":"msg_1","model":"gpt-4o","timestamp":1701234567894,"finishReason":"stop"}\n\n
+data: {"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567890,"delta":"The","content":"The"}\n\n
+data: {"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567891,"delta":" weather","content":"The weather"}\n\n
+data: {"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567892,"delta":" is","content":"The weather is"}\n\n
+data: {"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567893,"delta":" sunny","content":"The weather is sunny"}\n\n
+data: {"type":"done","id":"msg_1","model":"gpt-5.2","timestamp":1701234567894,"finishReason":"stop"}\n\n
 ```
 
 ### 4. Stream Completion
@@ -146,7 +154,7 @@ Then closes the connection.
 If an error occurs during generation, send an error chunk:
 
 ```
-data: {"type":"error","id":"msg_1","model":"gpt-4o","timestamp":1701234567895,"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}\n\n
+data: {"type":"error","id":"msg_1","model":"gpt-5.2","timestamp":1701234567895,"error":{"message":"Rate limit exceeded","code":"rate_limit_exceeded"}}\n\n
 ```
 
 Then close the connection.
@@ -174,7 +182,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText('gpt-4o'),
+    adapter: openaiText('gpt-5.2'),
     messages,
   });
 
@@ -223,7 +231,7 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of chat({ adapter: openaiText('gpt-4o'), messages })) {
+        for await (const chunk of chat({ adapter: openaiText('gpt-5.2'), messages })) {
           const sseData = `data: ${JSON.stringify(chunk)}\n\n`;
           controller.enqueue(encoder.encode(sseData));
         }
@@ -304,11 +312,11 @@ The `-N` flag disables buffering to see real-time output.
 
 **Example Output:**
 ```
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567890,"delta":"Hello","content":"Hello"}
+data: {"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567890,"delta":"Hello","content":"Hello"}
 
-data: {"type":"content","id":"msg_1","model":"gpt-4o","timestamp":1701234567891,"delta":" there","content":"Hello there"}
+data: {"type":"content","id":"msg_1","model":"gpt-5.2","timestamp":1701234567891,"delta":" there","content":"Hello there"}
 
-data: {"type":"done","id":"msg_1","model":"gpt-4o","timestamp":1701234567892,"finishReason":"stop"}
+data: {"type":"done","id":"msg_1","model":"gpt-5.2","timestamp":1701234567892,"finishReason":"stop"}
 
 data: [DONE]
 ```
@@ -350,5 +358,5 @@ data: [DONE]
 
 - [Chunk Definitions](./chunk-definitions) - StreamChunk type reference
 - [HTTP Stream Protocol](./http-stream-protocol) - Alternative protocol
-- [Connection Adapters Guide](../guides/connection-adapters) - Client implementation
+- [Connection Adapters Guide](../chat/connection-adapters) - Client implementation
 - [MDN: Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)

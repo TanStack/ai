@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "welcome to the guitar store" },
+      "response": {
+        "audio": "SGVsbG8gd29ybGQ="
+      }
+    }
+  ]
+}

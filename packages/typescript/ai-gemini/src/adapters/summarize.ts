@@ -4,8 +4,8 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
-
 import type { GoogleGenAI } from '@google/genai'
+import type { GeminiClientConfig } from '../utils'
 import type { SummarizeAdapter } from '@tanstack/ai/adapters'
 import type {
   StreamChunk,
@@ -13,10 +13,19 @@ import type {
   SummarizationResult,
 } from '@tanstack/ai'
 
+/** Cast an event object to StreamChunk. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
+/**
+ * Configuration for Gemini summarize adapter
+ */
+export interface GeminiSummarizeConfig extends GeminiClientConfig {}
 /**
  * Available Gemini models for summarization
  */
 export const GeminiSummarizeModels = [
+  'gemini-3.1-flash-lite-preview',
   'gemini-2.0-flash',
   'gemini-1.5-flash',
   'gemini-1.5-pro',
@@ -66,15 +75,8 @@ export class GeminiSummarizeAdapter<
 
   private client: GoogleGenAI
 
-  constructor(
-    apiKeyOrClient: string | GoogleGenAI,
-    model: TModel,
-    _options: GeminiSummarizeAdapterOptions = {},
-  ) {
-    this.client =
-      typeof apiKeyOrClient === 'string'
-        ? createGeminiClient({ apiKey: apiKeyOrClient })
-        : apiKeyOrClient
+  constructor(config: GeminiSummarizeConfig, model: TModel) {
+    this.client = createGeminiClient(config)
     this.model = model
   }
 
@@ -163,15 +165,14 @@ export class GeminiSummarizeAdapter<
         for (const part of chunk.candidates[0].content.parts) {
           if (part.text) {
             accumulatedContent += part.text
-            yield {
-              type: 'content',
-              id,
+            yield asChunk({
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId: id,
               model,
               timestamp: Date.now(),
               delta: part.text,
               content: accumulatedContent,
-              role: 'assistant',
-            }
+            })
           }
         }
       }
@@ -183,9 +184,9 @@ export class GeminiSummarizeAdapter<
         finishReason === FinishReason.MAX_TOKENS ||
         finishReason === FinishReason.SAFETY
       ) {
-        yield {
-          type: 'done',
-          id,
+        yield asChunk({
+          type: 'RUN_FINISHED',
+          runId: id,
           model,
           timestamp: Date.now(),
           finishReason:
@@ -199,7 +200,7 @@ export class GeminiSummarizeAdapter<
             completionTokens: outputTokens,
             totalTokens: inputTokens + outputTokens,
           },
-        }
+        })
       }
     }
   }
@@ -225,9 +226,9 @@ export class GeminiSummarizeAdapter<
 export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
   apiKey: string,
   model: TModel,
-  options?: GeminiSummarizeAdapterOptions,
+  config?: Omit<GeminiSummarizeConfig, 'apiKey'>,
 ): GeminiSummarizeAdapter<TModel> {
-  return new GeminiSummarizeAdapter(apiKey, model, options)
+  return new GeminiSummarizeAdapter({ ...config, apiKey }, model)
 }
 
 /**
@@ -235,8 +236,8 @@ export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
  */
 export function geminiSummarize<TModel extends GeminiSummarizeModel>(
   model: TModel,
-  options?: GeminiSummarizeAdapterOptions,
+  config?: Omit<GeminiSummarizeConfig, 'apiKey'>,
 ): GeminiSummarizeAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return new GeminiSummarizeAdapter(apiKey, model, options)
+  return new GeminiSummarizeAdapter({ ...config, apiKey }, model)
 }

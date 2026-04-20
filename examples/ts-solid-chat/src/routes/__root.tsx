@@ -1,6 +1,6 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/solid-router'
-import { TanStackRouterDevtoolsPanel } from '@tanstack/solid-router-devtools'
-import { TanStackDevtools } from '@tanstack/solid-devtools'
+// Devtools are dynamically imported on the client to avoid server-side bundling
+import { onMount, createSignal } from 'solid-js'
 // import { aiDevtoolsPlugin } from "@tanstack/react-ai-devtools";
 import { HydrationScript } from 'solid-js/web'
 import appCss from '../styles.css?url'
@@ -33,15 +33,17 @@ export const Route = createRootRoute({
 })
 
 function RootDocument({ children }: { children: JSXElement }) {
-  return (
-    <html lang="en">
-      <head>
-        <HydrationScript />
-      </head>
-      <body>
-        <HeadContent />
-        <Header />
-        {children}
+  const [Devtools, setDevtools] = createSignal<JSXElement | null>(null)
+
+  onMount(async () => {
+    try {
+      const [{ TanStackDevtools }, { TanStackRouterDevtoolsPanel }] =
+        await Promise.all([
+          import('@tanstack/solid-devtools'),
+          import('@tanstack/solid-router-devtools'),
+        ])
+
+      setDevtools(
         <TanStackDevtools
           config={{
             position: 'bottom-right',
@@ -56,7 +58,26 @@ function RootDocument({ children }: { children: JSXElement }) {
           eventBusConfig={{
             connectToServerBus: true,
           }}
-        />
+        />,
+      )
+    } catch (e) {
+      // If devtools fail to load on the client, ignore silently
+      // This prevents build/SSR from failing due to dev-only exports
+      // eslint-disable-next-line no-console
+      console.warn('Failed to load devtools on client', e)
+    }
+  })
+
+  return (
+    <html lang="en">
+      <head>
+        <HydrationScript />
+      </head>
+      <body>
+        <HeadContent />
+        <Header />
+        {children}
+        {Devtools()}
         <Scripts />
       </body>
     </html>

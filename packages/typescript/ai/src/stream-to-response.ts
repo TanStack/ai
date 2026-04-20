@@ -3,7 +3,7 @@ import type { StreamChunk } from './types'
 /**
  * Collect all text content from a StreamChunk async iterable and return as a string.
  *
- * This function consumes the entire stream, accumulating content from 'content' type chunks,
+ * This function consumes the entire stream, accumulating content from TEXT_MESSAGE_CONTENT events,
  * and returns the final concatenated text.
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
@@ -26,7 +26,7 @@ export async function streamToText(
   let accumulatedContent = ''
 
   for await (const chunk of stream) {
-    if (chunk.type === 'content' && chunk.delta) {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
       accumulatedContent += chunk.delta
     }
   }
@@ -40,7 +40,7 @@ export async function streamToText(
  * This creates a ReadableStream that emits chunks in SSE format:
  * - Each chunk is prefixed with "data: "
  * - Each chunk is followed by "\n\n"
- * - Stream ends with "data: [DONE]\n\n"
+ * - Stream ends when the underlying iterable is exhausted (RUN_FINISHED is the terminal event)
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
  * @param abortController - Optional AbortController to abort when stream is cancelled
@@ -67,8 +67,6 @@ export function toServerSentEventsStream(
           )
         }
 
-        // Send completion marker
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
         controller.close()
       } catch (error: any) {
         // Don't send error if aborted
@@ -77,11 +75,12 @@ export function toServerSentEventsStream(
           return
         }
 
-        // Send error chunk
+        // Send error event (AG-UI RUN_ERROR)
         controller.enqueue(
           encoder.encode(
             `data: ${JSON.stringify({
-              type: 'error',
+              type: 'RUN_ERROR',
+              timestamp: Date.now(),
               error: {
                 message: error.message || 'Unknown error occurred',
                 code: error.code,
@@ -108,7 +107,7 @@ export function toServerSentEventsStream(
  * This creates a Response that emits chunks in SSE format:
  * - Each chunk is prefixed with "data: "
  * - Each chunk is followed by "\n\n"
- * - Stream ends with "data: [DONE]\n\n"
+ * - Stream ends when the underlying iterable is exhausted (RUN_FINISHED is the terminal event)
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
  * @param init - Optional Response initialization options (including `abortController`)
@@ -198,11 +197,12 @@ export function toHttpStream(
           return
         }
 
-        // Send error chunk
+        // Send error event (AG-UI RUN_ERROR)
         controller.enqueue(
           encoder.encode(
             `${JSON.stringify({
-              type: 'error',
+              type: 'RUN_ERROR',
+              timestamp: Date.now(),
               error: {
                 message: error.message || 'Unknown error occurred',
                 code: error.code,

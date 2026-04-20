@@ -1,4 +1,3 @@
-import { convertMessagesToModelMessages } from '@tanstack/ai'
 import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
 
 /**
@@ -63,21 +62,158 @@ async function* readStreamLines(
   }
 }
 
-/**
- * Connection adapter interface - converts a connection into a stream of chunks
- */
-export interface ConnectionAdapter {
+export interface ConnectConnectionAdapter {
   /**
-   * Connect and return an async iterable of StreamChunks
-   * @param messages - The messages to send (UIMessages or ModelMessages)
-   * @param data - Additional data to send
-   * @param abortSignal - Optional abort signal for request cancellation
+   * Connect and return an async iterable of StreamChunks.
    */
   connect: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>
+}
+
+export interface SubscribeConnectionAdapter {
+  /**
+   * Subscribe to stream chunks.
+   */
+  subscribe: (abortSignal?: AbortSignal) => AsyncIterable<StreamChunk>
+  /**
+   * Send a request; chunks arrive through subscribe().
+   */
+  send: (
+    messages: Array<UIMessage> | Array<ModelMessage>,
+    data?: Record<string, any>,
+    abortSignal?: AbortSignal,
+  ) => Promise<void>
+}
+
+/**
+ * Connection adapter union.
+ * Provide either `connect`, or `subscribe` + `send`.
+ */
+export type ConnectionAdapter =
+  | ConnectConnectionAdapter
+  | SubscribeConnectionAdapter
+
+/**
+ * Normalize a ConnectionAdapter to subscribe/send operations.
+ *
+ * If a connection provides native subscribe/send, that mode is used.
+ * Otherwise, connect() is wrapped using an async queue.
+ */
+export function normalizeConnectionAdapter(
+  connection: ConnectionAdapter | undefined,
+): SubscribeConnectionAdapter {
+  if (!connection) {
+    throw new Error('Connection adapter is required')
+  }
+
+  const hasConnect = 'connect' in connection
+  const hasSubscribe = 'subscribe' in connection
+  const hasSend = 'send' in connection
+
+  if (hasConnect && (hasSubscribe || hasSend)) {
+    throw new Error(
+      'Connection adapter must provide either connect or both subscribe and send, not both modes',
+    )
+  }
+
+  if (hasSubscribe && hasSend) {
+    return {
+      subscribe: connection.subscribe.bind(connection),
+      send: connection.send.bind(connection),
+    }
+  }
+
+  if (!hasConnect) {
+    throw new Error(
+      'Connection adapter must provide either connect or both subscribe and send',
+    )
+  }
+
+  // Legacy connect() wrapper
+  let activeBuffer: Array<StreamChunk> = []
+  let activeWaiters: Array<(chunk: StreamChunk | null) => void> = []
+
+  function push(chunk: StreamChunk): void {
+    const waiter = activeWaiters.shift()
+    if (waiter) {
+      waiter(chunk)
+    } else {
+      activeBuffer.push(chunk)
+    }
+  }
+
+  return {
+    subscribe(abortSignal?: AbortSignal): AsyncIterable<StreamChunk> {
+      // Transfer ownership to the latest subscriber so only one active
+      // subscribe() call receives chunks from the shared connect-wrapper queue.
+      const myBuffer: Array<StreamChunk> = activeBuffer.splice(0)
+      const myWaiters: Array<(chunk: StreamChunk | null) => void> = []
+      activeBuffer = myBuffer
+      activeWaiters = myWaiters
+
+      return (async function* () {
+        while (!abortSignal?.aborted) {
+          let chunk: StreamChunk | null
+          if (myBuffer.length > 0) {
+            chunk = myBuffer.shift()!
+          } else {
+            chunk = await new Promise<StreamChunk | null>((resolve) => {
+              const onAbort = () => resolve(null)
+              myWaiters.push((c) => {
+                abortSignal?.removeEventListener('abort', onAbort)
+                resolve(c)
+              })
+              abortSignal?.addEventListener('abort', onAbort, { once: true })
+            })
+          }
+          if (chunk !== null) yield chunk
+        }
+      })()
+    },
+    async send(messages, data, abortSignal) {
+      let hasTerminalEvent = false
+      try {
+        const stream = connection.connect(messages, data, abortSignal)
+        for await (const chunk of stream) {
+          if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+            hasTerminalEvent = true
+          }
+          push(chunk)
+        }
+
+        // If the connect stream ended cleanly without a terminal event,
+        // synthesize RUN_FINISHED so request-scoped consumers can complete.
+        if (!abortSignal?.aborted && !hasTerminalEvent) {
+          push({
+            type: 'RUN_FINISHED',
+            runId: `run-${Date.now()}`,
+            model: 'connect-wrapper',
+            timestamp: Date.now(),
+            finishReason: 'stop',
+          } as unknown as StreamChunk)
+        }
+      } catch (err) {
+        if (!abortSignal?.aborted && !hasTerminalEvent) {
+          push({
+            type: 'RUN_ERROR',
+            timestamp: Date.now(),
+            message:
+              err instanceof Error ? err.message : 'Unknown error in connect()',
+            error: {
+              message:
+                err instanceof Error
+                  ? err.message
+                  : 'Unknown error in connect()',
+            },
+          } as unknown as StreamChunk)
+        }
+        throw err
+      }
+    },
+  }
 }
 
 /**
@@ -130,7 +266,7 @@ export function fetchServerSentEvents(
   options:
     | FetchConnectionOptions
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
-): ConnectionAdapter {
+): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
       // Resolve URL and options if they are functions
@@ -138,16 +274,15 @@ export function fetchServerSentEvents(
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
 
-      const modelMessages = convertMessagesToModelMessages(messages)
-
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
       }
 
-      // Merge body from options with messages and data
+      // Send messages as-is (UIMessages with parts preserved)
+      // Server-side TextEngine handles conversion to ModelMessages
       const requestBody = {
-        messages: modelMessages,
+        messages,
         data,
         ...resolvedOptions.body,
       }
@@ -177,7 +312,12 @@ export function fetchServerSentEvents(
         // Handle Server-Sent Events format
         const data = line.startsWith('data: ') ? line.slice(6) : line
 
-        if (data === '[DONE]') continue
+        if (data === '[DONE]') {
+          console.warn(
+            '[@tanstack/ai-client] Received [DONE] sentinel. This is deprecated — upgrade your @tanstack/ai server package. RUN_FINISHED is the stream terminator.',
+          )
+          continue
+        }
 
         try {
           const parsed: StreamChunk = JSON.parse(data)
@@ -230,7 +370,7 @@ export function fetchHttpStream(
   options:
     | FetchConnectionOptions
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
-): ConnectionAdapter {
+): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
       // Resolve URL and options if they are functions
@@ -238,17 +378,15 @@ export function fetchHttpStream(
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
 
-      // Convert UIMessages to ModelMessages if needed
-      const modelMessages = convertMessagesToModelMessages(messages)
-
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
       }
 
-      // Merge body from options with messages and data
+      // Send messages as-is (UIMessages with parts preserved)
+      // Server-side TextEngine handles conversion to ModelMessages
       const requestBody = {
-        messages: modelMessages,
+        messages,
         data,
         ...resolvedOptions.body,
       }
@@ -302,14 +440,15 @@ export function fetchHttpStream(
  */
 export function stream(
   streamFactory: (
-    messages: Array<ModelMessage>,
+    messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
   ) => AsyncIterable<StreamChunk>,
-): ConnectionAdapter {
+): ConnectConnectionAdapter {
   return {
     async *connect(messages, data) {
-      const modelMessages = convertMessagesToModelMessages(messages)
-      yield* streamFactory(modelMessages, data)
+      // Pass messages as-is (UIMessages with parts preserved)
+      // Server-side chat() handles conversion to ModelMessages
+      yield* streamFactory(messages, data)
     },
   }
 }
@@ -332,16 +471,15 @@ export function stream(
  */
 export function rpcStream(
   rpcCall: (
-    messages: Array<ModelMessage>,
+    messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
   ) => AsyncIterable<StreamChunk>,
-): ConnectionAdapter {
+): ConnectConnectionAdapter {
   return {
     async *connect(messages, data) {
-      const modelMessages = convertMessagesToModelMessages(messages)
-      // Simply yield from the RPC call
-      // The RPC layer handles WebSocket transport
-      yield* rpcCall(modelMessages, data)
+      // Pass messages as-is (UIMessages with parts preserved)
+      // Server-side chat() handles conversion to ModelMessages
+      yield* rpcCall(messages, data)
     },
   }
 }

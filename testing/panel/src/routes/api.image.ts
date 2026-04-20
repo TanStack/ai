@@ -2,8 +2,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { generateImage, createImageOptions } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 import { openaiImage } from '@tanstack/ai-openai'
+import { openRouterImage } from '@tanstack/ai-openrouter'
 
-type Provider = 'openai' | 'gemini'
+type Provider = 'openai' | 'gemini' | 'openrouter'
 
 export const Route = createFileRoute('/api/image')({
   server: {
@@ -13,21 +14,28 @@ export const Route = createFileRoute('/api/image')({
         const { prompt, numberOfImages = 1, size = '1024x1024' } = body
         const data = body.data || {}
         const provider: Provider = data.provider || body.provider || 'openai'
-        const model: string = data.model || body.model || 'gpt-image-1'
+
+        const defaultModels: Record<Provider, string> = {
+          openai: 'gpt-image-1',
+          gemini: 'gemini-2.0-flash-preview-image-generation',
+          openrouter: 'google/gemini-3.1-flash-image-preview',
+        }
+        const model: string =
+          data.model || body.model || defaultModels[provider]
 
         try {
-          // Pre-define typed adapter configurations with full type inference
-          // Model is passed to the adapter factory function for type-safe autocomplete
           const adapterConfig = {
             gemini: () =>
               createImageOptions({
-                adapter: geminiImage(
-                  (model || 'gemini-2.0-flash-preview-image-generation') as any,
-                ),
+                adapter: geminiImage(model as any),
               }),
             openai: () =>
               createImageOptions({
-                adapter: openaiImage((model || 'gpt-image-1') as any),
+                adapter: openaiImage(model as any),
+              }),
+            openrouter: () =>
+              createImageOptions({
+                adapter: openRouterImage(model as any),
               }),
           }
 
@@ -46,8 +54,7 @@ export const Route = createFileRoute('/api/image')({
           })
 
           console.log(
-            '>> image generation result:',
-            JSON.stringify(result, null, 2),
+            `>> image generation complete: ${result.images.length} image(s)`,
           )
 
           return new Response(

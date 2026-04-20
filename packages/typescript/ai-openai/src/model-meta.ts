@@ -1646,6 +1646,86 @@ const TTS_1_HD = {
 > */
 
 // Chat/text completion models (based on endpoints: "chat" or "chat-completions")
+const GPT_5_4_MINI = {
+  name: 'gpt-5.4-mini',
+  context_window: 400_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 0.75,
+      cached: 0.075,
+    },
+    output: {
+      normal: 4.5,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_5_4_NANO = {
+  name: 'gpt-5.4-nano',
+  context_window: 400_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 0.2,
+      cached: 0.02,
+    },
+    output: {
+      normal: 1.25,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
 export const OPENAI_CHAT_MODELS = [
   // Frontier models
   GPT5_2.name,
@@ -1694,7 +1774,12 @@ export const OPENAI_CHAT_MODELS = [
   // Legacy reasoning
   O1.name,
   O1_PRO.name,
+
+  GPT_5_4_MINI.name,
+  GPT_5_4_NANO.name,
 ] as const
+
+export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
 
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
 export const OPENAI_IMAGE_MODELS = [
@@ -1703,6 +1788,8 @@ export const OPENAI_IMAGE_MODELS = [
   DALL_E_3.name,
   DALL_E_2.name,
 ] as const
+
+export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number]
 
 // Audio models (based on endpoints: "transcription", "speech_generation", or "realtime")
 /* const OPENAI_AUDIO_MODELS = [
@@ -1734,6 +1821,8 @@ export const OPENAI_IMAGE_MODELS = [
  */
 export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 
+export type OpenAIVideoModel = (typeof OPENAI_VIDEO_MODELS)[number]
+
 /**
  * Text-to-speech models (based on endpoints: "speech_generation")
  */
@@ -1742,6 +1831,8 @@ export const OPENAI_TTS_MODELS = [
   'tts-1-hd',
   'gpt-4o-audio-preview',
 ] as const
+
+export type OpenAITTSModel = (typeof OPENAI_TTS_MODELS)[number]
 
 /**
  * Transcription models (based on endpoints: "transcription")
@@ -1752,6 +1843,9 @@ export const OPENAI_TRANSCRIPTION_MODELS = [
   'gpt-4o-mini-transcribe',
   'gpt-4o-transcribe-diarize',
 ] as const
+
+export type OpenAITranscriptionModel =
+  (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
 
 /**
  * Type-only map from chat model name to its provider options type.
@@ -1936,6 +2030,18 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
+  [GPT_5_4_MINI.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_5_4_NANO.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
 }
 
 /**
@@ -1991,4 +2097,6 @@ export type OpenAIModelInputModalitiesByName = {
   [O3_MINI.name]: typeof O3_MINI.supports.input
   [GPT_4O_SEARCH_PREVIEW.name]: typeof GPT_4O_SEARCH_PREVIEW.supports.input
   [GPT_4O_MINI_SEARCH_PREVIEW.name]: typeof GPT_4O_MINI_SEARCH_PREVIEW.supports.input
+  [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.supports.input
+  [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.supports.input
 }

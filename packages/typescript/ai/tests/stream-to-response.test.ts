@@ -7,10 +7,10 @@ import type { StreamChunk } from '../src/types'
 
 // Helper to create mock async iterable
 async function* createMockStream(
-  chunks: Array<StreamChunk>,
+  chunks: Array<Record<string, unknown>>,
 ): AsyncGenerator<StreamChunk> {
   for (const chunk of chunks) {
-    yield chunk
+    yield chunk as StreamChunk
   }
 }
 
@@ -35,24 +35,22 @@ async function readStream(stream: ReadableStream<Uint8Array>): Promise<string> {
 
 describe('toServerSentEventsStream', () => {
   it('should convert chunks to SSE format', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Hello',
         content: 'Hello',
-        role: 'assistant',
       },
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: ' world',
         content: 'Hello world',
-        role: 'assistant',
       },
     ]
 
@@ -61,21 +59,20 @@ describe('toServerSentEventsStream', () => {
     const output = await readStream(sseStream)
 
     expect(output).toContain('data: ')
-    expect(output).toContain('"type":"content"')
+    expect(output).toContain('"type":"TEXT_MESSAGE_CONTENT"')
     expect(output).toContain('\n\n')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should format each chunk with data: prefix', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Test',
         content: 'Test',
-        role: 'assistant',
       },
     ]
 
@@ -85,45 +82,17 @@ describe('toServerSentEventsStream', () => {
 
     const lines = output.split('\n\n').filter((line) => line.trim())
     expect(lines[0]).toMatch(/^data: /)
-    expect(lines[lines.length - 1]).toBe('data: [DONE]')
+    expect(lines[lines.length - 1]).toMatch(/^data: \{/)
   })
 
-  it('should end with [DONE] marker', async () => {
-    const chunks: Array<StreamChunk> = [
+  it('should handle tool call events', async () => {
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TOOL_CALL_START',
+        toolCallId: 'call-1',
+        toolName: 'getWeather',
         model: 'test',
         timestamp: Date.now(),
-        delta: 'Test',
-        content: 'Test',
-        role: 'assistant',
-      },
-    ]
-
-    const stream = createMockStream(chunks)
-    const sseStream = toServerSentEventsStream(stream)
-    const output = await readStream(sseStream)
-
-    // Should end with [DONE] marker followed by newlines
-    expect(output).toContain('data: [DONE]')
-    const doneIndex = output.lastIndexOf('data: [DONE]')
-    const afterDone = output.slice(doneIndex)
-    expect(afterDone).toBe('data: [DONE]\n\n')
-  })
-
-  it('should handle tool call chunks', async () => {
-    const chunks: Array<StreamChunk> = [
-      {
-        type: 'tool_call',
-        id: 'msg-1',
-        model: 'test',
-        timestamp: Date.now(),
-        toolCall: {
-          id: 'call-1',
-          type: 'function',
-          function: { name: 'getWeather', arguments: '{}' },
-        },
         index: 0,
       },
     ]
@@ -132,16 +101,16 @@ describe('toServerSentEventsStream', () => {
     const sseStream = toServerSentEventsStream(stream)
     const output = await readStream(sseStream)
 
-    expect(output).toContain('"type":"tool_call"')
-    expect(output).toContain('"name":"getWeather"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).toContain('"type":"TOOL_CALL_START"')
+    expect(output).toContain('"toolName":"getWeather"')
+    expect(output).not.toContain('[DONE]')
   })
 
-  it('should handle done chunks', async () => {
-    const chunks: Array<StreamChunk> = [
+  it('should handle RUN_FINISHED events', async () => {
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'done',
-        id: 'msg-1',
+        type: 'RUN_FINISHED',
+        runId: 'run-1',
         model: 'test',
         timestamp: Date.now(),
         finishReason: 'stop',
@@ -152,16 +121,16 @@ describe('toServerSentEventsStream', () => {
     const sseStream = toServerSentEventsStream(stream)
     const output = await readStream(sseStream)
 
-    expect(output).toContain('"type":"done"')
+    expect(output).toContain('"type":"RUN_FINISHED"')
     expect(output).toContain('"finishReason":"stop"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
-  it('should handle error chunks', async () => {
-    const chunks: Array<StreamChunk> = [
+  it('should handle RUN_ERROR events', async () => {
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'error',
-        id: 'msg-1',
+        type: 'RUN_ERROR',
+        runId: 'run-1',
         model: 'test',
         timestamp: Date.now(),
         error: { message: 'Test error' },
@@ -172,8 +141,8 @@ describe('toServerSentEventsStream', () => {
     const sseStream = toServerSentEventsStream(stream)
     const output = await readStream(sseStream)
 
-    expect(output).toContain('"type":"error"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).toContain('"type":"RUN_ERROR"')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should handle empty stream', async () => {
@@ -181,20 +150,66 @@ describe('toServerSentEventsStream', () => {
     const sseStream = toServerSentEventsStream(stream)
     const output = await readStream(sseStream)
 
-    expect(output).toBe('data: [DONE]\n\n')
+    expect(output).toBe('')
+  })
+
+  it('should not emit [DONE] sentinel — RUN_FINISHED is the stream terminator', async () => {
+    const chunks: Array<Record<string, unknown>> = [
+      {
+        type: 'RUN_STARTED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        role: 'assistant',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Hello',
+        content: 'Hello',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      },
+    ]
+
+    const stream = createMockStream(chunks)
+    const sseStream = toServerSentEventsStream(stream)
+    const output = await readStream(sseStream)
+
+    expect(output).not.toContain('[DONE]')
+    // Stream should end with the RUN_FINISHED event
+    expect(output).toContain('"type":"RUN_FINISHED"')
   })
 
   it('should abort when abortController signals abort', async () => {
     const abortController = new AbortController()
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Test',
         content: 'Test',
-        role: 'assistant',
       },
     ]
 
@@ -207,34 +222,33 @@ describe('toServerSentEventsStream', () => {
     const output = await readStream(sseStream)
 
     // Should not have processed chunks after abort
-    expect(output).not.toContain('"type":"content"')
+    expect(output).not.toContain('"type":"TEXT_MESSAGE_CONTENT"')
   })
 
   it('should handle stream errors and send error chunk', async () => {
     async function* errorStream(): AsyncGenerator<StreamChunk> {
       yield {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Test',
         content: 'Test',
-        role: 'assistant',
-      }
+      } as unknown as StreamChunk
       throw new Error('Stream error')
     }
 
     const sseStream = toServerSentEventsStream(errorStream())
     const output = await readStream(sseStream)
 
-    expect(output).toContain('"type":"error"')
+    expect(output).toContain('"type":"RUN_ERROR"')
     expect(output).toContain('"message":"Stream error"')
   })
 
   it('should not send error if aborted', async () => {
     const abortController = new AbortController()
 
-    async function* errorStream(): AsyncGenerator<StreamChunk> {
+    async function* errorStream(): AsyncGenerator<any> {
       abortController.abort()
       throw new Error('Stream error')
     }
@@ -243,22 +257,21 @@ describe('toServerSentEventsStream', () => {
     const output = await readStream(sseStream)
 
     // Should close without error chunk
-    expect(output).not.toContain('"type":"error"')
+    expect(output).not.toContain('"type":"RUN_ERROR"')
   })
 
   it('should handle cancel and abort underlying stream', async () => {
     const abortController = new AbortController()
     const abortSpy = vi.spyOn(abortController, 'abort')
 
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Test',
         content: 'Test',
-        role: 'assistant',
       },
     ]
 
@@ -272,31 +285,26 @@ describe('toServerSentEventsStream', () => {
   })
 
   it('should handle multiple chunks correctly', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Hello',
         content: 'Hello',
-        role: 'assistant',
       },
       {
-        type: 'tool_call',
-        id: 'msg-1',
+        type: 'TOOL_CALL_START',
+        toolCallId: 'call-1',
+        toolName: 'getWeather',
         model: 'test',
         timestamp: Date.now(),
-        toolCall: {
-          id: 'call-1',
-          type: 'function',
-          function: { name: 'getWeather', arguments: '{}' },
-        },
         index: 0,
       },
       {
-        type: 'done',
-        id: 'msg-1',
+        type: 'RUN_FINISHED',
+        runId: 'run-1',
         model: 'test',
         timestamp: Date.now(),
         finishReason: 'tool_calls',
@@ -310,22 +318,21 @@ describe('toServerSentEventsStream', () => {
     const dataLines = output
       .split('\n\n')
       .filter((line) => line.startsWith('data: '))
-    expect(dataLines.length).toBeGreaterThanOrEqual(3) // At least 3 chunks + [DONE]
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(dataLines.length).toBeGreaterThanOrEqual(3) // At least 3 chunks
+    expect(output).not.toContain('[DONE]')
   })
 })
 
 describe('toServerSentEventsResponse', () => {
   it('should create Response with SSE headers', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Test',
         content: 'Test',
-        role: 'assistant',
       },
     ]
 
@@ -339,7 +346,7 @@ describe('toServerSentEventsResponse', () => {
   })
 
   it('should allow custom headers', async () => {
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     const stream = createMockStream(chunks)
     const response = toServerSentEventsResponse(stream, {
       headers: {
@@ -352,7 +359,7 @@ describe('toServerSentEventsResponse', () => {
   })
 
   it('should merge custom headers with SSE headers', async () => {
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     const stream = createMockStream(chunks)
     const response = toServerSentEventsResponse(stream, {
       headers: {
@@ -368,15 +375,14 @@ describe('toServerSentEventsResponse', () => {
 
   it('should handle abortController in options', async () => {
     const abortController = new AbortController()
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Test',
         content: 'Test',
-        role: 'assistant',
       },
     ]
 
@@ -397,7 +403,7 @@ describe('toServerSentEventsResponse', () => {
   })
 
   it('should handle status and statusText', async () => {
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     const stream = createMockStream(chunks)
     const response = toServerSentEventsResponse(stream, {
       status: 201,
@@ -409,24 +415,22 @@ describe('toServerSentEventsResponse', () => {
   })
 
   it('should stream chunks correctly through Response', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Hello',
         content: 'Hello',
-        role: 'assistant',
       },
       {
-        type: 'content',
-        id: 'msg-1',
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: ' world',
         content: 'Hello world',
-        role: 'assistant',
       },
     ]
 
@@ -440,14 +444,14 @@ describe('toServerSentEventsResponse', () => {
     const output = await readStream(response.body)
 
     expect(output).toContain('data: ')
-    expect(output).toContain('"type":"content"')
+    expect(output).toContain('"type":"TEXT_MESSAGE_CONTENT"')
     expect(output).toContain('"delta":"Hello"')
     expect(output).toContain('"delta":" world"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should handle undefined init parameter', async () => {
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     const stream = createMockStream(chunks)
     const response = toServerSentEventsResponse(stream, undefined)
 
@@ -456,11 +460,413 @@ describe('toServerSentEventsResponse', () => {
   })
 
   it('should handle empty init object', async () => {
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     const stream = createMockStream(chunks)
     const response = toServerSentEventsResponse(stream, {})
 
     expect(response).toBeInstanceOf(Response)
     expect(response.headers.get('Content-Type')).toBe('text/event-stream')
+  })
+})
+
+/**
+ * SSE Round-Trip Tests
+ *
+ * These tests verify that all AG-UI event types survive the SSE encoding/decoding cycle.
+ * This simulates the full server → client flow.
+ */
+describe('SSE Round-Trip (Encode → Decode)', () => {
+  /**
+   * Helper to parse SSE stream back into chunks
+   */
+  async function parseSSEStream(
+    sseStream: ReadableStream<Uint8Array>,
+  ): Promise<Array<Record<string, unknown>>> {
+    const reader = sseStream.getReader()
+    const decoder = new TextDecoder()
+    const chunks: Array<Record<string, unknown>> = []
+    let buffer = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') continue
+            try {
+              chunks.push(JSON.parse(data))
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+
+    return chunks
+  }
+
+  it('should preserve TEXT_MESSAGE_CONTENT events', async () => {
+    const originalChunks: Array<Record<string, unknown>> = [
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test-model',
+        timestamp: 1234567890,
+        delta: 'Hello',
+        content: 'Hello',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test-model',
+        timestamp: 1234567891,
+        delta: ' world',
+        content: 'Hello world',
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(2)
+
+    for (let i = 0; i < originalChunks.length; i++) {
+      const original = originalChunks[i]
+      const parsed = parsedChunks[i]
+
+      expect(parsed?.type).toBe(original?.type)
+      expect((parsed as any)?.messageId).toBe((original as any)?.messageId)
+      expect((parsed as any)?.delta).toBe((original as any)?.delta)
+      expect((parsed as any)?.content).toBe((original as any)?.content)
+    }
+  })
+
+  it('should preserve TOOL_CALL_* events', async () => {
+    const originalChunks: Array<Record<string, unknown>> = [
+      {
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'get_weather',
+        model: 'test',
+        timestamp: Date.now(),
+        index: 0,
+      },
+      {
+        type: 'TOOL_CALL_ARGS',
+        toolCallId: 'tc-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: '{"city":"NYC"}',
+      },
+      {
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        toolName: 'get_weather',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(3)
+
+    // Verify TOOL_CALL_START
+    expect(parsedChunks[0]?.type).toBe('TOOL_CALL_START')
+    expect((parsedChunks[0] as any)?.toolCallId).toBe('tc-1')
+    expect((parsedChunks[0] as any)?.toolName).toBe('get_weather')
+    expect((parsedChunks[0] as any)?.index).toBe(0)
+
+    // Verify TOOL_CALL_ARGS
+    expect(parsedChunks[1]?.type).toBe('TOOL_CALL_ARGS')
+    expect((parsedChunks[1] as any)?.toolCallId).toBe('tc-1')
+    expect((parsedChunks[1] as any)?.delta).toBe('{"city":"NYC"}')
+
+    // Verify TOOL_CALL_END
+    expect(parsedChunks[2]?.type).toBe('TOOL_CALL_END')
+    expect((parsedChunks[2] as any)?.toolCallId).toBe('tc-1')
+  })
+
+  it('should preserve RUN_* events', async () => {
+    const originalChunks: Array<Record<string, unknown>> = [
+      {
+        type: 'RUN_STARTED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(2)
+
+    expect(parsedChunks[0]?.type).toBe('RUN_STARTED')
+    expect((parsedChunks[0] as any)?.runId).toBe('run-1')
+
+    expect(parsedChunks[1]?.type).toBe('RUN_FINISHED')
+    expect((parsedChunks[1] as any)?.finishReason).toBe('stop')
+  })
+
+  it('should preserve RUN_ERROR events', async () => {
+    const originalChunks: Array<Record<string, unknown>> = [
+      {
+        type: 'RUN_ERROR',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+        error: { message: 'Something went wrong', code: 'TEST_ERROR' },
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(1)
+    expect(parsedChunks[0]?.type).toBe('RUN_ERROR')
+    expect((parsedChunks[0] as any)?.error?.message).toBe(
+      'Something went wrong',
+    )
+    expect((parsedChunks[0] as any)?.error?.code).toBe('TEST_ERROR')
+  })
+
+  it('should preserve STEP_FINISHED events (thinking)', async () => {
+    const originalChunks: Array<Record<string, unknown>> = [
+      {
+        type: 'STEP_STARTED',
+        stepId: 'step-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'STEP_FINISHED',
+        stepId: 'step-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Let me think...',
+        content: 'Let me think...',
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(2)
+
+    expect(parsedChunks[0]?.type).toBe('STEP_STARTED')
+    expect((parsedChunks[0] as any)?.stepId).toBe('step-1')
+
+    expect(parsedChunks[1]?.type).toBe('STEP_FINISHED')
+    expect((parsedChunks[1] as any)?.delta).toBe('Let me think...')
+  })
+
+  it('should preserve CUSTOM events', async () => {
+    const originalChunks: Array<Record<string, unknown>> = [
+      {
+        type: 'CUSTOM',
+        model: 'test',
+        timestamp: Date.now(),
+        name: 'tool-input-available',
+        value: {
+          toolCallId: 'tc-1',
+          toolName: 'get_weather',
+          input: { city: 'NYC', units: 'fahrenheit' },
+        },
+      },
+      {
+        type: 'CUSTOM',
+        model: 'test',
+        timestamp: Date.now(),
+        name: 'approval-requested',
+        value: {
+          toolCallId: 'tc-2',
+          toolName: 'delete_file',
+          input: { path: '/tmp/file.txt' },
+          approval: { id: 'approval-1' },
+        },
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(2)
+
+    // Verify tool-input-available
+    expect(parsedChunks[0]?.type).toBe('CUSTOM')
+    expect((parsedChunks[0] as any)?.name).toBe('tool-input-available')
+    expect((parsedChunks[0] as any)?.value?.toolCallId).toBe('tc-1')
+    expect((parsedChunks[0] as any)?.value?.input?.city).toBe('NYC')
+
+    // Verify approval-requested
+    expect(parsedChunks[1]?.type).toBe('CUSTOM')
+    expect((parsedChunks[1] as any)?.name).toBe('approval-requested')
+    expect((parsedChunks[1] as any)?.value?.approval?.id).toBe('approval-1')
+  })
+
+  it('should preserve TEXT_MESSAGE_START/END events', async () => {
+    const originalChunks: Array<Record<string, unknown>> = [
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        role: 'assistant',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Hello',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(3)
+    expect(parsedChunks[0]?.type).toBe('TEXT_MESSAGE_START')
+    expect(parsedChunks[1]?.type).toBe('TEXT_MESSAGE_CONTENT')
+    expect(parsedChunks[2]?.type).toBe('TEXT_MESSAGE_END')
+  })
+
+  it('should preserve complex mixed event sequence', async () => {
+    const originalChunks: Array<Record<string, unknown>> = [
+      {
+        type: 'RUN_STARTED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        role: 'assistant',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Let me help you.',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'TOOL_CALL_START',
+        toolCallId: 'tc-1',
+        toolName: 'search',
+        model: 'test',
+        timestamp: Date.now(),
+        index: 0,
+      },
+      {
+        type: 'TOOL_CALL_ARGS',
+        toolCallId: 'tc-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: '{"query":"test"}',
+      },
+      {
+        type: 'TOOL_CALL_END',
+        toolCallId: 'tc-1',
+        toolName: 'search',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'CUSTOM',
+        model: 'test',
+        timestamp: Date.now(),
+        name: 'tool-input-available',
+        value: {
+          toolCallId: 'tc-1',
+          toolName: 'search',
+          input: { query: 'test' },
+        },
+      },
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'tool_calls',
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(9)
+
+    // Verify event types in order
+    const expectedTypes = [
+      'RUN_STARTED',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'CUSTOM',
+      'RUN_FINISHED',
+    ]
+
+    for (let i = 0; i < expectedTypes.length; i++) {
+      expect(parsedChunks[i]?.type).toBe(expectedTypes[i])
+    }
+  })
+
+  it('should preserve unicode and special characters', async () => {
+    const originalChunks: Array<Record<string, unknown>> = [
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Hello 世界! 🌍 Special chars: <>&"\'\n\t',
+        content: 'Hello 世界! 🌍 Special chars: <>&"\'\n\t',
+      },
+    ]
+
+    const sseStream = toServerSentEventsStream(createMockStream(originalChunks))
+    const parsedChunks = await parseSSEStream(sseStream)
+
+    expect(parsedChunks.length).toBe(1)
+    expect((parsedChunks[0] as any)?.delta).toBe(
+      'Hello 世界! 🌍 Special chars: <>&"\'\n\t',
+    )
   })
 })

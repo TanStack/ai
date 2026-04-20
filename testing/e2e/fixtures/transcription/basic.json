@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "audio.mpeg" },
+      "response": {
+        "transcription": {
+          "text": "I would like to buy a Fender Stratocaster please"
+        }
+      }
+    }
+  ]
+}
