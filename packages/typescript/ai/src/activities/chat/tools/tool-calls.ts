@@ -157,9 +157,11 @@ export class ToolCallManager {
    * Execute all tool calls and return tool result messages
    * Yields TOOL_CALL_END events for streaming
    * @param finishEvent - RUN_FINISHED event from the stream
+   * @param userContext - Optional user-provided context passed to tool execute functions
    */
   async *executeTools(
     finishEvent: RunFinishedEvent,
+    userContext?: unknown,
   ): AsyncGenerator<ToolCallEndEvent, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
@@ -198,7 +200,11 @@ export class ToolCallManager {
           }
 
           // Execute the tool
-          let result = await tool.execute(args)
+          const context: ToolExecutionContext = {
+            toolCallId: toolCall.id,
+            userContext,
+          }
+          let result = await tool.execute(args, context)
 
           // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
           if (
@@ -502,6 +508,7 @@ export async function* executeToolCalls(
     value: Record<string, any>,
   ) => CustomEvent,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
+  userContext?: unknown,
 ): AsyncGenerator<CustomEvent, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -581,6 +588,7 @@ export async function* executeToolCalls(
     const pendingEvents: Array<CustomEvent> = []
     const context: ToolExecutionContext = {
       toolCallId: toolCall.id,
+      userContext,
       emitCustomEvent: (eventName: string, value: Record<string, any>) => {
         if (createCustomEventChunk) {
           pendingEvents.push(

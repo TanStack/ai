@@ -185,6 +185,7 @@ export interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
 
 export interface ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
 > {
   /**
    * Connection adapter for streaming.
@@ -192,6 +193,27 @@ export interface ChatClientOptions<
    * subscribe/send mode via `subscribe()` + `send()`.
    */
   connection: ConnectionAdapter
+
+  /**
+   * Context object passed to client-side tool execute functions during execution.
+   *
+   * This is client-side only — it is NOT serialized or sent to the server.
+   * For server-side tool context, pass `context` directly to `chat()` on the server.
+   *
+   * Available as `context.userContext` inside tool execute functions.
+   *
+   * @example
+   * const client = new ChatClient({
+   *   context: { userId: '123', api },
+   *   tools: [myClientTool],
+   * })
+   *
+   * // In tool definition:
+   * const myClientTool = toolDef.client(async (args, context) => {
+   *   return context?.userContext?.api.fetch(args.id)
+   * })
+   */
+  context?: TContext
 
   /**
    * Initial messages to populate the chat

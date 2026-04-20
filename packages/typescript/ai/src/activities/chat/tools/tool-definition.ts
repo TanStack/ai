@@ -25,7 +25,7 @@ export interface ClientTool<
   TInput extends SchemaInput = SchemaInput,
   TOutput extends SchemaInput = SchemaInput,
   TName extends string = string,
-> {
+> extends Tool<TInput, TOutput, TName> {
   __toolSide: 'client'
   name: TName
   description: string
@@ -36,6 +36,7 @@ export interface ClientTool<
   metadata?: Record<string, unknown>
   execute?: (
     args: InferSchemaType<TInput>,
+    context?: ToolExecutionContext,
   ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>
 }
 
@@ -125,6 +126,7 @@ export interface ToolDefinition<
   client: (
     execute?: (
       args: InferSchemaType<TInput>,
+      context?: ToolExecutionContext,
     ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
   ) => ClientTool<TInput, TOutput, TName>
 }
@@ -203,19 +205,22 @@ export function toolDefinition<
       return {
         __toolSide: 'server',
         ...config,
-        execute,
+        execute: (args, context) => execute(args, context),
       }
     },
 
     client(
       execute?: (
         args: InferSchemaType<TInput>,
+        context?: ToolExecutionContext,
       ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
     ): ClientTool<TInput, TOutput, TName> {
       return {
         __toolSide: 'client',
         ...config,
-        execute,
+        execute: execute
+          ? (args: any, context: any) => execute(args, context)
+          : undefined,
       }
     },
   }

@@ -348,7 +348,7 @@ export type ConstrainedModelMessage<
 
 /**
  * Context passed to tool execute functions, providing capabilities like
- * emitting custom events during execution.
+ * emitting custom events during execution and access to user-provided context.
  */
 export interface ToolExecutionContext {
   /** The ID of the tool call being executed */
@@ -363,15 +363,25 @@ export interface ToolExecutionContext {
    * @example
    * ```ts
    * const tool = toolDefinition({ ... }).server(async (args, context) => {
-   *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
+   *   context?.emitCustomEvent?.('progress', { step: 1, total: 3 })
    *   // ... do work ...
-   *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
+   *   context?.emitCustomEvent?.('progress', { step: 2, total: 3 })
    *   // ... do more work ...
    *   return result
    * })
    * ```
    */
-  emitCustomEvent: (eventName: string, value: Record<string, any>) => void
+  emitCustomEvent?: (eventName: string, value: Record<string, any>) => void
+  /**
+   * User-provided context passed from chat() options.
+   * Allows tools to access shared context (e.g. database connections, user ID, request metadata)
+   * without needing to capture them via closures.
+   *
+   * @example
+   * chat({ context: { db, userId }, ... })
+   * // In tool: context?.userContext?.db.users.find(...)
+   */
+  userContext?: unknown
 }
 
 /**
@@ -482,10 +492,12 @@ export interface Tool<
    * Can return any value - will be automatically stringified if needed.
    *
    * @param args - The arguments parsed from the model's tool call (validated against inputSchema)
+   * @param context - SDK context providing toolCallId, emitCustomEvent, and userContext
    * @returns Result to send back to the model (validated against outputSchema if provided)
    *
    * @example
-   * execute: async (args) => {
+   * execute: async (args, context) => {
+   *   const user = await context?.userContext?.db.users.find({ id: context.userContext.userId }); // Can access user context
    *   const weather = await fetchWeather(args.location);
    *   return weather; // Can return object or string
    * }
@@ -684,6 +696,29 @@ export interface TextOptions<
   metadata?: Record<string, any>
   modelOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
+  /**
+   * Context object that is automatically passed to all tool execute functions.
+   *
+   * This allows tools to access shared context (like user ID, database connections,
+   * request metadata, etc.) without needing to capture them via closures.
+   * Works for both server and client tools.
+   *
+   * @example
+   * const stream = chat({
+   *   adapter: openai(),
+   *   model: 'gpt-4o',
+   *   messages,
+   *   context: { userId: '123', db },
+   *   tools: [getUserData],
+   * });
+   *
+   * // In tool definition:
+   * const getUserData = getUserDataDef.server(async (args, context) => {
+   *   // context.userContext.userId and context.userContext.db are available
+   *   return await context?.userContext?.db.users.find({ userId: context.userContext.userId });
+   * });
+   */
+  context?: unknown
 
   /**
    * Schema for structured output.
