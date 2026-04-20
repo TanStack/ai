@@ -110,7 +110,7 @@ export class OpenRouterTextAdapter<
     try {
       const requestParams = this.mapTextOptionsToSDK(options)
       logger.request(
-        `activity=chat provider=openrouter model=${this.model} messages=${options.messages?.length ?? 0} tools=${options.tools?.length ?? 0} stream=true`,
+        `activity=chat provider=openrouter model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'openrouter', model: this.model },
       )
       const stream = await this.client.chat.send(
@@ -230,7 +230,7 @@ export class OpenRouterTextAdapter<
 
     try {
       logger.request(
-        `activity=chat provider=openrouter model=${this.model} messages=${chatOptions.messages?.length ?? 0} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        `activity=chat provider=openrouter model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'openrouter', model: this.model },
       )
       const result = await this.client.chat.send(

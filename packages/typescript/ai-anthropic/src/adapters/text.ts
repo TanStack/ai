@@ -124,7 +124,7 @@ export class AnthropicTextAdapter<
       const requestParams = this.mapCommonOptionsToAnthropic(options)
 
       logger.request(
-        `activity=chat provider=anthropic model=${this.model} messages=${options.messages?.length ?? 0} tools=${options.tools?.length ?? 0} stream=true`,
+        `activity=chat provider=anthropic model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'anthropic', model: this.model },
       )
       const stream = await this.client.beta.messages.create(
@@ -188,7 +188,7 @@ export class AnthropicTextAdapter<
 
     try {
       logger.request(
-        `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages?.length ?? 0} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'anthropic', model: this.model },
       )
       // Make non-streaming request with tool_choice forced to our structured output tool
@@ -571,7 +571,7 @@ export class AnthropicTextAdapter<
     try {
       for await (const event of stream) {
         logger.provider(
-          `provider=anthropic type=${event.type ?? '<unknown>'}`,
+          `provider=anthropic type=${event.type}`,
           { chunk: event },
         )
         // Emit RUN_STARTED on first event

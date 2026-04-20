@@ -106,7 +106,7 @@ export class GeminiTextAdapter<
 
     try {
       logger.request(
-        `activity=chat provider=gemini model=${this.model} messages=${options.messages?.length ?? 0} tools=${options.tools?.length ?? 0} stream=true`,
+        `activity=chat provider=gemini model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'gemini', model: this.model },
       )
       const result =
@@ -148,7 +148,7 @@ export class GeminiTextAdapter<
 
     try {
       logger.request(
-        `activity=chat provider=gemini model=${this.model} messages=${chatOptions.messages?.length ?? 0} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        `activity=chat provider=gemini model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'gemini', model: this.model },
       )
       // Add structured output configuration

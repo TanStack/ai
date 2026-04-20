@@ -85,7 +85,7 @@ export class GroqTextAdapter<
 
     try {
       logger.request(
-        `activity=chat provider=groq model=${this.model} messages=${options.messages?.length ?? 0} tools=${options.tools?.length ?? 0} stream=true`,
+        `activity=chat provider=groq model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'groq', model: this.model },
       )
       const stream = await this.client.chat.completions.create({
@@ -151,7 +151,7 @@ export class GroqTextAdapter<
 
     try {
       logger.request(
-        `activity=chat provider=groq model=${this.model} messages=${chatOptions.messages?.length ?? 0} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        `activity=chat provider=groq model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'groq', model: this.model },
       )
       const response = await this.client.chat.completions.create({

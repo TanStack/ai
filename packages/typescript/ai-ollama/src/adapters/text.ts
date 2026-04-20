@@ -145,7 +145,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     const { logger } = options
     try {
       logger.request(
-        `activity=chat provider=ollama model=${this.model} messages=${options.messages?.length ?? 0} tools=${options.tools?.length ?? 0} stream=true`,
+        `activity=chat provider=ollama model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'ollama', model: this.model },
       )
       const response = await this.client.chat({
@@ -177,7 +177,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
     try {
       logger.request(
-        `activity=chat provider=ollama model=${this.model} messages=${chatOptions.messages?.length ?? 0} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        `activity=chat provider=ollama model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'ollama', model: this.model },
       )
       // Make non-streaming request with JSON format

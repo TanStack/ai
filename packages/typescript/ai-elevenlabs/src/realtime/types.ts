@@ -1,3 +1,5 @@
+import type { DebugOption } from '@tanstack/ai'
+
 /**
  * Options for the ElevenLabs realtime token adapter
  */
@@ -16,8 +18,6 @@ export interface ElevenLabsRealtimeTokenOptions {
     language?: string
   }
 }
-
-import type { DebugOption } from '@tanstack/ai'
 
 /**
  * Options for the ElevenLabs realtime client adapter

@@ -115,7 +115,7 @@ export class OpenAITextAdapter<
 
     try {
       logger.request(
-        `activity=chat provider=openai model=${this.model} messages=${options.messages?.length ?? 0} tools=${options.tools?.length ?? 0} stream=true`,
+        `activity=chat provider=openai model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'openai', model: this.model },
       )
       const response = await this.client.responses.create(
@@ -173,7 +173,7 @@ export class OpenAITextAdapter<
 
     try {
       logger.request(
-        `activity=chat provider=openai model=${this.model} messages=${chatOptions.messages?.length ?? 0} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        `activity=chat provider=openai model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'openai', model: this.model },
       )
       const response = await this.client.responses.create(
@@ -280,7 +280,7 @@ export class OpenAITextAdapter<
     try {
       for await (const chunk of stream) {
         chunkCount++
-        logger.provider(`provider=openai type=${chunk.type ?? '<unknown>'}`, {
+        logger.provider(`provider=openai type=${chunk.type}`, {
           chunk,
         })
 
