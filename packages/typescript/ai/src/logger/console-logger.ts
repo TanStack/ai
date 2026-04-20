@@ -33,8 +33,8 @@ type InspectFn = (
 
 const isNode =
   typeof globalThis !== 'undefined' &&
-  typeof (globalThis as { process?: { versions?: { node?: string } } })
-    .process?.versions?.node === 'string'
+  typeof (globalThis as { process?: { versions?: { node?: string } } }).process
+    ?.versions?.node === 'string'
 
 let inspect: InspectFn | null = null
 if (isNode) {
