@@ -964,8 +964,11 @@ describe('OpenRouter structured output', () => {
     // Root object: all props required, additionalProperties: false
     expect(sentSchema.additionalProperties).toBe(false)
     expect(sentSchema.required).toEqual(['title', 'description', 'tags'])
-    // Optional field is made nullable
+    // Optional primitive is made nullable
     expect(sentSchema.properties.description.type).toEqual(['string', 'null'])
+    // Optional array must also be made nullable (strict mode requires every
+    // required property to be nullable if it was originally optional)
+    expect(sentSchema.properties.tags.type).toEqual(['array', 'null'])
     // Nested array items: same transformation applied recursively
     expect(sentSchema.properties.tags.items.additionalProperties).toBe(false)
     expect(sentSchema.properties.tags.items.required).toEqual([
@@ -976,6 +979,46 @@ describe('OpenRouter structured output', () => {
       'number',
       'null',
     ])
+  })
+
+  it('makes optional nested objects nullable under strict mode', async () => {
+    const nonStreamResponse = {
+      choices: [{ message: { content: '{"id":"x","meta":null}' } }],
+    }
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    const outputSchema = {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        meta: {
+          type: 'object',
+          properties: {
+            createdAt: { type: 'string' },
+          },
+          required: ['createdAt'],
+        },
+      },
+      required: ['id'],
+    }
+
+    await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Generate' }],
+      },
+      outputSchema,
+    })
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const sentSchema = rawParams.chatRequest.responseFormat.jsonSchema.schema
+
+    expect(sentSchema.required).toEqual(['id', 'meta'])
+    expect(sentSchema.properties.meta.type).toEqual(['object', 'null'])
+    // Inner object still strict-compatible
+    expect(sentSchema.properties.meta.additionalProperties).toBe(false)
+    expect(sentSchema.properties.meta.required).toEqual(['createdAt'])
   })
 
   it('flows through core chat() entrypoint with strict transformation', async () => {
