@@ -2,6 +2,14 @@
 title: Agentic Cycle
 id: agentic-cycle
 order: 1
+description: "The agentic cycle in TanStack AI — how the LLM loops through tool calls, results, and reasoning until it produces a final answer."
+keywords:
+  - tanstack ai
+  - agentic cycle
+  - agent loop
+  - tool calling
+  - multi-step reasoning
+  - ai agents
 ---
 
 The agentic cycle is the pattern where the LLM repeatedly calls tools, receives results, and continues reasoning until it can provide a final answer. This enables complex multi-step operations.

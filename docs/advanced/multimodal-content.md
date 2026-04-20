@@ -2,6 +2,17 @@
 title: Multimodal Content
 id: multimodal-content
 order: 3
+description: "Send images, audio, video, and documents alongside text in TanStack AI messages with typed ContentPart primitives for multimodal models."
+keywords:
+  - tanstack ai
+  - multimodal
+  - vision
+  - images
+  - audio
+  - video
+  - documents
+  - ContentPart
+  - ImagePart
 ---
 
 TanStack AI supports multimodal content in messages, allowing you to send images, audio, video, and documents alongside text to AI models that support these modalities.

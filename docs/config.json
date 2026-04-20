@@ -32,6 +32,10 @@
         {
           "label": "Quick Start: Server Only",
           "to": "getting-started/quick-start-server"
+        },
+        {
+          "label": "Agent Skills (TanStack Intent)",
+          "to": "getting-started/agent-skills"
         }
       ]
     },

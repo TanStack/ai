@@ -26,7 +26,7 @@ function createGenerationChunks(result: unknown): Array<StreamChunk> {
       finishReason: 'stop',
       timestamp: Date.now(),
     },
-  ]
+  ] as unknown as Array<StreamChunk>
 }
 
 // Helper to create video generation stream chunks
@@ -57,7 +57,7 @@ function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
       finishReason: 'stop',
       timestamp: Date.now(),
     },
-  ]
+  ] as unknown as Array<StreamChunk>
 }
 
 // Helper to create error stream chunks
@@ -70,7 +70,7 @@ function createErrorChunks(message: string): Array<StreamChunk> {
       error: { message },
       timestamp: Date.now(),
     },
-  ]
+  ] as unknown as Array<StreamChunk>
 }
 
 /**

@@ -118,6 +118,7 @@ export function createTextChunks(
   const chunks: Array<StreamChunk> = []
   let accumulated = ''
   const runId = `run-${messageId}`
+  const threadId = `thread-${messageId}`
 
   for (const chunk of text) {
     accumulated += chunk
@@ -128,16 +129,17 @@ export function createTextChunks(
       timestamp: Date.now(),
       delta: chunk,
       content: accumulated,
-    })
+    } as StreamChunk)
   }
 
   chunks.push({
     type: 'RUN_FINISHED',
     runId,
+    threadId,
     model,
     timestamp: Date.now(),
     finishReason: 'stop',
-  })
+  } as StreamChunk)
 
   return chunks
 }
@@ -158,16 +160,17 @@ export function createCustomEventChunks(
       timestamp: Date.now(),
       name: event.name,
       value: event.value,
-    })
+    } as StreamChunk)
   }
 
   chunks.push({
     type: 'RUN_FINISHED',
     runId: 'run-1',
+    threadId: 'thread-1',
     model,
     timestamp: Date.now(),
     finishReason: 'stop',
-  })
+  } as StreamChunk)
 
   return chunks
 }
@@ -192,11 +195,12 @@ export function createToolCallChunks(
     chunks.push({
       type: 'TOOL_CALL_START',
       toolCallId: toolCall.id,
+      toolCallName: toolCall.name,
       toolName: toolCall.name,
       model,
       timestamp: Date.now(),
       index: i,
-    })
+    } as StreamChunk)
 
     // TOOL_CALL_ARGS event
     chunks.push({
@@ -205,7 +209,7 @@ export function createToolCallChunks(
       model,
       timestamp: Date.now(),
       delta: toolCall.arguments,
-    })
+    } as StreamChunk)
 
     // Add tool-input-available CUSTOM chunk if requested
     if (includeToolInputAvailable) {
@@ -226,17 +230,18 @@ export function createToolCallChunks(
           toolName: toolCall.name,
           input: parsedInput,
         },
-      })
+      } as StreamChunk)
     }
   }
 
   chunks.push({
     type: 'RUN_FINISHED',
     runId,
+    threadId: `thread-${messageId}`,
     model,
     timestamp: Date.now(),
     finishReason: 'tool_calls',
-  })
+  } as StreamChunk)
 
   return chunks
 }
@@ -264,11 +269,12 @@ export function createApprovalToolCallChunks(
     chunks.push({
       type: 'TOOL_CALL_START',
       toolCallId: toolCall.id,
+      toolCallName: toolCall.name,
       toolName: toolCall.name,
       model,
       timestamp: Date.now(),
       index: i,
-    })
+    } as StreamChunk)
 
     chunks.push({
       type: 'TOOL_CALL_ARGS',
@@ -276,15 +282,16 @@ export function createApprovalToolCallChunks(
       model,
       timestamp: Date.now(),
       delta: toolCall.arguments,
-    })
+    } as StreamChunk)
 
     chunks.push({
       type: 'TOOL_CALL_END',
       toolCallId: toolCall.id,
+      toolCallName: toolCall.name,
       toolName: toolCall.name,
       model,
       timestamp: Date.now(),
-    })
+    } as StreamChunk)
 
     chunks.push({
       type: 'CUSTOM',
@@ -297,16 +304,17 @@ export function createApprovalToolCallChunks(
         input: JSON.parse(toolCall.arguments),
         approval: { id: toolCall.approvalId, needsApproval: true },
       },
-    })
+    } as StreamChunk)
   }
 
   chunks.push({
     type: 'RUN_FINISHED',
     runId,
+    threadId: `thread-${messageId}`,
     model,
     timestamp: Date.now(),
     finishReason: 'tool_calls',
-  })
+  } as StreamChunk)
 
   return chunks
 }
@@ -330,12 +338,13 @@ export function createThinkingChunks(
     accumulatedThinking += chunk
     chunks.push({
       type: 'STEP_FINISHED',
+      stepName: stepId,
       stepId,
       model,
       timestamp: Date.now(),
       delta: chunk,
       content: accumulatedThinking,
-    })
+    } as StreamChunk)
   }
 
   // Optionally add text content after thinking
@@ -350,17 +359,18 @@ export function createThinkingChunks(
         timestamp: Date.now(),
         delta: chunk,
         content: accumulatedText,
-      })
+      } as StreamChunk)
     }
   }
 
   chunks.push({
     type: 'RUN_FINISHED',
     runId,
+    threadId: `thread-${messageId}`,
     model,
     timestamp: Date.now(),
     finishReason: 'stop',
-  })
+  } as StreamChunk)
 
   return chunks
 }

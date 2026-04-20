@@ -1,6 +1,15 @@
 ---
 title: OpenRouter Adapter
 id: openrouter-adapter
+description: "Access 300+ LLMs from OpenAI, Anthropic, Google, Meta, Mistral, and more through a single API with OpenRouter in TanStack AI."
+keywords:
+  - tanstack ai
+  - openrouter
+  - multi-provider
+  - unified api
+  - llm gateway
+  - 300 models
+  - adapter
 ---
 
 OpenRouter is TanStack AI's first official AI partner and the recommended starting point for most projects. It provides access to 300+ models from OpenAI, Anthropic, Google, Meta, Mistral, and many more — all through a single API key and unified interface.

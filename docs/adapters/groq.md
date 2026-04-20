@@ -2,6 +2,15 @@
 title: Groq
 id: groq-adapter
 order: 6
+description: "Use Groq's fast inference API with TanStack AI for low-latency LLM responses — Llama and other open-weight models via @tanstack/ai-groq."
+keywords:
+  - tanstack ai
+  - groq
+  - fast inference
+  - llama
+  - low latency
+  - adapter
+  - llm
 ---
 
 The Groq adapter provides access to Groq's fast inference API, featuring the world's fastest LLM inference.

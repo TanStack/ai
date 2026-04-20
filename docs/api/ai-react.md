@@ -2,6 +2,14 @@
 title: "@tanstack/ai-react"
 slug: /api/ai-react
 order: 3
+description: "API reference for @tanstack/ai-react — React hooks including useChat for streaming chat with full type safety in React apps."
+keywords:
+  - tanstack ai
+  - "@tanstack/ai-react"
+  - react
+  - useChat
+  - react hooks
+  - api reference
 ---
 
 React hooks for TanStack AI, providing convenient React bindings for the headless client.

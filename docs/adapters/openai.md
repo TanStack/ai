@@ -2,6 +2,17 @@
 title: OpenAI
 id: openai-adapter
 order: 1
+description: "Use OpenAI models with TanStack AI — GPT-4o, GPT-5, DALL-E image generation, TTS, and Whisper transcription via @tanstack/ai-openai."
+keywords:
+  - tanstack ai
+  - openai
+  - gpt-4o
+  - gpt-5
+  - dall-e
+  - whisper
+  - openai tts
+  - adapter
+  - chatgpt
 ---
 
 The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, image generation (DALL-E), text-to-speech (TTS), and audio transcription (Whisper).

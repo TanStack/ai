@@ -2,6 +2,15 @@
 title: Video Generation
 id: video-generation
 order: 6
+description: "Generate video from text prompts with OpenAI Sora using TanStack AI's experimental generateVideo() jobs/polling API."
+keywords:
+  - tanstack ai
+  - video generation
+  - sora
+  - generateVideo
+  - jobs api
+  - experimental
+  - text-to-video
 ---
 
 # Video Generation (Experimental)

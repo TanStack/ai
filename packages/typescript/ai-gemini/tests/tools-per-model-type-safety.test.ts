@@ -5,6 +5,7 @@
  * Negative cases: unsupported (model, tool) pairs produce a `@ts-expect-error`.
  */
 import { describe, it, beforeAll } from 'vitest'
+import { Environment } from '@google/genai'
 import { geminiText } from '../src'
 import {
   codeExecutionTool,
@@ -54,7 +55,7 @@ describe('Gemini per-model tool gating', () => {
       urlContextTool(),
       // @ts-expect-error - gemini-3.1-pro-preview does not support computer_use
       computerUseTool({
-        environment: 'ENVIRONMENT_BROWSER',
+        environment: Environment.ENVIRONMENT_BROWSER,
         excludedPredefinedFunctions: [],
       }),
       // @ts-expect-error - gemini-3.1-pro-preview does not support google_maps

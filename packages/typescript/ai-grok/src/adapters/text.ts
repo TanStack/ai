@@ -41,6 +41,11 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<GrokChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 /**
  * Configuration for Grok text adapter
  */
@@ -89,7 +94,8 @@ export class GrokTextAdapter<
 
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
-      runId: generateId(this.name),
+      runId: options.runId ?? generateId(this.name),
+      threadId: options.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
       timestamp,
       hasEmittedRunStarted: false,
@@ -108,25 +114,28 @@ export class GrokTextAdapter<
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
-        yield {
+        yield asChunk({
           type: 'RUN_STARTED',
           runId: aguiState.runId,
+          threadId: aguiState.threadId,
           model: options.model,
           timestamp,
-        }
+        })
       }
 
       // Emit AG-UI RUN_ERROR
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
         timestamp,
+        message: err.message || 'Unknown error',
+        code: err.code,
         error: {
           message: err.message || 'Unknown error',
           code: err.code,
         },
-      }
+      })
 
       console.error('>>> chatStream: Fatal error during response creation <<<')
       console.error('>>> Error message:', err.message)
@@ -207,6 +216,7 @@ export class GrokTextAdapter<
     options: TextOptions,
     aguiState: {
       runId: string
+      threadId: string
       messageId: string
       timestamp: number
       hasEmittedRunStarted: boolean
@@ -236,12 +246,13 @@ export class GrokTextAdapter<
         // Emit RUN_STARTED on first chunk
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
-          yield {
+          yield asChunk({
             type: 'RUN_STARTED',
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp,
-          }
+          })
         }
 
         const delta = choice.delta
@@ -253,26 +264,26 @@ export class GrokTextAdapter<
           // Emit TEXT_MESSAGE_START on first text content
           if (!hasEmittedTextMessageStart) {
             hasEmittedTextMessageStart = true
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_START',
               messageId: aguiState.messageId,
               model: chunk.model || options.model,
               timestamp,
               role: 'assistant',
-            }
+            })
           }
 
           accumulatedContent += deltaContent
 
           // Emit AG-UI TEXT_MESSAGE_CONTENT
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: aguiState.messageId,
             model: chunk.model || options.model,
             timestamp,
             delta: deltaContent,
             content: accumulatedContent,
-          }
+          })
         }
 
         // Handle tool calls - they come in as deltas
@@ -306,25 +317,26 @@ export class GrokTextAdapter<
             // Emit TOOL_CALL_START when we have id and name
             if (toolCall.id && toolCall.name && !toolCall.started) {
               toolCall.started = true
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_START',
                 toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
                 index,
-              }
+              })
             }
 
             // Emit TOOL_CALL_ARGS for argument deltas
             if (toolCallDelta.function?.arguments && toolCall.started) {
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_ARGS',
                 toolCallId: toolCall.id,
                 model: chunk.model || options.model,
                 timestamp,
                 delta: toolCallDelta.function.arguments,
-              }
+              })
             }
           }
         }
@@ -348,14 +360,15 @@ export class GrokTextAdapter<
               }
 
               // Emit AG-UI TOOL_CALL_END
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_END',
                 toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
                 input: parsedInput,
-              }
+              })
             }
           }
 
@@ -367,18 +380,19 @@ export class GrokTextAdapter<
 
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_END',
               messageId: aguiState.messageId,
               model: chunk.model || options.model,
               timestamp,
-            }
+            })
           }
 
           // Emit AG-UI RUN_FINISHED
-          yield {
+          yield asChunk({
             type: 'RUN_FINISHED',
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp,
             usage: chunk.usage
@@ -389,7 +403,7 @@ export class GrokTextAdapter<
                 }
               : undefined,
             finishReason: computedFinishReason,
-          }
+          })
         }
       }
     } catch (error: unknown) {
@@ -397,16 +411,18 @@ export class GrokTextAdapter<
       console.log('[Grok Adapter] Stream ended with error:', err.message)
 
       // Emit AG-UI RUN_ERROR
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
         timestamp,
+        message: err.message || 'Unknown error occurred',
+        code: err.code,
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code,
         },
-      }
+      })
     }
   }
 

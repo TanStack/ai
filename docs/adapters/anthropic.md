@@ -2,6 +2,15 @@
 title: Anthropic
 id: anthropic-adapter
 order: 2
+description: "Use Anthropic Claude models with TanStack AI — Claude Sonnet 4.5, Claude Opus, and more via the @tanstack/ai-anthropic adapter."
+keywords:
+  - tanstack ai
+  - anthropic
+  - claude
+  - claude sonnet 4.5
+  - claude opus
+  - adapter
+  - llm
 ---
 
 The Anthropic adapter provides access to Claude models, including Claude Sonnet 4.5, Claude Opus 4.5, and more.

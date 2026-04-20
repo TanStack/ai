@@ -2,6 +2,15 @@
 title: Grok (xAI)
 id: grok-adapter
 order: 5
+description: "Use xAI Grok models with TanStack AI — Grok 4.1, Grok 4, Grok 3, and Grok 2 Image generation via @tanstack/ai-grok."
+keywords:
+  - tanstack ai
+  - grok
+  - xai
+  - grok 4
+  - grok 4.1
+  - image generation
+  - adapter
 ---
 
 The Grok adapter provides access to xAI's Grok models, including Grok 4.1, Grok 4, Grok 3, and image generation with Grok 2 Image.
