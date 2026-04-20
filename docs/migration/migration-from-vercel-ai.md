@@ -1037,26 +1037,22 @@ import {
 
 const stream = chat({ adapter: openaiText('gpt-4o'), messages })
 
-// SSE response (recommended; pairs with fetchServerSentEvents on the client)
-return toServerSentEventsResponse(stream)
+// SSE response (recommended; pairs with fetchServerSentEvents on the client).
+// Both response helpers accept a ResponseInit with an optional abortController
+// — merge custom headers, status, or cancellation without unwrapping the helper.
+return toServerSentEventsResponse(stream, {
+  abortController,
+  status: 200,
+  headers: { 'X-Trace-Id': traceId },
+})
 
-// Newline-delimited JSON response (pairs with fetchHttpStream on the client)
-return toHttpResponse(stream)
+// Newline-delimited JSON response (pairs with fetchHttpStream on the client).
+return toHttpResponse(stream, { abortController })
 
-// Lower-level: get the ReadableStream and build your own Response
+// Or grab the raw ReadableStream if you need to pipe it somewhere else
+// (writing to a Node ServerResponse, wrapping in a transform, etc.).
 const sseStream = toServerSentEventsStream(stream, abortController)
-return new Response(sseStream, {
-  headers: {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-  },
-})
-
-const httpStream = toHttpStream(stream, abortController)
-return new Response(httpStream, {
-  headers: { 'Content-Type': 'application/x-ndjson' },
-})
+const ndjsonStream = toHttpStream(stream, abortController)
 ```
 
 ### Client Connection Adapters
