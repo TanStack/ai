@@ -58,6 +58,7 @@ export {
   toServerSentEventsResponse,
   toHttpStream,
   toHttpResponse,
+  toJSONResponse,
 } from './stream-to-response'
 
 // Tool call management

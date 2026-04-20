@@ -35,6 +35,6 @@ export default mergeConfig(
       './src/middlewares/index.ts',
     ],
     srcDir: './src',
-    cjs: false,
+    cjs: true,
   }),
 )
