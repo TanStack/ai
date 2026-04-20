@@ -36,7 +36,30 @@ describe('ConsoleLogger', () => {
 
   it('passes meta as second argument when provided', () => {
     new ConsoleLogger().debug('msg', { key: 1 })
-    expect(debugSpy).toHaveBeenCalledWith('msg', { key: 1 })
+    expect(debugSpy).toHaveBeenCalledTimes(1)
+    const [message, formatted] = debugSpy.mock.calls[0] as [string, unknown]
+    expect(message).toBe('msg')
+    // On Node, meta is pretty-printed via util.inspect (string with depth: null).
+    // In browsers, the object is passed through. Accept either.
+    if (typeof formatted === 'string') {
+      expect(formatted).toContain('key')
+      expect(formatted).toContain('1')
+    } else {
+      expect(formatted).toEqual({ key: 1 })
+    }
+  })
+
+  it('expands deeply nested meta on Node instead of truncating to [Object]', () => {
+    const meta = { a: { b: { c: { d: { e: 'deep' } } } } }
+    new ConsoleLogger().debug('msg', meta)
+    const [, formatted] = debugSpy.mock.calls[0] as [string, unknown]
+    if (typeof formatted === 'string') {
+      // util.inspect with depth: null must show the deepest value.
+      expect(formatted).toContain('deep')
+      expect(formatted).not.toContain('[Object]')
+    } else {
+      expect(formatted).toEqual(meta)
+    }
   })
 
   it('omits meta argument when not provided', () => {
