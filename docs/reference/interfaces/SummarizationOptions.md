@@ -5,7 +5,7 @@ title: SummarizationOptions
 
 # Interface: SummarizationOptions
 
-Defined in: [types.ts:993](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L993)
+Defined in: [packages/typescript/ai/src/types.ts:1160](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1160)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [types.ts:993](https://github.com/TanStack/ai/blob/main/packages/typ
 optional focus: string[];
 ```
 
-Defined in: [types.ts:998](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L998)
+Defined in: [packages/typescript/ai/src/types.ts:1165](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1165)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [types.ts:998](https://github.com/TanStack/ai/blob/main/packages/typ
 optional maxLength: number;
 ```
 
-Defined in: [types.ts:996](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L996)
+Defined in: [packages/typescript/ai/src/types.ts:1163](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1163)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [types.ts:996](https://github.com/TanStack/ai/blob/main/packages/typ
 model: string;
 ```
 
-Defined in: [types.ts:994](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L994)
+Defined in: [packages/typescript/ai/src/types.ts:1161](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1161)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [types.ts:994](https://github.com/TanStack/ai/blob/main/packages/typ
 optional style: "bullet-points" | "paragraph" | "concise";
 ```
 
-Defined in: [types.ts:997](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L997)
+Defined in: [packages/typescript/ai/src/types.ts:1164](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1164)
 
 ***
 
@@ -55,4 +55,4 @@ Defined in: [types.ts:997](https://github.com/TanStack/ai/blob/main/packages/typ
 text: string;
 ```
 
-Defined in: [types.ts:995](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L995)
+Defined in: [packages/typescript/ai/src/types.ts:1162](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1162)

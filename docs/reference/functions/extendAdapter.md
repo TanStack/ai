@@ -9,7 +9,7 @@ title: extendAdapter
 function extendAdapter<TFactory, TDefs>(factory, _customModels): (model, ...args) => InferAdapterReturn<TFactory>;
 ```
 
-Defined in: [extend-adapter.ts:166](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/extend-adapter.ts#L166)
+Defined in: [packages/typescript/ai/src/extend-adapter.ts:166](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/extend-adapter.ts#L166)
 
 Extends an existing adapter factory with additional custom models.
 

@@ -9,14 +9,14 @@ title: toServerSentEventsResponse
 function toServerSentEventsResponse(stream, init?): Response;
 ```
 
-Defined in: [stream-to-response.ts:124](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L124)
+Defined in: [packages/typescript/ai/src/stream-to-response.ts:122](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L122)
 
 Convert a StreamChunk async iterable to a Response in Server-Sent Events format
 
 This creates a Response that emits chunks in SSE format:
 - Each chunk is prefixed with "data: "
 - Each chunk is followed by "\n\n"
-- Stream ends with "data: [DONE]\n\n"
+- Stream ends when the underlying iterable is exhausted (RUN_FINISHED is the terminal event)
 
 ## Parameters
 
