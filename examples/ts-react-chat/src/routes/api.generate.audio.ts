@@ -15,7 +15,7 @@ export const Route = createFileRoute('/api/generate/audio')({
           model?: string
         }
 
-        const adapter = buildAudioAdapter(provider ?? 'elevenlabs-music', model)
+        const adapter = buildAudioAdapter(provider ?? 'gemini-lyria', model)
 
         try {
           const result = await generateAudio({

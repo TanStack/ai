@@ -234,7 +234,7 @@ function AudioGenerationForm({
 
 function AudioGenerationPage() {
   const [mode, setMode] = useState<Mode>('direct')
-  const [provider, setProvider] = useState<AudioProviderId>('elevenlabs-music')
+  const [provider, setProvider] = useState<AudioProviderId>('gemini-lyria')
 
   const config = AUDIO_PROVIDERS.find((p) => p.id === provider)!
 

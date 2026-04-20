@@ -6,12 +6,6 @@
  */
 
 import { openaiSpeech, openaiTranscription } from '@tanstack/ai-openai'
-import {
-  elevenlabsMusic,
-  elevenlabsSoundEffects,
-  elevenlabsSpeech,
-  elevenlabsTranscription,
-} from '@tanstack/ai-elevenlabs'
 import { geminiAudio, geminiSpeech } from '@tanstack/ai-gemini'
 import { falAudio, falSpeech, falTranscription } from '@tanstack/ai-fal'
 import type {
@@ -42,8 +36,6 @@ export function buildSpeechAdapter(provider: SpeechProviderId): AnyTTSAdapter {
   switch (config.id) {
     case 'openai':
       return openaiSpeech(config.model as 'tts-1')
-    case 'elevenlabs':
-      return elevenlabsSpeech(config.model)
     case 'gemini':
       return geminiSpeech(config.model as 'gemini-2.5-flash-preview-tts')
     case 'fal':
@@ -58,8 +50,6 @@ export function buildTranscriptionAdapter(
   switch (config.id) {
     case 'openai':
       return openaiTranscription(config.model as 'whisper-1')
-    case 'elevenlabs':
-      return elevenlabsTranscription(config.model)
     case 'fal':
       return falTranscription(config.model)
   }
@@ -72,10 +62,6 @@ export function buildAudioAdapter(
   const config = findConfig(AUDIO_PROVIDERS, provider)
   const model = resolveModel(config, modelOverride)
   switch (config.id) {
-    case 'elevenlabs-music':
-      return elevenlabsMusic(model)
-    case 'elevenlabs-sfx':
-      return elevenlabsSoundEffects(model)
     case 'gemini-lyria':
       return geminiAudio(model as 'lyria-3-clip-preview')
     case 'fal-audio':

@@ -18,16 +18,12 @@ import {
 } from './server-audio-adapters'
 
 const SPEECH_PROVIDER_SCHEMA = z
-  .enum(['openai', 'elevenlabs', 'gemini', 'fal'])
+  .enum(['openai', 'gemini', 'fal'])
   .optional()
 
-const TRANSCRIPTION_PROVIDER_SCHEMA = z
-  .enum(['openai', 'elevenlabs', 'fal'])
-  .optional()
+const TRANSCRIPTION_PROVIDER_SCHEMA = z.enum(['openai', 'fal']).optional()
 
-const AUDIO_PROVIDER_SCHEMA = z
-  .enum(['elevenlabs-music', 'elevenlabs-sfx', 'gemini-lyria', 'fal-audio'])
-  .optional()
+const AUDIO_PROVIDER_SCHEMA = z.enum(['gemini-lyria', 'fal-audio']).optional()
 
 // =============================================================================
 // Direct server functions (non-streaming, return the result directly)
@@ -95,10 +91,7 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     return generateAudio({
-      adapter: buildAudioAdapter(
-        data.provider ?? 'elevenlabs-music',
-        data.model,
-      ),
+      adapter: buildAudioAdapter(data.provider ?? 'gemini-lyria', data.model),
       prompt: data.prompt,
       duration: data.duration,
     })

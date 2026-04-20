@@ -6,7 +6,7 @@
  * and audio generation flows.
  */
 
-export type SpeechProviderId = 'openai' | 'elevenlabs' | 'gemini' | 'fal'
+export type SpeechProviderId = 'openai' | 'gemini' | 'fal'
 
 export interface SpeechProviderConfig {
   id: SpeechProviderId
@@ -34,17 +34,6 @@ export const SPEECH_PROVIDERS: ReadonlyArray<SpeechProviderConfig> = [
     placeholder: 'Enter text to read aloud with OpenAI TTS…',
   },
   {
-    id: 'elevenlabs',
-    label: 'ElevenLabs',
-    model: 'eleven_v3',
-    voices: [
-      { id: 'JBFqnCBsd6RMkjVDRZzb', label: 'George (default)' },
-      { id: '21m00Tcm4TlvDq8ikWAM', label: 'Rachel' },
-      { id: 'pNInz6obpgDQGcFmaJgB', label: 'Adam' },
-    ],
-    placeholder: 'Enter text to synthesize with ElevenLabs…',
-  },
-  {
     id: 'gemini',
     label: 'Gemini TTS',
     model: 'gemini-2.5-flash-preview-tts',
@@ -68,7 +57,7 @@ export const SPEECH_PROVIDERS: ReadonlyArray<SpeechProviderConfig> = [
   },
 ]
 
-export type TranscriptionProviderId = 'openai' | 'elevenlabs' | 'fal'
+export type TranscriptionProviderId = 'openai' | 'fal'
 
 export interface TranscriptionProviderConfig {
   id: TranscriptionProviderId
@@ -86,13 +75,6 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
       description: 'OpenAI Whisper transcription with optional streaming.',
     },
     {
-      id: 'elevenlabs',
-      label: 'ElevenLabs Scribe',
-      model: 'scribe_v2',
-      description:
-        'ElevenLabs Scribe supports diarization and entity detection.',
-    },
-    {
       id: 'fal',
       label: 'Fal Whisper',
       model: 'fal-ai/whisper',
@@ -100,11 +82,7 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
     },
   ]
 
-export type AudioProviderId =
-  | 'elevenlabs-music'
-  | 'elevenlabs-sfx'
-  | 'gemini-lyria'
-  | 'fal-audio'
+export type AudioProviderId = 'gemini-lyria' | 'fal-audio'
 
 export interface AudioProviderConfig {
   id: AudioProviderId
@@ -125,65 +103,6 @@ export interface AudioProviderConfig {
 }
 
 export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
-  {
-    id: 'elevenlabs-music',
-    label: 'ElevenLabs Music',
-    model: 'music_v1',
-    description: 'Generate full songs with vocals and arrangement.',
-    placeholder: 'An upbeat indie rock track with driving drums…',
-    defaultDuration: 30,
-    samplePrompts: [
-      {
-        label: 'Cinematic orchestra',
-        prompt:
-          'A cinematic orchestral piece with swelling strings, heroic brass, and a triumphant finale.',
-      },
-      {
-        label: 'Synthwave drive',
-        prompt:
-          'Retro synthwave with analog warmth, gated reverb drums, and a driving arpeggiated bassline.',
-      },
-      {
-        label: 'Death metal laundry',
-        prompt:
-          'A death metal ballad about losing your favorite socks in the dryer, complete with guttural vocals.',
-      },
-      {
-        label: 'Broadway Monday',
-        prompt:
-          'An overly dramatic Broadway musical number about how much someone hates Monday mornings.',
-      },
-    ],
-  },
-  {
-    id: 'elevenlabs-sfx',
-    label: 'ElevenLabs SFX',
-    model: 'eleven_text_to_sound_v2',
-    description: 'Generate short sound effects from natural language.',
-    placeholder: 'Glass shattering on a tile floor',
-    defaultDuration: 3,
-    samplePrompts: [
-      {
-        label: 'Rain on tin roof',
-        prompt: 'Steady rain pattering on a corrugated metal roof at night.',
-      },
-      {
-        label: 'Marble hallway steps',
-        prompt:
-          'Slow leather-soled footsteps echoing through an empty marble hallway.',
-      },
-      {
-        label: 'Interrogated duck',
-        prompt:
-          'A rubber duck being dramatically interrogated under a swinging lamp, squeaks only.',
-      },
-      {
-        label: 'Cartoon banana slip',
-        prompt:
-          'Classic cartoon banana slip: quick slide, comedic boing, and a distant crash.',
-      },
-    ],
-  },
   {
     id: 'gemini-lyria',
     label: 'Gemini Lyria',

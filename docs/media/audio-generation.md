@@ -15,7 +15,6 @@ Audio generation is handled by audio adapters that follow the same tree-shakeabl
 Currently supported:
 
 - **Google Gemini**: Lyria 3 Pro and Lyria 3 Clip music generation
-- **ElevenLabs**: Music and Sound Effects
 - **fal.ai**: MiniMax Music, DiffRhythm, Google Lyria 2, Stable Audio 2.5, MMAudio, ElevenLabs sound effects, Thinksound, and more
 
 ## Basic Usage
@@ -35,28 +34,6 @@ const result = await generateAudio({
 
 console.log(result.audio.url) // URL to the generated audio file
 console.log(result.audio.contentType) // e.g. "audio/mpeg"
-```
-
-### ElevenLabs (Music and Sound Effects)
-
-ElevenLabs provides dedicated Music and Sound Effects adapters. Music accepts a composition plan for structured songs; sound effects take a short prompt and optional duration.
-
-```typescript
-import { generateAudio } from '@tanstack/ai'
-import { elevenlabsMusic, elevenlabsSoundEffects } from '@tanstack/ai-elevenlabs'
-
-// Music
-const song = await generateAudio({
-  adapter: elevenlabsMusic('music_v1'),
-  prompt: 'Atmospheric synthwave with a driving arpeggio',
-})
-
-// Sound effects
-const sfx = await generateAudio({
-  adapter: elevenlabsSoundEffects('eleven_text_to_sound_v2'),
-  prompt: 'Thunderclap followed by heavy rain',
-  duration: 5,
-})
 ```
 
 ### fal.ai
@@ -141,7 +118,7 @@ interface AudioGenerationResult {
 }
 ```
 
-Gemini and ElevenLabs return base64-encoded bytes in `result.audio.b64Json`. The fal adapter returns a URL in `result.audio.url` — if you need raw bytes, `fetch()` the URL yourself:
+Gemini returns base64-encoded bytes in `result.audio.b64Json`. The fal adapter returns a URL in `result.audio.url` — if you need raw bytes, `fetch()` the URL yourself:
 
 ```typescript
 const bytes = new Uint8Array(
@@ -166,7 +143,6 @@ Each provider reads its own API key from the environment by default:
 
 ```bash
 GOOGLE_API_KEY=your-google-api-key
-ELEVENLABS_API_KEY=your-elevenlabs-api-key
 FAL_KEY=your-fal-api-key
 ```
 
@@ -174,6 +150,5 @@ Or pass it explicitly to the adapter:
 
 ```typescript
 geminiAudio('lyria-3-pro-preview', { apiKey: 'your-key' })
-elevenlabsMusic('music_v1', { apiKey: 'your-key' })
 falAudio('fal-ai/diffrhythm', { apiKey: 'your-key' })
 ```

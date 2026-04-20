@@ -5,8 +5,8 @@ chore: add ts-react-chat example pages and E2E coverage for audio providers
 
 **Example pages** (`examples/ts-react-chat`):
 
-- Updated text-to-speech and transcription pages with provider tabs (OpenAI, ElevenLabs, Gemini, Fal for TTS; OpenAI, ElevenLabs, Fal for transcription)
-- Added a new `/generations/audio` page covering ElevenLabs Music, ElevenLabs SFX, Gemini Lyria, and Fal audio generation
+- Updated text-to-speech and transcription pages with provider tabs (OpenAI, Gemini, Fal for TTS; OpenAI, Fal for transcription)
+- Added a new `/generations/audio` page covering Gemini Lyria and Fal audio generation
 - Added a shared `audio-providers` catalog and server-side adapter factories for audio, speech, and transcription
 
 **Tests**:
