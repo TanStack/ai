@@ -21,7 +21,7 @@ keywords:
 
 This guide helps you migrate from the Vercel AI SDK (`ai` + `@ai-sdk/*`) to TanStack AI. Both libraries cover the same problem space — LLM calls, streaming, tool use, structured output, framework hooks — but TanStack AI uses a different architecture with enhanced type safety, tree-shakeable adapters, an isomorphic tool system, and a first-class middleware pipeline.
 
-The examples target **AI SDK v5 / v6** on the "Before" side (the current releases). v4 migrations are called out where naming changed.
+The "Before" examples target **AI SDK v5 and v6**. Older v4 naming is called out inline where it differs.
 
 ## Why Migrate?
 
@@ -70,7 +70,7 @@ npm install @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-ant
 #### Before (Vercel AI SDK)
 
 ```typescript
-import { streamText } from 'ai'
+import { streamText, convertToModelMessages } from 'ai'
 import { openai } from '@ai-sdk/openai'
 
 export async function POST(request: Request) {
@@ -78,10 +78,11 @@ export async function POST(request: Request) {
 
   const result = streamText({
     model: openai('gpt-4o'),
-    messages,
+    messages: convertToModelMessages(messages),
   })
 
-  return result.toDataStreamResponse()
+  return result.toUIMessageStreamResponse()
+  // (v4: result.toDataStreamResponse())
 }
 ```
 
@@ -109,14 +110,14 @@ export async function POST(request: Request) {
 |--------------|-------------|-------|
 | `streamText()` | `chat()` | Main text generation function |
 | `generateText()` | `chat({ stream: false })` | Returns `Promise<string>` |
-| `generateObject()` / `streamObject()` / `Output.object()` | `chat({ outputSchema })` | Returns `Promise<T>` — see [Structured Output](#structured-output-generateobject--streamobject) |
+| `generateObject()` / `streamObject()` / `Output.object()` | `chat({ outputSchema })` | Returns `Promise<T>` — see [Structured Output](#structured-output) |
 | `openai('gpt-4o')` | `openaiText('gpt-4o')` | Activity-specific adapters |
 | `result.toUIMessageStreamResponse()` / `.toTextStreamResponse()` | `toServerSentEventsResponse(stream)` / `toHttpResponse(stream)` | Separate utility functions |
 | `model` parameter | `adapter` parameter | Model baked into adapter |
 
 ### Full `streamText` → `chat()` Option Mapping
 
-Every option accepted by `streamText` in AI SDK v6, and where it lives in TanStack AI's `chat()`. Options that exist on both sides keep the same semantics unless noted.
+Options accepted by `streamText` as of AI SDK v6, and where each lives in TanStack AI's `chat()`. Options that exist on both sides keep the same semantics unless noted.
 
 | `streamText` option | `chat()` equivalent | Notes |
 |--------------------|--------------------|-------|
@@ -141,7 +142,7 @@ Every option accepted by `streamText` in AI SDK v6, and where it lives in TanSta
 | `headers` | Configure on the adapter (e.g., `openaiText({ headers })`) | Not a per-call option |
 | `providerOptions: { openai: { … } }` | `modelOptions: { … }` | Flat; the adapter already knows which provider it is. Typed per model |
 | `stopWhen: stepCountIs(5)` | `agentLoopStrategy: maxIterations(5)` | See [Agent Loop Control](#agent-loop-control) |
-| `stopWhen: hasToolCall('x')` | `agentLoopStrategy: untilFinishReason([...])` or a custom strategy | See [Agent Loop Control](#agent-loop-control) |
+| `stopWhen: hasToolCall('x')` | Custom `AgentLoopStrategy` that inspects `messages` | No built-in "stop on specific tool" preset yet — one-liner custom strategy; see [Agent Loop Control](#agent-loop-control) |
 | `stopWhen: [a, b]` | `agentLoopStrategy: combineStrategies([a, b])` | Multiple conditions, AND semantics |
 | `prepareStep` | `middleware` with `onConfig`/`onIteration` | See [Middleware](#middleware) |
 | `experimental_transform` | `middleware.onChunk` (transform / drop / expand chunks) | See [Middleware](#middleware) |
@@ -154,7 +155,7 @@ Every option accepted by `streamText` in AI SDK v6, and where it lives in TanSta
 | `onStepFinish` | `middleware.onIteration` / `onToolPhaseComplete` / `onUsage` | Split into finer-grained hooks |
 | `onFinish` | `middleware.onFinish` | Terminal hook |
 | `onAbort` | `middleware.onAbort` | Terminal hook |
-| `output: Output.object({ schema })` | `outputSchema` | See [Structured Output](#structured-output-generateobject--streamobject) |
+| `output: Output.object({ schema })` | `outputSchema` | See [Structured Output](#structured-output) |
 | — | `conversationId` / `threadId` / `runId` | TanStack-only, for correlating requests across your system and AG-UI |
 
 ### `streamText` result → TanStack AI equivalents
@@ -357,8 +358,8 @@ Vercel AI SDK v5+ already moved away from the magic `input`/`handleInputChange`/
 | `regenerate()` | `reload()` | Re-runs the last assistant turn |
 | `stop()` | `stop()` | Cancel the in-flight stream |
 | `setMessages(messages)` | `setMessages(messages)` | Direct message replacement |
-| `addToolResult({ tool, toolCallId, output })` | `addToolResult({ tool, toolCallId, output })` | Resolve a tool call from the client |
-| N/A | `addToolApprovalResponse({ id, approved })` | First-class user-approval flow for tools |
+| `addToolOutput({ tool, toolCallId, output })` (v6; was `addToolResult` in v5) | `addToolResult({ tool, toolCallId, output })` | Resolve a client-side tool call |
+| `addToolApprovalResponse({ id, approved })` (v6) | `addToolApprovalResponse({ id, approved })` | First-class user-approval flow for tools |
 | `m.parts` (typed union) | `message.parts` (typed union) | Both render via structured parts |
 
 ### Message Structure
@@ -375,6 +376,8 @@ interface Message {
 ```
 
 #### After (TanStack AI)
+
+These are the `@tanstack/ai-client` shapes (what `useChat` gives you). The core `@tanstack/ai` message types are similar, but `input` (parsed tool input) is a client-layer projection — server-side code reads the raw JSON from `arguments` directly.
 
 ```typescript
 interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
@@ -561,12 +564,13 @@ import { tool } from 'ai'
 import { z } from 'zod'
 import { useChat } from '@ai-sdk/react'
 
-const { messages, addToolResult } = useChat({
+const { messages, addToolOutput } = useChat({
   transport: new DefaultChatTransport({ api: '/api/chat' }),
   onToolCall: async ({ toolCall }) => {
     if (toolCall.toolName === 'showNotification') {
       showNotification(toolCall.input.message)
-      addToolResult({
+      // v6: addToolOutput (was addToolResult in v5)
+      addToolOutput({
         tool: 'showNotification',
         toolCallId: toolCall.toolCallId,
         output: { success: true },
@@ -585,6 +589,7 @@ import { clientTools } from '@tanstack/ai-client'
 // Define once (can be shared with server)
 const showNotificationDef = toolDefinition({
   name: 'showNotification',
+  description: 'Show a toast notification in the browser',
   inputSchema: z.object({ message: z.string() }),
   outputSchema: z.object({ success: z.boolean() }),
 })
@@ -595,16 +600,18 @@ const showNotification = showNotificationDef.client(({ message }) => {
   return { success: true }
 })
 
-// Use in component
+// Use in component — `clientTools()` wires each client tool's `.client(...)`
+// handler to run automatically when the server-side agent calls it; you don't
+// need an onToolCall handler or an addToolOutput/addToolResult call.
 const { messages } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
-  tools: clientTools(showNotification), // Auto-executed
+  tools: clientTools(showNotification),
 })
 ```
 
 ### Tool Approval Flow
 
-Both libraries now expose first-class human-in-the-loop approval. The shapes are very similar — tool opts in with `needsApproval: true`, the client renders UI on an `approval-requested` state, and you call an `addToolApprovalResponse`-style function with the approval ID.
+Both libraries expose first-class human-in-the-loop approval. The shapes are similar — a tool opts in with `needsApproval: true`, the client renders UI on an `approval-requested` state, and you call `addToolApprovalResponse` with the approval ID.
 
 #### Before (Vercel AI SDK v6)
 
@@ -631,6 +638,7 @@ const { messages, addToolApprovalResponse } = useChat({
 // Built-in approval support
 const bookFlightDef = toolDefinition({
   name: 'bookFlight',
+  description: 'Book a flight on behalf of the user',
   inputSchema: z.object({ flightId: z.string() }),
   needsApproval: true, // Request user approval
 })
@@ -669,9 +677,9 @@ const { messages, addToolApprovalResponse } = useChat({
 
 > `part.input` is the **parsed** tool input (typed when your tools are typed via `clientTools()` + `InferChatMessages`). The raw streaming JSON is available as `part.arguments` if you need to show progress before input parsing completes.
 
-## Structured Output (`generateObject` / `streamObject`)
+## Structured Output
 
-AI SDK v6 consolidated structured generation under an `output:` parameter on `generateText` / `streamText` (e.g. `Output.object({ schema })`), which replaced the dedicated `generateObject` / `streamObject` functions. TanStack AI follows the same "one function" philosophy — pass `outputSchema` to `chat()` and it runs the full agentic loop (tools, retries, loop strategy) and returns a typed, validated value.
+This section covers the `generateObject` / `streamObject` / `Output.object(...)` migration path. In AI SDK v6, structured generation lives on `generateText` / `streamText` via the `output:` parameter (e.g. `Output.object({ schema })`). The dedicated `generateObject` / `streamObject` functions are deprecated but still present. TanStack AI follows the same "one function" philosophy — pass `outputSchema` to `chat()` and it runs the full agentic loop (tools, retries, loop strategy) and returns a typed, validated value.
 
 ### Before (Vercel AI SDK v6)
 
@@ -680,7 +688,7 @@ import { generateText, Output } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 
-const { experimental_output } = await generateText({
+const { output } = await generateText({
   model: openai('gpt-4o'),
   prompt: 'Extract the user profile from this bio…',
   output: Output.object({
@@ -691,7 +699,7 @@ const { experimental_output } = await generateText({
     }),
   }),
 })
-// experimental_output is typed as { name: string; age: number; interests: string[] }
+// output is typed as { name: string; age: number; interests: string[] }
 ```
 
 ### After (TanStack AI)
@@ -727,8 +735,9 @@ Both SDKs let the model call tools in a loop. The shape of the control knob is d
 | Vercel AI SDK v6 | TanStack AI |
 |------------------|-------------|
 | `stopWhen: stepCountIs(5)` | `agentLoopStrategy: maxIterations(5)` |
-| `stopWhen: hasToolCall('bookFlight')` | Custom `AgentLoopStrategy` that inspects `finishReason` / `messages` |
-| `stopWhen: [stepCountIs(20), hasToolCall('done')]` | `agentLoopStrategy: combineStrategies([maxIterations(20), untilFinishReason(['stop'])])` |
+| `stopWhen: hasToolCall('bookFlight')` | Custom `AgentLoopStrategy` that inspects `messages` for the tool name |
+| `stopWhen: untilFinishReason(['stop'])` (custom condition) | `agentLoopStrategy: untilFinishReason(['stop'])` |
+| `stopWhen: [stepCountIs(20), hasToolCall('done')]` | `agentLoopStrategy: combineStrategies([maxIterations(20), /* your hasToolCall */ ])` |
 | `prepareStep({ stepNumber, messages, steps, model })` | `middleware.onConfig(ctx, config)` + `middleware.onIteration(ctx, info)` |
 
 Default loop budget: TanStack AI defaults to `maxIterations(5)` if you don't pass a strategy.
@@ -736,16 +745,17 @@ Default loop budget: TanStack AI defaults to `maxIterations(5)` if you don't pas
 ### Before (Vercel AI SDK v6)
 
 ```typescript
-import { streamText, stepCountIs, hasToolCall } from 'ai'
+import { streamText, stepCountIs } from 'ai'
+import { openai } from '@ai-sdk/openai'
 
 const result = streamText({
   model: openai('gpt-4o'),
   messages,
-  tools: { done, getWeather },
-  stopWhen: [stepCountIs(10), hasToolCall('done')],
+  tools: { getWeather },
+  stopWhen: stepCountIs(10),
   prepareStep: async ({ stepNumber, messages }) => {
-    // switch to a cheaper model after the first step
-    if (stepNumber > 0) return { model: openai('gpt-4o-mini') }
+    // log/rewrite messages between steps, filter tools, etc.
+    if (stepNumber > 0) return { /* partial config for this step */ }
     return {}
   },
 })
@@ -754,24 +764,30 @@ const result = streamText({
 ### After (TanStack AI)
 
 ```typescript
-import { chat } from '@tanstack/ai'
-import { combineStrategies, maxIterations, untilFinishReason } from '@tanstack/ai'
+import {
+  chat,
+  combineStrategies,
+  maxIterations,
+  untilFinishReason,
+} from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 const stream = chat({
   adapter: openaiText('gpt-4o'),
   messages,
-  tools: [done, getWeather],
+  tools: [getWeather],
   agentLoopStrategy: combineStrategies([
     maxIterations(10),
     untilFinishReason(['stop']), // stop when the model says it's done
   ]),
   middleware: [
     {
-      // `prepareStep` equivalent: tweak the config between iterations
-      onIteration: async (ctx, info) => {
-        if (info.iteration > 0) {
-          // e.g. log/rewrite messages, filter tools for this step, etc.
+      // `prepareStep` analogue: inspect/rewrite config at the start of each iteration
+      onConfig: (ctx, config) => {
+        if (ctx.iteration > 0) {
+          // e.g. return a Partial<ChatMiddlewareConfig> to filter tools, trim
+          // messages, or change modelOptions for this iteration
+          return { /* partial overrides */ }
         }
       },
     },
@@ -779,16 +795,35 @@ const stream = chat({
 })
 ```
 
-> For "switch models mid-loop" specifically, the TanStack pattern is to run a **new** `chat()` with a different adapter once a stop condition fires, rather than swapping models inside the same run. This keeps the typed `modelOptions` contract intact.
+#### Mid-loop model switching
+
+`prepareStep` in AI SDK v6 lets you return a different `model` per step. TanStack AI doesn't support swapping the adapter inside a single `chat()` run — `modelOptions` is typed per adapter, which is what gives you compile-time model safety. The equivalent is to end the current loop (via an `agentLoopStrategy`) and start a new `chat()` with a different adapter, feeding it the in-progress messages:
+
+```typescript
+// Stage 1: heavy model for the opening turn
+const firstPass = await chat({
+  adapter: openaiText('gpt-4o'),
+  messages,
+  agentLoopStrategy: maxIterations(1),
+  stream: false,
+})
+
+// Stage 2: cheaper model for the rest
+const followUp = chat({
+  adapter: openaiText('gpt-4o-mini'),
+  messages: [...messages, { role: 'assistant', content: firstPass }],
+  tools: [getWeather],
+})
+```
 
 ## Middleware
 
-AI SDK v6 offers two middleware-ish extension points:
+AI SDK v6 has two middleware-ish extension points:
 
 1. **`wrapLanguageModel({ model, middleware })`** — provider-level interception (`transformParams`, `wrapGenerate`, `wrapStream`) for logging, caching, guardrails, RAG.
 2. **`experimental_transform`** on `streamText` — transforms the stream of chunks.
 
-TanStack AI replaces both with a single first-class `middleware: ChatMiddleware[]` option on `chat()`. It hooks into the full lifecycle, not just the model call or the chunk stream, and is the recommended place for logging, tracing, caching, redaction, and tool interception.
+TanStack AI collapses both into a single first-class `middleware: ChatMiddleware[]` option on `chat()`. It hooks into the full lifecycle, not just the model call or the chunk stream, and is the recommended place for logging, tracing, caching, redaction, and tool interception.
 
 ### Before (Vercel AI SDK v6)
 
@@ -863,7 +898,8 @@ Each middleware is a plain object. Every hook is optional, so pick what you need
 TanStack AI ships a `toolCacheMiddleware` that memoizes tool results by `name + args`. There's no direct Vercel equivalent — on the Vercel side you'd compose it yourself in `wrapGenerate` or inside each tool's `execute`. Example:
 
 ```typescript
-import { chat, toolCacheMiddleware } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
+import { toolCacheMiddleware } from '@tanstack/ai/middlewares'
 
 const stream = chat({
   adapter: openaiText('gpt-4o'),
@@ -1043,15 +1079,13 @@ import { fetchServerSentEvents, fetchHttpStream, stream } from '@tanstack/ai-rea
 // SSE (matches toServerSentEventsResponse)
 useChat({ connection: fetchServerSentEvents('/api/chat') })
 
-// HTTP stream (matches toHttpStream)
+// HTTP stream (matches toHttpResponse / toHttpStream on the server)
 useChat({ connection: fetchHttpStream('/api/chat') })
 
-// Custom adapter
+// Custom adapter: return an AsyncIterable<StreamChunk>, e.g. from a TanStack
+// Start server function or an RPC client
 useChat({
-  connection: stream(async (messages, data, signal) => {
-    // Custom implementation
-    return processedStream
-  }),
+  connection: stream((messages, data) => customServerFn({ messages, data })),
 })
 ```
 
@@ -1143,14 +1177,16 @@ chat({
       role: 'user',
       content: [
         { type: 'text', text: 'Describe this image' },
-        { type: 'image', source: { type: 'url', url: imageUrl } },
-        // Or base64
-        { type: 'image', source: { type: 'base64', base64: imageData, mediaType: 'image/png' } },
+        { type: 'image', source: { type: 'url', value: imageUrl } },
+        // Or inline base64 data
+        { type: 'image', source: { type: 'data', value: imageData, mimeType: 'image/png' } },
       ],
     },
   ],
 })
 ```
+
+> The source discriminant is `'url'` or `'data'`. Both carry the payload on `value` (a URL or base64 string). `mimeType` is required for `'data'` and optional for `'url'`.
 
 ## Dynamic Provider Switching
 
@@ -1248,7 +1284,7 @@ const stream = chat({ adapter: openaiText('gpt-4o'), messages })
 const text = await streamToText(stream)
 ```
 
-For structured (non-streaming) output — the `generateObject` equivalent — pass `outputSchema` instead; see [Structured Output](#structured-output-generateobject--streamobject).
+For structured (non-streaming) output — the `generateObject` equivalent — pass `outputSchema` instead; see [Structured Output](#structured-output).
 
 ## Features Not Yet Covered
 
@@ -1277,6 +1313,8 @@ TanStack AI's `outputSchema` always returns a `Promise<T>` once the full respons
 Vercel's `maxRetries` / `timeout` options have no direct `chat()` equivalent. Use `AbortSignal.timeout(ms)` via `abortController`, and add retries in a custom middleware or in your fetch layer.
 
 ## Complete Migration Example
+
+> On the Vercel side, the v5+ server handler runs incoming UI messages through `convertToModelMessages(messages)` before handing them to `streamText`. TanStack AI's `chat()` accepts the UI-message shape directly — its adapters do the conversion internally — so the equivalent line simply disappears on the After side.
 
 ### Before (Vercel AI SDK v5+)
 
