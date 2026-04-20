@@ -1,6 +1,10 @@
 import { fal } from '@fal-ai/client'
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
-import { configureFalClient, generateId as utilGenerateId } from '../utils'
+import {
+  arrayBufferToBase64,
+  configureFalClient,
+  generateId as utilGenerateId,
+} from '../utils'
 import type { OutputType, Result } from '@fal-ai/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { FalClientConfig } from '../utils'
@@ -87,10 +91,12 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
       throw new Error('Audio URL not found in fal TTS response')
     }
 
-    // Fetch the audio and convert to base64 to match TTSResult contract
+    // Fetch the audio and convert to base64 to match TTSResult contract.
+    // Using a chunked helper here — spreading Uint8Array into btoa exceeds
+    // V8's argument limit (~65k) for any realistic TTS clip.
     const audioResponse = await fetch(audioUrl)
     const arrayBuffer = await audioResponse.arrayBuffer()
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+    const base64 = arrayBufferToBase64(arrayBuffer)
 
     const format =
       contentType?.split('/')[1] ||

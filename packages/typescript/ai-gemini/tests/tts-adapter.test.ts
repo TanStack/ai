@@ -115,13 +115,74 @@ describe('Gemini TTS Adapter', () => {
     })
 
     const args = mockGenerateContent.mock.calls[0]![0]
-    expect(args.systemInstruction).toBe('Speak calmly')
+    // systemInstruction lives inside `config`, not at the top level —
+    // @google/genai only reads it off GenerateContentConfig.
+    expect(args.config.systemInstruction).toBe('Speak calmly')
+    expect(args.systemInstruction).toBeUndefined()
     expect(args.config.speechConfig.languageCode).toBe('en-US')
     expect(
       args.config.speechConfig.multiSpeakerVoiceConfig.speakerVoiceConfigs,
     ).toHaveLength(2)
     // multi-speaker path must not set single-speaker voiceConfig
     expect(args.config.speechConfig.voiceConfig).toBeUndefined()
+  })
+
+  it('honors TTSOptions.voice as a fallback for the prebuilt voice', async () => {
+    // Regression: the adapter used to ignore `options.voice` and hard-code
+    // 'Kore' even when the caller asked for something else.
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [{ inlineData: { mimeType: 'audio/wav', data: 'B' } }],
+          },
+        },
+      ],
+    })
+
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+    await generateSpeech({ adapter, text: 'hi', voice: 'Puck' })
+
+    const args = mockGenerateContent.mock.calls[0]![0]
+    expect(
+      args.config.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName,
+    ).toBe('Puck')
+  })
+
+  it('wraps raw audio/L16 PCM output in a WAV container', async () => {
+    // Regression: Gemini TTS returns raw 16-bit LE PCM with
+    // `mimeType: audio/L16;codec=pcm;rate=24000`. The adapter must prepend
+    // a RIFF header and normalize the response so the result is playable.
+    const pcmBase64 = Buffer.from(new Uint8Array([1, 2, 3, 4])).toString(
+      'base64',
+    )
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'audio/L16;codec=pcm;rate=24000',
+                  data: pcmBase64,
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+    const result = await generateSpeech({ adapter, text: 'hi' })
+
+    expect(result.format).toBe('wav')
+    expect(result.contentType).toBe('audio/wav')
+    const decoded = Buffer.from(result.audio as string, 'base64')
+    expect(decoded.slice(0, 4).toString('ascii')).toBe('RIFF')
+    expect(decoded.slice(8, 12).toString('ascii')).toBe('WAVE')
+    // sample rate (little-endian uint32 at offset 24) should match 24000
+    expect(decoded.readUInt32LE(24)).toBe(24000)
   })
 
   it('throws when the response has no audio part', async () => {

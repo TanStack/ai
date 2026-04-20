@@ -173,6 +173,38 @@ describe('Fal Speech Adapter', () => {
     expect(mockFetch).toHaveBeenCalledWith('https://fal.media/files/speech.mp3')
   })
 
+  it('handles large audio payloads without blowing the stack', async () => {
+    // Regression: previously the adapter used
+    // `btoa(String.fromCharCode(...new Uint8Array(buf)))`, which spreads each
+    // byte as a function argument and throws RangeError for realistic clips.
+    const largeBytes = new Uint8Array(200_000)
+    for (let i = 0; i < largeBytes.length; i += 1) {
+      largeBytes[i] = i % 256
+    }
+    mockFetch.mockResolvedValueOnce({
+      arrayBuffer: () => Promise.resolve(largeBytes.buffer),
+    })
+    mockSubscribe.mockResolvedValueOnce(
+      createMockSpeechResponse(
+        'https://fal.media/files/large.wav',
+        'audio/wav',
+      ),
+    )
+
+    const adapter = createAdapter()
+
+    const result = await generateSpeech({
+      adapter,
+      text: 'Long speech',
+      modelOptions: { audio_url: REFERENCE_AUDIO },
+    })
+
+    expect(typeof result.audio).toBe('string')
+    // Base64 of 200k bytes is ~266k chars; just assert it's in the right
+    // ballpark rather than recomputing the exact encoding here.
+    expect((result.audio as string).length).toBeGreaterThan(260_000)
+  })
+
   it('configures client with API key', () => {
     falSpeech('fal-ai/index-tts-2/text-to-speech', { apiKey: 'my-api-key' })
 

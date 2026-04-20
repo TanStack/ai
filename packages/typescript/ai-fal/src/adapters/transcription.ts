@@ -63,11 +63,10 @@ export class FalTranscriptionAdapter<
   private buildInput(
     options: TranscriptionOptions<FalTranscriptionProviderOptions<TModel>>,
   ): FalModelInput<TModel> {
-    // Convert ArrayBuffer to Blob for fal SDK
-    let audioInput: string | Blob | File = options.audio as string | Blob | File
-    if (options.audio instanceof ArrayBuffer) {
-      audioInput = new Blob([options.audio])
-    }
+    const audioInput =
+      options.audio instanceof ArrayBuffer
+        ? new Blob([options.audio])
+        : options.audio
 
     const input = {
       ...options.modelOptions,
