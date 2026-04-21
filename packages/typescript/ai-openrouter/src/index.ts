@@ -40,6 +40,7 @@ export type {
 export type {
   OpenRouterModelOptionsByName,
   OpenRouterModelInputModalitiesByName,
+  OpenRouterChatModelToolCapabilitiesByName,
 } from './model-meta'
 export type {
   OpenRouterTextMetadata,
@@ -79,6 +80,5 @@ export {
 // ============================================================================
 
 export { convertToolsToProviderFormat } from './tools/tool-converter'
-export { createWebSearchTool } from './tools/web-search-tool'
 
-export type { OpenRouterTool, FunctionTool, WebSearchTool } from './tools'
+export type { OpenRouterTool, FunctionTool } from './tools'

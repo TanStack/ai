@@ -279,3 +279,12 @@ Creates a Groq TTS adapter with an explicit API key.
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../tools/tools) - Learn about tools
 - [Other Adapters](./openai) - Explore other providers
+
+## Provider Tools
+
+Groq does not currently expose provider-specific tool factories.
+Define your own tools with `toolDefinition()` from `@tanstack/ai`.
+
+See [Tools](../tools/tools.md) for the general tool-definition flow, or
+[Provider Tools](../tools/provider-tools.md) for other providers'
+native-tool offerings.

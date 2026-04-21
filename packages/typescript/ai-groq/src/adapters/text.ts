@@ -10,6 +10,7 @@ import {
 } from '../utils'
 import type {
   GROQ_CHAT_MODELS,
+  GroqChatModelToolCapabilitiesByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
@@ -21,11 +22,15 @@ import type GROQ_SDK from 'groq-sdk'
 import type { ChatCompletionCreateParamsStreaming } from 'groq-sdk/resources/chat/completions'
 import type {
   ContentPart,
+  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type { InternalTextProviderOptions } from '../text/text-provider-options'
+import type {
+  ExternalTextProviderOptions,
+  InternalTextProviderOptions,
+} from '../text/text-provider-options'
 import type {
   ChatCompletionContentPart,
   ChatCompletionMessageParam,
@@ -33,6 +38,13 @@ import type {
   GroqMessageMetadataByModality,
 } from '../message-types'
 import type { GroqClientConfig } from '../utils'
+
+type GroqTextProviderOptions = ExternalTextProviderOptions
+
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof GroqChatModelToolCapabilitiesByName
+    ? NonNullable<GroqChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
 
 /** Cast an event object to StreamChunk. Adapters construct events with string
  *  literal types which are structurally compatible with the EventType enum. */
@@ -57,11 +69,17 @@ export type { ExternalTextProviderOptions as GroqTextProviderOptions } from '../
  */
 export class GroqTextAdapter<
   TModel extends (typeof GROQ_CHAT_MODELS)[number],
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>,
-  GroqMessageMetadataByModality
+  TProviderOptions,
+  TInputModalities,
+  GroqMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'groq' as const
@@ -74,7 +92,7 @@ export class GroqTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<ResolveProviderOptions<TModel>>,
+    options: TextOptions<GroqTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const requestParams = this.mapTextOptionsToGroq(options)
     const timestamp = Date.now()
@@ -141,7 +159,7 @@ export class GroqTextAdapter<
    * We apply Groq-specific transformations for structured output compatibility.
    */
   async structuredOutput(
-    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+    options: StructuredOutputOptions<GroqTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapTextOptionsToGroq(chatOptions)

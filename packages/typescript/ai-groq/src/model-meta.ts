@@ -27,6 +27,7 @@ interface ModelMeta<TProviderOptions = unknown> {
       | 'json_schema'
       | 'vision'
     >
+    tools?: ReadonlyArray<never>
   }
   /**
    * Type-level description of which provider options this model supports.
@@ -51,6 +52,7 @@ const LLAMA_3_3_70B_VERSATILE = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object'],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -71,6 +73,7 @@ const LLAMA_4_MAVERICK_17B_128E_INSTRUCT = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -91,6 +94,7 @@ const LLAMA_4_SCOUT_17B_16E_INSTRUCT = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object'],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -111,6 +115,7 @@ const LLAMA_GUARD_4_12B = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'json_object', 'content_moderation', 'vision'],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -131,6 +136,7 @@ const LLAMA_PROMPT_GUARD_2_86M = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'content_moderation', 'json_object'],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -151,6 +157,7 @@ const LLAMA_3_1_8B_INSTANT = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'json_object', 'tools'],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -171,6 +178,7 @@ const LLAMA_PROMPT_GUARD_2_22M = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'content_moderation'],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -200,6 +208,7 @@ const GPT_OSS_120B = {
       'code_execution',
       'reasoning',
     ],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -230,6 +239,7 @@ const GPT_OSS_SAFEGUARD_20B = {
       'reasoning',
       'content_moderation',
     ],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -259,6 +269,7 @@ const GPT_OSS_20B = {
       'reasoning',
       'tools',
     ],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -280,6 +291,7 @@ const KIMI_K2_INSTRUCT_0905 = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema'],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -300,6 +312,7 @@ const QWEN3_32B = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'json_object', 'tools', 'reasoning'],
+    tools: [] as const,
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
@@ -349,6 +362,27 @@ export type GroqModelInputModalitiesByName = {
  */
 export type GroqChatModelProviderOptionsByName = {
   [K in (typeof GROQ_CHAT_MODELS)[number]]: GroqTextProviderOptions
+}
+
+/**
+ * Type-only map from Groq chat model name to its supported provider tools.
+ * Groq exposes no provider-specific tool factories, so every model gets an
+ * empty tuple. This ensures that passing an Anthropic/OpenAI ProviderTool to
+ * a Groq adapter produces a compile-time type error.
+ */
+export type GroqChatModelToolCapabilitiesByName = {
+  [LLAMA_3_1_8B_INSTANT.name]: typeof LLAMA_3_1_8B_INSTANT.supports.tools
+  [LLAMA_3_3_70B_VERSATILE.name]: typeof LLAMA_3_3_70B_VERSATILE.supports.tools
+  [LLAMA_4_MAVERICK_17B_128E_INSTRUCT.name]: typeof LLAMA_4_MAVERICK_17B_128E_INSTRUCT.supports.tools
+  [LLAMA_4_SCOUT_17B_16E_INSTRUCT.name]: typeof LLAMA_4_SCOUT_17B_16E_INSTRUCT.supports.tools
+  [LLAMA_GUARD_4_12B.name]: typeof LLAMA_GUARD_4_12B.supports.tools
+  [LLAMA_PROMPT_GUARD_2_86M.name]: typeof LLAMA_PROMPT_GUARD_2_86M.supports.tools
+  [LLAMA_PROMPT_GUARD_2_22M.name]: typeof LLAMA_PROMPT_GUARD_2_22M.supports.tools
+  [GPT_OSS_20B.name]: typeof GPT_OSS_20B.supports.tools
+  [GPT_OSS_120B.name]: typeof GPT_OSS_120B.supports.tools
+  [GPT_OSS_SAFEGUARD_20B.name]: typeof GPT_OSS_SAFEGUARD_20B.supports.tools
+  [KIMI_K2_INSTRUCT_0905.name]: typeof KIMI_K2_INSTRUCT_0905.supports.tools
+  [QWEN3_32B.name]: typeof QWEN3_32B.supports.tools
 }
 
 /**

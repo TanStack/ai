@@ -15659,6 +15659,13 @@ export const OPENROUTER_CHAT_MODELS = [
   Z_AI_GLM_5V_TURBO.id,
 ] as const
 
+// OpenRouter's web_search plugin works across all chat models via the gateway.
+// A mapped type assigns the capability uniformly without touching each of the
+// 345 model constants.
+export type OpenRouterChatModelToolCapabilitiesByName = {
+  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly ['web_search']
+}
+
 export const OPENROUTER_IMAGE_MODELS = [
   GOOGLE_GEMINI_2_5_FLASH_IMAGE.id,
   GOOGLE_GEMINI_3_PRO_IMAGE_PREVIEW.id,

@@ -16,6 +16,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./tools": {
+      "types": "./dist/esm/tools/index.d.ts",
+      "import": "./dist/esm/tools/index.js"
     }
   },
   "files": [

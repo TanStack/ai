@@ -7,6 +7,7 @@ interface ModelMeta {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     output: Array<'text' | 'image' | 'audio' | 'video'>
     capabilities?: Array<'reasoning' | 'tool_calling' | 'structured_outputs'>
+    tools?: ReadonlyArray<never>
   }
   max_input_tokens?: number
   max_output_tokens?: number
@@ -30,6 +31,7 @@ const GROK_4_1_FAST_REASONING = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -49,6 +51,7 @@ const GROK_4_1_FAST_NON_REASONING = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -68,6 +71,7 @@ const GROK_CODE_FAST_1 = {
     input: ['text'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -87,6 +91,7 @@ const GROK_4_FAST_REASONING = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -106,6 +111,7 @@ const GROK_4_FAST_NON_REASONING = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -125,6 +131,7 @@ const GROK_4 = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -144,6 +151,7 @@ const GROK_3_MINI = {
     input: ['text'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -163,6 +171,7 @@ const GROK_3 = {
     input: ['text'],
     output: ['text'],
     capabilities: ['structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -182,6 +191,7 @@ const GROK_2_VISION = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -220,6 +230,7 @@ const GROK_4_20 = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -239,6 +250,7 @@ const GROK_4_20_MULTI_AGENT = {
     input: ['text', 'image', 'document'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -298,6 +310,26 @@ export type GrokModelInputModalitiesByName = {
  */
 export type GrokChatModelProviderOptionsByName = {
   [K in (typeof GROK_CHAT_MODELS)[number]]: GrokProviderOptions
+}
+
+/**
+ * Type-only map from Grok chat model name to its supported provider tools.
+ * Grok exposes no provider-specific tool factories, so every model gets an
+ * empty tuple. This ensures that passing an Anthropic/OpenAI ProviderTool to
+ * a Grok adapter produces a compile-time type error.
+ */
+export type GrokChatModelToolCapabilitiesByName = {
+  [GROK_4_1_FAST_REASONING.name]: typeof GROK_4_1_FAST_REASONING.supports.tools
+  [GROK_4_1_FAST_NON_REASONING.name]: typeof GROK_4_1_FAST_NON_REASONING.supports.tools
+  [GROK_CODE_FAST_1.name]: typeof GROK_CODE_FAST_1.supports.tools
+  [GROK_4_FAST_REASONING.name]: typeof GROK_4_FAST_REASONING.supports.tools
+  [GROK_4_FAST_NON_REASONING.name]: typeof GROK_4_FAST_NON_REASONING.supports.tools
+  [GROK_4.name]: typeof GROK_4.supports.tools
+  [GROK_3.name]: typeof GROK_3.supports.tools
+  [GROK_3_MINI.name]: typeof GROK_3_MINI.supports.tools
+  [GROK_2_VISION.name]: typeof GROK_2_VISION.supports.tools
+  [GROK_4_20.name]: typeof GROK_4_20.supports.tools
+  [GROK_4_20_MULTI_AGENT.name]: typeof GROK_4_20_MULTI_AGENT.supports.tools
 }
 
 /**
