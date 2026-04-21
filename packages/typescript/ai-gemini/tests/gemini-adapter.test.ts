@@ -592,10 +592,9 @@ describe('GeminiAdapter through AI', () => {
     expect(functionCallPart.functionCall.thoughtSignature).toBeUndefined()
   })
 
-  it('falls back to functionCall.thoughtSignature for Gemini 2.x models', async () => {
-    const thoughtSig = 'legacy-thought-signature'
-
-    // Gemini 2.x nests thoughtSignature inside functionCall
+  it('ignores thoughtSignature nested inside functionCall (not part of @google/genai Part type)', async () => {
+    // The @google/genai SDK has never typed thoughtSignature on FunctionCall;
+    // it only exists on Part. A nested value should be ignored.
     const firstStream = [
       {
         candidates: [
@@ -604,10 +603,10 @@ describe('GeminiAdapter through AI', () => {
               parts: [
                 {
                   functionCall: {
-                    id: 'fc_legacy',
+                    id: 'fc_nested',
                     name: 'sum_tool',
                     args: { numbers: [3, 4] },
-                    thoughtSignature: thoughtSig,
+                    thoughtSignature: 'should-be-ignored',
                   },
                 },
               ],
@@ -671,8 +670,8 @@ describe('GeminiAdapter through AI', () => {
 
     const functionCallPart = modelTurn.parts.find((p: any) => p.functionCall)
     expect(functionCallPart).toBeDefined()
-    // Even for legacy input, the write side should emit at Part level
-    expect(functionCallPart.thoughtSignature).toBe(thoughtSig)
+    // No thoughtSignature should be emitted since none was at Part level
+    expect(functionCallPart.thoughtSignature).toBeUndefined()
     expect(functionCallPart.functionCall.thoughtSignature).toBeUndefined()
   })
 
