@@ -46,7 +46,9 @@ export function convertWebSearchToolToAdapterFormat(
     !metadata ||
     metadata.__kind !== WEB_SEARCH_TOOL_KIND ||
     metadata.type !== 'web_search' ||
-    typeof metadata.web_search !== 'object'
+    typeof metadata.web_search !== 'object' ||
+    metadata.web_search === null ||
+    Array.isArray(metadata.web_search)
   ) {
     throw new Error(
       `convertWebSearchToolToAdapterFormat: tool "${tool.name}" is not a valid webSearchTool() output (missing branded metadata).`,

@@ -79,6 +79,8 @@ describe('Gemini per-model tool gating', () => {
       googleMapsTool(),
       // @ts-expect-error - gemini-2.0-flash-lite does not support google_search
       googleSearchTool(),
+      // @ts-expect-error - gemini-2.0-flash-lite does not support google_search_retrieval
+      googleSearchRetrievalTool(),
       // @ts-expect-error - gemini-2.0-flash-lite does not support url_context
       urlContextTool(),
     ])
