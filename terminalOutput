@@ -1,0 +1,48 @@
+
+> @tanstack/ai-solid-ui@0.6.1 build /home/runner/work/ai/ai/packages/typescript/ai-solid-ui
+> vite build
+
+[tsconfig-paths] An error occurred while parsing "/home/runner/work/ai/ai/examples/ts-svelte-chat/tsconfig.json". See below for details. To disable this message, set the `ignoreConfigErrors` option to true.
+TSConfckParseError: failed to resolve "extends":"./.svelte-kit/tsconfig.json" in /home/runner/work/ai/ai/examples/ts-svelte-chat/tsconfig.json
+    at resolveExtends (file:///home/runner/work/ai/ai/node_modules/[4m.pnpm[24m/tsconfck@3.1.6_typescript@5.9.3/node_modules/[4mtsconfck[24m/src/parse.js:262:8)
+    at parseExtends (file:///home/runner/work/ai/ai/node_modules/[4m.pnpm[24m/tsconfck@3.1.6_typescript@5.9.3/node_modules/[4mtsconfck[24m/src/parse.js:197:24)
+[90m    ... 5 lines matching cause stack trace ...[39m
+    at async createBuilder (file:///home/runner/work/ai/ai/node_modules/[4m.pnpm[24m/vite@7.2.7_@types+node@25.0.1_jiti@2.6.1_lightningcss@1.30.2_terser@5.44.1_tsx@4.21.0_yaml@2.8.2/node_modules/[4mvite[24m/dist/node/chunks/config.js:33874:19)
+    at async CAC.<anonymous> (file:///home/runner/work/ai/ai/node_modules/[4m.pnpm[24m/vite@7.2.7_@types+node@25.0.1_jiti@2.6.1_lightningcss@1.30.2_terser@5.44.1_tsx@4.21.0_yaml@2.8.2/node_modules/[4mvite[24m/dist/node/cli.js:629:10) {
+  code: [32m'EXTENDS_RESOLVE'[39m,
+  cause: Error: Cannot find module './.svelte-kit/tsconfig.json'
+  Require stack:
+  - /home/runner/work/ai/ai/examples/ts-svelte-chat/tsconfig.json
+  [90m    at Module._resolveFilename (node:internal/modules/cjs/loader:1420:15)[39m
+  [90m    at require.resolve (node:internal/modules/helpers:163:19)[39m
+      at resolveExtends (file:///home/runner/work/ai/ai/node_modules/[4m.pnpm[24m/tsconfck@3.1.6_typescript@5.9.3/node_modules/[4mtsconfck[24m/src/parse.js:250:14)
+      at parseExtends (file:///home/runner/work/ai/ai/node_modules/[4m.pnpm[24m/tsconfck@3.1.6_typescript@5.9.3/node_modules/[4mtsconfck[24m/src/parse.js:197:24)
+      at Module.parse (file:///home/runner/work/ai/ai/node_modules/[4m.pnpm[24m/tsconfck@3.1.6_typescript@5.9.3/node_modules/[4mtsconfck[24m/src/parse.js:54:23)
+      at async Promise.all (index 6)
+      at async BasicMinimalPluginContext.configResolved (file:///home/runner/work/ai/ai/node_modules/[4m.pnpm[24m/vite-tsconfig-paths@5.1.4_typescript@5.9.3_vite@7.2.7_@types+node@24.10.3_jiti@2.6.1_li_962170f99c37614ca8587cef3451f5b0/node_modules/[4mvite-tsconfig-paths[24m/dist/index.js:117:9)
+      at async Promise.all (index 0)
+      at async resolveConfig (file:///home/runner/work/ai/ai/node_modules/[4m.pnpm[24m/vite@7.2.7_@types+node@25.0.1_jiti@2.6.1_lightningcss@1.30.2_terser@5.44.1_tsx@4.21.0_yaml@2.8.2/node_modules/[4mvite[24m/dist/node/chunks/config.js:35673:2)
+      at async createBuilder (file:///home/runner/work/ai/ai/node_modules/[4m.pnpm[24m/vite@7.2.7_@types+node@25.0.1_jiti@2.6.1_lightningcss@1.30.2_terser@5.44.1_tsx@4.21.0_yaml@2.8.2/node_modules/[4mvite[24m/dist/node/chunks/config.js:33874:19) {
+    code: [32m'MODULE_NOT_FOUND'[39m,
+    requireStack: [ [32m'/home/runner/work/ai/ai/examples/ts-svelte-chat/tsconfig.json'[39m ]
+  },
+  tsconfigFile: [32m'/home/runner/work/ai/ai/examples/ts-svelte-chat/tsconfig.json'[39m
+}
+[36mvite v7.2.7 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 8 modules transformed.
+rendering chunks...
+[32m
+[36m[vite:dts][32m Start generate declaration files...[39m
+computing gzip size...
+[2mdist/[22m[36mesm/index.js          [39m[1m[2m0.56 kB[22m[1m[22m[2m │ gzip: 0.24 kB[22m[2m │ map:  0.10 kB[22m
+[2mdist/[22m[36mesm/text-part.js      [39m[1m[2m0.81 kB[22m[1m[22m[2m │ gzip: 0.41 kB[22m[2m │ map:  2.75 kB[22m
+[2mdist/[22m[36mesm/chat.js           [39m[1m[2m1.00 kB[22m[1m[22m[2m │ gzip: 0.49 kB[22m[2m │ map:  3.23 kB[22m
+[2mdist/[22m[36mesm/thinking-part.js  [39m[1m[2m1.42 kB[22m[1m[22m[2m │ gzip: 0.60 kB[22m[2m │ map:  3.18 kB[22m
+[2mdist/[22m[36mesm/chat-messages.js  [39m[1m[2m1.81 kB[22m[1m[22m[2m │ gzip: 0.61 kB[22m[2m │ map:  3.70 kB[22m
+[2mdist/[22m[36mesm/tool-approval.js  [39m[1m[2m1.96 kB[22m[1m[22m[2m │ gzip: 0.61 kB[22m[2m │ map:  4.22 kB[22m
+[2mdist/[22m[36mesm/chat-input.js     [39m[1m[2m3.29 kB[22m[1m[22m[2m │ gzip: 1.10 kB[22m[2m │ map:  6.84 kB[22m
+[2mdist/[22m[36mesm/chat-message.js   [39m[1m[2m4.69 kB[22m[1m[22m[2m │ gzip: 1.11 kB[22m[2m │ map: 10.62 kB[22m
+[32m[36m[vite:dts][32m Declaration files built in 13819ms.
+[39m
+[32m✓ built in 15.13s[39m

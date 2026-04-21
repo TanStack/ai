@@ -1,4 +1,4 @@
-import type { Tool, ToolCall } from 'ollama'
+import type { Options, Tool, ToolCall } from 'ollama'
 
 export interface OllamaModelMeta<TModelOptions = unknown> {
   name: string
@@ -12,37 +12,7 @@ export interface OllamaModelMeta<TModelOptions = unknown> {
   context?: number
 }
 
-interface OllamaOptions {
-  numa: boolean
-  num_ctx: number
-  num_batch: number
-  num_gpu: number
-  main_gpu: number
-  low_vram: boolean
-  f16_kv: boolean
-  logits_all: boolean
-  vocab_only: boolean
-  use_mmap: boolean
-  use_mlock: boolean
-  embedding_only: boolean
-  num_thread: number
-  num_keep: number
-  seed: number
-  num_predict: number
-  top_k: number
-  tfs_z: number
-  typical_p: number
-  repeat_last_n: number
-  repeat_penalty: number
-  presence_penalty: number
-  frequency_penalty: number
-  mirostat: number
-  mirostat_tau: number
-  mirostat_eta: number
-  penalize_newline: boolean
-  stop: Array<string>
-}
-
+// ollama model for reference
 // interface ChatRequest {
 //   model: string
 //   messages?: Message[]
@@ -55,18 +25,17 @@ interface OllamaOptions {
 //   top_logprobs?: number
 //   options?: Partial<Options>
 // }
-
 export interface OllamaChatRequest {
-  // model: string
-  //   messages?: Message[]
+  // model: string (extended later)
+  //   messages?: Message[] (extended later)
   stream?: boolean
   format?: string | object
   keep_alive?: string | number
-  //   tools?: Tool[]
-  //   think?: boolean | 'high' | 'medium' | 'low'
+  //   tools?: Tool[] (extended later)
+  //   think?: boolean | 'high' | 'medium' | 'low' (extended later)
   logprobs?: boolean
   top_logprobs?: number
-  options?: Partial<OllamaOptions>
+  options?: Partial<Options>
 }
 
 export interface OllamaChatRequestThinking {
@@ -81,6 +50,7 @@ export interface OllamaChatRequestTools {
   tools?: Array<Tool>
 }
 
+// ollama model for reference
 // interface Message {
 //   role: string
 //   content: string
@@ -89,7 +59,6 @@ export interface OllamaChatRequestTools {
 //   tool_calls?: ToolCall[]
 //   tool_name?: string
 // }
-
 export interface OllamaChatRequestMessages<
   TMessageExtension extends OllamaMessageExtension = {},
 > {
@@ -97,10 +66,10 @@ export interface OllamaChatRequestMessages<
     {
       role: string
       content: string
-      //   thinking?: string
-      //   images?: Uint8Array[] | string[]
-      //   tool_calls?: ToolCall[]
-      //   tool_name?: string
+      //   thinking?: string (extended later)
+      //   images?: Uint8Array[] | string[] (extended later)
+      //   tool_calls?: ToolCall[] (extended later)
+      //   tool_name?: string (extended later)
     } & TMessageExtension
   >
 }
