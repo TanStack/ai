@@ -5,7 +5,7 @@ title: RealtimeToolCallPart
 
 # Interface: RealtimeToolCallPart
 
-Defined in: [realtime/types.ts:115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L115)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L115)
 
 Tool call part in a realtime message
 
@@ -17,7 +17,7 @@ Tool call part in a realtime message
 arguments: string;
 ```
 
-Defined in: [realtime/types.ts:119](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L119)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:119](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L119)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [realtime/types.ts:119](https://github.com/TanStack/ai/blob/main/pac
 id: string;
 ```
 
-Defined in: [realtime/types.ts:117](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L117)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:117](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L117)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [realtime/types.ts:117](https://github.com/TanStack/ai/blob/main/pac
 optional input: unknown;
 ```
 
-Defined in: [realtime/types.ts:120](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L120)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:120](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L120)
 
 ***
 
@@ -47,7 +47,7 @@ Defined in: [realtime/types.ts:120](https://github.com/TanStack/ai/blob/main/pac
 name: string;
 ```
 
-Defined in: [realtime/types.ts:118](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L118)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:118](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L118)
 
 ***
 
@@ -57,7 +57,7 @@ Defined in: [realtime/types.ts:118](https://github.com/TanStack/ai/blob/main/pac
 optional output: unknown;
 ```
 
-Defined in: [realtime/types.ts:121](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L121)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:121](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L121)
 
 ***
 
@@ -67,4 +67,4 @@ Defined in: [realtime/types.ts:121](https://github.com/TanStack/ai/blob/main/pac
 type: "tool-call";
 ```
 
-Defined in: [realtime/types.ts:116](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L116)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:116](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L116)

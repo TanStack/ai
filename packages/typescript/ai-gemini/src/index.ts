@@ -67,6 +67,7 @@ export type { GeminiTTSVoice } from './model-meta'
 
 export type {
   GeminiChatModelProviderOptionsByName,
+  GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
 } from './model-meta'
 export type {

@@ -24,6 +24,9 @@ Tools enable your AI application to:
 - **Execute client-side operations** like updating UI or local storage
 - **Create hybrid tools** that execute in both server and client contexts
 
+> Looking for provider-native tools like Anthropic web search, OpenAI code
+> interpreter, or Gemini URL context? See [Provider Tools](./provider-tools.md).
+
 ## Framework Support
 
 TanStack AI works with **any** JavaScript framework:

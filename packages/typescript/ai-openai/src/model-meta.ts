@@ -39,11 +39,15 @@ interface ModelMeta<TProviderOptions = unknown> {
     >
     tools?: Array<
       | 'web_search'
+      | 'web_search_preview'
       | 'file_search'
       | 'image_generation'
       | 'code_interpreter'
       | 'mcp'
       | 'computer_use'
+      | 'local_shell'
+      | 'shell'
+      | 'apply_patch'
     >
   }
   context_window?: number
@@ -81,10 +85,15 @@ const GPT5_2 = {
     ],
     tools: [
       'web_search',
+      'web_search_preview',
       'file_search',
       'image_generation',
       'code_interpreter',
       'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
     ],
   },
   pricing: {
@@ -114,7 +123,18 @@ const GPT5_2_PRO = {
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling'],
-    tools: ['web_search', 'file_search', 'image_generation', 'mcp'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
   pricing: {
     input: {
@@ -142,7 +162,14 @@ const GPT5_2_CHAT = {
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
-    tools: [],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+    ],
   },
   pricing: {
     input: {
@@ -178,10 +205,15 @@ const GPT5_1 = {
     ],
     tools: [
       'web_search',
+      'web_search_preview',
       'file_search',
       'image_generation',
       'code_interpreter',
       'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
     ],
   },
   pricing: {
@@ -212,6 +244,14 @@ const GPT5_1_CODEX = {
     output: ['text', 'image'],
     endpoints: ['chat'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [
+      'file_search',
+      'code_interpreter',
+      'mcp',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
   pricing: {
     input: {
@@ -248,10 +288,15 @@ const GPT5 = {
     ],
     tools: [
       'web_search',
+      'web_search_preview',
       'file_search',
       'image_generation',
       'code_interpreter',
       'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
     ],
   },
   pricing: {
@@ -282,7 +327,18 @@ const GPT5_MINI = {
     output: ['text'],
     endpoints: ['chat', 'chat-completions', 'batch'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
-    tools: ['web_search', 'file_search', 'mcp', 'code_interpreter'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
   pricing: {
     input: {
@@ -323,10 +379,15 @@ const GPT5_NANO = {
     features: ['streaming', 'structured_outputs', 'function_calling'],
     tools: [
       'web_search',
+      'web_search_preview',
       'file_search',
-      'mcp',
       'image_generation',
       'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
     ],
   },
 } as const satisfies ModelMeta<
@@ -356,7 +417,18 @@ const GPT5_PRO = {
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
-    tools: ['web_search', 'file_search', 'image_generation', 'mcp'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -386,6 +458,14 @@ const GPT5_CODEX = {
     output: ['text', 'image'],
     endpoints: ['chat'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
+    tools: [
+      'file_search',
+      'code_interpreter',
+      'mcp',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -511,6 +591,18 @@ const O3_DEEP_RESEARCH = {
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['streaming'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -538,6 +630,18 @@ const O4_MINI_DEEP_RESEARCH = {
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['streaming'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -564,6 +668,18 @@ const O3_PRO = {
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['function_calling', 'structured_outputs'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -593,6 +709,7 @@ const GPT_AUDIO = {
     output: ['text', 'audio'],
     endpoints: ['chat-completions'],
     features: ['function_calling'],
+    tools: [],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -676,6 +793,7 @@ const GPT_AUDIO_MINI = {
     output: ['text', 'audio'],
     endpoints: ['chat-completions'],
     features: ['function_calling'],
+    tools: [],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -703,6 +821,18 @@ const O3 = {
     output: ['text'],
     endpoints: ['chat', 'batch', 'chat-completions'],
     features: ['function_calling', 'structured_outputs', 'streaming'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -736,6 +866,18 @@ const O4_MINI = {
       'structured_outputs',
       'streaming',
       'fine_tuning',
+    ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
     ],
   },
 } as const satisfies ModelMeta<
@@ -779,10 +921,15 @@ const GPT4_1 = {
     ],
     tools: [
       'web_search',
+      'web_search_preview',
       'file_search',
       'image_generation',
       'code_interpreter',
       'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
     ],
   },
 } as const satisfies ModelMeta<
@@ -824,6 +971,18 @@ const GPT4_1_MINI = {
       'structured_outputs',
       'fine_tuning',
     ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -864,6 +1023,18 @@ const GPT4_1_NANO = {
       'fine_tuning',
       'predicted_outcomes',
     ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -891,6 +1062,7 @@ const O1_PRO = {
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['function_calling', 'structured_outputs'],
+    tools: ['file_search', 'code_interpreter', 'mcp'],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -919,6 +1091,7 @@ const COMPUTER_USE_PREVIEW = {
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['function_calling'],
+    tools: ['computer_use'],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -946,6 +1119,7 @@ const GPT_4O_MINI_SEARCH_PREVIEW = {
     output: ['text'],
     endpoints: ['chat-completions'],
     features: ['streaming', 'structured_outputs'],
+    tools: ['web_search_preview'],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
@@ -969,6 +1143,7 @@ const GPT_4O_SEARCH_PREVIEW = {
     output: ['text'],
     endpoints: ['chat-completions'],
     features: ['streaming', 'structured_outputs'],
+    tools: ['web_search_preview'],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
@@ -993,6 +1168,18 @@ const O3_MINI = {
     output: ['text'],
     endpoints: ['chat', 'batch', 'chat-completions', 'assistants'],
     features: ['function_calling', 'structured_outputs', 'streaming'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1022,6 +1209,7 @@ const GPT_4O_MINI_AUDIO = {
     output: ['text', 'audio'],
     endpoints: ['chat-completions'],
     features: ['function_calling', 'streaming'],
+    tools: [],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1077,6 +1265,7 @@ const O1 = {
     output: ['text'],
     endpoints: ['chat', 'batch', 'chat-completions', 'assistants'],
     features: ['function_calling', 'structured_outputs', 'streaming'],
+    tools: ['file_search', 'code_interpreter', 'mcp'],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1139,6 +1328,13 @@ const GPT_4O = {
       'fine_tuning',
       'predicted_outcomes',
     ],
+    tools: [
+      'web_search',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1168,6 +1364,7 @@ const GPT_4O_AUDIO = {
     output: ['text', 'audio'],
     endpoints: ['chat-completions'],
     features: ['streaming', 'function_calling'],
+    tools: [],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1206,6 +1403,13 @@ const GPT_4O_MINI = {
       'structured_outputs',
       'fine_tuning',
       'predicted_outcomes',
+    ],
+    tools: [
+      'web_search',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
     ],
   },
 } as const satisfies ModelMeta<
@@ -1262,6 +1466,7 @@ const GPT_4_TURBO = {
     output: ['text'],
     endpoints: ['chat', 'chat-completions', 'assistants', 'batch'],
     features: ['function_calling', 'streaming'],
+    tools: [],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1288,6 +1493,14 @@ const CHATGPT_40 = {
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['predicted_outcomes', 'streaming'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
@@ -1312,6 +1525,14 @@ const GPT_5_1_CODEX_MINI = {
     output: ['text', 'image'],
     endpoints: ['chat'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [
+      'file_search',
+      'code_interpreter',
+      'mcp',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1341,6 +1562,14 @@ const CODEX_MINI_LATEST = {
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [
+      'file_search',
+      'code_interpreter',
+      'mcp',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1411,6 +1640,7 @@ const GPT_3_5_TURBO = {
     output: ['text'],
     endpoints: ['chat', 'chat-completions', 'batch', 'fine-tuning'],
     features: ['fine_tuning'],
+    tools: [],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
@@ -1440,6 +1670,7 @@ const GPT_4 = {
       'assistants',
     ],
     features: ['fine_tuning', 'streaming'],
+    tools: [],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
@@ -1557,6 +1788,14 @@ const GPT_5_1_CHAT = {
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+    ],
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
@@ -1588,6 +1827,7 @@ const GPT_5_CHAT = {
     features: ['streaming', 'function_calling', 'structured_outputs'],
     tools: [
       'web_search',
+      'web_search_preview',
       'file_search',
       'image_generation',
       'code_interpreter',
@@ -1662,10 +1902,15 @@ const GPT_5_4_MINI = {
     ],
     tools: [
       'web_search',
+      'web_search_preview',
       'file_search',
       'image_generation',
       'code_interpreter',
       'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
     ],
   },
   pricing: {
@@ -1702,10 +1947,15 @@ const GPT_5_4_NANO = {
     ],
     tools: [
       'web_search',
+      'web_search_preview',
       'file_search',
       'image_generation',
       'code_interpreter',
       'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
     ],
   },
   pricing: {
@@ -2042,6 +2292,54 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
+}
+
+/**
+ * Type-only map from chat model name to its supported provider tools.
+ * Keyed on each model's `.name` field. Value is the `typeof supports.tools`
+ * tuple from each model constant.
+ */
+export type OpenAIChatModelToolCapabilitiesByName = {
+  [GPT5_2.name]: typeof GPT5_2.supports.tools
+  [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.tools
+  [GPT5_2_CHAT.name]: typeof GPT5_2_CHAT.supports.tools
+  [GPT5_1.name]: typeof GPT5_1.supports.tools
+  [GPT5_1_CODEX.name]: typeof GPT5_1_CODEX.supports.tools
+  [GPT5.name]: typeof GPT5.supports.tools
+  [GPT5_MINI.name]: typeof GPT5_MINI.supports.tools
+  [GPT5_NANO.name]: typeof GPT5_NANO.supports.tools
+  [GPT5_PRO.name]: typeof GPT5_PRO.supports.tools
+  [GPT5_CODEX.name]: typeof GPT5_CODEX.supports.tools
+  [O3.name]: typeof O3.supports.tools
+  [O3_PRO.name]: typeof O3_PRO.supports.tools
+  [O3_MINI.name]: typeof O3_MINI.supports.tools
+  [O4_MINI.name]: typeof O4_MINI.supports.tools
+  [O3_DEEP_RESEARCH.name]: typeof O3_DEEP_RESEARCH.supports.tools
+  [O4_MINI_DEEP_RESEARCH.name]: typeof O4_MINI_DEEP_RESEARCH.supports.tools
+  [GPT4_1.name]: typeof GPT4_1.supports.tools
+  [GPT4_1_MINI.name]: typeof GPT4_1_MINI.supports.tools
+  [GPT4_1_NANO.name]: typeof GPT4_1_NANO.supports.tools
+  [GPT_4.name]: typeof GPT_4.supports.tools
+  [GPT_4_TURBO.name]: typeof GPT_4_TURBO.supports.tools
+  [GPT_4O.name]: typeof GPT_4O.supports.tools
+  [GPT_4O_MINI.name]: typeof GPT_4O_MINI.supports.tools
+  [GPT_3_5_TURBO.name]: typeof GPT_3_5_TURBO.supports.tools
+  [GPT_AUDIO.name]: typeof GPT_AUDIO.supports.tools
+  [GPT_AUDIO_MINI.name]: typeof GPT_AUDIO_MINI.supports.tools
+  [GPT_4O_AUDIO.name]: typeof GPT_4O_AUDIO.supports.tools
+  [GPT_4O_MINI_AUDIO.name]: typeof GPT_4O_MINI_AUDIO.supports.tools
+  [GPT_5_1_CHAT.name]: typeof GPT_5_1_CHAT.supports.tools
+  [GPT_5_CHAT.name]: typeof GPT_5_CHAT.supports.tools
+  [CHATGPT_40.name]: typeof CHATGPT_40.supports.tools
+  [GPT_5_1_CODEX_MINI.name]: typeof GPT_5_1_CODEX_MINI.supports.tools
+  [CODEX_MINI_LATEST.name]: typeof CODEX_MINI_LATEST.supports.tools
+  [GPT_4O_SEARCH_PREVIEW.name]: typeof GPT_4O_SEARCH_PREVIEW.supports.tools
+  [GPT_4O_MINI_SEARCH_PREVIEW.name]: typeof GPT_4O_MINI_SEARCH_PREVIEW.supports.tools
+  [COMPUTER_USE_PREVIEW.name]: typeof COMPUTER_USE_PREVIEW.supports.tools
+  [O1.name]: typeof O1.supports.tools
+  [O1_PRO.name]: typeof O1_PRO.supports.tools
+  [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.supports.tools
+  [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.supports.tools
 }
 
 /**

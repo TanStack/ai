@@ -14,6 +14,7 @@ import type {
   OPENAI_CHAT_MODELS,
   OpenAIChatModel,
   OpenAIChatModelProviderOptionsByName,
+  OpenAIChatModelToolCapabilitiesByName,
   OpenAIModelInputModalitiesByName,
 } from '../model-meta'
 import type {
@@ -24,6 +25,7 @@ import type OpenAI_SDK from 'openai'
 import type { Responses } from 'openai/resources'
 import type {
   ContentPart,
+  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
@@ -76,6 +78,15 @@ type ResolveInputModalities<TModel extends string> =
     ? OpenAIModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'audio']
 
+/**
+ * Resolve tool capabilities for a specific model.
+ * If the model has explicit tools in the map, use those; otherwise use empty tuple.
+ */
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof OpenAIChatModelToolCapabilitiesByName
+    ? NonNullable<OpenAIChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
 // ===========================
 // Adapter Implementation
 // ===========================
@@ -88,11 +99,17 @@ type ResolveInputModalities<TModel extends string> =
  */
 export class OpenAITextAdapter<
   TModel extends OpenAIChatModel,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>,
-  OpenAIMessageMetadataByModality
+  TProviderOptions,
+  TInputModalities,
+  OpenAIMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'openai' as const
@@ -105,7 +122,7 @@ export class OpenAITextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<ResolveProviderOptions<TModel>>,
+    options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     // Track tool call metadata by unique ID
     // OpenAI streams tool calls with deltas - first chunk has ID/name, subsequent chunks only have args
@@ -158,7 +175,7 @@ export class OpenAITextAdapter<
    * We apply OpenAI-specific transformations for structured output compatibility.
    */
   async structuredOutput(
-    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+    options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestArguments = this.mapTextOptionsToOpenAI(chatOptions)

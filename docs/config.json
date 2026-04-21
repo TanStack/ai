@@ -56,6 +56,10 @@
           "to": "tools/tools"
         },
         {
+          "label": "Provider Tools",
+          "to": "tools/provider-tools"
+        },
+        {
           "label": "Tool Architecture",
           "to": "tools/tool-architecture"
         },
@@ -195,6 +199,10 @@
         {
           "label": "Migration Guide",
           "to": "migration/migration"
+        },
+        {
+          "label": "From Vercel AI SDK",
+          "to": "migration/migration-from-vercel-ai"
         }
       ]
     },

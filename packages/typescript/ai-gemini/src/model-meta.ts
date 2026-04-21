@@ -17,16 +17,19 @@ interface ModelMeta<TProviderOptions = unknown> {
       | 'audio_generation'
       | 'batch_api'
       | 'caching'
-      | 'code_execution'
-      | 'file_search'
       | 'function_calling'
-      | 'grounding_with_gmaps'
-      | 'image_generation'
       | 'live_api'
-      | 'search_grounding'
       | 'structured_output'
       | 'thinking'
+    >
+    tools?: Array<
+      | 'code_execution'
+      | 'file_search'
+      | 'google_search'
+      | 'google_search_retrieval'
+      | 'google_maps'
       | 'url_context'
+      | 'computer_use'
     >
   }
   max_input_tokens?: number
@@ -58,14 +61,11 @@ const GEMINI_3_1_PRO = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -96,14 +96,11 @@ const GEMINI_3_PRO = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -134,14 +131,11 @@ const GEMINI_3_FLASH = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -169,13 +163,8 @@ const GEMINI_3_PRO_IMAGE = {
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
-    capabilities: [
-      'batch_api',
-      'image_generation',
-      'search_grounding',
-      'structured_output',
-      'thinking',
-    ],
+    capabilities: ['batch_api', 'structured_output', 'thinking'],
+    tools: ['google_search'],
   },
   pricing: {
     input: {
@@ -203,13 +192,8 @@ const GEMINI_3_1_FLASH_IMAGE = {
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
-    capabilities: [
-      'batch_api',
-      'image_generation',
-      'search_grounding',
-      'structured_output',
-      'thinking',
-    ],
+    capabilities: ['batch_api', 'structured_output', 'thinking'],
+    tools: ['google_search'],
   },
   pricing: {
     input: {
@@ -239,14 +223,11 @@ const GEMINI_3_1_FLASH_LITE = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -276,13 +257,15 @@ const GEMINI_2_5_PRO = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'grounding_with_gmaps',
-      'search_grounding',
       'structured_output',
       'thinking',
+    ],
+    tools: [
+      'code_execution',
+      'file_search',
+      'google_maps',
+      'google_search',
       'url_context',
     ],
   },
@@ -311,7 +294,8 @@ const GEMINI_2_5_PRO_TTS = {
   supports: {
     input: ['text'],
     output: ['audio'],
-    capabilities: ['audio_generation', 'file_search'],
+    capabilities: ['audio_generation'],
+    tools: ['file_search'],
   },
   pricing: {
     input: {
@@ -339,13 +323,15 @@ const GEMINI_2_5_FLASH = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'grounding_with_gmaps',
-      'search_grounding',
       'structured_output',
       'thinking',
+    ],
+    tools: [
+      'code_execution',
+      'file_search',
+      'google_maps',
+      'google_search',
       'url_context',
     ],
   },
@@ -377,14 +363,11 @@ const GEMINI_2_5_FLASH_PREVIEW = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -411,13 +394,8 @@ const GEMINI_2_5_FLASH_IMAGE = {
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
-    capabilities: [
-      'batch_api',
-      'caching',
-      'file_search',
-      'image_generation',
-      'structured_output',
-    ],
+    capabilities: ['batch_api', 'caching', 'structured_output'],
+    tools: ['file_search'],
   },
   pricing: {
     input: {
@@ -476,7 +454,8 @@ const GEMINI_2_5_FLASH_TTS = {
   supports: {
     input: ['text'],
     output: ['audio'],
-    capabilities: ['audio_generation', 'batch_api', 'file_search'],
+    capabilities: ['audio_generation', 'batch_api'],
+    tools: ['file_search'],
   },
   pricing: {
     input: {
@@ -504,14 +483,11 @@ const GEMINI_2_5_FLASH_LITE = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
       'function_calling',
-      'grounding_with_gmaps',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'google_maps', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -541,13 +517,11 @@ const GEMINI_2_5_FLASH_LITE_PREVIEW = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -577,13 +551,11 @@ const GEMINI_2_FLASH = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
       'function_calling',
-      'grounding_with_gmaps',
       'live_api',
-      'search_grounding',
       'structured_output',
     ],
+    tools: ['code_execution', 'google_maps', 'google_search'],
   },
   pricing: {
     input: {
@@ -609,12 +581,8 @@ const GEMINI_2_FLASH_IMAGE = {
   supports: {
     input: ['text', 'image', 'audio', 'video'],
     output: ['text'],
-    capabilities: [
-      'batch_api',
-      'caching',
-      'image_generation',
-      'structured_output',
-    ],
+    capabilities: ['batch_api', 'caching', 'structured_output'],
+    tools: [],
   },
   pricing: {
     input: {
@@ -679,6 +647,7 @@ const GEMINI_2_FLASH_LITE = {
       'function_calling',
       'structured_output',
     ],
+    tools: [],
   },
   pricing: {
     input: {
@@ -1090,6 +1059,24 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions
+}
+
+/**
+ * Type-only map from chat model name to its supported tool capabilities.
+ * Based on the 'supports.tools' arrays defined for each model.
+ */
+export type GeminiChatModelToolCapabilitiesByName = {
+  [GEMINI_3_1_PRO.name]: typeof GEMINI_3_1_PRO.supports.tools
+  [GEMINI_3_PRO.name]: typeof GEMINI_3_PRO.supports.tools
+  [GEMINI_3_FLASH.name]: typeof GEMINI_3_FLASH.supports.tools
+  [GEMINI_3_1_FLASH_LITE.name]: typeof GEMINI_3_1_FLASH_LITE.supports.tools
+  [GEMINI_2_5_PRO.name]: typeof GEMINI_2_5_PRO.supports.tools
+  [GEMINI_2_5_FLASH.name]: typeof GEMINI_2_5_FLASH.supports.tools
+  [GEMINI_2_5_FLASH_PREVIEW.name]: typeof GEMINI_2_5_FLASH_PREVIEW.supports.tools
+  [GEMINI_2_5_FLASH_LITE.name]: typeof GEMINI_2_5_FLASH_LITE.supports.tools
+  [GEMINI_2_5_FLASH_LITE_PREVIEW.name]: typeof GEMINI_2_5_FLASH_LITE_PREVIEW.supports.tools
+  [GEMINI_2_FLASH.name]: typeof GEMINI_2_FLASH.supports.tools
+  [GEMINI_2_FLASH_LITE.name]: typeof GEMINI_2_FLASH_LITE.supports.tools
 }
 
 /**

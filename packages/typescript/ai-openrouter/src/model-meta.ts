@@ -1882,6 +1882,7 @@ const DEEPSEEK_DEEPSEEK_V3_2 = {
       'logitBias',
       'logprobs',
       'maxCompletionTokens',
+      'parallelToolCalls',
       'presencePenalty',
       'reasoning',
       'responseFormat',
@@ -1893,16 +1894,16 @@ const DEEPSEEK_DEEPSEEK_V3_2 = {
       'topP',
     ],
   },
-  context_window: 163840,
-  max_output_tokens: 163840,
+  context_window: 131072,
+  max_output_tokens: 32768,
   pricing: {
     text: {
       input: {
-        normal: 0.259,
-        cached: 0.135,
+        normal: 0.252,
+        cached: 0.0252,
       },
       output: {
-        normal: 0.42,
+        normal: 0.378,
       },
     },
     image: 0,
@@ -3954,11 +3955,11 @@ const MINIMAX_MINIMAX_M2_5 = {
   pricing: {
     text: {
       input: {
-        normal: 0.118,
-        cached: 0.059,
+        normal: 0.15,
+        cached: 0.075,
       },
       output: {
-        normal: 0.99,
+        normal: 1.2,
       },
     },
     image: 0,
@@ -4952,11 +4953,46 @@ const MOONSHOTAI_KIMI_K2_5 = {
   pricing: {
     text: {
       input: {
-        normal: 0.3827,
-        cached: 0.19135,
+        normal: 0.44,
+        cached: 0.22,
       },
       output: {
-        normal: 1.72,
+        normal: 2,
+      },
+    },
+    image: 0,
+  },
+} as const
+const MOONSHOTAI_KIMI_K2_6 = {
+  id: 'moonshotai/kimi-k2.6',
+  name: 'MoonshotAI: Kimi K2.6',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'logitBias',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 262144,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.6,
+        cached: 0.2,
+      },
+      output: {
+        normal: 2.8,
       },
     },
     image: 0,
@@ -10633,15 +10669,14 @@ const Z_AI_GLM_4_7 = {
     ],
   },
   context_window: 202752,
-  max_output_tokens: 65535,
   pricing: {
     text: {
       input: {
-        normal: 0.39,
-        cached: 0.195,
+        normal: 0.38,
+        cached: 0,
       },
       output: {
-        normal: 1.75,
+        normal: 1.74,
       },
     },
     image: 0,
@@ -10776,15 +10811,15 @@ const Z_AI_GLM_5_1 = {
     ],
   },
   context_window: 202752,
-  max_output_tokens: 65535,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.95,
-        cached: 0.475,
+        normal: 0.698,
+        cached: 0.26,
       },
       output: {
-        normal: 3.15,
+        normal: 4.4,
       },
     },
     image: 0,
@@ -11492,6 +11527,7 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
+      | 'parallelToolCalls'
       | 'presencePenalty'
       | 'reasoning'
       | 'responseFormat'
@@ -12641,6 +12677,21 @@ export type OpenRouterModelOptionsByName = {
       | 'temperature'
       | 'toolChoice'
       | 'topLogprobs'
+      | 'topP'
+    >
+  [MOONSHOTAI_KIMI_K2_6.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'logitBias'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
       | 'topP'
     >
   [MORPH_MORPH_V3_FAST.id]: OpenRouterCommonOptions &
@@ -15070,6 +15121,7 @@ export type OpenRouterModelInputModalitiesByName = {
   [MOONSHOTAI_KIMI_K2_0905.id]: ReadonlyArray<'text'>
   [MOONSHOTAI_KIMI_K2_THINKING.id]: ReadonlyArray<'text'>
   [MOONSHOTAI_KIMI_K2_5.id]: ReadonlyArray<'text' | 'image'>
+  [MOONSHOTAI_KIMI_K2_6.id]: ReadonlyArray<'text' | 'image'>
   [MORPH_MORPH_V3_FAST.id]: ReadonlyArray<'text'>
   [MORPH_MORPH_V3_LARGE.id]: ReadonlyArray<'text'>
   [NEX_AGI_DEEPSEEK_V3_1_NEX_N1.id]: ReadonlyArray<'text'>
@@ -15421,6 +15473,7 @@ export const OPENROUTER_CHAT_MODELS = [
   MOONSHOTAI_KIMI_K2_0905.id,
   MOONSHOTAI_KIMI_K2_THINKING.id,
   MOONSHOTAI_KIMI_K2_5.id,
+  MOONSHOTAI_KIMI_K2_6.id,
   MORPH_MORPH_V3_FAST.id,
   MORPH_MORPH_V3_LARGE.id,
   NEX_AGI_DEEPSEEK_V3_1_NEX_N1.id,
@@ -15605,6 +15658,13 @@ export const OPENROUTER_CHAT_MODELS = [
   Z_AI_GLM_5_1.id,
   Z_AI_GLM_5V_TURBO.id,
 ] as const
+
+// OpenRouter's web_search plugin works across all chat models via the gateway.
+// A mapped type assigns the capability uniformly without touching each of the
+// 345 model constants.
+export type OpenRouterChatModelToolCapabilitiesByName = {
+  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly ['web_search']
+}
 
 export const OPENROUTER_IMAGE_MODELS = [
   GOOGLE_GEMINI_2_5_FLASH_IMAGE.id,
