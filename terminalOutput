@@ -21,7 +21,7 @@ computing gzip size...
 [2mdist/client/[22m[2massets/[22m[36mLWN3DL7E-CKk2nPEE.js                                  [39m[1m[2m131.86 kB[22m[1m[22m[2m │ gzip:  44.76 kB[22m
 [2mdist/client/[22m[2massets/[22m[36mmain-SNbgs-Is.js                                      [39m[1m[2m276.19 kB[22m[1m[22m[2m │ gzip:  82.06 kB[22m
 [2mdist/client/[22m[2massets/[22m[36mindex-Dqd0Z0zw.js                                     [39m[1m[33m575.74 kB[39m[22m[2m │ gzip: 173.31 kB[22m
-[32m✓ built in 22.02s[39m
+[32m✓ built in 25.53s[39m
 [36mvite v7.2.7 [32mbuilding ssr environment for production...[36m[39m
 [33m
 (!) Some chunks are larger than 500 kB after minification. Consider:
@@ -41,4 +41,4 @@ rendering chunks...
 [2mdist/server/[22m[36mserver.js                                                    [39m[1m[2m264.75 kB[22m[1m[22m
 [2mdist/server/[22m[2massets/[22m[36mrouter-CtRDO8qZ.js                                    [39m[1m[2m342.12 kB[22m[1m[22m
 [2mdist/server/[22m[2massets/[22m[36mindex-BxvIuHU0.js                                     [39m[1m[33m854.77 kB[39m[22m
-[32m✓ built in 8.28s[39m
+[32m✓ built in 11.68s[39m
