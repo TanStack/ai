@@ -50,10 +50,7 @@ export function makeGroqStructuredOutputCompatible(
 ): Record<string, any> {
   const result = { ...schema }
 
-  if (result.type === 'object') {
-    if (!result.properties) {
-      result.properties = {}
-    }
+  if (result.type === 'object' && result.properties) {
     const properties = { ...result.properties }
     const allPropertyNames = Object.keys(properties)
 
@@ -96,6 +93,7 @@ export function makeGroqStructuredOutputCompatible(
     } else {
       delete result.required
     }
+    result.required = allPropertyNames
     result.additionalProperties = false
   }
 
