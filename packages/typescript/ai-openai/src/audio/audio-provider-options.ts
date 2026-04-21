@@ -1,3 +1,5 @@
+import { TTS_MODELS } from '../models/audio'
+
 export interface AudioProviderOptions {
   /**
    * The text to generate audio for. The maximum length is 4096 characters.
@@ -46,13 +48,28 @@ export interface AudioProviderOptions {
   stream_format?: 'sse' | 'audio'
 }
 
+/**
+ * Validates the requested stream format against the selected TTS model.
+ */
 export const validateStreamFormat = (options: AudioProviderOptions) => {
-  const unsupportedModels = ['tts-1', 'tts-1-hd']
-  if (options.stream_format && unsupportedModels.includes(options.model)) {
+  if (!Object.hasOwn(TTS_MODELS, options.model)) {
+    if (options.stream_format) {
+      console.warn(
+        `Unknown TTS model: ${options.model}. stream_format may not be supported.`,
+      )
+    }
+    return
+  }
+
+  const modelMeta = TTS_MODELS[options.model as keyof typeof TTS_MODELS]
+  if (options.stream_format && !modelMeta.supportsStreaming) {
     throw new Error(`The model ${options.model} does not support streaming.`)
   }
 }
 
+/**
+ * Validates that the requested speech speed falls within OpenAI's supported range.
+ */
 export const validateSpeed = (options: AudioProviderOptions) => {
   if (options.speed) {
     if (options.speed < 0.25 || options.speed > 4.0) {
@@ -61,13 +78,23 @@ export const validateSpeed = (options: AudioProviderOptions) => {
   }
 }
 
+/**
+ * Validates that the selected TTS model supports voice instructions.
+ */
 export const validateInstructions = (options: AudioProviderOptions) => {
-  const unsupportedModels = ['tts-1', 'tts-1-hd']
-  if (options.instructions && unsupportedModels.includes(options.model)) {
+  if (!Object.hasOwn(TTS_MODELS, options.model)) {
+    throw new Error(`Unknown TTS model: ${options.model}`)
+  }
+
+  const modelMeta = TTS_MODELS[options.model as keyof typeof TTS_MODELS]
+  if (options.instructions && !modelMeta.supportsInstructions) {
     throw new Error(`The model ${options.model} does not support instructions.`)
   }
 }
 
+/**
+ * Validates the maximum input length for text-to-speech requests.
+ */
 export const validateAudioInput = (options: AudioProviderOptions) => {
   if (options.input.length > 4096) {
     throw new Error('Input text exceeds maximum length of 4096 characters.')

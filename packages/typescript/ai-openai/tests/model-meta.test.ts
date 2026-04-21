@@ -1,1285 +1,333 @@
-import { describe, it, expectTypeOf } from 'vitest'
-import type {
-  OpenAIChatModelProviderOptionsByName,
-  OpenAIModelInputModalitiesByName,
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import {
+  IMAGE_MODELS,
+  TEXT_MODELS,
+  VIDEO_MODELS,
+} from '../src/models'
+import {
+  REALTIME_MODELS,
+  TRANSCRIPTION_MODELS,
+  TTS_MODELS,
+} from '../src/models/audio'
+import {
+  idsByStatus,
+  snapshotIds,
+  supportedIds,
+  type RegistryModelId,
+} from '../src/models/shared'
+import {
+  OPENAI_CHAT_MODELS,
+  OPENAI_CHAT_SNAPSHOT_MODELS,
+  OPENAI_CURRENT_CHAT_MODELS,
+  OPENAI_CURRENT_IMAGE_MODELS,
+  OPENAI_PREVIEW_CHAT_MODELS,
+  OPENAI_CURRENT_TRANSCRIPTION_MODELS,
+  OPENAI_CURRENT_TTS_MODELS,
+  OPENAI_CURRENT_VIDEO_MODELS,
+  OPENAI_DEPRECATED_CHAT_MODELS,
+  OPENAI_IMAGE_MODELS,
+  OPENAI_IMAGE_SNAPSHOT_MODELS,
+  OPENAI_REALTIME_MODELS,
+  OPENAI_REALTIME_SNAPSHOT_MODELS,
+  OPENAI_TRANSCRIPTION_MODELS,
+  OPENAI_TRANSCRIPTION_SNAPSHOT_MODELS,
+  OPENAI_TTS_MODELS,
+  OPENAI_TTS_SNAPSHOT_MODELS,
+  OPENAI_VIDEO_MODELS,
+  type OpenAIChatModel,
+  type OpenAIChatModelProviderOptionsByName,
+  type OpenAIImageModelProviderOptionsByName,
+  type OpenAIImageModelSizeByName,
+  type OpenAIModelInputModalitiesByName,
+  type OpenAIRealtimeModel,
+  type OpenAITTSModel,
+  type OpenAITranscriptionModel,
+  type OpenAIVideoModel,
+  type OpenAIVideoModelProviderOptionsByName,
+  type OpenAIVideoModelSizeByName,
 } from '../src/model-meta'
 import type {
-  OpenAIBaseOptions,
-  OpenAIReasoningOptions,
+  DallE3ProviderOptions,
+  GptImage1ProviderOptions,
+} from '../src/image/image-provider-options'
+import type {
   OpenAIReasoningOptionsWithConcise,
+  OpenAIStreamingOptions,
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
-  OpenAIStreamingOptions,
-  OpenAIMetadataOptions,
 } from '../src/text/text-provider-options'
-import type { OpenAIMessageMetadataByModality } from '../src/message-types'
 import type {
-  AudioPart,
-  ConstrainedModelMessage,
-  DocumentPart,
-  ImagePart,
-  Modality,
-  TextPart,
-  VideoPart,
-} from '@tanstack/ai'
+  OpenAIVideoProviderOptions,
+  OpenAIVideoSize,
+} from '../src/video/video-provider-options'
 
-/**
- * Helper type to construct InputModalitiesTypes from modalities array and metadata.
- * This is used to properly type ConstrainedModelMessage in tests.
- */
-type MakeInputModalitiesTypes<TModalities extends ReadonlyArray<Modality>> = {
-  inputModalities: TModalities
-  messageMetadataByModality: OpenAIMessageMetadataByModality
-}
+describe('OpenAI registries', () => {
+  const expectUnique = (ids: ReadonlyArray<string>) => {
+    expect(new Set(ids).size).toBe(ids.length)
+  }
+  const hasOwn = (object: object, key: PropertyKey) =>
+    Object.prototype.hasOwnProperty.call(object, key)
 
-/**
- * Type assertion tests for OpenAI model provider options.
- *
- * These tests verify that:
- * 1. Models with reasoning support have OpenAIReasoningOptions in their provider options
- * 2. Models without reasoning support do NOT have OpenAIReasoningOptions
- * 3. Models with structured output support have OpenAIStructuredOutputOptions
- * 4. Models without structured output support do NOT have OpenAIStructuredOutputOptions
- * 5. Models with tools support have OpenAIToolsOptions
- * 6. All chat models have base options (OpenAIBaseOptions, OpenAIMetadataOptions)
- */
-
-// Base options that ALL chat models should have
-type BaseOptions = OpenAIBaseOptions & OpenAIMetadataOptions
-
-// Full featured model options (reasoning + structured output + tools + streaming)
-type FullFeaturedOptions = BaseOptions &
-  OpenAIReasoningOptions &
-  OpenAIStructuredOutputOptions &
-  OpenAIToolsOptions &
-  OpenAIStreamingOptions
-
-// Standard model options (structured output + tools + streaming, no reasoning)
-type StandardOptions = BaseOptions &
-  OpenAIStructuredOutputOptions &
-  OpenAIToolsOptions &
-  OpenAIStreamingOptions
-
-// Reasoning-only model options (reasoning but no tools/structured output streaming)
-type ReasoningOnlyOptions = BaseOptions & OpenAIReasoningOptions
-
-describe('OpenAI Chat Model Provider Options Type Assertions', () => {
-  describe('Models WITH reasoning AND structured output AND tools support (Full Featured)', () => {
-    it('gpt-5.1 should support all features', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5.1']
-
-      // Should have reasoning options
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-
-      // Should have structured output options
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-
-      // Should have tools options
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-
-      // Should have streaming options
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-
-      // Should have base options
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-
-      // Verify specific properties exist
-      expectTypeOf<Options>().toHaveProperty('reasoning')
-      expectTypeOf<Options>().toHaveProperty('text')
-      expectTypeOf<Options>().toHaveProperty('tool_choice')
-      expectTypeOf<Options>().toHaveProperty('stream_options')
-      expectTypeOf<Options>().toHaveProperty('metadata')
-      expectTypeOf<Options>().toHaveProperty('store')
-    })
-
-    it('gpt-5.1-codex should support all features', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5.1-codex']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-5 should support all features', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-5-pro should support all features', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5-pro']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
+  it('derives public arrays from the keyed registries', () => {
+    expect(OPENAI_CHAT_MODELS).toEqual(supportedIds(TEXT_MODELS))
+    expect(OPENAI_IMAGE_MODELS).toEqual(supportedIds(IMAGE_MODELS))
+    expect(OPENAI_VIDEO_MODELS).toEqual(supportedIds(VIDEO_MODELS))
+    expect(OPENAI_TTS_MODELS).toEqual(supportedIds(TTS_MODELS))
+    expect(OPENAI_TRANSCRIPTION_MODELS).toEqual(supportedIds(TRANSCRIPTION_MODELS))
+    expect(OPENAI_REALTIME_MODELS).toEqual(supportedIds(REALTIME_MODELS))
   })
 
-  describe('Models WITH reasoning AND structured output AND tools (gpt-5-mini/nano)', () => {
-    it('gpt-5-mini should have reasoning, structured output and tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-
-      // Should have reasoning options
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-
-      // Should have structured output options
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-
-      // Should have tools options
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-
-      // Should have streaming options
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-
-      // Should have base options
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-5-nano should have reasoning, structured output and tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5-nano']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
+  it('derives filtered arrays from lifecycle state', () => {
+    expect(OPENAI_CURRENT_CHAT_MODELS).toEqual(idsByStatus(TEXT_MODELS, 'active'))
+    expect(OPENAI_DEPRECATED_CHAT_MODELS).toEqual(
+      idsByStatus(TEXT_MODELS, 'deprecated'),
+    )
+    expect(OPENAI_PREVIEW_CHAT_MODELS).toEqual(idsByStatus(TEXT_MODELS, 'preview'))
+    expect(OPENAI_CURRENT_IMAGE_MODELS).toEqual(idsByStatus(IMAGE_MODELS, 'active'))
+    expect(OPENAI_CURRENT_VIDEO_MODELS).toEqual(idsByStatus(VIDEO_MODELS, 'active'))
+    expect(OPENAI_CURRENT_TTS_MODELS).toEqual(idsByStatus(TTS_MODELS, 'active'))
+    expect(OPENAI_CURRENT_TRANSCRIPTION_MODELS).toEqual(
+      idsByStatus(TRANSCRIPTION_MODELS, 'active'),
+    )
   })
 
-  describe('Models WITH structured output AND tools but WITHOUT reasoning (Standard)', () => {
-    it('gpt-5-codex should have structured output and tools but NOT reasoning', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5-codex']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4.1 should have structured output and tools but NOT reasoning', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4.1']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4.1-mini should have structured output and tools but NOT reasoning', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4.1-mini']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4.1-nano should have structured output and tools but NOT reasoning', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4.1-nano']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4o should have structured output and tools but NOT reasoning', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4o']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4o-mini should have structured output and tools but NOT reasoning', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4o-mini']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
+  it('surfaces snapshot ids from the registries', () => {
+    expect(OPENAI_CHAT_SNAPSHOT_MODELS).toEqual(snapshotIds(TEXT_MODELS))
+    expect(OPENAI_IMAGE_SNAPSHOT_MODELS).toEqual(snapshotIds(IMAGE_MODELS))
+    expect(OPENAI_TTS_SNAPSHOT_MODELS).toEqual(snapshotIds(TTS_MODELS))
+    expect(OPENAI_TRANSCRIPTION_SNAPSHOT_MODELS).toEqual(
+      snapshotIds(TRANSCRIPTION_MODELS),
+    )
+    for (const id of OPENAI_CHAT_SNAPSHOT_MODELS) {
+      expect(OPENAI_CHAT_MODELS).toContain(id)
+      expect(hasOwn(TEXT_MODELS, id)).toBe(false)
+    }
+    for (const id of OPENAI_IMAGE_SNAPSHOT_MODELS) {
+      expect(OPENAI_IMAGE_MODELS).toContain(id)
+      expect(hasOwn(IMAGE_MODELS, id)).toBe(false)
+    }
+    for (const id of OPENAI_TTS_SNAPSHOT_MODELS) {
+      expect(OPENAI_TTS_MODELS).toContain(id)
+      expect(hasOwn(TTS_MODELS, id)).toBe(false)
+    }
+    for (const id of OPENAI_TRANSCRIPTION_SNAPSHOT_MODELS) {
+      expect(OPENAI_TRANSCRIPTION_MODELS).toContain(id)
+      expect(hasOwn(TRANSCRIPTION_MODELS, id)).toBe(false)
+    }
   })
 
-  describe('Models WITH reasoning but LIMITED other features (Reasoning Models)', () => {
-    it('o3 should have reasoning but NOT structured output or tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['o3']
-
-      // Should have reasoning options
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-
-      // Should NOT have structured output options
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-
-      // Should NOT have tools options
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-
-      // Should NOT have streaming options
-      expectTypeOf<Options>().not.toExtend<OpenAIStreamingOptions>()
-
-      // Should have base options
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('o3-pro should have reasoning but NOT structured output or tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['o3-pro']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('o3-mini should have reasoning but NOT structured output or tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['o3-mini']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('o4-mini should have reasoning but NOT structured output or tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['o4-mini']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('o3-deep-research should have reasoning but NOT structured output or tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['o3-deep-research']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('o4-mini-deep-research should have reasoning but NOT structured output or tools', () => {
-      type Options =
-        OpenAIChatModelProviderOptionsByName['o4-mini-deep-research']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('o1 should have reasoning but NOT structured output or tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['o1']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('o1-pro should have reasoning but NOT structured output or tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['o1-pro']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
+  it('exports deduplicated model lists', () => {
+    expectUnique(OPENAI_CHAT_MODELS)
+    expectUnique(OPENAI_CHAT_SNAPSHOT_MODELS)
+    expectUnique(OPENAI_IMAGE_MODELS)
+    expectUnique(OPENAI_IMAGE_SNAPSHOT_MODELS)
+    expectUnique(OPENAI_VIDEO_MODELS)
+    expectUnique(OPENAI_TTS_MODELS)
+    expectUnique(OPENAI_TTS_SNAPSHOT_MODELS)
+    expectUnique(OPENAI_TRANSCRIPTION_MODELS)
+    expectUnique(OPENAI_TRANSCRIPTION_SNAPSHOT_MODELS)
+    expectUnique(OPENAI_REALTIME_MODELS)
+    expectUnique(OPENAI_REALTIME_SNAPSHOT_MODELS)
   })
 
-  describe('Models WITH tools but WITHOUT structured output or reasoning (Legacy Models)', () => {
-    it('gpt-4 should have tools and streaming but NOT reasoning or structured output', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4-turbo should have tools and streaming but NOT reasoning or structured output', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4-turbo']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-3.5-turbo should have tools and streaming but NOT reasoning or structured output', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
+  it('keeps dead aliases out of the text union', () => {
+    expect(OPENAI_CHAT_MODELS).not.toContain('chatgpt-4o-latest')
+    expect(OPENAI_CHAT_MODELS).not.toContain('codex-mini-latest')
   })
 
-  describe('Models WITH minimal features (Basic Models)', () => {
-    it('chatgpt-4.0 should only have streaming and base options', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['chatgpt-4.0']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-audio should only have streaming and base options', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-audio']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-audio-mini should only have streaming and base options', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-audio-mini']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4o-audio should only have streaming and base options', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4o-audio']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4o-mini-audio should only have streaming and base options', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-4o-mini-audio']
-
-      expectTypeOf<Options>().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
+  it('keeps codex outputs text-only in the registry', () => {
+    expect(TEXT_MODELS['gpt-5.3-codex'].output).toEqual(['text'])
+    expect(TEXT_MODELS['gpt-5.1-codex'].output).toEqual(['text'])
+    expect(TEXT_MODELS['gpt-5-codex'].output).toEqual(['text'])
   })
 
-  describe('Chat-only models WITH reasoning AND structured output but WITHOUT tools', () => {
-    it('gpt-5.1-chat should have reasoning and structured output but NOT tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5.1-chat']
+  it('keeps audio chat models tool-capable in the feature map', () => {
+    type Audio15Options = OpenAIChatModelProviderOptionsByName['gpt-audio-1.5']
+    type Audio4oOptions =
+      OpenAIChatModelProviderOptionsByName['gpt-4o-audio-preview']
+    type Audio15HasStreaming = Extract<keyof Audio15Options, 'stream_options'>
+    type Audio4oHasStreaming = Extract<keyof Audio4oOptions, 'stream_options'>
 
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-5-chat should have reasoning and structured output but NOT tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5-chat']
-
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
+    expectTypeOf<Audio15Options>().toExtend<OpenAIToolsOptions>()
+    expectTypeOf<Audio4oOptions>().toExtend<OpenAIToolsOptions>()
+    expectTypeOf<Audio15HasStreaming>().toEqualTypeOf<never>()
+    expectTypeOf<Audio4oHasStreaming>().toEqualTypeOf<'stream_options'>()
   })
 
-  describe('Codex/Preview models', () => {
-    it('gpt-5.1-codex-mini should have structured output and tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['gpt-5.1-codex-mini']
+  it('keeps gpt-5.4 and computer-use-preview on the intended feature sets', () => {
+    type GPT54Options = OpenAIChatModelProviderOptionsByName['gpt-5.4']
+    type GPT54HasReasoning = Extract<keyof GPT54Options, 'reasoning'>
+    type GPT53ChatOptions =
+      OpenAIChatModelProviderOptionsByName['gpt-5.3-chat-latest']
+    type GPT53ChatHasReasoning = Extract<keyof GPT53ChatOptions, 'reasoning'>
+    type GPT5ProOptions = OpenAIChatModelProviderOptionsByName['gpt-5-pro']
+    type GPT41Options = OpenAIChatModelProviderOptionsByName['gpt-4.1']
+    type GPT41HasReasoning = Extract<keyof GPT41Options, 'reasoning'>
+    type GPT4TurboOptions = OpenAIChatModelProviderOptionsByName['gpt-4-turbo']
+    type GPT35TurboOptions =
+      OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
+    type SearchPreviewOptions =
+      OpenAIChatModelProviderOptionsByName['gpt-4o-search-preview']
+    type O1MiniOptions = OpenAIChatModelProviderOptionsByName['o1-mini']
+    type O1MiniHasReasoning = Extract<keyof O1MiniOptions, 'reasoning'>
+    type O3ProOptions = OpenAIChatModelProviderOptionsByName['o3-pro']
+    type O3ProHasReasoning = Extract<keyof O3ProOptions, 'reasoning'>
+    type ComputerUseOptions =
+      OpenAIChatModelProviderOptionsByName['computer-use-preview']
+    type ComputerUseHasReasoning = Extract<keyof ComputerUseOptions, 'reasoning'>
 
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('codex-mini-latest should have structured output and tools', () => {
-      type Options = OpenAIChatModelProviderOptionsByName['codex-mini-latest']
-
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4o-search-preview should have structured output and tools', () => {
-      type Options =
-        OpenAIChatModelProviderOptionsByName['gpt-4o-search-preview']
-
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('gpt-4o-mini-search-preview should have structured output and tools', () => {
-      type Options =
-        OpenAIChatModelProviderOptionsByName['gpt-4o-mini-search-preview']
-
-      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
-
-    it('computer-use-preview should have tools and reasoning with concise but NOT structured output', () => {
-      type Options =
-        OpenAIChatModelProviderOptionsByName['computer-use-preview']
-
-      // Should have reasoning options with 'concise' summary support
-      expectTypeOf<Options>().toExtend<OpenAIReasoningOptionsWithConcise>()
-      expectTypeOf<Options>().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
-      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
-      expectTypeOf<Options>().toExtend<BaseOptions>()
-    })
+    expectTypeOf<GPT54HasReasoning>().toEqualTypeOf<'reasoning'>()
+    expectTypeOf<GPT54Options>().toExtend<OpenAIStructuredOutputOptions>()
+    expectTypeOf<GPT54Options>().toExtend<OpenAIToolsOptions>()
+    expectTypeOf<GPT53ChatHasReasoning>().toEqualTypeOf<never>()
+    expectTypeOf<GPT53ChatOptions>().toExtend<OpenAIStructuredOutputOptions>()
+    expectTypeOf<GPT53ChatOptions>().toExtend<OpenAIToolsOptions>()
+    expectTypeOf<GPT5ProOptions>().toExtend<OpenAIStructuredOutputOptions>()
+    expectTypeOf<GPT41HasReasoning>().toEqualTypeOf<never>()
+    expectTypeOf<GPT41Options>().toExtend<OpenAIStructuredOutputOptions>()
+    expectTypeOf<GPT41Options>().toExtend<OpenAIToolsOptions>()
+    expectTypeOf<GPT4TurboOptions>().not.toExtend<OpenAIStructuredOutputOptions>()
+    expectTypeOf<GPT4TurboOptions>().toExtend<OpenAIToolsOptions>()
+    expectTypeOf<GPT35TurboOptions>().not.toExtend<OpenAIStreamingOptions>()
+    expectTypeOf<GPT35TurboOptions>().not.toExtend<OpenAIToolsOptions>()
+    expectTypeOf<SearchPreviewOptions>().toExtend<
+      OpenAIStructuredOutputOptions
+    >()
+    expectTypeOf<SearchPreviewOptions>().not.toExtend<OpenAIToolsOptions>()
+    expectTypeOf<O1MiniHasReasoning>().toEqualTypeOf<'reasoning'>()
+    expectTypeOf<O1MiniOptions>().not.toExtend<OpenAIStructuredOutputOptions>()
+    expectTypeOf<O1MiniOptions>().not.toExtend<OpenAIToolsOptions>()
+    expectTypeOf<O3ProHasReasoning>().toEqualTypeOf<'reasoning'>()
+    expectTypeOf<O3ProOptions>().toExtend<OpenAIStructuredOutputOptions>()
+    expectTypeOf<O3ProOptions>().toExtend<OpenAIToolsOptions>()
+    expectTypeOf<O3ProOptions>().not.toExtend<OpenAIStreamingOptions>()
+    expectTypeOf<ComputerUseHasReasoning>().toEqualTypeOf<'reasoning'>()
+    expectTypeOf<ComputerUseOptions>().toExtend<OpenAIReasoningOptionsWithConcise>()
+    expectTypeOf<ComputerUseOptions>().not.toExtend<OpenAIStreamingOptions>()
   })
 
-  describe('Provider options type completeness', () => {
-    it('OpenAIChatModelProviderOptionsByName should have entries for all chat models', () => {
-      type Keys = keyof OpenAIChatModelProviderOptionsByName
+  it('keeps reasoning effort and summary unions exact per model', () => {
+    type GPT51Effort = NonNullable<
+      NonNullable<OpenAIChatModelProviderOptionsByName['gpt-5.1']['reasoning']>['effort']
+    >
+    type GPT5Effort = NonNullable<
+      NonNullable<OpenAIChatModelProviderOptionsByName['gpt-5']['reasoning']>['effort']
+    >
+    type GPT5ProEffort = NonNullable<
+      NonNullable<OpenAIChatModelProviderOptionsByName['gpt-5-pro']['reasoning']>['effort']
+    >
+    type GPT54ProEffort = NonNullable<
+      NonNullable<
+        OpenAIChatModelProviderOptionsByName['gpt-5.4-pro']['reasoning']
+      >['effort']
+    >
+    type GPT52ProEffort = NonNullable<
+      NonNullable<
+        OpenAIChatModelProviderOptionsByName['gpt-5.2-pro']['reasoning']
+      >['effort']
+    >
+    type ComputerUseSummary = NonNullable<
+      NonNullable<
+        OpenAIChatModelProviderOptionsByName['computer-use-preview']['reasoning']
+      >['summary']
+    >
+    type GPT54Summary = NonNullable<
+      NonNullable<OpenAIChatModelProviderOptionsByName['gpt-5.4']['reasoning']>['summary']
+    >
 
-      // Full featured models
-      expectTypeOf<'gpt-5.1'>().toExtend<Keys>()
-      expectTypeOf<'gpt-5.1-codex'>().toExtend<Keys>()
-      expectTypeOf<'gpt-5'>().toExtend<Keys>()
-      expectTypeOf<'gpt-5-pro'>().toExtend<Keys>()
-
-      // Standard models (structured output + tools, no reasoning)
-      expectTypeOf<'gpt-5-mini'>().toExtend<Keys>()
-      expectTypeOf<'gpt-5-nano'>().toExtend<Keys>()
-      expectTypeOf<'gpt-5-codex'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4.1'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4.1-mini'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4.1-nano'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4o'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4o-mini'>().toExtend<Keys>()
-
-      // Reasoning-only models
-      expectTypeOf<'o3'>().toExtend<Keys>()
-      expectTypeOf<'o3-pro'>().toExtend<Keys>()
-      expectTypeOf<'o3-mini'>().toExtend<Keys>()
-      expectTypeOf<'o4-mini'>().toExtend<Keys>()
-      expectTypeOf<'o3-deep-research'>().toExtend<Keys>()
-      expectTypeOf<'o4-mini-deep-research'>().toExtend<Keys>()
-      expectTypeOf<'o1'>().toExtend<Keys>()
-      expectTypeOf<'o1-pro'>().toExtend<Keys>()
-
-      // Legacy models
-      expectTypeOf<'gpt-4'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4-turbo'>().toExtend<Keys>()
-      expectTypeOf<'gpt-3.5-turbo'>().toExtend<Keys>()
-
-      // Basic models
-      expectTypeOf<'chatgpt-4.0'>().toExtend<Keys>()
-      expectTypeOf<'gpt-audio'>().toExtend<Keys>()
-      expectTypeOf<'gpt-audio-mini'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4o-audio'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4o-mini-audio'>().toExtend<Keys>()
-
-      // Chat-only models
-      expectTypeOf<'gpt-5.1-chat'>().toExtend<Keys>()
-      expectTypeOf<'gpt-5-chat'>().toExtend<Keys>()
-
-      // Codex/Preview models
-      expectTypeOf<'gpt-5.1-codex-mini'>().toExtend<Keys>()
-      expectTypeOf<'codex-mini-latest'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4o-search-preview'>().toExtend<Keys>()
-      expectTypeOf<'gpt-4o-mini-search-preview'>().toExtend<Keys>()
-      expectTypeOf<'computer-use-preview'>().toExtend<Keys>()
-    })
+    expectTypeOf<GPT51Effort>().toEqualTypeOf<'none' | 'low' | 'medium' | 'high'>()
+    expectTypeOf<GPT5Effort>().toEqualTypeOf<
+      'minimal' | 'low' | 'medium' | 'high'
+    >()
+    expectTypeOf<GPT5ProEffort>().toEqualTypeOf<'high'>()
+    expectTypeOf<GPT54ProEffort>().toEqualTypeOf<'medium' | 'high' | 'xhigh'>()
+    expectTypeOf<GPT52ProEffort>().toEqualTypeOf<'medium' | 'high' | 'xhigh'>()
+    expectTypeOf<ComputerUseSummary>().toEqualTypeOf<
+      'auto' | 'detailed' | 'concise'
+    >()
+    expectTypeOf<GPT54Summary>().toEqualTypeOf<'auto' | 'detailed'>()
   })
 
-  describe('Detailed property type assertions', () => {
-    it('all models should have metadata option', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1']
-      >().toHaveProperty('metadata')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5']
-      >().toHaveProperty('metadata')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().toHaveProperty('metadata')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4.1']
-      >().toHaveProperty('metadata')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4o']
-      >().toHaveProperty('metadata')
-      expectTypeOf<OpenAIChatModelProviderOptionsByName['o3']>().toHaveProperty(
-        'metadata',
-      )
-      expectTypeOf<OpenAIChatModelProviderOptionsByName['o1']>().toHaveProperty(
-        'metadata',
-      )
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4']
-      >().toHaveProperty('metadata')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
-      >().toHaveProperty('metadata')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['chatgpt-4.0']
-      >().toHaveProperty('metadata')
-    })
+  it('derives modalities and size maps from the registries', () => {
+    type TextIds = RegistryModelId<typeof TEXT_MODELS>
+    type ImageIds = RegistryModelId<typeof IMAGE_MODELS>
+    type VideoIds = RegistryModelId<typeof VIDEO_MODELS>
+    type TTSIds = RegistryModelId<typeof TTS_MODELS>
+    type TranscriptionIds = RegistryModelId<typeof TRANSCRIPTION_MODELS>
 
-    it('all models should have store option', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1']
-      >().toHaveProperty('store')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5']
-      >().toHaveProperty('store')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().toHaveProperty('store')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4.1']
-      >().toHaveProperty('store')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4o']
-      >().toHaveProperty('store')
-      expectTypeOf<OpenAIChatModelProviderOptionsByName['o3']>().toHaveProperty(
-        'store',
-      )
-      expectTypeOf<OpenAIChatModelProviderOptionsByName['o1']>().toHaveProperty(
-        'store',
-      )
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4']
-      >().toHaveProperty('store')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
-      >().toHaveProperty('store')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['chatgpt-4.0']
-      >().toHaveProperty('store')
-    })
-
-    it('all models should have service_tier option', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1']
-      >().toHaveProperty('service_tier')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5']
-      >().toHaveProperty('service_tier')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().toHaveProperty('service_tier')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4.1']
-      >().toHaveProperty('service_tier')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4o']
-      >().toHaveProperty('service_tier')
-      expectTypeOf<OpenAIChatModelProviderOptionsByName['o3']>().toHaveProperty(
-        'service_tier',
-      )
-      expectTypeOf<OpenAIChatModelProviderOptionsByName['o1']>().toHaveProperty(
-        'service_tier',
-      )
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4']
-      >().toHaveProperty('service_tier')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
-      >().toHaveProperty('service_tier')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['chatgpt-4.0']
-      >().toHaveProperty('service_tier')
-    })
-
-    it('models with tools support should have tool_choice and parallel_tool_calls', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1']
-      >().toHaveProperty('tool_choice')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1']
-      >().toHaveProperty('parallel_tool_calls')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5']
-      >().toHaveProperty('tool_choice')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().toHaveProperty('tool_choice')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4.1']
-      >().toHaveProperty('tool_choice')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4o']
-      >().toHaveProperty('tool_choice')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4']
-      >().toHaveProperty('tool_choice')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
-      >().toHaveProperty('tool_choice')
-    })
-
-    it('models with structured output should have text option', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1']
-      >().toHaveProperty('text')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5']
-      >().toHaveProperty('text')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().toHaveProperty('text')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4.1']
-      >().toHaveProperty('text')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4o']
-      >().toHaveProperty('text')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1-chat']
-      >().toHaveProperty('text')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-chat']
-      >().toHaveProperty('text')
-    })
-
-    it('models with streaming should have stream_options', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1']
-      >().toHaveProperty('stream_options')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5']
-      >().toHaveProperty('stream_options')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().toHaveProperty('stream_options')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4.1']
-      >().toHaveProperty('stream_options')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4o']
-      >().toHaveProperty('stream_options')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4']
-      >().toHaveProperty('stream_options')
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['chatgpt-4.0']
-      >().toHaveProperty('stream_options')
-    })
+    expectTypeOf<OpenAIChatModel>().toEqualTypeOf<TextIds>()
+    expectTypeOf<keyof OpenAIChatModelProviderOptionsByName>().toEqualTypeOf<TextIds>()
+    expectTypeOf<keyof OpenAIModelInputModalitiesByName>().toEqualTypeOf<TextIds>()
+    expectTypeOf<OpenAITTSModel>().toEqualTypeOf<TTSIds>()
+    expectTypeOf<OpenAITranscriptionModel>().toEqualTypeOf<TranscriptionIds>()
+    expectTypeOf<OpenAIVideoModel>().toEqualTypeOf<VideoIds>()
+    expectTypeOf<keyof OpenAIImageModelProviderOptionsByName>().toEqualTypeOf<
+      ImageIds
+    >()
+    expectTypeOf<keyof OpenAIImageModelSizeByName>().toEqualTypeOf<ImageIds>()
+    expectTypeOf<keyof OpenAIVideoModelProviderOptionsByName>().toEqualTypeOf<
+      VideoIds
+    >()
+    expectTypeOf<keyof OpenAIVideoModelSizeByName>().toEqualTypeOf<VideoIds>()
   })
 
-  describe('Type discrimination between model categories', () => {
-    it('full featured models should extend all options', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1']
-      >().toExtend<FullFeaturedOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1-codex']
-      >().toExtend<FullFeaturedOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5']
-      >().toExtend<FullFeaturedOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-pro']
-      >().toExtend<FullFeaturedOptions>()
-    })
+  it('keeps modality spot checks on the registry-backed maps', () => {
+    type GPT54Modalities = OpenAIModelInputModalitiesByName['gpt-5.4']
+    type Audio15Modalities = OpenAIModelInputModalitiesByName['gpt-audio-1.5']
+    type ImageSizes = OpenAIImageModelSizeByName['gpt-image-1.5']
+    type Sora2Sizes = OpenAIVideoModelSizeByName['sora-2']
+    type O1PreviewModalities = OpenAIModelInputModalitiesByName['o1-preview']
+    type O1MiniModalities = OpenAIModelInputModalitiesByName['o1-mini']
+    type O3MiniModalities = OpenAIModelInputModalitiesByName['o3-mini']
+    type GPTImageOptions = OpenAIImageModelProviderOptionsByName['gpt-image-1.5']
+    type DallE3Options = OpenAIImageModelProviderOptionsByName['dall-e-3']
+    type Sora2Options = OpenAIVideoModelProviderOptionsByName['sora-2']
 
-    it('gpt-5-mini and gpt-5-nano should extend FullFeaturedOptions (reasoning + structured output + tools)', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().toExtend<FullFeaturedOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-nano']
-      >().toExtend<FullFeaturedOptions>()
-    })
-
-    it('standard models should NOT extend reasoning options but should extend structured output and tools', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4.1']
-      >().toExtend<StandardOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4.1-mini']
-      >().toExtend<StandardOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4o']
-      >().toExtend<StandardOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4o-mini']
-      >().toExtend<StandardOptions>()
-
-      // Verify these do NOT extend reasoning options (discrimination already tested above)
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4.1']
-      >().not.toExtend<OpenAIReasoningOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4o']
-      >().not.toExtend<OpenAIReasoningOptions>()
-    })
-
-    it('reasoning-only models should extend reasoning options but NOT structured output or tools', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o3']
-      >().toExtend<ReasoningOnlyOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o3-pro']
-      >().toExtend<ReasoningOnlyOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o3-mini']
-      >().toExtend<ReasoningOnlyOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o4-mini']
-      >().toExtend<ReasoningOnlyOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o1']
-      >().toExtend<ReasoningOnlyOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o1-pro']
-      >().toExtend<ReasoningOnlyOptions>()
-
-      // Verify these do NOT extend structured output or tools options
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o3']
-      >().not.toExtend<OpenAIStructuredOutputOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o3']
-      >().not.toExtend<OpenAIToolsOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o1']
-      >().not.toExtend<OpenAIStructuredOutputOptions>()
-    })
-
-    it('all models should extend base options', () => {
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-mini']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4.1']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4o']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o3']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['o1']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-4']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-3.5-turbo']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['chatgpt-4.0']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5.1-chat']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['gpt-5-chat']
-      >().toExtend<BaseOptions>()
-      expectTypeOf<
-        OpenAIChatModelProviderOptionsByName['computer-use-preview']
-      >().toExtend<BaseOptions>()
-    })
-  })
-})
-
-// Helper types for message with specific content
-type MessageWithContent<T> = { role: 'user'; content: Array<T> }
-
-/**
- * OpenAI Model Input Modality Type Assertions
- *
- * These tests verify that ConstrainedModelMessage correctly restricts
- * content parts based on each model's supported input modalities.
- */
-describe('OpenAI Model Input Modality Type Assertions', () => {
-  // ===== Models with text + image input =====
-
-  describe('gpt-5.1 (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-5.1']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
+    expectTypeOf<GPT54Modalities>().toEqualTypeOf<readonly ['text', 'image']>()
+    expectTypeOf<Audio15Modalities>().toEqualTypeOf<
+      readonly ['text', 'audio']
+    >()
+    expectTypeOf<O1PreviewModalities>().toEqualTypeOf<readonly ['text']>()
+    expectTypeOf<O1MiniModalities>().toEqualTypeOf<readonly ['text']>()
+    expectTypeOf<O3MiniModalities>().toEqualTypeOf<readonly ['text']>()
+    expectTypeOf<ImageSizes>().toEqualTypeOf<
+      '1024x1024' | '1536x1024' | '1024x1536' | 'auto'
+    >()
+    expectTypeOf<Sora2Sizes>().toEqualTypeOf<OpenAIVideoSize>()
+    expectTypeOf<GPTImageOptions>().toEqualTypeOf<GptImage1ProviderOptions>()
+    expectTypeOf<DallE3Options>().toEqualTypeOf<DallE3ProviderOptions>()
+    expectTypeOf<Sora2Options>().toEqualTypeOf<OpenAIVideoProviderOptions>()
   })
 
-  describe('gpt-5.1-codex (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-5.1-codex']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
+  it('widens the realtime union with supported snapshot-style ids', () => {
+    type RealtimeIds = RegistryModelId<typeof REALTIME_MODELS>
 
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
+    expectTypeOf<OpenAIRealtimeModel>().toEqualTypeOf<RealtimeIds>()
+    expectTypeOf<'gpt-realtime-1.5'>().toExtend<OpenAIRealtimeModel>()
+    expect(OPENAI_REALTIME_MODELS).toEqual(supportedIds(REALTIME_MODELS))
+    expect(OPENAI_REALTIME_SNAPSHOT_MODELS).toEqual(snapshotIds(REALTIME_MODELS))
+    for (const id of OPENAI_REALTIME_SNAPSHOT_MODELS) {
+      expect(OPENAI_REALTIME_MODELS).toContain(id)
+      expect(REALTIME_MODELS).not.toHaveProperty(id)
+    }
+    expect(OPENAI_REALTIME_MODELS).not.toContain('gpt-4o-realtime')
   })
 
-  describe('gpt-5 (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-5']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('gpt-5-mini (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-5-mini']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('gpt-5-nano (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-5-nano']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('gpt-5-pro (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-5-pro']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('gpt-5-codex (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-5-codex']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('gpt-4.1 (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('gpt-4.1-mini (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1-mini']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('gpt-4.1-nano (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-4.1-nano']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('codex-mini-latest (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['codex-mini-latest']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('computer-use-preview (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['computer-use-preview']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('o3 (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['o3']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('o3-pro (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['o3-pro']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('o3-deep-research (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['o3-deep-research']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('o4-mini-deep-research (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['o4-mini-deep-research']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('o4-mini (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['o4-mini']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('o1 (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['o1']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('o1-pro (text + image)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['o1-pro']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and ImagePart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  // ===== Models with text + audio input =====
-
-  describe('gpt-audio (text + audio)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-audio']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and AudioPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow ImagePart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<ImagePart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  describe('gpt-audio-mini (text + audio)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['gpt-audio-mini']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart and AudioPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow ImagePart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<ImagePart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  // ===== Models with text only input =====
-
-  describe('o3-mini (text only)', () => {
-    type Modalities = OpenAIModelInputModalitiesByName['o3-mini']
-    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
-
-    it('should allow TextPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-    })
-
-    it('should NOT allow ImagePart, AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<ImagePart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
-    })
-  })
-
-  // ===== String and null content tests =====
-
-  describe('String and null content should always be allowed', () => {
-    it('text+image models should allow string content', () => {
-      type GPT51Message = ConstrainedModelMessage<
-        OpenAIModelInputModalitiesByName['gpt-5.1']
-      >
-      type O3Message = ConstrainedModelMessage<
-        OpenAIModelInputModalitiesByName['o3']
-      >
-
-      expectTypeOf<{ role: 'user'; content: string }>().toExtend<GPT51Message>()
-      expectTypeOf<{ role: 'user'; content: string }>().toExtend<O3Message>()
-    })
-
-    it('text-only models should allow string content', () => {
-      type O3MiniMessage = ConstrainedModelMessage<
-        OpenAIModelInputModalitiesByName['o3-mini']
-      >
-
-      expectTypeOf<{
-        role: 'user'
-        content: string
-      }>().toExtend<O3MiniMessage>()
-    })
-
-    it('text+audio models should allow string content', () => {
-      type GPTAudioMessage = ConstrainedModelMessage<
-        OpenAIModelInputModalitiesByName['gpt-audio']
-      >
-
-      expectTypeOf<{
-        role: 'user'
-        content: string
-      }>().toExtend<GPTAudioMessage>()
-    })
-
-    it('all models should allow null content', () => {
-      type GPT51Message = ConstrainedModelMessage<
-        OpenAIModelInputModalitiesByName['gpt-5.1']
-      >
-      type O3MiniMessage = ConstrainedModelMessage<
-        OpenAIModelInputModalitiesByName['o3-mini']
-      >
-      type GPTAudioMessage = ConstrainedModelMessage<
-        OpenAIModelInputModalitiesByName['gpt-audio']
-      >
-
-      expectTypeOf<{
-        role: 'assistant'
-        content: null
-      }>().toExtend<GPT51Message>()
-      expectTypeOf<{
-        role: 'assistant'
-        content: null
-      }>().toExtend<O3MiniMessage>()
-      expectTypeOf<{
-        role: 'assistant'
-        content: null
-      }>().toExtend<GPTAudioMessage>()
-    })
-  })
-
-  // ===== Mixed content part validation =====
-
-  describe('Mixed content part validation', () => {
-    it('should NOT allow mixing valid and invalid content parts', () => {
-      type GPT51Message = ConstrainedModelMessage<
-        OpenAIModelInputModalitiesByName['gpt-5.1']
-      >
-
-      // TextPart + VideoPart should NOT be allowed (GPT-5.1 doesn't support video)
-      expectTypeOf<
-        MessageWithContent<TextPart | VideoPart>
-      >().not.toExtend<GPT51Message>()
-
-      // ImagePart + AudioPart should NOT be allowed (GPT-5.1 doesn't support audio)
-      expectTypeOf<
-        MessageWithContent<ImagePart | AudioPart>
-      >().not.toExtend<GPT51Message>()
-    })
-
-    it('should allow mixing valid content parts', () => {
-      type GPT51Message = ConstrainedModelMessage<
-        OpenAIModelInputModalitiesByName['gpt-5.1']
-      >
-
-      // TextPart + ImagePart should be allowed
-      expectTypeOf<
-        MessageWithContent<TextPart | ImagePart>
-      >().toExtend<GPT51Message>()
-    })
+  it('keeps a few anchor ids on the expected public surfaces', () => {
+    expect(OPENAI_CHAT_MODELS).toContain('gpt-5.4')
+    expect(OPENAI_CHAT_MODELS).toContain('gpt-5.3-codex')
+    expect(OPENAI_CHAT_MODELS).toContain('gpt-4o-audio-preview')
+    expect(OPENAI_IMAGE_MODELS).toContain('gpt-image-1.5')
+    expect(OPENAI_TTS_MODELS).toContain('gpt-4o-mini-tts')
+    expect(OPENAI_REALTIME_MODELS).toContain('gpt-realtime-1.5')
+    expect(OPENAI_CURRENT_CHAT_MODELS).toContain('gpt-5.4')
+    expect(OPENAI_DEPRECATED_CHAT_MODELS).toContain('gpt-4.5-preview')
+    expect(OPENAI_PREVIEW_CHAT_MODELS).toContain('gpt-4o-search-preview')
+    expect(OPENAI_CURRENT_IMAGE_MODELS).toContain('gpt-image-1.5')
+    expect(OPENAI_CURRENT_TTS_MODELS).toContain('gpt-4o-mini-tts')
+    expect(OPENAI_CURRENT_TRANSCRIPTION_MODELS).toContain(
+      'gpt-4o-transcribe',
+    )
+    expect(OPENAI_CURRENT_VIDEO_MODELS).toContain('sora-2')
   })
 })

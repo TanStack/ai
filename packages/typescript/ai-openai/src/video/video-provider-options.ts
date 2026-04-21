@@ -1,3 +1,5 @@
+import { VIDEO_MODELS } from '../models/video'
+
 /**
  * OpenAI Video Generation Provider Options
  *
@@ -47,26 +49,6 @@ export interface OpenAIVideoProviderOptions {
 }
 
 /**
- * Model-specific provider options mapping.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
-export type OpenAIVideoModelProviderOptionsByName = {
-  'sora-2': OpenAIVideoProviderOptions
-  'sora-2-pro': OpenAIVideoProviderOptions
-}
-
-/**
- * Model-specific provider options mapping.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
-export type OpenAIVideoModelSizeByName = {
-  'sora-2': OpenAIVideoSize
-  'sora-2-pro': OpenAIVideoSize
-}
-
-/**
  * Validate video size for a given model.
  *
  * @experimental Video generation is an experimental feature and may change.
@@ -75,12 +57,11 @@ export function validateVideoSize(
   model: string,
   size?: string,
 ): asserts size is OpenAIVideoSize | undefined {
-  const validSizes: Array<OpenAIVideoSize> = [
-    '1280x720',
-    '720x1280',
-    '1792x1024',
-    '1024x1792',
-  ]
+  if (!Object.hasOwn(VIDEO_MODELS, model)) {
+    throw new Error(`Unknown video model: ${model}`)
+  }
+
+  const validSizes = VIDEO_MODELS[model as keyof typeof VIDEO_MODELS].sizes
 
   if (size && !validSizes.includes(size as OpenAIVideoSize)) {
     throw new Error(
@@ -99,14 +80,17 @@ export function validateVideoSeconds(
   model: string,
   seconds?: number | string,
 ): asserts seconds is OpenAIVideoSeconds | number | undefined {
-  const validSeconds: Array<string> = ['4', '8', '12']
-  const validNumbers: Array<number> = [4, 8, 12]
+  if (!Object.hasOwn(VIDEO_MODELS, model)) {
+    throw new Error(`Unknown video model: ${model}`)
+  }
+
+  const validSeconds = VIDEO_MODELS[model as keyof typeof VIDEO_MODELS].durations
 
   if (seconds !== undefined) {
     const isValid =
       typeof seconds === 'string'
-        ? validSeconds.includes(seconds)
-        : validNumbers.includes(seconds)
+        ? validSeconds.includes(seconds as OpenAIVideoSeconds)
+        : validSeconds.map(Number).includes(seconds)
 
     if (!isValid) {
       throw new Error(

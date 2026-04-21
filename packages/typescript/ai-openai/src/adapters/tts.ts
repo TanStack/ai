@@ -28,7 +28,7 @@ export interface OpenAITTSConfig extends OpenAIClientConfig {}
  * OpenAI Text-to-Speech Adapter
  *
  * Tree-shakeable adapter for OpenAI TTS functionality.
- * Supports tts-1, tts-1-hd, and gpt-4o-audio-preview models.
+ * Supports gpt-4o-mini-tts, tts-1, and tts-1-hd models.
  *
  * Features:
  * - Multiple voice options: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse

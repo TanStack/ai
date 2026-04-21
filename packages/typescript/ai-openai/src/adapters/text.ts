@@ -29,7 +29,6 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type {
-  ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from '../text/text-provider-options'
 import type {
@@ -52,7 +51,9 @@ export interface OpenAITextConfig extends OpenAIClientConfig {}
 /**
  * Alias for TextProviderOptions
  */
-export type OpenAITextProviderOptions = ExternalTextProviderOptions
+export type OpenAITextProviderOptions<
+  TModel extends OpenAIChatModel = OpenAIChatModel,
+> = OpenAIChatModelProviderOptionsByName[TModel]
 
 // ===========================
 // Type Resolution Helpers
@@ -60,12 +61,9 @@ export type OpenAITextProviderOptions = ExternalTextProviderOptions
 
 /**
  * Resolve provider options for a specific model.
- * If the model has explicit options in the map, use those; otherwise use base options.
  */
-type ResolveProviderOptions<TModel extends string> =
-  TModel extends keyof OpenAIChatModelProviderOptionsByName
-    ? OpenAIChatModelProviderOptionsByName[TModel]
-    : OpenAITextProviderOptions
+type ResolveProviderOptions<TModel extends OpenAIChatModel> =
+  OpenAIChatModelProviderOptionsByName[TModel]
 
 /**
  * Resolve input modalities for a specific model.
