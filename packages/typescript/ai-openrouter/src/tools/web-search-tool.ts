@@ -39,7 +39,7 @@ export function convertWebSearchToolToAdapterFormat(
     | {
         __kind?: unknown
         type?: unknown
-        web_search?: WebSearchToolConfig['web_search']
+        web_search?: unknown
       }
     | undefined
   if (
@@ -54,7 +54,10 @@ export function convertWebSearchToolToAdapterFormat(
       `convertWebSearchToolToAdapterFormat: tool "${tool.name}" is not a valid webSearchTool() output (missing branded metadata).`,
     )
   }
-  return { type: 'web_search', web_search: metadata.web_search }
+  return {
+    type: 'web_search',
+    web_search: metadata.web_search as WebSearchToolConfig['web_search'],
+  }
 }
 
 /**
