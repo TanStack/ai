@@ -21,9 +21,9 @@ import {
 import type { TextActivityOptions } from '@tanstack/ai/adapters'
 
 // Helper — keeps each `it` body to one call (test-hygiene Rule 1).
-function typedTools<A extends ReturnType<typeof geminiText>>(
-  adapter: A,
-  tools: TextActivityOptions<A, undefined, true>['tools'],
+function typedTools<TAdapter extends ReturnType<typeof geminiText>>(
+  adapter: TAdapter,
+  tools: TextActivityOptions<TAdapter, undefined, true>['tools'],
 ) {
   return { adapter, tools }
 }

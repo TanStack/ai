@@ -13,9 +13,9 @@ import type { TextActivityOptions } from '@tanstack/ai/adapters'
 import type { ProviderTool } from '@tanstack/ai'
 
 // Helper — keeps each `it` body to one call (test-hygiene Rule 1).
-function typedTools<A extends ReturnType<typeof openRouterText>>(
-  adapter: A,
-  tools: TextActivityOptions<A, undefined, true>['tools'],
+function typedTools<TAdapter extends ReturnType<typeof openRouterText>>(
+  adapter: TAdapter,
+  tools: TextActivityOptions<TAdapter, undefined, true>['tools'],
 ) {
   return { adapter, tools }
 }
