@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-code-mode",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Code Mode for TanStack AI - LLM-driven code execution in secure sandboxes",
   "author": "",
   "license": "MIT",

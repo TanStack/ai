@@ -1,5 +1,18 @@
 # @tanstack/ai-openrouter
 
+## 0.8.0
+
+### Minor Changes
+
+- **Breaking export change.** `createWebSearchTool` has been removed from the package root. Import `webSearchTool` from `@tanstack/ai-openrouter/tools` instead. See Migration Guide §6 for the before/after snippet. ([#466](https://github.com/TanStack/ai/pull/466))
+
+  Alongside: the new `/tools` subpath exposes `webSearchTool` (branded `OpenRouterWebSearchTool`) and the existing `convertToolsToProviderFormat`. A new `supports.tools` channel on each chat model gates provider tools at the type level.
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+
 ## 0.7.9
 
 ### Patch Changes

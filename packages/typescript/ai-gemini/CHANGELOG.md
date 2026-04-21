@@ -1,5 +1,18 @@
 # @tanstack/ai-gemini
 
+## 0.9.0
+
+### Minor Changes
+
+- Expose provider-tool factories (`codeExecutionTool`, `fileSearchTool`, `googleSearchTool`, `googleSearchRetrievalTool`, `googleMapsTool`, `urlContextTool`, `computerUseTool`) on a new `/tools` subpath, each returning a branded type gated against the selected model's `supports.tools` list. ([#466](https://github.com/TanStack/ai/pull/466))
+
+  Note: `supports.capabilities` entries that described tools (`code_execution`, `file_search`, `grounding_with_gmaps` → renamed `google_maps`, `search_grounding` → renamed `google_search`, `url_context`) have been relocated to the new `supports.tools` field. The `capabilities` array loses those entries. This is a model-meta shape change but not a runtime break.
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+
 ## 0.8.9
 
 ### Patch Changes

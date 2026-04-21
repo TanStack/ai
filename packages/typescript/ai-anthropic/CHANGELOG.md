@@ -1,5 +1,16 @@
 # @tanstack/ai-anthropic
 
+## 0.8.0
+
+### Minor Changes
+
+- Expose provider-tool factories (`webSearchTool`, `codeExecutionTool`, `computerUseTool`, `bashTool`, `textEditorTool`, `webFetchTool`, `memoryTool`, `customTool`) on a new `/tools` subpath. Each factory now returns a branded type (e.g. `AnthropicWebSearchTool`) that is gated against the selected model's `supports.tools` list. Existing factory signatures and runtime behavior are unchanged; old config-type aliases (`WebSearchTool`, `BashTool`, etc.) remain as `@deprecated` aliases pointing at the renamed `*ToolConfig` types. ([#466](https://github.com/TanStack/ai/pull/466))
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+
 ## 0.7.5
 
 ### Patch Changes

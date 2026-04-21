@@ -1,5 +1,17 @@
 # @tanstack/ai-openai
 
+## 0.8.0
+
+### Minor Changes
+
+- Expose provider-tool factories (`webSearchTool`, `webSearchPreviewTool`, `fileSearchTool`, `imageGenerationTool`, `codeInterpreterTool`, `mcpTool`, `computerUseTool`, `localShellTool`, `shellTool`, `applyPatchTool`, `customTool`) on a new `/tools` subpath. Each factory returns a branded type (e.g. `OpenAIWebSearchTool`) gated against the selected model's `supports.tools` list. `supports.tools` was expanded to include `web_search_preview`, `local_shell`, `shell`, `apply_patch`. Existing factory signatures and runtime behavior are unchanged. ([#466](https://github.com/TanStack/ai/pull/466))
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+  - @tanstack/ai-client@0.7.13
+
 ## 0.7.6
 
 ### Patch Changes

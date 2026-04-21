@@ -1,5 +1,16 @@
 # @tanstack/ai
 
+## 0.12.0
+
+### Minor Changes
+
+- Add `ProviderTool<TProvider, TKind>` phantom-branded tool subtype and a `toolCapabilities` channel on `TextAdapter['~types']`. `TextActivityOptions['tools']` is now typed so that adapter-exported provider tools are gated against the selected model's `supports.tools` list. User tools from `toolDefinition()` remain unaffected. ([#466](https://github.com/TanStack/ai/pull/466))
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.6
+
 ## 0.11.1
 
 ### Patch Changes
