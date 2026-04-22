@@ -513,7 +513,7 @@ function ChatPage() {
               </select>
             </div>
             <Link
-              to="/image-gen"
+              to="/generations/image"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
             >
               <Image className="w-4 h-4" />

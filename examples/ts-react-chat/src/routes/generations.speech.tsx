@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateSpeech } from '@tanstack/ai-react'
 import type { UseGenerateSpeechReturn } from '@tanstack/ai-react'
@@ -108,6 +108,30 @@ function SpeechGenerationUI({
     generate({ text: text.trim(), voice })
   }
 
+  // Track the last object URL we created so we can revoke it when the
+  // result changes, reset is invoked, or the component unmounts.
+  const lastBlobUrlRef = useRef<string | null>(null)
+  useEffect(() => {
+    const current = result?.audioUrl
+    if (current && current.startsWith('blob:')) {
+      if (lastBlobUrlRef.current && lastBlobUrlRef.current !== current) {
+        URL.revokeObjectURL(lastBlobUrlRef.current)
+      }
+      lastBlobUrlRef.current = current
+    } else if (!current && lastBlobUrlRef.current) {
+      URL.revokeObjectURL(lastBlobUrlRef.current)
+      lastBlobUrlRef.current = null
+    }
+  }, [result?.audioUrl])
+  useEffect(() => {
+    return () => {
+      if (lastBlobUrlRef.current) {
+        URL.revokeObjectURL(lastBlobUrlRef.current)
+        lastBlobUrlRef.current = null
+      }
+    }
+  }, [])
+
   return (
     <div className="space-y-6">
       <div className="space-y-3">
@@ -175,8 +199,8 @@ function SpeechGenerationUI({
         <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg space-y-3">
           <p className="text-sm text-gray-400">
             Model: <span className="text-gray-200">{config.model}</span>
-            {result.format && ` | Format: ${result.format}`}
-            {result.duration && ` | Duration: ${result.duration}s`}
+            {result.format != null && ` | Format: ${result.format}`}
+            {result.duration != null && ` | Duration: ${result.duration}s`}
           </p>
           <audio
             data-testid="speech-audio"

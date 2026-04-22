@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateAudio } from '@tanstack/ai-react'
 import type { UseGenerateAudioReturn } from '@tanstack/ai-react'
@@ -122,6 +122,32 @@ function AudioGenerationUI({
     generate({ prompt: prompt.trim(), duration })
   }
 
+  // Track the last object URL we created so we can revoke it when the
+  // result changes, reset is invoked, or the component unmounts.
+  const lastBlobUrlRef = useRef<string | null>(null)
+  useEffect(() => {
+    const current = result?.url
+    // Only track blob: URLs — remote URLs returned directly by providers
+    // are not ours to revoke.
+    if (current && current.startsWith('blob:')) {
+      if (lastBlobUrlRef.current && lastBlobUrlRef.current !== current) {
+        URL.revokeObjectURL(lastBlobUrlRef.current)
+      }
+      lastBlobUrlRef.current = current
+    } else if (!current && lastBlobUrlRef.current) {
+      URL.revokeObjectURL(lastBlobUrlRef.current)
+      lastBlobUrlRef.current = null
+    }
+  }, [result?.url])
+  useEffect(() => {
+    return () => {
+      if (lastBlobUrlRef.current) {
+        URL.revokeObjectURL(lastBlobUrlRef.current)
+        lastBlobUrlRef.current = null
+      }
+    }
+  }, [])
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -238,8 +264,8 @@ function AudioGenerationUI({
         <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg space-y-3">
           <p className="text-sm text-gray-400">
             Model: <span className="text-gray-200">{result.model}</span>
-            {result.contentType && ` | Type: ${result.contentType}`}
-            {result.duration && ` | Duration: ${result.duration}s`}
+            {result.contentType != null && ` | Type: ${result.contentType}`}
+            {result.duration != null && ` | Duration: ${result.duration}s`}
           </p>
           <audio
             data-testid="audio-player"

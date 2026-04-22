@@ -138,8 +138,8 @@ function TranscriptionUI({
         <div className="space-y-4">
           <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
             <p className="text-sm text-gray-400 mb-2">
-              {result.language && `Language: ${result.language}`}
-              {result.duration && ` | Duration: ${result.duration}s`}
+              {result.language != null && `Language: ${result.language}`}
+              {result.duration != null && ` | Duration: ${result.duration}s`}
             </p>
             <p
               data-testid="transcription-text"
