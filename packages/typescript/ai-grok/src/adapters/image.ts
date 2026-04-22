@@ -92,11 +92,18 @@ export class GrokImageAdapter<
     model: string,
     response: OpenAI_SDK.Images.ImagesResponse,
   ): ImageGenerationResult {
-    const images: Array<GeneratedImage> = (response.data ?? []).map((item) => ({
-      b64Json: item.b64_json,
-      url: item.url,
-      revisedPrompt: item.revised_prompt,
-    }))
+    const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
+      (item): Array<GeneratedImage> => {
+        const revisedPrompt = item.revised_prompt
+        if (item.b64_json) {
+          return [{ b64Json: item.b64_json, revisedPrompt }]
+        }
+        if (item.url) {
+          return [{ url: item.url, revisedPrompt }]
+        }
+        return []
+      },
+    )
 
     return {
       id: generateId(this.name),

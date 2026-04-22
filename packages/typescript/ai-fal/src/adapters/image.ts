@@ -104,14 +104,10 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
 
   private parseImage(img: { url: string }): GeneratedImage {
     const url = img.url
-    // Check if it's a base64 data URL
     if (url.startsWith('data:')) {
       const base64Match = url.match(/^data:image\/[^;]+;base64,(.+)$/)
-      if (base64Match) {
-        return {
-          b64Json: base64Match[1],
-          url,
-        }
+      if (base64Match && base64Match[1]) {
+        return { b64Json: base64Match[1] }
       }
     }
     return { url }

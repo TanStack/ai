@@ -108,7 +108,7 @@ describe('Fal Image Adapter', () => {
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0]!.b64Json).toBe(base64Data)
-    expect(result.images[0]!.url).toBe(`data:image/png;base64,${base64Data}`)
+    expect(result.images[0]!.url).toBeUndefined()
   })
 
   it('passes image_size preset through model options', async () => {

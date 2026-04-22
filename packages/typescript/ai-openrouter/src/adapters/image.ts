@@ -132,11 +132,8 @@ export class OpenRouterImageAdapter<
           const url = img.imageUrl.url
           if (url.startsWith('data:')) {
             const base64Match = url.match(/^data:image\/[^;]+;base64,(.+)$/)
-            if (base64Match) {
-              images.push({
-                b64Json: base64Match[1],
-                url: url,
-              })
+            if (base64Match && base64Match[1]) {
+              images.push({ b64Json: base64Match[1] })
             } else {
               images.push({ url })
             }

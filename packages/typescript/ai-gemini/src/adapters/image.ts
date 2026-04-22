@@ -189,12 +189,13 @@ export class GeminiImageAdapter<
     model: string,
     response: GenerateImagesResponse,
   ): ImageGenerationResult {
-    const images: Array<GeneratedImage> = (response.generatedImages ?? []).map(
-      (item) => ({
-        b64Json: item.image?.imageBytes,
-        revisedPrompt: item.enhancedPrompt,
-      }),
-    )
+    const images: Array<GeneratedImage> = (
+      response.generatedImages ?? []
+    ).flatMap((item) => {
+      const b64Json = item.image?.imageBytes
+      if (!b64Json) return []
+      return [{ b64Json, revisedPrompt: item.enhancedPrompt }]
+    })
 
     return {
       id: generateId(this.name),
