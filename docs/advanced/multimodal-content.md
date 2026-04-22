@@ -1,7 +1,7 @@
 ---
 title: Multimodal Content
 id: multimodal-content
-order: 3
+order: 4
 description: "Send images, audio, video, and documents alongside text in TanStack AI messages with typed ContentPart primitives for multimodal models."
 keywords:
   - tanstack ai

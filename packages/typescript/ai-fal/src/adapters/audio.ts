@@ -76,9 +76,22 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
   async generateAudio(
     options: AudioGenerationOptions<FalAudioProviderOptions<TModel>>,
   ): Promise<AudioGenerationResult> {
-    const input = this.buildInput(options)
-    const result = await fal.subscribe(this.model, { input })
-    return this.transformResponse(result)
+    const { logger } = options
+    logger.request(`activity=generateAudio provider=fal model=${this.model}`, {
+      provider: 'fal',
+      model: this.model,
+    })
+    try {
+      const input = this.buildInput(options)
+      const result = await fal.subscribe(this.model, { input })
+      return this.transformResponse(result)
+    } catch (error) {
+      logger.errors('fal.generateAudio fatal', {
+        error,
+        source: 'fal.generateAudio',
+      })
+      throw error
+    }
   }
 
   private buildInput(

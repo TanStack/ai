@@ -48,9 +48,22 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
   async generateSpeech(
     options: TTSOptions<FalSpeechProviderOptions<TModel>>,
   ): Promise<TTSResult> {
-    const input = this.buildInput(options)
-    const result = await fal.subscribe(this.model, { input })
-    return this.transformResponse(result)
+    const { logger } = options
+    logger.request(`activity=generateSpeech provider=fal model=${this.model}`, {
+      provider: 'fal',
+      model: this.model,
+    })
+    try {
+      const input = this.buildInput(options)
+      const result = await fal.subscribe(this.model, { input })
+      return await this.transformResponse(result)
+    } catch (error) {
+      logger.errors('fal.generateSpeech fatal', {
+        error,
+        source: 'fal.generateSpeech',
+      })
+      throw error
+    }
   }
 
   private buildInput(
@@ -108,8 +121,13 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
     // the URL extension as a fallback when it looks like a real extension.
     const contentTypeMime = contentType?.split(';')[0]?.trim()
     const safeUrlExtension = extractUrlExtension(audioUrl)
-    const format =
-      contentTypeMime?.split('/')[1] || safeUrlExtension || 'wav'
+    // Prefer URL-derived extension when available (more canonical for file
+    // consumers), otherwise derive from the content-type mime subtype, then
+    // fall back to `wav`. Normalize `mpeg` → `mp3` so the format field is a
+    // usable file extension rather than the IANA subtype.
+    const rawFormat =
+      safeUrlExtension || contentTypeMime?.split('/')[1] || 'wav'
+    const format = rawFormat === 'mpeg' ? 'mp3' : rawFormat
 
     return {
       id: response.requestId || this.generateId(),

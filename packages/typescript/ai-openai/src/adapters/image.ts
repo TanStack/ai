@@ -60,22 +60,38 @@ export class OpenAIImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<OpenAIImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size } = options
+    const { model, prompt, numberOfImages, size, logger } = options
 
-    // Validate inputs
-    validatePrompt({ prompt, model })
-    validateImageSize(model, size)
-    validateNumberOfImages(model, numberOfImages)
+    logger.request(
+      `activity=generateImage provider=openai model=${this.model}`,
+      {
+        provider: 'openai',
+        model: this.model,
+      },
+    )
 
-    // Build request based on model type
-    const request = this.buildRequest(options)
+    try {
+      // Validate inputs
+      validatePrompt({ prompt, model })
+      validateImageSize(model, size)
+      validateNumberOfImages(model, numberOfImages)
 
-    const response = await this.client.images.generate({
-      ...request,
-      stream: false,
-    })
+      // Build request based on model type
+      const request = this.buildRequest(options)
 
-    return this.transformResponse(model, response)
+      const response = await this.client.images.generate({
+        ...request,
+        stream: false,
+      })
+
+      return this.transformResponse(model, response)
+    } catch (error) {
+      logger.errors('openai.generateImage fatal', {
+        error,
+        source: 'openai.generateImage',
+      })
+      throw error
+    }
   }
 
   private buildRequest(

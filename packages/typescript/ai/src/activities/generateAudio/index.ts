@@ -7,6 +7,9 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
+import { resolveDebugOption } from '../../logger/resolve'
+import type { InternalLogger } from '../../logger/internal-logger'
+import type { DebugOption } from '../../logger/types'
 import type { AudioAdapter } from './adapter'
 import type { AudioGenerationResult, StreamChunk } from '../../types'
 
@@ -60,6 +63,12 @@ export interface AudioActivityOptions<
    * @default false
    */
   stream?: TStream
+  /**
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
+  debug?: DebugOption
 }
 
 // ===========================
@@ -125,10 +134,15 @@ async function runGenerateAudio<
 >(
   options: AudioActivityOptions<TAdapter, boolean>,
 ): Promise<AudioGenerationResult> {
-  const { adapter, stream: _stream, ...rest } = options
+  const { adapter, stream: _stream, debug: _debug, ...rest } = options
   const model = adapter.model
   const requestId = createId('audio')
   const startTime = Date.now()
+  const logger: InternalLogger = resolveDebugOption(options.debug)
+  const providerName =
+    (adapter as { name?: string; provider?: string }).provider ??
+    (adapter as { name?: string }).name ??
+    'unknown'
 
   aiEventClient.emit('audio:request:started', {
     requestId,
@@ -140,8 +154,13 @@ async function runGenerateAudio<
     timestamp: startTime,
   })
 
+  logger.request(`activity=generateAudio provider=${providerName}`, {
+    provider: providerName,
+    model,
+  })
+
   try {
-    const result = await adapter.generateAudio({ ...rest, model })
+    const result = await adapter.generateAudio({ ...rest, model, logger })
     const elapsedMs = Date.now() - startTime
 
     aiEventClient.emit('audio:request:completed', {
@@ -152,6 +171,11 @@ async function runGenerateAudio<
       duration: elapsedMs,
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
       timestamp: Date.now(),
+    })
+
+    logger.output(`activity=generateAudio provider=${providerName}`, {
+      contentType: result.audio.contentType,
+      audioDuration: result.audio.duration,
     })
 
     return result
@@ -166,6 +190,10 @@ async function runGenerateAudio<
       duration: elapsedMs,
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
       timestamp: Date.now(),
+    })
+    logger.errors('generateAudio activity failed', {
+      error,
+      source: 'generateAudio',
     })
     throw error
   }

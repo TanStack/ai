@@ -44,7 +44,13 @@ export class OpenAISummarizeAdapter<
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
+    const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
+
+    logger.request(`activity=summarize provider=openai`, {
+      provider: 'openai',
+      model: options.model,
+    })
 
     // Use the text adapter's streaming and collect the result
     let summary = ''
@@ -52,28 +58,37 @@ export class OpenAISummarizeAdapter<
     let model = options.model
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 
-    for await (const chunk of this.textAdapter.chatStream({
-      model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
-    })) {
-      // AG-UI TEXT_MESSAGE_CONTENT event
-      if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-        if (chunk.content) {
-          summary = chunk.content
-        } else {
-          summary += chunk.delta
+    try {
+      for await (const chunk of this.textAdapter.chatStream({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        systemPrompts: [systemPrompt],
+        maxTokens: options.maxLength,
+        temperature: 0.3,
+        logger,
+      })) {
+        // AG-UI TEXT_MESSAGE_CONTENT event
+        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+          if (chunk.content) {
+            summary = chunk.content
+          } else {
+            summary += chunk.delta
+          }
+          model = chunk.model || model
         }
-        model = chunk.model || model
-      }
-      // AG-UI RUN_FINISHED event
-      if (chunk.type === 'RUN_FINISHED') {
-        if (chunk.usage) {
-          usage = chunk.usage
+        // AG-UI RUN_FINISHED event
+        if (chunk.type === 'RUN_FINISHED') {
+          if (chunk.usage) {
+            usage = chunk.usage
+          }
         }
       }
+    } catch (error) {
+      logger.errors('openai.summarize fatal', {
+        error,
+        source: 'openai.summarize',
+      })
+      throw error
     }
 
     return { id, model, summary, usage }
@@ -82,16 +97,32 @@ export class OpenAISummarizeAdapter<
   async *summarizeStream(
     options: SummarizationOptions,
   ): AsyncIterable<StreamChunk> {
+    const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    // Delegate directly to the text adapter's streaming
-    yield* this.textAdapter.chatStream({
+    logger.request(`activity=summarize provider=openai`, {
+      provider: 'openai',
       model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
+      stream: true,
     })
+
+    try {
+      // Delegate directly to the text adapter's streaming
+      yield* this.textAdapter.chatStream({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        systemPrompts: [systemPrompt],
+        maxTokens: options.maxLength,
+        temperature: 0.3,
+        logger,
+      })
+    } catch (error) {
+      logger.errors('openai.summarize fatal', {
+        error,
+        source: 'openai.summarize',
+      })
+      throw error
+    }
   }
 
   private buildSummarizationPrompt(options: SummarizationOptions): string {

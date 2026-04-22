@@ -15,24 +15,24 @@ import type { GeminiClientConfig } from '../utils'
 /**
  * Provider options for Gemini Lyria music generation.
  *
+ * Notes on the Lyria 3 surface area:
+ * - `lyria-3-clip-preview` always returns MP3 (30-second clips). It does
+ *   not accept `responseMimeType`, and duration is fixed at 30 seconds —
+ *   the generic `duration` option on `AudioActivityOptions` is ignored.
+ * - `lyria-3-pro-preview` returns MP3 by default. Duration is controlled
+ *   via the natural-language prompt, not a separate SDK field, so the
+ *   generic `duration` option is similarly ignored.
+ * - `negativePrompt` is NOT accepted by `GenerateContentConfig` and has
+ *   therefore been removed from this surface to avoid giving callers a
+ *   silently-dropped knob.
+ *
  * @see https://ai.google.dev/gemini-api/docs/music-generation
  */
 export interface GeminiAudioProviderOptions {
   /**
-   * Request WAV output instead of the default MP3. Lyria 3 Pro only;
-   * the Clip model always returns MP3 and will reject this field.
-   */
-  responseMimeType?: 'audio/wav'
-
-  /**
    * Seed for deterministic generation.
    */
   seed?: number
-
-  /**
-   * Negative prompt — describe what to exclude from the output.
-   */
-  negativePrompt?: string
 }
 
 export interface GeminiAudioConfig extends GeminiClientConfig {}
@@ -76,52 +76,59 @@ export class GeminiAudioAdapter<
   async generateAudio(
     options: AudioGenerationOptions<GeminiAudioProviderOptions>,
   ): Promise<AudioGenerationResult> {
-    const { model, prompt, modelOptions } = options
+    const { model, prompt, modelOptions, logger } = options
 
-    // FIXME (SDK audit): Lyria 3 music generation may not belong on
-    // generateContent at all — @google/genai exposes a `LiveMusicSession`
-    // (`ai.live.music.connect`) with a `musicGenerationConfig` object that
-    // accepts fields like `seed` and `negativePrompt`. Passing
-    // `negativePrompt` into a `GenerateContentConfig` is a type error (it
-    // only exists on GenerateImagesConfig / GenerateVideosConfig), so it's
-    // omitted here until the correct endpoint is confirmed. `seed` is
-    // forwarded because it's valid on GenerateContentConfig regardless.
-    // The runtime test `emits only GenerateContentConfig-valid fields`
-    // asserts the config shape so a later SDK audit can catch regressions.
-    const response = await this.client.models.generateContent({
+    logger.request(`activity=generateAudio provider=gemini model=${model}`, {
+      provider: 'gemini',
       model,
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        responseModalities: ['AUDIO', 'TEXT'],
-        ...(modelOptions?.responseMimeType
-          ? { responseMimeType: modelOptions.responseMimeType }
-          : {}),
-        ...(modelOptions?.seed != null ? { seed: modelOptions.seed } : {}),
-      },
     })
 
-    const parts = response.candidates?.[0]?.content?.parts ?? []
-    const audioPart = parts.find((part: any) =>
-      part.inlineData?.mimeType?.startsWith('audio/'),
-    )
+    try {
+      // FIXME (SDK audit): Lyria 3 music generation may not belong on
+      // generateContent at all — @google/genai exposes a `LiveMusicSession`
+      // (`ai.live.music.connect`) with a `musicGenerationConfig` object.
+      // `seed` is valid on GenerateContentConfig, and Lyria always returns
+      // MP3 today, so we don't forward `responseMimeType` either.
+      // The runtime test `emits only GenerateContentConfig-valid fields`
+      // asserts the config shape so a later SDK audit can catch regressions.
+      const response = await this.client.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          responseModalities: ['AUDIO', 'TEXT'],
+          ...(modelOptions?.seed != null ? { seed: modelOptions.seed } : {}),
+        },
+      })
 
-    if (!audioPart?.inlineData?.data) {
-      throw new Error('No audio data in Gemini Lyria response')
-    }
+      const parts = response.candidates?.[0]?.content?.parts ?? []
+      const audioPart = parts.find((part: any) =>
+        part.inlineData?.mimeType?.startsWith('audio/'),
+      )
 
-    // audioPart was selected because mimeType.startsWith('audio/') was
-    // truthy, so the mime type is guaranteed to be a string here. Trust the
-    // value Gemini returned rather than inventing a non-standard
-    // `audio/mp3` fallback (IANA is `audio/mpeg`).
-    const contentType = audioPart.inlineData.mimeType
+      if (!audioPart?.inlineData?.data) {
+        throw new Error('No audio data in Gemini Lyria response')
+      }
 
-    return {
-      id: generateId(this.name),
-      model,
-      audio: {
-        b64Json: audioPart.inlineData.data,
-        contentType,
-      },
+      // audioPart was selected because mimeType.startsWith('audio/') was
+      // truthy, so the mime type is guaranteed to be a string here. Trust the
+      // value Gemini returned rather than inventing a non-standard
+      // `audio/mp3` fallback (IANA is `audio/mpeg`).
+      const contentType = audioPart.inlineData.mimeType
+
+      return {
+        id: generateId(this.name),
+        model,
+        audio: {
+          b64Json: audioPart.inlineData.data,
+          contentType,
+        },
+      }
+    } catch (error) {
+      logger.errors('gemini.generateAudio fatal', {
+        error,
+        source: 'gemini.generateAudio',
+      })
+      throw error
     }
   }
 }
@@ -147,7 +154,9 @@ export function createGeminiAudio<TModel extends GeminiAudioModel>(
   apiKey: string,
   config?: Omit<GeminiAudioConfig, 'apiKey'>,
 ): GeminiAudioAdapter<TModel> {
-  return new GeminiAudioAdapter({ apiKey, ...config }, model)
+  // Put apiKey LAST so caller-supplied config can't silently override the
+  // explicit argument.
+  return new GeminiAudioAdapter({ ...config, apiKey }, model)
 }
 
 /**

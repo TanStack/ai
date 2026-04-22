@@ -21,6 +21,7 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type OpenAI_SDK from 'openai'
 import type { Responses } from 'openai/resources'
 import type {
@@ -132,8 +133,13 @@ export class OpenAITextAdapter<
       { index: number; name: string; started: boolean }
     >()
     const requestArguments = this.mapTextOptionsToOpenAI(options)
+    const { logger } = options
 
     try {
+      logger.request(
+        `activity=chat provider=openai model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'openai', model: this.model },
+      )
       const response = await this.client.responses.create(
         {
           ...requestArguments,
@@ -151,13 +157,13 @@ export class OpenAITextAdapter<
         toolCallMetadata,
         options,
         () => generateId(this.name),
+        logger,
       )
     } catch (error: unknown) {
-      const err = error as Error
-      console.error('>>> chatStream: Fatal error during response creation <<<')
-      console.error('>>> Error message:', err.message)
-      console.error('>>> Error stack:', err.stack)
-      console.error('>>> Full error:', err)
+      logger.errors('openai.chatStream fatal', {
+        error,
+        source: 'openai.chatStream',
+      })
       throw error
     }
   }
@@ -179,6 +185,7 @@ export class OpenAITextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestArguments = this.mapTextOptionsToOpenAI(chatOptions)
+    const { logger } = chatOptions
 
     // Apply OpenAI-specific transformations for structured output compatibility
     const jsonSchema = makeOpenAIStructuredOutputCompatible(
@@ -187,6 +194,10 @@ export class OpenAITextAdapter<
     )
 
     try {
+      logger.request(
+        `activity=chat provider=openai model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'openai', model: this.model },
+      )
       const response = await this.client.responses.create(
         {
           ...requestArguments,
@@ -229,9 +240,10 @@ export class OpenAITextAdapter<
         rawText,
       }
     } catch (error: unknown) {
-      const err = error as Error
-      console.error('>>> structuredOutput: Error during response creation <<<')
-      console.error('>>> Error message:', err.message)
+      logger.errors('openai.structuredOutput fatal', {
+        error,
+        source: 'openai.structuredOutput',
+      })
       throw error
     }
   }
@@ -265,6 +277,7 @@ export class OpenAITextAdapter<
     >,
     options: TextOptions,
     genId: () => string,
+    logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     let accumulatedReasoning = ''
@@ -292,6 +305,9 @@ export class OpenAITextAdapter<
     try {
       for await (const chunk of stream) {
         chunkCount++
+        logger.provider(`provider=openai type=${chunk.type}`, {
+          chunk,
+        })
 
         // Emit RUN_STARTED on first chunk
         if (!hasEmittedRunStarted) {
@@ -804,13 +820,11 @@ export class OpenAITextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
-      console.log(
-        '[OpenAI Adapter] Stream ended with error. Event type summary:',
-        {
-          totalChunks: chunkCount,
-          error: err.message,
-        },
-      )
+      logger.errors('openai stream ended with error', {
+        error,
+        source: 'openai.processOpenAIStreamChunks',
+        totalChunks: chunkCount,
+      })
       yield asChunk({
         type: 'RUN_ERROR',
         runId,

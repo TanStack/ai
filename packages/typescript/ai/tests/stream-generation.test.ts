@@ -290,6 +290,7 @@ describe('generateVideo({ stream: true })', () => {
       size: '1280x720',
       duration: 5,
       modelOptions: undefined,
+      logger: expect.any(Object),
     })
   })
 

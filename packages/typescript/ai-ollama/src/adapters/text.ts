@@ -11,6 +11,7 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   AbortableAsyncIterator,
   ChatRequest,
@@ -146,11 +147,24 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
   async *chatStream(options: TextOptions): AsyncIterable<StreamChunk> {
     const mappedOptions = this.mapCommonOptionsToOllama(options)
-    const response = await this.client.chat({
-      ...mappedOptions,
-      stream: true,
-    })
-    yield* this.processOllamaStreamChunks(response, options)
+    const { logger } = options
+    try {
+      logger.request(
+        `activity=chat provider=ollama model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'ollama', model: this.model },
+      )
+      const response = await this.client.chat({
+        ...mappedOptions,
+        stream: true,
+      })
+      yield* this.processOllamaStreamChunks(response, options, logger)
+    } catch (error: unknown) {
+      logger.errors('ollama.chatStream fatal', {
+        error,
+        source: 'ollama.chatStream',
+      })
+      throw error
+    }
   }
 
   /**
@@ -162,10 +176,15 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     options: StructuredOutputOptions<ResolveModelOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
+    const { logger } = chatOptions
 
     const mappedOptions = this.mapCommonOptionsToOllama(chatOptions)
 
     try {
+      logger.request(
+        `activity=chat provider=ollama model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'ollama', model: this.model },
+      )
       // Make non-streaming request with JSON format
       const response = await this.client.chat({
         ...mappedOptions,
@@ -191,6 +210,10 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error
+      logger.errors('ollama.structuredOutput fatal', {
+        error,
+        source: 'ollama.structuredOutput',
+      })
       throw new Error(
         `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
       )
@@ -200,6 +223,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   private async *processOllamaStreamChunks(
     stream: AbortableAsyncIterator<ChatResponse>,
     options: TextOptions,
+    logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     const timestamp = Date.now()
@@ -218,6 +242,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     let hasEmittedStepStarted = false
 
     for await (const chunk of stream) {
+      logger.provider(`provider=ollama`, { chunk })
       // Emit RUN_STARTED on first chunk
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true

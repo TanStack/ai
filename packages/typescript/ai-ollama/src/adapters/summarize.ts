@@ -79,82 +79,113 @@ export class OllamaSummarizeAdapter<
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
+    const { logger } = options
     const model = options.model
+
+    logger.request(`activity=summarize provider=ollama`, {
+      provider: 'ollama',
+      model,
+    })
 
     const prompt = this.buildSummarizationPrompt(options)
 
-    const response = await this.client.generate({
-      model,
-      prompt,
-      options: {
-        temperature: 0.3,
-        num_predict: options.maxLength ?? 500,
-      },
-      stream: false,
-    })
+    try {
+      const response = await this.client.generate({
+        model,
+        prompt,
+        options: {
+          temperature: 0.3,
+          num_predict: options.maxLength ?? 500,
+        },
+        stream: false,
+      })
 
-    const promptTokens = estimateTokens(prompt)
-    const completionTokens = estimateTokens(response.response)
+      const promptTokens = estimateTokens(prompt)
+      const completionTokens = estimateTokens(response.response)
 
-    return {
-      id: generateId('sum'),
-      model: response.model,
-      summary: response.response,
-      usage: {
-        promptTokens,
-        completionTokens,
-        totalTokens: promptTokens + completionTokens,
-      },
+      return {
+        id: generateId('sum'),
+        model: response.model,
+        summary: response.response,
+        usage: {
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens,
+        },
+      }
+    } catch (error) {
+      logger.errors('ollama.summarize fatal', {
+        error,
+        source: 'ollama.summarize',
+      })
+      throw error
     }
   }
 
   async *summarizeStream(
     options: SummarizationOptions,
   ): AsyncIterable<StreamChunk> {
+    const { logger } = options
     const model = options.model
     const id = generateId('sum')
     const prompt = this.buildSummarizationPrompt(options)
     let accumulatedContent = ''
 
-    const stream = await this.client.generate({
+    logger.request(`activity=summarize provider=ollama`, {
+      provider: 'ollama',
       model,
-      prompt,
-      options: {
-        temperature: 0.3,
-        num_predict: options.maxLength ?? 500,
-      },
       stream: true,
     })
 
-    for await (const chunk of stream) {
-      if (chunk.response) {
-        accumulatedContent += chunk.response
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
-          messageId: id,
-          model: chunk.model,
-          timestamp: Date.now(),
-          delta: chunk.response,
-          content: accumulatedContent,
-        })
-      }
+    try {
+      const stream = await this.client.generate({
+        model,
+        prompt,
+        options: {
+          temperature: 0.3,
+          num_predict: options.maxLength ?? 500,
+        },
+        stream: true,
+      })
 
-      if (chunk.done) {
-        const promptTokens = estimateTokens(prompt)
-        const completionTokens = estimateTokens(accumulatedContent)
-        yield asChunk({
-          type: 'RUN_FINISHED',
-          runId: id,
-          model: chunk.model,
-          timestamp: Date.now(),
-          finishReason: 'stop',
-          usage: {
-            promptTokens,
-            completionTokens,
-            totalTokens: promptTokens + completionTokens,
-          },
-        })
+      for await (const chunk of stream) {
+        logger.provider(`provider=ollama`, { chunk })
+
+        if (chunk.response) {
+          accumulatedContent += chunk.response
+          yield asChunk({
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: id,
+            model: chunk.model,
+            timestamp: Date.now(),
+            delta: chunk.response,
+            content: accumulatedContent,
+          })
+        }
+
+        if (chunk.done) {
+          const promptTokens = estimateTokens(prompt)
+          const completionTokens = estimateTokens(accumulatedContent)
+          yield asChunk({
+            type: 'RUN_FINISHED',
+            runId: id,
+            model: chunk.model,
+            timestamp: Date.now(),
+            finishReason: 'stop',
+            usage: {
+              promptTokens,
+              completionTokens,
+              totalTokens: promptTokens + completionTokens,
+            },
+          })
+        }
       }
+    } catch (error) {
+      logger.errors('ollama.summarize fatal', {
+        error,
+        source: 'ollama.summarize',
+      })
+      throw error
     }
   }
 

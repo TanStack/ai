@@ -55,9 +55,25 @@ export class FalTranscriptionAdapter<
   async transcribe(
     options: TranscriptionOptions<FalTranscriptionProviderOptions<TModel>>,
   ): Promise<TranscriptionResult> {
-    const input = this.buildInput(options)
-    const result = await fal.subscribe(this.model, { input })
-    return this.transformResponse(result)
+    const { logger } = options
+    logger.request(
+      `activity=generateTranscription provider=fal model=${this.model}`,
+      {
+        provider: 'fal',
+        model: this.model,
+      },
+    )
+    try {
+      const input = this.buildInput(options)
+      const result = await fal.subscribe(this.model, { input })
+      return this.transformResponse(result)
+    } catch (error) {
+      logger.errors('fal.generateTranscription fatal', {
+        error,
+        source: 'fal.generateTranscription',
+      })
+      throw error
+    }
   }
 
   private buildInput(

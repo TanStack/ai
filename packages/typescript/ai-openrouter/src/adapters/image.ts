@@ -64,9 +64,18 @@ export class OpenRouterImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<OpenRouterImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, modelOptions } = options
+    const { model, prompt, numberOfImages, size, modelOptions, logger } =
+      options
     // Use provided aspect_ratio or derive from size
     const aspectRatio = size ? SIZE_TO_ASPECT_RATIO[size] : undefined
+
+    logger.request(
+      `activity=generateImage provider=openrouter model=${this.model}`,
+      {
+        provider: 'openrouter',
+        model: this.model,
+      },
+    )
 
     const response = await this.client.chat.send({
       chatRequest: {
