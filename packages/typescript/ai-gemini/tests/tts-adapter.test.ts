@@ -204,4 +204,96 @@ describe('Gemini TTS Adapter', () => {
       /No audio output/,
     )
   })
+
+  it('rejects an unknown voice with a descriptive error', async () => {
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+    await expect(
+      // Cast to bypass the compile-time GeminiTTSVoice union — we want to
+      // exercise the runtime validation path.
+      generateSpeech({ adapter, text: 'hi', voice: 'NotARealVoice' as never }),
+    ).rejects.toThrow(/Invalid Gemini TTS voice "NotARealVoice"/)
+  })
+
+  it('propagates channel count from the PCM mime type into the WAV header', async () => {
+    // Regression: the WAV wrapper used to ignore the parsed channels value
+    // and always emit mono, corrupting stereo PCM output.
+    const pcmBase64 = Buffer.from(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])).toString('base64')
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'audio/L16;codec=pcm;rate=48000;channels=2',
+                  data: pcmBase64,
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+    const result = await generateSpeech({ adapter, text: 'stereo' })
+
+    const decoded = Buffer.from(result.audio as string, 'base64')
+    // Channels field is a little-endian uint16 at offset 22 of the fmt chunk.
+    expect(decoded.readUInt16LE(22)).toBe(2)
+    // Sample rate at offset 24 should match the parsed value.
+    expect(decoded.readUInt32LE(24)).toBe(48000)
+  })
+
+  it('throws on unsupported PCM bit depth rather than producing a corrupt WAV', async () => {
+    const pcmBase64 = Buffer.from(new Uint8Array([1, 2, 3, 4])).toString('base64')
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'audio/L24;codec=pcm;rate=48000',
+                  data: pcmBase64,
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+    await expect(generateSpeech({ adapter, text: 'hi' })).rejects.toThrow(
+      /Unsupported PCM bit depth 24/,
+    )
+  })
+
+  it('strips mime parameters when deriving the format for non-PCM responses', async () => {
+    // Regression: `audio/ogg;codec=opus` used to produce a bogus
+    // `format: 'ogg;codec=opus'` because the adapter split on '/' only.
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'audio/ogg;codec=opus',
+                  data: 'OGGBASE64',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+    const result = await generateSpeech({ adapter, text: 'hi' })
+
+    expect(result.format).toBe('ogg')
+    expect(result.contentType).toBe('audio/ogg;codec=opus')
+  })
 })

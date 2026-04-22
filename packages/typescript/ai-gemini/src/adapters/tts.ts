@@ -4,6 +4,7 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import { GEMINI_TTS_VOICES } from '../model-meta'
 import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { GoogleGenAI, SpeechConfig } from '@google/genai'
@@ -147,6 +148,14 @@ export class GeminiTTSAdapter<
       // Honor the standard TTSOptions.voice (used by every other TTS adapter)
       // as a fallback for the prebuilt voice name. If an explicit
       // modelOptions.voiceConfig is supplied it wins.
+      if (
+        voice !== undefined &&
+        !(GEMINI_TTS_VOICES as ReadonlyArray<string>).includes(voice)
+      ) {
+        throw new Error(
+          `Invalid Gemini TTS voice "${voice}". Valid voices are: ${GEMINI_TTS_VOICES.join(', ')}.`,
+        )
+      }
       const voiceName = (voice as GeminiTTSVoice | undefined) ?? 'Kore'
       speechConfig.voiceConfig = modelOptions?.voiceConfig ?? {
         prebuiltVoiceConfig: { voiceName },
@@ -202,7 +211,12 @@ export class GeminiTTSAdapter<
     // prepend a RIFF/WAV header here and normalize the result to audio/wav.
     const pcm = parsePcmMimeType(mimeType)
     if (pcm) {
-      const wavBase64 = wrapPcmBase64AsWav(audioBase64, pcm.sampleRate)
+      const wavBase64 = wrapPcmBase64AsWav(
+        audioBase64,
+        pcm.sampleRate,
+        pcm.channels,
+        pcm.bitsPerSample,
+      )
       return {
         id: generateId(this.name),
         model,
@@ -212,7 +226,9 @@ export class GeminiTTSAdapter<
       }
     }
 
-    const format = mimeType.split('/')[1] || 'wav'
+    // Strip any mime parameters (e.g. `audio/ogg;codec=opus`) before pulling
+    // the subtype out as the file format.
+    const format = mimeType.split(';')[0]!.split('/')[1] || 'wav'
 
     return {
       id: generateId(this.name),
@@ -226,17 +242,32 @@ export class GeminiTTSAdapter<
 
 function parsePcmMimeType(
   mimeType: string,
-): { sampleRate: number; channels: number } | undefined {
+):
+  | { sampleRate: number; channels: number; bitsPerSample: number }
+  | undefined {
   const normalized = mimeType.toLowerCase()
+  // Accept the variants Gemini and other providers actually emit:
+  //   - audio/L16;codec=pcm;rate=24000 (IANA PCM with bit depth in the type)
+  //   - audio/L24 and friends
+  //   - audio/pcm and audio/x-pcm
+  //   - anything else that explicitly tags codec=pcm
+  const bitDepthMatch = /^audio\/l(\d+)/.exec(normalized)
   const isPcm =
-    normalized.startsWith('audio/l16') || normalized.includes('codec=pcm')
+    bitDepthMatch !== null ||
+    normalized.startsWith('audio/pcm') ||
+    normalized.startsWith('audio/x-pcm') ||
+    normalized.includes('codec=pcm')
   if (!isPcm) return undefined
 
   const rateMatch = /rate=(\d+)/.exec(normalized)
   const channelsMatch = /channels=(\d+)/.exec(normalized)
+  // Default to 16-bit when the mime type doesn't specify — matches Gemini's
+  // audio/L16;codec=pcm;rate=24000 response.
+  const bitsPerSample = bitDepthMatch ? Number(bitDepthMatch[1]) : 16
   return {
     sampleRate: rateMatch ? Number(rateMatch[1]) : 24000,
     channels: channelsMatch ? Number(channelsMatch[1]) : 1,
+    bitsPerSample,
   }
 }
 
@@ -244,13 +275,22 @@ function wrapPcmBase64AsWav(
   pcmBase64: string,
   sampleRate: number,
   channels = 1,
+  bitsPerSample = 16,
 ): string {
+  // The WAV writer below emits a 16-bit PCM fmt chunk. If the source claims a
+  // different bit depth we'd be lying about the payload, so bail out loudly
+  // rather than producing a corrupt file.
+  if (bitsPerSample !== 16) {
+    throw new Error(
+      `Unsupported PCM bit depth ${bitsPerSample}: only 16-bit PCM can be wrapped as WAV.`,
+    )
+  }
+
   const pcmBytes =
     typeof Buffer !== 'undefined'
       ? new Uint8Array(Buffer.from(pcmBase64, 'base64'))
       : decodeBase64(pcmBase64)
 
-  const bitsPerSample = 16
   const byteRate = (sampleRate * channels * bitsPerSample) / 8
   const blockAlign = (channels * bitsPerSample) / 8
   const dataSize = pcmBytes.byteLength

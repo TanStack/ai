@@ -295,7 +295,6 @@ const GEMINI_2_5_PRO_TTS = {
     input: ['text'],
     output: ['audio'],
     capabilities: ['audio_generation'],
-    tools: ['file_search'],
   },
   pricing: {
     input: {
@@ -455,7 +454,6 @@ const GEMINI_2_5_FLASH_TTS = {
     input: ['text'],
     output: ['audio'],
     capabilities: ['audio_generation', 'batch_api'],
-    tools: ['file_search'],
   },
   pricing: {
     input: {

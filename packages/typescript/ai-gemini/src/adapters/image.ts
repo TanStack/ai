@@ -74,7 +74,7 @@ export class GeminiImageAdapter<
   private client: GoogleGenAI
 
   constructor(config: GeminiImageConfig, model: TModel) {
-    super({}, model)
+    super(config, model)
     this.client = createGeminiClient(config)
   }
 
@@ -123,7 +123,11 @@ export class GeminiImageAdapter<
         : prompt
 
     const config: GenerateContentConfig = {
-      // Include TEXT so the model can interleave descriptions between images
+      ...modelOptions,
+      // Include TEXT so the model can interleave descriptions between images.
+      // IMPORTANT: responseModalities is a protected default — spread it
+      // AFTER modelOptions so a user-supplied modelOptions.responseModalities
+      // can't silently disable image output.
       responseModalities: ['TEXT', 'IMAGE'],
       ...(parsedSize && {
         imageConfig: {
@@ -135,7 +139,6 @@ export class GeminiImageAdapter<
           }),
         },
       }),
-      ...modelOptions,
     }
 
     const response = await this.client.models.generateContent({
@@ -152,6 +155,7 @@ export class GeminiImageAdapter<
     response: GenerateContentResponse,
   ): ImageGenerationResult {
     const images: Array<GeneratedImage> = []
+    const textParts: Array<string> = []
     const parts = response.candidates?.[0]?.content?.parts ?? []
 
     for (const part of parts) {
@@ -161,7 +165,23 @@ export class GeminiImageAdapter<
         part.inlineData.data.length > 0
       ) {
         images.push({ b64Json: part.inlineData.data })
+      } else if (typeof part.text === 'string' && part.text.length > 0) {
+        textParts.push(part.text)
       }
+    }
+
+    // If the model returned only text parts (for example a safety refusal
+    // or a "can't do that" message), surface the text instead of silently
+    // resolving to an empty images array — otherwise callers can't tell a
+    // generation failure apart from a genuine empty response.
+    if (images.length === 0) {
+      const reason =
+        textParts.length > 0
+          ? `: ${textParts.join(' ').trim()}`
+          : ' (no inline image or text parts were returned).'
+      throw new Error(
+        `Gemini ${model} returned no images${reason}`,
+      )
     }
 
     return {
@@ -189,13 +209,43 @@ export class GeminiImageAdapter<
     model: string,
     response: GenerateImagesResponse,
   ): ImageGenerationResult {
-    const images: Array<GeneratedImage> = (
-      response.generatedImages ?? []
-    ).flatMap((item) => {
+    const entries = response.generatedImages ?? []
+    const images: Array<GeneratedImage> = []
+    const filterReasons: Array<string> = []
+
+    for (const item of entries) {
       const b64Json = item.image?.imageBytes
-      if (!b64Json) return []
-      return [{ b64Json, revisedPrompt: item.enhancedPrompt }]
-    })
+      if (b64Json) {
+        images.push({ b64Json, revisedPrompt: item.enhancedPrompt })
+        continue
+      }
+      // Imagen can drop individual entries with a raiFilteredReason when
+      // Responsible-AI filters fire. Preserve the reason so callers can
+      // surface it instead of silently getting back fewer images.
+      const reason = (item as { raiFilteredReason?: string }).raiFilteredReason
+      if (reason) {
+        filterReasons.push(reason)
+      }
+    }
+
+    // Every entry was filtered — no usable images to return. Throw rather
+    // than resolve to an empty array so the caller is forced to handle the
+    // failure mode explicitly.
+    if (entries.length > 0 && images.length === 0) {
+      const joined = filterReasons.length > 0 ? filterReasons.join('; ') : ''
+      throw new Error(
+        `Imagen ${model} returned no images: all ${entries.length} generated image(s) were filtered by Responsible-AI${joined ? ` (${joined})` : ''}.`,
+      )
+    }
+
+    // Partial filter: surface via console.warn since ImageGenerationResult
+    // has no warnings field. Callers that care can still inspect the count
+    // mismatch between requested and returned images.
+    if (filterReasons.length > 0 && typeof console !== 'undefined') {
+      console.warn(
+        `[gemini-image] ${filterReasons.length} of ${entries.length} images from ${model} were filtered by Responsible-AI: ${filterReasons.join('; ')}`,
+      )
+    }
 
     return {
       id: generateId(this.name),

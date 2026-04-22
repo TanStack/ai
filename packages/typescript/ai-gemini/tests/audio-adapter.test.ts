@@ -112,4 +112,31 @@ describe('Gemini Audio (Lyria) Adapter', () => {
       /No audio data/,
     )
   })
+
+  it('passes the response mime type through verbatim without an `audio/mp3` fallback', async () => {
+    // Regression: the adapter used to fall back to the non-standard
+    // `audio/mp3` value (IANA uses `audio/mpeg`) — and the fallback was
+    // unreachable anyway because audioPart was selected on mime presence.
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'audio/mpeg',
+                  data: 'BASE64AUDIO',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
+    const result = await generateAudio({ adapter, prompt: 'Ambient piano' })
+
+    expect(result.audio.contentType).toBe('audio/mpeg')
+  })
 })

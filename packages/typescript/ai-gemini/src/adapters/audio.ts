@@ -102,7 +102,11 @@ export class GeminiAudioAdapter<
       throw new Error('No audio data in Gemini Lyria response')
     }
 
-    const contentType = audioPart.inlineData.mimeType ?? 'audio/mp3'
+    // audioPart was selected because mimeType.startsWith('audio/') was
+    // truthy, so the mime type is guaranteed to be a string here. Trust the
+    // value Gemini returned rather than inventing a non-standard
+    // `audio/mp3` fallback (IANA is `audio/mpeg`).
+    const contentType = audioPart.inlineData.mimeType
 
     return {
       id: generateId(this.name),

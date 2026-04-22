@@ -1,4 +1,5 @@
-import { describe, it, expectTypeOf } from 'vitest'
+import { describe, it, expect, expectTypeOf } from 'vitest'
+import { GEMINI_TTS_MODELS } from '../src/model-meta'
 import type {
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,
@@ -585,5 +586,16 @@ describe('Gemini Model Input Modality Type Assertions', () => {
     it('should NOT allow DocumentPart', () => {
       expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
     })
+  })
+})
+
+describe('Gemini TTS model registry', () => {
+  it('exposes the Pro TTS model under its own name (not a Flash duplicate)', () => {
+    // Regression: GEMINI_2_5_PRO_TTS.name used to copy-paste the Flash
+    // model name, so the "Pro" entry in GEMINI_TTS_MODELS was an
+    // unreachable duplicate.
+    expect(GEMINI_TTS_MODELS).toContain('gemini-2.5-pro-preview-tts')
+    expect(GEMINI_TTS_MODELS).toContain('gemini-2.5-flash-preview-tts')
+    expect(new Set(GEMINI_TTS_MODELS).size).toBe(GEMINI_TTS_MODELS.length)
   })
 })
