@@ -208,6 +208,18 @@ export interface ImageGenerateInput {
 }
 
 /**
+ * Input for audio generation (music, sound effects).
+ */
+export interface AudioGenerateInput {
+  /** Text description of the desired audio */
+  prompt: string
+  /** Desired duration in seconds */
+  duration?: number
+  /** Model-specific options */
+  modelOptions?: Record<string, any>
+}
+
+/**
  * Input for text-to-speech generation.
  */
 export interface SpeechGenerateInput {

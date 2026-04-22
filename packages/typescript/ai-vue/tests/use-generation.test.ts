@@ -3,6 +3,7 @@ import { defineComponent, nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
+import { useGenerateAudio } from '../src/use-generate-audio'
 import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
@@ -433,6 +434,60 @@ describe('useGenerateSpeech', () => {
 
     expect(typeof result.stop).toBe('function')
     expect(typeof result.reset).toBe('function')
+  })
+})
+
+describe('useGenerateAudio', () => {
+  const mockAudioResult = {
+    id: 'audio-1',
+    model: 'fal-ai/diffrhythm',
+    audio: {
+      url: 'https://example.com/a.mp3',
+      contentType: 'audio/mpeg',
+      duration: 10,
+    },
+  }
+
+  it('should initialize with default state', () => {
+    const adapter = createMockConnectionAdapter()
+    const { result } = renderHook(() =>
+      useGenerateAudio({ connection: adapter }),
+    )
+
+    expect(result.result.value).toBeNull()
+    expect(result.isLoading.value).toBe(false)
+    expect(result.status.value).toBe('idle')
+  })
+
+  it('should generate audio using fetcher', async () => {
+    const { result } = renderHook(() =>
+      useGenerateAudio({
+        fetcher: async () => mockAudioResult,
+      }),
+    )
+
+    await result.generate({ prompt: 'Upbeat synths', duration: 10 })
+    await flushPromises()
+    await nextTick()
+
+    expect(result.result.value).toEqual(mockAudioResult)
+    expect(result.status.value).toBe('success')
+  })
+
+  it('should generate audio using connection', async () => {
+    const chunks = createGenerationChunks(mockAudioResult)
+    const adapter = createMockConnectionAdapter({ chunks })
+
+    const { result } = renderHook(() =>
+      useGenerateAudio({ connection: adapter }),
+    )
+
+    await result.generate({ prompt: 'Upbeat synths', duration: 10 })
+    await flushPromises()
+    await nextTick()
+
+    expect(result.result.value).toEqual(mockAudioResult)
+    expect(result.status.value).toBe('success')
   })
 })
 

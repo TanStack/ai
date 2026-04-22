@@ -126,6 +126,67 @@ const bytes = new Uint8Array(
 )
 ```
 
+## Client Hook (`useGenerateAudio`)
+
+For client-side usage, framework integrations expose a `useGenerateAudio`
+hook (or `createGenerateAudio` in Svelte) that wraps the same generation
+flow. It mirrors the API of `useGenerateSpeech`, `useGenerateImage`, and
+other media hooks — see [Generation Hooks](./generation-hooks) for the full
+shape.
+
+### Server (streaming SSE route)
+
+```typescript
+// routes/api/generate/audio.ts
+import { generateAudio, toServerSentEventsResponse } from '@tanstack/ai'
+import { falAudio } from '@tanstack/ai-fal'
+
+export async function POST(req: Request) {
+  const { prompt, duration } = await req.json()
+
+  return toServerSentEventsResponse(
+    generateAudio({
+      adapter: falAudio('fal-ai/diffrhythm'),
+      prompt,
+      duration,
+      stream: true,
+    }),
+  )
+}
+```
+
+### Client (React)
+
+```tsx
+import { useGenerateAudio } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
+
+function AudioGenerator() {
+  const { generate, result, isLoading, error, reset } = useGenerateAudio({
+    connection: fetchServerSentEvents('/api/generate/audio'),
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() =>
+          generate({ prompt: 'An upbeat electronic track', duration: 10 })
+        }
+        disabled={isLoading}
+      >
+        {isLoading ? 'Generating...' : 'Generate'}
+      </button>
+      {error && <p>Error: {error.message}</p>}
+      {result?.audio.url && <audio src={result.audio.url} controls />}
+      {result && <button onClick={reset}>Clear</button>}
+    </div>
+  )
+}
+```
+
+Use the `fetcher` option instead of `connection` when calling a TanStack
+Start server function directly.
+
 ## Differences vs Text-to-Speech
 
 | | `generateAudio()` | `generateSpeech()` |

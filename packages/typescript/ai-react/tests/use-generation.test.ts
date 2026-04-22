@@ -2,6 +2,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
+import { useGenerateAudio } from '../src/use-generate-audio'
 import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
@@ -386,6 +387,60 @@ describe('useGenerateSpeech', () => {
     })
 
     expect(result.current.result).toEqual(mockResult)
+    expect(result.current.status).toBe('success')
+  })
+})
+
+describe('useGenerateAudio', () => {
+  const mockAudioResult = {
+    id: 'audio-1',
+    model: 'fal-ai/diffrhythm',
+    audio: {
+      url: 'https://example.com/a.mp3',
+      contentType: 'audio/mpeg',
+      duration: 10,
+    },
+  }
+
+  it('should initialize with default state', () => {
+    const adapter = createMockConnectionAdapter()
+    const { result } = renderHook(() =>
+      useGenerateAudio({ connection: adapter }),
+    )
+
+    expect(result.current.result).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.status).toBe('idle')
+  })
+
+  it('should generate audio using fetcher', async () => {
+    const { result } = renderHook(() =>
+      useGenerateAudio({
+        fetcher: async () => mockAudioResult,
+      }),
+    )
+
+    await act(async () => {
+      await result.current.generate({ prompt: 'Upbeat synths', duration: 10 })
+    })
+
+    expect(result.current.result).toEqual(mockAudioResult)
+    expect(result.current.status).toBe('success')
+  })
+
+  it('should generate audio using connection', async () => {
+    const chunks = createGenerationChunks(mockAudioResult)
+    const adapter = createMockConnectionAdapter({ chunks })
+
+    const { result } = renderHook(() =>
+      useGenerateAudio({ connection: adapter }),
+    )
+
+    await act(async () => {
+      await result.current.generate({ prompt: 'Upbeat synths', duration: 10 })
+    })
+
+    expect(result.current.result).toEqual(mockAudioResult)
     expect(result.current.status).toBe('success')
   })
 })

@@ -6,8 +6,9 @@
  */
 
 import { aiEventClient } from '@tanstack/ai-event-client'
+import { streamGenerationResult } from '../stream-generation-result.js'
 import type { AudioAdapter } from './adapter'
-import type { AudioGenerationResult } from '../../types'
+import type { AudioGenerationResult, StreamChunk } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -37,9 +38,11 @@ export type AudioProviderOptions<TAdapter> =
  * The model is extracted from the adapter's model property.
  *
  * @template TAdapter - The audio adapter type
+ * @template TStream - Whether to stream the output
  */
 export interface AudioActivityOptions<
   TAdapter extends AudioAdapter<string, AudioProviderOptions<TAdapter>>,
+  TStream extends boolean = false,
 > {
   /** The audio adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -49,14 +52,29 @@ export interface AudioActivityOptions<
   duration?: number
   /** Provider-specific options for audio generation */
   modelOptions?: AudioProviderOptions<TAdapter>
+  /**
+   * Whether to stream the generation result.
+   * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
+   * When false or not provided, returns a Promise<AudioGenerationResult>.
+   *
+   * @default false
+   */
+  stream?: TStream
 }
 
 // ===========================
 // Activity Result Type
 // ===========================
 
-/** Result type for the audio generation activity */
-export type AudioActivityResult = Promise<AudioGenerationResult>
+/**
+ * Result type for the audio generation activity.
+ * - If stream is true: AsyncIterable<StreamChunk>
+ * - Otherwise: Promise<AudioGenerationResult>
+ */
+export type AudioActivityResult<TStream extends boolean = false> =
+  TStream extends true
+    ? AsyncIterable<StreamChunk>
+    : Promise<AudioGenerationResult>
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -85,10 +103,29 @@ function createId(prefix: string): string {
  * console.log(result.audio.url) // URL to generated audio
  * ```
  */
-export async function generateAudio<
+export function generateAudio<
   TAdapter extends AudioAdapter<string, AudioProviderOptions<TAdapter>>,
->(options: AudioActivityOptions<TAdapter>): AudioActivityResult {
-  const { adapter, ...rest } = options
+  TStream extends boolean = false,
+>(
+  options: AudioActivityOptions<TAdapter, TStream>,
+): AudioActivityResult<TStream> {
+  if (options.stream) {
+    return streamGenerationResult(() =>
+      runGenerateAudio(options),
+    ) as AudioActivityResult<TStream>
+  }
+  return runGenerateAudio(options) as AudioActivityResult<TStream>
+}
+
+/**
+ * Run the core audio generation logic (non-streaming).
+ */
+async function runGenerateAudio<
+  TAdapter extends AudioAdapter<string, AudioProviderOptions<TAdapter>>,
+>(
+  options: AudioActivityOptions<TAdapter, boolean>,
+): Promise<AudioGenerationResult> {
+  const { adapter, stream: _stream, ...rest } = options
   const model = adapter.model
   const requestId = createId('audio')
   const startTime = Date.now()
@@ -128,7 +165,10 @@ export async function generateAudio<
  */
 export function createAudioOptions<
   TAdapter extends AudioAdapter<string, AudioProviderOptions<TAdapter>>,
->(options: AudioActivityOptions<TAdapter>): AudioActivityOptions<TAdapter> {
+  TStream extends boolean = false,
+>(
+  options: AudioActivityOptions<TAdapter, TStream>,
+): AudioActivityOptions<TAdapter, TStream> {
   return options
 }
 

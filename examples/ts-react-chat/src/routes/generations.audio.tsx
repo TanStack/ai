@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useGenerateAudio } from '@tanstack/ai-react'
+import type { UseGenerateAudioReturn } from '@tanstack/ai-react'
+import { fetchServerSentEvents } from '@tanstack/ai-client'
 import type { AudioGenerationResult } from '@tanstack/ai'
 import { generateAudioFn } from '../lib/server-fns'
 import {
@@ -10,15 +13,23 @@ import {
 
 type Mode = 'direct' | 'server-fn'
 
-interface AudioResultState {
+interface AudioOutput {
   url: string
   contentType?: string
   duration?: number
   model: string
 }
 
-function toAudioUrl(audio: AudioGenerationResult['audio']): string {
-  if (audio.url) return audio.url
+function toAudioOutput(raw: AudioGenerationResult): AudioOutput {
+  const { audio } = raw
+  if (audio.url) {
+    return {
+      url: audio.url,
+      contentType: audio.contentType,
+      duration: audio.duration,
+      model: raw.model,
+    }
+  }
   if (audio.b64Json) {
     const binary = atob(audio.b64Json)
     const bytes = new Uint8Array(binary.length)
@@ -28,27 +39,14 @@ function toAudioUrl(audio: AudioGenerationResult['audio']): string {
     const blob = new Blob([bytes], {
       type: audio.contentType ?? 'audio/mpeg',
     })
-    return URL.createObjectURL(blob)
+    return {
+      url: URL.createObjectURL(blob),
+      contentType: audio.contentType,
+      duration: audio.duration,
+      model: raw.model,
+    }
   }
   throw new Error('Audio response had neither url nor b64Json data')
-}
-
-async function generateViaRoute(input: {
-  prompt: string
-  duration?: number
-  provider: AudioProviderId
-  model?: string
-}): Promise<AudioGenerationResult> {
-  const response = await fetch('/api/generate/audio', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ data: input }),
-  })
-  const payload = await response.json()
-  if (!response.ok) {
-    throw new Error(payload.error || 'Audio generation failed')
-  }
-  return payload.result as AudioGenerationResult
 }
 
 function AudioGenerationForm({
@@ -63,40 +61,66 @@ function AudioGenerationForm({
     config.defaultDuration,
   )
   const [selectedModel, setSelectedModel] = useState<string>(config.model)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<AudioResultState | null>(null)
 
-  const generate = useMemo(
-    () => async () => {
-      if (!prompt.trim()) return
-      setIsLoading(true)
-      setError(null)
-      try {
-        const payload = {
-          prompt: prompt.trim(),
-          duration,
-          provider: config.id,
-          model: selectedModel,
-        }
-        const response =
-          mode === 'server-fn'
-            ? await generateAudioFn({ data: payload })
-            : await generateViaRoute(payload)
-        setResult({
-          url: toAudioUrl(response.audio),
-          contentType: response.audio.contentType,
-          duration: response.audio.duration,
-          model: response.model,
-        })
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-      } finally {
-        setIsLoading(false)
+  const hookOptions = useMemo(() => {
+    if (mode === 'direct') {
+      return {
+        connection: fetchServerSentEvents('/api/generate/audio'),
+        body: { provider: config.id, model: selectedModel },
+        onResult: toAudioOutput,
       }
-    },
-    [prompt, duration, config.id, mode, selectedModel],
+    }
+    return {
+      fetcher: (input: { prompt: string; duration?: number }) =>
+        generateAudioFn({
+          data: { ...input, provider: config.id, model: selectedModel },
+        }),
+      onResult: toAudioOutput,
+    }
+  }, [mode, config.id, selectedModel])
+
+  const hookReturn = useGenerateAudio(hookOptions)
+
+  return (
+    <AudioGenerationUI
+      {...hookReturn}
+      config={config}
+      prompt={prompt}
+      setPrompt={setPrompt}
+      duration={duration}
+      setDuration={setDuration}
+      selectedModel={selectedModel}
+      setSelectedModel={setSelectedModel}
+    />
   )
+}
+
+function AudioGenerationUI({
+  config,
+  prompt,
+  setPrompt,
+  duration,
+  setDuration,
+  selectedModel,
+  setSelectedModel,
+  generate,
+  result,
+  isLoading,
+  error,
+  reset,
+}: UseGenerateAudioReturn<AudioOutput> & {
+  config: AudioProviderConfig
+  prompt: string
+  setPrompt: (v: string) => void
+  duration: number | undefined
+  setDuration: (v: number | undefined) => void
+  selectedModel: string
+  setSelectedModel: (v: string) => void
+}) {
+  const handleGenerate = () => {
+    if (!prompt.trim()) return
+    generate({ prompt: prompt.trim(), duration })
+  }
 
   return (
     <div className="space-y-6">
@@ -184,7 +208,7 @@ function AudioGenerationForm({
 
       <div className="flex gap-3">
         <button
-          onClick={generate}
+          onClick={handleGenerate}
           disabled={!prompt.trim() || isLoading}
           data-testid="audio-generate-button"
           className="px-6 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm font-medium transition-colors"
@@ -193,10 +217,7 @@ function AudioGenerationForm({
         </button>
         {result && (
           <button
-            onClick={() => {
-              setResult(null)
-              setError(null)
-            }}
+            onClick={reset}
             className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors"
           >
             Clear
@@ -209,7 +230,7 @@ function AudioGenerationForm({
           data-testid="audio-error"
           className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg"
         >
-          <p className="text-red-400 text-sm">{error}</p>
+          <p className="text-red-400 text-sm">{error.message}</p>
         </div>
       )}
 

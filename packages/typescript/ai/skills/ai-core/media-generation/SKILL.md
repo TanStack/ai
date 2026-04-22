@@ -1,11 +1,12 @@
 ---
 name: ai-core/media-generation
 description: >
-  Image, video, speech (TTS), and transcription generation using
+  Image, audio, video, speech (TTS), and transcription generation using
   activity-specific adapters: generateImage() with openaiImage/geminiImage,
-  generateVideo() with async polling, generateSpeech() with openaiSpeech,
-  generateTranscription() with openaiTranscription. React hooks:
-  useGenerateImage, useGenerateSpeech, useTranscription, useGenerateVideo.
+  generateAudio() with geminiAudio/falAudio, generateVideo() with async
+  polling, generateSpeech() with openaiSpeech, generateTranscription() with
+  openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
+  useGenerateSpeech, useTranscription, useGenerateVideo.
   TanStack Start server function integration with toServerSentEventsResponse.
 type: sub-skill
 library: tanstack-ai
@@ -14,6 +15,7 @@ sources:
   - 'TanStack/ai:docs/media/generations.md'
   - 'TanStack/ai:docs/media/generation-hooks.md'
   - 'TanStack/ai:docs/media/image-generation.md'
+  - 'TanStack/ai:docs/media/audio-generation.md'
   - 'TanStack/ai:docs/media/video-generation.md'
   - 'TanStack/ai:docs/media/text-to-speech.md'
   - 'TanStack/ai:docs/media/transcription.md'
@@ -186,7 +188,40 @@ Result shape: `ImageGenerationResult` with `images` array where each entry
 has `b64Json?`, `url?`, and `revisedPrompt?`. OpenAI image URLs expire
 after 1 hour -- download or display immediately.
 
-### 2. Text-to-Speech
+### 2. Audio Generation (Music, Sound Effects)
+
+Distinct from TTS — `generateAudio()` produces non-speech audio content.
+Supported adapters: `geminiAudio` (Lyria 3 Pro / Lyria 3 Clip) and
+`falAudio` (MiniMax Music, DiffRhythm, Stable Audio, ElevenLabs SFX, etc.).
+
+```typescript
+import { generateAudio } from '@tanstack/ai'
+import { falAudio } from '@tanstack/ai-fal'
+
+const result = await generateAudio({
+  adapter: falAudio('fal-ai/diffrhythm'),
+  prompt: 'An upbeat electronic track with synths',
+  duration: 10,
+})
+
+// result.audio.url or result.audio.b64Json (provider-dependent)
+// result.audio.contentType e.g. "audio/mpeg"
+```
+
+Client hook:
+
+```tsx
+import { useGenerateAudio, fetchServerSentEvents } from '@tanstack/ai-react'
+
+const { generate, result, isLoading } = useGenerateAudio({
+  connection: fetchServerSentEvents('/api/generate/audio'),
+})
+
+// Trigger: generate({ prompt: 'Upbeat synths', duration: 10 })
+// Play:    <audio src={result.audio.url} controls />
+```
+
+### 3. Text-to-Speech
 
 Adapter: `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview).
 
@@ -220,7 +255,7 @@ const { generate, result, isLoading } = useGenerateSpeech({
 // Play:   <audio src={`data:audio/${result.format};base64,${result.audio}`} controls />
 ```
 
-### 3. Audio Transcription
+### 4. Audio Transcription
 
 Adapter: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
 gpt-4o-mini-transcribe).
@@ -257,7 +292,7 @@ const { generate, result, isLoading } = useTranscription({
 // Trigger: generate({ audio: dataUrl, language: 'en' })
 ```
 
-### 4. Video Generation (Experimental -- async polling)
+### 5. Video Generation (Experimental -- async polling)
 
 Video generation uses a jobs/polling architecture. The server creates a job,
 polls for status, and streams updates to the client.
