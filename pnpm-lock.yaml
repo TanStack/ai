@@ -539,9 +539,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/typescript/ai
-      '@tanstack/ai-openai':
+      '@tanstack/ai-groq':
         specifier: workspace:*
-        version: link:../../packages/typescript/ai-openai
+        version: link:../../packages/typescript/ai-groq
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-react

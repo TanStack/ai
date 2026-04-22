@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
+import { groqText } from '@tanstack/ai-groq'
 import z from 'zod'
 import {
   ORDER_STATUS_MAP,
@@ -11,6 +11,7 @@ import {
   DISPUTE_STATUS_MAP,
 } from '@/features/disputes/constants'
 import { SETTLEMENT_CURRENCY_MAP } from '@/features/settlements/constants'
+import toGroqCompatibleSchema from '@/utils/toGroqCompatibleSchema'
 
 const ORDER_STATUS_KEYS = Object.keys(ORDER_STATUS_MAP)
 const PAYMENT_METHOD_KEYS = Object.keys(PAYMENT_METHOD_MAP)
@@ -50,6 +51,10 @@ const outputSchema = z.object({
   ]),
 })
 
+// Only needed for Groq, since it doesn't support additionalProperties:false on anyOf (union types)
+// Otherwise just use the outputSchema directly
+const groqOutputSchema = toGroqCompatibleSchema(z.toJSONSchema(outputSchema))
+
 const SYSTEM_PROMPT = `
 JSON API: Convert prompts to structured data. No prose, fences, or comments.
 
@@ -70,10 +75,10 @@ export const Route = createFileRoute('/api/search')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (!process.env.OPENAI_API_KEY) {
+        if (!process.env.GROQ_API_KEY) {
           return new Response(
             JSON.stringify({
-              error: 'OPENAI_API_KEY not configured',
+              error: 'GROQ_API_KEY not configured',
             }),
             {
               status: 500,
@@ -86,10 +91,10 @@ export const Route = createFileRoute('/api/search')({
 
         try {
           const response = await chat({
-            adapter: openaiText('gpt-5-nano'),
+            adapter: groqText('openai/gpt-oss-20b'),
             messages: [{ role: 'user', content }],
             systemPrompts: [SYSTEM_PROMPT],
-            outputSchema,
+            outputSchema: groqOutputSchema,
           })
 
           return new Response(JSON.stringify(response), {
