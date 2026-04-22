@@ -9,7 +9,7 @@ title: InferSchemaType
 type InferSchemaType<T> = T extends StandardJSONSchemaV1<infer TInput, unknown> ? TInput : unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:110](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L110)
+Defined in: [packages/typescript/ai/src/types.ts:111](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L111)
 
 Infer the TypeScript type from a schema.
 For Standard JSON Schema compliant schemas, extracts the input type.
