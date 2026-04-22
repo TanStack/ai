@@ -19,6 +19,7 @@ sources:
   - 'TanStack/ai:docs/media/video-generation.md'
   - 'TanStack/ai:docs/media/text-to-speech.md'
   - 'TanStack/ai:docs/media/transcription.md'
+  - 'TanStack/ai:docs/advanced/debug-logging.md'
 ---
 
 # Media Generation
@@ -489,11 +490,115 @@ for (const img of result.images) {
 Not all generation activities support streaming. Passing `stream: true` to
 an activity that does not support it may hang or produce unexpected results.
 Check the activity documentation before enabling streaming. All built-in
-activities (`generateImage`, `generateSpeech`, `generateTranscription`,
-`generateVideo`, `summarize`) support `stream: true`, but custom
-`useGeneration` setups may not.
+activities (`generateImage`, `generateAudio`, `generateSpeech`,
+`generateTranscription`, `generateVideo`, `summarize`) support `stream: true`,
+but custom `useGeneration` setups may not.
 
 > Source: docs/media/generations.md.
+
+### e. HIGH: Passing `responseMimeType` or `negativePrompt` to Gemini Lyria
+
+Gemini's `GenerateContentConfig` (used by Lyria 3 Pro / Lyria 3 Clip) does
+**not** support `responseMimeType` or `negativePrompt`. Lyria 3 Clip always
+returns 30-second `audio/mp3`; Lyria 3 Pro returns `audio/mp3`. These fields
+are not in `GeminiAudioProviderOptions` — don't reach for them via `as any`.
+
+```typescript
+// WRONG — both fields are silently ignored or rejected by the SDK
+generateAudio({
+  adapter: geminiAudio('lyria-3-pro-preview'),
+  prompt: 'ambient piano',
+  modelOptions: {
+    responseMimeType: 'audio/wav', // unsupported
+    negativePrompt: 'vocals', // unsupported
+  } as any,
+})
+
+// CORRECT — shape the prompt itself for what you want
+generateAudio({
+  adapter: geminiAudio('lyria-3-pro-preview'),
+  prompt: 'ambient piano, no vocals',
+})
+```
+
+> Source: Gemini API `GenerateContentConfig` type; docs/media/audio-generation.md.
+
+### f. MEDIUM: Passing `duration` to Lyria expecting it to control length
+
+Lyria 3 Clip is fixed at 30 seconds — the `duration` option is ignored on
+that model. Lyria 3 Pro accepts duration via natural-language in the
+**prompt** ("2-minute ambient track with a 30-second build"), not via the
+`duration` field. `duration` works for fal audio models (mapped to each
+model's native field like `music_length_ms` or `seconds_total`), but not
+for Lyria.
+
+```typescript
+// For Lyria: put length guidance in the prompt
+generateAudio({
+  adapter: geminiAudio('lyria-3-pro-preview'),
+  prompt: 'A 2-minute ambient piano piece with gentle strings',
+  // duration: 120  // ← does nothing; rely on the prompt
+})
+
+// For fal: duration works and is translated per-model
+generateAudio({
+  adapter: falAudio('fal-ai/minimax-music/v2'),
+  prompt: 'upbeat synth melody',
+  duration: 60, // → music_length_ms: 60_000
+})
+```
+
+> Source: Google Lyria 3 docs; docs/media/audio-generation.md.
+
+### g. MEDIUM: Gemini TTS multi-speaker with 0 or 3+ speakers
+
+`multiSpeakerVoiceConfig.speakerVoiceConfigs` is validated to be length 1 or 2. Passing an empty array or three+ entries throws at the adapter boundary
+(not at Gemini's API) with a clear error. Don't try to work around it with
+`as any`.
+
+```typescript
+generateSpeech({
+  adapter: geminiSpeech('gemini-2.5-pro-preview-tts'),
+  text: '[Alice] Hi. [Bob] Hello!',
+  modelOptions: {
+    multiSpeakerVoiceConfig: {
+      speakerVoiceConfigs: [
+        {
+          speaker: 'Alice',
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+        },
+        {
+          speaker: 'Bob',
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
+        },
+      ],
+    },
+  },
+})
+```
+
+> Source: Gemini TTS adapter validation; CodeRabbit review of PR #463.
+
+### h. LOW: Writing a logging middleware to see media chunks flow through
+
+Every media activity — `generateAudio`, `generateSpeech`,
+`generateTranscription`, `generateImage`, `generateVideo` — accepts the
+same `debug?: DebugOption` option that `chat()` does. Reach for `debug`
+instead of wiring up logging middleware.
+
+```typescript
+// When a speech generation sounds wrong or a transcription returns garbage
+generateSpeech({
+  adapter: openaiSpeech('tts-1'),
+  text: 'Hello',
+  debug: { provider: true, output: true }, // raw SDK chunks + yielded chunks
+})
+```
+
+See the `ai-core/debug-logging` sub-skill for full details on categories
+and piping into a custom logger.
+
+> Source: docs/advanced/debug-logging.md.
 
 ---
 
@@ -504,3 +609,7 @@ activities (`generateImage`, `generateSpeech`, `generateTranscription`,
   images, `openaiSpeech` for speech, `openaiTranscription` for transcription,
   `openaiVideo` for video). The adapter-configuration skill covers provider
   setup, API keys, and model selection.
+- See also: **ai-core/debug-logging/SKILL.md** -- When a media request
+  returns unexpected output or fails mid-stream, toggle `debug: true` on
+  any `generate*()` call to see request metadata, raw provider chunks, and
+  errors. Covers per-category toggling and piping into pino/winston.
