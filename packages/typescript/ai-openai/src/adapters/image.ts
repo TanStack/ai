@@ -53,7 +53,7 @@ export class OpenAIImageAdapter<
   private client: OpenAI_SDK
 
   constructor(config: OpenAIImageConfig, model: TModel) {
-    super({}, model)
+    super(model, {})
     this.client = createOpenAIClient(config)
   }
 

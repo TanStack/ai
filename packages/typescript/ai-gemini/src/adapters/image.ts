@@ -74,7 +74,7 @@ export class GeminiImageAdapter<
   private client: GoogleGenAI
 
   constructor(config: GeminiImageConfig, model: TModel) {
-    super(config, model)
+    super(model, config)
     this.client = createGeminiClient(config)
   }
 

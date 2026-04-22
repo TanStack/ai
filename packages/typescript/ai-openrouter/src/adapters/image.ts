@@ -53,7 +53,7 @@ export class OpenRouterImageAdapter<
   private client: OpenRouter
 
   constructor(config: OpenRouterImageConfig, model: TModel) {
-    super({}, model)
+    super(model, {})
     this.client = new OpenRouter({
       ...config,
       apiKey: config.apiKey,

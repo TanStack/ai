@@ -124,7 +124,7 @@ export class GeminiTTSAdapter<
   private client: GoogleGenAI
 
   constructor(config: GeminiTTSConfig, model: TModel) {
-    super(config, model)
+    super(model, config)
     this.client = createGeminiClient(config)
   }
 

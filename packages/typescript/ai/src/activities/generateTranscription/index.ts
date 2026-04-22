@@ -181,21 +181,36 @@ async function runGenerateTranscription<
     timestamp: startTime,
   })
 
-  const result = await adapter.transcribe({ ...rest, model })
-  const duration = Date.now() - startTime
+  try {
+    const result = await adapter.transcribe({ ...rest, model })
+    const duration = Date.now() - startTime
 
-  aiEventClient.emit('transcription:request:completed', {
-    requestId,
-    provider: adapter.name,
-    model,
-    text: result.text,
-    language: result.language,
-    duration,
-    modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
-    timestamp: Date.now(),
-  })
+    aiEventClient.emit('transcription:request:completed', {
+      requestId,
+      provider: adapter.name,
+      model,
+      text: result.text,
+      language: result.language,
+      duration,
+      modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+      timestamp: Date.now(),
+    })
 
-  return result
+    return result
+  } catch (error) {
+    const duration = Date.now() - startTime
+    const err = error as Error
+    aiEventClient.emit('transcription:request:error', {
+      requestId,
+      provider: adapter.name,
+      model,
+      error: { message: err.message, name: err.name },
+      duration,
+      modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+      timestamp: Date.now(),
+    })
+    throw error
+  }
 }
 
 // ===========================

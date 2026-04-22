@@ -151,7 +151,8 @@ async function runGenerateSpeech<
     timestamp: startTime,
   })
 
-  return adapter.generateSpeech({ ...rest, model }).then((result) => {
+  try {
+    const result = await adapter.generateSpeech({ ...rest, model })
     const duration = Date.now() - startTime
 
     aiEventClient.emit('speech:request:completed', {
@@ -168,7 +169,20 @@ async function runGenerateSpeech<
     })
 
     return result
-  })
+  } catch (error) {
+    const duration = Date.now() - startTime
+    const err = error as Error
+    aiEventClient.emit('speech:request:error', {
+      requestId,
+      provider: adapter.name,
+      model,
+      error: { message: err.message, name: err.name },
+      duration,
+      modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+      timestamp: Date.now(),
+    })
+    throw error
+  }
 }
 
 // ===========================

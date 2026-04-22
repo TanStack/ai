@@ -74,7 +74,7 @@ export abstract class BaseAudioAdapter<
 
   protected config: AudioAdapterConfig
 
-  constructor(config: AudioAdapterConfig = {}, model: TModel) {
+  constructor(model: TModel, config: AudioAdapterConfig = {}) {
     this.config = config
     this.model = model
   }

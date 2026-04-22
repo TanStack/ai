@@ -93,6 +93,8 @@ export interface ToolCall {
     name: string
     arguments: string
   }
+  /** Provider-specific metadata to carry through the tool call lifecycle */
+  providerMetadata?: Record<string, unknown>
 }
 
 /**
@@ -518,7 +520,39 @@ export interface AudioRequestCompletedEvent extends BaseEventContext {
   requestId: string
   provider: string
   model: string
-  audio: { url?: string; b64Json?: string; contentType?: string }
+  audio: {
+    url?: string
+    b64Json?: string
+    contentType?: string
+    duration?: number
+  }
+  duration: number
+}
+
+/** Emitted when an audio generation request fails. */
+export interface AudioRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+}
+
+/** Emitted when a speech generation request fails. */
+export interface SpeechRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+}
+
+/** Emitted when a transcription request fails. */
+export interface TranscriptionRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
   duration: number
 }
 
@@ -654,16 +688,19 @@ export interface AIDevtoolsEventMap {
   // Speech events
   'speech:request:started': SpeechRequestStartedEvent
   'speech:request:completed': SpeechRequestCompletedEvent
+  'speech:request:error': SpeechRequestErrorEvent
   'speech:usage': SpeechUsageEvent
 
   // Transcription events
   'transcription:request:started': TranscriptionRequestStartedEvent
   'transcription:request:completed': TranscriptionRequestCompletedEvent
+  'transcription:request:error': TranscriptionRequestErrorEvent
   'transcription:usage': TranscriptionUsageEvent
 
   // Audio events
   'audio:request:started': AudioRequestStartedEvent
   'audio:request:completed': AudioRequestCompletedEvent
+  'audio:request:error': AudioRequestErrorEvent
   'audio:usage': AudioUsageEvent
 
   // Video events

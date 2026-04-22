@@ -69,7 +69,7 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
   readonly name = 'fal' as const
 
   constructor(model: TModel, config?: FalClientConfig) {
-    super({}, model)
+    super(model, {})
     configureFalClient(config)
   }
 

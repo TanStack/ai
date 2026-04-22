@@ -69,7 +69,7 @@ export class GeminiAudioAdapter<
   private client: GoogleGenAI
 
   constructor(config: GeminiAudioConfig, model: TModel) {
-    super(config, model)
+    super(model, config)
     this.client = createGeminiClient(config)
   }
 

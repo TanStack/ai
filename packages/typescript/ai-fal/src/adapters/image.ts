@@ -46,7 +46,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   readonly name = 'fal' as const
 
   constructor(model: TModel, config?: FalClientConfig) {
-    super({}, model)
+    super(model, {})
     configureFalClient(config)
   }
 

@@ -49,7 +49,7 @@ export class GrokImageAdapter<
   private client: OpenAI_SDK
 
   constructor(config: GrokImageConfig, model: TModel) {
-    super({}, model)
+    super(model, {})
     this.client = createGrokClient(config)
   }
 

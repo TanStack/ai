@@ -41,7 +41,7 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
   readonly name = 'fal' as const
 
   constructor(model: TModel, config?: FalClientConfig) {
-    super({}, model)
+    super(model, {})
     configureFalClient(config)
   }
 
