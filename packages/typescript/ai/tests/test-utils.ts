@@ -6,9 +6,9 @@ import type { StreamChunk, TextMessageContentEvent, Tool } from '../src/types'
 // ============================================================================
 
 /** Create a typed StreamChunk with minimal boilerplate. */
-export function chunk<T extends StreamChunk['type']>(
-  type: T,
-  fields: Omit<Extract<StreamChunk, { type: T }>, 'type' | 'timestamp'>,
+export function chunk(
+  type: string,
+  fields: Record<string, unknown> = {},
 ): StreamChunk {
   return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
 }
@@ -19,25 +19,33 @@ export function chunk<T extends StreamChunk['type']>(
 
 /** Shorthand chunk factories for common AG-UI events. */
 export const ev = {
-  runStarted: (runId = 'run-1') => chunk('RUN_STARTED', { runId }),
+  runStarted: (runId = 'run-1', threadId = 'thread-1') =>
+    chunk('RUN_STARTED', { runId, threadId }),
   textStart: (messageId = 'msg-1') =>
     chunk('TEXT_MESSAGE_START', { messageId, role: 'assistant' as const }),
   textContent: (delta: string, messageId = 'msg-1') =>
     chunk('TEXT_MESSAGE_CONTENT', { messageId, delta }),
   textEnd: (messageId = 'msg-1') => chunk('TEXT_MESSAGE_END', { messageId }),
-  toolStart: (toolCallId: string, toolName: string, index?: number) =>
+  toolStart: (toolCallId: string, toolCallName: string, index?: number) =>
     chunk('TOOL_CALL_START', {
       toolCallId,
-      toolName,
+      toolCallName,
+      toolName: toolCallName,
       ...(index !== undefined ? { index } : {}),
     }),
   toolArgs: (toolCallId: string, delta: string) =>
     chunk('TOOL_CALL_ARGS', { toolCallId, delta }),
   toolEnd: (
     toolCallId: string,
-    toolName: string,
+    toolCallName: string,
     opts?: { input?: unknown; result?: string },
-  ) => chunk('TOOL_CALL_END', { toolCallId, toolName, ...opts }),
+  ) =>
+    chunk('TOOL_CALL_END', {
+      toolCallId,
+      toolCallName,
+      toolName: toolCallName,
+      ...opts,
+    }),
   runFinished: (
     finishReason:
       | 'stop'
@@ -51,12 +59,19 @@ export const ev = {
       completionTokens: number
       totalTokens: number
     },
+    threadId = 'thread-1',
   ) =>
-    chunk('RUN_FINISHED', { runId, finishReason, ...(usage ? { usage } : {}) }),
+    chunk('RUN_FINISHED', {
+      runId,
+      threadId,
+      finishReason,
+      ...(usage ? { usage } : {}),
+    }),
   runError: (message: string, runId = 'run-1') =>
-    chunk('RUN_ERROR', { runId, error: { message } }),
-  stepFinished: (delta: string, stepId = 'step-1') =>
-    chunk('STEP_FINISHED', { stepId, delta }),
+    chunk('RUN_ERROR', { message, runId, error: { message } }),
+  stepStarted: (stepName = 'step-1') => chunk('STEP_STARTED', { stepName }),
+  stepFinished: (delta: string, stepName = 'step-1') =>
+    chunk('STEP_FINISHED', { stepName, stepId: stepName, delta }),
 }
 
 // ============================================================================
@@ -92,6 +107,7 @@ export function createMockAdapter(options: {
         video: undefined as unknown,
         document: undefined as unknown,
       },
+      toolCapabilities: [] as ReadonlyArray<string>,
     },
     chatStream: (opts: any) => {
       calls.push(opts)

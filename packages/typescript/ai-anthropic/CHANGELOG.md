@@ -1,5 +1,25 @@
 # @tanstack/ai-anthropic
 
+## 0.8.0
+
+### Minor Changes
+
+- Expose provider-tool factories (`webSearchTool`, `codeExecutionTool`, `computerUseTool`, `bashTool`, `textEditorTool`, `webFetchTool`, `memoryTool`, `customTool`) on a new `/tools` subpath. Each factory now returns a branded type (e.g. `AnthropicWebSearchTool`) that is gated against the selected model's `supports.tools` list. Existing factory signatures and runtime behavior are unchanged; old config-type aliases (`WebSearchTool`, `BashTool`, etc.) remain as `@deprecated` aliases pointing at the renamed `*ToolConfig` types. ([#466](https://github.com/TanStack/ai/pull/466))
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+
+## 0.7.5
+
+### Patch Changes
+
+- Align stream output with `@tanstack/ai`'s AG-UI-compliant event shapes: emit `REASONING_*` events alongside `STEP_*`, thread `threadId`/`runId` through `RUN_STARTED`/`RUN_FINISHED`, and return flat `RunErrorEvent` shape. Cast raw events through an internal `asChunk` helper so they line up with the re-exported `@ag-ui/core` `EventType` enum. No changes to adapter factory signatures or config shapes. ([#474](https://github.com/TanStack/ai/pull/474))
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7)]:
+  - @tanstack/ai@0.11.0
+
 ## 0.7.4
 
 ### Patch Changes

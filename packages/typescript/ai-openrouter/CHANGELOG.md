@@ -1,5 +1,42 @@
 # @tanstack/ai-openrouter
 
+## 0.8.0
+
+### Minor Changes
+
+- **Breaking export change.** `createWebSearchTool` has been removed from the package root. Import `webSearchTool` from `@tanstack/ai-openrouter/tools` instead. See Migration Guide §6 for the before/after snippet. ([#466](https://github.com/TanStack/ai/pull/466))
+
+  Alongside: the new `/tools` subpath exposes `webSearchTool` (branded `OpenRouterWebSearchTool`) and the existing `convertToolsToProviderFormat`. A new `supports.tools` channel on each chat model gates provider tools at the type level.
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+
+## 0.7.9
+
+### Patch Changes
+
+- Update model metadata from OpenRouter API ([#488](https://github.com/TanStack/ai/pull/488))
+
+- Updated dependencies [[`633a3d9`](https://github.com/TanStack/ai/commit/633a3d93fff27e3de7c10ce0059b2d5d87f33245)]:
+  - @tanstack/ai@0.11.1
+
+## 0.7.8
+
+### Patch Changes
+
+- Align stream output with `@tanstack/ai`'s AG-UI-compliant event shapes: emit `REASONING_*` events alongside `STEP_*`, thread `threadId`/`runId` through `RUN_STARTED`/`RUN_FINISHED`, and return flat `RunErrorEvent` shape. Cast raw events through an internal `asChunk` helper so they line up with the re-exported `@ag-ui/core` `EventType` enum. No changes to adapter factory signatures or config shapes. ([#474](https://github.com/TanStack/ai/pull/474))
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7)]:
+  - @tanstack/ai@0.11.0
+
+## 0.7.7
+
+### Patch Changes
+
+- Update model metadata from OpenRouter API ([#472](https://github.com/TanStack/ai/pull/472))
+
 ## 0.7.6
 
 ### Patch Changes

@@ -431,7 +431,7 @@ export class StreamProcessor {
    *
    * Central dispatch for all AG-UI events. Each event type maps to a specific
    * handler. Events not listed in the switch are intentionally ignored
-   * (RUN_STARTED, STEP_STARTED, STATE_DELTA).
+   * (STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA).
    *
    * @see docs/chat-architecture.md#adapter-contract — Expected event types and ordering
    */
@@ -445,54 +445,100 @@ export class StreamProcessor {
       })
     }
 
-    switch (chunk.type) {
+    // Cast needed: @ag-ui/core Zod passthrough types add `& { [k: string]: unknown }`
+    // which prevents TypeScript from narrowing the `type` discriminant in switch.
+    const c = chunk as StreamChunk & { type: string }
+    switch (c.type) {
       // AG-UI Events
       case 'TEXT_MESSAGE_START':
-        this.handleTextMessageStartEvent(chunk)
+        this.handleTextMessageStartEvent(
+          chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>,
+        )
         break
 
       case 'TEXT_MESSAGE_CONTENT':
-        this.handleTextMessageContentEvent(chunk)
+        this.handleTextMessageContentEvent(
+          chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
+        )
         break
 
       case 'TEXT_MESSAGE_END':
-        this.handleTextMessageEndEvent(chunk)
+        this.handleTextMessageEndEvent(
+          chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_END' }>,
+        )
         break
 
       case 'TOOL_CALL_START':
-        this.handleToolCallStartEvent(chunk)
+        this.handleToolCallStartEvent(
+          chunk as Extract<StreamChunk, { type: 'TOOL_CALL_START' }>,
+        )
         break
 
       case 'TOOL_CALL_ARGS':
-        this.handleToolCallArgsEvent(chunk)
+        this.handleToolCallArgsEvent(
+          chunk as Extract<StreamChunk, { type: 'TOOL_CALL_ARGS' }>,
+        )
         break
 
       case 'TOOL_CALL_END':
-        this.handleToolCallEndEvent(chunk)
+        this.handleToolCallEndEvent(
+          chunk as Extract<StreamChunk, { type: 'TOOL_CALL_END' }>,
+        )
         break
 
       case 'RUN_FINISHED':
-        this.handleRunFinishedEvent(chunk)
+        this.handleRunFinishedEvent(
+          chunk as Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
+        )
         break
 
       case 'RUN_ERROR':
-        this.handleRunErrorEvent(chunk)
+        this.handleRunErrorEvent(
+          chunk as Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+        )
         break
 
       case 'STEP_FINISHED':
-        this.handleStepFinishedEvent(chunk)
+        this.handleStepFinishedEvent(
+          chunk as Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
+        )
         break
 
       case 'MESSAGES_SNAPSHOT':
-        this.handleMessagesSnapshotEvent(chunk)
+        this.handleMessagesSnapshotEvent(
+          chunk as Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>,
+        )
         break
 
       case 'CUSTOM':
-        this.handleCustomEvent(chunk)
+        this.handleCustomEvent(
+          chunk as Extract<StreamChunk, { type: 'CUSTOM' }>,
+        )
         break
 
       case 'RUN_STARTED':
-        this.handleRunStartedEvent(chunk)
+        this.handleRunStartedEvent(
+          chunk as Extract<StreamChunk, { type: 'RUN_STARTED' }>,
+        )
+        break
+
+      case 'REASONING_START':
+      case 'REASONING_MESSAGE_START':
+      case 'REASONING_MESSAGE_END':
+      case 'REASONING_END':
+        // No special handling needed
+        break
+
+      case 'REASONING_MESSAGE_CONTENT':
+        this.handleReasoningMessageContentEvent(
+          chunk as Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
+        )
+        break
+
+      case 'TOOL_CALL_RESULT':
+        this.handleToolCallResultEvent(
+          chunk as Extract<StreamChunk, { type: 'TOOL_CALL_RESULT' }>,
+        )
         break
 
       default:
@@ -519,6 +565,7 @@ export class StreamProcessor {
       currentSegmentText: '',
       lastEmittedText: '',
       thinkingContent: '',
+      hasSeenReasoningEvents: false,
       toolCalls: new Map(),
       toolCallOrder: [],
       hasToolCallsSinceTextStart: false,
@@ -632,11 +679,11 @@ export class StreamProcessor {
   ): void {
     const { messageId, role } = chunk
 
-    // Map 'tool' role to 'assistant' for both UIMessage and MessageStreamState
-    // (UIMessage doesn't support 'tool' role, and lookups like
+    // Map 'tool' and 'developer' roles to 'assistant' for both UIMessage and MessageStreamState
+    // (UIMessage doesn't support 'tool'/'developer' role, and lookups like
     // getActiveAssistantMessageId() check state.role === 'assistant')
     const uiRole: 'system' | 'user' | 'assistant' =
-      role === 'tool' ? 'assistant' : role
+      role === 'user' || role === 'system' ? role : 'assistant'
 
     // Case 1: A manual message was created via startAssistantMessage()
     if (this.pendingManualMessageId) {
@@ -739,7 +786,8 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'MESSAGES_SNAPSHOT' }>,
   ): void {
     this.resetStreamState()
-    this.messages = [...chunk.messages]
+    // AG-UI Message[] is compatible with UIMessage[] at runtime
+    this.messages = [...chunk.messages] as unknown as Array<UIMessage>
     this.emitMessagesChange()
   }
 
@@ -849,9 +897,11 @@ export class StreamProcessor {
       // New tool call starting
       const initialState: ToolCallState = 'awaiting-input'
 
+      const toolName = chunk.toolCallName
+
       const newToolCall: InternalToolCallState = {
         id: chunk.toolCallId,
-        name: chunk.toolName,
+        name: toolName,
         arguments: '',
         state: initialState,
         parsedArguments: undefined,
@@ -867,7 +917,7 @@ export class StreamProcessor {
       // Update UIMessage
       this.messages = updateToolCallPart(this.messages, messageId, {
         id: chunk.toolCallId,
-        name: chunk.toolName,
+        name: toolName,
         arguments: '',
         state: initialState,
       })
@@ -1013,6 +1063,44 @@ export class StreamProcessor {
   }
 
   /**
+   * Handle TOOL_CALL_RESULT event (AG-UI spec).
+   *
+   * Creates a tool-result part and updates the tool-call output field,
+   * mirroring the logic from TOOL_CALL_END when it carries a result.
+   * This is the spec-compliant path for delivering tool results to the client.
+   */
+  private handleToolCallResultEvent(
+    chunk: Extract<StreamChunk, { type: 'TOOL_CALL_RESULT' }>,
+  ): void {
+    const messageId = this.toolCallToMessage.get(chunk.toolCallId)
+    if (!messageId) return
+
+    // Step 1: Update the tool-call part's output field
+    let output: unknown
+    try {
+      output = JSON.parse(chunk.content)
+    } catch {
+      output = chunk.content
+    }
+    this.messages = updateToolCallWithOutput(
+      this.messages,
+      chunk.toolCallId,
+      output,
+    )
+
+    // Step 2: Create/update the tool-result part
+    const resultState: ToolResultState = 'complete'
+    this.messages = updateToolResultPart(
+      this.messages,
+      messageId,
+      chunk.toolCallId,
+      chunk.content,
+      resultState,
+    )
+    this.emitMessagesChange()
+  }
+
+  /**
    * Handle RUN_STARTED event.
    *
    * Registers the run so that RUN_FINISHED can determine whether other
@@ -1037,7 +1125,7 @@ export class StreamProcessor {
   private handleRunFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
   ): void {
-    this.finishReason = chunk.finishReason
+    this.finishReason = chunk.finishReason ?? null
     this.activeRuns.delete(chunk.runId)
 
     if (this.activeRuns.size === 0) {
@@ -1054,13 +1142,17 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.hasError = true
-    if (chunk.runId) {
-      this.activeRuns.delete(chunk.runId)
+    const runId = (chunk as any).runId as string | undefined
+    if (runId) {
+      this.activeRuns.delete(runId)
     } else {
       this.activeRuns.clear()
     }
     this.ensureAssistantMessage()
-    this.events.onError?.(new Error(chunk.error.message || 'An error occurred'))
+    // Prefer spec field `message`; fall back to deprecated `error.message`
+    const errorMessage =
+      chunk.message || chunk.error?.message || 'An error occurred'
+    this.events.onError?.(new Error(errorMessage))
   }
 
   /**
@@ -1077,6 +1169,14 @@ export class StreamProcessor {
     const { messageId, state } = this.ensureAssistantMessage(
       this.getActiveAssistantMessageId() ?? undefined,
     )
+
+    // During the transition period, adapters emit BOTH STEP_FINISHED and
+    // REASONING_MESSAGE_CONTENT with the same delta. If we've already processed
+    // REASONING_MESSAGE_CONTENT events for this message, skip the duplicate
+    // thinking content from STEP_FINISHED to avoid doubled content.
+    if (state.hasSeenReasoningEvents) {
+      return
+    }
 
     const previous = state.thinkingContent
     let nextThinking = previous
@@ -1105,6 +1205,33 @@ export class StreamProcessor {
     this.emitMessagesChange()
 
     // Emit granular event
+    this.events.onThinkingUpdate?.(messageId, state.thinkingContent)
+  }
+
+  /**
+   * Handle REASONING_MESSAGE_CONTENT event (AG-UI reasoning protocol).
+   *
+   * Accumulates reasoning delta into thinkingContent and updates the ThinkingPart
+   * in the UIMessage.
+   */
+  private handleReasoningMessageContentEvent(
+    chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
+  ): void {
+    const { messageId, state } = this.ensureAssistantMessage(
+      this.getActiveAssistantMessageId() ?? undefined,
+    )
+
+    state.hasSeenReasoningEvents = true
+    const delta = chunk.delta || ''
+    state.thinkingContent = state.thinkingContent + delta
+
+    this.messages = updateThinkingPart(
+      this.messages,
+      messageId,
+      state.thinkingContent,
+    )
+    this.emitMessagesChange()
+
     this.events.onThinkingUpdate?.(messageId, state.thinkingContent)
   }
 
@@ -1178,7 +1305,7 @@ export class StreamProcessor {
     if (this.events.onCustomEvent) {
       const toolCallId =
         chunk.value && typeof chunk.value === 'object'
-          ? (chunk.value as any).toolCallId
+          ? chunk.value.toolCallId
           : undefined
       this.events.onCustomEvent(chunk.name, chunk.value, { toolCallId })
     }

@@ -5,7 +5,7 @@ title: ProcessorState
 
 # Interface: ProcessorState
 
-Defined in: [activities/chat/stream/types.ts:79](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L79)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:80](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L80)
 
 Current state of the processor
 
@@ -17,7 +17,7 @@ Current state of the processor
 content: string;
 ```
 
-Defined in: [activities/chat/stream/types.ts:80](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L80)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:81](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L81)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [activities/chat/stream/types.ts:80](https://github.com/TanStack/ai/
 done: boolean;
 ```
 
-Defined in: [activities/chat/stream/types.ts:85](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L85)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:86](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L86)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [activities/chat/stream/types.ts:85](https://github.com/TanStack/ai/
 finishReason: string | null;
 ```
 
-Defined in: [activities/chat/stream/types.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L84)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:85](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L85)
 
 ***
 
@@ -47,7 +47,7 @@ Defined in: [activities/chat/stream/types.ts:84](https://github.com/TanStack/ai/
 thinking: string;
 ```
 
-Defined in: [activities/chat/stream/types.ts:81](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L81)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:82](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L82)
 
 ***
 
@@ -57,7 +57,7 @@ Defined in: [activities/chat/stream/types.ts:81](https://github.com/TanStack/ai/
 toolCallOrder: string[];
 ```
 
-Defined in: [activities/chat/stream/types.ts:83](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L83)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L84)
 
 ***
 
@@ -67,4 +67,4 @@ Defined in: [activities/chat/stream/types.ts:83](https://github.com/TanStack/ai/
 toolCalls: Map<string, InternalToolCallState>;
 ```
 
-Defined in: [activities/chat/stream/types.ts:82](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L82)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:83](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L83)

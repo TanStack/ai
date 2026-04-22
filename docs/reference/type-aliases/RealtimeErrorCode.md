@@ -14,6 +14,6 @@ type RealtimeErrorCode =
   | "UNKNOWN";
 ```
 
-Defined in: [realtime/types.ts:280](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L280)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:280](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L280)
 
 Error codes for realtime errors

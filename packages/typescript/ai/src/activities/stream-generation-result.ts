@@ -4,6 +4,7 @@
  * implementations to support `stream: true`.
  */
 
+import { EventType } from '@ag-ui/core'
 import type { StreamChunk } from '../types'
 
 function createId(prefix: string): string {
@@ -17,46 +18,53 @@ function createId(prefix: string): string {
  * to be sent over the same streaming transport as chat.
  *
  * @param generator - An async function that performs the generation and returns the result
- * @param options - Optional configuration (runId)
- * @returns An AsyncIterable of StreamChunks with RUN_STARTED, CUSTOM(generation:result), and RUN_FINISHED events
+ * @param options - Optional configuration (runId, threadId)
+ * @returns An AsyncIterable of StreamChunks with RUN_STARTED, CUSTOM(generation:result), and RUN_FINISHED events on success, or RUN_STARTED and RUN_ERROR on failure
  */
 export async function* streamGenerationResult<TResult>(
   generator: () => Promise<TResult>,
-  options?: { runId?: string },
+  options?: { runId?: string; threadId?: string },
 ): AsyncIterable<StreamChunk> {
   const runId = options?.runId ?? createId('run')
+  const threadId = options?.threadId ?? createId('thread')
 
   yield {
-    type: 'RUN_STARTED',
+    type: EventType.RUN_STARTED,
     runId,
+    threadId,
     timestamp: Date.now(),
-  }
+  } as StreamChunk
 
   try {
     const result = await generator()
 
     yield {
-      type: 'CUSTOM',
+      type: EventType.CUSTOM,
       name: 'generation:result',
       value: result as unknown,
       timestamp: Date.now(),
-    }
+    } as StreamChunk
 
     yield {
-      type: 'RUN_FINISHED',
+      type: EventType.RUN_FINISHED,
       runId,
+      threadId,
       finishReason: 'stop',
       timestamp: Date.now(),
-    }
+    } as StreamChunk
   } catch (error: any) {
     yield {
-      type: 'RUN_ERROR',
+      type: EventType.RUN_ERROR,
       runId,
+      threadId,
+      message: error.message || 'Generation failed',
+      code: error.code,
+      // Deprecated nested form for backward compatibility
       error: {
         message: error.message || 'Generation failed',
         code: error.code,
       },
       timestamp: Date.now(),
-    }
+    } as StreamChunk
   }
 }
