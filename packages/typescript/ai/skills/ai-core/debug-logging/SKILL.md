@@ -63,13 +63,10 @@ Omitting `debug` is **not** the same as `debug: false`. When omitted, the
 ## `DebugOption` — the accepted shapes
 
 ```typescript
-type DebugOption =
-  | boolean // true = all on, false = all off (including errors)
-  | DebugConfig // per-category flags + optional custom logger
-  | undefined // default: only `errors` is active
+type DebugOption = boolean | DebugConfig
 
-type DebugConfig = {
-  // Per-category flags. Omitted flags default to true (when any flag is set).
+interface DebugConfig {
+  // Per-category flags. Any flag omitted from a DebugConfig defaults to true.
   request?: boolean
   provider?: boolean
   output?: boolean
@@ -82,6 +79,15 @@ type DebugConfig = {
   logger?: Logger
 }
 ```
+
+Resolution rules for the `debug?: DebugOption` field on every activity:
+
+| `debug` value         | Effect                                                                       |
+| --------------------- | ---------------------------------------------------------------------------- |
+| omitted (`undefined`) | Only `errors` is active; default `ConsoleLogger`.                            |
+| `true`                | All categories on; default `ConsoleLogger`.                                  |
+| `false`               | All categories off (including `errors`); default `ConsoleLogger`.            |
+| `DebugConfig` object  | Each unspecified flag defaults to `true`; `logger` replaces `ConsoleLogger`. |
 
 ## Narrow what's printed
 
@@ -170,6 +176,11 @@ generateSpeech({ adapter, text, debug: { request: true } })
 generateTranscription({ adapter, audio, debug: false })
 generateVideo({ adapter, prompt: 'a wave', debug: { output: true } })
 ```
+
+Realtime session adapters in provider packages (e.g. `openaiRealtime`,
+`elevenlabsRealtime`) accept the same `debug?: DebugOption` on their session
+options. They emit `request`, `provider`, and `errors` lines; the chat-only
+categories don't apply.
 
 ## Common Mistakes
 
