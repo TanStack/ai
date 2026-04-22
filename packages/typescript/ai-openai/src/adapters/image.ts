@@ -83,12 +83,14 @@ export class OpenAIImageAdapter<
   ): OpenAI_SDK.Images.ImageGenerateParams {
     const { model, prompt, numberOfImages, size, modelOptions } = options
 
+    // Spread modelOptions FIRST so explicit args (model, prompt, n, size) win
+    // and user-supplied modelOptions cannot silently override them.
     return {
+      ...modelOptions,
       model,
       prompt,
       n: numberOfImages ?? 1,
       size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
-      ...modelOptions,
     }
   }
 
