@@ -182,14 +182,72 @@ describe('Fal Transcription Adapter', () => {
     })
   })
 
-  it('configures client with proxy URL when provided', () => {
+  it('configures client with proxy URL and credentials when both provided', () => {
     falTranscription('fal-ai/whisper', {
       apiKey: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })
 
     expect(mockConfig).toHaveBeenCalledWith({
+      credentials: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })
+  })
+
+  it('skips chunks with null timestamps', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        text: 'One. Two. Three.',
+        chunks: [
+          { text: 'One.', timestamp: [0.0, 1.0] },
+          { text: 'Two.', timestamp: null },
+          { text: 'Three.', timestamp: [2.0, 3.0] },
+        ],
+      },
+      requestId: 'req-null-ts-1',
+    })
+
+    const adapter = createAdapter()
+
+    const result = await generateTranscription({
+      adapter,
+      audio: 'https://example.com/audio.mp3',
+    })
+
+    expect(result.segments).toHaveLength(2)
+    expect(result.segments![0]).toMatchObject({
+      text: 'One.',
+      start: 0.0,
+      end: 1.0,
+    })
+    expect(result.segments![1]).toMatchObject({
+      text: 'Three.',
+      start: 2.0,
+      end: 3.0,
+    })
+  })
+
+  it('skips chunks with malformed timestamp arrays', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        text: 'Only.',
+        chunks: [
+          { text: 'Only.', timestamp: [1.0, 2.0] },
+          { text: 'Bad1', timestamp: [1.0] },
+          { text: 'Bad2', timestamp: [null, 2.0] },
+        ],
+      },
+      requestId: 'req-bad-ts-1',
+    })
+
+    const adapter = createAdapter()
+
+    const result = await generateTranscription({
+      adapter,
+      audio: 'https://example.com/audio.mp3',
+    })
+
+    expect(result.segments).toHaveLength(1)
+    expect(result.segments![0]!.text).toBe('Only.')
   })
 })

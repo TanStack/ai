@@ -102,8 +102,25 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
     }
   }
 
-  private parseImage(img: { url: string }): GeneratedImage {
-    const url = img.url
+  private parseImage(img: unknown): GeneratedImage {
+    let url: string
+    if (typeof img === 'string') {
+      url = img
+    } else if (
+      img &&
+      typeof img === 'object' &&
+      'url' in img &&
+      typeof (img as { url: unknown }).url === 'string'
+    ) {
+      url = (img as { url: string }).url
+    } else {
+      throw new Error(
+        `Invalid image payload from fal response: expected string or { url: string }, received ${
+          img === null ? 'null' : typeof img
+        }`,
+      )
+    }
+
     if (url.startsWith('data:')) {
       const base64Match = url.match(/^data:image\/[^;]+;base64,(.+)$/)
       if (base64Match && base64Match[1]) {

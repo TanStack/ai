@@ -40,23 +40,61 @@ export function getFalApiKeyFromEnv(): string {
 }
 
 export function configureFalClient(config?: FalClientConfig): void {
-  if (config?.proxyUrl) {
-    fal.config({
-      proxyUrl: config.proxyUrl,
-    })
-  } else {
-    const apiKey = config?.apiKey ?? getFalApiKeyFromEnv()
-    if (!apiKey) {
-      throw new Error('API key is required')
-    }
-    fal.config({
-      credentials: apiKey,
-    })
-  }
+  const apiKey = config?.apiKey ?? getFalApiKeyFromEnv()
+  fal.config({
+    credentials: apiKey,
+    ...(config?.proxyUrl ? { proxyUrl: config.proxyUrl } : {}),
+  })
 }
 
 export function generateId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2)}`
+}
+
+/**
+ * Extract a safe file extension from a URL. Strips query strings and only
+ * returns the extension when it looks like a real one (2-5 alphanumeric
+ * chars). Returns undefined otherwise so callers can fall back to a default.
+ */
+export function extractUrlExtension(url: string): string | undefined {
+  const withoutQuery = url.split('?')[0]
+  const extension = withoutQuery?.split('.').pop()
+  if (!extension || extension === withoutQuery) return undefined
+  return /^[a-z0-9]{2,5}$/i.test(extension) ? extension : undefined
+}
+
+/**
+ * Derive a reasonable audio content-type. Prefers the explicit MIME (stripped
+ * of parameters), then an extension-based lookup for common audio formats,
+ * otherwise falls back to audio/mpeg — fal URLs virtually always serve mp3.
+ */
+export function deriveAudioContentType(
+  explicitContentType: string | undefined,
+  url: string,
+): string {
+  const stripped = explicitContentType?.split(';')[0]?.trim()
+  if (stripped) return stripped
+
+  const ext = extractUrlExtension(url)?.toLowerCase()
+  switch (ext) {
+    case 'mp3':
+      return 'audio/mpeg'
+    case 'wav':
+      return 'audio/wav'
+    case 'ogg':
+    case 'oga':
+      return 'audio/ogg'
+    case 'flac':
+      return 'audio/flac'
+    case 'm4a':
+    case 'mp4':
+    case 'aac':
+      return 'audio/mp4'
+    case 'webm':
+      return 'audio/webm'
+    default:
+      return 'audio/mpeg'
+  }
 }
 
 /**

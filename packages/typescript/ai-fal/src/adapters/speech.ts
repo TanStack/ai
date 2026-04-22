@@ -3,6 +3,7 @@ import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import {
   arrayBufferToBase64,
   configureFalClient,
+  extractUrlExtension,
   generateId as utilGenerateId,
 } from '../utils'
 import type { OutputType, Result } from '@fal-ai/client'
@@ -95,20 +96,27 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
     // Using a chunked helper here — spreading Uint8Array into btoa exceeds
     // V8's argument limit (~65k) for any realistic TTS clip.
     const audioResponse = await fetch(audioUrl)
+    if (!audioResponse.ok) {
+      throw new Error(
+        `Failed to fetch audio from ${audioUrl}: ${audioResponse.status} ${audioResponse.statusText}`,
+      )
+    }
     const arrayBuffer = await audioResponse.arrayBuffer()
     const base64 = arrayBufferToBase64(arrayBuffer)
 
+    // Strip parameters like `; charset=...` from contentType, and only use
+    // the URL extension as a fallback when it looks like a real extension.
+    const contentTypeMime = contentType?.split(';')[0]?.trim()
+    const safeUrlExtension = extractUrlExtension(audioUrl)
     const format =
-      contentType?.split('/')[1] ||
-      audioUrl.split('.').pop()?.split('?')[0] ||
-      'wav'
+      contentTypeMime?.split('/')[1] || safeUrlExtension || 'wav'
 
     return {
       id: response.requestId || this.generateId(),
       model: this.model,
       audio: base64,
       format,
-      contentType: contentType || `audio/${format}`,
+      contentType: contentTypeMime || `audio/${format}`,
     }
   }
 }

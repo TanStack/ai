@@ -1,6 +1,10 @@
 import { fal } from '@fal-ai/client'
 import { BaseAudioAdapter } from '@tanstack/ai/adapters'
-import { configureFalClient, generateId as utilGenerateId } from '../utils'
+import {
+  configureFalClient,
+  deriveAudioContentType,
+  generateId as utilGenerateId,
+} from '../utils'
 import type { OutputType, Result } from '@fal-ai/client'
 import type {
   AudioGenerationOptions,
@@ -117,7 +121,7 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
       model: this.model,
       audio: {
         url: audioUrl,
-        contentType,
+        contentType: deriveAudioContentType(contentType, audioUrl),
       },
     }
   }

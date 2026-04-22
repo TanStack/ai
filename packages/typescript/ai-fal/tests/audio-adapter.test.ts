@@ -258,14 +258,75 @@ describe('Fal Audio Adapter', () => {
     })
   })
 
-  it('configures client with proxy URL when provided', () => {
+  it('configures client with proxy URL and credentials when both provided', () => {
     falAudio('fal-ai/minimax-music/v2', {
       apiKey: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })
 
     expect(mockConfig).toHaveBeenCalledWith({
+      credentials: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })
+  })
+
+  it('derives content type from mp3 URL when not provided by response', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        audio_url: 'https://fal.media/files/derived.mp3?signed=1',
+      },
+      requestId: 'req-derived-1',
+    })
+
+    const adapter = createAdapter()
+
+    const result = await generateAudio({
+      adapter,
+      prompt: 'No content type on response',
+      modelOptions: { lyrics_prompt: DEFAULT_LYRICS },
+    })
+
+    expect(result.audio.contentType).toBe('audio/mpeg')
+  })
+
+  it('falls back to audio/mpeg when extension cannot be derived', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        audio_url: 'https://fal.media/files/no-ext',
+      },
+      requestId: 'req-derived-2',
+    })
+
+    const adapter = createAdapter()
+
+    const result = await generateAudio({
+      adapter,
+      prompt: 'URL without extension',
+      modelOptions: { lyrics_prompt: DEFAULT_LYRICS },
+    })
+
+    expect(result.audio.contentType).toBe('audio/mpeg')
+  })
+
+  it('strips parameters from explicit content types', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        audio: {
+          url: 'https://fal.media/files/audio.wav',
+          content_type: 'audio/wav; codecs=pcm',
+        },
+      },
+      requestId: 'req-strip-1',
+    })
+
+    const adapter = createAdapter()
+
+    const result = await generateAudio({
+      adapter,
+      prompt: 'Stripped content type',
+      modelOptions: { lyrics_prompt: DEFAULT_LYRICS },
+    })
+
+    expect(result.audio.contentType).toBe('audio/wav')
   })
 })

@@ -222,14 +222,47 @@ describe('Fal Image Adapter', () => {
     })
   })
 
-  it('configures client with proxy URL when provided', () => {
+  it('configures client with proxy URL and credentials when both provided', () => {
     falImage('fal-ai/flux/dev', {
       apiKey: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })
 
     expect(mockConfig).toHaveBeenCalledWith({
+      credentials: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })
+  })
+
+  it('throws a descriptive error when image payload is missing a url', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        images: [{ not_a_url: 'oops' }],
+      },
+      requestId: 'req-bad-1',
+    })
+
+    const adapter = createAdapter()
+
+    await expect(
+      generateImage({ adapter, prompt: 'bad payload' }),
+    ).rejects.toThrow(/Invalid image payload from fal response/)
+  })
+
+  it('accepts bare string URLs in the images array', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        images: ['https://fal.media/files/direct-string.png'],
+      },
+      requestId: 'req-str-1',
+    })
+
+    const adapter = createAdapter()
+
+    const result = await generateImage({ adapter, prompt: 'string image' })
+    expect(result.images).toHaveLength(1)
+    expect(result.images[0]!.url).toBe(
+      'https://fal.media/files/direct-string.png',
+    )
   })
 })

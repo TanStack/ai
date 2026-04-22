@@ -19,6 +19,9 @@ vi.mock('@fal-ai/client', () => {
 
 // Mock fetch for URL→base64 conversion
 const mockFetchResponse = {
+  ok: true,
+  status: 200,
+  statusText: 'OK',
   arrayBuffer: () =>
     Promise.resolve(new Uint8Array([72, 101, 108, 108, 111]).buffer),
 }
@@ -182,6 +185,7 @@ describe('Fal Speech Adapter', () => {
       largeBytes[i] = i % 256
     }
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       arrayBuffer: () => Promise.resolve(largeBytes.buffer),
     })
     mockSubscribe.mockResolvedValueOnce(
@@ -213,14 +217,85 @@ describe('Fal Speech Adapter', () => {
     })
   })
 
-  it('configures client with proxy URL when provided', () => {
+  it('configures client with proxy URL and credentials when both provided', () => {
     falSpeech('fal-ai/index-tts-2/text-to-speech', {
       apiKey: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })
 
     expect(mockConfig).toHaveBeenCalledWith({
+      credentials: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })
+  })
+
+  it('throws when the fetched audio response is not ok', async () => {
+    mockSubscribe.mockResolvedValueOnce(
+      createMockSpeechResponse('https://fal.media/files/missing.wav'),
+    )
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+    })
+
+    const adapter = createAdapter()
+
+    await expect(
+      generateSpeech({
+        adapter,
+        text: 'Test',
+        modelOptions: { audio_url: REFERENCE_AUDIO },
+      }),
+    ).rejects.toThrow(/403 Forbidden/)
+  })
+
+  it('strips parameters from content type when deriving format', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ...mockFetchResponse,
+      ok: true,
+    })
+    mockSubscribe.mockResolvedValueOnce(
+      createMockSpeechResponse(
+        'https://fal.media/files/speech.mp3',
+        'audio/mpeg; codecs=mp3',
+      ),
+    )
+
+    const adapter = createAdapter()
+
+    const result = await generateSpeech({
+      adapter,
+      text: 'Test',
+      modelOptions: { audio_url: REFERENCE_AUDIO },
+    })
+
+    expect(result.format).toBe('mpeg')
+    expect(result.contentType).toBe('audio/mpeg')
+  })
+
+  it('ignores non-extension URL path fragments when deriving format', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ...mockFetchResponse,
+      ok: true,
+    })
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        audio_url: 'https://fal.media/files/no-ext-path',
+      },
+      requestId: 'req-no-ext',
+    })
+
+    const adapter = createAdapter()
+
+    const result = await generateSpeech({
+      adapter,
+      text: 'Test',
+      modelOptions: { audio_url: REFERENCE_AUDIO },
+    })
+
+    // URL has no extension and no content-type — default to wav.
+    expect(result.format).toBe('wav')
   })
 })
