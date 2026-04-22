@@ -51,6 +51,7 @@ title: "@tanstack/ai"
 - [ModelMessage](interfaces/ModelMessage.md)
 - [ProcessorResult](interfaces/ProcessorResult.md)
 - [ProcessorState](interfaces/ProcessorState.md)
+- [ProviderTool](interfaces/ProviderTool.md)
 - [RealtimeAudioPart](interfaces/RealtimeAudioPart.md)
 - [RealtimeError](interfaces/RealtimeError.md)
 - [RealtimeEventPayloads](interfaces/RealtimeEventPayloads.md)

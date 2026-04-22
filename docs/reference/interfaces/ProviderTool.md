@@ -1,47 +1,63 @@
 ---
-id: Tool
-title: Tool
+id: ProviderTool
+title: ProviderTool
 ---
 
-# Interface: Tool\<TInput, TOutput, TName\>
+# Interface: ProviderTool\<TProvider, TKind\>
 
-Defined in: [packages/typescript/ai/src/types.ts:416](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L416)
+Defined in: [packages/typescript/ai/src/tools/provider-tool.ts:19](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/provider-tool.ts#L19)
 
-Tool/Function definition for function calling.
+A provider-specific tool produced by an adapter-package factory
+(e.g. `webSearchTool` from `@tanstack/ai-anthropic/tools`).
 
-Tools allow the model to interact with external systems, APIs, or perform computations.
-The model will decide when to call tools based on the user's request and the tool descriptions.
+The two `~`-prefixed fields are type-only phantom brands — they are never
+assigned at runtime. They allow the core type system to match a factory's
+output against the selected model's `supports.tools` list and surface a
+compile-time error when the combination is unsupported.
 
-Tools can use any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.)
-or plain JSON Schema objects for runtime validation and type safety.
+User-defined tools (via `toolDefinition()`) remain plain `Tool` and stay
+assignable to any model.
 
-## See
+## Extends
 
- - https://platform.openai.com/docs/guides/function-calling
- - https://docs.anthropic.com/claude/docs/tool-use
- - https://standardschema.dev/json-schema
-
-## Extended by
-
-- [`ToolDefinitionInstance`](ToolDefinitionInstance.md)
-- [`ServerTool`](ServerTool.md)
-- [`ProviderTool`](ProviderTool.md)
+- [`Tool`](Tool.md)
 
 ## Type Parameters
 
-### TInput
+### TProvider
 
-`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+`TProvider` *extends* `string`
 
-### TOutput
+Provider identifier (e.g. `'anthropic'`, `'openai'`).
 
-`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+### TKind
 
-### TName
+`TKind` *extends* `string`
 
-`TName` *extends* `string` = `string`
+Canonical tool-kind string matching the provider's
+  `supports.tools` entries (e.g. `'web_search'`, `'code_execution'`).
 
 ## Properties
+
+### ~provider
+
+```ts
+readonly ~provider: TProvider;
+```
+
+Defined in: [packages/typescript/ai/src/tools/provider-tool.ts:23](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/provider-tool.ts#L23)
+
+***
+
+### ~toolKind
+
+```ts
+readonly ~toolKind: TKind;
+```
+
+Defined in: [packages/typescript/ai/src/tools/provider-tool.ts:24](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tools/provider-tool.ts#L24)
+
+***
 
 ### description
 
@@ -61,6 +77,10 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 ```ts
 "Get the current weather in a given location. Returns temperature, conditions, and forecast."
 ```
+
+#### Inherited from
+
+[`Tool`](Tool.md).[`description`](Tool.md#description)
 
 ***
 
@@ -106,12 +126,16 @@ execute: async (args) => {
 }
 ```
 
+#### Inherited from
+
+[`Tool`](Tool.md).[`execute`](Tool.md#execute)
+
 ***
 
 ### inputSchema?
 
 ```ts
-optional inputSchema: TInput;
+optional inputSchema: SchemaInput;
 ```
 
 Defined in: [packages/typescript/ai/src/types.ts:479](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L479)
@@ -160,6 +184,10 @@ type({
 }
 ```
 
+#### Inherited from
+
+[`Tool`](Tool.md).[`inputSchema`](Tool.md#inputschema)
+
 ***
 
 ### lazy?
@@ -171,6 +199,10 @@ optional lazy: boolean;
 Defined in: [packages/typescript/ai/src/types.ts:525](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L525)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat().
+
+#### Inherited from
+
+[`Tool`](Tool.md).[`lazy`](Tool.md#lazy)
 
 ***
 
@@ -184,12 +216,16 @@ Defined in: [packages/typescript/ai/src/types.ts:528](https://github.com/TanStac
 
 Additional metadata for adapters or custom extensions
 
+#### Inherited from
+
+[`Tool`](Tool.md).[`metadata`](Tool.md#metadata)
+
 ***
 
 ### name
 
 ```ts
-name: TName;
+name: string;
 ```
 
 Defined in: [packages/typescript/ai/src/types.ts:429](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L429)
@@ -205,6 +241,10 @@ Must be unique within the tools array.
 "get_weather", "search_database", "sendEmail"
 ```
 
+#### Inherited from
+
+[`Tool`](Tool.md).[`name`](Tool.md#name)
+
 ***
 
 ### needsApproval?
@@ -217,12 +257,16 @@ Defined in: [packages/typescript/ai/src/types.ts:522](https://github.com/TanStac
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
+#### Inherited from
+
+[`Tool`](Tool.md).[`needsApproval`](Tool.md#needsapproval)
+
 ***
 
 ### outputSchema?
 
 ```ts
-optional outputSchema: TOutput;
+optional outputSchema: SchemaInput;
 ```
 
 Defined in: [packages/typescript/ai/src/types.ts:500](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L500)
@@ -247,3 +291,7 @@ z.object({
   forecast: z.array(z.string()).optional()
 })
 ```
+
+#### Inherited from
+
+[`Tool`](Tool.md).[`outputSchema`](Tool.md#outputschema)
