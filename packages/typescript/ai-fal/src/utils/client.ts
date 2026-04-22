@@ -52,14 +52,33 @@ export function generateId(prefix: string): string {
 }
 
 /**
- * Extract a safe file extension from a URL. Strips query strings and only
- * returns the extension when it looks like a real one (2-5 alphanumeric
- * chars). Returns undefined otherwise so callers can fall back to a default.
+ * Extract a safe file extension from a URL. Strips query strings, URL
+ * fragments, and any trailing slashes, and only returns the extension when
+ * it looks like a real one (2-5 alphanumeric chars). Returns undefined
+ * otherwise so callers can fall back to a default.
  */
 export function extractUrlExtension(url: string): string | undefined {
-  const withoutQuery = url.split('?')[0]
-  const extension = withoutQuery?.split('.').pop()
-  if (!extension || extension === withoutQuery) return undefined
+  // Parse via URL when possible so we only look at the pathname and never
+  // mistake a TLD (e.g. the `.com` in `https://x.com/`) for a file extension.
+  let pathname: string
+  try {
+    const parsed = new URL(url)
+    pathname = parsed.pathname
+  } catch {
+    // Fall back to treating the input as a raw path when URL parsing fails
+    // (e.g. the caller passed a bare path). Still strip ?query and #fragment.
+    pathname = url.split('?')[0]!.split('#')[0]!
+  }
+  // Drop trailing slashes so `/path/audio.mp3/` still yields `mp3`.
+  const normalized = pathname.replace(/\/+$/, '')
+  // Require at least one `/` — otherwise we're looking at an empty pathname
+  // (bare-host URLs like `https://x.com/` land here after stripping the
+  // trailing slash).
+  if (!normalized.includes('/')) return undefined
+  const lastSegment = normalized.split('/').pop()
+  if (!lastSegment) return undefined
+  const extension = lastSegment.split('.').pop()
+  if (!extension || extension === lastSegment) return undefined
   return /^[a-z0-9]{2,5}$/i.test(extension) ? extension : undefined
 }
 
@@ -86,9 +105,10 @@ export function deriveAudioContentType(
       return 'audio/ogg'
     case 'flac':
       return 'audio/flac'
+    case 'aac':
+      return 'audio/aac'
     case 'm4a':
     case 'mp4':
-    case 'aac':
       return 'audio/mp4'
     case 'webm':
       return 'audio/webm'

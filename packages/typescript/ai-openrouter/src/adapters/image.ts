@@ -151,9 +151,7 @@ export class OpenRouterImageAdapter<
     }
 
     if (images.length === 0) {
-      throw new Error(
-        'Image generation failed: response contained no images',
-      )
+      throw new Error('Image generation failed: response contained no images')
     }
 
     return {

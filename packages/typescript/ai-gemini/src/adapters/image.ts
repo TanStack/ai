@@ -207,9 +207,7 @@ export class GeminiImageAdapter<
         textParts.length > 0
           ? `: ${textParts.join(' ').trim()}`
           : ' (no inline image or text parts were returned).'
-      throw new Error(
-        `Gemini ${model} returned no images${reason}`,
-      )
+      throw new Error(`Gemini ${model} returned no images${reason}`)
     }
 
     return {

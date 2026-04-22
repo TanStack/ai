@@ -20,7 +20,13 @@ interface AudioOutput {
   model: string
 }
 
-function toAudioOutput(raw: AudioGenerationResult): AudioOutput {
+/**
+ * Map an AudioGenerationResult to the UI-friendly shape. Returns `null`
+ * when the result has neither `url` nor `b64Json` — per the `onResult`
+ * contract, a `null` return tells the hook to keep the previous result
+ * and the real failure is surfaced via `onError` / the hook's error state.
+ */
+function toAudioOutput(raw: AudioGenerationResult): AudioOutput | null {
   const { audio } = raw
   if (audio.url) {
     return {
@@ -46,7 +52,10 @@ function toAudioOutput(raw: AudioGenerationResult): AudioOutput {
       model: raw.model,
     }
   }
-  throw new Error('Audio response had neither url nor b64Json data')
+  // Don't throw — that bypasses the hook's error plumbing. Return null so
+  // the hook keeps the previous result unchanged; callers can rely on the
+  // `error` state (populated via `onError`) if they want to surface this.
+  return null
 }
 
 function AudioGenerationForm({

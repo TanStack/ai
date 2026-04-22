@@ -217,7 +217,9 @@ describe('Gemini TTS Adapter', () => {
   it('propagates channel count from the PCM mime type into the WAV header', async () => {
     // Regression: the WAV wrapper used to ignore the parsed channels value
     // and always emit mono, corrupting stereo PCM output.
-    const pcmBase64 = Buffer.from(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])).toString('base64')
+    const pcmBase64 = Buffer.from(
+      new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]),
+    ).toString('base64')
     mockGenerateContent.mockResolvedValueOnce({
       candidates: [
         {
@@ -246,7 +248,9 @@ describe('Gemini TTS Adapter', () => {
   })
 
   it('throws on unsupported PCM bit depth rather than producing a corrupt WAV', async () => {
-    const pcmBase64 = Buffer.from(new Uint8Array([1, 2, 3, 4])).toString('base64')
+    const pcmBase64 = Buffer.from(new Uint8Array([1, 2, 3, 4])).toString(
+      'base64',
+    )
     mockGenerateContent.mockResolvedValueOnce({
       candidates: [
         {

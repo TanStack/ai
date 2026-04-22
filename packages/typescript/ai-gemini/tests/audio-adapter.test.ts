@@ -64,14 +64,16 @@ describe('Gemini Audio (Lyria) Adapter', () => {
     const result = await generateAudio({
       adapter,
       prompt: 'Ambient piano and strings',
-      modelOptions: { responseMimeType: 'audio/wav', seed: 42 },
+      modelOptions: { seed: 42 },
     })
 
     expect(mockGenerateContent).toHaveBeenCalledTimes(1)
     const args = mockGenerateContent.mock.calls[0]![0]
     expect(args.model).toBe('lyria-3-pro-preview')
     expect(args.config.responseModalities).toEqual(['AUDIO', 'TEXT'])
-    expect(args.config.responseMimeType).toBe('audio/wav')
+    // responseMimeType is NOT forwarded — Lyria returns MP3 by default
+    // and the Clip model rejects the field entirely.
+    expect(args.config.responseMimeType).toBeUndefined()
     expect(args.config.seed).toBe(42)
 
     expect(result.audio.b64Json).toBe('BASE64AUDIO')
@@ -144,17 +146,15 @@ describe('Gemini Audio (Lyria) Adapter', () => {
       adapter,
       prompt: 'Ambient piano',
       modelOptions: {
-        responseMimeType: 'audio/wav',
         seed: 7,
-        // Passed by user but must NOT leak onto GenerateContentConfig.
-        negativePrompt: 'distorted guitar',
-      },
+      } as Record<string, unknown>,
     })
 
     const args = mockGenerateContent.mock.calls[0]![0]
     expect(args.config).not.toHaveProperty('negativePrompt')
+    expect(args.config).not.toHaveProperty('responseMimeType')
     expect(Object.keys(args.config).sort()).toEqual(
-      ['responseMimeType', 'responseModalities', 'seed'].sort(),
+      ['responseModalities', 'seed'].sort(),
     )
   })
 

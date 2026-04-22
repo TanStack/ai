@@ -515,17 +515,31 @@ export interface AudioRequestStartedEvent extends BaseEventContext {
   duration?: number
 }
 
+/**
+ * Audio asset carried on completion events. Exactly one of `url` or `b64Json`
+ * is present; this mirrors the `GeneratedAudio` contract from `@tanstack/ai`
+ * and prevents consumers from reading both fields as present simultaneously.
+ */
+export type AudioRequestCompletedAudio =
+  | {
+      url: string
+      b64Json?: never
+      contentType?: string
+      duration?: number
+    }
+  | {
+      url?: never
+      b64Json: string
+      contentType?: string
+      duration?: number
+    }
+
 /** Emitted when an audio generation request completes. */
 export interface AudioRequestCompletedEvent extends BaseEventContext {
   requestId: string
   provider: string
   model: string
-  audio: {
-    url?: string
-    b64Json?: string
-    contentType?: string
-    duration?: number
-  }
+  audio: AudioRequestCompletedAudio
   duration: number
 }
 

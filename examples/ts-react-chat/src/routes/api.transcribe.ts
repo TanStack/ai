@@ -45,7 +45,7 @@ export const Route = createFileRoute('/api/transcribe')({
           return jsonError(400, {
             error: 'validation_failed',
             message: 'Request data failed validation',
-            details: parsed.error.flatten(),
+            details: z.treeifyError(parsed.error),
           })
         }
 

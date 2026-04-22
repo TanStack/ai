@@ -273,9 +273,7 @@ export class GeminiTTSAdapter<
 
 function parsePcmMimeType(
   mimeType: string,
-):
-  | { sampleRate: number; channels: number; bitsPerSample: number }
-  | undefined {
+): { sampleRate: number; channels: number; bitsPerSample: number } | undefined {
   const normalized = mimeType.toLowerCase()
   const subtype = normalized.split(';')[0]!.split('/')[1] ?? ''
   // Exclude containerized wav (e.g. `audio/wav;codec=pcm`) — those already

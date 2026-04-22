@@ -403,9 +403,7 @@ describe('Gemini Image Adapter', () => {
         candidates: [
           {
             content: {
-              parts: [
-                { text: 'I cannot generate that image.' },
-              ],
+              parts: [{ text: 'I cannot generate that image.' }],
             },
           },
         ],
@@ -444,9 +442,7 @@ describe('Gemini Image Adapter', () => {
         candidates: [
           {
             content: {
-              parts: [
-                { inlineData: { mimeType: 'image/png', data: 'img1' } },
-              ],
+              parts: [{ inlineData: { mimeType: 'image/png', data: 'img1' } }],
             },
           },
         ],

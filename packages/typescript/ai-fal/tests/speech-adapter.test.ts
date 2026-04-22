@@ -271,7 +271,10 @@ describe('Fal Speech Adapter', () => {
       modelOptions: { audio_url: REFERENCE_AUDIO },
     })
 
-    expect(result.format).toBe('mpeg')
+    // URL-derived extension wins when available; the mpeg subtype is
+    // separately normalized to mp3 so format is always a usable extension.
+    expect(result.format).toBe('mp3')
+    // contentType retains the (stripped) source mime — no normalization there.
     expect(result.contentType).toBe('audio/mpeg')
   })
 

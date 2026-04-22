@@ -1,19 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@fal-ai/client', () => ({
-  fal: {
-    config: vi.fn(),
-  },
-}))
-
+import { fal } from '@fal-ai/client'
 import {
   configureFalClient,
   deriveAudioContentType,
   extractUrlExtension,
   generateId,
 } from '../src/utils'
-import { fal } from '@fal-ai/client'
 import { mapSizeToFalFormat } from '../src/image/image-provider-options'
+
+vi.mock('@fal-ai/client', () => ({
+  fal: {
+    config: vi.fn(),
+  },
+}))
 
 describe('generateId', () => {
   it('returns a suffix with at least 8 characters of entropy', () => {
@@ -69,7 +68,9 @@ describe('extractUrlExtension', () => {
   })
 
   it('returns undefined for URLs without an extension', () => {
-    expect(extractUrlExtension('https://x.com/path/no-extension')).toBeUndefined()
+    expect(
+      extractUrlExtension('https://x.com/path/no-extension'),
+    ).toBeUndefined()
     expect(extractUrlExtension('https://x.com/')).toBeUndefined()
   })
 
@@ -82,7 +83,9 @@ describe('extractUrlExtension', () => {
 
 describe('deriveAudioContentType', () => {
   it('prefers the explicit content type (stripped)', () => {
-    expect(deriveAudioContentType('audio/wav; codecs=pcm', '')).toBe('audio/wav')
+    expect(deriveAudioContentType('audio/wav; codecs=pcm', '')).toBe(
+      'audio/wav',
+    )
   })
 
   it('falls back to extension-based mapping', () => {
@@ -129,7 +132,10 @@ describe('mapSizeToFalFormat', () => {
   })
 
   it('emits only image_size for preset strings', () => {
-    const result = mapSizeToFalFormat('landscape_4_3') as Record<string, unknown>
+    const result = mapSizeToFalFormat('landscape_4_3') as Record<
+      string,
+      unknown
+    >
     expect(result).toEqual({ image_size: 'landscape_4_3' })
     expect(Object.prototype.hasOwnProperty.call(result, 'aspect_ratio')).toBe(
       false,
