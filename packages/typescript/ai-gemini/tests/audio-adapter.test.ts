@@ -70,12 +70,37 @@ describe('Gemini Audio (Lyria) Adapter', () => {
     expect(mockGenerateContent).toHaveBeenCalledTimes(1)
     const args = mockGenerateContent.mock.calls[0]![0]
     expect(args.model).toBe('lyria-3-pro-preview')
-    expect(args.config.responseModalities).toEqual(['AUDIO'])
+    expect(args.config.responseModalities).toEqual(['AUDIO', 'TEXT'])
     expect(args.config.responseMimeType).toBe('audio/wav')
     expect(args.config.seed).toBe(42)
 
     expect(result.audio.b64Json).toBe('BASE64AUDIO')
     expect(result.audio.contentType).toBe('audio/mp3')
+  })
+
+  it('omits responseMimeType by default so Gemini returns the MP3 default', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'audio/mp3',
+                  data: 'BASE64AUDIO',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    const adapter = createGeminiAudio('lyria-3-clip-preview', 'key')
+    await generateAudio({ adapter, prompt: 'Ambient piano' })
+
+    const args = mockGenerateContent.mock.calls[0]![0]
+    expect(args.config.responseMimeType).toBeUndefined()
   })
 
   it('throws when the response has no audio part', async () => {

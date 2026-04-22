@@ -63,8 +63,11 @@ export function buildAudioAdapter(
   const model = resolveModel(config, modelOverride)
   switch (config.id) {
     case 'gemini-lyria':
-      return geminiAudio(model as 'lyria-3-clip-preview')
+      return geminiAudio(
+        model as 'lyria-3-clip-preview' | 'lyria-3-pro-preview',
+      )
     case 'fal-audio':
+    case 'fal-sfx':
       return falAudio(model)
   }
 }

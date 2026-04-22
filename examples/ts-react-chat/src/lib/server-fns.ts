@@ -21,7 +21,9 @@ const SPEECH_PROVIDER_SCHEMA = z.enum(['openai', 'gemini', 'fal']).optional()
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z.enum(['openai', 'fal']).optional()
 
-const AUDIO_PROVIDER_SCHEMA = z.enum(['gemini-lyria', 'fal-audio']).optional()
+const AUDIO_PROVIDER_SCHEMA = z
+  .enum(['gemini-lyria', 'fal-audio', 'fal-sfx'])
+  .optional()
 
 // =============================================================================
 // Direct server functions (non-streaming, return the result directly)

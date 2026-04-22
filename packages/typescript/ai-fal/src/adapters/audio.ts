@@ -18,6 +18,32 @@ export type FalAudioProviderOptions<TModel extends string> = Omit<
 >
 
 /**
+ * Fal audio models don't agree on the name for "how long should this be."
+ * Most accept seconds via `duration`, but a few use model-specific fields —
+ * e.g. ElevenLabs wants milliseconds via `music_length_ms`, Stable Audio wants
+ * `seconds_total`. Explicit per-model entries override the default; user
+ * `modelOptions` still win over either.
+ */
+const DURATION_FRAGMENT_BUILDERS: Record<
+  string,
+  (seconds: number) => Record<string, unknown>
+> = {
+  'fal-ai/elevenlabs/music': (seconds) => ({ music_length_ms: seconds * 1000 }),
+  'fal-ai/stable-audio-25/text-to-audio': (seconds) => ({
+    seconds_total: seconds,
+  }),
+}
+
+function buildDurationFragment(
+  model: string,
+  duration: number | undefined,
+): Record<string, unknown> {
+  if (duration == null) return {}
+  const builder = DURATION_FRAGMENT_BUILDERS[model]
+  return builder ? builder(duration) : { duration }
+}
+
+/**
  * fal.ai audio generation adapter.
  *
  * Supports fal.ai audio models like diffrhythm (music), sound effects, etc.
@@ -54,12 +80,11 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
   private buildInput(
     options: AudioGenerationOptions<FalAudioProviderOptions<TModel>>,
   ): FalModelInput<TModel> {
-    const input = {
+    return {
+      ...buildDurationFragment(this.model, options.duration),
       ...options.modelOptions,
       prompt: options.prompt,
-      ...(options.duration != null ? { duration: options.duration } : {}),
     } as FalModelInput<TModel>
-    return input
   }
 
   protected override generateId(): string {

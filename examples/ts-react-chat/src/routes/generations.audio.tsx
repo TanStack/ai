@@ -11,7 +11,7 @@ import {
   type AudioProviderId,
 } from '../lib/audio-providers'
 
-type Mode = 'direct' | 'server-fn'
+type Mode = 'hooks' | 'server-fn'
 
 interface AudioOutput {
   url: string
@@ -63,7 +63,7 @@ function AudioGenerationForm({
   const [selectedModel, setSelectedModel] = useState<string>(config.model)
 
   const hookOptions = useMemo(() => {
-    if (mode === 'direct') {
+    if (mode === 'hooks') {
       return {
         connection: fetchServerSentEvents('/api/generate/audio'),
         body: { provider: config.id, model: selectedModel },
@@ -254,7 +254,7 @@ function AudioGenerationUI({
 }
 
 function AudioGenerationPage() {
-  const [mode, setMode] = useState<Mode>('direct')
+  const [mode, setMode] = useState<Mode>('hooks')
   const [provider, setProvider] = useState<AudioProviderId>('gemini-lyria')
 
   const config = AUDIO_PROVIDERS.find((p) => p.id === provider)!
@@ -270,7 +270,7 @@ function AudioGenerationPage() {
             </p>
           </div>
           <div className="flex gap-1 bg-gray-900/50 rounded-lg p-1">
-            {(['direct', 'server-fn'] as const).map((m) => (
+            {(['hooks', 'server-fn'] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
@@ -280,7 +280,7 @@ function AudioGenerationPage() {
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
-                {m === 'server-fn' ? 'Server Fn' : 'Direct'}
+                {m === 'server-fn' ? 'Server Fn' : 'Hooks'}
               </button>
             ))}
           </div>

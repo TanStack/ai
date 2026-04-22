@@ -82,7 +82,7 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
     },
   ]
 
-export type AudioProviderId = 'gemini-lyria' | 'fal-audio'
+export type AudioProviderId = 'gemini-lyria' | 'fal-audio' | 'fal-sfx'
 
 export interface AudioProviderConfig {
   id: AudioProviderId
@@ -109,7 +109,17 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
     id: 'gemini-lyria',
     label: 'Gemini Lyria',
     model: 'lyria-3-clip-preview',
-    description: 'Google Lyria 3 music generation (30s clips).',
+    models: [
+      {
+        id: 'lyria-3-clip-preview',
+        label: 'Lyria 3 Clip (30s MP3)',
+      },
+      {
+        id: 'lyria-3-pro-preview',
+        label: 'Lyria 3 Pro (full-length MP3/WAV)',
+      },
+    ],
+    description: 'Google Lyria 3 music generation.',
     placeholder: 'Ambient piano with warm pads and soft strings',
     samplePrompts: [
       {
@@ -137,19 +147,17 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
   {
     id: 'fal-audio',
     label: 'Fal Audio',
-    model: 'fal-ai/minimax-music/v2.6',
+    model: 'fal-ai/elevenlabs/music',
     models: [
-      { id: 'fal-ai/minimax-music/v2.6', label: 'MiniMax Music v2.6 (latest)' },
-      { id: 'fal-ai/minimax-music/v2.5', label: 'MiniMax Music v2.5' },
-      { id: 'fal-ai/minimax-music/v2', label: 'MiniMax Music v2' },
-      { id: 'fal-ai/diffrhythm', label: 'DiffRhythm' },
-      { id: 'fal-ai/ace-step', label: 'ACE-Step' },
+      { id: 'fal-ai/elevenlabs/music', label: 'ElevenLabs Music' },
       {
         id: 'fal-ai/stable-audio-25/text-to-audio',
         label: 'Stable Audio 2.5',
       },
-      { id: 'fal-ai/lyria2', label: 'Lyria 2' },
-      { id: 'fal-ai/yue', label: 'YuE' },
+      {
+        id: 'fal-ai/ace-step/prompt-to-audio',
+        label: 'ACE-Step (prompt-to-audio)',
+      },
     ],
     description: 'Fal-hosted open music generation models.',
     placeholder: 'A lo-fi hip-hop beat with vinyl crackle',
@@ -174,6 +182,46 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
         label: 'Hydrophobic pirate',
         prompt:
           'The rousing theme song for a swashbuckling pirate who is terrified of water.',
+      },
+      {
+        label: 'Death metal laundry',
+        prompt:
+          'A death metal ballad about losing your favorite socks in the dryer, complete with guttural vocals.',
+      },
+    ],
+  },
+  {
+    id: 'fal-sfx',
+    label: 'Fal SFX',
+    model: 'fal-ai/mmaudio-v2/text-to-audio',
+    models: [
+      {
+        id: 'fal-ai/mmaudio-v2/text-to-audio',
+        label: 'MMAudio v2 Text-to-Audio',
+      },
+    ],
+    description: 'Fal-hosted text-to-SFX models for short sound effects.',
+    placeholder: 'Glass shattering on a tile floor',
+    defaultDuration: 5,
+    samplePrompts: [
+      {
+        label: 'Rain on tin roof',
+        prompt: 'Steady rain pattering on a corrugated metal roof at night.',
+      },
+      {
+        label: 'Marble hallway steps',
+        prompt:
+          'Slow leather-soled footsteps echoing through an empty marble hallway.',
+      },
+      {
+        label: 'Interrogated duck',
+        prompt:
+          'A rubber duck being dramatically interrogated under a swinging lamp, squeaks only.',
+      },
+      {
+        label: 'Cartoon banana slip',
+        prompt:
+          'Classic cartoon banana slip: quick slide, comedic boing, and a distant crash.',
       },
     ],
   },

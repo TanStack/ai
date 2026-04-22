@@ -19,11 +19,10 @@ import type { GeminiClientConfig } from '../utils'
  */
 export interface GeminiAudioProviderOptions {
   /**
-   * Output audio MIME type.
-   * - `audio/mp3` (default, both models)
-   * - `audio/wav` (Lyria 3 Pro only)
+   * Request WAV output instead of the default MP3. Lyria 3 Pro only;
+   * the Clip model always returns MP3 and will reject this field.
    */
-  responseMimeType?: 'audio/mp3' | 'audio/wav'
+  responseMimeType?: 'audio/wav'
 
   /**
    * Seed for deterministic generation.
@@ -83,8 +82,10 @@ export class GeminiAudioAdapter<
       model,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
-        responseModalities: ['AUDIO'],
-        responseMimeType: modelOptions?.responseMimeType ?? 'audio/mp3',
+        responseModalities: ['AUDIO', 'TEXT'],
+        ...(modelOptions?.responseMimeType
+          ? { responseMimeType: modelOptions.responseMimeType }
+          : {}),
         ...(modelOptions?.seed != null ? { seed: modelOptions.seed } : {}),
         ...(modelOptions?.negativePrompt
           ? { negativePrompt: modelOptions.negativePrompt }
