@@ -1,15 +1,17 @@
 import { createServerFn } from '@tanstack/react-start'
 import {
-  generateAudio,
   generateImage,
+  generateMusic,
+  generateSoundEffects,
   generateSpeech,
   generateTranscription,
   generateVideo,
   getVideoJobStatus,
 } from '@tanstack/ai'
 import {
-  createAudioAdapter,
   createImageAdapter,
+  createMusicAdapter,
+  createSoundEffectsAdapter,
   createTTSAdapter,
   createTranscriptionAdapter,
   createVideoAdapter,
@@ -100,7 +102,7 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
     })
   })
 
-export const generateAudioFn = createServerFn({ method: 'POST' })
+export const generateMusicFn = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
       prompt: string
@@ -116,12 +118,40 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
-    const adapter = createAudioAdapter(
+    const adapter = createMusicAdapter(
       data.provider,
       data.aimockPort,
       data.testId,
     )
-    return generateAudio({
+    return generateMusic({
+      adapter,
+      prompt: data.prompt,
+      duration: data.duration,
+    })
+  })
+
+export const generateSoundEffectsFn = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (data: {
+      prompt: string
+      provider: Provider
+      duration?: number
+      aimockPort?: number
+      testId?: string
+    }) => {
+      if (!data.prompt.trim()) throw new Error('Prompt is required')
+      if (!data.provider) throw new Error('Provider is required')
+      return data
+    },
+  )
+  .handler(async ({ data }) => {
+    await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
+    const adapter = createSoundEffectsAdapter(
+      data.provider,
+      data.aimockPort,
+      data.testId,
+    )
+    return generateSoundEffects({
       adapter,
       prompt: data.prompt,
       duration: data.duration,

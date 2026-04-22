@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { generateAudio } from '@tanstack/ai'
+import { generateMusic } from '@tanstack/ai'
 
 import {
-  GeminiAudioAdapter,
-  createGeminiAudio,
-  geminiAudio,
-} from '../src/adapters/audio'
+  GeminiMusicAdapter,
+  createGeminiMusic,
+  geminiMusic,
+} from '../src/adapters/music'
 
 const mockGenerateContent = vi.fn()
 
@@ -19,23 +19,23 @@ vi.mock('@google/genai', () => {
   return { GoogleGenAI }
 })
 
-describe('Gemini Audio (Lyria) Adapter', () => {
+describe('Gemini Music (Lyria) Adapter', () => {
   beforeEach(() => {
     mockGenerateContent.mockReset()
   })
 
-  it('createGeminiAudio returns a configured adapter', () => {
-    const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
-    expect(adapter).toBeInstanceOf(GeminiAudioAdapter)
-    expect(adapter.kind).toBe('audio')
+  it('createGeminiMusic returns a configured adapter', () => {
+    const adapter = createGeminiMusic('lyria-3-pro-preview', 'key')
+    expect(adapter).toBeInstanceOf(GeminiMusicAdapter)
+    expect(adapter.kind).toBe('music')
     expect(adapter.name).toBe('gemini')
     expect(adapter.model).toBe('lyria-3-pro-preview')
   })
 
-  it('geminiAudio reads the API key from the environment', () => {
+  it('geminiMusic reads the API key from the environment', () => {
     process.env.GOOGLE_API_KEY = 'env-key'
     try {
-      const adapter = geminiAudio('lyria-3-clip-preview')
+      const adapter = geminiMusic('lyria-3-clip-preview')
       expect(adapter.model).toBe('lyria-3-clip-preview')
     } finally {
       delete process.env.GOOGLE_API_KEY
@@ -60,8 +60,8 @@ describe('Gemini Audio (Lyria) Adapter', () => {
       ],
     })
 
-    const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
-    const result = await generateAudio({
+    const adapter = createGeminiMusic('lyria-3-pro-preview', 'key')
+    const result = await generateMusic({
       adapter,
       prompt: 'Ambient piano and strings',
       modelOptions: { responseMimeType: 'audio/wav', seed: 42 },
@@ -82,8 +82,8 @@ describe('Gemini Audio (Lyria) Adapter', () => {
     mockGenerateContent.mockResolvedValueOnce({
       candidates: [{ content: { parts: [] } }],
     })
-    const adapter = createGeminiAudio('lyria-3-clip-preview', 'key')
-    await expect(generateAudio({ adapter, prompt: 'silence' })).rejects.toThrow(
+    const adapter = createGeminiMusic('lyria-3-clip-preview', 'key')
+    await expect(generateMusic({ adapter, prompt: 'silence' })).rejects.toThrow(
       /No audio data/,
     )
   })

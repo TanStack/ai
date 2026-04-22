@@ -51,18 +51,18 @@ export {
   type GeminiTTSProviderOptions,
 } from './adapters/tts'
 
-// Audio / Lyria music generation adapter (experimental)
+// Lyria music generation adapter (experimental)
 /**
  * @experimental Gemini Lyria music generation is an experimental feature and may change.
  */
 export {
-  GeminiAudioAdapter,
-  createGeminiAudio,
-  geminiAudio,
-  type GeminiAudioConfig,
-  type GeminiAudioModel,
-  type GeminiAudioProviderOptions,
-} from './adapters/audio'
+  GeminiMusicAdapter,
+  createGeminiMusic,
+  geminiMusic,
+  type GeminiMusicConfig,
+  type GeminiMusicModel,
+  type GeminiMusicProviderOptions,
+} from './adapters/music'
 
 // Re-export models from model-meta for convenience
 export { GEMINI_MODELS } from './model-meta'

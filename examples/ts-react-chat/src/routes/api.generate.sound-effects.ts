@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateAudio } from '@tanstack/ai'
-import { buildAudioAdapter } from '../lib/server-audio-adapters'
-import type { AudioProviderId } from '../lib/audio-providers'
+import { generateSoundEffects } from '@tanstack/ai'
+import { buildSoundEffectsAdapter } from '../lib/server-audio-adapters'
+import type { SoundEffectsProviderId } from '../lib/audio-providers'
 
-export const Route = createFileRoute('/api/generate/audio')({
+export const Route = createFileRoute('/api/generate/sound-effects')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -11,14 +11,17 @@ export const Route = createFileRoute('/api/generate/audio')({
         const { prompt, duration, provider, model } = body.data as {
           prompt: string
           duration?: number
-          provider?: AudioProviderId
+          provider?: SoundEffectsProviderId
           model?: string
         }
 
-        const adapter = buildAudioAdapter(provider ?? 'gemini-lyria', model)
+        const adapter = buildSoundEffectsAdapter(
+          provider ?? 'fal-sound-effects',
+          model,
+        )
 
         try {
-          const result = await generateAudio({
+          const result = await generateSoundEffects({
             adapter,
             prompt,
             duration,

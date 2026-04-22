@@ -6,18 +6,26 @@
  */
 
 import { openaiSpeech, openaiTranscription } from '@tanstack/ai-openai'
-import { geminiAudio, geminiSpeech } from '@tanstack/ai-gemini'
-import { falAudio, falSpeech, falTranscription } from '@tanstack/ai-fal'
+import { geminiMusic, geminiSpeech } from '@tanstack/ai-gemini'
+import {
+  falMusic,
+  falSoundEffects,
+  falSpeech,
+  falTranscription,
+} from '@tanstack/ai-fal'
 import type {
-  AnyAudioAdapter,
+  AnyMusicAdapter,
+  AnySoundEffectsAdapter,
   AnyTranscriptionAdapter,
   AnyTTSAdapter,
 } from '@tanstack/ai'
 import {
-  AUDIO_PROVIDERS,
+  MUSIC_PROVIDERS,
+  SOUND_EFFECTS_PROVIDERS,
   SPEECH_PROVIDERS,
   TRANSCRIPTION_PROVIDERS,
-  type AudioProviderId,
+  type MusicProviderId,
+  type SoundEffectsProviderId,
   type SpeechProviderId,
   type TranscriptionProviderId,
 } from './audio-providers'
@@ -55,29 +63,54 @@ export function buildTranscriptionAdapter(
   }
 }
 
-export function buildAudioAdapter(
-  provider: AudioProviderId,
+export function buildMusicAdapter(
+  provider: MusicProviderId,
   modelOverride?: string,
-): AnyAudioAdapter {
-  const config = findConfig(AUDIO_PROVIDERS, provider)
-  const model = resolveModel(config, modelOverride)
+): AnyMusicAdapter {
+  const config = findConfig(MUSIC_PROVIDERS, provider)
+  const model = resolveModel(MUSIC_PROVIDERS, config, modelOverride, 'music')
   switch (config.id) {
     case 'gemini-lyria':
-      return geminiAudio(model as 'lyria-3-clip-preview')
-    case 'fal-audio':
-      return falAudio(model)
+      return geminiMusic(model as 'lyria-3-clip-preview')
+    case 'fal-music':
+      return falMusic(model)
   }
 }
 
-function resolveModel(
-  config: (typeof AUDIO_PROVIDERS)[number],
+export function buildSoundEffectsAdapter(
+  provider: SoundEffectsProviderId,
+  modelOverride?: string,
+): AnySoundEffectsAdapter {
+  const config = findConfig(SOUND_EFFECTS_PROVIDERS, provider)
+  const model = resolveModel(
+    SOUND_EFFECTS_PROVIDERS,
+    config,
+    modelOverride,
+    'sound-effects',
+  )
+  switch (config.id) {
+    case 'fal-sound-effects':
+      return falSoundEffects(model)
+  }
+}
+
+function resolveModel<
+  T extends {
+    id: string
+    model: string
+    models?: ReadonlyArray<{ id: string }>
+  },
+>(
+  _list: ReadonlyArray<T>,
+  config: T,
   modelOverride: string | undefined,
+  kind: 'music' | 'sound-effects',
 ): string {
   if (!modelOverride) return config.model
   const allowed = config.models?.some((m) => m.id === modelOverride)
   if (allowed) return modelOverride
   console.warn(
-    `[audio] rejected model override "${modelOverride}" for provider "${config.id}"; falling back to "${config.model}"`,
+    `[${kind}] rejected model override "${modelOverride}" for provider "${config.id}"; falling back to "${config.model}"`,
   )
   return config.model
 }

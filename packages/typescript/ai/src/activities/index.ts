@@ -17,7 +17,8 @@
 import type { AnyTextAdapter } from './chat/adapter'
 import type { AnySummarizeAdapter } from './summarize/adapter'
 import type { AnyImageAdapter } from './generateImage/adapter'
-import type { AnyAudioAdapter } from './generateAudio/adapter'
+import type { AnyMusicAdapter } from './generateMusic/adapter'
+import type { AnySoundEffectsAdapter } from './generateSoundEffects/adapter'
 import type { AnyVideoAdapter } from './generateVideo/adapter'
 import type { AnyTTSAdapter } from './generateSpeech/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
@@ -82,23 +83,42 @@ export {
 } from './generateImage/adapter'
 
 // ===========================
-// Audio Activity
+// Music Activity
 // ===========================
 
 export {
-  kind as audioKind,
-  generateAudio,
-  type AudioActivityOptions,
-  type AudioActivityResult,
-  type AudioProviderOptions,
-} from './generateAudio/index'
+  kind as musicKind,
+  generateMusic,
+  type MusicActivityOptions,
+  type MusicActivityResult,
+  type MusicProviderOptions,
+} from './generateMusic/index'
 
 export {
-  BaseAudioAdapter,
-  type AudioAdapter,
-  type AudioAdapterConfig,
-  type AnyAudioAdapter,
-} from './generateAudio/adapter'
+  BaseMusicAdapter,
+  type MusicAdapter,
+  type MusicAdapterConfig,
+  type AnyMusicAdapter,
+} from './generateMusic/adapter'
+
+// ===========================
+// Sound Effects Activity
+// ===========================
+
+export {
+  kind as soundEffectsKind,
+  generateSoundEffects,
+  type SoundEffectsActivityOptions,
+  type SoundEffectsActivityResult,
+  type SoundEffectsProviderOptions,
+} from './generateSoundEffects/index'
+
+export {
+  BaseSoundEffectsAdapter,
+  type SoundEffectsAdapter,
+  type SoundEffectsAdapterConfig,
+  type AnySoundEffectsAdapter,
+} from './generateSoundEffects/adapter'
 
 // ===========================
 // Video Activity (Experimental)
@@ -170,7 +190,8 @@ export type AIAdapter =
   | AnyTextAdapter
   | AnySummarizeAdapter
   | AnyImageAdapter
-  | AnyAudioAdapter
+  | AnyMusicAdapter
+  | AnySoundEffectsAdapter
   | AnyVideoAdapter
   | AnyTTSAdapter
   | AnyTranscriptionAdapter
@@ -180,7 +201,8 @@ export type AdapterKind =
   | 'text'
   | 'summarize'
   | 'image'
-  | 'audio'
+  | 'music'
+  | 'sound-effects'
   | 'video'
   | 'tts'
   | 'transcription'

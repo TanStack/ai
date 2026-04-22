@@ -117,8 +117,11 @@ const matrix: Record<Feature, Set<Provider>> = {
   tts: new Set(['openai']),
   transcription: new Set(['openai']),
   'video-gen': new Set(['openai']),
-  // Gemini Lyria (generateContent with AUDIO modality)
-  'audio-gen': new Set(['gemini']),
+  // aimock 1.14 can't synthesize Gemini's Lyria (generateContent AUDIO
+  // modality) response, and no other music provider is wired in yet.
+  'music-gen': new Set<Provider>(),
+  // No mocked SFX provider yet.
+  'sound-effects-gen': new Set<Provider>(),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

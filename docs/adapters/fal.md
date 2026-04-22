@@ -13,7 +13,7 @@ keywords:
   - adapter
 ---
 
-The fal.ai adapter provides access to 600+ models on the fal.ai platform for image, video, audio, speech, and transcription. Unlike text-focused adapters, the fal adapter is **media-focused** — it supports `generateImage()`, `generateVideo()`, `generateAudio()`, `generateSpeech()`, and `generateTranscription()` but does not support `chat()` or tools.
+The fal.ai adapter provides access to 600+ models on the fal.ai platform for image, video, music, sound effects, speech, and transcription. Unlike text-focused adapters, the fal adapter is **media-focused** — it supports `generateImage()`, `generateVideo()`, `generateMusic()`, `generateSoundEffects()`, `generateSpeech()`, and `generateTranscription()` but does not support `chat()` or tools.
 
 For a full working example, see the [fal.ai example app](https://github.com/TanStack/ai/tree/main/examples/ts-react-media).
 
@@ -279,17 +279,17 @@ for (const segment of result.segments ?? []) {
 }
 ```
 
-## Audio Generation (Music & Sound Effects)
+## Music Generation
 
-Music and sound-effect generation uses `falAudio()` with the `generateAudio()` activity. Unlike TTS, the result is returned as a URL in `result.audio.url` (you can fetch it yourself if you need raw bytes).
+Music generation uses `falMusic()` with the `generateMusic()` activity. The result is returned as a URL in `result.audio.url` (you can fetch it yourself if you need raw bytes).
 
 ```typescript
-import { generateAudio } from "@tanstack/ai";
-import { falAudio } from "@tanstack/ai-fal";
+import { generateMusic } from "@tanstack/ai";
+import { falMusic } from "@tanstack/ai-fal";
 
-// Music generation with MiniMax Music 2.6 (latest)
-const music = await generateAudio({
-  adapter: falAudio("fal-ai/minimax-music/v2.6"),
+// MiniMax Music 2.6 (latest)
+const music = await generateMusic({
+  adapter: falMusic("fal-ai/minimax-music/v2.6"),
   prompt: "City Pop, 80s retro, groovy synth bass, warm female vocal, 104 BPM, nostalgic urban night",
 });
 
@@ -298,8 +298,8 @@ console.log(music.audio.url);
 
 ```typescript
 // DiffRhythm with explicit lyrics
-const lyrical = await generateAudio({
-  adapter: falAudio("fal-ai/diffrhythm"),
+const lyrical = await generateMusic({
+  adapter: falMusic("fal-ai/diffrhythm"),
   prompt: "An upbeat electronic track with synths",
   modelOptions: {
     lyrics: "[verse]\nHello world\n[chorus]\nLa la la",
@@ -307,10 +307,16 @@ const lyrical = await generateAudio({
 });
 ```
 
+## Sound Effects
+
+Sound-effect generation uses `falSoundEffects()` with the `generateSoundEffects()` activity.
+
 ```typescript
-// Sound effects
-const sfx = await generateAudio({
-  adapter: falAudio("fal-ai/elevenlabs/sound-effects/v2"),
+import { generateSoundEffects } from "@tanstack/ai";
+import { falSoundEffects } from "@tanstack/ai-fal";
+
+const sfx = await generateSoundEffects({
+  adapter: falSoundEffects("fal-ai/elevenlabs/sound-effects/v2"),
   prompt: "Thunderclap with rain",
   duration: 5,
 });
@@ -449,17 +455,29 @@ Creates a fal.ai transcription (speech-to-text) adapter.
 
 **Returns:** A `FalTranscriptionAdapter` instance for use with `generateTranscription()`.
 
-### `falAudio(model, config?)`
+### `falMusic(model, config?)`
 
-Creates a fal.ai audio generation adapter (music and sound effects).
+Creates a fal.ai music generation adapter.
 
 **Parameters:**
 
-- `model` - The fal.ai audio model ID (e.g., `"fal-ai/diffrhythm"`, `"fal-ai/minimax-music/v2"`)
+- `model` - The fal.ai music model ID (e.g., `"fal-ai/diffrhythm"`, `"fal-ai/minimax-music/v2"`)
 - `config.apiKey?` - Your fal.ai API key (falls back to `FAL_KEY` env var)
 - `config.proxyUrl?` - Proxy URL for client-side usage
 
-**Returns:** A `FalAudioAdapter` instance for use with `generateAudio()`. The result contains a URL at `result.audio.url`.
+**Returns:** A `FalMusicAdapter` instance for use with `generateMusic()`. The result contains a URL at `result.audio.url`.
+
+### `falSoundEffects(model, config?)`
+
+Creates a fal.ai sound-effects generation adapter.
+
+**Parameters:**
+
+- `model` - The fal.ai sound-effects model ID (e.g., `"fal-ai/elevenlabs/sound-effects/v2"`)
+- `config.apiKey?` - Your fal.ai API key (falls back to `FAL_KEY` env var)
+- `config.proxyUrl?` - Proxy URL for client-side usage
+
+**Returns:** A `FalSoundEffectsAdapter` instance for use with `generateSoundEffects()`. The result contains a URL at `result.audio.url`.
 
 ### `getFalApiKeyFromEnv()`
 

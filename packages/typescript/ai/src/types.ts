@@ -1064,28 +1064,12 @@ export interface ImageGenerationResult {
 }
 
 // ============================================================================
-// Audio Generation Types
+// Music & Sound Effects Generation Types
 // ============================================================================
 
 /**
- * Options for audio generation (music, sound effects, etc.).
- * These are the common options supported across providers.
- */
-export interface AudioGenerationOptions<
-  TProviderOptions extends object = object,
-> {
-  /** The model to use for audio generation */
-  model: string
-  /** Text description of the desired audio */
-  prompt: string
-  /** Desired duration in seconds */
-  duration?: number
-  /** Model-specific options for audio generation */
-  modelOptions?: TProviderOptions
-}
-
-/**
- * A single generated audio output
+ * A single generated audio output — shared payload shape for music and
+ * sound-effect generation results.
  */
 export interface GeneratedAudio {
   /** URL to the generated audio (may be temporary) */
@@ -1099,9 +1083,60 @@ export interface GeneratedAudio {
 }
 
 /**
- * Result of audio generation
+ * Options for music generation. The common options supported across
+ * providers — extend per-provider behaviour through `modelOptions`.
  */
-export interface AudioGenerationResult {
+export interface MusicGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for music generation */
+  model: string
+  /** Text description of the desired music */
+  prompt: string
+  /** Desired duration in seconds */
+  duration?: number
+  /** Model-specific options for music generation */
+  modelOptions?: TProviderOptions
+}
+
+/**
+ * Result of music generation.
+ */
+export interface MusicGenerationResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** The generated audio */
+  audio: GeneratedAudio
+  /** Token usage information (if available) */
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+  }
+}
+
+/**
+ * Options for sound-effects generation.
+ */
+export interface SoundEffectsGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for sound-effects generation */
+  model: string
+  /** Text description of the desired sound */
+  prompt: string
+  /** Desired duration in seconds */
+  duration?: number
+  /** Model-specific options for sound-effects generation */
+  modelOptions?: TProviderOptions
+}
+
+/**
+ * Result of sound-effects generation.
+ */
+export interface SoundEffectsGenerationResult {
   /** Unique identifier for the generation */
   id: string
   /** Model used for generation */

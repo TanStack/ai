@@ -1,8 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
-  generateAudio,
   generateImage,
+  generateMusic,
+  generateSoundEffects,
   generateSpeech,
   generateTranscription,
   generateVideo,
@@ -12,7 +13,8 @@ import {
 } from '@tanstack/ai'
 import { openaiImage, openaiSummarize, openaiVideo } from '@tanstack/ai-openai'
 import {
-  buildAudioAdapter,
+  buildMusicAdapter,
+  buildSoundEffectsAdapter,
   buildSpeechAdapter,
   buildTranscriptionAdapter,
 } from './server-audio-adapters'
@@ -21,7 +23,9 @@ const SPEECH_PROVIDER_SCHEMA = z.enum(['openai', 'gemini', 'fal']).optional()
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z.enum(['openai', 'fal']).optional()
 
-const AUDIO_PROVIDER_SCHEMA = z.enum(['gemini-lyria', 'fal-audio']).optional()
+const MUSIC_PROVIDER_SCHEMA = z.enum(['gemini-lyria', 'fal-music']).optional()
+
+const SOUND_EFFECTS_PROVIDER_SCHEMA = z.enum(['fal-sound-effects']).optional()
 
 // =============================================================================
 // Direct server functions (non-streaming, return the result directly)
@@ -78,18 +82,38 @@ export const transcribeFn = createServerFn({ method: 'POST' })
     })
   })
 
-export const generateAudioFn = createServerFn({ method: 'POST' })
+export const generateMusicFn = createServerFn({ method: 'POST' })
   .inputValidator(
     z.object({
       prompt: z.string(),
       duration: z.number().optional(),
-      provider: AUDIO_PROVIDER_SCHEMA,
+      provider: MUSIC_PROVIDER_SCHEMA,
       model: z.string().optional(),
     }),
   )
   .handler(async ({ data }) => {
-    return generateAudio({
-      adapter: buildAudioAdapter(data.provider ?? 'gemini-lyria', data.model),
+    return generateMusic({
+      adapter: buildMusicAdapter(data.provider ?? 'gemini-lyria', data.model),
+      prompt: data.prompt,
+      duration: data.duration,
+    })
+  })
+
+export const generateSoundEffectsFn = createServerFn({ method: 'POST' })
+  .inputValidator(
+    z.object({
+      prompt: z.string(),
+      duration: z.number().optional(),
+      provider: SOUND_EFFECTS_PROVIDER_SCHEMA,
+      model: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    return generateSoundEffects({
+      adapter: buildSoundEffectsAdapter(
+        data.provider ?? 'fal-sound-effects',
+        data.model,
+      ),
       prompt: data.prompt,
       duration: data.duration,
     })

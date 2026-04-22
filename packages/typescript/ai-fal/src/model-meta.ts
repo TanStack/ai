@@ -139,10 +139,19 @@ export type FalTranscriptionProviderOptions<TModel extends string> = Omit<
 >
 
 /**
- * Provider options for audio generation, excluding fields TanStack AI handles.
- * Use this for the `modelOptions` parameter in audio generation.
+ * Provider options for music generation, excluding fields TanStack AI handles.
+ * Use this for the `modelOptions` parameter in music generation.
  */
-export type FalAudioProviderOptions<TModel extends string> = Omit<
+export type FalMusicProviderOptions<TModel extends string> = Omit<
+  FalModelInput<TModel>,
+  'prompt'
+>
+
+/**
+ * Provider options for sound-effects generation, excluding fields TanStack AI handles.
+ * Use this for the `modelOptions` parameter in sound-effects generation.
+ */
+export type FalSoundEffectsProviderOptions<TModel extends string> = Omit<
   FalModelInput<TModel>,
   'prompt'
 >

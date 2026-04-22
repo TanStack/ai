@@ -31,7 +31,8 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | image-gen             | 7         | `tests/image-gen.spec.ts`             |
 | tts                   | 7         | `tests/tts.spec.ts`                   |
 | transcription         | 7         | `tests/transcription.spec.ts`         |
-| audio-gen             | 1         | `tests/audio-gen.spec.ts`             |
+| music-gen             | 0         | `tests/music-gen.spec.ts`             |
+| sound-effects-gen     | 0         | `tests/sound-effects-gen.spec.ts`     |
 
 ### Tools-test page
 
