@@ -654,7 +654,7 @@ const GEMINI_2_FLASH_IMAGE = {
   knowledge_cutoff: '2024-08-01',
   supports: {
     input: ['text', 'image', 'audio', 'video'],
-    output: ['text'],
+    output: ['text', 'image'],
     capabilities: ['batch_api', 'caching', 'structured_output'],
     tools: [],
   },

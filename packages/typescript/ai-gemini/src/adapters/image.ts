@@ -122,12 +122,24 @@ export class GeminiImageAdapter<
         ? `${prompt} Generate ${numberOfImages} distinct images.`
         : prompt
 
+    // GeminiImageProviderOptions is Imagen-shaped — most fields
+    // (personGeneration, safetyFilterLevel, addWatermark, outputMimeType,
+    // outputCompressionQuality, guidanceScale, enhancePrompt,
+    // includeSafetyAttributes, includeRaiReason, outputGcsUri, labels,
+    // negativePrompt, language) are only valid on GenerateImagesConfig and
+    // would be rejected by the Gemini-native generateContent path. Pick only
+    // the fields that are valid on GenerateContentConfig instead of spreading
+    // the whole options object.
+    const nativeConfig: GenerateContentConfig = {}
+    if (modelOptions?.seed !== undefined) {
+      nativeConfig.seed = modelOptions.seed
+    }
+
     const config: GenerateContentConfig = {
-      ...modelOptions,
+      ...nativeConfig,
       // Include TEXT so the model can interleave descriptions between images.
-      // IMPORTANT: responseModalities is a protected default — spread it
-      // AFTER modelOptions so a user-supplied modelOptions.responseModalities
-      // can't silently disable image output.
+      // IMPORTANT: responseModalities is a protected default — set it AFTER
+      // nativeConfig so nothing can silently disable image output.
       responseModalities: ['TEXT', 'IMAGE'],
       ...(parsedSize && {
         imageConfig: {

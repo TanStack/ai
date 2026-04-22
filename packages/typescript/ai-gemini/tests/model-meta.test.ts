@@ -9,7 +9,7 @@ import type {
   GeminiStructuredOutputOptions,
   GeminiToolConfigOptions,
   GeminiSafetyOptions,
-  GeminiGenerationConfigOptions,
+  GeminiCommonConfigOptions,
   GeminiCachedContentOptions,
 } from '../src/text/text-provider-options'
 import type {
@@ -34,7 +34,7 @@ import type {
 // Base options that ALL chat models should have
 type BaseOptions = GeminiToolConfigOptions &
   GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
+  GeminiCommonConfigOptions &
   GeminiCachedContentOptions
 
 describe('Gemini Model Provider Options Type Assertions', () => {
@@ -233,7 +233,7 @@ describe('Gemini Model Provider Options Type Assertions', () => {
     it('thinking models should allow thinkingConfig in generationConfig', () => {
       type Options = GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
 
-      // The generationConfig should include thinkingConfig from GeminiGenerationConfigOptions
+      // The generationConfig should include thinkingConfig from GeminiCommonConfigOptions
       // which intersects with GeminiThinkingOptions
       expectTypeOf<Options>().toHaveProperty('generationConfig')
     })

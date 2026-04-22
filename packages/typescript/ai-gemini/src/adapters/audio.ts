@@ -78,6 +78,16 @@ export class GeminiAudioAdapter<
   ): Promise<AudioGenerationResult> {
     const { model, prompt, modelOptions } = options
 
+    // FIXME (SDK audit): Lyria 3 music generation may not belong on
+    // generateContent at all — @google/genai exposes a `LiveMusicSession`
+    // (`ai.live.music.connect`) with a `musicGenerationConfig` object that
+    // accepts fields like `seed` and `negativePrompt`. Passing
+    // `negativePrompt` into a `GenerateContentConfig` is a type error (it
+    // only exists on GenerateImagesConfig / GenerateVideosConfig), so it's
+    // omitted here until the correct endpoint is confirmed. `seed` is
+    // forwarded because it's valid on GenerateContentConfig regardless.
+    // The runtime test `emits only GenerateContentConfig-valid fields`
+    // asserts the config shape so a later SDK audit can catch regressions.
     const response = await this.client.models.generateContent({
       model,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -87,9 +97,6 @@ export class GeminiAudioAdapter<
           ? { responseMimeType: modelOptions.responseMimeType }
           : {}),
         ...(modelOptions?.seed != null ? { seed: modelOptions.seed } : {}),
-        ...(modelOptions?.negativePrompt
-          ? { negativePrompt: modelOptions.negativePrompt }
-          : {}),
       },
     })
 

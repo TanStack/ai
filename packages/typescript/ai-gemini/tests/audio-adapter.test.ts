@@ -113,6 +113,51 @@ describe('Gemini Audio (Lyria) Adapter', () => {
     )
   })
 
+  it('emits only GenerateContentConfig-valid fields (SDK audit guard)', async () => {
+    // Regression guard: Lyria's audio adapter currently rides on
+    // generateContent, whose config type (`GenerateContentConfig`) does NOT
+    // include `negativePrompt` — that field only exists on
+    // GenerateImagesConfig / GenerateVideosConfig. Until the correct
+    // endpoint (likely `ai.live.music.connect` with `musicGenerationConfig`)
+    // is confirmed, the adapter must not leak Imagen/Veo-shaped fields onto
+    // the GenerateContent call. This test pins the emitted config shape so
+    // a future SDK author can catch regressions.
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'audio/mp3',
+                  data: 'BASE64AUDIO',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    const adapter = createGeminiAudio('lyria-3-pro-preview', 'key')
+    await generateAudio({
+      adapter,
+      prompt: 'Ambient piano',
+      modelOptions: {
+        responseMimeType: 'audio/wav',
+        seed: 7,
+        // Passed by user but must NOT leak onto GenerateContentConfig.
+        negativePrompt: 'distorted guitar',
+      },
+    })
+
+    const args = mockGenerateContent.mock.calls[0]![0]
+    expect(args.config).not.toHaveProperty('negativePrompt')
+    expect(Object.keys(args.config).sort()).toEqual(
+      ['responseMimeType', 'responseModalities', 'seed'].sort(),
+    )
+  })
+
   it('passes the response mime type through verbatim without an `audio/mp3` fallback', async () => {
     // Regression: the adapter used to fall back to the non-standard
     // `audio/mp3` value (IANA uses `audio/mpeg`) — and the fallback was
