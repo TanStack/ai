@@ -95,6 +95,13 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       images.push(this.parseImage(data.image))
     }
 
+    if (images.length === 0) {
+      throw new Error(
+        'Unexpected fal image response shape. Expected images[] or image{}. Got keys: ' +
+          Object.keys(data).join(','),
+      )
+    }
+
     return {
       id: response.requestId || this.generateId(),
       model: this.model,

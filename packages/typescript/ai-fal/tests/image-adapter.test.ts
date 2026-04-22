@@ -249,6 +249,40 @@ describe('Fal Image Adapter', () => {
     ).rejects.toThrow(/Invalid image payload from fal response/)
   })
 
+  it('throws on unknown response shape (no images[] or image{})', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        image_url: 'https://fal.media/files/unexpected.png',
+      },
+      requestId: 'req-unknown-1',
+    })
+
+    const adapter = createAdapter()
+
+    await expect(
+      generateImage({ adapter, prompt: 'unknown shape' }),
+    ).rejects.toThrow(
+      /Unexpected fal image response shape\. Expected images\[\] or image\{\}\. Got keys: image_url/,
+    )
+  })
+
+  it('throws on unknown response shape with array under different key', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        output: [{ url: 'https://fal.media/files/output.png' }],
+      },
+      requestId: 'req-unknown-2',
+    })
+
+    const adapter = createAdapter()
+
+    await expect(
+      generateImage({ adapter, prompt: 'unknown shape 2' }),
+    ).rejects.toThrow(
+      /Unexpected fal image response shape\. Expected images\[\] or image\{\}\. Got keys: output/,
+    )
+  })
+
   it('accepts bare string URLs in the images array', async () => {
     mockSubscribe.mockResolvedValueOnce({
       data: {
