@@ -1023,6 +1023,7 @@ describe('OpenRouter structured output', () => {
       chatOptions: {
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'Generate' }],
+        logger: testLogger,
       },
       outputSchema,
     })
