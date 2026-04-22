@@ -103,6 +103,26 @@ The default logger is exported as `ConsoleLogger` if you want to wrap it:
 import { ConsoleLogger } from "@tanstack/ai";
 ```
 
+### Your `Logger` is wrapped in a try/catch
+
+If your `Logger` implementation throws — a cyclic-meta `JSON.stringify`, a transport that rejects synchronously, a typo in a bound `this` — the exception is swallowed so it never masks the real error that triggered the log call (for example, a provider SDK failure inside the chat stream). You won't see the log line, but the pipeline error still surfaces through thrown exceptions and `RUN_ERROR` chunks.
+
+If you need to know when your own logger is failing, guard inside your implementation:
+
+```typescript
+const logger: Logger = {
+  debug: (msg, meta) => {
+    try {
+      pinoLogger.debug(meta, msg);
+    } catch (err) {
+      // surface to wherever you track infra errors
+      process.stderr.write(`logger failed: ${String(err)}\n`);
+    }
+  },
+  // ... info, warn, error
+};
+```
+
 ## Categories reference
 
 | Category | Logs | Applies to |
