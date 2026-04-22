@@ -485,7 +485,7 @@ const GEMINI_3_1_FLASH_TTS = {
   supports: {
     input: ['text'],
     output: ['audio'],
-    capabilities: ['audio_generation', 'batch_api', 'file_search'],
+    capabilities: ['audio_generation', 'batch_api'],
   },
   pricing: {
     input: {
