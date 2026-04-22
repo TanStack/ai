@@ -18,3 +18,5 @@ Additions:
 - New internal `@tanstack/ai/adapter-internals` subpath export exposing `InternalLogger` + `resolveDebugOption` so provider adapters can thread logging without leaking internals on the public surface.
 - Each log line is prefixed with an emoji + `[tanstack-ai:<category>]` tag so categories are visually distinguishable in dense streams. Errors log unconditionally unless explicitly silenced.
 - `TextEngine`, `MiddlewareRunner`, and every activity entry point thread a resolved `InternalLogger` through the pipeline — no globals, concurrent calls stay independent.
+- Exceptions thrown by a user-supplied `Logger` implementation are swallowed so they never mask the real error that triggered the log call.
+- New `ai-core/debug-logging` skill shipped under `packages/typescript/ai/skills/` so agents can discover how to toggle, narrow, and redirect debug output.

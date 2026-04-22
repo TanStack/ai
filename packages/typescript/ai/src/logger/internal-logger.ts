@@ -53,8 +53,13 @@ export class InternalLogger {
     if (!this.categories[category]) return
     const emoji = CATEGORY_EMOJI[category]
     const prefixed = `${emoji} [tanstack-ai:${category}] ${emoji} ${message}`
-    if (level === 'error') this.logger.error(prefixed, meta)
-    else this.logger.debug(prefixed, meta)
+    try {
+      if (level === 'error') this.logger.error(prefixed, meta)
+      else this.logger.debug(prefixed, meta)
+    } catch {
+      // User-supplied logger threw; swallow so we never mask the original
+      // error that triggered this log call.
+    }
   }
 
   /** Log a raw chunk/frame received from a provider SDK. */

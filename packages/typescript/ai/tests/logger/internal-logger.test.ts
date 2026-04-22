@@ -108,4 +108,27 @@ describe('InternalLogger', () => {
     expect(il.isEnabled('provider')).toBe(false)
     expect(il.isEnabled('output')).toBe(true)
   })
+
+  it('swallows errors thrown by the user-supplied logger', () => {
+    // User logger that throws on every method. Without a try/catch around
+    // the delegated call, this would mask the real error that triggered the
+    // log (e.g. a provider SDK failure inside the chat stream).
+    const throwingLogger: Logger = {
+      debug: () => {
+        throw new Error('user logger debug exploded')
+      },
+      info: () => {
+        throw new Error('user logger info exploded')
+      },
+      warn: () => {
+        throw new Error('user logger warn exploded')
+      },
+      error: () => {
+        throw new Error('user logger error exploded')
+      },
+    }
+    const il = new InternalLogger(throwingLogger, allOn)
+    expect(() => il.provider('p')).not.toThrow()
+    expect(() => il.errors('e')).not.toThrow()
+  })
 })
