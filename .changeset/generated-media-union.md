@@ -17,4 +17,4 @@ type GeneratedMediaSource =
   | { b64Json: string; url?: never }
 ```
 
-Existing read patterns like `img.url || \`data:image/png;base64,${img.b64Json}\`` continue to work unchanged. The only runtime-visible change is that the `@tanstack/ai-openrouter` and `@tanstack/ai-fal` image adapters no longer populate `url` with a synthesized `data:image/png;base64,...` URI when the provider returns base64 — they return `{ b64Json }` only. Consumers that want a data URI should build it from `b64Json` at render time.
+Existing read patterns like `img.url || \`data:image/png;base64,${img.b64Json}\``continue to work unchanged. The only runtime-visible change is that the`@tanstack/ai-openrouter`and`@tanstack/ai-fal`image adapters no longer populate`url`with a synthesized`data:image/png;base64,...`URI when the provider returns base64 — they return`{ b64Json }`only. Consumers that want a data URI should build it from`b64Json` at render time.
