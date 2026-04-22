@@ -119,11 +119,11 @@ export class OpenRouterImageAdapter<
   ): ImageGenerationResult {
     const images: Array<GeneratedImage> = []
 
-    for (const choice of response.choices ?? []) {
+    for (const choice of response.choices) {
       const choiceImages = choice.message.images
       if (choiceImages) {
         for (const img of choiceImages) {
-          if (!img || !img.imageUrl || typeof img.imageUrl.url !== 'string') {
+          if (typeof img.imageUrl.url !== 'string') {
             continue
           }
           const url = img.imageUrl.url
