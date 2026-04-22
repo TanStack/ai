@@ -117,9 +117,6 @@ const matrix: Record<Feature, Set<Provider>> = {
   tts: new Set(['openai']),
   transcription: new Set(['openai']),
   'video-gen': new Set(['openai']),
-  // Gemini Lyria uses generateContent with AUDIO modality, which aimock 1.14
-  // cannot mock — leave empty until mock support lands.
-  'audio-gen': new Set([]),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {
