@@ -93,6 +93,8 @@ const result = await generateAudio({
 })
 ```
 
+If a request doesn't return the audio you expected — a model silently truncates, a provider rejects a prompt, or the response shape looks off — pass `debug: true` to see every chunk the provider SDK emits. See [Debug Logging](../advanced/debug-logging).
+
 ## Options
 
 | Option | Type | Description |
@@ -101,6 +103,7 @@ const result = await generateAudio({
 | `prompt` | `string` | Text description of the audio to generate (required) |
 | `duration` | `number` | Desired duration in seconds (model-dependent) |
 | `modelOptions` | `object` | Provider-specific options (fully typed when the model ID is passed as a string literal) |
+| `debug` | `DebugOption` | Enable per-category debug logging (`true`, `false`, or a `DebugConfig` — see [Debug Logging](../advanced/debug-logging)) |
 
 ## Result Shape
 

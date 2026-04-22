@@ -486,6 +486,8 @@ try {
 
 > **Tip:** To trigger speech generation from your frontend with loading states, see [Generation Hooks](./generation-hooks).
 
+> **Debugging:** When a TTS request fails or produces unexpected output, pass `debug: true` on `generateSpeech({...})` to log the outgoing request, every raw provider chunk, and any caught error. See [Debug Logging](../advanced/debug-logging).
+
 ## Environment Variables
 
 The TTS adapters use the same environment variables as other adapters:

@@ -512,6 +512,8 @@ try {
 }
 ```
 
+> **Debugging:** When a transcription returns garbage, empty segments, or the provider rejects your audio format, pass `debug: true` on `generateTranscription({...})` to log the outgoing request and every raw provider chunk. See [Debug Logging](../advanced/debug-logging).
+
 ## Environment Variables
 
 The transcription adapter uses:
