@@ -1012,15 +1012,13 @@ export const GEMINI_TTS_MODELS = [
 ] as const
 
 /**
- * Lyria music generation models (audio generation)
+ * Audio generation models (Lyria music generation).
  * @experimental Lyria music generation is an experimental feature and may change.
  */
-export const GEMINI_LYRIA_MODELS = [
+export const GEMINI_AUDIO_MODELS = [
   LYRIA_3_PRO.name,
   LYRIA_3_CLIP.name,
 ] as const
-
-export type GeminiLyriaModel = (typeof GEMINI_LYRIA_MODELS)[number]
 
 /**
  * Available voice names for Gemini TTS

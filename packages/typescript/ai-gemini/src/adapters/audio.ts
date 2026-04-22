@@ -4,7 +4,7 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
-import type { GEMINI_LYRIA_MODELS } from '../model-meta'
+import type { GEMINI_AUDIO_MODELS } from '../model-meta'
 import type {
   AudioGenerationOptions,
   AudioGenerationResult,
@@ -38,7 +38,7 @@ export interface GeminiAudioProviderOptions {
 export interface GeminiAudioConfig extends GeminiClientConfig {}
 
 /** Model type for Gemini Lyria audio generation */
-export type GeminiAudioModel = (typeof GEMINI_LYRIA_MODELS)[number]
+export type GeminiAudioModel = (typeof GEMINI_AUDIO_MODELS)[number]
 
 /**
  * Gemini Lyria Music Generation Adapter.
