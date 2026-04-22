@@ -26,19 +26,10 @@ export {
 } from './adapters/transcription'
 
 // ============================================================================
-// Music Adapter
+// Audio Adapter (Music/Sound Generation)
 // ============================================================================
 
-export { FalMusicAdapter, falMusic } from './adapters/music'
-
-// ============================================================================
-// Sound Effects Adapter
-// ============================================================================
-
-export {
-  FalSoundEffectsAdapter,
-  falSoundEffects,
-} from './adapters/sound-effects'
+export { FalAudioAdapter, falAudio } from './adapters/audio'
 
 // ============================================================================
 // Model Types (from fal.ai's type system)
@@ -49,8 +40,7 @@ export {
   type FalVideoProviderOptions,
   type FalSpeechProviderOptions,
   type FalTranscriptionProviderOptions,
-  type FalMusicProviderOptions,
-  type FalSoundEffectsProviderOptions,
+  type FalAudioProviderOptions,
   type FalModel,
   type FalModelInput,
   type FalModelOutput,

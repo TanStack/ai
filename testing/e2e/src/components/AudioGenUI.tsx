@@ -1,34 +1,22 @@
 import { useState } from 'react'
-import type {
-  MusicGenerationResult,
-  SoundEffectsGenerationResult,
-} from '@tanstack/ai'
-import { generateMusicFn, generateSoundEffectsFn } from '@/lib/server-functions'
+import type { AudioGenerationResult } from '@tanstack/ai'
+import { generateAudioFn } from '@/lib/server-functions'
 import type { Mode, Provider } from '@/lib/types'
 
-export type MediaAudioKind = 'music' | 'sound-effects'
-
-type GenerationResult = MusicGenerationResult | SoundEffectsGenerationResult
-
-interface MediaAudioGenUIProps {
+interface AudioGenUIProps {
   provider: Provider
   mode: Mode
-  kind: MediaAudioKind
   testId?: string
   aimockPort?: number
 }
 
-async function fetchAudioViaRoute(
-  kind: MediaAudioKind,
-  payload: {
-    prompt: string
-    provider: Provider
-    testId?: string
-    aimockPort?: number
-  },
-): Promise<GenerationResult> {
-  const endpoint = kind === 'music' ? '/api/music' : '/api/sound-effects'
-  const response = await fetch(endpoint, {
+async function fetchAudioViaRoute(payload: {
+  prompt: string
+  provider: Provider
+  testId?: string
+  aimockPort?: number
+}): Promise<AudioGenerationResult> {
+  const response = await fetch('/api/audio', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ data: payload }),
@@ -37,20 +25,19 @@ async function fetchAudioViaRoute(
   if (!response.ok) {
     throw new Error(body.error || `HTTP ${response.status}`)
   }
-  return body.result as GenerationResult
+  return body.result as AudioGenerationResult
 }
 
-export function MediaAudioGenUI({
+export function AudioGenUI({
   provider,
   mode,
-  kind,
   testId,
   aimockPort,
-}: MediaAudioGenUIProps) {
+}: AudioGenUIProps) {
   const [prompt, setPrompt] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
-  const [result, setResult] = useState<GenerationResult | null>(null)
+  const [result, setResult] = useState<AudioGenerationResult | null>(null)
 
   const generate = async () => {
     if (!prompt.trim()) return
@@ -58,16 +45,11 @@ export function MediaAudioGenUI({
     setError(null)
     try {
       const payload = { prompt, provider, testId, aimockPort }
-      let next: GenerationResult
-      if (mode === 'fetcher') {
-        next =
-          kind === 'music'
-            ? await generateMusicFn({ data: payload })
-            : await generateSoundEffectsFn({ data: payload })
-      } else {
-        next = await fetchAudioViaRoute(kind, payload)
-      }
-      setResult(next)
+      const next =
+        mode === 'fetcher'
+          ? await generateAudioFn({ data: payload })
+          : await fetchAudioViaRoute(payload)
+      setResult(next as AudioGenerationResult)
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)))
     } finally {
@@ -98,9 +80,7 @@ export function MediaAudioGenUI({
           type="text"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder={
-            kind === 'music' ? 'Describe the music...' : 'Describe the sound...'
-          }
+          placeholder="Describe the audio..."
           className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
         />
         <button

@@ -18,11 +18,10 @@ import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
-import { Route as ApiSoundEffectsRouteImport } from './routes/api.sound-effects'
-import { Route as ApiMusicRouteImport } from './routes/api.music'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
@@ -74,16 +73,6 @@ const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   path: '/api/summarize',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSoundEffectsRoute = ApiSoundEffectsRouteImport.update({
-  id: '/api/sound-effects',
-  path: '/api/sound-effects',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiMusicRoute = ApiMusicRouteImport.update({
-  id: '/api/music',
-  path: '/api/music',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   id: '/api/middleware-test',
   path: '/api/middleware-test',
@@ -97,6 +86,11 @@ const ApiImageRoute = ApiImageRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAudioRoute = ApiAudioRouteImport.update({
+  id: '/api/audio',
+  path: '/api/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
@@ -130,11 +124,10 @@ export interface FileRoutesByFullPath {
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/audio': typeof ApiAudioRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
-  '/api/music': typeof ApiMusicRoute
-  '/api/sound-effects': typeof ApiSoundEffectsRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -151,11 +144,10 @@ export interface FileRoutesByTo {
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/audio': typeof ApiAudioRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
-  '/api/music': typeof ApiMusicRoute
-  '/api/sound-effects': typeof ApiSoundEffectsRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -173,11 +165,10 @@ export interface FileRoutesById {
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/audio': typeof ApiAudioRoute
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
-  '/api/music': typeof ApiMusicRoute
-  '/api/sound-effects': typeof ApiSoundEffectsRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
@@ -196,11 +187,10 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/audio'
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
-    | '/api/music'
-    | '/api/sound-effects'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
@@ -217,11 +207,10 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/audio'
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
-    | '/api/music'
-    | '/api/sound-effects'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
@@ -238,11 +227,10 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
+    | '/api/audio'
     | '/api/chat'
     | '/api/image'
     | '/api/middleware-test'
-    | '/api/music'
-    | '/api/sound-effects'
     | '/api/summarize'
     | '/api/tools-test'
     | '/api/transcription'
@@ -260,11 +248,10 @@ export interface RootRouteChildren {
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
+  ApiAudioRoute: typeof ApiAudioRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
-  ApiMusicRoute: typeof ApiMusicRoute
-  ApiSoundEffectsRoute: typeof ApiSoundEffectsRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
@@ -338,20 +325,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSummarizeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/sound-effects': {
-      id: '/api/sound-effects'
-      path: '/api/sound-effects'
-      fullPath: '/api/sound-effects'
-      preLoaderRoute: typeof ApiSoundEffectsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/music': {
-      id: '/api/music'
-      path: '/api/music'
-      fullPath: '/api/music'
-      preLoaderRoute: typeof ApiMusicRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/middleware-test': {
       id: '/api/middleware-test'
       path: '/api/middleware-test'
@@ -371,6 +344,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/audio': {
+      id: '/api/audio'
+      path: '/api/audio'
+      fullPath: '/api/audio'
+      preLoaderRoute: typeof ApiAudioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$provider/$feature': {
@@ -462,11 +442,10 @@ const rootRouteChildren: RootRouteChildren = {
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
+  ApiAudioRoute: ApiAudioRoute,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
-  ApiMusicRoute: ApiMusicRoute,
-  ApiSoundEffectsRoute: ApiSoundEffectsRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,

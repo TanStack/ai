@@ -1,7 +1,7 @@
 {
   "fixtures": [
     {
-      "match": { "userMessage": "[musicgen] upbeat piano loop" },
+      "match": { "userMessage": "[audiogen] upbeat piano loop" },
       "response": {
         "audio": {
           "b64Json": "SGVsbG8gYXVkaW8=",

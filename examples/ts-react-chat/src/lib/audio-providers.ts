@@ -3,7 +3,7 @@
  *
  * Each entry lists a display label plus the provider model we exercise so
  * the UI can render consistent tabs/selectors across speech, transcription,
- * music, and sound-effects flows.
+ * and audio generation flows.
  */
 
 export type SpeechProviderId = 'openai' | 'gemini' | 'fal'
@@ -82,12 +82,10 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
     },
   ]
 
-/**
- * Shared shape for both music and sound-effects provider configs — the only
- * thing that differs between the two is the model catalog and copy.
- */
-export interface AudioGenerationProviderConfig<TId extends string> {
-  id: TId
+export type AudioProviderId = 'gemini-lyria' | 'fal-audio'
+
+export interface AudioProviderConfig {
+  id: AudioProviderId
   label: string
   /** Default model when the provider does not expose a chooser. */
   model: string
@@ -106,10 +104,7 @@ export interface AudioGenerationProviderConfig<TId extends string> {
   models?: ReadonlyArray<{ id: string; label: string }>
 }
 
-export type MusicProviderId = 'gemini-lyria' | 'fal-music'
-export type MusicProviderConfig = AudioGenerationProviderConfig<MusicProviderId>
-
-export const MUSIC_PROVIDERS: ReadonlyArray<MusicProviderConfig> = [
+export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
   {
     id: 'gemini-lyria',
     label: 'Gemini Lyria',
@@ -140,8 +135,8 @@ export const MUSIC_PROVIDERS: ReadonlyArray<MusicProviderConfig> = [
     ],
   },
   {
-    id: 'fal-music',
-    label: 'Fal Music',
+    id: 'fal-audio',
+    label: 'Fal Audio',
     model: 'fal-ai/minimax-music/v2.6',
     models: [
       { id: 'fal-ai/minimax-music/v2.6', label: 'MiniMax Music v2.6 (latest)' },
@@ -183,51 +178,3 @@ export const MUSIC_PROVIDERS: ReadonlyArray<MusicProviderConfig> = [
     ],
   },
 ]
-
-export type SoundEffectsProviderId = 'fal-sound-effects'
-export type SoundEffectsProviderConfig =
-  AudioGenerationProviderConfig<SoundEffectsProviderId>
-
-export const SOUND_EFFECTS_PROVIDERS: ReadonlyArray<SoundEffectsProviderConfig> =
-  [
-    {
-      id: 'fal-sound-effects',
-      label: 'Fal Sound Effects',
-      model: 'fal-ai/elevenlabs/sound-effects/v2',
-      models: [
-        {
-          id: 'fal-ai/elevenlabs/sound-effects/v2',
-          label: 'ElevenLabs Sound Effects v2',
-        },
-        {
-          id: 'fal-ai/mmaudio-v2/text-to-audio',
-          label: 'MMAudio v2 (text-to-audio)',
-        },
-        { id: 'fal-ai/thinksound', label: 'Thinksound' },
-      ],
-      description: 'Fal-hosted sound-effect generation models.',
-      placeholder: 'Thunderclap followed by heavy rain',
-      defaultDuration: 5,
-      samplePrompts: [
-        {
-          label: 'Thunderstorm',
-          prompt: 'Rolling thunder followed by sudden heavy rain on pavement.',
-        },
-        {
-          label: 'Sci-fi door',
-          prompt:
-            'A metallic sci-fi airlock hissing open, then slamming shut with a heavy clang.',
-        },
-        {
-          label: 'Forest ambience',
-          prompt:
-            'Early-morning forest ambience with birdsong, rustling leaves, and a distant stream.',
-        },
-        {
-          label: 'Arcade explosion',
-          prompt:
-            'A chunky 8-bit arcade explosion with a satisfying descending pitch.',
-        },
-      ],
-    },
-  ]

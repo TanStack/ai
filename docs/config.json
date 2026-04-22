@@ -147,12 +147,8 @@
           "to": "media/transcription"
         },
         {
-          "label": "Music Generation",
-          "to": "media/music-generation"
-        },
-        {
-          "label": "Sound Effects",
-          "to": "media/sound-effects-generation"
+          "label": "Audio Generation",
+          "to": "media/audio-generation"
         },
         {
           "label": "Image Generation",

@@ -124,8 +124,7 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
   tts: new Set(['openai']),
   transcription: new Set(['openai']),
   'video-gen': new Set(['openai']),
-  'music-gen': new Set<Provider>(),
-  'sound-effects-gen': new Set<Provider>(),
+  'audio-gen': new Set(['gemini']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

@@ -1020,6 +1020,8 @@ export const GEMINI_LYRIA_MODELS = [
   LYRIA_3_CLIP.name,
 ] as const
 
+export type GeminiLyriaModel = (typeof GEMINI_LYRIA_MODELS)[number]
+
 /**
  * Available voice names for Gemini TTS
  * @see https://ai.google.dev/gemini-api/docs/speech-generation

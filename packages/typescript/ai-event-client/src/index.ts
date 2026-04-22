@@ -501,11 +501,11 @@ export interface TranscriptionUsageEvent extends BaseEventContext {
 }
 
 // ===========================
-// Music Events
+// Audio Events
 // ===========================
 
-/** Emitted when a music generation request starts. */
-export interface MusicRequestStartedEvent extends BaseEventContext {
+/** Emitted when an audio generation request starts. */
+export interface AudioRequestStartedEvent extends BaseEventContext {
   requestId: string
   provider: string
   model: string
@@ -513,8 +513,8 @@ export interface MusicRequestStartedEvent extends BaseEventContext {
   duration?: number
 }
 
-/** Emitted when a music generation request completes. */
-export interface MusicRequestCompletedEvent extends BaseEventContext {
+/** Emitted when an audio generation request completes. */
+export interface AudioRequestCompletedEvent extends BaseEventContext {
   requestId: string
   provider: string
   model: string
@@ -522,37 +522,8 @@ export interface MusicRequestCompletedEvent extends BaseEventContext {
   duration: number
 }
 
-/** Emitted when music usage metrics are available. */
-export interface MusicUsageEvent extends BaseEventContext {
-  requestId: string
-  model: string
-  usage: ImageUsage
-}
-
-// ===========================
-// Sound Effects Events
-// ===========================
-
-/** Emitted when a sound-effects generation request starts. */
-export interface SoundEffectsRequestStartedEvent extends BaseEventContext {
-  requestId: string
-  provider: string
-  model: string
-  prompt: string
-  duration?: number
-}
-
-/** Emitted when a sound-effects generation request completes. */
-export interface SoundEffectsRequestCompletedEvent extends BaseEventContext {
-  requestId: string
-  provider: string
-  model: string
-  audio: { url?: string; b64Json?: string; contentType?: string }
-  duration: number
-}
-
-/** Emitted when sound-effects usage metrics are available. */
-export interface SoundEffectsUsageEvent extends BaseEventContext {
+/** Emitted when audio usage metrics are available. */
+export interface AudioUsageEvent extends BaseEventContext {
   requestId: string
   model: string
   usage: ImageUsage
@@ -690,15 +661,10 @@ export interface AIDevtoolsEventMap {
   'transcription:request:completed': TranscriptionRequestCompletedEvent
   'transcription:usage': TranscriptionUsageEvent
 
-  // Music events
-  'music:request:started': MusicRequestStartedEvent
-  'music:request:completed': MusicRequestCompletedEvent
-  'music:usage': MusicUsageEvent
-
-  // Sound effects events
-  'soundEffects:request:started': SoundEffectsRequestStartedEvent
-  'soundEffects:request:completed': SoundEffectsRequestCompletedEvent
-  'soundEffects:usage': SoundEffectsUsageEvent
+  // Audio events
+  'audio:request:started': AudioRequestStartedEvent
+  'audio:request:completed': AudioRequestCompletedEvent
+  'audio:usage': AudioUsageEvent
 
   // Video events
   'video:request:started': VideoRequestStartedEvent

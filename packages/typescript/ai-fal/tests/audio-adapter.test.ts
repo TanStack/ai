@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { generateMusic } from '@tanstack/ai'
+import { generateAudio } from '@tanstack/ai'
 
-import { falMusic } from '../src/adapters/music'
+import { falAudio } from '../src/adapters/audio'
 
 // Declare mocks at module level
 let mockSubscribe: any
@@ -21,16 +21,16 @@ vi.mock('@fal-ai/client', () => {
 const DEFAULT_LYRICS = '[instrumental]'
 
 const createAdapter = () =>
-  falMusic('fal-ai/minimax-music/v2', { apiKey: 'test-key' })
+  falAudio('fal-ai/minimax-music/v2', { apiKey: 'test-key' })
 
-describe('Fal Music Adapter', () => {
+describe('Fal Audio Adapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSubscribe = vi.fn()
     mockConfig = vi.fn()
   })
 
-  it('generates music with correct API call', async () => {
+  it('generates audio with correct API call', async () => {
     mockSubscribe.mockResolvedValueOnce({
       data: {
         audio: {
@@ -43,7 +43,7 @@ describe('Fal Music Adapter', () => {
 
     const adapter = createAdapter()
 
-    const result = await generateMusic({
+    const result = await generateAudio({
       adapter,
       prompt: 'An upbeat electronic track with synths',
       modelOptions: {
@@ -77,7 +77,7 @@ describe('Fal Music Adapter', () => {
 
     const adapter = createAdapter()
 
-    const result = await generateMusic({
+    const result = await generateAudio({
       adapter,
       prompt: 'A calm piano piece',
       modelOptions: {
@@ -100,7 +100,7 @@ describe('Fal Music Adapter', () => {
 
     const adapter = createAdapter()
 
-    await generateMusic({
+    await generateAudio({
       adapter,
       prompt: 'Test audio',
       duration: 30,
@@ -128,9 +128,9 @@ describe('Fal Music Adapter', () => {
       requestId: 'req-789',
     })
 
-    const adapter = falMusic('fal-ai/diffrhythm', { apiKey: 'test-key' })
+    const adapter = falAudio('fal-ai/diffrhythm', { apiKey: 'test-key' })
 
-    const result = await generateMusic({
+    const result = await generateAudio({
       adapter,
       prompt: 'An upbeat pop song',
       modelOptions: {
@@ -148,6 +148,27 @@ describe('Fal Music Adapter', () => {
     expect(result.audio.url).toBe('https://fal.media/files/diffrhythm.wav')
   })
 
+  it('handles audio_url response format', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        audio_url: 'https://fal.media/files/sfx.wav',
+      },
+      requestId: 'req-456',
+    })
+
+    const adapter = createAdapter()
+
+    const result = await generateAudio({
+      adapter,
+      prompt: 'Explosion sound effect',
+      modelOptions: {
+        lyrics_prompt: DEFAULT_LYRICS,
+      },
+    })
+
+    expect(result.audio.url).toBe('https://fal.media/files/sfx.wav')
+  })
+
   it('throws when audio URL not found', async () => {
     mockSubscribe.mockResolvedValueOnce({
       data: {},
@@ -157,7 +178,7 @@ describe('Fal Music Adapter', () => {
     const adapter = createAdapter()
 
     await expect(
-      generateMusic({
+      generateAudio({
         adapter,
         prompt: 'Test',
         modelOptions: {
@@ -168,7 +189,7 @@ describe('Fal Music Adapter', () => {
   })
 
   it('configures client with API key', () => {
-    falMusic('fal-ai/minimax-music/v2', { apiKey: 'my-api-key' })
+    falAudio('fal-ai/minimax-music/v2', { apiKey: 'my-api-key' })
 
     expect(mockConfig).toHaveBeenCalledWith({
       credentials: 'my-api-key',
@@ -176,7 +197,7 @@ describe('Fal Music Adapter', () => {
   })
 
   it('configures client with proxy URL when provided', () => {
-    falMusic('fal-ai/minimax-music/v2', {
+    falAudio('fal-ai/minimax-music/v2', {
       apiKey: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })

@@ -11,7 +11,7 @@ import { ImageGenUI } from '@/components/ImageGenUI'
 import { TTSUI } from '@/components/TTSUI'
 import { TranscriptionUI } from '@/components/TranscriptionUI'
 import { VideoGenUI } from '@/components/VideoGenUI'
-import { MediaAudioGenUI } from '@/components/MediaAudioGenUI'
+import { AudioGenUI } from '@/components/AudioGenUI'
 
 export const Route = createFileRoute('/$provider/$feature')({
   component: FeaturePage,
@@ -33,8 +33,7 @@ const MEDIA_FEATURES = new Set<Feature>([
   'tts',
   'transcription',
   'video-gen',
-  'music-gen',
-  'sound-effects-gen',
+  'audio-gen',
 ])
 
 const addToCartClient = addToCartToolDef.client((args) => ({
@@ -120,22 +119,11 @@ function MediaFeature({
           aimockPort={aimockPort}
         />
       )
-    case 'music-gen':
+    case 'audio-gen':
       return (
-        <MediaAudioGenUI
+        <AudioGenUI
           provider={provider}
           mode={mode}
-          kind="music"
-          testId={testId}
-          aimockPort={aimockPort}
-        />
-      )
-    case 'sound-effects-gen':
-      return (
-        <MediaAudioGenUI
-          provider={provider}
-          mode={mode}
-          kind="sound-effects"
           testId={testId}
           aimockPort={aimockPort}
         />

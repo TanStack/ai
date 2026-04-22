@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
-  AudioWaveform,
   Braces,
   FileAudio,
   FileText,
@@ -152,18 +151,11 @@ function Messages({
               <span className="text-sm text-gray-300">Speech</span>
             </Link>
             <Link
-              to="/generations/music"
+              to="/generations/audio"
               className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
             >
               <Music size={24} className="text-orange-400" />
-              <span className="text-sm text-gray-300">Music</span>
-            </Link>
-            <Link
-              to="/generations/sound-effects"
-              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
-            >
-              <AudioWaveform size={24} className="text-orange-400" />
-              <span className="text-sm text-gray-300">Sound Effects</span>
+              <span className="text-sm text-gray-300">Audio</span>
             </Link>
             <Link
               to="/generations/transcription"

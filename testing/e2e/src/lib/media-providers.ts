@@ -4,7 +4,7 @@ import {
   createOpenaiTranscription,
   createOpenaiVideo,
 } from '@tanstack/ai-openai'
-import { createGeminiImage, createGeminiMusic } from '@tanstack/ai-gemini'
+import { createGeminiAudio, createGeminiImage } from '@tanstack/ai-gemini'
 import { createGrokImage } from '@tanstack/ai-grok'
 import type { Provider } from '@/lib/types'
 
@@ -37,11 +37,11 @@ export function createImageAdapter(
         defaultHeaders: headers,
       }),
     gemini: () =>
-      createGeminiImage('gemini-2.0-flash', DUMMY_KEY, {
+      createGeminiImage('gemini-3.1-flash-image-preview', DUMMY_KEY, {
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
     grok: () =>
-      createGrokImage('grok-2-image', DUMMY_KEY, {
+      createGrokImage('grok-2-image-1212', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
@@ -106,7 +106,7 @@ export function createVideoAdapter(
   return factory()
 }
 
-export function createMusicAdapter(
+export function createAudioAdapter(
   provider: Provider,
   aimockPort?: number,
   testId?: string,
@@ -114,21 +114,11 @@ export function createMusicAdapter(
   const headers = testHeaders(testId)
   const factories: Record<string, () => any> = {
     gemini: () =>
-      createGeminiMusic('lyria-3-clip-preview', DUMMY_KEY, {
+      createGeminiAudio('lyria-3-clip-preview', DUMMY_KEY, {
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
   }
   const factory = factories[provider]
-  if (!factory) throw new Error(`No music adapter for provider: ${provider}`)
+  if (!factory) throw new Error(`No audio adapter for provider: ${provider}`)
   return factory()
-}
-
-export function createSoundEffectsAdapter(
-  provider: Provider,
-  _aimockPort?: number,
-  _testId?: string,
-): never {
-  throw new Error(
-    `No sound-effects adapter for provider: ${provider} (no mocked SFX provider yet)`,
-  )
 }

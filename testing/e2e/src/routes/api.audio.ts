@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateMusic } from '@tanstack/ai'
-import { createMusicAdapter } from '@/lib/media-providers'
+import { generateAudio } from '@tanstack/ai'
+import { createAudioAdapter } from '@/lib/media-providers'
 import type { Provider } from '@/lib/types'
 
-export const Route = createFileRoute('/api/music')({
+export const Route = createFileRoute('/api/audio')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -18,10 +18,10 @@ export const Route = createFileRoute('/api/music')({
           aimockPort?: number
         }
 
-        const adapter = createMusicAdapter(provider, aimockPort, testId)
+        const adapter = createAudioAdapter(provider, aimockPort, testId)
 
         try {
-          const result = await generateMusic({ adapter, prompt, duration })
+          const result = await generateAudio({ adapter, prompt, duration })
           return new Response(JSON.stringify({ result }), {
             headers: { 'Content-Type': 'application/json' },
           })

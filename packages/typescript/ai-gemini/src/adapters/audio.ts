@@ -1,4 +1,4 @@
-import { BaseMusicAdapter } from '@tanstack/ai/adapters'
+import { BaseAudioAdapter } from '@tanstack/ai/adapters'
 import {
   createGeminiClient,
   generateId,
@@ -6,8 +6,8 @@ import {
 } from '../utils'
 import type { GEMINI_LYRIA_MODELS } from '../model-meta'
 import type {
-  MusicGenerationOptions,
-  MusicGenerationResult,
+  AudioGenerationOptions,
+  AudioGenerationResult,
 } from '@tanstack/ai'
 import type { GoogleGenAI } from '@google/genai'
 import type { GeminiClientConfig } from '../utils'
@@ -17,7 +17,7 @@ import type { GeminiClientConfig } from '../utils'
  *
  * @see https://ai.google.dev/gemini-api/docs/music-generation
  */
-export interface GeminiMusicProviderOptions {
+export interface GeminiAudioProviderOptions {
   /**
    * Output audio MIME type.
    * - `audio/mp3` (default, both models)
@@ -36,10 +36,10 @@ export interface GeminiMusicProviderOptions {
   negativePrompt?: string
 }
 
-export interface GeminiMusicConfig extends GeminiClientConfig {}
+export interface GeminiAudioConfig extends GeminiClientConfig {}
 
-/** Model type for Gemini Lyria music generation */
-export type GeminiMusicModel = (typeof GEMINI_LYRIA_MODELS)[number]
+/** Model type for Gemini Lyria audio generation */
+export type GeminiAudioModel = (typeof GEMINI_LYRIA_MODELS)[number]
 
 /**
  * Gemini Lyria Music Generation Adapter.
@@ -55,28 +55,28 @@ export type GeminiMusicModel = (typeof GEMINI_LYRIA_MODELS)[number]
  *
  * @example
  * ```typescript
- * const adapter = geminiMusic('lyria-3-pro-preview')
- * const result = await generateMusic({
+ * const adapter = geminiAudio('lyria-3-pro-preview')
+ * const result = await generateAudio({
  *   adapter,
  *   prompt: 'An upbeat jazz track with saxophone and drums',
  * })
  * ```
  */
-export class GeminiMusicAdapter<
-  TModel extends GeminiMusicModel,
-> extends BaseMusicAdapter<TModel, GeminiMusicProviderOptions> {
+export class GeminiAudioAdapter<
+  TModel extends GeminiAudioModel,
+> extends BaseAudioAdapter<TModel, GeminiAudioProviderOptions> {
   readonly name = 'gemini' as const
 
   private client: GoogleGenAI
 
-  constructor(config: GeminiMusicConfig, model: TModel) {
+  constructor(config: GeminiAudioConfig, model: TModel) {
     super(config, model)
     this.client = createGeminiClient(config)
   }
 
-  async generateMusic(
-    options: MusicGenerationOptions<GeminiMusicProviderOptions>,
-  ): Promise<MusicGenerationResult> {
+  async generateAudio(
+    options: AudioGenerationOptions<GeminiAudioProviderOptions>,
+  ): Promise<AudioGenerationResult> {
     const { model, prompt, modelOptions } = options
 
     const response = await this.client.models.generateContent({
@@ -115,7 +115,7 @@ export class GeminiMusicAdapter<
 }
 
 /**
- * Creates a Gemini Lyria music adapter with an explicit API key.
+ * Creates a Gemini Lyria audio adapter with an explicit API key.
  *
  * @param model - The Lyria model name (e.g., 'lyria-3-pro-preview')
  * @param apiKey - Your Google API key
@@ -123,23 +123,23 @@ export class GeminiMusicAdapter<
  *
  * @example
  * ```typescript
- * const adapter = createGeminiMusic('lyria-3-pro-preview', 'your-api-key')
- * const result = await generateMusic({
+ * const adapter = createGeminiAudio('lyria-3-pro-preview', 'your-api-key')
+ * const result = await generateAudio({
  *   adapter,
  *   prompt: 'Ambient electronic music with soft pads',
  * })
  * ```
  */
-export function createGeminiMusic<TModel extends GeminiMusicModel>(
+export function createGeminiAudio<TModel extends GeminiAudioModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<GeminiMusicConfig, 'apiKey'>,
-): GeminiMusicAdapter<TModel> {
-  return new GeminiMusicAdapter({ apiKey, ...config }, model)
+  config?: Omit<GeminiAudioConfig, 'apiKey'>,
+): GeminiAudioAdapter<TModel> {
+  return new GeminiAudioAdapter({ apiKey, ...config }, model)
 }
 
 /**
- * Creates a Gemini Lyria music adapter with automatic API key detection.
+ * Creates a Gemini Lyria audio adapter with automatic API key detection.
  *
  * Looks for `GOOGLE_API_KEY` or `GEMINI_API_KEY` in the environment.
  *
@@ -148,17 +148,17 @@ export function createGeminiMusic<TModel extends GeminiMusicModel>(
  *
  * @example
  * ```typescript
- * const adapter = geminiMusic('lyria-3-pro-preview')
- * const result = await generateMusic({
+ * const adapter = geminiAudio('lyria-3-pro-preview')
+ * const result = await generateAudio({
  *   adapter,
  *   prompt: 'An orchestral piece with strings and brass',
  * })
  * ```
  */
-export function geminiMusic<TModel extends GeminiMusicModel>(
+export function geminiAudio<TModel extends GeminiAudioModel>(
   model: TModel,
-  config?: Omit<GeminiMusicConfig, 'apiKey'>,
-): GeminiMusicAdapter<TModel> {
+  config?: Omit<GeminiAudioConfig, 'apiKey'>,
+): GeminiAudioAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return createGeminiMusic(model, apiKey, config)
+  return createGeminiAudio(model, apiKey, config)
 }

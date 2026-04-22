@@ -1,12 +1,9 @@
-import type {
-  SoundEffectsGenerationOptions,
-  SoundEffectsGenerationResult,
-} from '../../types'
+import type { AudioGenerationOptions, AudioGenerationResult } from '../../types'
 
 /**
- * Configuration for sound-effects generation adapter instances
+ * Configuration for audio generation adapter instances
  */
-export interface SoundEffectsAdapterConfig {
+export interface AudioAdapterConfig {
   apiKey?: string
   baseUrl?: string
   timeout?: number
@@ -15,21 +12,21 @@ export interface SoundEffectsAdapterConfig {
 }
 
 /**
- * Sound-effects generation adapter interface with pre-resolved generics.
+ * Audio generation adapter interface with pre-resolved generics.
  *
  * An adapter is created by a provider function: `provider('model')` → `adapter`
  * All type resolution happens at the provider call site, not in this interface.
  *
  * Generic parameters:
- * - TModel: The specific model name (e.g., 'fal-ai/elevenlabs/sound-effects/v2')
+ * - TModel: The specific model name (e.g., 'fal-ai/diffrhythm')
  * - TProviderOptions: Provider-specific options (already resolved)
  */
-export interface SoundEffectsAdapter<
+export interface AudioAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
-  readonly kind: 'sound-effects'
+  readonly kind: 'audio'
   /** Adapter name identifier */
   readonly name: string
   /** The model this adapter is configured for */
@@ -43,30 +40,30 @@ export interface SoundEffectsAdapter<
   }
 
   /**
-   * Generate sound effects from a text prompt
+   * Generate audio from a text prompt
    */
-  generateSoundEffects: (
-    options: SoundEffectsGenerationOptions<TProviderOptions>,
-  ) => Promise<SoundEffectsGenerationResult>
+  generateAudio: (
+    options: AudioGenerationOptions<TProviderOptions>,
+  ) => Promise<AudioGenerationResult>
 }
 
 /**
- * A SoundEffectsAdapter with any/unknown type parameters.
+ * An AudioAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnySoundEffectsAdapter = SoundEffectsAdapter<any, any>
+export type AnyAudioAdapter = AudioAdapter<any, any>
 
 /**
- * Abstract base class for sound-effects generation adapters.
- * Extend this class to implement an adapter for a specific provider.
+ * Abstract base class for audio generation adapters.
+ * Extend this class to implement an audio adapter for a specific provider.
  *
- * Generic parameters match SoundEffectsAdapter - all pre-resolved by the provider function.
+ * Generic parameters match AudioAdapter - all pre-resolved by the provider function.
  */
-export abstract class BaseSoundEffectsAdapter<
+export abstract class BaseAudioAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
-> implements SoundEffectsAdapter<TModel, TProviderOptions> {
-  readonly kind = 'sound-effects' as const
+> implements AudioAdapter<TModel, TProviderOptions> {
+  readonly kind = 'audio' as const
   abstract readonly name: string
   readonly model: TModel
 
@@ -75,16 +72,16 @@ export abstract class BaseSoundEffectsAdapter<
     providerOptions: TProviderOptions
   }
 
-  protected config: SoundEffectsAdapterConfig
+  protected config: AudioAdapterConfig
 
-  constructor(config: SoundEffectsAdapterConfig = {}, model: TModel) {
+  constructor(config: AudioAdapterConfig = {}, model: TModel) {
     this.config = config
     this.model = model
   }
 
-  abstract generateSoundEffects(
-    options: SoundEffectsGenerationOptions<TProviderOptions>,
-  ): Promise<SoundEffectsGenerationResult>
+  abstract generateAudio(
+    options: AudioGenerationOptions<TProviderOptions>,
+  ): Promise<AudioGenerationResult>
 
   protected generateId(): string {
     return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`

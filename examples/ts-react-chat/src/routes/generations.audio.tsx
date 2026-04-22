@@ -1,36 +1,14 @@
 import { useMemo, useState } from 'react'
-import type {
-  MusicGenerationResult,
-  SoundEffectsGenerationResult,
-} from '@tanstack/ai'
-import type { AudioGenerationProviderConfig } from './audio-providers'
+import { createFileRoute } from '@tanstack/react-router'
+import type { AudioGenerationResult } from '@tanstack/ai'
+import { generateAudioFn } from '../lib/server-fns'
+import {
+  AUDIO_PROVIDERS,
+  type AudioProviderConfig,
+  type AudioProviderId,
+} from '../lib/audio-providers'
 
-type AudioGenerationResult =
-  | MusicGenerationResult
-  | SoundEffectsGenerationResult
-
-export type AudioGenerationMode = 'direct' | 'server-fn'
-
-export interface AudioGenerationFormProps<TId extends string> {
-  mode: AudioGenerationMode
-  config: AudioGenerationProviderConfig<TId>
-  /** Called when the user clicks "Generate" via the server function path. */
-  generateViaServerFn: (input: {
-    prompt: string
-    duration?: number
-    provider: TId
-    model?: string
-  }) => Promise<AudioGenerationResult>
-  /** Called when the user clicks "Generate" via the direct HTTP route path. */
-  generateViaRoute: (input: {
-    prompt: string
-    duration?: number
-    provider: TId
-    model?: string
-  }) => Promise<AudioGenerationResult>
-  /** Distinguishes the flows visually and in data-testids. */
-  kind: 'music' | 'sound-effects'
-}
+type Mode = 'direct' | 'server-fn'
 
 interface AudioResultState {
   url: string
@@ -55,13 +33,31 @@ function toAudioUrl(audio: AudioGenerationResult['audio']): string {
   throw new Error('Audio response had neither url nor b64Json data')
 }
 
-export function AudioGenerationForm<TId extends string>({
+async function generateViaRoute(input: {
+  prompt: string
+  duration?: number
+  provider: AudioProviderId
+  model?: string
+}): Promise<AudioGenerationResult> {
+  const response = await fetch('/api/generate/audio', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: input }),
+  })
+  const payload = await response.json()
+  if (!response.ok) {
+    throw new Error(payload.error || 'Audio generation failed')
+  }
+  return payload.result as AudioGenerationResult
+}
+
+function AudioGenerationForm({
   mode,
   config,
-  generateViaServerFn,
-  generateViaRoute,
-  kind,
-}: AudioGenerationFormProps<TId>) {
+}: {
+  mode: Mode
+  config: AudioProviderConfig
+}) {
   const [prompt, setPrompt] = useState('')
   const [duration, setDuration] = useState<number | undefined>(
     config.defaultDuration,
@@ -85,7 +81,7 @@ export function AudioGenerationForm<TId extends string>({
         }
         const response =
           mode === 'server-fn'
-            ? await generateViaServerFn(payload)
+            ? await generateAudioFn({ data: payload })
             : await generateViaRoute(payload)
         setResult({
           url: toAudioUrl(response.audio),
@@ -99,18 +95,8 @@ export function AudioGenerationForm<TId extends string>({
         setIsLoading(false)
       }
     },
-    [
-      prompt,
-      duration,
-      config.id,
-      mode,
-      selectedModel,
-      generateViaServerFn,
-      generateViaRoute,
-    ],
+    [prompt, duration, config.id, mode, selectedModel],
   )
-
-  const testIdPrefix = kind === 'music' ? 'music' : 'sfx'
 
   return (
     <div className="space-y-6">
@@ -118,14 +104,14 @@ export function AudioGenerationForm<TId extends string>({
         {config.models && config.models.length > 1 ? (
           <div className="flex items-center gap-3">
             <label
-              htmlFor={`${testIdPrefix}-model-select`}
+              htmlFor="audio-model-select"
               className="text-xs text-gray-400"
             >
               Model:
             </label>
             <select
-              id={`${testIdPrefix}-model-select`}
-              data-testid={`${testIdPrefix}-model-select`}
+              id="audio-model-select"
+              data-testid="audio-model-select"
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
               disabled={isLoading}
@@ -149,7 +135,7 @@ export function AudioGenerationForm<TId extends string>({
       <div className="space-y-3">
         <label className="text-sm text-gray-400">Prompt</label>
         <textarea
-          data-testid={`${testIdPrefix}-prompt-input`}
+          data-testid="audio-prompt-input"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder={config.placeholder}
@@ -166,7 +152,7 @@ export function AudioGenerationForm<TId extends string>({
                 type="button"
                 onClick={() => setPrompt(sample.prompt)}
                 disabled={isLoading}
-                data-testid={`${testIdPrefix}-sample-${sample.label
+                data-testid={`audio-sample-${sample.label
                   .toLowerCase()
                   .replace(/\s+/g, '-')}`}
                 className="px-3 py-1 rounded-full border border-orange-500/30 bg-orange-500/10 text-xs text-orange-200 hover:bg-orange-500/20 hover:border-orange-500/50 disabled:opacity-50 transition-colors"
@@ -184,7 +170,7 @@ export function AudioGenerationForm<TId extends string>({
             Duration ({duration ?? 0}s)
           </label>
           <input
-            data-testid={`${testIdPrefix}-duration-input`}
+            data-testid="audio-duration-input"
             type="range"
             min={1}
             max={60}
@@ -200,14 +186,10 @@ export function AudioGenerationForm<TId extends string>({
         <button
           onClick={generate}
           disabled={!prompt.trim() || isLoading}
-          data-testid={`${testIdPrefix}-generate-button`}
+          data-testid="audio-generate-button"
           className="px-6 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm font-medium transition-colors"
         >
-          {isLoading
-            ? 'Generating...'
-            : kind === 'music'
-              ? 'Generate Music'
-              : 'Generate Sound Effect'}
+          {isLoading ? 'Generating...' : 'Generate Audio'}
         </button>
         {result && (
           <button
@@ -224,7 +206,7 @@ export function AudioGenerationForm<TId extends string>({
 
       {error && (
         <div
-          data-testid={`${testIdPrefix}-error`}
+          data-testid="audio-error"
           className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg"
         >
           <p className="text-red-400 text-sm">{error}</p>
@@ -239,7 +221,7 @@ export function AudioGenerationForm<TId extends string>({
             {result.duration && ` | Duration: ${result.duration}s`}
           </p>
           <audio
-            data-testid={`${testIdPrefix}-player`}
+            data-testid="audio-player"
             src={result.url}
             controls
             className="w-full"
@@ -249,3 +231,73 @@ export function AudioGenerationForm<TId extends string>({
     </div>
   )
 }
+
+function AudioGenerationPage() {
+  const [mode, setMode] = useState<Mode>('direct')
+  const [provider, setProvider] = useState<AudioProviderId>('gemini-lyria')
+
+  const config = AUDIO_PROVIDERS.find((p) => p.id === provider)!
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
+      <div className="border-b border-orange-500/20 bg-gray-800 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Audio Generation</h2>
+            <p className="text-sm text-gray-400 mt-1">
+              Generate music and sound effects from text prompts.
+            </p>
+          </div>
+          <div className="flex gap-1 bg-gray-900/50 rounded-lg p-1">
+            {(['direct', 'server-fn'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  mode === m
+                    ? 'bg-orange-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {m === 'server-fn' ? 'Server Fn' : 'Direct'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="border-b border-orange-500/20 bg-gray-800/60 px-6 py-3">
+        <div className="flex flex-wrap gap-2">
+          {AUDIO_PROVIDERS.map((p) => (
+            <button
+              key={p.id}
+              data-testid={`provider-tab-${p.id}`}
+              onClick={() => setProvider(p.id)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                provider === p.id
+                  ? 'bg-orange-500/80 text-white'
+                  : 'bg-gray-900 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-2xl mx-auto">
+          <AudioGenerationForm
+            key={`${mode}-${config.id}`}
+            mode={mode}
+            config={config}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export const Route = createFileRoute('/generations/audio')({
+  component: AudioGenerationPage,
+})

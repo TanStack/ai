@@ -3,8 +3,7 @@ export {
   chat,
   summarize,
   generateImage,
-  generateMusic,
-  generateSoundEffects,
+  generateAudio,
   generateVideo,
   getVideoJobStatus,
   generateSpeech,
@@ -15,8 +14,7 @@ export {
 export { createChatOptions } from './activities/chat/index'
 export { createSummarizeOptions } from './activities/summarize/index'
 export { createImageOptions } from './activities/generateImage/index'
-export { createMusicOptions } from './activities/generateMusic/index'
-export { createSoundEffectsOptions } from './activities/generateSoundEffects/index'
+export { createAudioOptions } from './activities/generateAudio/index'
 export { createVideoOptions } from './activities/generateVideo/index'
 export { createSpeechOptions } from './activities/generateSpeech/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
@@ -30,10 +28,8 @@ export type {
   AnyTextAdapter,
   AnySummarizeAdapter,
   SummarizeAdapter,
-  AnyMusicAdapter,
-  MusicAdapter,
-  AnySoundEffectsAdapter,
-  SoundEffectsAdapter,
+  AnyAudioAdapter,
+  AudioAdapter,
   AnyTTSAdapter,
   TTSAdapter,
   AnyTranscriptionAdapter,

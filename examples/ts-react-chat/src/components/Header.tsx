@@ -2,7 +2,6 @@ import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
 import {
-  AudioWaveform,
   Braces,
   FileAudio,
   FileText,
@@ -103,7 +102,7 @@ export default function Header() {
           </Link>
 
           <Link
-            to="/generations/music"
+            to="/generations/audio"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
             activeProps={{
@@ -112,20 +111,7 @@ export default function Header() {
             }}
           >
             <Music size={20} />
-            <span className="font-medium">Music Generation</span>
-          </Link>
-
-          <Link
-            to="/generations/sound-effects"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
-            activeProps={{
-              className:
-                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
-            }}
-          >
-            <AudioWaveform size={20} />
-            <span className="font-medium">Sound Effects</span>
+            <span className="font-medium">Audio Generation</span>
           </Link>
 
           <Link
