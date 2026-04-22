@@ -31,6 +31,9 @@
     "packages/typescript/ai-openai": {
       "ignore": ["src/tools/**"]
     },
+    "packages/typescript/ai-client": {
+      "ignoreDependencies": ["@standard-schema/spec"]
+    },
     "packages/typescript/ai-react-ui": {
       "ignoreDependencies": ["react-dom"]
     },

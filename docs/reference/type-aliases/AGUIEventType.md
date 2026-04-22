@@ -3,31 +3,20 @@ id: AGUIEventType
 title: AGUIEventType
 ---
 
-# Type Alias: AGUIEventType
+# ~~Type Alias: AGUIEventType~~
 
 ```ts
-type AGUIEventType = 
-  | "RUN_STARTED"
-  | "RUN_FINISHED"
-  | "RUN_ERROR"
-  | "TEXT_MESSAGE_START"
-  | "TEXT_MESSAGE_CONTENT"
-  | "TEXT_MESSAGE_END"
-  | "TOOL_CALL_START"
-  | "TOOL_CALL_ARGS"
-  | "TOOL_CALL_END"
-  | "STEP_STARTED"
-  | "STEP_FINISHED"
-  | "MESSAGES_SNAPSHOT"
-  | "STATE_SNAPSHOT"
-  | "STATE_DELTA"
-  | "CUSTOM";
+type AGUIEventType = `${EventType}`;
 ```
 
-Defined in: [types.ts:726](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L726)
+Defined in: [packages/typescript/ai/src/types.ts:770](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L770)
 
 AG-UI Protocol event types.
-Based on the AG-UI specification for agent-user interaction.
+
+## Deprecated
+
+Use `EventType` enum from `@ag-ui/core` instead. This type alias
+is kept for backward compatibility but will be removed in a future version.
 
 ## See
 

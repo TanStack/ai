@@ -9,6 +9,7 @@ import {
 import type {
   GEMINI_MODELS,
   GeminiChatModelProviderOptionsByName,
+  GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
 } from '../model-meta'
 import type {
@@ -72,6 +73,15 @@ type ResolveInputModalities<TModel extends string> =
     ? GeminiModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'audio', 'video', 'document']
 
+/**
+ * Resolve tool capabilities for a specific model.
+ * If the model has explicit tools in the map, use those; otherwise use empty tuple.
+ */
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof GeminiChatModelToolCapabilitiesByName
+    ? NonNullable<GeminiChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
 // ===========================
 // Adapter Implementation
 // ===========================
@@ -84,14 +94,17 @@ type ResolveInputModalities<TModel extends string> =
  */
 export class GeminiTextAdapter<
   TModel extends (typeof GEMINI_MODELS)[number],
-  TProviderOptions extends object = ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
-  GeminiMessageMetadataByModality
+  GeminiMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'gemini' as const
@@ -831,7 +844,8 @@ export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
 ): GeminiTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
+  ResolveInputModalities<TModel>,
+  ResolveToolCapabilities<TModel>
 > {
   return new GeminiTextAdapter({ apiKey, ...config }, model)
 }
@@ -846,7 +860,8 @@ export function geminiText<TModel extends (typeof GEMINI_MODELS)[number]>(
 ): GeminiTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
+  ResolveInputModalities<TModel>,
+  ResolveToolCapabilities<TModel>
 > {
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiChat(model, apiKey, config)

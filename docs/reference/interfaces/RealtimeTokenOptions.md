@@ -5,7 +5,7 @@ title: RealtimeTokenOptions
 
 # Interface: RealtimeTokenOptions
 
-Defined in: [realtime/types.ts:82](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L82)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:82](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L82)
 
 Options for the realtimeToken function
 
@@ -17,6 +17,6 @@ Options for the realtimeToken function
 adapter: RealtimeTokenAdapter;
 ```
 
-Defined in: [realtime/types.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L84)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L84)
 
 The token adapter to use

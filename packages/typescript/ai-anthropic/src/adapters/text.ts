@@ -9,6 +9,7 @@ import {
 import type {
   ANTHROPIC_MODELS,
   AnthropicChatModelProviderOptionsByName,
+  AnthropicChatModelToolCapabilitiesByName,
   AnthropicModelInputModalitiesByName,
 } from '../model-meta'
 import type {
@@ -90,6 +91,11 @@ type ResolveInputModalities<TModel extends string> =
     ? AnthropicModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'document']
 
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof AnthropicChatModelToolCapabilitiesByName
+    ? NonNullable<AnthropicChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
 // ===========================
 // Adapter Implementation
 // ===========================
@@ -102,14 +108,17 @@ type ResolveInputModalities<TModel extends string> =
  */
 export class AnthropicTextAdapter<
   TModel extends (typeof ANTHROPIC_MODELS)[number],
-  TProviderOptions extends object = ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
-  AnthropicMessageMetadataByModality
+  AnthropicMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'anthropic' as const
@@ -122,7 +131,7 @@ export class AnthropicTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<AnthropicTextProviderOptions>,
+    options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const { logger } = options
     try {
@@ -173,7 +182,7 @@ export class AnthropicTextAdapter<
    * The outputSchema is already JSON Schema (converted in the ai layer).
    */
   async structuredOutput(
-    options: StructuredOutputOptions<AnthropicTextProviderOptions>,
+    options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const { logger } = chatOptions

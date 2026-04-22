@@ -1,0 +1,44 @@
+
+> ts-solid-chat@ build /home/runner/work/ai/ai/examples/ts-solid-chat
+> vite build
+
+[36mvite v7.2.7 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 856 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/client/[22m[2massets/[22m[35mstyles-7jhZlRZJ.css                                   [39m[1m[2m 27.37 kB[22m[1m[22m[2m │ gzip:   5.73 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mindex-DwaBGgBh.js                                     [39m[1m[2m  0.66 kB[22m[1m[22m[2m │ gzip:   0.41 kB[22m
+[2mdist/client/[22m[2massets/[22m[36m_guitarId-B0Vdcy0s.js                                 [39m[1m[2m  1.47 kB[22m[1m[22m[2m │ gzip:   0.80 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mindex-CH9fwTdZ.js                                     [39m[1m[2m  1.95 kB[22m[1m[22m[2m │ gzip:   0.96 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mgoober.modern-BtWuIl7G.js                             [39m[1m[2m  2.23 kB[22m[1m[22m[2m │ gzip:   1.26 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mplugin-W3ivlmy3.js                                    [39m[1m[2m  4.09 kB[22m[1m[22m[2m │ gzip:   1.37 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mstore-DsHf8LqT.js                                     [39m[1m[2m  4.69 kB[22m[1m[22m[2m │ gzip:   1.97 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mcore-RE3jlhT3.js                                      [39m[1m[2m  8.94 kB[22m[1m[22m[2m │ gzip:   3.64 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mFloatingTanStackRouterDevtools-DymJEvfG-CP65ZQhq.js   [39m[1m[2m 19.44 kB[22m[1m[22m[2m │ gzip:   5.13 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mindex-C0oc2UUn.js                                     [39m[1m[2m 27.31 kB[22m[1m[22m[2m │ gzip:  10.31 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mBaseTanStackRouterDevtoolsPanel-BBz1qLry-bD8Kclxi.js  [39m[1m[2m 38.29 kB[22m[1m[22m[2m │ gzip:  11.93 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mLWN3DL7E-CKk2nPEE.js                                  [39m[1m[2m131.86 kB[22m[1m[22m[2m │ gzip:  44.76 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mmain-SNbgs-Is.js                                      [39m[1m[2m276.19 kB[22m[1m[22m[2m │ gzip:  82.06 kB[22m
+[2mdist/client/[22m[2massets/[22m[36mindex-Dqd0Z0zw.js                                     [39m[1m[33m575.74 kB[39m[22m[2m │ gzip: 173.31 kB[22m
+[32m✓ built in 25.53s[39m
+[36mvite v7.2.7 [32mbuilding ssr environment for production...[36m[39m
+[33m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+transforming...
+[32m✓[39m 646 modules transformed.
+rendering chunks...
+[2mdist/server/[22m[2massets/[22m[36mstart-HYkvq4Ni.js                                     [39m[1m[2m  0.06 kB[22m[1m[22m
+[2mdist/server/[22m[2massets/[22m[36m_tanstack-start-manifest_v-IEK8ApOC.js                [39m[1m[2m  1.05 kB[22m[1m[22m
+[2mdist/server/[22m[2massets/[22m[36m_guitarId-D1zSMxYk.js                                 [39m[1m[2m  1.66 kB[22m[1m[22m
+[2mdist/server/[22m[2massets/[22m[36mindex-Cg-YnJJ3.js                                     [39m[1m[2m  2.31 kB[22m[1m[22m
+[2mdist/server/[22m[2massets/[22m[36mFloatingTanStackRouterDevtools-DymJEvfG-CJA1omd2.js   [39m[1m[2m 26.51 kB[22m[1m[22m
+[2mdist/server/[22m[2massets/[22m[36mindex-B_Bdnx2q.js                                     [39m[1m[2m 57.03 kB[22m[1m[22m
+[2mdist/server/[22m[2massets/[22m[36mBaseTanStackRouterDevtoolsPanel-BBz1qLry-CVGknGd0.js  [39m[1m[2m 75.58 kB[22m[1m[22m
+[2mdist/server/[22m[36mserver.js                                                    [39m[1m[2m264.75 kB[22m[1m[22m
+[2mdist/server/[22m[2massets/[22m[36mrouter-CtRDO8qZ.js                                    [39m[1m[2m342.12 kB[22m[1m[22m
+[2mdist/server/[22m[2massets/[22m[36mindex-BxvIuHU0.js                                     [39m[1m[33m854.77 kB[39m[22m
+[32m✓ built in 11.68s[39m

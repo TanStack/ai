@@ -53,12 +53,14 @@ export interface StructuredOutputResult<T = unknown> {
  * - TProviderOptions: Provider-specific options for this model (already resolved)
  * - TInputModalities: Supported input modalities for this model (already resolved)
  * - TMessageMetadata: Metadata types for content parts (already resolved)
+ * - TToolCapabilities: Tuple of tool-kind strings supported by this model, resolved from `supports.tools`
  */
 export interface TextAdapter<
   TModel extends string,
   TProviderOptions extends Record<string, any>,
   TInputModalities extends ReadonlyArray<Modality>,
   TMessageMetadataByModality extends DefaultMessageMetadataByModality,
+  TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
 > {
   /** Discriminator for adapter kind */
   readonly kind: 'text'
@@ -74,6 +76,7 @@ export interface TextAdapter<
     providerOptions: TProviderOptions
     inputModalities: TInputModalities
     messageMetadataByModality: TMessageMetadataByModality
+    toolCapabilities: TToolCapabilities
   }
 
   /**
@@ -100,7 +103,7 @@ export interface TextAdapter<
  * A TextAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyTextAdapter = TextAdapter<any, any, any, any>
+export type AnyTextAdapter = TextAdapter<any, any, any, any, any>
 
 /**
  * Abstract base class for text adapters.
@@ -113,11 +116,13 @@ export abstract class BaseTextAdapter<
   TProviderOptions extends Record<string, any>,
   TInputModalities extends ReadonlyArray<Modality>,
   TMessageMetadataByModality extends DefaultMessageMetadataByModality,
+  TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
 > implements TextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
-  TMessageMetadataByModality
+  TMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   abstract readonly name: string
@@ -128,6 +133,7 @@ export abstract class BaseTextAdapter<
     providerOptions: TProviderOptions
     inputModalities: TInputModalities
     messageMetadataByModality: TMessageMetadataByModality
+    toolCapabilities: TToolCapabilities
   }
 
   protected config: TextAdapterConfig

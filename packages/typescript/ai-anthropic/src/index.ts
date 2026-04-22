@@ -24,9 +24,10 @@ export {
 // ============================================================================
 
 export type {
-  AnthropicChatModelProviderOptionsByName,
-  AnthropicModelInputModalitiesByName,
   AnthropicChatModel,
+  AnthropicChatModelProviderOptionsByName,
+  AnthropicChatModelToolCapabilitiesByName,
+  AnthropicModelInputModalitiesByName,
 } from './model-meta'
 export { ANTHROPIC_MODELS } from './model-meta'
 export type {
