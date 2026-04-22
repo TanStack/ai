@@ -17,8 +17,8 @@ type Provider = 'openai' | 'elevenlabs' | 'gemini'
 type OutputMode = 'audio+text' | 'text-only' | 'audio-only'
 
 const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
-  { value: 'openai', label: 'OpenAI Realtime' },
   { value: 'gemini', label: 'Google Gemini' },
+  { value: 'openai', label: 'OpenAI Realtime' },
   { value: 'elevenlabs', label: 'ElevenLabs' },
 ]
 

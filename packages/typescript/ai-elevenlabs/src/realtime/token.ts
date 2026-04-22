@@ -91,7 +91,7 @@ export function elevenlabsRealtimeToken(
         config: {
           voice: overrides?.voiceId,
           instructions: overrides?.systemPrompt,
-          providerOptions: {
+          modelOptions: {
             agentId,
             firstMessage: overrides?.firstMessage,
             language: overrides?.language,

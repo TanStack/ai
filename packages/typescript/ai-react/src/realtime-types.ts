@@ -4,6 +4,7 @@ import type {
   RealtimeMode,
   RealtimeStatus,
   RealtimeToken,
+  UsageInfo,
 } from '@tanstack/ai'
 import type { RealtimeAdapter } from '@tanstack/ai-client'
 
@@ -79,6 +80,9 @@ export interface UseRealtimeChatOptions {
   onMessage?: (message: RealtimeMessage) => void
   onModeChange?: (mode: RealtimeMode) => void
   onInterrupted?: () => void
+  onUsage?: (usage: UsageInfo) => void
+  onGoAway?: (go_away: { timeLeft?: string }) => void
+  onStatusChange?: (status: RealtimeStatus) => void
 }
 
 /**

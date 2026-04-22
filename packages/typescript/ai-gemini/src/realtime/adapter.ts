@@ -8,7 +8,6 @@ import type {
   AudioVisualization,
   RealtimeMessage,
   RealtimeMode,
-  RealtimeSessionConfig,
   RealtimeToken,
 } from '@tanstack/ai'
 import type { AnyClientTool, RealtimeAdapter, RealtimeClientOptions, RealtimeConnection } from '@tanstack/ai-client'
@@ -70,13 +69,6 @@ async function createWebSocketConnection(
   }
 
   const client = new GeminiLiveClient(token.token, model, tools)
-  const audioStreamer = new AudioStreamer(client)
-  const audioPlayer = new AudioPlayer()
-  await audioPlayer.init()
-
-  client.connect()
-
-  audioStreamer.start()
 
   let message: RealtimeMessage = {
     id: '',
@@ -140,7 +132,7 @@ async function createWebSocketConnection(
         emit('interrupted', { messageId: currentMessageId ?? undefined })
         break;
       case 'tool_call':
-        for (const tool of response.data) {
+        for (const tool of response.data.functionCalls || []) {
           if (tool.id && tool.name) {
             emit('tool_call', {
               toolCallId: tool.id,
@@ -176,6 +168,12 @@ async function createWebSocketConnection(
     }
   }
 
+  await client.connect()
+
+  const audioStreamer = new AudioStreamer(client)
+  const audioPlayer = new AudioPlayer()
+  await audioPlayer.init()
+  await audioStreamer.start()
 
   const connection: RealtimeConnection = {
     async disconnect() {

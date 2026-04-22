@@ -1,5 +1,6 @@
+import { convertSchemaToJsonSchema } from "@tanstack/ai";
 import { ActivityHandling, EndSensitivity, Modality, StartSensitivity, TurnCoverage } from "@google/genai";
-import type { ContextWindowCompressionConfig, FunctionCall, FunctionDeclaration, FunctionResponse, LiveClientMessage, LiveServerGoAway, LiveServerMessage, LiveServerSessionResumptionUpdate, UsageMetadata } from "@google/genai";
+import type { ContextWindowCompressionConfig, FunctionDeclaration, FunctionResponse, LiveClientMessage, LiveServerGoAway, LiveServerMessage, LiveServerSessionResumptionUpdate, LiveServerToolCall, UsageMetadata } from "@google/genai";
 import type { AnyClientTool, RealtimeSessionConfig, RealtimeToken } from "@tanstack/ai";
 import type { GeminiRealtimeModel, GeminiRealtimeVoice } from "./types";
 
@@ -9,7 +10,7 @@ interface LiveResponsePayloads {
   setup_complete: string,
   interrupted: string,
   turn_complete: string,
-  tool_call: Array<FunctionCall>,
+  tool_call: LiveServerToolCall,
   session_resumption_update: LiveServerSessionResumptionUpdate,
   go_away: LiveServerGoAway,
   usage_metadata: UsageMetadata,
@@ -50,9 +51,9 @@ function parseResponseMessages(data: LiveServerMessage) {
     }
 
     // Tool call (exclusive)
-    if (data.toolCall?.functionCalls) {
+    if (data.toolCall) {
       console.log("🎯 🛠️ TOOL CALL response", data.toolCall);
-      responses.push({ type: "tool_call", data: data.toolCall.functionCalls, endOfTurn: false });
+      responses.push({ type: "tool_call", data: data.toolCall, endOfTurn: false });
       return responses;
     }
 
@@ -160,11 +161,11 @@ export class GeminiLiveClient {
 
   private activityHandling = ActivityHandling.ACTIVITY_HANDLING_UNSPECIFIED;
 
-  public connected = false
   private webSocket: WebSocket | null = null
   // Last resumable session update
   private lastResumptionUpdate: LiveServerSessionResumptionUpdate | null = null
   private setupComplete = false
+  private connected = false
 
   public onReceiveResponse: (response: LiveResponse) => void = () => { }
   public onOpen: () => void = () => { }
@@ -183,13 +184,12 @@ export class GeminiLiveClient {
     }
   }
 
-  getFunctionDefinitions(): Array<FunctionDeclaration> {
-    return this.functions.map(f => ({
-      name: f.name,
-      description: f.description,
-      parametersJsonSchema: f.inputSchema,
-      responseJsonSchema: f.outputSchema,
-    }))
+  get isConnected() {
+    return this.connected
+  }
+
+  get isSetupCompelete() {
+    return this.setupComplete
   }
 
   /**
@@ -204,6 +204,7 @@ export class GeminiLiveClient {
         this.connected = false
         this.setupComplete = false;
         this.onClose()
+        reject(new Error("Closed before connecting"))
       }
 
       this.webSocket.onerror = (event) => {
@@ -211,7 +212,7 @@ export class GeminiLiveClient {
         this.connected = false
         this.setupComplete = false;
         this.onError('Connection error')
-        reject(event)
+        reject('Connection error')
       }
 
       this.webSocket.onopen = (event) => {
@@ -238,6 +239,14 @@ export class GeminiLiveClient {
   /**
    * Session management
    */
+  getFunctionDefinitions(): Array<FunctionDeclaration> {
+    return this.functions.map(f => ({
+      name: f.name,
+      description: f.description,
+      parameters: convertSchemaToJsonSchema(f.inputSchema) as any,
+    }))
+  }
+
   sendInitialSetupMessage(resume = false) {
     const tools = this.getFunctionDefinitions()
 
@@ -260,7 +269,6 @@ export class GeminiLiveClient {
         sessionResumption: {
           transparent: true
         },
-        // TODO: add context window compression
         contextWindowCompression: this.contextWindowCompression,
         proactivity: {
           proactiveAudio: this.proactiveAudio
@@ -277,7 +285,7 @@ export class GeminiLiveClient {
           },
           activityHandling: this.activityHandling,
           turnCoverage: TurnCoverage.TURN_INCLUDES_ONLY_ACTIVITY,
-        }
+        },
       }
     }
 
@@ -304,17 +312,19 @@ export class GeminiLiveClient {
       }
     }
 
-    console.log(sessionSetupMessage)
+    console.log("FINAL SETUP JSON:", JSON.stringify(sessionSetupMessage, null, 2));
     this.sendMessage(sessionSetupMessage)
   }
 
   async restartSession(resume = false) {
+    console.log("RESTARTING SESSION")
     this.disconnect()
     await this.connect()
     this.sendInitialSetupMessage(resume)
   }
 
   updateToken(token: RealtimeToken) {
+    console.log("UPDATING TOKEN")
     this.token = token.token
 
     if (token.config.model && this.model != token.config.model) {
@@ -333,6 +343,14 @@ export class GeminiLiveClient {
 
     if (config.instructions) {
       this.systemInstructions = config.instructions
+    }
+
+    if (config.tools !== undefined) {
+      this.functions = config.tools as Array<any>
+      this.functionsMap.clear()
+      config.tools.forEach(tool => {
+        this.functionsMap.set(tool.name, tool as any)
+      })
     }
 
     if (config.maxOutputTokens) {
@@ -447,7 +465,7 @@ export class GeminiLiveClient {
   sendToolResponse(functionResponses: Array<FunctionResponse>) {
     const message: LiveClientMessage = {
       toolResponse: {
-        functionResponses: functionResponses
+        functionResponses
       }
     }
     this.sendMessage(message)

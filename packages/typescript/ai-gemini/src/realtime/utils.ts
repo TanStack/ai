@@ -232,8 +232,8 @@ export class AudioStreamer {
           const pcmData = this.convertToPCM16(inputData);
           const base64Audio = this.arrayBufferToBase64(pcmData);
 
-          // Send to Gemini
-          if (this.client && this.client.connected) {
+          // Send to Gemini only if after setup complete
+          if (this.client?.isSetupCompelete) {
             this.client.sendAudioMessage(base64Audio);
           }
         }

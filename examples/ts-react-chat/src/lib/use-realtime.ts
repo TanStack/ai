@@ -1,14 +1,14 @@
-import { createServerFn } from '@tanstack/react-start'
 import { realtimeToken } from '@tanstack/ai'
-import { useRealtimeChat } from '@tanstack/ai-react'
-import { openaiRealtime, openaiRealtimeToken } from '@tanstack/ai-openai'
 import {
   elevenlabsRealtime,
   elevenlabsRealtimeToken,
 } from '@tanstack/ai-elevenlabs'
 import { geminiRealtime, geminiRealtimeToken } from '@tanstack/ai-gemini'
-import type { GeminiRealtimeVoice } from "@tanstack/ai-gemini"
+import { openaiRealtime, openaiRealtimeToken } from '@tanstack/ai-openai'
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { createServerFn } from '@tanstack/react-start'
 import type { OpenAIRealtimeVoice } from "@tanstack/ai-openai"
+import type { GeminiRealtimeVoice } from "@tanstack/ai-gemini"
 import { realtimeClientTools } from '@/lib/realtime-tools'
 
 type Provider = 'openai' | 'elevenlabs' | 'gemini'
@@ -29,7 +29,9 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
 
     if (data.provider === 'gemini') {
       return realtimeToken({
-        adapter: geminiRealtimeToken(),
+        adapter: geminiRealtimeToken({
+          model: 'gemini-3.1-flash-live-preview',
+        }),
       })
     }
 
