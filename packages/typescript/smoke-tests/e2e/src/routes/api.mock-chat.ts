@@ -11,6 +11,7 @@ type ScenarioName =
   | 'tool-call'
   | 'multi-tool'
   | 'text-tool-text'
+  | 'thinking-multi-step'
   | 'error'
 
 interface MockScenario {
@@ -301,6 +302,92 @@ const scenarios: Record<ScenarioName, MockScenario> = {
           message: 'Mock error: Something went wrong',
           code: 'MOCK_ERROR',
         },
+      },
+    ],
+    delayMs: 10,
+  },
+
+  'thinking-multi-step': {
+    chunks: [
+      {
+        type: 'RUN_STARTED',
+        runId: 'mock-run-1',
+        model: 'mock-model',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'STEP_STARTED',
+        stepId: 'step-1',
+        stepType: 'thinking',
+        model: 'mock-model',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'STEP_FINISHED',
+        stepId: 'step-1',
+        model: 'mock-model',
+        timestamp: Date.now(),
+        delta: 'First, I need to understand the question. ',
+      },
+      {
+        type: 'STEP_FINISHED',
+        stepId: 'step-1',
+        model: 'mock-model',
+        timestamp: Date.now(),
+        delta: '',
+        content: 'First, I need to understand the question. ',
+        signature: 'sig-step-1',
+      },
+      {
+        type: 'STEP_STARTED',
+        stepId: 'step-2',
+        stepType: 'thinking',
+        model: 'mock-model',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'STEP_FINISHED',
+        stepId: 'step-2',
+        model: 'mock-model',
+        timestamp: Date.now(),
+        delta: 'Now I can answer.',
+      },
+      {
+        type: 'STEP_FINISHED',
+        stepId: 'step-2',
+        model: 'mock-model',
+        timestamp: Date.now(),
+        delta: '',
+        content: 'Now I can answer.',
+        signature: 'sig-step-2',
+      },
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'mock-msg-1',
+        role: 'assistant',
+        model: 'mock-model',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'mock-msg-1',
+        model: 'mock-model',
+        timestamp: Date.now(),
+        delta: 'Final answer.',
+        content: 'Final answer.',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'mock-msg-1',
+        model: 'mock-model',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'RUN_FINISHED',
+        runId: 'mock-run-1',
+        model: 'mock-model',
+        timestamp: Date.now(),
+        finishReason: 'stop',
       },
     ],
     delayMs: 10,

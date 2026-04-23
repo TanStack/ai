@@ -8,6 +8,7 @@ type MockScenario =
   | 'tool-call'
   | 'multi-tool'
   | 'text-tool-text'
+  | 'thinking-multi-step'
   | 'error'
 
 const VALID_SCENARIOS: MockScenario[] = [
@@ -15,6 +16,7 @@ const VALID_SCENARIOS: MockScenario[] = [
   'tool-call',
   'multi-tool',
   'text-tool-text',
+  'thinking-multi-step',
   'error',
 ]
 
@@ -33,9 +35,17 @@ function getMessageStats(messages: Array<UIMessage>) {
     m.parts.filter((p) => p.type === 'text'),
   )
 
+  const thinkingParts = assistantMessages.flatMap((m) =>
+    m.parts.filter((p) => p.type === 'thinking'),
+  )
+
   const toolNames = toolCallParts.map((p) =>
     p.type === 'tool-call' ? p.name : '',
   )
+
+  const thinkingStepIds = thinkingParts
+    .map((p) => (p.type === 'thinking' ? (p.stepId ?? '') : ''))
+    .join(',')
 
   return {
     totalMessages: messages.length,
@@ -43,6 +53,8 @@ function getMessageStats(messages: Array<UIMessage>) {
     assistantMessageCount: assistantMessages.length,
     toolCallCount: toolCallParts.length,
     textPartCount: textParts.length,
+    thinkingPartCount: thinkingParts.length,
+    thinkingStepIds,
     toolNames: toolNames.join(','),
     hasToolCalls: toolCallParts.length > 0,
     lastAssistantText:
@@ -93,6 +105,8 @@ function MockChatPage() {
       data-tool-call-count={stats.toolCallCount}
       data-has-tool-calls={stats.hasToolCalls.toString()}
       data-tool-names={stats.toolNames}
+      data-thinking-part-count={stats.thinkingPartCount}
+      data-thinking-step-ids={stats.thinkingStepIds}
     >
       {/* Scenario indicator - scenario is controlled via URL param */}
       <div
