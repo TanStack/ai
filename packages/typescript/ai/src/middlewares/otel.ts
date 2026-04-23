@@ -76,14 +76,14 @@ export function otelMiddleware(
       unit: 's',
     },
   )
-  const _tokenHistogram = meter?.createHistogram(
+  const tokenHistogram = meter?.createHistogram(
     'gen_ai.client.token.usage',
     {
       description: 'GenAI client token usage',
       unit: '{token}',
     },
   )
-  void _durationHistogram; void _tokenHistogram
+  void _durationHistogram
 
   return {
     name: 'otel',
@@ -184,6 +184,28 @@ export function otelMiddleware(
         state.currentIterationSpan = null
       })
       return undefined
+    },
+
+    onUsage(ctx, usage) {
+      safeCall('otel.onUsage', () => {
+        const state = stateByCtx.get(ctx)
+        if (!state || !state.currentIterationSpan) return
+
+        state.currentIterationSpan.setAttributes({
+          'gen_ai.usage.input_tokens': usage.promptTokens,
+          'gen_ai.usage.output_tokens': usage.completionTokens,
+        })
+
+        if (tokenHistogram) {
+          const metricAttrs = {
+            'gen_ai.system': ctx.provider,
+            'gen_ai.operation.name': 'chat',
+            'gen_ai.request.model': ctx.model,
+          }
+          tokenHistogram.record(usage.promptTokens, { ...metricAttrs, 'gen_ai.token.type': 'input' })
+          tokenHistogram.record(usage.completionTokens, { ...metricAttrs, 'gen_ai.token.type': 'output' })
+        }
+      })
     },
 
     onFinish(ctx, _info) {

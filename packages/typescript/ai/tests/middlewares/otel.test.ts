@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { otelMiddleware } from '../../src/middlewares/otel'
 import { EventType } from '../../src/types'
-import { createFakeTracer, makeCtx } from './fake-otel'
+import { createFakeTracer, createFakeMeter, makeCtx } from './fake-otel'
 
 describe('otelMiddleware — root span lifecycle', () => {
   it('creates a root span on onStart and closes it on onFinish', async () => {
@@ -86,5 +86,55 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     expect(spans).toHaveLength(3)
     expect(spans[1]!.ended).toBe(true)
     expect(spans[2]!.ended).toBe(true)
+  })
+})
+
+describe('otelMiddleware — token histogram', () => {
+  it('records input and output token histograms on onUsage', async () => {
+    const { tracer } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await mw.onUsage?.(ctx, { promptTokens: 100, completionTokens: 50, totalTokens: 150 })
+
+    const tokenRecords = records.filter((r) => r.name === 'gen_ai.client.token.usage')
+    expect(tokenRecords).toHaveLength(2)
+    expect(tokenRecords.find((r) => r.attributes!['gen_ai.token.type'] === 'input')!.value).toBe(100)
+    expect(tokenRecords.find((r) => r.attributes!['gen_ai.token.type'] === 'output')!.value).toBe(50)
+
+    // Cardinality guard: response.id must NOT appear on metric attributes.
+    for (const r of tokenRecords) {
+      expect(r.attributes!['gen_ai.response.id']).toBeUndefined()
+    }
+  })
+
+  it('sets gen_ai.usage.* attributes on the iteration span', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await mw.onUsage?.(ctx, { promptTokens: 100, completionTokens: 50, totalTokens: 150 })
+
+    expect(spans[1]!.attributes['gen_ai.usage.input_tokens']).toBe(100)
+    expect(spans[1]!.attributes['gen_ai.usage.output_tokens']).toBe(50)
+  })
+
+  it('skips metrics when meter is not provided', async () => {
+    const { tracer } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    // Should not throw:
+    await mw.onUsage?.(ctx, { promptTokens: 100, completionTokens: 50, totalTokens: 150 })
   })
 })
