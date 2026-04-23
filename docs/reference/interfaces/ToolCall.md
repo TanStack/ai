@@ -5,7 +5,7 @@ title: ToolCall
 
 # Interface: ToolCall
 
-Defined in: [packages/typescript/ai/src/types.ts:113](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L113)
+Defined in: [packages/typescript/ai/src/types.ts:114](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L114)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [packages/typescript/ai/src/types.ts:113](https://github.com/TanStac
 function: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:116](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L116)
+Defined in: [packages/typescript/ai/src/types.ts:117](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L117)
 
 #### arguments
 
@@ -37,7 +37,7 @@ name: string;
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:114](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L114)
+Defined in: [packages/typescript/ai/src/types.ts:115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L115)
 
 ***
 
@@ -47,7 +47,7 @@ Defined in: [packages/typescript/ai/src/types.ts:114](https://github.com/TanStac
 optional providerMetadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:121](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L121)
+Defined in: [packages/typescript/ai/src/types.ts:122](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L122)
 
 Provider-specific metadata to carry through the tool call lifecycle
 
@@ -59,4 +59,4 @@ Provider-specific metadata to carry through the tool call lifecycle
 type: "function";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L115)
+Defined in: [packages/typescript/ai/src/types.ts:116](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L116)

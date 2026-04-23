@@ -5,7 +5,7 @@ title: ContentPartDataSource
 
 # Interface: ContentPartDataSource
 
-Defined in: [packages/typescript/ai/src/types.ts:142](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L142)
+Defined in: [packages/typescript/ai/src/types.ts:143](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L143)
 
 Source specification for inline data content (base64).
 Requires a mimeType to ensure providers receive proper content type information.
@@ -18,7 +18,7 @@ Requires a mimeType to ensure providers receive proper content type information.
 mimeType: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:155](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L155)
+Defined in: [packages/typescript/ai/src/types.ts:156](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L156)
 
 The MIME type of the content (e.g., 'image/png', 'audio/wav').
 Required for data sources to ensure proper handling by providers.
@@ -31,7 +31,7 @@ Required for data sources to ensure proper handling by providers.
 type: "data";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:146](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L146)
+Defined in: [packages/typescript/ai/src/types.ts:147](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L147)
 
 Indicates this is inline data content.
 
@@ -43,6 +43,6 @@ Indicates this is inline data content.
 value: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:150](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L150)
+Defined in: [packages/typescript/ai/src/types.ts:151](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L151)
 
 The base64-encoded content value.
