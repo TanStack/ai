@@ -275,6 +275,7 @@ describe('otelMiddleware — error and abort paths', () => {
     const iter = spans[1]!
     expect(iter.status.code).toBe(SpanStatusCode.ERROR)
     expect(iter.ended).toBe(true)
+    expect(iter.exceptions).toHaveLength(1)
 
     const durationRecords = records.filter((r) => r.name === 'gen_ai.client.operation.duration')
     expect(durationRecords[0]!.attributes!['error.type']).toBe('RateLimitError')
