@@ -838,6 +838,42 @@ describe('StreamProcessor', () => {
       expect(state.thinking).toBe('First. Second.')
       expect(state.content).toBe('Answer')
     })
+
+    it('should clear pendingThinkingStepId when a later STEP_STARTED arrives with an active message', () => {
+      const processor = new StreamProcessor()
+
+      // 1. STEP_STARTED arrives before any assistant message exists →
+      //    pendingThinkingStepId = 'step-a'
+      processor.processChunk(ev.stepStarted('step-a'))
+
+      // 2. Assistant message gets created by TEXT_MESSAGE_START (note:
+      //    prepareAssistantMessage() would reset stream state, which we
+      //    don't want here — we want to expose the leak across the
+      //    no-active → active transition).
+      processor.processChunk(ev.textStart())
+
+      // 3. STEP_STARTED arrives again — takes active-id branch. It MUST
+      //    clear pendingThinkingStepId, otherwise the stale 'step-a'
+      //    value will be consumed by the next STEP_FINISHED.
+      processor.processChunk(ev.stepStarted('step-b'))
+
+      // 4. STEP_FINISHED for step-b. If pendingThinkingStepId still held
+      //    'step-a', handleStepFinishedEvent would promote it to
+      //    state.currentThinkingStepId and attribute 'contentB' to step-a.
+      processor.processChunk(ev.stepFinished('contentB', 'step-b'))
+
+      const parts = processor.getMessages()[0]!.parts
+      const thinkingParts = parts.filter((p) => p.type === 'thinking')
+
+      // Only step-b should have produced a ThinkingPart with contentB.
+      // No phantom step-a part should exist.
+      expect(
+        thinkingParts.some((p) => (p as any).stepId === 'step-a'),
+      ).toBe(false)
+      expect(thinkingParts).toHaveLength(1)
+      expect((thinkingParts[0] as any).stepId).toBe('step-b')
+      expect((thinkingParts[0] as any).content).toBe('contentB')
+    })
   })
 
   // ==========================================================================

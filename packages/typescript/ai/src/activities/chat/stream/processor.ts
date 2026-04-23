@@ -1186,6 +1186,12 @@ export class StreamProcessor {
           state.thinkingSteps.set(chunk.stepId, '')
           state.thinkingStepOrder.push(chunk.stepId)
         }
+        // Clear any pending stepId from a prior STEP_STARTED that fired
+        // before the assistant message existed. Now that we're tracking
+        // the step directly on message state, the pending value is stale
+        // and must not leak into the next STEP_FINISHED (which would
+        // misattribute its delta to the stale step).
+        this.pendingThinkingStepId = null
         return
       }
     }
@@ -1675,6 +1681,7 @@ export class StreamProcessor {
     this.activeRuns.clear()
     this.toolCallToMessage.clear()
     this.pendingManualMessageId = null
+    this.pendingThinkingStepId = null
     this.finishReason = null
     this.hasError = false
     this.isDone = false
