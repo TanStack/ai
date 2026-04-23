@@ -222,14 +222,28 @@ export function otelMiddleware(
 
     onChunk(ctx, chunk) {
       safeCall('otel.onChunk', () => {
-        if (chunk.type !== 'RUN_FINISHED') return
         const state = stateByCtx.get(ctx)
-        if (!state || !state.currentIterationSpan) return
+        if (!state) return
+
+        if (captureContent && chunk.type === 'TEXT_MESSAGE_CONTENT') {
+          state.assistantTextBuffer += chunk.delta ?? ''
+        }
+
+        if (chunk.type !== 'RUN_FINISHED') return
+        if (!state.currentIterationSpan) return
         const span = state.currentIterationSpan
+
         if (chunk.finishReason) {
           span.setAttribute('gen_ai.response.finish_reasons', [chunk.finishReason])
         }
         if (chunk.model) span.setAttribute('gen_ai.response.model', chunk.model)
+
+        if (captureContent && state.assistantTextBuffer.length > 0) {
+          span.addEvent('gen_ai.choice', {
+            content: safeCall('otel.redact', () => redact(state.assistantTextBuffer)) ?? state.assistantTextBuffer,
+          })
+          state.assistantTextBuffer = ''
+        }
 
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'iteration', ctx, iteration: state.iterationCount - 1 }, span),
@@ -311,6 +325,16 @@ export function otelMiddleware(
         if (!info.ok && info.error !== undefined) {
           toolSpan.recordException(info.error as Error)
           toolSpan.setStatus({ code: SpanStatusCode.ERROR, message: (info.error as Error)?.message })
+        }
+
+        if (captureContent && state.currentIterationSpan) {
+          const body = typeof info.result === 'string'
+            ? info.result
+            : JSON.stringify(info.result ?? null)
+          state.currentIterationSpan.addEvent('gen_ai.tool.message', {
+            content: safeCall('otel.redact', () => redact(body)) ?? body,
+            tool_call_id: info.toolCallId,
+          })
         }
 
         safeCall('otel.onSpanEnd', () =>

@@ -369,3 +369,63 @@ describe('otelMiddleware — error and abort paths', () => {
     expect(spans[0]!.ended).toBe(true)
   })
 })
+
+describe('otelMiddleware — tool-message and choice events', () => {
+  it('onAfterToolCall emits gen_ai.tool.message on iteration span with redacted result', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      redact: (s) => s.replace(/\d+/g, '[NUM]'),
+    })
+    const ctx = makeCtx({ hasTools: true })
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: { id: 'tc-1', type: 'function', function: { name: 'x', arguments: '{}' } } as any,
+      tool: undefined,
+      args: {},
+      toolName: 'x',
+      toolCallId: 'tc-1',
+    })
+    await mw.onAfterToolCall?.(ctx, {
+      toolCall: { id: 'tc-1' } as any,
+      tool: undefined,
+      toolName: 'x',
+      toolCallId: 'tc-1',
+      ok: true,
+      duration: 5,
+      result: { value: 42 },
+    })
+
+    const iter = spans[1]!
+    const toolEvt = iter.events.find((e) => e.name === 'gen_ai.tool.message')!
+    expect(toolEvt.attributes!['content']).toContain('[NUM]')
+    expect(toolEvt.attributes!['tool_call_id']).toBe('tc-1')
+  })
+
+  it('emits gen_ai.choice event with accumulated assistant text on RUN_FINISHED', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await mw.onChunk?.(ctx, {
+      type: EventType.TEXT_MESSAGE_CONTENT, threadId: 't-1', messageId: 'm', model: 'gpt-4o', timestamp: 0, delta: 'Hello ', content: 'Hello ',
+    })
+    await mw.onChunk?.(ctx, {
+      type: EventType.TEXT_MESSAGE_CONTENT, threadId: 't-1', messageId: 'm', model: 'gpt-4o', timestamp: 0, delta: 'world', content: 'Hello world',
+    })
+    await mw.onChunk?.(ctx, {
+      type: EventType.RUN_FINISHED, threadId: 't-1', runId: 'r', model: 'gpt-4o', timestamp: 0, finishReason: 'stop',
+    })
+
+    const iter = spans[1]!
+    const choice = iter.events.find((e) => e.name === 'gen_ai.choice')!
+    expect(choice.attributes!['content']).toBe('Hello world')
+  })
+})
