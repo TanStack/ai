@@ -103,7 +103,6 @@ export class RealtimeClient {
 
       this.connection = await this.options.adapter.connect(
         this.token,
-        this.options,
         toolsList,
       )
 

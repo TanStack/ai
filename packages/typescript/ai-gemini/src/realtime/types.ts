@@ -1,4 +1,4 @@
-import type { ContextWindowCompressionConfig, ProactivityConfig, ThinkingConfig } from "@google/genai";
+import type { ContextWindowCompressionConfig, LiveConnectConstraints, ProactivityConfig, ThinkingConfig } from "@google/genai";
 
 /**
  * Gemini realtime voice options
@@ -48,22 +48,28 @@ export type GeminiRealtimeModel =
 export interface GeminiRealtimeOptions {
   /** Connection mode (default: 'websocket' in browser) */
   connectionMode?: 'websocket'
+  model?: GeminiRealtimeModel
 }
 
 /**
  * Options for the Gemini realtime token adapter
  */
+export interface StrictLiveConnectionConstraints extends Omit<LiveConnectConstraints, 'model'> {
+  model?: GeminiRealtimeModel
+}
+
 export interface GeminiRealtimeTokenOptions {
   /** Model to use (default: 'gemini-live-2.5-flash-native-audio') */
-  model?: GeminiRealtimeModel
   expiresAt?: number
-  maxOutputTokens?: number
+  /**
+   * NOTE: Adding liveConnectConstraints will cause the model to ignore any config passed in the WebSocket setup message.
+   */
+  liveConnectConstraints?: StrictLiveConnectionConstraints
 }
 
 /**
  * Gemini Realtime provider options
  */
-
 export interface GeminiRealtimeProviderOptions {
   languageCode?: string
   contextWindowCompression?: ContextWindowCompressionConfig

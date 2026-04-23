@@ -44,7 +44,7 @@ function outputModeToModalities(
 }
 
 function RealtimePage() {
-  const [provider, setProvider] = useState<Provider>('openai')
+  const [provider, setProvider] = useState<Provider>('gemini')
   const [agentId, setAgentId] = useState('')
   const [textInput, setTextInput] = useState('')
   const [outputMode, setOutputMode] = useState<OutputMode>('audio+text')

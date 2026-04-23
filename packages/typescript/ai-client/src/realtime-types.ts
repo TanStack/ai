@@ -31,7 +31,6 @@ export interface RealtimeAdapter {
    */
   connect: (
     token: RealtimeToken,
-    config: RealtimeClientOptions,
     clientTools?: ReadonlyArray<AnyClientTool>,
   ) => Promise<RealtimeConnection>
 }

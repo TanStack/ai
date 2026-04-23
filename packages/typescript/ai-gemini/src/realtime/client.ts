@@ -170,7 +170,7 @@ export class GeminiLiveClient {
   public onReceiveResponse: (response: LiveResponse) => void = () => { }
   public onOpen: () => void = () => { }
   public onClose: () => void = () => { }
-  public onError: (error: string) => void = () => { }
+  public onError: (error: Error) => void = () => { }
 
   constructor(token: string, model: GeminiRealtimeModel, tools?: ReadonlyArray<AnyClientTool> ) {
     this.token = token
@@ -211,8 +211,9 @@ export class GeminiLiveClient {
         console.error('realtime websocket error:', event)
         this.connected = false
         this.setupComplete = false;
-        this.onError('Connection error')
-        reject('Connection error')
+        const error = new Error('Connection error')
+        this.onError(error)
+        reject(error)
       }
 
       this.webSocket.onopen = (event) => {
@@ -243,7 +244,8 @@ export class GeminiLiveClient {
     return this.functions.map(f => ({
       name: f.name,
       description: f.description,
-      parameters: convertSchemaToJsonSchema(f.inputSchema) as any,
+      parametersJsonSchema: convertSchemaToJsonSchema(f.inputSchema),
+      outputJsonSchema: convertSchemaToJsonSchema(f.outputSchema),
     }))
   }
 
@@ -345,7 +347,7 @@ export class GeminiLiveClient {
       this.systemInstructions = config.instructions
     }
 
-    if (config.tools !== undefined) {
+    if (config.tools) {
       this.functions = config.tools as Array<any>
       this.functionsMap.clear()
       config.tools.forEach(tool => {

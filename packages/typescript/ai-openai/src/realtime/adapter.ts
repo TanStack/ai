@@ -8,7 +8,7 @@ import type {
   RealtimeStatus,
   RealtimeToken
 } from '@tanstack/ai'
-import type { RealtimeAdapter, RealtimeClientOptions, RealtimeConnection } from '@tanstack/ai-client'
+import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { OpenAIRealtimeOptions } from './types'
 
 const OPENAI_REALTIME_URL = 'https://api.openai.com/v1/realtime'
@@ -42,7 +42,6 @@ export function openaiRealtime(
 
     async connect(
       token: RealtimeToken,
-      config: RealtimeClientOptions,
       _clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
       if (connectionMode === 'webrtc') {

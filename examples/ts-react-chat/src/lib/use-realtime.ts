@@ -29,9 +29,7 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
 
     if (data.provider === 'gemini') {
       return realtimeToken({
-        adapter: geminiRealtimeToken({
-          model: 'gemini-3.1-flash-live-preview',
-        }),
+        adapter: geminiRealtimeToken(),
       })
     }
 

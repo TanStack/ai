@@ -9,7 +9,7 @@ import type {
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
-import type { RealtimeAdapter, RealtimeClientOptions, RealtimeConnection } from '@tanstack/ai-client'
+import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { ElevenLabsRealtimeOptions } from './types'
 
 /**
@@ -39,7 +39,6 @@ export function elevenlabsRealtime(
 
     async connect(
       token: RealtimeToken,
-      config: RealtimeClientOptions,
       clientToolDefs?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
       return createElevenLabsConnection(token, clientToolDefs)

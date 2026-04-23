@@ -1,7 +1,7 @@
-import { GoogleGenAI, Modality } from '@google/genai'
+import { GoogleGenAI } from '@google/genai'
 import { getGeminiApiKeyFromEnv } from '../utils'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
-import type { GeminiRealtimeModel, GeminiRealtimeTokenOptions } from './types'
+import type { GeminiRealtimeTokenOptions } from './types'
 
 /**
  * Creates a Google Gemini realtime token adapter.
@@ -18,7 +18,10 @@ import type { GeminiRealtimeModel, GeminiRealtimeTokenOptions } from './types'
  *
  * const token = await realtimeToken({
  *   adapter: geminiRealtimeToken({
- *     model: 'gemini-live-2.5-flash-native-audio',
+ *     // Optional: constraint model config by token
+ *     liveConnectConstraints: {
+ *       model: 'gemini-live-2.5-flash-native-audio',
+ *     },
  *   }),
  * })
  * ```
@@ -38,21 +41,11 @@ export function geminiRealtimeToken(
   return {
     provider: 'gemini',
     async generateToken(): Promise<RealtimeToken> {
-      const model: GeminiRealtimeModel =
-        options.model ?? 'gemini-3.1-flash-live-preview'
-
       const token = await client.authTokens.create({
         config: {
           uses: 1, // The default
           expireTime: new Date(expireTime).toISOString(),
-          liveConnectConstraints: {
-            model,
-            config: {
-              sessionResumption: {},
-              maxOutputTokens: options.maxOutputTokens,
-              responseModalities: [Modality.AUDIO],
-            },
-          },
+          liveConnectConstraints: options.liveConnectConstraints,
           httpOptions: {
             apiVersion: 'v1alpha',
           },
@@ -68,9 +61,7 @@ export function geminiRealtimeToken(
         token: token.name,
         expiresAt: expireTime,
         config: {
-          model,
-          maxOutputTokens: options.maxOutputTokens,
-          outputModalities: ['audio'],
+          model: options.liveConnectConstraints?.model,
         },
       }
     },

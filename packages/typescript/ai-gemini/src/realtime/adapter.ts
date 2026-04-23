@@ -10,7 +10,7 @@ import type {
   RealtimeMode,
   RealtimeToken,
 } from '@tanstack/ai'
-import type { AnyClientTool, RealtimeAdapter, RealtimeClientOptions, RealtimeConnection } from '@tanstack/ai-client'
+import type { AnyClientTool, RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { GeminiRealtimeModel, GeminiRealtimeOptions } from './types'
 
 /**
@@ -38,10 +38,9 @@ export function geminiRealtime(
 
     connect(
       token: RealtimeToken,
-      config: RealtimeClientOptions,
       clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
-      return createWebSocketConnection(token, config, clientTools)
+      return createWebSocketConnection(token, options.model, clientTools)
     },
   }
 }
@@ -51,13 +50,11 @@ export function geminiRealtime(
  */
 async function createWebSocketConnection(
   token: RealtimeToken,
-  config: RealtimeClientOptions,
+  model: GeminiRealtimeModel = 'gemini-3.1-flash-live-preview',
   tools?: ReadonlyArray<AnyClientTool>,
 ): Promise<RealtimeConnection> {
 
   const { emit, on: realtimeEventEmitterOn } = createRealtimeEventEmitter()
-
-  const model = (token.config.model ?? 'gemini-3.1-flash-live-preview') as GeminiRealtimeModel
 
   // Current state
   let currentMode: RealtimeMode = 'idle'
@@ -75,6 +72,15 @@ async function createWebSocketConnection(
     role: 'assistant',
     timestamp: 0,
     parts: []
+  }
+
+  client.onClose = () => {
+    emit('status_change', { status: 'idle' })
+  }
+
+  client.onError = (error) => {
+    emit('error', { error })
+    emit('status_change', { status: 'error' })
   }
 
   client.onReceiveResponse = (response: LiveResponse) => {
