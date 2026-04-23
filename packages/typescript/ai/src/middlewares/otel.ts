@@ -69,7 +69,7 @@ export function otelMiddleware(
     onSpanEnd,
   } = options
 
-  const _durationHistogram = meter?.createHistogram(
+  const durationHistogram = meter?.createHistogram(
     'gen_ai.client.operation.duration',
     {
       description: 'GenAI client operation duration',
@@ -83,8 +83,6 @@ export function otelMiddleware(
       unit: '{token}',
     },
   )
-  void _durationHistogram
-
   return {
     name: 'otel',
 
@@ -270,10 +268,40 @@ export function otelMiddleware(
       })
     },
 
-    onFinish(ctx, _info) {
+    onFinish(ctx, info) {
       safeCall('otel.onFinish', () => {
         const state = stateByCtx.get(ctx)
         if (!state) return
+
+        // Close a dangling iteration span if RUN_FINISHED never arrived (defensive).
+        if (state.currentIterationSpan) {
+          safeCall('otel.onSpanEnd', () =>
+            onSpanEnd?.({ kind: 'iteration', ctx, iteration: state.iterationCount - 1 }, state.currentIterationSpan!),
+          )
+          state.currentIterationSpan.end()
+          state.currentIterationSpan = null
+        }
+
+        if (durationHistogram) {
+          durationHistogram.record(info.duration / 1000, {
+            'gen_ai.system': ctx.provider,
+            'gen_ai.operation.name': 'chat',
+            'gen_ai.request.model': ctx.model,
+            'gen_ai.response.model': ctx.model,
+          })
+        }
+
+        if (info.usage) {
+          state.rootSpan.setAttributes({
+            'gen_ai.usage.input_tokens': info.usage.promptTokens,
+            'gen_ai.usage.output_tokens': info.usage.completionTokens,
+          })
+        }
+        if (info.finishReason) {
+          state.rootSpan.setAttribute('gen_ai.response.finish_reasons', [info.finishReason])
+        }
+        state.rootSpan.setAttribute('tanstack.ai.iterations', state.iterationCount)
+
         safeCall('otel.onSpanEnd', () => onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan))
         state.rootSpan.end()
         stateByCtx.delete(ctx)

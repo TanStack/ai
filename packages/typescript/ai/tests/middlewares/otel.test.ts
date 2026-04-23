@@ -139,6 +139,46 @@ describe('otelMiddleware — token histogram', () => {
   })
 })
 
+describe('otelMiddleware — duration histogram and rollup', () => {
+  it('records duration histogram on onFinish and rolls up tokens onto root', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await mw.onUsage?.(ctx, { promptTokens: 100, completionTokens: 50, totalTokens: 150 })
+    await mw.onChunk?.(ctx, {
+      type: EventType.RUN_FINISHED,
+      threadId: 't-1',
+      runId: 'r',
+      model: 'gpt-4o',
+      timestamp: 0,
+      finishReason: 'stop',
+    })
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 1250,
+      content: '',
+      usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+    })
+
+    const durationRecords = records.filter((r) => r.name === 'gen_ai.client.operation.duration')
+    expect(durationRecords).toHaveLength(1)
+    expect(durationRecords[0]!.value).toBe(1.25)
+    expect(durationRecords[0]!.attributes!['gen_ai.response.model']).toBe('gpt-4o')
+    expect(durationRecords[0]!.attributes!['error.type']).toBeUndefined()
+
+    const root = spans[0]!
+    expect(root.attributes['gen_ai.usage.input_tokens']).toBe(100)
+    expect(root.attributes['gen_ai.usage.output_tokens']).toBe(50)
+    expect(root.attributes['tanstack.ai.iterations']).toBe(1)
+    expect(root.ended).toBe(true)
+  })
+})
+
 describe('otelMiddleware — tool spans', () => {
   it('creates a tool span as child of the iteration span', async () => {
     const { tracer, spans } = createFakeTracer()
