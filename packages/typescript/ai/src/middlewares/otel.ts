@@ -42,7 +42,6 @@ interface RequestState {
 }
 
 const stateByCtx = new WeakMap<ChatMiddlewareContext, RequestState>()
-void stateByCtx
 
 function safeCall<T>(label: string, fn: () => T): T | undefined {
   try {
@@ -53,21 +52,20 @@ function safeCall<T>(label: string, fn: () => T): T | undefined {
     return undefined
   }
 }
-void safeCall
 
 export function otelMiddleware(
   options: OtelMiddlewareOptions,
 ): ChatMiddleware {
   const {
-    tracer: _tracer,
+    tracer,
     meter,
     captureContent: _captureContent = false,
     redact: _redact = (s) => s,
     serviceName: _serviceName = 'tanstack-ai',
-    spanNameFormatter: _spanNameFormatter,
-    attributeEnricher: _attributeEnricher,
-    onBeforeSpanStart: _onBeforeSpanStart,
-    onSpanEnd: _onSpanEnd,
+    spanNameFormatter,
+    attributeEnricher,
+    onBeforeSpanStart,
+    onSpanEnd,
   } = options
 
   const _durationHistogram = meter?.createHistogram(
@@ -88,5 +86,43 @@ export function otelMiddleware(
 
   return {
     name: 'otel',
+
+    onStart(ctx) {
+      safeCall('otel.onStart', () => {
+        const info: OtelSpanInfo<'chat'> = { kind: 'chat', ctx }
+        const name = safeCall('otel.spanNameFormatter', () => spanNameFormatter?.(info)) ?? `chat ${ctx.model}`
+        const baseOptions: SpanOptions = {
+          attributes: {
+            'gen_ai.system': ctx.provider,
+            'gen_ai.operation.name': 'chat',
+            'gen_ai.request.model': ctx.model,
+          },
+        }
+        const spanOptions = safeCall('otel.onBeforeSpanStart', () => onBeforeSpanStart?.(info, baseOptions)) ?? baseOptions
+        const rootSpan = tracer.startSpan(name, spanOptions)
+
+        const enriched = safeCall('otel.attributeEnricher', () => attributeEnricher?.(info))
+        if (enriched) rootSpan.setAttributes(enriched)
+
+        stateByCtx.set(ctx, {
+          rootSpan,
+          currentIterationSpan: null,
+          toolSpans: new Map(),
+          iterationCount: 0,
+          assistantTextBuffer: '',
+          startTime: Date.now(),
+        })
+      })
+    },
+
+    onFinish(ctx, _info) {
+      safeCall('otel.onFinish', () => {
+        const state = stateByCtx.get(ctx)
+        if (!state) return
+        safeCall('otel.onSpanEnd', () => onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan))
+        state.rootSpan.end()
+        stateByCtx.delete(ctx)
+      })
+    },
   }
 }
