@@ -450,10 +450,7 @@ export class GrokTextAdapter<
     options: TextOptions,
   ): OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming {
     const modelOptions = options.modelOptions as
-      | Omit<
-          InternalTextProviderOptions,
-          'max_tokens' | 'tools' | 'temperature' | 'input' | 'top_p'
-        >
+      | Omit<InternalTextProviderOptions, 'max_tokens' | 'tools' | 'input'>
       | undefined
 
     if (modelOptions) {
@@ -487,9 +484,7 @@ export class GrokTextAdapter<
     return {
       model: options.model,
       messages,
-      temperature: options.temperature,
       max_tokens: options.maxTokens,
-      top_p: options.topP,
       tools: tools as Array<OpenAI_SDK.Chat.Completions.ChatCompletionTool>,
       stream: true,
       stream_options: { include_usage: true },
