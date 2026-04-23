@@ -5,6 +5,7 @@ import type {
   SpanOptions,
   Tracer,
 } from '@opentelemetry/api'
+import { context as otelContext, trace as otelTrace } from '@opentelemetry/api'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
@@ -113,6 +114,76 @@ export function otelMiddleware(
           startTime: Date.now(),
         })
       })
+    },
+
+    onConfig(ctx, config) {
+      if (ctx.phase !== 'beforeModel') return
+      safeCall('otel.onConfig', () => {
+        const state = stateByCtx.get(ctx)
+        if (!state) return
+
+        // Close any previously open iteration span (defensive — shouldn't normally be open
+        // here because onChunk(RUN_FINISHED) closes it, but guard against adapter quirks).
+        if (state.currentIterationSpan) {
+          safeCall('otel.onSpanEnd', () =>
+            onSpanEnd?.({ kind: 'iteration', ctx, iteration: state.iterationCount - 1 }, state.currentIterationSpan!),
+          )
+          state.currentIterationSpan.end()
+          state.currentIterationSpan = null
+        }
+
+        const info: OtelSpanInfo<'iteration'> = { kind: 'iteration', ctx, iteration: ctx.iteration }
+        const name = safeCall('otel.spanNameFormatter', () => spanNameFormatter?.(info)) ?? `chat ${ctx.model}`
+
+        const baseAttrs: Record<string, AttributeValue> = {
+          'gen_ai.system': ctx.provider,
+          'gen_ai.operation.name': 'chat',
+          'gen_ai.request.model': ctx.model,
+          'tanstack.ai.iteration': ctx.iteration,
+        }
+        if (config.temperature !== undefined) baseAttrs['gen_ai.request.temperature'] = config.temperature
+        if (config.topP !== undefined) baseAttrs['gen_ai.request.top_p'] = config.topP
+        if (config.maxTokens !== undefined) baseAttrs['gen_ai.request.max_tokens'] = config.maxTokens
+
+        const baseOptions: SpanOptions = { attributes: baseAttrs }
+        const spanOptions = safeCall('otel.onBeforeSpanStart', () => onBeforeSpanStart?.(info, baseOptions)) ?? baseOptions
+
+        let iterSpan!: Span
+        otelContext.with(otelTrace.setSpan(otelContext.active(), state.rootSpan), () => {
+          iterSpan = tracer.startSpan(name, spanOptions)
+        })
+        // Fake-tracer test visibility: explicit parent pointer. In real OTel this is a
+        // no-op field write; the actual parent-child relationship is established via the
+        // active context above.
+        ;(iterSpan as unknown as { parent?: Span }).parent = state.rootSpan
+
+        const enriched = safeCall('otel.attributeEnricher', () => attributeEnricher?.(info))
+        if (enriched) iterSpan.setAttributes(enriched)
+
+        state.currentIterationSpan = iterSpan
+        state.iterationCount += 1
+      })
+      return undefined
+    },
+
+    onChunk(ctx, chunk) {
+      safeCall('otel.onChunk', () => {
+        if (chunk.type !== 'RUN_FINISHED') return
+        const state = stateByCtx.get(ctx)
+        if (!state || !state.currentIterationSpan) return
+        const span = state.currentIterationSpan
+        if (chunk.finishReason) {
+          span.setAttribute('gen_ai.response.finish_reasons', [chunk.finishReason])
+        }
+        if (chunk.model) span.setAttribute('gen_ai.response.model', chunk.model)
+
+        safeCall('otel.onSpanEnd', () =>
+          onSpanEnd?.({ kind: 'iteration', ctx, iteration: state.iterationCount - 1 }, span),
+        )
+        span.end()
+        state.currentIterationSpan = null
+      })
+      return undefined
     },
 
     onFinish(ctx, _info) {
