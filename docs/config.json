@@ -194,6 +194,10 @@
         {
           "label": "Extend Adapter",
           "to": "advanced/extend-adapter"
+        },
+        {
+          "label": "Agent Orchestration",
+          "to": "advanced/agent-orchestration"
         }
       ]
     },
