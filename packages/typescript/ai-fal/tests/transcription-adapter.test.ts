@@ -67,6 +67,46 @@ describe('Fal Transcription Adapter', () => {
     })
   })
 
+  it('converts data URL strings to Blob so fal auto-uploads them', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: { text: 'Hi.' },
+      requestId: 'req-data-url-1',
+    })
+
+    const adapter = createAdapter()
+
+    // small well-formed base64 "audio" payload — contents don't matter, we
+    // only care that the adapter routes it through Blob rather than passing
+    // the data URL string straight to fal (which would 422).
+    const audioDataUrl = `data:audio/webm;base64,${btoa('fake-audio')}`
+
+    await generateTranscription({
+      adapter,
+      audio: audioDataUrl,
+    })
+
+    const [, options] = mockSubscribe.mock.calls[0]!
+    expect(options.input.audio_url).toBeInstanceOf(Blob)
+    expect((options.input.audio_url as Blob).type).toBe('audio/webm')
+  })
+
+  it('passes http URL strings through unchanged', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: { text: 'Hi.' },
+      requestId: 'req-http-1',
+    })
+
+    const adapter = createAdapter()
+
+    await generateTranscription({
+      adapter,
+      audio: 'https://example.com/audio.mp3',
+    })
+
+    const [, options] = mockSubscribe.mock.calls[0]!
+    expect(options.input.audio_url).toBe('https://example.com/audio.mp3')
+  })
+
   it('handles ArrayBuffer input by converting to Blob', async () => {
     mockSubscribe.mockResolvedValueOnce({
       data: {

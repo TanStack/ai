@@ -118,6 +118,37 @@ export function deriveAudioContentType(
 }
 
 /**
+ * Decode a `data:` URL into a Blob so fal-client can auto-upload it via
+ * `fal.storage.upload`. fal's inference API rejects data URLs with a 422
+ * "Unsupported data URL", so we convert them before handing them off.
+ *
+ * Supports both base64 and URL-encoded data URLs. Returns `undefined` for
+ * anything that isn't a data URL, so callers can fall through to other
+ * handling (http URLs are passed to fal as-is).
+ */
+export function dataUrlToBlob(value: string): Blob | undefined {
+  if (!value.startsWith('data:')) return undefined
+  const commaIndex = value.indexOf(',')
+  if (commaIndex === -1) return undefined
+
+  const header = value.slice(5, commaIndex)
+  const payload = value.slice(commaIndex + 1)
+  const isBase64 = /;base64$/i.test(header)
+  const mimeType = header.split(';')[0] || 'application/octet-stream'
+
+  if (isBase64) {
+    const binary = atob(payload)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return new Blob([bytes], { type: mimeType })
+  }
+
+  return new Blob([decodeURIComponent(payload)], { type: mimeType })
+}
+
+/**
  * Convert an ArrayBuffer to base64 in a cross-runtime way.
  *
  * The naive `btoa(String.fromCharCode(...bytes))` form blows up V8's argument

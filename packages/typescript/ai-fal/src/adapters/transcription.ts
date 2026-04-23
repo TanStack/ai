@@ -1,6 +1,10 @@
 import { fal } from '@fal-ai/client'
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
-import { configureFalClient, generateId as utilGenerateId } from '../utils'
+import {
+  configureFalClient,
+  dataUrlToBlob,
+  generateId as utilGenerateId,
+} from '../utils'
 import type { OutputType, Result } from '@fal-ai/client'
 import type {
   TranscriptionOptions,
@@ -79,10 +83,18 @@ export class FalTranscriptionAdapter<
   private buildInput(
     options: TranscriptionOptions<FalTranscriptionProviderOptions<TModel>>,
   ): FalModelInput<TModel> {
-    const audioInput =
-      options.audio instanceof ArrayBuffer
-        ? new Blob([options.audio])
-        : options.audio
+    // fal-client auto-uploads Blob/File inputs via fal.storage.upload, but
+    // passes strings through unchanged — so a `data:` URL would reach fal's
+    // API and get rejected with a 422 "Unsupported data URL". Decode data
+    // URLs to a Blob up front so the auto-upload path handles them.
+    let audioInput: string | Blob | File
+    if (options.audio instanceof ArrayBuffer) {
+      audioInput = new Blob([options.audio])
+    } else if (typeof options.audio === 'string') {
+      audioInput = dataUrlToBlob(options.audio) ?? options.audio
+    } else {
+      audioInput = options.audio
+    }
 
     const input = {
       ...options.modelOptions,
