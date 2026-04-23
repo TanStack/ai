@@ -42,6 +42,7 @@ interface RequestState {
 }
 
 const stateByCtx = new WeakMap<ChatMiddlewareContext, RequestState>()
+void stateByCtx
 
 function safeCall<T>(label: string, fn: () => T): T | undefined {
   try {
@@ -52,6 +53,7 @@ function safeCall<T>(label: string, fn: () => T): T | undefined {
     return undefined
   }
 }
+void safeCall
 
 export function otelMiddleware(
   options: OtelMiddlewareOptions,
@@ -82,6 +84,7 @@ export function otelMiddleware(
       unit: '{token}',
     },
   )
+  void _durationHistogram; void _tokenHistogram
 
   return {
     name: 'otel',
