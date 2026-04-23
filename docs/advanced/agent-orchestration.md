@@ -56,6 +56,38 @@ const Route = z.object({
   reason: z.string().meta({ description: "One sentence justifying the choice" }),
 });
 
+// Each specialist is a regular chat() call with its own system prompt.
+// Return type is a string; swap in outputSchema / streaming per your needs.
+const specialists = {
+  billing: (msg: string) =>
+    chat({
+      adapter: openaiText("gpt-4o"),
+      messages: [
+        { role: "system", content: "You are a billing specialist. Only answer billing questions." },
+        { role: "user", content: msg },
+      ],
+      stream: false,
+    }),
+  technical: (msg: string) =>
+    chat({
+      adapter: openaiText("gpt-4o"),
+      messages: [
+        { role: "system", content: "You are a technical support engineer. Ask for logs when needed." },
+        { role: "user", content: msg },
+      ],
+      stream: false,
+    }),
+  refund: (msg: string) =>
+    chat({
+      adapter: openaiText("gpt-4o"),
+      messages: [
+        { role: "system", content: "You are a refunds agent. Follow policy X; escalate on edge cases." },
+        { role: "user", content: msg },
+      ],
+      stream: false,
+    }),
+};
+
 async function route(userMessage: string) {
   const decision = await chat({
     adapter: openaiText("gpt-4o-mini"),
