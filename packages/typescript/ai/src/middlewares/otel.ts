@@ -44,6 +44,46 @@ interface RequestState {
 
 const stateByCtx = new WeakMap<ChatMiddlewareContext, RequestState>()
 
+function serializeContent(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  const parts: string[] = []
+  for (const part of content) {
+    if (!part || typeof part !== 'object') continue
+    const type = (part as { type?: string }).type
+    switch (type) {
+      case 'text':
+        parts.push(((part as { text?: string }).text ?? (part as { content?: string }).content ?? '').toString())
+        break
+      case 'image':
+        parts.push('[image]')
+        break
+      case 'audio':
+        parts.push('[audio]')
+        break
+      case 'video':
+        parts.push('[video]')
+        break
+      case 'document':
+        parts.push('[document]')
+        break
+      default:
+        parts.push(`[${type ?? 'unknown'}]`)
+    }
+  }
+  return parts.join(' ')
+}
+
+function messageEventName(role: string): string {
+  switch (role) {
+    case 'user': return 'gen_ai.user.message'
+    case 'assistant': return 'gen_ai.assistant.message'
+    case 'tool': return 'gen_ai.tool.message'
+    case 'system': return 'gen_ai.system.message'
+    default: return `gen_ai.${role}.message`
+  }
+}
+
 function safeCall<T>(label: string, fn: () => T): T | undefined {
   try {
     return fn()
@@ -60,8 +100,8 @@ export function otelMiddleware(
   const {
     tracer,
     meter,
-    captureContent: _captureContent = false,
-    redact: _redact = (s) => s,
+    captureContent = false,
+    redact = (s) => s,
     serviceName: _serviceName = 'tanstack-ai',
     spanNameFormatter,
     attributeEnricher,
@@ -159,6 +199,22 @@ export function otelMiddleware(
         if (enriched) iterSpan.setAttributes(enriched)
 
         state.currentIterationSpan = iterSpan
+
+        if (captureContent) {
+          for (const sys of config.systemPrompts ?? []) {
+            iterSpan.addEvent('gen_ai.system.message', {
+              content: safeCall('otel.redact', () => redact(sys)) ?? sys,
+            })
+          }
+          for (const m of config.messages ?? []) {
+            const body = serializeContent(m.content)
+            if (body.length === 0) continue
+            iterSpan.addEvent(messageEventName(m.role), {
+              content: safeCall('otel.redact', () => redact(body)) ?? body,
+            })
+          }
+        }
+
         state.iterationCount += 1
       })
       return undefined

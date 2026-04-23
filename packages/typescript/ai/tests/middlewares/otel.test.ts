@@ -253,6 +253,79 @@ describe('otelMiddleware — tool spans', () => {
   })
 })
 
+describe('otelMiddleware — captureContent', () => {
+  it('captureContent=true emits gen_ai.*.message events with redact applied on iteration span', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      redact: (s) => s.replace(/\d+/g, '[NUM]'),
+    })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, {
+      messages: [
+        { role: 'user', content: 'Hello 42 world' },
+        { role: 'assistant', content: 'Hi 7 there' },
+      ],
+      systemPrompts: ['Be helpful 99'],
+      tools: [],
+    })
+
+    const iter = spans[1]!
+    const userEvt = iter.events.find((e) => e.name === 'gen_ai.user.message')
+    const sysEvt = iter.events.find((e) => e.name === 'gen_ai.system.message')
+    const asstEvt = iter.events.find((e) => e.name === 'gen_ai.assistant.message')
+    expect(userEvt!.attributes!['content']).toBe('Hello [NUM] world')
+    expect(sysEvt!.attributes!['content']).toBe('Be helpful [NUM]')
+    expect(asstEvt!.attributes!['content']).toBe('Hi [NUM] there')
+  })
+
+  it('captureContent=false emits no message events', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, {
+      messages: [{ role: 'user', content: 'Hello' }],
+      systemPrompts: [],
+      tools: [],
+    })
+
+    const iter = spans[1]!
+    expect(iter.events.filter((e) => e.name.startsWith('gen_ai.'))).toHaveLength(0)
+  })
+
+  it('multimodal ContentPart arrays become placeholder-tagged strings', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, {
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'look at this' },
+            { type: 'image', source: { type: 'base64', data: '...' } },
+          ] as any,
+        },
+      ],
+      systemPrompts: [],
+      tools: [],
+    })
+
+    const userEvt = spans[1]!.events.find((e) => e.name === 'gen_ai.user.message')!
+    expect(userEvt.attributes!['content']).toBe('look at this [image]')
+  })
+})
+
 describe('otelMiddleware — error and abort paths', () => {
   it('onError sets ERROR status, records exception, adds error.type to duration histogram', async () => {
     const { tracer, spans } = createFakeTracer()
