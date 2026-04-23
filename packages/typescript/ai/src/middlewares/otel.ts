@@ -57,44 +57,31 @@ export function otelMiddleware(
   options: OtelMiddlewareOptions,
 ): ChatMiddleware {
   const {
-    tracer,
+    tracer: _tracer,
     meter,
-    captureContent = false,
-    redact = (s) => s,
-    serviceName = 'tanstack-ai',
-    spanNameFormatter,
-    attributeEnricher,
-    onBeforeSpanStart,
-    onSpanEnd,
+    captureContent: _captureContent = false,
+    redact: _redact = (s) => s,
+    serviceName: _serviceName = 'tanstack-ai',
+    spanNameFormatter: _spanNameFormatter,
+    attributeEnricher: _attributeEnricher,
+    onBeforeSpanStart: _onBeforeSpanStart,
+    onSpanEnd: _onSpanEnd,
   } = options
 
-  const durationHistogram = meter?.createHistogram(
+  const _durationHistogram = meter?.createHistogram(
     'gen_ai.client.operation.duration',
     {
       description: 'GenAI client operation duration',
       unit: 's',
     },
   )
-  const tokenHistogram = meter?.createHistogram(
+  const _tokenHistogram = meter?.createHistogram(
     'gen_ai.client.token.usage',
     {
       description: 'GenAI client token usage',
       unit: '{token}',
     },
   )
-
-  void captureContent
-  void redact
-  void serviceName
-  void spanNameFormatter
-  void attributeEnricher
-  void onBeforeSpanStart
-  void onSpanEnd
-  void tracer
-  void durationHistogram
-  void tokenHistogram
-  void stateByCtx
-  void safeCall
 
   return {
     name: 'otel',
