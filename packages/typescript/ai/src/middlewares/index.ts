@@ -11,3 +11,10 @@ export {
   type ContentGuardRule,
   type ContentFilteredInfo,
 } from './content-guard'
+
+export {
+  otelMiddleware,
+  type OtelMiddlewareOptions,
+  type OtelSpanInfo,
+  type OtelSpanKind,
+} from './otel'
