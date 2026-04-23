@@ -268,6 +268,82 @@ export function otelMiddleware(
       })
     },
 
+    onError(ctx, info) {
+      safeCall('otel.onError', () => {
+        const state = stateByCtx.get(ctx)
+        if (!state) return
+
+        const errType = (info.error as { name?: string } | undefined)?.name ?? 'Error'
+        const message = (info.error as { message?: string } | undefined)?.message
+
+        // Close iteration span (if open) with ERROR.
+        if (state.currentIterationSpan) {
+          state.currentIterationSpan.recordException(info.error as Error)
+          state.currentIterationSpan.setStatus({ code: SpanStatusCode.ERROR, message })
+          safeCall('otel.onSpanEnd', () =>
+            onSpanEnd?.({ kind: 'iteration', ctx, iteration: state.iterationCount - 1 }, state.currentIterationSpan!),
+          )
+          state.currentIterationSpan.end()
+          state.currentIterationSpan = null
+        }
+
+        // Close any open tool spans as errored.
+        for (const [id, span] of state.toolSpans) {
+          span.recordException(info.error as Error)
+          span.setStatus({ code: SpanStatusCode.ERROR, message })
+          span.end()
+          state.toolSpans.delete(id)
+        }
+
+        state.rootSpan.recordException(info.error as Error)
+        state.rootSpan.setStatus({ code: SpanStatusCode.ERROR, message })
+
+        if (durationHistogram) {
+          durationHistogram.record(info.duration / 1000, {
+            'gen_ai.system': ctx.provider,
+            'gen_ai.operation.name': 'chat',
+            'gen_ai.request.model': ctx.model,
+            'gen_ai.response.model': ctx.model,
+            'error.type': errType,
+          })
+        }
+
+        safeCall('otel.onSpanEnd', () => onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan))
+        state.rootSpan.end()
+        stateByCtx.delete(ctx)
+      })
+    },
+
+    onAbort(ctx, _info) {
+      safeCall('otel.onAbort', () => {
+        const state = stateByCtx.get(ctx)
+        if (!state) return
+
+        const closeCancelled = (span: Span) => {
+          span.setAttribute('gen_ai.completion.reason', 'cancelled')
+          span.setStatus({ code: SpanStatusCode.ERROR, message: 'cancelled' })
+        }
+
+        if (state.currentIterationSpan) {
+          closeCancelled(state.currentIterationSpan)
+          safeCall('otel.onSpanEnd', () =>
+            onSpanEnd?.({ kind: 'iteration', ctx, iteration: state.iterationCount - 1 }, state.currentIterationSpan!),
+          )
+          state.currentIterationSpan.end()
+          state.currentIterationSpan = null
+        }
+        for (const [id, span] of state.toolSpans) {
+          closeCancelled(span)
+          span.end()
+          state.toolSpans.delete(id)
+        }
+        closeCancelled(state.rootSpan)
+        safeCall('otel.onSpanEnd', () => onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan))
+        state.rootSpan.end()
+        stateByCtx.delete(ctx)
+      })
+    },
+
     onFinish(ctx, info) {
       safeCall('otel.onFinish', () => {
         const state = stateByCtx.get(ctx)

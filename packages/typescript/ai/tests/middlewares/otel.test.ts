@@ -252,3 +252,46 @@ describe('otelMiddleware — tool spans', () => {
     expect(toolSpan.status.code).toBe(SpanStatusCode.ERROR)
   })
 })
+
+describe('otelMiddleware — error and abort paths', () => {
+  it('onError sets ERROR status, records exception, adds error.type to duration histogram', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    const err = new Error('rate limited')
+    ;(err as any).name = 'RateLimitError'
+    await mw.onError?.(ctx, { error: err, duration: 200 })
+
+    const root = spans[0]!
+    expect(root.status.code).toBe(SpanStatusCode.ERROR)
+    expect(root.exceptions).toHaveLength(1)
+    expect(root.ended).toBe(true)
+
+    const iter = spans[1]!
+    expect(iter.status.code).toBe(SpanStatusCode.ERROR)
+    expect(iter.ended).toBe(true)
+
+    const durationRecords = records.filter((r) => r.name === 'gen_ai.client.operation.duration')
+    expect(durationRecords[0]!.attributes!['error.type']).toBe('RateLimitError')
+  })
+
+  it('onAbort sets ERROR status and cancelled reason', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await mw.onAbort?.(ctx, { reason: 'user stop', duration: 80 })
+
+    expect(spans[0]!.status.code).toBe(SpanStatusCode.ERROR)
+    expect(spans[0]!.attributes['gen_ai.completion.reason']).toBe('cancelled')
+    expect(spans[0]!.ended).toBe(true)
+  })
+})
