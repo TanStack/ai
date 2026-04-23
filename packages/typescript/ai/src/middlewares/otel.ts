@@ -1,3 +1,4 @@
+import { SpanStatusCode, context as otelContext, trace as otelTrace } from '@opentelemetry/api'
 import type {
   AttributeValue,
   Meter,
@@ -5,7 +6,6 @@ import type {
   SpanOptions,
   Tracer,
 } from '@opentelemetry/api'
-import { context as otelContext, trace as otelTrace, SpanStatusCode } from '@opentelemetry/api'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
@@ -13,8 +13,8 @@ import type {
 
 export type OtelSpanKind = 'chat' | 'iteration' | 'tool'
 
-export interface OtelSpanInfo<K extends OtelSpanKind = OtelSpanKind> {
-  kind: K
+export interface OtelSpanInfo<TKind extends OtelSpanKind = OtelSpanKind> {
+  kind: TKind
   ctx: ChatMiddlewareContext
   toolName?: string
   toolCallId?: string
@@ -47,7 +47,7 @@ const stateByCtx = new WeakMap<ChatMiddlewareContext, RequestState>()
 function serializeContent(content: unknown): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
-  const parts: string[] = []
+  const parts: Array<string> = []
   for (const part of content) {
     if (!part || typeof part !== 'object') continue
     const type = (part as { type?: string }).type
@@ -201,12 +201,12 @@ export function otelMiddleware(
         state.currentIterationSpan = iterSpan
 
         if (captureContent) {
-          for (const sys of config.systemPrompts ?? []) {
+          for (const sys of config.systemPrompts) {
             iterSpan.addEvent('gen_ai.system.message', {
               content: safeCall('otel.redact', () => redact(sys)) ?? sys,
             })
           }
-          for (const m of config.messages ?? []) {
+          for (const m of config.messages) {
             const body = serializeContent(m.content)
             if (body.length === 0) continue
             iterSpan.addEvent(messageEventName(m.role), {
@@ -226,7 +226,7 @@ export function otelMiddleware(
         if (!state) return
 
         if (captureContent && chunk.type === 'TEXT_MESSAGE_CONTENT') {
-          state.assistantTextBuffer += chunk.delta ?? ''
+          state.assistantTextBuffer += chunk.delta
         }
 
         if (chunk.type !== 'RUN_FINISHED') return
@@ -324,7 +324,7 @@ export function otelMiddleware(
 
         if (!info.ok && info.error !== undefined) {
           toolSpan.recordException(info.error as Error)
-          toolSpan.setStatus({ code: SpanStatusCode.ERROR, message: (info.error as Error)?.message })
+          toolSpan.setStatus({ code: SpanStatusCode.ERROR, message: (info.error as Error).message })
         }
 
         if (captureContent && state.currentIterationSpan) {
