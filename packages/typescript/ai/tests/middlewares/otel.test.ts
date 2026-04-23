@@ -18,7 +18,11 @@ describe('otelMiddleware — root span lifecycle', () => {
     expect(spans[0]!.attributes['gen_ai.operation.name']).toBe('chat')
     expect(spans[0]!.attributes['gen_ai.request.model']).toBe('gpt-4o')
 
-    await mw.onFinish?.(ctx, { finishReason: 'stop', duration: 10, content: '' })
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 10,
+      content: '',
+    })
     expect(spans[0]!.ended).toBe(true)
     expect(spans[0]!.status.code).toBe(SpanStatusCode.UNSET)
   })
@@ -58,9 +62,15 @@ describe('otelMiddleware — iteration span lifecycle', () => {
       finishReason: 'stop',
     })
     expect(iterSpan!.ended).toBe(true)
-    expect(iterSpan!.attributes['gen_ai.response.finish_reasons']).toEqual(['stop'])
+    expect(iterSpan!.attributes['gen_ai.response.finish_reasons']).toEqual([
+      'stop',
+    ])
 
-    await mw.onFinish?.(ctx, { finishReason: 'stop', duration: 10, content: '' })
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 10,
+      content: '',
+    })
     expect(rootSpan!.ended).toBe(true)
   })
 
@@ -73,14 +83,28 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     ctx.phase = 'beforeModel'
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
     await mw.onChunk?.(ctx, {
-      type: EventType.RUN_FINISHED, threadId: 't-1', runId: 'r-1', model: 'gpt-4o', timestamp: 0, finishReason: 'tool_calls',
+      type: EventType.RUN_FINISHED,
+      threadId: 't-1',
+      runId: 'r-1',
+      model: 'gpt-4o',
+      timestamp: 0,
+      finishReason: 'tool_calls',
     })
     ctx.iteration = 1
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
     await mw.onChunk?.(ctx, {
-      type: EventType.RUN_FINISHED, threadId: 't-1', runId: 'r-2', model: 'gpt-4o', timestamp: 0, finishReason: 'stop',
+      type: EventType.RUN_FINISHED,
+      threadId: 't-1',
+      runId: 'r-2',
+      model: 'gpt-4o',
+      timestamp: 0,
+      finishReason: 'stop',
     })
-    await mw.onFinish?.(ctx, { finishReason: 'stop', duration: 10, content: '' })
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 10,
+      content: '',
+    })
 
     // 1 root + 2 iteration spans
     expect(spans).toHaveLength(3)
@@ -99,12 +123,24 @@ describe('otelMiddleware — token histogram', () => {
     await mw.onStart?.(ctx)
     ctx.phase = 'beforeModel'
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
-    await mw.onUsage?.(ctx, { promptTokens: 100, completionTokens: 50, totalTokens: 150 })
+    await mw.onUsage?.(ctx, {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+    })
 
-    const tokenRecords = records.filter((r) => r.name === 'gen_ai.client.token.usage')
+    const tokenRecords = records.filter(
+      (r) => r.name === 'gen_ai.client.token.usage',
+    )
     expect(tokenRecords).toHaveLength(2)
-    expect(tokenRecords.find((r) => r.attributes!['gen_ai.token.type'] === 'input')!.value).toBe(100)
-    expect(tokenRecords.find((r) => r.attributes!['gen_ai.token.type'] === 'output')!.value).toBe(50)
+    expect(
+      tokenRecords.find((r) => r.attributes!['gen_ai.token.type'] === 'input')!
+        .value,
+    ).toBe(100)
+    expect(
+      tokenRecords.find((r) => r.attributes!['gen_ai.token.type'] === 'output')!
+        .value,
+    ).toBe(50)
 
     // Cardinality guard: response.id must NOT appear on metric attributes.
     for (const r of tokenRecords) {
@@ -120,7 +156,11 @@ describe('otelMiddleware — token histogram', () => {
     await mw.onStart?.(ctx)
     ctx.phase = 'beforeModel'
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
-    await mw.onUsage?.(ctx, { promptTokens: 100, completionTokens: 50, totalTokens: 150 })
+    await mw.onUsage?.(ctx, {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+    })
 
     expect(spans[1]!.attributes['gen_ai.usage.input_tokens']).toBe(100)
     expect(spans[1]!.attributes['gen_ai.usage.output_tokens']).toBe(50)
@@ -135,7 +175,11 @@ describe('otelMiddleware — token histogram', () => {
     ctx.phase = 'beforeModel'
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
     // Should not throw:
-    await mw.onUsage?.(ctx, { promptTokens: 100, completionTokens: 50, totalTokens: 150 })
+    await mw.onUsage?.(ctx, {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+    })
   })
 })
 
@@ -149,7 +193,11 @@ describe('otelMiddleware — duration histogram and rollup', () => {
     await mw.onStart?.(ctx)
     ctx.phase = 'beforeModel'
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
-    await mw.onUsage?.(ctx, { promptTokens: 100, completionTokens: 50, totalTokens: 150 })
+    await mw.onUsage?.(ctx, {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+    })
     await mw.onChunk?.(ctx, {
       type: EventType.RUN_FINISHED,
       threadId: 't-1',
@@ -165,10 +213,14 @@ describe('otelMiddleware — duration histogram and rollup', () => {
       usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
     })
 
-    const durationRecords = records.filter((r) => r.name === 'gen_ai.client.operation.duration')
+    const durationRecords = records.filter(
+      (r) => r.name === 'gen_ai.client.operation.duration',
+    )
     expect(durationRecords).toHaveLength(1)
     expect(durationRecords[0]!.value).toBe(1.25)
-    expect(durationRecords[0]!.attributes!['gen_ai.response.model']).toBe('gpt-4o')
+    expect(durationRecords[0]!.attributes!['gen_ai.response.model']).toBe(
+      'gpt-4o',
+    )
     expect(durationRecords[0]!.attributes!['error.type']).toBeUndefined()
 
     const root = spans[0]!
@@ -191,7 +243,11 @@ describe('otelMiddleware — tool spans', () => {
 
     const iterSpan = spans[1]!
     await mw.onBeforeToolCall?.(ctx, {
-      toolCall: { id: 'tc-1', type: 'function', function: { name: 'get_weather', arguments: '{}' } } as any,
+      toolCall: {
+        id: 'tc-1',
+        type: 'function',
+        function: { name: 'get_weather', arguments: '{}' },
+      } as any,
       tool: undefined,
       args: { city: 'NYC' },
       toolName: 'get_weather',
@@ -229,7 +285,11 @@ describe('otelMiddleware — tool spans', () => {
     ctx.phase = 'beforeModel'
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
     await mw.onBeforeToolCall?.(ctx, {
-      toolCall: { id: 'tc-2', type: 'function', function: { name: 'broken', arguments: '{}' } } as any,
+      toolCall: {
+        id: 'tc-2',
+        type: 'function',
+        function: { name: 'broken', arguments: '{}' },
+      } as any,
       tool: undefined,
       args: {},
       toolName: 'broken',
@@ -277,7 +337,9 @@ describe('otelMiddleware — captureContent', () => {
     const iter = spans[1]!
     const userEvt = iter.events.find((e) => e.name === 'gen_ai.user.message')
     const sysEvt = iter.events.find((e) => e.name === 'gen_ai.system.message')
-    const asstEvt = iter.events.find((e) => e.name === 'gen_ai.assistant.message')
+    const asstEvt = iter.events.find(
+      (e) => e.name === 'gen_ai.assistant.message',
+    )
     expect(userEvt!.attributes!['content']).toBe('Hello [NUM] world')
     expect(sysEvt!.attributes!['content']).toBe('Be helpful [NUM]')
     expect(asstEvt!.attributes!['content']).toBe('Hi [NUM] there')
@@ -297,7 +359,9 @@ describe('otelMiddleware — captureContent', () => {
     })
 
     const iter = spans[1]!
-    expect(iter.events.filter((e) => e.name.startsWith('gen_ai.'))).toHaveLength(0)
+    expect(
+      iter.events.filter((e) => e.name.startsWith('gen_ai.')),
+    ).toHaveLength(0)
   })
 
   it('multimodal ContentPart arrays become placeholder-tagged strings', async () => {
@@ -321,7 +385,9 @@ describe('otelMiddleware — captureContent', () => {
       tools: [],
     })
 
-    const userEvt = spans[1]!.events.find((e) => e.name === 'gen_ai.user.message')!
+    const userEvt = spans[1]!.events.find(
+      (e) => e.name === 'gen_ai.user.message',
+    )!
     expect(userEvt.attributes!['content']).toBe('look at this [image]')
   })
 })
@@ -350,7 +416,9 @@ describe('otelMiddleware — error and abort paths', () => {
     expect(iter.ended).toBe(true)
     expect(iter.exceptions).toHaveLength(1)
 
-    const durationRecords = records.filter((r) => r.name === 'gen_ai.client.operation.duration')
+    const durationRecords = records.filter(
+      (r) => r.name === 'gen_ai.client.operation.duration',
+    )
     expect(durationRecords[0]!.attributes!['error.type']).toBe('RateLimitError')
   })
 
@@ -384,7 +452,11 @@ describe('otelMiddleware — tool-message and choice events', () => {
     ctx.phase = 'beforeModel'
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
     await mw.onBeforeToolCall?.(ctx, {
-      toolCall: { id: 'tc-1', type: 'function', function: { name: 'x', arguments: '{}' } } as any,
+      toolCall: {
+        id: 'tc-1',
+        type: 'function',
+        function: { name: 'x', arguments: '{}' },
+      } as any,
       tool: undefined,
       args: {},
       toolName: 'x',
@@ -415,13 +487,30 @@ describe('otelMiddleware — tool-message and choice events', () => {
     ctx.phase = 'beforeModel'
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
     await mw.onChunk?.(ctx, {
-      type: EventType.TEXT_MESSAGE_CONTENT, threadId: 't-1', messageId: 'm', model: 'gpt-4o', timestamp: 0, delta: 'Hello ', content: 'Hello ',
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      threadId: 't-1',
+      messageId: 'm',
+      model: 'gpt-4o',
+      timestamp: 0,
+      delta: 'Hello ',
+      content: 'Hello ',
     })
     await mw.onChunk?.(ctx, {
-      type: EventType.TEXT_MESSAGE_CONTENT, threadId: 't-1', messageId: 'm', model: 'gpt-4o', timestamp: 0, delta: 'world', content: 'Hello world',
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      threadId: 't-1',
+      messageId: 'm',
+      model: 'gpt-4o',
+      timestamp: 0,
+      delta: 'world',
+      content: 'Hello world',
     })
     await mw.onChunk?.(ctx, {
-      type: EventType.RUN_FINISHED, threadId: 't-1', runId: 'r', model: 'gpt-4o', timestamp: 0, finishReason: 'stop',
+      type: EventType.RUN_FINISHED,
+      threadId: 't-1',
+      runId: 'r',
+      model: 'gpt-4o',
+      timestamp: 0,
+      finishReason: 'stop',
     })
 
     const iter = spans[1]!
@@ -446,12 +535,30 @@ describe('otelMiddleware — concurrent isolation', () => {
       mw.onConfig?.(ctxB, { messages: [], systemPrompts: [], tools: [] }),
     ])
     await Promise.all([
-      mw.onChunk?.(ctxA, { type: EventType.RUN_FINISHED, threadId: 't-A', runId: 'A', model: 'gpt-4o', timestamp: 0, finishReason: 'stop' }),
-      mw.onChunk?.(ctxB, { type: EventType.RUN_FINISHED, threadId: 't-B', runId: 'B', model: 'gpt-4o', timestamp: 0, finishReason: 'tool_calls' }),
+      mw.onChunk?.(ctxA, {
+        type: EventType.RUN_FINISHED,
+        threadId: 't-A',
+        runId: 'A',
+        model: 'gpt-4o',
+        timestamp: 0,
+        finishReason: 'stop',
+      }),
+      mw.onChunk?.(ctxB, {
+        type: EventType.RUN_FINISHED,
+        threadId: 't-B',
+        runId: 'B',
+        model: 'gpt-4o',
+        timestamp: 0,
+        finishReason: 'tool_calls',
+      }),
     ])
     await Promise.all([
       mw.onFinish?.(ctxA, { finishReason: 'stop', duration: 1, content: '' }),
-      mw.onFinish?.(ctxB, { finishReason: 'tool_calls', duration: 1, content: '' }),
+      mw.onFinish?.(ctxB, {
+        finishReason: 'tool_calls',
+        duration: 1,
+        content: '',
+      }),
     ])
 
     // Total: 2 root spans + 2 iteration spans, all ended.
@@ -483,8 +590,15 @@ describe('otelMiddleware — extension points', () => {
     ctx.phase = 'beforeModel'
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
     await mw.onBeforeToolCall?.(ctx, {
-      toolCall: { id: 't-1', type: 'function', function: { name: 'lookup', arguments: '{}' } } as any,
-      tool: undefined, args: {}, toolName: 'lookup', toolCallId: 't-1',
+      toolCall: {
+        id: 't-1',
+        type: 'function',
+        function: { name: 'lookup', arguments: '{}' },
+      } as any,
+      tool: undefined,
+      args: {},
+      toolName: 'lookup',
+      toolCallId: 't-1',
     })
 
     expect(spans[0]!.name).toBe('my-chat')
@@ -538,7 +652,14 @@ describe('otelMiddleware — extension points', () => {
     await mw.onStart?.(ctx)
     ctx.phase = 'beforeModel'
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
-    await mw.onChunk?.(ctx, { type: EventType.RUN_FINISHED, threadId: 't-1', runId: 'r', model: 'gpt-4o', timestamp: 0, finishReason: 'stop' })
+    await mw.onChunk?.(ctx, {
+      type: EventType.RUN_FINISHED,
+      threadId: 't-1',
+      runId: 'r',
+      model: 'gpt-4o',
+      timestamp: 0,
+      finishReason: 'stop',
+    })
     await mw.onFinish?.(ctx, { finishReason: 'stop', duration: 1, content: '' })
 
     expect(seen.map((s) => s.kind)).toEqual(['iteration', 'chat'])
@@ -549,7 +670,9 @@ describe('otelMiddleware — extension points', () => {
     const { tracer, spans } = createFakeTracer()
     const mw = otelMiddleware({
       tracer,
-      attributeEnricher: () => { throw new Error('boom') },
+      attributeEnricher: () => {
+        throw new Error('boom')
+      },
     })
     const ctx = makeCtx()
 

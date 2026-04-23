@@ -53,7 +53,11 @@ export interface FakeTracer {
   activeStack: FakeSpan[]
 }
 
-function makeSpan(name: string, options: SpanOptions, parent: FakeSpan | null): FakeSpan {
+function makeSpan(
+  name: string,
+  options: SpanOptions,
+  parent: FakeSpan | null,
+): FakeSpan {
   const span: FakeSpan = {
     name,
     kind: options.kind,
@@ -61,7 +65,9 @@ function makeSpan(name: string, options: SpanOptions, parent: FakeSpan | null): 
     startTimeMs: Date.now(),
     endTimeMs: null,
     attributes: Object.fromEntries(
-      Object.entries(options.attributes ?? {}).filter(([, v]) => v !== undefined),
+      Object.entries(options.attributes ?? {}).filter(
+        ([, v]) => v !== undefined,
+      ),
     ) as Record<string, AttributeValue>,
     events: [],
     exceptions: [],
@@ -88,8 +94,12 @@ function makeSpan(name: string, options: SpanOptions, parent: FakeSpan | null): 
       this.events.push({ name, attributes: attrs as Attributes | undefined })
       return this
     },
-    addLink() { return this },
-    addLinks() { return this },
+    addLink() {
+      return this
+    },
+    addLinks() {
+      return this
+    },
     setStatus(status) {
       this.status = status
       return this
@@ -106,7 +116,10 @@ function makeSpan(name: string, options: SpanOptions, parent: FakeSpan | null): 
       return !this.ended
     },
     recordException(exception, attrs) {
-      this.exceptions.push({ exception, attributes: attrs as Attributes | undefined })
+      this.exceptions.push({
+        exception,
+        attributes: attrs as Attributes | undefined,
+      })
     },
   }
   return span
@@ -127,9 +140,13 @@ export function createFakeTracer(): FakeTracer {
     startActiveSpan(...args: any[]) {
       const name = args[0] as string
       const fn = args[args.length - 1] as (span: Span) => unknown
-      const options = (typeof args[1] === 'object' && args[1] !== null && !('traceId' in args[1])
-        ? args[1]
-        : {}) as SpanOptions
+      const options = (
+        typeof args[1] === 'object' &&
+        args[1] !== null &&
+        !('traceId' in args[1])
+          ? args[1]
+          : {}
+      ) as SpanOptions
       const parent = activeStack[activeStack.length - 1] ?? null
       const span = makeSpan(name, options, parent)
       spans.push(span)
@@ -156,12 +173,24 @@ export function createFakeMeter(): FakeMeter {
         },
       }
     },
-    createCounter() { throw new Error('not implemented in fake') },
-    createUpDownCounter() { throw new Error('not implemented in fake') },
-    createObservableGauge() { throw new Error('not implemented in fake') },
-    createObservableCounter() { throw new Error('not implemented in fake') },
-    createObservableUpDownCounter() { throw new Error('not implemented in fake') },
-    createGauge() { throw new Error('not implemented in fake') },
+    createCounter() {
+      throw new Error('not implemented in fake')
+    },
+    createUpDownCounter() {
+      throw new Error('not implemented in fake')
+    },
+    createObservableGauge() {
+      throw new Error('not implemented in fake')
+    },
+    createObservableCounter() {
+      throw new Error('not implemented in fake')
+    },
+    createObservableUpDownCounter() {
+      throw new Error('not implemented in fake')
+    },
+    createGauge() {
+      throw new Error('not implemented in fake')
+    },
     addBatchObservableCallback() {},
     removeBatchObservableCallback() {},
   } as Meter
@@ -173,7 +202,11 @@ export function createFakeMeter(): FakeMeter {
  * Build a minimal ChatMiddlewareContext for unit tests. Only fields the
  * otel middleware reads need realistic values; others can be placeholders.
  */
-export function makeCtx(overrides: Partial<import('../../src/activities/chat/middleware/types').ChatMiddlewareContext> = {}) {
+export function makeCtx(
+  overrides: Partial<
+    import('../../src/activities/chat/middleware/types').ChatMiddlewareContext
+  > = {},
+) {
   const base = {
     requestId: 'req-1',
     streamId: 'stream-1',
@@ -197,5 +230,8 @@ export function makeCtx(overrides: Partial<import('../../src/activities/chat/mid
     messages: [],
     createId: (prefix: string) => `${prefix}-1`,
   }
-  return { ...base, ...overrides } as import('../../src/activities/chat/middleware/types').ChatMiddlewareContext
+  return {
+    ...base,
+    ...overrides,
+  } as import('../../src/activities/chat/middleware/types').ChatMiddlewareContext
 }
