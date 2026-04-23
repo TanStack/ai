@@ -12,6 +12,7 @@ import type {
   Histogram,
 } from '@opentelemetry/api'
 import { SpanStatusCode } from '@opentelemetry/api'
+import type { ToolCall } from '../../src/types'
 
 export interface RecordedEvent {
   name: string
@@ -196,6 +197,28 @@ export function createFakeMeter(): FakeMeter {
   } as Meter
 
   return { meter, records }
+}
+
+/**
+ * Build a minimal ToolCall for tests. Fills required fields with plausible
+ * defaults; overrides take precedence.
+ */
+export function makeToolCall(
+  overrides: { id: string } & Partial<Omit<ToolCall, 'function'>> & {
+    function?: Partial<ToolCall['function']>
+  },
+): ToolCall {
+  return {
+    id: overrides.id,
+    type: overrides.type ?? 'function',
+    function: {
+      name: overrides.function?.name ?? 'test_tool',
+      arguments: overrides.function?.arguments ?? '{}',
+    },
+    ...(overrides.providerMetadata !== undefined
+      ? { providerMetadata: overrides.providerMetadata }
+      : {}),
+  }
 }
 
 /**

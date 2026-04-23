@@ -1,8 +1,42 @@
 import { describe, it, expect } from 'vitest'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import { otelMiddleware } from '../../src/middlewares/otel'
-import { EventType } from '../../src/types'
-import { createFakeTracer, createFakeMeter, makeCtx } from './fake-otel'
+import {
+  createFakeTracer,
+  createFakeMeter,
+  makeCtx,
+  makeToolCall,
+  type FakeSpan,
+} from './fake-otel'
+import type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+  ChatMiddlewareConfig,
+} from '../../src/activities/chat/middleware/types'
+import { ev } from '../test-utils'
+
+// ---------------------------------------------------------------------------
+// File-local helpers
+// ---------------------------------------------------------------------------
+
+async function runToIterationStart(
+  mw: ChatMiddleware,
+  ctx: ChatMiddlewareContext,
+  config: Partial<ChatMiddlewareConfig> = {},
+) {
+  await mw.onStart?.(ctx)
+  ctx.phase = 'beforeModel'
+  await mw.onConfig?.(ctx, {
+    messages: [],
+    systemPrompts: [],
+    tools: [],
+    ...config,
+  })
+}
+
+class RateLimitError extends Error {
+  override name = 'RateLimitError'
+}
 
 describe('otelMiddleware — root span lifecycle', () => {
   it('creates a root span on onStart and closes it on onFinish', async () => {
@@ -36,13 +70,8 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     const ctx = makeCtx()
     ctx.phase = 'init'
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-
-    await mw.onConfig?.(ctx, {
+    await runToIterationStart(mw, ctx, {
       messages: [{ role: 'user', content: 'hi' }],
-      systemPrompts: [],
-      tools: [],
       temperature: 0.7,
       topP: 0.9,
       maxTokens: 512,
@@ -55,14 +84,8 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     expect(iterSpan!.kind).toBe(SpanKind.CLIENT)
     expect(iterSpan!.ended).toBe(false)
 
-    await mw.onChunk?.(ctx, {
-      type: EventType.RUN_FINISHED,
-      threadId: 't-1',
-      runId: 'r-1',
-      model: 'gpt-4o',
-      timestamp: Date.now(),
-      finishReason: 'stop',
-    })
+    // model field needed so gen_ai.response.model is set; spread ev.runFinished for the rest
+    await mw.onChunk?.(ctx, { ...ev.runFinished('stop'), model: 'gpt-4o' })
     expect(iterSpan!.ended).toBe(true)
     expect(iterSpan!.attributes['gen_ai.response.finish_reasons']).toEqual([
       'stop',
@@ -81,27 +104,11 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     const mw = otelMiddleware({ tracer })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
-    await mw.onChunk?.(ctx, {
-      type: EventType.RUN_FINISHED,
-      threadId: 't-1',
-      runId: 'r-1',
-      model: 'gpt-4o',
-      timestamp: 0,
-      finishReason: 'tool_calls',
-    })
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, ev.runFinished('tool_calls'))
     ctx.iteration = 1
     await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
-    await mw.onChunk?.(ctx, {
-      type: EventType.RUN_FINISHED,
-      threadId: 't-1',
-      runId: 'r-2',
-      model: 'gpt-4o',
-      timestamp: 0,
-      finishReason: 'stop',
-    })
+    await mw.onChunk?.(ctx, ev.runFinished('stop'))
     await mw.onFinish?.(ctx, {
       finishReason: 'stop',
       duration: 10,
@@ -122,9 +129,7 @@ describe('otelMiddleware — token histogram', () => {
     const mw = otelMiddleware({ tracer, meter })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
     await mw.onUsage?.(ctx, {
       promptTokens: 100,
       completionTokens: 50,
@@ -155,9 +160,7 @@ describe('otelMiddleware — token histogram', () => {
     const mw = otelMiddleware({ tracer })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
     await mw.onUsage?.(ctx, {
       promptTokens: 100,
       completionTokens: 50,
@@ -173,9 +176,7 @@ describe('otelMiddleware — token histogram', () => {
     const mw = otelMiddleware({ tracer })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
     // Should not throw:
     await mw.onUsage?.(ctx, {
       promptTokens: 100,
@@ -192,22 +193,14 @@ describe('otelMiddleware — duration histogram and rollup', () => {
     const mw = otelMiddleware({ tracer, meter })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
     await mw.onUsage?.(ctx, {
       promptTokens: 100,
       completionTokens: 50,
       totalTokens: 150,
     })
-    await mw.onChunk?.(ctx, {
-      type: EventType.RUN_FINISHED,
-      threadId: 't-1',
-      runId: 'r',
-      model: 'gpt-4o',
-      timestamp: 0,
-      finishReason: 'stop',
-    })
+    // model field needed for gen_ai.response.model on duration histogram attributes
+    await mw.onChunk?.(ctx, { ...ev.runFinished('stop'), model: 'gpt-4o' })
     await mw.onFinish?.(ctx, {
       finishReason: 'stop',
       duration: 1250,
@@ -239,17 +232,11 @@ describe('otelMiddleware — tool spans', () => {
     const mw = otelMiddleware({ tracer })
     const ctx = makeCtx({ hasTools: true, toolNames: ['get_weather'] })
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
 
     const iterSpan = spans[1]!
     await mw.onBeforeToolCall?.(ctx, {
-      toolCall: {
-        id: 'tc-1',
-        type: 'function',
-        function: { name: 'get_weather', arguments: '{}' },
-      } as any,
+      toolCall: makeToolCall({ id: 'tc-1', function: { name: 'get_weather' } }),
       tool: undefined,
       args: { city: 'NYC' },
       toolName: 'get_weather',
@@ -266,7 +253,7 @@ describe('otelMiddleware — tool spans', () => {
     expect(toolSpan.ended).toBe(false)
 
     await mw.onAfterToolCall?.(ctx, {
-      toolCall: { id: 'tc-1' } as any,
+      toolCall: makeToolCall({ id: 'tc-1' }),
       tool: undefined,
       toolName: 'get_weather',
       toolCallId: 'tc-1',
@@ -284,15 +271,9 @@ describe('otelMiddleware — tool spans', () => {
     const mw = otelMiddleware({ tracer })
     const ctx = makeCtx({ hasTools: true })
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
     await mw.onBeforeToolCall?.(ctx, {
-      toolCall: {
-        id: 'tc-2',
-        type: 'function',
-        function: { name: 'broken', arguments: '{}' },
-      } as any,
+      toolCall: makeToolCall({ id: 'tc-2', function: { name: 'broken' } }),
       tool: undefined,
       args: {},
       toolName: 'broken',
@@ -300,7 +281,7 @@ describe('otelMiddleware — tool spans', () => {
     })
     const toolSpan = spans[2]!
     await mw.onAfterToolCall?.(ctx, {
-      toolCall: { id: 'tc-2' } as any,
+      toolCall: makeToolCall({ id: 'tc-2' }),
       tool: undefined,
       toolName: 'broken',
       toolCallId: 'tc-2',
@@ -326,15 +307,12 @@ describe('otelMiddleware — captureContent', () => {
     })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, {
+    await runToIterationStart(mw, ctx, {
       messages: [
         { role: 'user', content: 'Hello 42 world' },
         { role: 'assistant', content: 'Hi 7 there' },
       ],
       systemPrompts: ['Be helpful 99'],
-      tools: [],
     })
 
     const iter = spans[1]!
@@ -353,12 +331,8 @@ describe('otelMiddleware — captureContent', () => {
     const mw = otelMiddleware({ tracer })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, {
+    await runToIterationStart(mw, ctx, {
       messages: [{ role: 'user', content: 'Hello' }],
-      systemPrompts: [],
-      tools: [],
     })
 
     const iter = spans[1]!
@@ -372,20 +346,18 @@ describe('otelMiddleware — captureContent', () => {
     const mw = otelMiddleware({ tracer, captureContent: true })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, {
+    // serializeContent inspects .type at runtime — the source.type shape doesn't
+    // matter for this test; only the top-level 'type: image' is checked.
+    await runToIterationStart(mw, ctx, {
       messages: [
         {
           role: 'user',
           content: [
-            { type: 'text', text: 'look at this' },
-            { type: 'image', source: { type: 'base64', data: '...' } },
-          ] as any,
+            { type: 'text', content: 'look at this' },
+            { type: 'image', source: { type: 'url', value: 'data:...' } },
+          ] as const,
         },
       ],
-      systemPrompts: [],
-      tools: [],
     })
 
     const userEvt = spans[1]!.events.find(
@@ -402,11 +374,8 @@ describe('otelMiddleware — error and abort paths', () => {
     const mw = otelMiddleware({ tracer, meter })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
-    const err = new Error('rate limited')
-    ;(err as any).name = 'RateLimitError'
+    await runToIterationStart(mw, ctx)
+    const err = new RateLimitError('rate limited')
     await mw.onError?.(ctx, { error: err, duration: 200 })
 
     const root = spans[0]!
@@ -430,9 +399,7 @@ describe('otelMiddleware — error and abort paths', () => {
     const mw = otelMiddleware({ tracer })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
     await mw.onAbort?.(ctx, { reason: 'user stop', duration: 80 })
 
     expect(spans[0]!.status.code).toBe(SpanStatusCode.ERROR)
@@ -442,34 +409,18 @@ describe('otelMiddleware — error and abort paths', () => {
 
   it('onError fires onSpanEnd for open tool spans before ending them', async () => {
     const { tracer } = createFakeTracer()
-    const seen: Array<{
-      kind: string
-      toolName?: string
-      toolCallId?: string
-      ended: boolean
-    }> = []
+    const seen: Array<{ kind: string; toolName?: string; toolCallId?: string; ended: boolean }> = []
     const mw = otelMiddleware({
       tracer,
       onSpanEnd: (info, span) => {
-        seen.push({
-          kind: info.kind,
-          toolName: info.toolName,
-          toolCallId: info.toolCallId,
-          ended: (span as any).ended,
-        })
+        seen.push({ kind: info.kind, toolName: info.toolName, toolCallId: info.toolCallId, ended: (span as FakeSpan).ended })
       },
     })
     const ctx = makeCtx({ hasTools: true })
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
     await mw.onBeforeToolCall?.(ctx, {
-      toolCall: {
-        id: 'tc-err',
-        type: 'function',
-        function: { name: 'my_tool', arguments: '{}' },
-      } as any,
+      toolCall: makeToolCall({ id: 'tc-err', function: { name: 'my_tool' } }),
       tool: undefined,
       args: {},
       toolName: 'my_tool',
@@ -489,34 +440,18 @@ describe('otelMiddleware — error and abort paths', () => {
 
   it('onAbort fires onSpanEnd for open tool spans before ending them', async () => {
     const { tracer } = createFakeTracer()
-    const seen: Array<{
-      kind: string
-      toolName?: string
-      toolCallId?: string
-      ended: boolean
-    }> = []
+    const seen: Array<{ kind: string; toolName?: string; toolCallId?: string; ended: boolean }> = []
     const mw = otelMiddleware({
       tracer,
       onSpanEnd: (info, span) => {
-        seen.push({
-          kind: info.kind,
-          toolName: info.toolName,
-          toolCallId: info.toolCallId,
-          ended: (span as any).ended,
-        })
+        seen.push({ kind: info.kind, toolName: info.toolName, toolCallId: info.toolCallId, ended: (span as FakeSpan).ended })
       },
     })
     const ctx = makeCtx({ hasTools: true })
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
     await mw.onBeforeToolCall?.(ctx, {
-      toolCall: {
-        id: 'tc-abort',
-        type: 'function',
-        function: { name: 'slow_tool', arguments: '{}' },
-      } as any,
+      toolCall: makeToolCall({ id: 'tc-abort', function: { name: 'slow_tool' } }),
       tool: undefined,
       args: {},
       toolName: 'slow_tool',
@@ -543,22 +478,16 @@ describe('otelMiddleware — tool-message and choice events', () => {
     })
     const ctx = makeCtx({ hasTools: true })
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
     await mw.onBeforeToolCall?.(ctx, {
-      toolCall: {
-        id: 'tc-1',
-        type: 'function',
-        function: { name: 'x', arguments: '{}' },
-      } as any,
+      toolCall: makeToolCall({ id: 'tc-1', function: { name: 'x' } }),
       tool: undefined,
       args: {},
       toolName: 'x',
       toolCallId: 'tc-1',
     })
     await mw.onAfterToolCall?.(ctx, {
-      toolCall: { id: 'tc-1' } as any,
+      toolCall: makeToolCall({ id: 'tc-1' }),
       tool: undefined,
       toolName: 'x',
       toolCallId: 'tc-1',
@@ -578,35 +507,11 @@ describe('otelMiddleware — tool-message and choice events', () => {
     const mw = otelMiddleware({ tracer, captureContent: true })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
-    await mw.onChunk?.(ctx, {
-      type: EventType.TEXT_MESSAGE_CONTENT,
-      threadId: 't-1',
-      messageId: 'm',
-      model: 'gpt-4o',
-      timestamp: 0,
-      delta: 'Hello ',
-      content: 'Hello ',
-    })
-    await mw.onChunk?.(ctx, {
-      type: EventType.TEXT_MESSAGE_CONTENT,
-      threadId: 't-1',
-      messageId: 'm',
-      model: 'gpt-4o',
-      timestamp: 0,
-      delta: 'world',
-      content: 'Hello world',
-    })
-    await mw.onChunk?.(ctx, {
-      type: EventType.RUN_FINISHED,
-      threadId: 't-1',
-      runId: 'r',
-      model: 'gpt-4o',
-      timestamp: 0,
-      finishReason: 'stop',
-    })
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, ev.textContent('Hello '))
+    await mw.onChunk?.(ctx, ev.textContent('world'))
+    // model field needed for gen_ai.response.model; rest from ev.runFinished
+    await mw.onChunk?.(ctx, { ...ev.runFinished('stop'), model: 'gpt-4o' })
 
     const iter = spans[1]!
     const choice = iter.events.find((e) => e.name === 'gen_ai.choice')!
@@ -630,22 +535,8 @@ describe('otelMiddleware — concurrent isolation', () => {
       mw.onConfig?.(ctxB, { messages: [], systemPrompts: [], tools: [] }),
     ])
     await Promise.all([
-      mw.onChunk?.(ctxA, {
-        type: EventType.RUN_FINISHED,
-        threadId: 't-A',
-        runId: 'A',
-        model: 'gpt-4o',
-        timestamp: 0,
-        finishReason: 'stop',
-      }),
-      mw.onChunk?.(ctxB, {
-        type: EventType.RUN_FINISHED,
-        threadId: 't-B',
-        runId: 'B',
-        model: 'gpt-4o',
-        timestamp: 0,
-        finishReason: 'tool_calls',
-      }),
+      mw.onChunk?.(ctxA, ev.runFinished('stop', 'A')),
+      mw.onChunk?.(ctxB, ev.runFinished('tool_calls', 'B')),
     ])
     await Promise.all([
       mw.onFinish?.(ctxA, { finishReason: 'stop', duration: 1, content: '' }),
@@ -681,15 +572,9 @@ describe('otelMiddleware — extension points', () => {
     })
     const ctx = makeCtx({ hasTools: true })
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
     await mw.onBeforeToolCall?.(ctx, {
-      toolCall: {
-        id: 't-1',
-        type: 'function',
-        function: { name: 'lookup', arguments: '{}' },
-      } as any,
+      toolCall: makeToolCall({ id: 't-1', function: { name: 'lookup' } }),
       tool: undefined,
       args: {},
       toolName: 'lookup',
@@ -709,9 +594,7 @@ describe('otelMiddleware — extension points', () => {
     })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    await runToIterationStart(mw, ctx)
 
     expect(spans[0]!.attributes['test.kind']).toBe('chat')
     expect(spans[1]!.attributes['test.kind']).toBe('iteration')
@@ -739,22 +622,13 @@ describe('otelMiddleware — extension points', () => {
     const mw = otelMiddleware({
       tracer,
       onSpanEnd: (info, span) => {
-        seen.push({ kind: info.kind, ended: (span as any).ended })
+        seen.push({ kind: info.kind, ended: (span as FakeSpan).ended })
       },
     })
     const ctx = makeCtx()
 
-    await mw.onStart?.(ctx)
-    ctx.phase = 'beforeModel'
-    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
-    await mw.onChunk?.(ctx, {
-      type: EventType.RUN_FINISHED,
-      threadId: 't-1',
-      runId: 'r',
-      model: 'gpt-4o',
-      timestamp: 0,
-      finishReason: 'stop',
-    })
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, ev.runFinished('stop'))
     await mw.onFinish?.(ctx, { finishReason: 'stop', duration: 1, content: '' })
 
     expect(seen.map((s) => s.kind)).toEqual(['iteration', 'chat'])
