@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { chat } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { GeminiTextInteractionsAdapter } from '../src/adapters/text-interactions'
@@ -474,30 +475,45 @@ describe('GeminiTextInteractionsAdapter', () => {
   })
 
   it('structuredOutput parses JSON text from interaction.outputs', async () => {
-    mocks.interactionsCreateSpy.mockResolvedValue({
+    // First call: agentic loop's streaming turn (no tools, short completion).
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_struct_stream', status: 'in_progress' },
+        },
+        {
+          event_type: 'content.start',
+          index: 0,
+          content: { type: 'text', text: '' },
+        },
+        { event_type: 'content.stop', index: 0 },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_struct_stream', status: 'completed' },
+        },
+      ]),
+    )
+    // Second call: non-streaming structured output.
+    mocks.interactionsCreateSpy.mockResolvedValueOnce({
       id: 'int_structured',
       status: 'completed',
       outputs: [{ type: 'text', text: '{"foo":"bar"}' }],
     })
 
     const adapter = createAdapter()
-    const result = await adapter.structuredOutput({
-      chatOptions: {
-        model: 'gemini-2.5-flash',
-        messages: [{ role: 'user', content: 'Give JSON' }],
-      },
-      outputSchema: {
-        type: 'object',
-        properties: { foo: { type: 'string' } },
-      },
+    const result = await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Give JSON' }],
+      outputSchema: z.object({ foo: z.string() }),
     })
 
-    expect(result.data).toEqual({ foo: 'bar' })
-    expect(result.rawText).toBe('{"foo":"bar"}')
+    expect(result).toEqual({ foo: 'bar' })
 
-    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
-    expect(payload.response_mime_type).toBe('application/json')
-    expect(payload.response_format).toBeDefined()
-    expect(payload.stream).toBeUndefined()
+    expect(mocks.interactionsCreateSpy).toHaveBeenCalledTimes(2)
+    const structuredPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    expect(structuredPayload.response_mime_type).toBe('application/json')
+    expect(structuredPayload.response_format).toBeDefined()
+    expect(structuredPayload.stream).toBeUndefined()
   })
 })
