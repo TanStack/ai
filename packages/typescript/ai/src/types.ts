@@ -322,6 +322,8 @@ export interface ToolCallPart {
   }
   /** Tool execution output (for client tools or after approval) */
   output?: any
+  /** Provider-specific metadata carried through the tool call lifecycle (e.g. Gemini thoughtSignature) */
+  providerMetadata?: Record<string, unknown>
 }
 
 export interface ToolResultPart {

@@ -138,6 +138,7 @@ interface AssistantSegment {
     id: string
     type: 'function'
     function: { name: string; arguments: string }
+    providerMetadata?: Record<string, unknown>
   }>
 }
 
@@ -205,6 +206,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
               name: part.name,
               arguments: part.arguments,
             },
+            ...(part.providerMetadata && {
+              providerMetadata: part.providerMetadata,
+            }),
           })
         }
         break
@@ -340,6 +344,9 @@ export function modelMessageToUIMessage(
         name: toolCall.function.name,
         arguments: toolCall.function.arguments,
         state: 'input-complete', // Model messages have complete arguments
+        ...(toolCall.providerMetadata && {
+          providerMetadata: toolCall.providerMetadata,
+        }),
       })
     }
   }
