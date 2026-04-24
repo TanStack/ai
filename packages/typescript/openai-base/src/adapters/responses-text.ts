@@ -19,6 +19,11 @@ import type {
 } from '@tanstack/ai'
 import type { OpenAICompatibleClientConfig } from '../types/config'
 
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 /**
  * OpenAI-compatible Responses API Text Adapter
  *
@@ -80,7 +85,7 @@ export class OpenAICompatibleResponsesTextAdapter<
     // We assign our own indices as we encounter unique tool call IDs.
     const toolCallMetadata = new Map<
       string,
-      { index: number; name: string; callId: string; started: boolean }
+      { index: number; name: string; started: boolean }
     >()
     const requestParams = this.mapOptionsToRequest(options)
     const timestamp = Date.now()
@@ -117,16 +122,16 @@ export class OpenAICompatibleResponsesTextAdapter<
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
-        yield {
+        yield asChunk({
           type: 'RUN_STARTED',
           runId: aguiState.runId,
           model: options.model,
           timestamp,
-        }
+        })
       }
 
       // Emit AG-UI RUN_ERROR
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
@@ -135,7 +140,7 @@ export class OpenAICompatibleResponsesTextAdapter<
           message: err.message || 'Unknown error',
           code: err.code,
         },
-      }
+      })
 
       console.error(
         `>>> [${this.name}] chatStream: Fatal error during response creation <<<`,
@@ -276,7 +281,7 @@ export class OpenAICompatibleResponsesTextAdapter<
     stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
     toolCallMetadata: Map<
       string,
-      { index: number; name: string; callId: string; started: boolean }
+      { index: number; name: string; started: boolean }
     >,
     options: TextOptions,
     aguiState: {
@@ -310,12 +315,12 @@ export class OpenAICompatibleResponsesTextAdapter<
         // Emit RUN_STARTED on first chunk
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
-          yield {
+          yield asChunk({
             type: 'RUN_STARTED',
             runId: aguiState.runId,
             model: model || options.model,
             timestamp,
-          }
+          })
         }
 
         const handleContentPart = (contentPart: {
@@ -325,28 +330,28 @@ export class OpenAICompatibleResponsesTextAdapter<
         }): StreamChunk => {
           if (contentPart.type === 'output_text') {
             accumulatedContent += contentPart.text || ''
-            return {
+            return asChunk({
               type: 'TEXT_MESSAGE_CONTENT',
               messageId: aguiState.messageId,
               model: model || options.model,
               timestamp,
               delta: contentPart.text || '',
               content: accumulatedContent,
-            }
+            })
           }
 
           if (contentPart.type === 'reasoning_text') {
             accumulatedReasoning += contentPart.text || ''
-            return {
+            return asChunk({
               type: 'STEP_FINISHED',
               stepId: stepId || generateId(this.name),
               model: model || options.model,
               timestamp,
               delta: contentPart.text || '',
               content: accumulatedReasoning,
-            }
+            })
           }
-          return {
+          return asChunk({
             type: 'RUN_ERROR',
             runId: aguiState.runId,
             model: model || options.model,
@@ -354,7 +359,7 @@ export class OpenAICompatibleResponsesTextAdapter<
             error: {
               message: contentPart.refusal || 'Unknown refusal',
             },
-          }
+          })
         }
 
         // handle general response events
@@ -372,16 +377,16 @@ export class OpenAICompatibleResponsesTextAdapter<
           accumulatedContent = ''
           accumulatedReasoning = ''
           if (chunk.response.error) {
-            yield {
+            yield asChunk({
               type: 'RUN_ERROR',
               runId: aguiState.runId,
               model: chunk.response.model,
               timestamp,
               error: chunk.response.error,
-            }
+            })
           }
           if (chunk.response.incomplete_details) {
-            yield {
+            yield asChunk({
               type: 'RUN_ERROR',
               runId: aguiState.runId,
               model: chunk.response.model,
@@ -389,7 +394,7 @@ export class OpenAICompatibleResponsesTextAdapter<
               error: {
                 message: chunk.response.incomplete_details.reason ?? '',
               },
-            }
+            })
           }
         }
 
@@ -407,25 +412,25 @@ export class OpenAICompatibleResponsesTextAdapter<
             // Emit TEXT_MESSAGE_START on first text content
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
-              yield {
+              yield asChunk({
                 type: 'TEXT_MESSAGE_START',
                 messageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp,
                 role: 'assistant',
-              }
+              })
             }
 
             accumulatedContent += textDelta
             hasStreamedContentDeltas = true
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_CONTENT',
               messageId: aguiState.messageId,
               model: model || options.model,
               timestamp,
               delta: textDelta,
               content: accumulatedContent,
-            }
+            })
           }
         }
 
@@ -444,25 +449,25 @@ export class OpenAICompatibleResponsesTextAdapter<
             if (!hasEmittedStepStarted) {
               hasEmittedStepStarted = true
               stepId = generateId(this.name)
-              yield {
+              yield asChunk({
                 type: 'STEP_STARTED',
                 stepId,
                 model: model || options.model,
                 timestamp,
                 stepType: 'thinking',
-              }
+              })
             }
 
             accumulatedReasoning += reasoningDelta
             hasStreamedReasoningDeltas = true
-            yield {
+            yield asChunk({
               type: 'STEP_FINISHED',
               stepId: stepId || generateId(this.name),
               model: model || options.model,
               timestamp,
               delta: reasoningDelta,
               content: accumulatedReasoning,
-            }
+            })
           }
         }
 
@@ -480,25 +485,25 @@ export class OpenAICompatibleResponsesTextAdapter<
             if (!hasEmittedStepStarted) {
               hasEmittedStepStarted = true
               stepId = generateId(this.name)
-              yield {
+              yield asChunk({
                 type: 'STEP_STARTED',
                 stepId,
                 model: model || options.model,
                 timestamp,
                 stepType: 'thinking',
-              }
+              })
             }
 
             accumulatedReasoning += summaryDelta
             hasStreamedReasoningDeltas = true
-            yield {
+            yield asChunk({
               type: 'STEP_FINISHED',
               stepId: stepId || generateId(this.name),
               model: model || options.model,
               timestamp,
               delta: summaryDelta,
               content: accumulatedReasoning,
-            }
+            })
           }
         }
 
@@ -511,25 +516,25 @@ export class OpenAICompatibleResponsesTextAdapter<
             !hasEmittedTextMessageStart
           ) {
             hasEmittedTextMessageStart = true
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_START',
               messageId: aguiState.messageId,
               model: model || options.model,
               timestamp,
               role: 'assistant',
-            }
+            })
           }
           // Emit STEP_STARTED if this is reasoning content
           if (contentPart.type === 'reasoning_text' && !hasEmittedStepStarted) {
             hasEmittedStepStarted = true
             stepId = generateId(this.name)
-            yield {
+            yield asChunk({
               type: 'STEP_STARTED',
               stepId,
               model: model || options.model,
               timestamp,
               stepType: 'thinking',
-            }
+            })
           }
           yield handleContentPart(contentPart)
         }
@@ -558,33 +563,27 @@ export class OpenAICompatibleResponsesTextAdapter<
         // handle output_item.added to capture function call metadata (name)
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
-          if (item.type === 'function_call') {
-            // call_id is the required correlation ID for function_call_output.
-            // id is the internal item ID used by delta/done events (item_id).
-            // Use id when available (for the metadata map keyed by item_id),
-            // falling back to call_id for providers that omit id.
-            const itemId = item.id || item.call_id
-            const callId = item.call_id || item.id || ''
-
-            // Store the function name for later use
-            if (!toolCallMetadata.has(itemId)) {
-              toolCallMetadata.set(itemId, {
+          if (item.type === 'function_call' && item.id) {
+            // Store the function name for later use, keyed by the item id that
+            // subsequent delta/done events reference via `item_id`.
+            if (!toolCallMetadata.has(item.id)) {
+              toolCallMetadata.set(item.id, {
                 index: chunk.output_index,
                 name: item.name || '',
-                callId,
                 started: false,
               })
             }
             // Emit TOOL_CALL_START
-            yield {
+            yield asChunk({
               type: 'TOOL_CALL_START',
-              toolCallId: callId,
+              toolCallId: item.id,
+              toolCallName: item.name || '',
               toolName: item.name || '',
               model: model || options.model,
               timestamp,
               index: chunk.output_index,
-            }
-            toolCallMetadata.get(itemId)!.started = true
+            })
+            toolCallMetadata.get(item.id)!.started = true
           }
         }
 
@@ -594,14 +593,14 @@ export class OpenAICompatibleResponsesTextAdapter<
           chunk.delta
         ) {
           const metadata = toolCallMetadata.get(chunk.item_id)
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_ARGS',
-            toolCallId: metadata?.callId || chunk.item_id,
+            toolCallId: chunk.item_id,
             model: model || options.model,
             timestamp,
             delta: chunk.delta,
             args: metadata ? undefined : chunk.delta,
-          }
+          })
         }
 
         if (chunk.type === 'response.function_call_arguments.done') {
@@ -610,35 +609,36 @@ export class OpenAICompatibleResponsesTextAdapter<
           // Get the function name from metadata (captured in output_item.added)
           const metadata = toolCallMetadata.get(item_id)
           const name = metadata?.name || ''
-          const callId = metadata?.callId || item_id
 
           // Parse arguments
           let parsedInput: unknown = {}
           try {
-            parsedInput = chunk.arguments ? JSON.parse(chunk.arguments) : {}
+            const parsed = chunk.arguments ? JSON.parse(chunk.arguments) : {}
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = {}
           }
 
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_END',
-            toolCallId: callId,
+            toolCallId: item_id,
+            toolCallName: name,
             toolName: name,
             model: model || options.model,
             timestamp,
             input: parsedInput,
-          }
+          })
         }
 
         if (chunk.type === 'response.completed') {
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_END',
               messageId: aguiState.messageId,
               model: model || options.model,
               timestamp,
-            }
+            })
           }
 
           // Determine finish reason based on output
@@ -648,7 +648,7 @@ export class OpenAICompatibleResponsesTextAdapter<
               (item as { type: string }).type === 'function_call',
           )
 
-          yield {
+          yield asChunk({
             type: 'RUN_FINISHED',
             runId: aguiState.runId,
             model: model || options.model,
@@ -659,11 +659,11 @@ export class OpenAICompatibleResponsesTextAdapter<
               totalTokens: chunk.response.usage?.total_tokens || 0,
             },
             finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
-          }
+          })
         }
 
         if (chunk.type === 'error') {
-          yield {
+          yield asChunk({
             type: 'RUN_ERROR',
             runId: aguiState.runId,
             model: model || options.model,
@@ -672,13 +672,13 @@ export class OpenAICompatibleResponsesTextAdapter<
               message: chunk.message,
               code: chunk.code ?? undefined,
             },
-          }
+          })
         }
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       console.error(`[${this.name}] Stream ended with error:`, err.message)
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
@@ -687,7 +687,7 @@ export class OpenAICompatibleResponsesTextAdapter<
           message: err.message || 'Unknown error occurred',
           code: err.code,
         },
-      }
+      })
     }
   }
 

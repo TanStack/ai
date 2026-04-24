@@ -41,10 +41,10 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
 export class GrokTextAdapter<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
-  TInputModalities extends
-    ReadonlyArray<Modality> = ResolveInputModalities<TModel>,
-  TToolCapabilities extends
-    ReadonlyArray<string> = ResolveToolCapabilities<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends OpenAICompatibleChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,

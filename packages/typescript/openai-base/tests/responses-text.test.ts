@@ -785,7 +785,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       }
     })
 
-    it('uses call_id instead of internal id for tool call correlation', async () => {
+    it('uses the internal function_call item id for tool call correlation', async () => {
       const streamChunks = [
         {
           type: 'response.created',
@@ -854,27 +854,26 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         chunks.push(chunk)
       }
 
-      // TOOL_CALL_START should use call_id, not internal id
+      // TOOL_CALL_* events should use the internal function_call item id
+      // (matches main's OpenAI adapter behavior; the agent loop carries this
+      // id back as `toolCallId` on the tool ModelMessage, which the Responses
+      // API accepts as `call_id` for function_call_output).
       const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
       expect(toolStart).toBeDefined()
       if (toolStart?.type === 'TOOL_CALL_START') {
-        expect(toolStart.toolCallId).toBe('call_api_abc123')
-        expect(toolStart.toolCallId).not.toBe('fc_internal_001')
+        expect(toolStart.toolCallId).toBe('fc_internal_001')
       }
 
-      // TOOL_CALL_ARGS should also use call_id
       const toolArgs = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
       expect(toolArgs.length).toBeGreaterThan(0)
       if (toolArgs[0]?.type === 'TOOL_CALL_ARGS') {
-        expect(toolArgs[0].toolCallId).toBe('call_api_abc123')
+        expect(toolArgs[0].toolCallId).toBe('fc_internal_001')
       }
 
-      // TOOL_CALL_END should also use call_id
       const toolEnd = chunks.find((c) => c.type === 'TOOL_CALL_END')
       expect(toolEnd).toBeDefined()
       if (toolEnd?.type === 'TOOL_CALL_END') {
-        expect(toolEnd.toolCallId).toBe('call_api_abc123')
-        expect(toolEnd.toolCallId).not.toBe('fc_internal_001')
+        expect(toolEnd.toolCallId).toBe('fc_internal_001')
       }
     })
   })

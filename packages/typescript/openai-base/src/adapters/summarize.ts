@@ -59,6 +59,7 @@ export class OpenAICompatibleSummarizeAdapter<
       systemPrompts: [systemPrompt],
       maxTokens: options.maxLength,
       temperature: 0.3,
+      logger: options.logger,
     } as TextOptions<TProviderOptions>)) {
       if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
         if (chunk.content) {
@@ -89,6 +90,7 @@ export class OpenAICompatibleSummarizeAdapter<
       systemPrompts: [systemPrompt],
       maxTokens: options.maxLength,
       temperature: 0.3,
+      logger: options.logger,
     } as TextOptions<TProviderOptions>)
   }
 

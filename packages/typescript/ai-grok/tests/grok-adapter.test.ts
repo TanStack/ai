@@ -23,7 +23,6 @@ vi.mock('openai', () => {
   }
 })
 
-
 // Helper to create async iterable from chunks
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   return {

@@ -34,7 +34,7 @@ export class OpenAICompatibleTranscriptionAdapter<
     model: TModel,
     name: string = 'openai-compatible',
   ) {
-    super(config, model)
+    super(model, {})
     this.name = name
     this.client = createOpenAICompatibleClient(config)
   }

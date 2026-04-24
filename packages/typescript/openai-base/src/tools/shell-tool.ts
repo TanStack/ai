@@ -9,9 +9,7 @@ export type ShellTool = ShellToolConfig
 /**
  * Converts a standard Tool to OpenAI ShellTool format
  */
-export function convertShellToolToAdapterFormat(
-  _tool: Tool,
-): ShellToolConfig {
+export function convertShellToolToAdapterFormat(_tool: Tool): ShellToolConfig {
   return {
     type: 'shell',
   }
