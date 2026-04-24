@@ -229,10 +229,17 @@ async function createWebRTCConnection(
       state,
     })
     if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-      emit('status_change', {
-        status:
-          state === 'failed' ? ('error' as RealtimeStatus) : ('idle' as RealtimeStatus),
-      })
+      // Suppress the `status_change` emission when teardown is in progress:
+      // the user-facing `disconnect()` already emits `status_change: 'idle'`
+      // and then calls `teardownConnection()` → `pc.close()`, which fires
+      // `onconnectionstatechange` with state === 'closed'. Without this
+      // guard listeners would see two `idle` events per disconnect.
+      if (!isTornDown) {
+        emit('status_change', {
+          status:
+            state === 'failed' ? ('error' as RealtimeStatus) : ('idle' as RealtimeStatus),
+        })
+      }
       if (!dataChannelOpened) {
         // Reject on any terminal-ish pre-open state so callers don't hang
         // for the full 15s timeout. The reject is one-shot — subsequent
@@ -277,6 +284,21 @@ async function createWebRTCConnection(
    * via idempotency) the `disconnect()` entry point.
    */
   async function teardownConnection() {
+    // Flip the teardown flag BEFORE any awaits so handlers that fire during
+    // `await audioContext.close()` (or any other async step below) can guard
+    // on it — otherwise a late `pc.onconnectionstatechange` or `pc.ontrack`
+    // can allocate new resources or re-emit `status_change: idle` after the
+    // user-facing `disconnect()` already emitted one.
+    isTornDown = true
+
+    // Drop any queued events the caller sent before the data channel opened
+    // up front. Without this they'd accumulate across reconnect attempts
+    // (each connect allocates a fresh closure, but a caller holding the old
+    // `connection` reference could otherwise keep appending forever). Done
+    // at the top — before the awaits below — so `sendEvent` calls racing
+    // with teardown don't push into a list we're about to drain.
+    pendingEvents.length = 0
+
     // Clear the data-channel-open timeout / reject the readiness promise
     // if it's still pending. `rejectDataChannelReady` is one-shot and nulls
     // itself on first call, so calling it from `disconnect()` after a
@@ -361,42 +383,41 @@ async function createWebRTCConnection(
       }
       audioContext = null
     }
-
-    // Drop any queued events the caller sent before the data channel opened.
-    // Without this they'd accumulate across reconnect attempts (each connect
-    // allocates a fresh closure, but a caller holding the old `connection`
-    // reference could otherwise keep appending forever).
-    pendingEvents.length = 0
-    isTornDown = true
   }
 
   // xAI requires an audio track in the SDP offer, same as OpenAI realtime.
+  //
+  // This try/catch also covers `getUserMedia` failure (e.g. the user denies
+  // microphone permission). `pc` + `dataChannel` are already allocated above
+  // and the 15s `dataChannelReady` timeout is already armed, so we MUST
+  // teardown on failure here — otherwise they leak until the tab closes.
+  // `teardownConnection` is idempotent and null-safe (runs fine even if the
+  // mic was never acquired).
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        sampleRate: 24000,
-      },
-    })
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 24000,
+        },
+      })
+    } catch (error) {
+      logger.errors('grok.realtime fatal', {
+        error,
+        source: 'grok.realtime.getUserMedia',
+      })
+      // Re-throw with the descriptive message callers rely on. Teardown runs
+      // in the outer catch below.
+      throw new Error(
+        `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
+      )
+    }
 
     for (const track of localStream.getAudioTracks()) {
       pc.addTrack(track, localStream)
     }
-  } catch (error) {
-    logger.errors('grok.realtime fatal', {
-      error,
-      source: 'grok.realtime.getUserMedia',
-    })
-    throw new Error(
-      `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
-    )
-  }
 
-  // If anything between here and the completed remote-description fails we
-  // must tear down the already-acquired microphone, data channel, and peer
-  // connection — otherwise the mic indicator stays on forever.
-  try {
     const offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
 
@@ -533,14 +554,28 @@ async function createWebRTCConnection(
         break
 
       case 'response.function_call_arguments.done': {
-        const callId = (event.call_id ?? event.item_id) as string | undefined
+        // Only `call_id` is valid for `sendToolResult` correlation. Falling
+        // back to `item_id` would produce a tool-call id the server doesn't
+        // recognise when the result is posted back, silently dropping the
+        // tool execution. If `call_id` is missing we surface an error event
+        // so the UI can react instead of pretending the tool call succeeded.
+        const callId = event.call_id as string | undefined
         const name = event.name as string
         const args = event.arguments as string
         if (!callId) {
           logger.errors(
-            'grok.realtime function_call_arguments.done missing call_id/item_id',
-            { event, source: 'grok.realtime' },
+            'grok.realtime tool_call missing call_id — dropping tool_call',
+            {
+              source: 'grok.realtime',
+              event_type: 'response.function_call_arguments.done',
+              item_id: event.item_id,
+            },
           )
+          emit('error', {
+            error: new Error(
+              'Realtime tool call missing call_id; tool will not execute',
+            ),
+          })
           break
         }
         try {
@@ -627,6 +662,13 @@ async function createWebRTCConnection(
   }
 
   function setupOutputAudioAnalysis(stream: MediaStream) {
+    // Bail out if teardown has already started. `pc.ontrack` can fire
+    // asynchronously after `teardownConnection()` has flipped `isTornDown`
+    // (e.g. a remote track arriving mid-close); without this guard we'd
+    // allocate a fresh AudioContext / audio element that nothing would ever
+    // clean up.
+    if (isTornDown) return
+
     // Tear down any prior output audio before allocating new resources.
     // `pc.ontrack` can fire multiple times over the lifetime of a session
     // (e.g. after renegotiation), and without this we'd leak audio elements
@@ -695,6 +737,12 @@ async function createWebRTCConnection(
   }
 
   function setupInputAudioAnalysis(stream: MediaStream) {
+    // Defensive symmetry with `setupOutputAudioAnalysis`. Today this is
+    // only called inline after SDP negotiation, but keeping the guard
+    // means any future caller path (e.g. renegotiation) won't leak a fresh
+    // AudioContext after teardown.
+    if (isTornDown) return
+
     if (!audioContext) {
       audioContext = new AudioContext()
     }

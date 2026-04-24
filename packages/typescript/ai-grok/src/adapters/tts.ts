@@ -58,21 +58,33 @@ export class GrokSpeechAdapter<
     })
 
     const codec = pickCodec(modelOptions?.codec, format)
+    // Only forward `sample_rate` when either:
+    //   - the caller explicitly set `modelOptions.sample_rate`, or
+    //   - the codec's Content-Type carries the rate (pcm → audio/L16;rate=…).
+    // For mp3/wav/opus/aac/flac we leave sample_rate unset so xAI's server
+    // default applies. Forcing a rate on every codec was over-constraining
+    // and would surface as a subtle mislabel only for codecs whose MIME type
+    // doesn't encode the rate.
+    const callerSampleRate = modelOptions?.sample_rate
     // Default sample rate documented in GrokTTSProviderOptions (see
-    // audio/tts-provider-options.ts) is 24000 Hz.
-    const sampleRate = modelOptions?.sample_rate ?? 24000
-    // Always send the same sample_rate we advertise via contentType so the
-    // response label cannot drift from what the server produced. If we only
-    // forwarded sample_rate when the caller set it, xAI's server default for
-    // a codec could differ from our assumed 24000 and the returned
-    // `audio/L16;rate=24000` would mislabel the bytes.
-    const outputFormat: Record<string, unknown> = {
-      codec,
-      sample_rate: sampleRate,
+    // audio/tts-provider-options.ts) is 24000 Hz — used only when we MUST
+    // attach a rate to the contentType (pcm) and the caller didn't pick one.
+    const pcmDefault = 24000
+    const needsRateInContentType = codec === 'pcm'
+
+    const outputFormat: Record<string, unknown> = { codec }
+    if (callerSampleRate !== undefined) {
+      outputFormat.sample_rate = callerSampleRate
+    } else if (needsRateInContentType) {
+      outputFormat.sample_rate = pcmDefault
     }
     if (codec === 'mp3' && modelOptions?.bit_rate !== undefined) {
       outputFormat.bit_rate = modelOptions.bit_rate
     }
+
+    // Only the pcm contentType embeds a rate; other codecs' Content-Types
+    // don't carry one so this value is unused for them.
+    const sampleRateForContentType = callerSampleRate ?? pcmDefault
 
     const body: Record<string, unknown> = {
       text,
@@ -113,7 +125,7 @@ export class GrokSpeechAdapter<
         model,
         audio,
         format: codec,
-        contentType: getContentType(codec, sampleRate),
+        contentType: getContentType(codec, sampleRateForContentType),
       }
     } catch (error) {
       logger.errors('grok.generateSpeech fatal', {

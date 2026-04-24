@@ -49,10 +49,12 @@ describe('GrokSpeechAdapter', () => {
     expect(body.text).toBe('hello world')
     expect(body.voice_id).toBe('eve')
     expect(body.language).toBe('en')
-    // We always forward `sample_rate` (defaulting to 24000 Hz) so the body
-    // can't disagree with the `audio/L16;rate=...` contentType we advertise
-    // for pcm responses.
-    expect(body.output_format).toEqual({ codec: 'mp3', sample_rate: 24000 })
+    // For non-pcm codecs we do NOT force a sample_rate — when the caller
+    // doesn't pick one we let xAI apply its server default rather than
+    // pinning mp3/wav/opus/aac/flac to our guess. `sample_rate` is only
+    // forwarded unconditionally for pcm (where it's encoded in the
+    // `audio/L16;rate=…` contentType) or when the caller sets it explicitly.
+    expect(body.output_format).toEqual({ codec: 'mp3' })
 
     expect(result.model).toBe('grok-tts')
     expect(result.format).toBe('mp3')
@@ -113,6 +115,61 @@ describe('GrokSpeechAdapter', () => {
     })
     expect(body.text_normalization).toBe(true)
     expect(body.optimize_streaming_latency).toBe(1)
+  })
+
+  it('forwards sample_rate for mp3 only when the caller set it explicitly', async () => {
+    // Regression: we used to always send `sample_rate: 24000` for mp3,
+    // which over-constrained the request and masked xAI's server default.
+    // For non-pcm codecs the rate is NOT part of the Content-Type, so unless
+    // the caller pins one we leave it out entirely.
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(mockTTSResponse())
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
+
+    await generateSpeech({
+      adapter,
+      text: 'x',
+      modelOptions: { sample_rate: 44100 },
+    })
+
+    const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
+    expect(body.output_format).toEqual({ codec: 'mp3', sample_rate: 44100 })
+  })
+
+  it('omits sample_rate for wav when the caller does not set it', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(mockTTSResponse())
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
+
+    await generateSpeech({
+      adapter,
+      text: 'x',
+      format: 'wav',
+    })
+
+    const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
+    expect(body.output_format).toEqual({ codec: 'wav' })
+  })
+
+  it('forwards sample_rate for pcm even when the caller does not set it', async () => {
+    // pcm is the exception: `audio/L16;rate=…` embeds the rate in the
+    // Content-Type, so we MUST send one or the server response label would
+    // disagree with the bytes. Default is 24000.
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(mockTTSResponse())
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
+
+    await generateSpeech({
+      adapter,
+      text: 'x',
+      format: 'pcm',
+    })
+
+    const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
+    expect(body.output_format).toEqual({ codec: 'pcm', sample_rate: 24000 })
   })
 
   it('omits bit_rate for non-mp3 codecs', async () => {
@@ -285,7 +342,7 @@ describe('GrokTranscriptionAdapter', () => {
     await expect(
       generateTranscription({
         adapter,
-        audio: new Blob([new Uint8Array([1])]),
+        audio: new Blob([new Uint8Array([1])], { type: 'audio/mpeg' }),
       }),
     ).rejects.toThrow('Grok transcription request failed: 400 bad audio')
   })
@@ -405,5 +462,59 @@ describe('toAudioFile', () => {
     )
     expect(file.type).toBe('audio/wav')
     expect(file.name).toBe('audio.wav')
+  })
+
+  it('prefers explicit audioFormat over an empty Blob .type', () => {
+    // Blob with no `.type` + explicit `audioFormat: 'wav'` should produce a
+    // wav-labelled File rather than falling back to
+    // `application/octet-stream`, which would mislabel audio for the server.
+    const blob = new Blob([new Uint8Array([1, 2, 3])])
+    const file = toAudioFile(blob, 'wav')
+    expect(file).toBeInstanceOf(File)
+    expect(file.type).toBe('audio/wav')
+    expect(file.name).toBe('audio.wav')
+  })
+
+  it('prefers explicit audioFormat over the Blob .type when both are present', () => {
+    // Caller has more context than the browser's auto-detected type: if they
+    // pass `audioFormat` explicitly it wins over `Blob.type`.
+    const blob = new Blob([new Uint8Array([1, 2, 3])], {
+      type: 'application/octet-stream',
+    })
+    const file = toAudioFile(blob, 'flac')
+    expect(file.type).toBe('audio/flac')
+    expect(file.name).toBe('audio.flac')
+  })
+
+  it('throws for a Blob with empty .type and no audioFormat', () => {
+    const blob = new Blob([new Uint8Array([1, 2, 3])])
+    expect(() => toAudioFile(blob)).toThrow(
+      /cannot infer type for Blob input with empty \.type/,
+    )
+  })
+
+  it('prefers explicit audioFormat over an empty File .type', () => {
+    // File with no `.type` + explicit `audioFormat`: caller wins.
+    const f = new File([new Uint8Array([1, 2, 3])], 'clip', { type: '' })
+    const result = toAudioFile(f, 'wav')
+    expect(result).toBeInstanceOf(File)
+    expect(result.type).toBe('audio/wav')
+    expect(result.name).toBe('audio.wav')
+  })
+
+  it('throws for a File with empty .type and no audioFormat', () => {
+    const f = new File([new Uint8Array([1, 2, 3])], 'clip', { type: '' })
+    expect(() => toAudioFile(f)).toThrow(
+      /cannot infer type for File input with empty \.type/,
+    )
+  })
+
+  it('returns the File as-is when .type is non-empty and no audioFormat is passed', () => {
+    const f = new File([new Uint8Array([1, 2, 3])], 'clip.mp3', {
+      type: 'audio/mpeg',
+    })
+    const result = toAudioFile(f)
+    // Same identity — we don't wrap when the File already carries a type.
+    expect(result).toBe(f)
   })
 })

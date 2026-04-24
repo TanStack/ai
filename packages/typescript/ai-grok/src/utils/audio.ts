@@ -15,12 +15,39 @@ export function toAudioFile(
   audioFormat?: string,
 ): File {
   if (typeof File !== 'undefined' && audio instanceof File) {
-    return audio
+    // Prefer the caller-supplied `audioFormat` over a potentially empty or
+    // incorrect `File.type` — callers pass `audioFormat` precisely because
+    // they have more context than the browser does about the payload. If
+    // neither is set, fall through to the Blob-style error path below.
+    if (audioFormat) {
+      const mimeType = toMimeType(audioFormat)
+      return new File([audio], `audio.${extensionFor(mimeType)}`, {
+        type: mimeType,
+      })
+    }
+    if (audio.type) {
+      return audio
+    }
+    throw new Error(
+      'toAudioFile cannot infer type for File input with empty .type — pass an explicit audioFormat (e.g. "mp3", "wav", "audio/mpeg")',
+    )
   }
 
   if (typeof Blob !== 'undefined' && audio instanceof Blob) {
-    return new File([audio], `audio.${extensionFor(audio.type)}`, {
-      type: audio.type || 'application/octet-stream',
+    // Mirror the ArrayBuffer / bare-base64 paths: prefer the explicit
+    // audioFormat argument over the Blob's (often empty) .type. We refuse to
+    // fall back to `application/octet-stream` because that mislabels audio
+    // for the server.
+    const mimeType = audioFormat
+      ? toMimeType(audioFormat)
+      : audio.type || undefined
+    if (!mimeType) {
+      throw new Error(
+        'toAudioFile cannot infer type for Blob input with empty .type — pass an explicit audioFormat (e.g. "mp3", "wav", "audio/mpeg")',
+      )
+    }
+    return new File([audio], `audio.${extensionFor(mimeType)}`, {
+      type: mimeType,
     })
   }
 
