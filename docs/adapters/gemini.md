@@ -110,6 +110,109 @@ const stream = chat({
 });
 ```
 
+## Stateful Conversations — Interactions API (Experimental)
+
+Gemini's [Interactions API](https://ai.google.dev/gemini-api/docs/interactions) (currently in Beta) offers server-side conversation state — the Gemini equivalent of OpenAI's Responses API. Instead of replaying the full message history on every turn, you pass a `previous_interaction_id` and the server retains the transcript. This also improves cache hit rates for repeated prefixes.
+
+The `geminiTextInteractions` adapter routes through `client.interactions.create` and surfaces the server-assigned interaction id on the `RUN_FINISHED` event's `providerMetadata` so you can chain turns.
+
+> **⚠️ Experimental.** Google marks the Interactions API as Beta and explicitly flags possible breaking changes until it reaches general availability. Only text output and function tools are supported on this adapter today — use `geminiText()` for built-in Gemini tools (google_search, code_execution, url_context, file_search) or for any path you need stability guarantees on.
+
+### Basic Usage
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiTextInteractions } from "@tanstack/ai-gemini";
+
+// Turn 1: introduce yourself, capture the interaction id.
+let interactionId: string | undefined;
+
+for await (const chunk of chat({
+  adapter: geminiTextInteractions("gemini-2.5-flash"),
+  messages: [{ role: "user", content: "Hi, my name is Amir." }],
+})) {
+  if (chunk.type === "RUN_FINISHED") {
+    interactionId = chunk.providerMetadata?.interactionId as string | undefined;
+  }
+}
+
+// Turn 2: only send the new turn's content — the server has the history.
+for await (const chunk of chat({
+  adapter: geminiTextInteractions("gemini-2.5-flash"),
+  messages: [{ role: "user", content: "What is my name?" }],
+  modelOptions: {
+    previous_interaction_id: interactionId,
+  },
+})) {
+  // ...stream "Your name is Amir." back to the client.
+}
+```
+
+### How it differs from `geminiText`
+
+| Concern | `geminiText` | `geminiTextInteractions` |
+| --- | --- | --- |
+| Underlying endpoint | `models:generateContent` | `interactions:create` |
+| Conversation state | Stateless — send full history each turn | Stateful — server retains transcript via `previous_interaction_id` |
+| Provider options shape | camelCase (`generationConfig`, `safetySettings`) | snake_case (`generation_config`, `response_modalities`, `previous_interaction_id`) |
+| Built-in tools | `google_search`, `code_execution`, `url_context`, `file_search`, etc. | Function tools only (for now) |
+| Stability | GA | Experimental (Google Beta) |
+
+### Provider Options
+
+The adapter exposes Interactions-specific options on `modelOptions`:
+
+```typescript
+import { geminiTextInteractions } from "@tanstack/ai-gemini";
+
+const stream = chat({
+  adapter: geminiTextInteractions("gemini-2.5-flash"),
+  messages,
+  modelOptions: {
+    // Stateful chaining — passed only on turn 2+.
+    previous_interaction_id: "int_abc123",
+
+    // Persist the interaction server-side (default true). Must be true for
+    // previous_interaction_id to work on the *next* turn.
+    store: true,
+
+    // Per-request system instruction (interaction-scoped — re-specify each turn).
+    system_instruction: "You are a helpful assistant.",
+
+    // snake_case generation config distinct from geminiText's camelCase one.
+    generation_config: {
+      thinking_level: "LOW",
+      thinking_summaries: "auto",
+      stop_sequences: ["<done>"],
+    },
+
+    response_modalities: ["text"],
+  },
+});
+```
+
+### Reading the interaction id
+
+The server's interaction id arrives on `RUN_FINISHED` via a new `providerMetadata` field:
+
+```typescript
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_FINISHED") {
+    const id = chunk.providerMetadata?.interactionId;
+    // Persist `id` wherever you store per-user conversation pointers —
+    // pass it back on the next turn as `previous_interaction_id`.
+  }
+}
+```
+
+### Caveats
+
+- **Tools, `system_instruction`, and `generation_config` are interaction-scoped.** Per Google's docs these are NOT inherited from a prior interaction via `previous_interaction_id` — pass them again on every turn you need them.
+- `store: false` is incompatible with `previous_interaction_id` (no state to recall) and with `background: true`.
+- Retention: **55 days on the Paid Tier, 1 day on the Free Tier.**
+- Built-in Gemini tools (google_search, code_execution, etc.) throw a clear error today — their request shape on the Interactions API differs from `generateContent` and is tracked as follow-up work. Use `geminiText` for those.
+- Image and audio output via Interactions aren't routed through this adapter yet — it's text-only. Use `geminiImage` / `geminiSpeech` for non-text generation for now.
+
 ## Model Options
 
 Gemini supports various model-specific options:
@@ -340,6 +443,22 @@ Creates a Gemini text/chat adapter with an explicit API key.
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini text adapter instance.
+
+### `geminiTextInteractions(model, config?)` (experimental)
+
+Creates a Gemini Interactions API text adapter using environment variables. Backs the stateful conversation pattern via `previous_interaction_id`.
+
+**Returns:** A Gemini Interactions text adapter instance.
+
+### `createGeminiTextInteractions(model, apiKey, config?)` (experimental)
+
+Creates a Gemini Interactions API text adapter with an explicit API key.
+
+- `model` - The model name (e.g. `gemini-2.5-flash`)
+- `apiKey` - Your Google API key
+- `config.httpOptions?` - Custom HTTP options (optional)
+
+**Returns:** A Gemini Interactions text adapter instance.
 
 ### `geminiSummarize(config?)`
 
