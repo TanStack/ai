@@ -74,10 +74,10 @@ type ResolveToolCapabilities<TModel extends string> =
 export class OpenAITextAdapter<
   TModel extends OpenAIChatModel,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
-  TInputModalities extends
-    ReadonlyArray<Modality> = ResolveInputModalities<TModel>,
-  TToolCapabilities extends
-    ReadonlyArray<string> = ResolveToolCapabilities<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends OpenAICompatibleResponsesTextAdapter<
   TModel,
   TProviderOptions,
