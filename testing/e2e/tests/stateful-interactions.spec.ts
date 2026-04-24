@@ -3,17 +3,19 @@ import { providersFor } from './test-matrix'
 
 // E2E coverage for Gemini's stateful Interactions API (geminiTextInteractions).
 // Currently skipped because @copilotkit/aimock does not yet record/replay
-// Gemini's interactions:create endpoint — adding that support is a separate
-// workstream.
+// Gemini's interactions:create endpoint — tracked at
+// https://github.com/CopilotKit/aimock/issues/136.
 //
 // Adapter-level correctness (stream translation, previous_interaction_id
-// round-trip, tool-call event emission, RUN_FINISHED.providerMetadata.interactionId,
-// error handling) is covered exhaustively by the unit suite at
+// round-trip, tool-call event emission, interactionId surfaced via the
+// `gemini.interactionId` CUSTOM event, error handling) is covered
+// exhaustively by the unit suite at
 // packages/typescript/ai-gemini/tests/text-interactions-adapter.test.ts.
 //
 // Once aimock can proxy or replay /v1beta/.../interactions, this spec should:
-//   1. Issue a first chat call; read the returned interactionId from
-//      RUN_FINISHED.providerMetadata.
+//   1. Issue a first chat call; read the returned interactionId from the
+//      `CUSTOM` event with name `gemini.interactionId` emitted just before
+//      RUN_FINISHED.
 //   2. Send a second call passing that id via
 //      providerOptions.previous_interaction_id and assert the model's reply
 //      references context from the first turn while the outbound request body
