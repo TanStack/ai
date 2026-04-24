@@ -53,3 +53,9 @@ export type {
   // Re-exported from @tanstack/ai
   ToolExecutionContext,
 } from './types'
+
+// Secret-parameter warning configuration
+export type {
+  SecretParameterHandler,
+  SecretParameterInfo,
+} from './validate-bindings'
