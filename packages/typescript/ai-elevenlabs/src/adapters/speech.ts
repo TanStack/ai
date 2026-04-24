@@ -124,7 +124,9 @@ export class ElevenLabsSpeechAdapter<
       const stream = await this.client.textToSpeech.convert(voiceId, {
         text: options.text,
         modelId: this.model,
-        ...(effectiveOutputFormat ? { outputFormat: effectiveOutputFormat } : {}),
+        ...(effectiveOutputFormat
+          ? { outputFormat: effectiveOutputFormat }
+          : {}),
         ...(voiceSettings
           ? { voiceSettings: mapVoiceSettings(voiceSettings, options.speed) }
           : options.speed != null
