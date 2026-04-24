@@ -587,9 +587,7 @@ async function* translateInteractionEvents(
               try {
                 const existing = JSON.parse(state.args)
                 state.args = JSON.stringify({
-                  ...(existing && typeof existing === 'object'
-                    ? existing
-                    : {}),
+                  ...(existing && typeof existing === 'object' ? existing : {}),
                   ...deltaArgs,
                 })
               } catch {
