@@ -18,7 +18,9 @@ import type {
 import type { ElevenLabsClientConfig } from '../utils/client'
 import type {
   ElevenLabsAudioModel,
+  ElevenLabsMusicModel,
   ElevenLabsOutputFormat,
+  ElevenLabsSoundEffectsModel,
 } from '../model-meta'
 
 /**
@@ -141,11 +143,13 @@ export class ElevenLabsAudioAdapter<
   private async runMusic(
     options: AudioGenerationOptions<ElevenLabsAudioProviderOptions>,
   ): Promise<AudioGenerationResult> {
+    // Gated by isElevenLabsMusicModel() in generateAudio().
+    const modelId = this.model as ElevenLabsMusicModel
     const music = (options.modelOptions ?? {}) as ElevenLabsMusicProviderOptions
     const outputFormat = music.outputFormat
 
     const stream = await this.client.music.compose({
-      modelId: 'music_v1',
+      modelId,
       ...(options.prompt && !music.compositionPlan
         ? { prompt: options.prompt }
         : {}),
@@ -155,8 +159,7 @@ export class ElevenLabsAudioAdapter<
       ...(options.duration != null && !music.compositionPlan
         ? { musicLengthMs: Math.round(options.duration * 1000) }
         : {}),
-      // See speech.ts — widened output format cast back to SDK's closed union.
-      ...(outputFormat ? { outputFormat: outputFormat as never } : {}),
+      ...(outputFormat ? { outputFormat } : {}),
       ...(music.seed != null ? { seed: music.seed } : {}),
       ...(music.forceInstrumental != null
         ? { forceInstrumental: music.forceInstrumental }
@@ -172,17 +175,19 @@ export class ElevenLabsAudioAdapter<
   private async runSoundEffects(
     options: AudioGenerationOptions<ElevenLabsAudioProviderOptions>,
   ): Promise<AudioGenerationResult> {
+    // Gated by isElevenLabsSoundEffectsModel() in generateAudio().
+    const modelId = this.model as ElevenLabsSoundEffectsModel
     const sfx = (options.modelOptions ??
       {}) as ElevenLabsSoundEffectsProviderOptions
     const outputFormat = sfx.outputFormat
 
     const stream = await this.client.textToSoundEffects.convert({
       text: options.prompt,
-      modelId: this.model,
+      modelId,
       ...(options.duration != null
         ? { durationSeconds: options.duration }
         : {}),
-      ...(outputFormat ? { outputFormat: outputFormat as never } : {}),
+      ...(outputFormat ? { outputFormat } : {}),
       ...(sfx.promptInfluence != null
         ? { promptInfluence: sfx.promptInfluence }
         : {}),

@@ -1,9 +1,9 @@
+import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
+
 /**
- * ElevenLabs model identifiers exposed as `union | (string & {})` so callers
- * get autocomplete but can still pass any custom or newly-released model.
- *
- * The lists are non-exhaustive on purpose — ElevenLabs ships new model IDs
- * more often than we cut a release.
+ * ElevenLabs model identifiers. The lists below are the source of truth —
+ * callers are blocked from passing unknown model IDs. Keep them in sync with
+ * the ElevenLabs SDK via the automated update pipeline.
  */
 
 /**
@@ -20,9 +20,7 @@ export const ELEVENLABS_TTS_MODELS = [
   'eleven_monolingual_v1',
 ] as const
 
-export type ElevenLabsTTSModel =
-  | (typeof ELEVENLABS_TTS_MODELS)[number]
-  | (string & {})
+export type ElevenLabsTTSModel = (typeof ELEVENLABS_TTS_MODELS)[number]
 
 /**
  * Audio generation models — music (`music_v1`) + sound effects
@@ -38,23 +36,24 @@ export const ELEVENLABS_AUDIO_MODELS = [
   'eleven_text_to_sound_v1',
 ] as const
 
-export type ElevenLabsAudioModel =
-  | (typeof ELEVENLABS_AUDIO_MODELS)[number]
-  | (string & {})
+export type ElevenLabsAudioModel = (typeof ELEVENLABS_AUDIO_MODELS)[number]
 
 /** Music models within the audio family. */
-export type ElevenLabsMusicModel = 'music_v1' | (string & {})
+export type ElevenLabsMusicModel = 'music_v1'
 /** SFX models within the audio family. */
 export type ElevenLabsSoundEffectsModel =
   | 'eleven_text_to_sound_v2'
   | 'eleven_text_to_sound_v1'
-  | (string & {})
 
-export function isElevenLabsMusicModel(model: string): boolean {
+export function isElevenLabsMusicModel(
+  model: string,
+): model is ElevenLabsMusicModel {
   return model === 'music_v1'
 }
 
-export function isElevenLabsSoundEffectsModel(model: string): boolean {
+export function isElevenLabsSoundEffectsModel(
+  model: string,
+): model is ElevenLabsSoundEffectsModel {
   return model.startsWith('eleven_text_to_sound_')
 }
 
@@ -68,36 +67,13 @@ export const ELEVENLABS_TRANSCRIPTION_MODELS = [
 ] as const
 
 export type ElevenLabsTranscriptionModel =
-  | (typeof ELEVENLABS_TRANSCRIPTION_MODELS)[number]
-  | (string & {})
+  (typeof ELEVENLABS_TRANSCRIPTION_MODELS)[number]
 
 /**
  * Supported `output_format` strings, encoded as `codec_samplerate[_bitrate]`.
- *
- * ElevenLabs accepts any valid combination — the listed literals are the
- * common ones and the `(string & {})` union lets callers pass arbitrary
- * formats while still autocompleting the defaults.
+ * Aliased to the SDK's `AllowedOutputFormats` so the list stays in sync
+ * automatically whenever the `@elevenlabs/elevenlabs-js` dependency is bumped.
  *
  * @see https://elevenlabs.io/docs/api-reference/text-to-speech/convert
  */
-export type ElevenLabsOutputFormat =
-  | 'mp3_22050_32'
-  | 'mp3_44100_32'
-  | 'mp3_44100_64'
-  | 'mp3_44100_96'
-  | 'mp3_44100_128'
-  | 'mp3_44100_192'
-  | 'pcm_8000'
-  | 'pcm_16000'
-  | 'pcm_22050'
-  | 'pcm_24000'
-  | 'pcm_44100'
-  | 'pcm_48000'
-  | 'ulaw_8000'
-  | 'alaw_8000'
-  | 'opus_48000_32'
-  | 'opus_48000_64'
-  | 'opus_48000_96'
-  | 'opus_48000_128'
-  | 'opus_48000_192'
-  | (string & {})
+export type ElevenLabsOutputFormat = ElevenLabs.AllowedOutputFormats
