@@ -285,9 +285,28 @@ export async function toJSONResponse(
   init?: ResponseInit & { abortController?: AbortController },
 ): Promise<Response> {
   const { abortController, headers, ...rest } = init ?? {}
+
+  // Honor a pre-aborted signal: don't drain the stream at all, throw the
+  // caller's abort reason (or a synthesized AbortError) so behavior matches
+  // the SSE / HTTP-stream variants, which both short-circuit on aborted.
+  if (abortController?.signal.aborted) {
+    throw (
+      abortController.signal.reason ??
+      new DOMException('The operation was aborted', 'AbortError')
+    )
+  }
+
   const chunks: Array<StreamChunk> = []
   try {
     for await (const chunk of stream) {
+      // Honor mid-drain abort: break out early rather than over-draining an
+      // upstream that may not itself honor the signal.
+      if (abortController?.signal.aborted) {
+        throw (
+          abortController.signal.reason ??
+          new DOMException('The operation was aborted', 'AbortError')
+        )
+      }
       chunks.push(chunk)
     }
   } catch (error) {

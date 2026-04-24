@@ -942,4 +942,52 @@ describe('toJSONResponse', () => {
     ).rejects.toThrow('upstream failure')
     expect(abortSpy).toHaveBeenCalledOnce()
   })
+
+  it('throws immediately without draining when abortController is pre-aborted', async () => {
+    const abortController = new AbortController()
+    abortController.abort()
+
+    let pulled = 0
+    async function* infinite(): AsyncGenerator<StreamChunk> {
+      while (true) {
+        pulled++
+        yield {
+          type: 'RUN_STARTED',
+          runId: 'r1',
+          model: 'test',
+          timestamp: 1,
+        } as StreamChunk
+      }
+    }
+
+    await expect(
+      toJSONResponse(infinite(), { abortController }),
+    ).rejects.toThrow()
+    expect(pulled).toBe(0)
+  })
+
+  it('stops draining and throws when aborted mid-stream', async () => {
+    const abortController = new AbortController()
+    let pulled = 0
+    async function* slow(): AsyncGenerator<StreamChunk> {
+      while (true) {
+        pulled++
+        yield {
+          type: 'RUN_STARTED',
+          runId: `r${pulled}`,
+          model: 'test',
+          timestamp: pulled,
+        } as StreamChunk
+        if (pulled === 2) abortController.abort()
+        // Let the microtask queue flush so the signal is observed next iter.
+        await Promise.resolve()
+      }
+    }
+
+    await expect(
+      toJSONResponse(slow(), { abortController }),
+    ).rejects.toThrow()
+    // Bounded: should not have pulled an unbounded number of items after abort.
+    expect(pulled).toBeLessThan(10)
+  })
 })

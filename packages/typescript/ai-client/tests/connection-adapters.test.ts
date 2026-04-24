@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchHttpStream,
+  fetchJSON,
   fetchServerSentEvents,
   normalizeConnectionAdapter,
   rpcStream,
@@ -1024,6 +1025,177 @@ describe('connection-adapters', () => {
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
       )
+    })
+  })
+
+  describe('fetchJSON', () => {
+    const jsonOk = (payload: unknown, init: ResponseInit = { status: 200 }) =>
+      ({
+        ok: (init.status ?? 200) >= 200 && (init.status ?? 200) < 300,
+        status: init.status ?? 200,
+        statusText: init.statusText ?? 'OK',
+        json: async () => payload,
+      }) as unknown as Response
+
+    it('drains a JSON array body into chunks', async () => {
+      const payload = [
+        asChunk({
+          type: 'RUN_STARTED',
+          runId: 'r1',
+          model: 'test',
+          timestamp: 1,
+        }),
+        asChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'm1',
+          model: 'test',
+          timestamp: 2,
+          delta: 'Hi',
+          content: 'Hi',
+        }),
+        asChunk({
+          type: 'RUN_FINISHED',
+          runId: 'r1',
+          model: 'test',
+          timestamp: 3,
+        }),
+      ]
+      fetchMock.mockResolvedValue(jsonOk(payload))
+
+      const adapter = fetchJSON('/api/chat')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect([
+        { role: 'user', content: 'Hi' },
+      ])) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toEqual(payload)
+    })
+
+    it('throws on a non-2xx response', async () => {
+      fetchMock.mockResolvedValue(
+        jsonOk(null, { status: 500, statusText: 'Internal Server Error' }),
+      )
+
+      const adapter = fetchJSON('/api/chat')
+
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'x' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(/500/)
+    })
+
+    it('throws a descriptive error when response body is not an array', async () => {
+      fetchMock.mockResolvedValue(jsonOk({ message: 'not an array' }))
+
+      const adapter = fetchJSON('/api/chat')
+
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'x' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(/toJSONResponse/)
+    })
+
+    it('resolves url-as-function at call time', async () => {
+      fetchMock.mockResolvedValue(jsonOk([]))
+
+      const getUrl = vi.fn(() => '/api/dynamic')
+      const adapter = fetchJSON(getUrl)
+      for await (const _ of adapter.connect([
+        { role: 'user', content: 'x' },
+      ])) {
+        // drain
+      }
+
+      expect(getUrl).toHaveBeenCalledOnce()
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/dynamic',
+        expect.any(Object),
+      )
+    })
+
+    it('resolves options-as-async-function at call time', async () => {
+      fetchMock.mockResolvedValue(jsonOk([]))
+
+      const getOptions = vi.fn(
+        async () =>
+          ({
+            headers: { 'X-Custom': 'yes' },
+            body: { runId: 'abc' },
+          }) as const,
+      )
+      const adapter = fetchJSON('/api/chat', getOptions)
+      for await (const _ of adapter.connect([
+        { role: 'user', content: 'x' },
+      ])) {
+        // drain
+      }
+
+      expect(getOptions).toHaveBeenCalledOnce()
+      const [, init] = fetchMock.mock.calls[0]!
+      expect(init.headers).toMatchObject({ 'X-Custom': 'yes' })
+      const parsed = JSON.parse(init.body as string) as {
+        runId?: string
+      }
+      expect(parsed.runId).toBe('abc')
+    })
+
+    it('merges options.body into the POST body', async () => {
+      fetchMock.mockResolvedValue(jsonOk([]))
+
+      const adapter = fetchJSON('/api/chat', { body: { extra: 42 } })
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'x' }],
+        { sessionId: 'sess' },
+      )) {
+        // drain
+      }
+
+      const [, init] = fetchMock.mock.calls[0]!
+      const body = JSON.parse(init.body as string) as Record<string, unknown>
+      expect(body).toMatchObject({
+        messages: expect.any(Array),
+        data: { sessionId: 'sess' },
+        extra: 42,
+      })
+    })
+
+    it('honors a custom fetchClient override', async () => {
+      const customFetch = vi.fn().mockResolvedValue(jsonOk([]))
+
+      const adapter = fetchJSON('/api/chat', { fetchClient: customFetch })
+      for await (const _ of adapter.connect([
+        { role: 'user', content: 'x' },
+      ])) {
+        // drain
+      }
+
+      expect(customFetch).toHaveBeenCalledOnce()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('propagates the abortSignal to fetch', async () => {
+      fetchMock.mockResolvedValue(jsonOk([]))
+      const controller = new AbortController()
+
+      const adapter = fetchJSON('/api/chat')
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'x' }],
+        undefined,
+        controller.signal,
+      )) {
+        // drain
+      }
+
+      const [, init] = fetchMock.mock.calls[0]!
+      expect(init.signal).toBe(controller.signal)
     })
   })
 })
