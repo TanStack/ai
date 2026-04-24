@@ -401,11 +401,12 @@ async function* runStreamingVideoGeneration<
 
     throw new Error('Video generation timed out')
   } catch (error: unknown) {
+    const payload = toRunErrorPayload(error, 'Video generation failed')
     logger.errors('generateVideo activity failed', {
-      error,
+      message: payload.message,
+      code: payload.code,
       source: 'generateVideo',
     })
-    const payload = toRunErrorPayload(error, 'Video generation failed')
     yield {
       type: 'RUN_ERROR',
       runId,

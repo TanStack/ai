@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   OllamaTextAdapter,
   createOllamaChat,
@@ -6,6 +7,8 @@ import {
 } from '../src/adapters/text'
 import type { Mock } from 'vitest'
 import type { StreamChunk, Tool } from '@tanstack/ai'
+
+const testLogger = resolveDebugOption(false)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let chatMock: Mock<(...args: Array<any>) => any>
@@ -109,6 +112,7 @@ describe('OllamaTextAdapter.chatStream (content streaming)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
       }),
@@ -161,6 +165,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'find cats' }],
         tools: [searchTool],
@@ -205,6 +210,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
+        logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'find' }],
         tools: [searchTool],
@@ -230,6 +236,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
         tools: [searchTool],
@@ -260,6 +267,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const adapter = createOllamaChat('llama3.2')
     await collectStream(
       adapter.chatStream({
+        logger: testLogger,
         model: 'llama3.2',
         messages: [{ role: 'user', content: 'hi' }],
       }),
@@ -276,7 +284,10 @@ describe('OllamaTextAdapter.structuredOutput', () => {
     })
     const adapter = createOllamaChat('llama3.2')
     const result = await adapter.structuredOutput({
-      chatOptions: { messages: [{ role: 'user', content: 'q' }] },
+      chatOptions: {
+        logger: testLogger,
+        messages: [{ role: 'user', content: 'q' }],
+      },
       outputSchema: {
         type: 'object',
         properties: { result: { type: 'number' } },
@@ -293,7 +304,10 @@ describe('OllamaTextAdapter.structuredOutput', () => {
     const adapter = createOllamaChat('llama3.2')
     await expect(
       adapter.structuredOutput({
-        chatOptions: { messages: [{ role: 'user', content: 'q' }] },
+        chatOptions: {
+          logger: testLogger,
+          messages: [{ role: 'user', content: 'q' }],
+        },
         outputSchema: { type: 'object', properties: {} },
       } as any),
     ).rejects.toThrow(/Failed to parse structured output/)
@@ -304,7 +318,10 @@ describe('OllamaTextAdapter.structuredOutput', () => {
     const adapter = createOllamaChat('llama3.2')
     await expect(
       adapter.structuredOutput({
-        chatOptions: { messages: [{ role: 'user', content: 'q' }] },
+        chatOptions: {
+          logger: testLogger,
+          messages: [{ role: 'user', content: 'q' }],
+        },
         outputSchema: { type: 'object', properties: {} },
       } as any),
     ).rejects.toThrow(/Structured output generation failed.*network down/)
