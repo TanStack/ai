@@ -895,7 +895,8 @@ async function* translateInteractionEvents(
 function camelizeDeltaType(type: string): string {
   const [first, ...rest] = type.split('_')
   return (
-    (first ?? '') + rest.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
+    (first ?? '') +
+    rest.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
   )
 }
 
