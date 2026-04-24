@@ -53,7 +53,9 @@ describe('grokRealtimeToken expires_at unit-safety', () => {
     const seconds = 1_700_000_000 // 2023-11-14 in seconds
     globalThis.fetch = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(makeSessionResponse(seconds)) as unknown as typeof fetch
+      .mockResolvedValue(
+        makeSessionResponse(seconds),
+      ) as unknown as typeof fetch
 
     const token = await realtimeToken({ adapter: grokRealtimeToken() })
 

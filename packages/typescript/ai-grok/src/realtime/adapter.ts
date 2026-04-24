@@ -201,8 +201,7 @@ async function createWebRTCConnection(
     // doesn't end up as "[object Event]".
     const rtcError = (error as { error?: { message?: string } }).error
     const msg =
-      rtcError?.message ??
-      (error instanceof Event ? error.type : String(error))
+      rtcError?.message ?? (error instanceof Event ? error.type : String(error))
     const dcErr = new Error(`Data channel error: ${msg}`)
     if (!dataChannelOpened) {
       rejectDataChannelReady?.(dcErr)
@@ -216,9 +215,7 @@ async function createWebRTCConnection(
     // teardown, there's nothing to do here.
     if (isTornDown) return
     if (!dataChannelOpened) {
-      rejectDataChannelReady?.(
-        new Error('Data channel closed before opening'),
-      )
+      rejectDataChannelReady?.(new Error('Data channel closed before opening'))
     }
   }
 
@@ -246,7 +243,9 @@ async function createWebRTCConnection(
       if (!isTornDown) {
         emit('status_change', {
           status:
-            state === 'failed' ? ('error' as RealtimeStatus) : ('idle' as RealtimeStatus),
+            state === 'failed'
+              ? ('error' as RealtimeStatus)
+              : ('idle' as RealtimeStatus),
         })
       }
       if (!dataChannelOpened) {
@@ -281,9 +280,7 @@ async function createWebRTCConnection(
     })
     if (
       !dataChannelOpened &&
-      (state === 'failed' ||
-        state === 'closed' ||
-        state === 'disconnected')
+      (state === 'failed' || state === 'closed' || state === 'disconnected')
     ) {
       const message =
         state === 'failed'
@@ -666,9 +663,7 @@ async function createWebRTCConnection(
         // switch from running for the rest of the session.
         const raw = event.error
         const errorObj =
-          raw && typeof raw === 'object'
-            ? (raw as Record<string, unknown>)
-            : {}
+          raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
         const message =
           typeof errorObj.message === 'string'
             ? errorObj.message

@@ -102,10 +102,7 @@ function RealtimePage() {
     // the OpenAI-compatible realtime API requires an explicit mime.
     if (!file.type) {
       // eslint-disable-next-line no-console
-      console.error(
-        '[realtime] Cannot send image: file has no MIME type',
-        file,
-      )
+      console.error('[realtime] Cannot send image: file has no MIME type', file)
       window.alert(
         'Could not determine the image type. Please try a different file.',
       )
@@ -128,10 +125,7 @@ function RealtimePage() {
       // string) if someone changes the readAs* method later. Guard both.
       if (result == null || typeof result !== 'string') {
         // eslint-disable-next-line no-console
-        console.error(
-          '[realtime] FileReader result was not a string',
-          result,
-        )
+        console.error('[realtime] FileReader result was not a string', result)
         window.alert('Failed to read image file: unexpected reader output.')
         resetInput()
         return

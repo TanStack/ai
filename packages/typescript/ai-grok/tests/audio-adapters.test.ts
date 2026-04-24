@@ -348,9 +348,9 @@ describe('GrokTranscriptionAdapter', () => {
   })
 
   it('surfaces modelOptions.inverse_text_normalization as the wire-level `format` field', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      mockSTTResponse({ text: 'hi', language: 'en' }),
-    )
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(mockSTTResponse({ text: 'hi', language: 'en' }))
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     const adapter = new GrokTranscriptionAdapter(
@@ -371,9 +371,9 @@ describe('GrokTranscriptionAdapter', () => {
   })
 
   it('threads modelOptions.audio_format through to toAudioFile for bare base64', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      mockSTTResponse({ text: 'hi', language: 'en' }),
-    )
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(mockSTTResponse({ text: 'hi', language: 'en' }))
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     const adapter = new GrokTranscriptionAdapter(
