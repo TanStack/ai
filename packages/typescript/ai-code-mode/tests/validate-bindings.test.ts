@@ -267,9 +267,7 @@ describe('warnIfBindingsExposeSecrets — nested schema recursion', () => {
       },
     ])
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('accessToken'),
-    )
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('accessToken'))
     warnSpy.mockRestore()
   })
 
