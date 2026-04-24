@@ -24,8 +24,13 @@ This will be enforced on the GenerateContentRequest.contents and GenerateContent
 
 export interface GeminiCommonConfigOptions {
   /**
-   * Configuration options for model generation and outputs.
+   * Controls the randomness of the output. Range: [0.0, 2.0]. Higher values produce more random output.
    */
+  temperature?: number
+  /**
+   * Nucleus sampling probability threshold. Range: (0.0, 1.0). Alter this or temperature, not both.
+   */
+  topP?: number
   /**
    * The set of character sequences (up to 5) that will stop output generation. If specified, the API will stop at the first appearance of a stop_sequence. The stop sequence will not be included as part of the response.
    */

@@ -442,10 +442,7 @@ export class GroqTextAdapter<
     options: TextOptions,
   ): ChatCompletionCreateParamsStreaming {
     const modelOptions = options.modelOptions as
-      | Omit<
-          InternalTextProviderOptions,
-          'max_tokens' | 'tools' | 'temperature' | 'input' | 'top_p'
-        >
+      | Omit<InternalTextProviderOptions, 'tools'>
       | undefined
 
     if (modelOptions) {
@@ -475,9 +472,6 @@ export class GroqTextAdapter<
     return {
       model: options.model,
       messages,
-      temperature: options.temperature,
-      max_tokens: options.maxTokens,
-      top_p: options.topP,
       tools,
       stream: true,
     }

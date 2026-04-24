@@ -846,15 +846,7 @@ export class OpenAITextAdapter<
    */
   private mapTextOptionsToOpenAI(options: TextOptions) {
     const modelOptions = options.modelOptions as
-      | Omit<
-          InternalTextProviderOptions,
-          | 'max_output_tokens'
-          | 'tools'
-          | 'metadata'
-          | 'temperature'
-          | 'input'
-          | 'top_p'
-        >
+      | Omit<InternalTextProviderOptions, 'tools' | 'metadata' | 'input'>
       | undefined
     const input = this.convertMessagesToInput(options.messages)
     if (modelOptions) {
@@ -874,9 +866,6 @@ export class OpenAITextAdapter<
       'stream'
     > = {
       model: options.model,
-      temperature: options.temperature,
-      max_output_tokens: options.maxTokens,
-      top_p: options.topP,
       metadata: options.metadata,
       instructions: options.systemPrompts?.join('\n'),
       ...modelOptions,
