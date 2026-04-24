@@ -116,7 +116,7 @@ Gemini's [Interactions API](https://ai.google.dev/gemini-api/docs/interactions) 
 
 The `geminiTextInteractions` adapter routes through `client.interactions.create` and surfaces the server-assigned interaction id via an AG-UI `CUSTOM` event (`name: 'gemini.interactionId'`) emitted just before `RUN_FINISHED`, so you can chain turns.
 
-> **⚠️ Experimental.** Google marks the Interactions API as Beta and explicitly flags possible breaking changes until it reaches general availability. Only text output and function tools are supported on this adapter today — use `geminiText()` for built-in Gemini tools (google_search, code_execution, url_context, file_search) or for any path you need stability guarantees on.
+> **⚠️ Experimental.** Google marks the Interactions API as Beta and explicitly flags possible breaking changes until it reaches general availability. Text output, function tools, and the built-in tools `google_search`, `code_execution`, `url_context`, `file_search`, and `computer_use` are supported. `google_search_retrieval`, `google_maps`, and `mcp_server` still throw on this adapter — use `geminiText()` for those or wait for follow-up work.
 
 ### Basic Usage
 
@@ -155,7 +155,7 @@ for await (const chunk of chat({
 | Underlying endpoint | `models:generateContent` | `interactions:create` |
 | Conversation state | Stateless — send full history each turn | Stateful — server retains transcript via `previous_interaction_id` |
 | Provider options shape | camelCase (`generationConfig`, `safetySettings`) | snake_case (`generation_config`, `response_modalities`, `previous_interaction_id`) |
-| Built-in tools | `google_search`, `code_execution`, `url_context`, `file_search`, etc. | Function tools only (for now) |
+| Built-in tools | `google_search`, `code_execution`, `url_context`, `file_search`, `google_maps`, `google_search_retrieval`, `computer_use` | `google_search`, `code_execution`, `url_context`, `file_search`, `computer_use` (activity surfaced via `CUSTOM` events) |
 | Stability | GA | Experimental (Google Beta) |
 
 ### Provider Options
@@ -210,7 +210,8 @@ for await (const chunk of stream) {
 - **Tools, `system_instruction`, and `generation_config` are interaction-scoped.** Per Google's docs these are NOT inherited from a prior interaction via `previous_interaction_id` — pass them again on every turn you need them.
 - `store: false` is incompatible with `previous_interaction_id` (no state to recall) and with `background: true`.
 - Retention (as of the time of writing): **55 days on the Paid Tier, 1 day on the Free Tier.** See [Google's Interactions API docs](https://ai.google.dev/gemini-api/docs/interactions) for current retention policy.
-- Built-in Gemini tools (google_search, code_execution, etc.) throw a clear error today — their request shape on the Interactions API differs from `generateContent` and is tracked as follow-up work. Use `geminiText` for those.
+- Built-in tools in scope (`google_search`, `code_execution`, `url_context`, `file_search`, `computer_use`) are wired through; activity streams back as AG-UI `CUSTOM` events — `gemini.googleSearchCall` / `gemini.googleSearchResult` (and the matching `codeExecutionCall`/`Result`, `urlContextCall`/`Result`, `fileSearchCall`/`Result`) — carrying the raw Interactions delta. Function-tool `TOOL_CALL_*` events are unchanged, and `finishReason` stays `stop` when only built-in tools ran.
+- `google_search_retrieval`, `google_maps`, and `mcp_server` still throw a targeted error on this adapter. Use `geminiText()` for the first two, or wait for a dedicated follow-up for `mcp_server`.
 - Image and audio output via Interactions aren't routed through this adapter yet — it's text-only. Use `geminiImage` / `geminiSpeech` for non-text generation for now.
 
 ## Model Options
