@@ -22,7 +22,10 @@ const GROK_REALTIME_URL = 'https://api.x.ai/v1/realtime'
  * with readers that return `undefined` when the shape doesn't match, so a
  * malformed frame can't throw a TypeError inside `handleServerEvent`.
  */
-function readString(obj: Record<string, unknown>, key: string): string | undefined {
+function readString(
+  obj: Record<string, unknown>,
+  key: string,
+): string | undefined {
   const value = obj[key]
   return typeof value === 'string' ? value : undefined
 }
@@ -245,8 +248,7 @@ async function createWebRTCConnection(
     const errorRecord = error as unknown as Record<string, unknown>
     const rtcError = readObject(errorRecord, 'error')
     const msg =
-      (rtcError && readString(rtcError, 'message')) ??
-      (error.type || 'unknown')
+      (rtcError && readString(rtcError, 'message')) ?? (error.type || 'unknown')
     const dcErr = new Error(`Data channel error: ${msg}`)
     if (!dataChannelOpened) {
       rejectDataChannelReady?.(dcErr)
@@ -260,9 +262,7 @@ async function createWebRTCConnection(
     // teardown, there's nothing to do here.
     if (isTornDown) return
     if (!dataChannelOpened) {
-      rejectDataChannelReady?.(
-        new Error('Data channel closed before opening'),
-      )
+      rejectDataChannelReady?.(new Error('Data channel closed before opening'))
     }
   }
 
@@ -290,7 +290,9 @@ async function createWebRTCConnection(
       if (!isTornDown) {
         emit('status_change', {
           status:
-            state === 'failed' ? ('error' as RealtimeStatus) : ('idle' as RealtimeStatus),
+            state === 'failed'
+              ? ('error' as RealtimeStatus)
+              : ('idle' as RealtimeStatus),
         })
       }
       if (!dataChannelOpened) {
@@ -325,9 +327,7 @@ async function createWebRTCConnection(
     })
     if (
       !dataChannelOpened &&
-      (state === 'failed' ||
-        state === 'closed' ||
-        state === 'disconnected')
+      (state === 'failed' || state === 'closed' || state === 'disconnected')
     ) {
       const message =
         state === 'failed'

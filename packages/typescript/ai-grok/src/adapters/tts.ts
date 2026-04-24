@@ -191,7 +191,10 @@ function pickCodec(
   }
 }
 
-export function getContentType(codec: GrokTTSCodec, sampleRate: number): string {
+export function getContentType(
+  codec: GrokTTSCodec,
+  sampleRate: number,
+): string {
   switch (codec) {
     case 'mp3':
       return 'audio/mpeg'
