@@ -85,7 +85,7 @@ export class OpenAICompatibleResponsesTextAdapter<
     // We assign our own indices as we encounter unique tool call IDs.
     const toolCallMetadata = new Map<
       string,
-      { index: number; name: string; callId: string; started: boolean }
+      { index: number; name: string; started: boolean }
     >()
     const requestParams = this.mapOptionsToRequest(options)
     const timestamp = Date.now()
@@ -281,7 +281,7 @@ export class OpenAICompatibleResponsesTextAdapter<
     stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
     toolCallMetadata: Map<
       string,
-      { index: number; name: string; callId: string; started: boolean }
+      { index: number; name: string; started: boolean }
     >,
     options: TextOptions,
     aguiState: {
@@ -563,33 +563,27 @@ export class OpenAICompatibleResponsesTextAdapter<
         // handle output_item.added to capture function call metadata (name)
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
-          if (item.type === 'function_call') {
-            // call_id is the required correlation ID for function_call_output.
-            // id is the internal item ID used by delta/done events (item_id).
-            // Use id when available (for the metadata map keyed by item_id),
-            // falling back to call_id for providers that omit id.
-            const itemId = item.id || item.call_id
-            const callId = item.call_id || item.id || ''
-
-            // Store the function name for later use
-            if (!toolCallMetadata.has(itemId)) {
-              toolCallMetadata.set(itemId, {
+          if (item.type === 'function_call' && item.id) {
+            // Store the function name for later use, keyed by the item id that
+            // subsequent delta/done events reference via `item_id`.
+            if (!toolCallMetadata.has(item.id)) {
+              toolCallMetadata.set(item.id, {
                 index: chunk.output_index,
                 name: item.name || '',
-                callId,
                 started: false,
               })
             }
             // Emit TOOL_CALL_START
             yield asChunk({
               type: 'TOOL_CALL_START',
-              toolCallId: callId,
+              toolCallId: item.id,
+              toolCallName: item.name || '',
               toolName: item.name || '',
               model: model || options.model,
               timestamp,
               index: chunk.output_index,
             })
-            toolCallMetadata.get(itemId)!.started = true
+            toolCallMetadata.get(item.id)!.started = true
           }
         }
 
@@ -601,7 +595,7 @@ export class OpenAICompatibleResponsesTextAdapter<
           const metadata = toolCallMetadata.get(chunk.item_id)
           yield asChunk({
             type: 'TOOL_CALL_ARGS',
-            toolCallId: metadata?.callId || chunk.item_id,
+            toolCallId: chunk.item_id,
             model: model || options.model,
             timestamp,
             delta: chunk.delta,
@@ -615,19 +609,20 @@ export class OpenAICompatibleResponsesTextAdapter<
           // Get the function name from metadata (captured in output_item.added)
           const metadata = toolCallMetadata.get(item_id)
           const name = metadata?.name || ''
-          const callId = metadata?.callId || item_id
 
           // Parse arguments
           let parsedInput: unknown = {}
           try {
-            parsedInput = chunk.arguments ? JSON.parse(chunk.arguments) : {}
+            const parsed = chunk.arguments ? JSON.parse(chunk.arguments) : {}
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = {}
           }
 
           yield asChunk({
             type: 'TOOL_CALL_END',
-            toolCallId: callId,
+            toolCallId: item_id,
+            toolCallName: name,
             toolName: name,
             model: model || options.model,
             timestamp,

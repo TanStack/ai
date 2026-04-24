@@ -334,6 +334,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
               yield asChunk({
                 type: 'TOOL_CALL_START',
                 toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
@@ -376,6 +377,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
               yield asChunk({
                 type: 'TOOL_CALL_END',
                 toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
