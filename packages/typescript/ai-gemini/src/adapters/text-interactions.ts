@@ -103,17 +103,17 @@ export class GeminiTextInteractionsAdapter<
         this.name,
       )
     } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'An unknown error occurred during the interactions stream.'
       yield asChunk({
         type: 'RUN_ERROR',
         runId,
         model: options.model,
         timestamp,
-        error: {
-          message:
-            error instanceof Error
-              ? error.message
-              : 'An unknown error occurred during the interactions stream.',
-        },
+        message,
+        error: { message },
       })
     }
   }
@@ -742,15 +742,16 @@ async function* translateInteractionEvents(
       }
 
       case 'error': {
+        const message = event.error?.message ?? 'Unknown error'
+        const code = event.error?.code?.toString()
         yield asChunk({
           type: 'RUN_ERROR',
           runId,
           model,
           timestamp,
-          error: {
-            message: event.error?.message ?? 'Unknown error',
-            code: event.error?.code?.toString(),
-          },
+          message,
+          code,
+          error: { message, code },
         })
         return
       }

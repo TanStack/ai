@@ -419,8 +419,8 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const err = chunks.find((c) => c.type === 'RUN_ERROR') as any
     expect(err).toBeDefined()
-    expect(err.error.message).toMatch(/image\/bmp/)
-    expect(err.error.message).toMatch(/image\/png/)
+    expect(err.message).toMatch(/image\/bmp/)
+    expect(err.message).toMatch(/image\/png/)
   })
 
   it('rejects built-in Gemini tools with a clear error', async () => {
@@ -441,8 +441,8 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const err = chunks.find((c) => c.type === 'RUN_ERROR') as any
     expect(err).toBeDefined()
-    expect(err.error.message).toMatch(/google_search/)
-    expect(err.error.message).toMatch(/Interactions API/)
+    expect(err.message).toMatch(/google_search/)
+    expect(err.message).toMatch(/Interactions API/)
   })
 
   it('emits RUN_ERROR on an upstream error event', async () => {
@@ -469,8 +469,8 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const err = chunks.find((c) => c.type === 'RUN_ERROR') as any
     expect(err).toBeDefined()
-    expect(err.error.message).toBe('boom')
-    expect(err.error.code).toBe('500')
+    expect(err.message).toBe('boom')
+    expect(err.code).toBe('500')
   })
 
   it('structuredOutput parses JSON text from interaction.outputs', async () => {
