@@ -8,7 +8,7 @@ import {
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
+import { geminiText, geminiTextInteractions } from '@tanstack/ai-gemini'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
@@ -28,6 +28,7 @@ type Provider =
   | 'openai'
   | 'anthropic'
   | 'gemini'
+  | 'gemini-interactions'
   | 'ollama'
   | 'grok'
   | 'groq'
@@ -127,8 +128,10 @@ export const Route = createFileRoute('/api/tanchat')({
 
         // Extract provider and model from data
         const provider: Provider = data?.provider || 'openai'
-        const model: string = data?.model || 'gpt-4o'
+        const model: string = data?.model || 'gpt-5.2'
         const conversationId: string | undefined = data?.conversationId
+        const previousInteractionId: string | undefined =
+          data?.previousInteractionId
 
         // Pre-define typed adapter configurations with full type inference
         // Model is passed to the adapter factory function for type-safe autocomplete
@@ -139,12 +142,14 @@ export const Route = createFileRoute('/api/tanchat')({
           anthropic: () =>
             createChatOptions({
               adapter: anthropicText(
-                (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+                (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
               ),
             }),
           openrouter: () =>
             createChatOptions({
-              adapter: openRouterText('openai/gpt-5.1'),
+              adapter: openRouterText(
+                (model || 'openai/gpt-5.2') as 'openai/gpt-5.2',
+              ),
               modelOptions: {
                 reasoning: {
                   effort: 'medium',
@@ -154,7 +159,7 @@ export const Route = createFileRoute('/api/tanchat')({
           gemini: () =>
             createChatOptions({
               adapter: geminiText(
-                (model || 'gemini-2.5-flash') as 'gemini-2.5-flash',
+                (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
               ),
               modelOptions: {
                 thinkingConfig: {
@@ -163,26 +168,35 @@ export const Route = createFileRoute('/api/tanchat')({
                 },
               },
             }),
+          'gemini-interactions': () =>
+            createChatOptions({
+              adapter: geminiTextInteractions(
+                (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
+              ),
+              modelOptions: {
+                previous_interaction_id: previousInteractionId,
+                store: true,
+              },
+            }),
           grok: () =>
             createChatOptions({
-              adapter: grokText((model || 'grok-3') as 'grok-3'),
+              adapter: grokText((model || 'grok-4.20') as 'grok-4.20'),
               modelOptions: {},
             }),
           groq: () =>
             createChatOptions({
               adapter: groqText(
-                (model ||
-                  'llama-3.3-70b-versatile') as 'llama-3.3-70b-versatile',
+                (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
               ),
             }),
           ollama: () =>
             createChatOptions({
-              adapter: ollamaText((model || 'gpt-oss:120b') as 'gpt-oss:120b'),
+              adapter: ollamaText((model || 'gpt-oss:20b') as 'gpt-oss:20b'),
               modelOptions: { think: 'low', options: { top_k: 1 } },
             }),
           openai: () =>
             createChatOptions({
-              adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
+              adapter: openaiText((model || 'gpt-5.2') as 'gpt-5.2'),
               modelOptions: {},
             }),
         }
@@ -193,20 +207,27 @@ export const Route = createFileRoute('/api/tanchat')({
 
           // Note: We cast to AsyncIterable<StreamChunk> because all chat adapters
           // return streams, but TypeScript sees a union of all possible return types
+          // Gemini's Interactions API rejects tool parameter schemas that
+          // include `anyOf` (e.g. Zod unions), so the guitar tool suite
+          // isn't wired for that provider. Other providers get the full set.
+          const tools =
+            provider === 'gemini-interactions'
+              ? []
+              : [
+                  getGuitars, // Server tool
+                  recommendGuitarToolDef, // No server execute - client will handle
+                  addToCartToolServer,
+                  addToWishListToolDef,
+                  getPersonalGuitarPreferenceToolDef,
+                  // Lazy tools - discovered on demand
+                  compareGuitars,
+                  calculateFinancing,
+                  searchGuitars,
+                ]
+
           const stream = chat({
             ...options,
-
-            tools: [
-              getGuitars, // Server tool
-              recommendGuitarToolDef, // No server execute - client will handle
-              addToCartToolServer,
-              addToWishListToolDef,
-              getPersonalGuitarPreferenceToolDef,
-              // Lazy tools - discovered on demand
-              compareGuitars,
-              calculateFinancing,
-              searchGuitars,
-            ],
+            tools,
             middleware: [loggingMiddleware],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),

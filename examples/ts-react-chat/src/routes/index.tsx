@@ -354,13 +354,29 @@ function ChatPage() {
     Array<{ id: string; base64: string; mimeType: string; preview: string }>
   >([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Session-scoped Gemini Interactions id — the server surfaces it via a
+  // `gemini.interactionId` CUSTOM event, and we send it back as
+  // `previous_interaction_id` on the next turn. State (not ref) so a body
+  // change triggers `useChat` to re-sync the updated body to the client.
+  const [interactionId, setInteractionId] = useState<string | undefined>(
+    undefined,
+  )
+
+  // Reset the interaction id whenever the user switches model/provider so
+  // we don't chain against a stale or wrong-model interaction.
+  useEffect(() => {
+    setInteractionId(undefined)
+  }, [selectedModel.provider, selectedModel.model])
 
   const body = useMemo(
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
+      ...(selectedModel.provider === 'gemini-interactions' && interactionId
+        ? { previousInteractionId: interactionId }
+        : {}),
     }),
-    [selectedModel.provider, selectedModel.model],
+    [selectedModel.provider, selectedModel.model, interactionId],
   )
 
   const {
@@ -380,6 +396,11 @@ function ChatPage() {
         data,
         context.toolCallId ? `(tool call: ${context.toolCallId})` : '',
       )
+      if (eventType === 'gemini.interactionId') {
+        const id = (data as { interactionId?: string } | undefined)
+          ?.interactionId
+        if (id) setInteractionId(id)
+      }
     },
   })
   const [input, setInput] = useState('')
