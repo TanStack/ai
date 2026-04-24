@@ -11,7 +11,7 @@ import type {
   RealtimeToken,
 } from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
+import type { RealtimeAdapter, RealtimeConnection } from './realtime-contract'
 import type { GrokRealtimeOptions } from './types'
 
 const GROK_REALTIME_URL = 'https://api.x.ai/v1/realtime'
