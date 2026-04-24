@@ -10,6 +10,8 @@ import type {
 const GROK_REALTIME_CLIENT_SECRETS_URL =
   'https://api.x.ai/v1/realtime/client_secrets'
 
+const DEFAULT_TOKEN_FETCH_TIMEOUT_MS = 15_000
+
 /**
  * Creates a Grok realtime token adapter.
  *
@@ -46,15 +48,24 @@ export function grokRealtimeToken(
         model,
       })
 
+      // xAI docs (docs.x.ai/developers/rest-api-reference/inference/voice)
+      // specify the body as `{ session: { model } }`. `expires_after` is
+      // available to shorten the default 600s TTL but we don't expose it
+      // yet — the caller can still call `generateToken()` more often if
+      // they want a shorter-lived session.
+      const requestBody: Record<string, unknown> = {
+        session: { model },
+      }
+
+      // Abort the fetch if xAI never responds. Without this the whole
+      // realtime connect flow hangs forever on a dead endpoint.
+      const controller = new AbortController()
+      const timeout = setTimeout(
+        () => controller.abort(new Error('Grok realtime token request timed out')),
+        DEFAULT_TOKEN_FETCH_TIMEOUT_MS,
+      )
+
       try {
-        // xAI docs (docs.x.ai/developers/rest-api-reference/inference/voice)
-        // specify the body as `{ expires_after: { seconds }, session: { model } }`.
-        // `expires_after` defaults to 600s on the server, so we only set it
-        // if the caller overrides; `session.model` is required to pin the
-        // voice agent model for this token.
-        const requestBody: Record<string, unknown> = {
-          session: { model },
-        }
         const response = await fetch(GROK_REALTIME_CLIENT_SECRETS_URL, {
           method: 'POST',
           headers: {
@@ -62,6 +73,7 @@ export function grokRealtimeToken(
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(requestBody),
+          signal: controller.signal,
         })
 
         if (!response.ok) {
@@ -71,20 +83,37 @@ export function grokRealtimeToken(
           )
         }
 
-        const sessionData: GrokRealtimeSessionResponse = await response.json()
+        const sessionData = (await response.json()) as
+          | Partial<GrokRealtimeSessionResponse>
+          | undefined
+
+        // Validate shape before dereferencing — xAI could return an error
+        // envelope with 200 status, or a partial response under protocol drift.
+        const clientSecret = sessionData?.client_secret
+        if (
+          !clientSecret ||
+          typeof clientSecret.value !== 'string' ||
+          typeof clientSecret.expires_at !== 'number' ||
+          !Number.isFinite(clientSecret.expires_at)
+        ) {
+          throw new Error(
+            'Grok realtime session response missing or malformed `client_secret`',
+          )
+        }
+        const sessionModel = sessionData.model ?? model
 
         // xAI docs describe `expires_at` as a unix timestamp in seconds, but
         // in practice different deployments have returned milliseconds. Treat
         // any value that already looks like ms (>1e12 ≈ Sep 2001 in ms) as ms.
-        const raw = sessionData.client_secret.expires_at
+        const raw = clientSecret.expires_at
         const expiresAt = raw > 1e12 ? raw : raw * 1000
 
         return {
           provider: 'grok',
-          token: sessionData.client_secret.value,
+          token: clientSecret.value,
           expiresAt,
           config: {
-            model: sessionData.model,
+            model: sessionModel,
           },
         }
       } catch (error) {
@@ -93,6 +122,8 @@ export function grokRealtimeToken(
           source: 'grok.realtimeToken',
         })
         throw error
+      } finally {
+        clearTimeout(timeout)
       }
     },
   }

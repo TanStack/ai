@@ -12,7 +12,7 @@ import type {
  * from `@tanstack/ai-client`.
  *
  * We duplicate the shapes here (and verify structural compatibility in a
- * dev-only type check — see `realtime-contract.drift-check.ts`) so that
+ * dev-only type check — see `tests/realtime-contract.drift.test-d.ts`) so that
  * `@tanstack/ai-grok` does not impose `@tanstack/ai-client` as a `peerDependency`.
  * Consumers only need `@tanstack/ai-client` at the point where they actually
  * construct a `RealtimeClient`, not when they import this adapter.

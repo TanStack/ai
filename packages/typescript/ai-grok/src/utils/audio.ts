@@ -174,6 +174,32 @@ function extensionFor(mimeType: string): string {
   }
 }
 
+/**
+ * Cross-runtime ArrayBuffer → base64 conversion.
+ *
+ * Uses Node's `Buffer` when available (fastest path on server) and falls
+ * back to `btoa` + chunked `String.fromCharCode` everywhere else (browser,
+ * Cloudflare Workers, Bun, Deno). Chunking is required because a very
+ * large audio buffer spread into `String.fromCharCode(...bytes)` in one
+ * call can hit `Maximum call stack size exceeded`.
+ */
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(buffer).toString('base64')
+  }
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const end = Math.min(i + chunkSize, bytes.length)
+    binary += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, end) as unknown as Array<number>,
+    )
+  }
+  return btoa(binary)
+}
+
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
   let binary: string
   try {

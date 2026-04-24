@@ -8,6 +8,23 @@ import type {
 import type { GrokTranscriptionModel } from '../model-meta'
 import type { GrokTranscriptionProviderOptions } from '../audio/transcription-provider-options'
 
+/**
+ * Grok-specific extension of `TranscriptionWord` that surfaces the extra
+ * fields xAI returns when diarization / confidence are enabled. The base
+ * cross-provider `TranscriptionWord` contract doesn't include these, so
+ * callers who know they're using Grok can narrow with:
+ *
+ * ```ts
+ * const words = result.words as Array<GrokTranscriptionWord> | undefined
+ * ```
+ */
+export interface GrokTranscriptionWord extends TranscriptionWord {
+  /** Model confidence for the word, when xAI returns one. */
+  confidence?: number
+  /** Speaker index, populated when `modelOptions.diarize === true`. */
+  speaker?: number
+}
+
 const DEFAULT_GROK_BASE_URL = 'https://api.x.ai/v1'
 
 /**
@@ -83,8 +100,9 @@ export class GrokTranscriptionAdapter<
       const response = await fetch(`${this.baseURL}/stt`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+          // `defaultHeaders` first so Authorization always wins.
           ...this.defaultHeaders,
+          Authorization: `Bearer ${this.apiKey}`,
         },
         body: form,
       })
@@ -99,11 +117,21 @@ export class GrokTranscriptionAdapter<
       const data = (await response.json()) as GrokSTTResponse
 
       const words: Array<TranscriptionWord> | undefined = data.words?.map(
-        (w) => ({
-          word: w.text,
-          start: w.start,
-          end: w.end,
-        }),
+        (w) => {
+          // Construct a GrokTranscriptionWord so that `confidence` and
+          // `speaker` (when xAI returns them under `diarize` / confidence
+          // mode) are preserved on the result. The returned array is typed
+          // as `Array<TranscriptionWord>` per the cross-provider contract;
+          // callers who want the extras narrow via `as Array<GrokTranscriptionWord>`.
+          const tw: GrokTranscriptionWord = {
+            word: w.text,
+            start: w.start,
+            end: w.end,
+          }
+          if (w.confidence !== undefined) tw.confidence = w.confidence
+          if (w.speaker !== undefined) tw.speaker = w.speaker
+          return tw
+        },
       )
 
       return {

@@ -8,4 +8,4 @@ export {
   makeGrokStructuredOutputCompatible,
   transformNullsToUndefined,
 } from './schema-converter'
-export { toAudioFile } from './audio'
+export { toAudioFile, arrayBufferToBase64 } from './audio'

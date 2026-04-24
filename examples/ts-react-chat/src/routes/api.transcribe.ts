@@ -85,7 +85,7 @@ export const Route = createFileRoute('/api/transcribe')({
             return jsonError(400, {
               error: 'unknown_provider',
               message: err.message,
-              providerId: err.providerId,
+              provider: err.providerId,
               allowedProviders: err.allowedProviders,
             })
           }

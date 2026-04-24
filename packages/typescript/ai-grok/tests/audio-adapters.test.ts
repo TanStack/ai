@@ -300,9 +300,12 @@ describe('GrokTranscriptionAdapter', () => {
     expect(result.text).toBe('hello world')
     expect(result.language).toBe('en')
     expect(result.duration).toBe(1.23)
+    // Grok returns `confidence` per word when the model provides one; we
+    // surface it under `GrokTranscriptionWord` so callers that know they're
+    // using Grok can narrow the result via `as Array<GrokTranscriptionWord>`.
     expect(result.words).toEqual([
-      { word: 'hello', start: 0, end: 0.5 },
-      { word: 'world', start: 0.5, end: 1.0 },
+      { word: 'hello', start: 0, end: 0.5, confidence: 0.9 },
+      { word: 'world', start: 0.5, end: 1.0, confidence: 0.85 },
     ])
   })
 

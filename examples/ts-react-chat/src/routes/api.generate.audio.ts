@@ -86,7 +86,9 @@ export const Route = createFileRoute('/api/generate/audio')({
             return jsonError(400, {
               error: 'unknown_provider',
               message: err.message,
-              providerId: err.providerId,
+              // Use `provider` consistently with the invalid_model_override
+              // branch and the request body's `provider` field.
+              provider: err.providerId,
               allowedProviders: err.allowedProviders,
             })
           }

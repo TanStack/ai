@@ -151,8 +151,13 @@ async function createWebRTCConnection(
   // `providerOptions.inputAudioTranscription = null | false`.
   let hasSentInitialSessionUpdate = false
 
-  const emptyFrequencyData = new Uint8Array(1024)
-  const emptyTimeDomainData = new Uint8Array(2048).fill(128)
+  // Size hints for the fallback buffers returned when an analyser isn't yet
+  // populated. We return a *fresh* `Uint8Array` on each call so a caller
+  // that draws into it (e.g. a canvas visualiser zeroing the buffer) can't
+  // mutate a shared module-level instance for every other consumer.
+  const FALLBACK_FREQUENCY_BIN_COUNT = 1024
+  const FALLBACK_TIME_DOMAIN_SIZE = 2048
+  const FALLBACK_TIME_DOMAIN_FILL = 128
 
   function emit<TEvent extends RealtimeEvent>(
     event: TEvent,
@@ -717,6 +722,14 @@ async function createWebRTCConnection(
       }
 
       case 'conversation.item.truncated':
+        // Assistant playback was interrupted — flip mode back to `listening`
+        // unless the user already called `stopAudioCapture()` (idle). Without
+        // this the visualisation would stay stuck on `speaking` even though
+        // no audio is playing.
+        if (currentMode !== 'idle') {
+          currentMode = 'listening'
+          emit('mode_change', { mode: 'listening' })
+        }
         emit('interrupted', { messageId: currentMessageId ?? undefined })
         break
 
@@ -885,7 +898,24 @@ async function createWebRTCConnection(
         `provider=grok direction=out type=${readString(event, 'type') ?? '<unknown>'}`,
         { frame: event },
       )
-      dataChannel.send(JSON.stringify(event))
+      // Mirror the try/catch in `flushPendingEvents` — `dataChannel.send`
+      // can synchronously throw if the channel flipped to `closing` between
+      // our readyState check and this call, or if `JSON.stringify` chokes
+      // on a caller-supplied payload. Log + emit error instead of letting
+      // the exception propagate up through public `sendText` / `sendImage`
+      // / `updateSession` call sites.
+      try {
+        dataChannel.send(JSON.stringify(event))
+      } catch (error) {
+        logger.errors('grok.realtime sendEvent failed', {
+          error,
+          eventType: readString(event, 'type') ?? '<unknown>',
+          source: 'grok.realtime',
+        })
+        emit('error', {
+          error: error instanceof Error ? error : new Error(String(error)),
+        })
+      }
     } else {
       pendingEvents.push(event)
     }
@@ -1133,28 +1163,34 @@ async function createWebRTCConnection(
         },
 
         getInputFrequencyData() {
-          if (!inputAnalyser) return emptyFrequencyData
+          if (!inputAnalyser) return new Uint8Array(FALLBACK_FREQUENCY_BIN_COUNT)
           const data = new Uint8Array(inputAnalyser.frequencyBinCount)
           inputAnalyser.getByteFrequencyData(data)
           return data
         },
 
         getOutputFrequencyData() {
-          if (!outputAnalyser) return emptyFrequencyData
+          if (!outputAnalyser) return new Uint8Array(FALLBACK_FREQUENCY_BIN_COUNT)
           const data = new Uint8Array(outputAnalyser.frequencyBinCount)
           outputAnalyser.getByteFrequencyData(data)
           return data
         },
 
         getInputTimeDomainData() {
-          if (!inputAnalyser) return emptyTimeDomainData
+          if (!inputAnalyser)
+            return new Uint8Array(FALLBACK_TIME_DOMAIN_SIZE).fill(
+              FALLBACK_TIME_DOMAIN_FILL,
+            )
           const data = new Uint8Array(inputAnalyser.fftSize)
           inputAnalyser.getByteTimeDomainData(data)
           return data
         },
 
         getOutputTimeDomainData() {
-          if (!outputAnalyser) return emptyTimeDomainData
+          if (!outputAnalyser)
+            return new Uint8Array(FALLBACK_TIME_DOMAIN_SIZE).fill(
+              FALLBACK_TIME_DOMAIN_FILL,
+            )
           const data = new Uint8Array(outputAnalyser.fftSize)
           outputAnalyser.getByteTimeDomainData(data)
           return data
