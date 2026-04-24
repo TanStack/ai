@@ -87,21 +87,75 @@ function RealtimePage() {
   // Handle image file selection
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    // Always reset the input up front so the same file can be selected
+    // again even if we bail below.
+    const resetInput = () => {
+      e.target.value = ''
+    }
+    if (!file) {
+      resetInput()
+      return
+    }
+
+    // Bail if the file has no MIME type — in practice an empty `type` is
+    // a sign of a corrupt file or a browser that couldn't sniff it, and
+    // the OpenAI-compatible realtime API requires an explicit mime.
+    if (!file.type) {
+      // eslint-disable-next-line no-console
+      console.error(
+        '[realtime] Cannot send image: file has no MIME type',
+        file,
+      )
+      window.alert(
+        'Could not determine the image type. Please try a different file.',
+      )
+      resetInput()
+      return
+    }
 
     const reader = new FileReader()
+    reader.onerror = () => {
+      // eslint-disable-next-line no-console
+      console.error('[realtime] FileReader failed', reader.error)
+      window.alert(
+        `Failed to read image file: ${reader.error?.message ?? 'Unknown error'}`,
+      )
+      resetInput()
+    }
     reader.onload = () => {
-      const result = reader.result as string
-      // Extract base64 data (remove data:image/xxx;base64, prefix)
-      const base64 = result.split(',')[1]
-      if (base64) {
-        sendImage(base64, file.type)
+      const result = reader.result
+      // `result` is null on abort/error, and is an ArrayBuffer (not a
+      // string) if someone changes the readAs* method later. Guard both.
+      if (result == null || typeof result !== 'string') {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[realtime] FileReader result was not a string',
+          result,
+        )
+        window.alert('Failed to read image file: unexpected reader output.')
+        resetInput()
+        return
       }
+      // Extract base64 data (remove data:image/xxx;base64, prefix). A
+      // malformed data URL (no comma, or empty payload after the comma)
+      // means there's nothing sendable — surface it instead of silently
+      // no-op'ing.
+      const parts = result.split(',')
+      const base64 = parts[1]
+      if (!base64) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[realtime] FileReader produced a malformed data URL',
+          result.slice(0, 64),
+        )
+        window.alert('Failed to read image file: malformed image data.')
+        resetInput()
+        return
+      }
+      sendImage(base64, file.type)
+      resetInput()
     }
     reader.readAsDataURL(file)
-
-    // Reset input so the same file can be selected again
-    e.target.value = ''
   }
 
   // Auto-scroll to bottom when messages change

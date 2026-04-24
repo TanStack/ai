@@ -187,6 +187,11 @@ async function createWebRTCConnection(
   }
 
   dataChannel.onerror = (error) => {
+    // Closing the peer connection cascades into `onerror`/`onclose` on the
+    // data channel. Once teardown has started, re-surfacing those as
+    // `emit('error')` is noise that confuses consumers (they just called
+    // `disconnect()` — they don't want an error toast for it).
+    if (isTornDown) return
     logger.errors('grok.realtime fatal', {
       error,
       source: 'grok.realtime',
@@ -206,6 +211,10 @@ async function createWebRTCConnection(
   }
 
   dataChannel.onclose = () => {
+    // Same rationale as `onerror` above: `pc.close()` during teardown
+    // cascades to the data channel's `onclose`. If we've already started
+    // teardown, there's nothing to do here.
+    if (isTornDown) return
     if (!dataChannelOpened) {
       rejectDataChannelReady?.(
         new Error('Data channel closed before opening'),
@@ -250,6 +259,17 @@ async function createWebRTCConnection(
             ? `PeerConnection failed before data channel opened`
             : `PeerConnection entered state '${state}' before data channel opened`
         rejectDataChannelReady?.(new Error(message))
+      }
+      // Auto-teardown on `failed`: without this the mic track, pc, and
+      // AudioContext stay allocated after a fatal connection failure, so the
+      // browser's mic indicator stays on and the user sees a broken
+      // "connected mic" state. `closed` already means pc was torn down
+      // (usually by teardownConnection itself) so nothing extra to do.
+      // `disconnected` is transient per the WebRTC spec and may recover, so
+      // we leave resources in place. `teardownConnection` is idempotent so
+      // a subsequent consumer `disconnect()` remains safe.
+      if (state === 'failed' && !isTornDown) {
+        void teardownConnection()
       }
     }
   }
@@ -639,12 +659,35 @@ async function createWebRTCConnection(
         break
 
       case 'error': {
-        const error = event.error as Record<string, unknown>
-        const err = new Error((error.message as string) || 'Unknown error')
+        // The realtime server's `error` envelope isn't guaranteed to carry
+        // an `error` object at all (network-layer corruption, protocol
+        // drift, etc.). Validate shape before dereferencing so a malformed
+        // payload can't throw a TypeError inside this handler and stop the
+        // switch from running for the rest of the session.
+        const raw = event.error
+        const errorObj =
+          raw && typeof raw === 'object'
+            ? (raw as Record<string, unknown>)
+            : {}
+        const message =
+          typeof errorObj.message === 'string'
+            ? errorObj.message
+            : 'Unknown realtime server error'
+        const err = new Error(message)
+        // Preserve `code` / `type` / `param` on the Error as extra props so
+        // consumers can branch on them without re-parsing the raw event.
+        if (typeof errorObj.code === 'string') {
+          ;(err as Error & { code?: string }).code = errorObj.code
+        }
+        if (typeof errorObj.type === 'string') {
+          ;(err as Error & { type?: string }).type = errorObj.type
+        }
+        if (typeof errorObj.param === 'string') {
+          ;(err as Error & { param?: string }).param = errorObj.param
+        }
         logger.errors('grok.realtime server error', {
-          error: err,
-          source: 'grok.realtime',
-          event,
+          ...errorObj,
+          source: 'grok.realtime server',
         })
         emit('error', { error: err })
         break
@@ -703,12 +746,14 @@ async function createWebRTCConnection(
     audioElement.srcObject = stream
     audioElement.autoplay = true
     audioElement.play().catch((e) => {
-      logger.errors('grok.realtime audio autoplay failed', {
+      // Autoplay is commonly blocked until the user interacts with the page
+      // (browser gesture requirement). Surfacing this as a fatal `error`
+      // event makes the UI render a red/error state even though the
+      // connection is healthy — the page just needs a click. Log at a
+      // dedicated source tag so it's debuggable, but don't emit `error`.
+      logger.errors('grok.realtime audio autoplay blocked', {
         error: e,
-        source: 'grok.realtime',
-      })
-      emit('error', {
-        error: e instanceof Error ? e : new Error(String(e)),
+        source: 'grok.realtime.audio_permission_required',
       })
     })
 
@@ -718,12 +763,13 @@ async function createWebRTCConnection(
 
     if (audioContext.state === 'suspended') {
       audioContext.resume().catch((err) => {
+        // Same rationale as the autoplay catch: `resume()` failure usually
+        // means the user hasn't interacted yet. Logging only — no error
+        // emit — so the UI doesn't go into a fatal state for a recoverable
+        // condition.
         logger.errors('grok.realtime audioContext.resume failed', {
           error: err,
           source: 'grok.realtime',
-        })
-        emit('error', {
-          error: err instanceof Error ? err : new Error(String(err)),
         })
       })
     }
@@ -749,12 +795,13 @@ async function createWebRTCConnection(
 
     if (audioContext.state === 'suspended') {
       audioContext.resume().catch((err) => {
+        // Same rationale as in setupOutputAudioAnalysis: a suspended
+        // AudioContext usually resumes after a user gesture. Log only —
+        // surfacing this as a fatal error makes the UI look broken for a
+        // recoverable condition.
         logger.errors('grok.realtime audioContext.resume failed', {
           error: err,
           source: 'grok.realtime',
-        })
-        emit('error', {
-          error: err instanceof Error ? err : new Error(String(err)),
         })
       })
     }
@@ -792,14 +839,30 @@ async function createWebRTCConnection(
   }
 
   function flushPendingEvents() {
-    for (const event of pendingEvents) {
-      logger.provider(
-        `provider=grok direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
-        { frame: event },
-      )
-      dataChannel!.send(JSON.stringify(event))
+    try {
+      for (const event of pendingEvents) {
+        logger.provider(
+          `provider=grok direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
+          { frame: event },
+        )
+        dataChannel!.send(JSON.stringify(event))
+      }
+      pendingEvents.length = 0
+    } catch (error) {
+      // A send failure here (e.g. dataChannel went from 'open' back to
+      // 'closing' mid-flush, or JSON.stringify on a caller-provided event
+      // threw) would otherwise be silently swallowed. By the time we're
+      // called, `onopen` has already resolved `dataChannelReady`, so the
+      // consumer-facing signal is `emit('error')` — try rejectDataChannelReady
+      // as a defensive belt-and-braces in case this ever runs pre-resolve.
+      logger.errors('grok.realtime flushPendingEvents failed', {
+        error,
+        source: 'grok.realtime',
+      })
+      const err = error instanceof Error ? error : new Error(String(error))
+      rejectDataChannelReady?.(err)
+      emit('error', { error: err })
     }
-    pendingEvents.length = 0
   }
 
   const connection: RealtimeConnection = {
