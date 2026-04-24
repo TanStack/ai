@@ -9,7 +9,7 @@ title: StreamChunk
 type StreamChunk = AGUIEvent;
 ```
 
-Defined in: [types.ts:990](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L990)
+Defined in: [packages/typescript/ai/src/types.ts](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts)
 
 Chunk returned by the SDK during streaming chat completions.
 Uses the AG-UI protocol event format.

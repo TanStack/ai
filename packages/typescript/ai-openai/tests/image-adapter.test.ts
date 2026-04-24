@@ -1,10 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIImageAdapter, createOpenaiImage } from '../src/adapters/image'
 import {
   validateImageSize,
   validateNumberOfImages,
   validatePrompt,
 } from '../src/image/image-provider-options'
+
+const testLogger = resolveDebugOption(false)
 
 describe('OpenAI Image Adapter', () => {
   describe('createOpenaiImage', () => {
@@ -162,6 +165,7 @@ describe('OpenAI Image Adapter', () => {
         prompt: 'A cat wearing a hat',
         numberOfImages: 1,
         size: '1024x1024',
+        logger: testLogger,
       })
 
       expect(mockGenerate).toHaveBeenCalledWith({
@@ -202,11 +206,13 @@ describe('OpenAI Image Adapter', () => {
       const result1 = await adapter.generateImages({
         model: 'dall-e-3',
         prompt: 'Test prompt',
+        logger: testLogger,
       })
 
       const result2 = await adapter.generateImages({
         model: 'dall-e-3',
         prompt: 'Test prompt',
+        logger: testLogger,
       })
 
       expect(result1.id).not.toBe(result2.id)

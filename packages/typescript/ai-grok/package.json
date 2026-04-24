@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-grok",
-  "version": "0.6.5",
+  "version": "0.6.8",
   "description": "Grok (xAI) adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -16,6 +16,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./tools": {
+      "types": "./dist/esm/tools/index.d.ts",
+      "import": "./dist/esm/tools/index.js"
     }
   },
   "files": [

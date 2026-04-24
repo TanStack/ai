@@ -40,7 +40,7 @@ export async function streamToText(
  * This creates a ReadableStream that emits chunks in SSE format:
  * - Each chunk is prefixed with "data: "
  * - Each chunk is followed by "\n\n"
- * - Stream ends with "data: [DONE]\n\n"
+ * - Stream ends when the underlying iterable is exhausted (RUN_FINISHED is the terminal event)
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
  * @param abortController - Optional AbortController to abort when stream is cancelled
@@ -67,8 +67,6 @@ export function toServerSentEventsStream(
           )
         }
 
-        // Send completion marker
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
         controller.close()
       } catch (error: any) {
         // Don't send error if aborted
@@ -109,7 +107,7 @@ export function toServerSentEventsStream(
  * This creates a Response that emits chunks in SSE format:
  * - Each chunk is prefixed with "data: "
  * - Each chunk is followed by "\n\n"
- * - Stream ends with "data: [DONE]\n\n"
+ * - Stream ends when the underlying iterable is exhausted (RUN_FINISHED is the terminal event)
  *
  * @param stream - AsyncIterable of StreamChunks from chat()
  * @param init - Optional Response initialization options (including `abortController`)

@@ -50,6 +50,7 @@ const mockAdapter = {
       video: undefined as unknown,
       document: undefined as unknown,
     },
+    toolCapabilities: [] as ReadonlyArray<string>,
   },
   chatStream: async function* () {},
   structuredOutput: async () => ({ data: {}, rawText: '{}' }),

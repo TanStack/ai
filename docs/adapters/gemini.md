@@ -2,6 +2,16 @@
 title: Google Gemini
 id: gemini-adapter
 order: 3
+description: "Use Google Gemini with TanStack AI — text, image generation via Imagen and Gemini native (NanoBanana), and experimental TTS via @tanstack/ai-gemini."
+keywords:
+  - tanstack ai
+  - gemini
+  - google gemini
+  - imagen
+  - nano banana
+  - image generation
+  - adapter
+  - google ai
 ---
 
 The Google Gemini adapter provides access to Google's Gemini models, including text generation, image generation with both Imagen and Gemini native image models (NanoBanana), and experimental text-to-speech.
@@ -385,3 +395,162 @@ Creates a Gemini TTS adapter with an explicit API key.
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../tools/tools) - Learn about tools
 - [Other Adapters](./openai) - Explore other providers
+
+## Provider Tools
+
+Google Gemini exposes several native tools beyond user-defined function calls.
+Import them from `@tanstack/ai-gemini/tools` and pass them into
+`chat({ tools: [...] })`.
+
+> For the full concept, a comparison matrix, and type-gating details, see
+> [Provider Tools](../tools/provider-tools.md).
+
+### `codeExecutionTool`
+
+Enables Gemini to execute Python code in a sandboxed environment and return
+results inline. Takes no arguments — include it in the `tools` array to
+activate code execution.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { codeExecutionTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-2.5-pro"),
+  messages: [{ role: "user", content: "Calculate the first 10 Fibonacci numbers" }],
+  tools: [codeExecutionTool()],
+});
+```
+
+**Supported models:** Gemini 1.5 Pro, Gemini 2.x, Gemini 2.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `fileSearchTool`
+
+Searches files that have been uploaded to the Gemini File API. Pass a
+`FileSearch` config object with the corpus and file IDs to scope the search.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { fileSearchTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-2.5-pro"),
+  messages: [{ role: "user", content: "Find the quarterly revenue figures" }],
+  tools: [
+    fileSearchTool({
+      fileSearchStoreNames: ["fileSearchStores/my-file-search-store-123"],
+    }),
+  ],
+});
+```
+
+**Supported models:** Gemini 2.x and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `googleSearchTool`
+
+Enables Gemini to query Google Search and incorporate grounded search results
+into its response. Pass an optional `GoogleSearch` config or call with no
+arguments to use defaults.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { googleSearchTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-2.5-pro"),
+  messages: [{ role: "user", content: "What's the weather in Tokyo right now?" }],
+  tools: [googleSearchTool()],
+});
+```
+
+**Supported models:** Gemini 1.5 Pro, Gemini 2.x, Gemini 2.5. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `googleSearchRetrievalTool`
+
+A retrieval-augmented variant of Google Search that returns ranked passages
+from the web with configurable dynamic retrieval mode. Pass an optional
+`GoogleSearchRetrieval` config.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { googleSearchRetrievalTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-2.5-pro"),
+  messages: [{ role: "user", content: "Explain the latest JavaScript proposals" }],
+  tools: [
+    googleSearchRetrievalTool({
+      dynamicRetrievalConfig: { mode: "MODE_DYNAMIC", dynamicThreshold: 0.7 },
+    }),
+  ],
+});
+```
+
+**Supported models:** Gemini 1.5 Pro and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `googleMapsTool`
+
+Connects Gemini to the Google Maps API for location-aware queries such as
+directions, place search, and geocoding. Pass an optional `GoogleMaps` config
+or call with no arguments.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { googleMapsTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-2.5-pro"),
+  messages: [{ role: "user", content: "Find coffee shops near Union Square, SF" }],
+  tools: [googleMapsTool()],
+});
+```
+
+**Supported models:** Gemini 2.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `urlContextTool`
+
+Fetches and includes the content of URLs mentioned in the conversation so
+Gemini can reason over live web pages. Takes no arguments.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { urlContextTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-2.5-pro"),
+  messages: [{ role: "user", content: "Summarise https://example.com/article" }],
+  tools: [urlContextTool()],
+});
+```
+
+**Supported models:** Gemini 2.x and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `computerUseTool`
+
+Allows Gemini to observe a virtual desktop via screenshots and interact with
+it using predefined computer-use functions. Provide the `environment` and
+optionally restrict callable functions via `excludedPredefinedFunctions`.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { computerUseTool } from "@tanstack/ai-gemini/tools";
+
+const stream = chat({
+  adapter: geminiText("gemini-2.5-pro"),
+  messages: [{ role: "user", content: "Navigate to example.com in the browser" }],
+  tools: [
+    computerUseTool({
+      environment: "browser",
+    }),
+  ],
+});
+```
+
+**Supported models:** Gemini 2.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).

@@ -2,6 +2,7 @@ import { renderHook } from '@solidjs/testing-library'
 import { describe, expect, it, vi } from 'vitest'
 import { useGeneration } from '../src/use-generation'
 import { useGenerateImage } from '../src/use-generate-image'
+import { useGenerateAudio } from '../src/use-generate-audio'
 import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useTranscription } from '../src/use-transcription'
 import { useSummarize } from '../src/use-summarize'
@@ -541,6 +542,106 @@ describe('useGenerateSpeech', () => {
       )
 
       await result.generate({ text: 'Hello world' })
+      expect(result.result()).not.toBeNull()
+
+      result.reset()
+
+      expect(result.result()).toBeNull()
+      expect(result.error()).toBeUndefined()
+      expect(result.status()).toBe('idle')
+    })
+  })
+})
+
+describe('useGenerateAudio', () => {
+  const mockResult = {
+    id: 'audio-1',
+    model: 'fal-ai/diffrhythm',
+    audio: {
+      url: 'https://example.com/a.mp3',
+      contentType: 'audio/mpeg',
+      duration: 10,
+    },
+  }
+
+  describe('initialization', () => {
+    it('should initialize with default state', () => {
+      const adapter = createMockConnectionAdapter()
+      const { result } = renderHook(() =>
+        useGenerateAudio({ connection: adapter }),
+      )
+
+      expect(result.result()).toBeNull()
+      expect(result.isLoading()).toBe(false)
+      expect(result.error()).toBeUndefined()
+      expect(result.status()).toBe('idle')
+    })
+  })
+
+  describe('fetcher mode', () => {
+    it('should generate audio using fetcher', async () => {
+      const onResult = vi.fn()
+
+      const { result } = renderHook(() =>
+        useGenerateAudio({
+          fetcher: async () => mockResult,
+          onResult,
+        }),
+      )
+
+      await result.generate({ prompt: 'Upbeat synths', duration: 10 })
+
+      expect(result.result()).toEqual(mockResult)
+      expect(result.status()).toBe('success')
+      expect(result.isLoading()).toBe(false)
+      expect(onResult).toHaveBeenCalledWith(mockResult)
+    })
+
+    it('should handle fetcher errors', async () => {
+      const onError = vi.fn()
+
+      const { result } = renderHook(() =>
+        useGenerateAudio({
+          fetcher: async () => {
+            throw new Error('Audio generation failed')
+          },
+          onError,
+        }),
+      )
+
+      await result.generate({ prompt: 'Upbeat synths' })
+
+      expect(result.status()).toBe('error')
+      expect(result.error()?.message).toBe('Audio generation failed')
+      expect(onError).toHaveBeenCalled()
+    })
+  })
+
+  describe('connection mode', () => {
+    it('should generate audio using connection', async () => {
+      const chunks = createGenerationChunks(mockResult)
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { result } = renderHook(() =>
+        useGenerateAudio({ connection: adapter }),
+      )
+
+      await result.generate({ prompt: 'Upbeat synths', duration: 10 })
+
+      expect(result.result()).toEqual(mockResult)
+      expect(result.status()).toBe('success')
+    })
+  })
+
+  describe('stop and reset', () => {
+    it('should reset state after generation', async () => {
+      const { result } = renderHook(() =>
+        useGenerateAudio({
+          fetcher: async () => mockResult,
+        }),
+      )
+
+      await result.generate({ prompt: 'Upbeat synths' })
       expect(result.result()).not.toBeNull()
 
       result.reset()

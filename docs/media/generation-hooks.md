@@ -2,11 +2,22 @@
 title: Generation Hooks
 id: generation-hooks
 order: 7
+description: "Framework hooks for every TanStack AI media generation type — useGenerateImage, useGenerateAudio, useGenerateSpeech, useTranscription, useSummarize, useGenerateVideo."
+keywords:
+  - tanstack ai
+  - generation hooks
+  - useGenerateImage
+  - useGenerateAudio
+  - useGenerateSpeech
+  - useTranscription
+  - useSummarize
+  - useGenerateVideo
+  - react hooks
 ---
 
 # Generation Hooks
 
-TanStack AI provides framework hooks for every generation type: image, speech, transcription, summarization, and video. Each hook connects to a server endpoint and manages loading, error, and result state for you.
+TanStack AI provides framework hooks for every generation type: image, audio, speech, transcription, summarization, and video. Each hook connects to a server endpoint and manages loading, error, and result state for you.
 
 ## Overview
 
@@ -15,6 +26,7 @@ Generation hooks share a consistent API across all media types:
 | Hook | Input | Result Type |
 |------|-------|-------------|
 | `useGenerateImage` | `ImageGenerateInput` | `ImageGenerationResult` |
+| `useGenerateAudio` | `AudioGenerateInput` | `AudioGenerationResult` |
 | `useGenerateSpeech` | `SpeechGenerateInput` | `TTSResult` |
 | `useTranscription` | `TranscriptionGenerateInput` | `TranscriptionResult` |
 | `useSummarize` | `SummarizeGenerateInput` | `SummarizationResult` |

@@ -2,6 +2,15 @@
 title: Connection Adapters
 id: connection-adapters
 order: 3
+description: "Connection adapters in TanStack AI bridge client and server for streaming chat responses — SSE, HTTP stream, direct async iterables, and custom transports."
+keywords:
+  - tanstack ai
+  - connection adapters
+  - sse
+  - server-sent events
+  - http stream
+  - streaming transport
+  - fetchServerSentEvents
 ---
 
 

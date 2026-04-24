@@ -39,6 +39,7 @@ export type {
 
 export type {
   GrokChatModelProviderOptionsByName,
+  GrokChatModelToolCapabilitiesByName,
   GrokModelInputModalitiesByName,
   ResolveProviderOptions,
   ResolveInputModalities,

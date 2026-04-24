@@ -1,11 +1,12 @@
 ---
 name: ai-core/media-generation
 description: >
-  Image, video, speech (TTS), and transcription generation using
+  Image, audio, video, speech (TTS), and transcription generation using
   activity-specific adapters: generateImage() with openaiImage/geminiImage,
-  generateVideo() with async polling, generateSpeech() with openaiSpeech,
-  generateTranscription() with openaiTranscription. React hooks:
-  useGenerateImage, useGenerateSpeech, useTranscription, useGenerateVideo.
+  generateAudio() with geminiAudio/falAudio, generateVideo() with async
+  polling, generateSpeech() with openaiSpeech, generateTranscription() with
+  openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
+  useGenerateSpeech, useTranscription, useGenerateVideo.
   TanStack Start server function integration with toServerSentEventsResponse.
 type: sub-skill
 library: tanstack-ai
@@ -14,9 +15,11 @@ sources:
   - 'TanStack/ai:docs/media/generations.md'
   - 'TanStack/ai:docs/media/generation-hooks.md'
   - 'TanStack/ai:docs/media/image-generation.md'
+  - 'TanStack/ai:docs/media/audio-generation.md'
   - 'TanStack/ai:docs/media/video-generation.md'
   - 'TanStack/ai:docs/media/text-to-speech.md'
   - 'TanStack/ai:docs/media/transcription.md'
+  - 'TanStack/ai:docs/advanced/debug-logging.md'
 ---
 
 # Media Generation
@@ -186,7 +189,40 @@ Result shape: `ImageGenerationResult` with `images` array where each entry
 has `b64Json?`, `url?`, and `revisedPrompt?`. OpenAI image URLs expire
 after 1 hour -- download or display immediately.
 
-### 2. Text-to-Speech
+### 2. Audio Generation (Music, Sound Effects)
+
+Distinct from TTS — `generateAudio()` produces non-speech audio content.
+Supported adapters: `geminiAudio` (Lyria 3 Pro / Lyria 3 Clip) and
+`falAudio` (MiniMax Music, DiffRhythm, Stable Audio, ElevenLabs SFX, etc.).
+
+```typescript
+import { generateAudio } from '@tanstack/ai'
+import { falAudio } from '@tanstack/ai-fal'
+
+const result = await generateAudio({
+  adapter: falAudio('fal-ai/diffrhythm'),
+  prompt: 'An upbeat electronic track with synths',
+  duration: 10,
+})
+
+// result.audio.url or result.audio.b64Json (provider-dependent)
+// result.audio.contentType e.g. "audio/mpeg"
+```
+
+Client hook:
+
+```tsx
+import { useGenerateAudio, fetchServerSentEvents } from '@tanstack/ai-react'
+
+const { generate, result, isLoading } = useGenerateAudio({
+  connection: fetchServerSentEvents('/api/generate/audio'),
+})
+
+// Trigger: generate({ prompt: 'Upbeat synths', duration: 10 })
+// Play:    <audio src={result.audio.url} controls />
+```
+
+### 3. Text-to-Speech
 
 Adapter: `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview).
 
@@ -220,7 +256,7 @@ const { generate, result, isLoading } = useGenerateSpeech({
 // Play:   <audio src={`data:audio/${result.format};base64,${result.audio}`} controls />
 ```
 
-### 3. Audio Transcription
+### 4. Audio Transcription
 
 Adapter: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
 gpt-4o-mini-transcribe).
@@ -257,7 +293,7 @@ const { generate, result, isLoading } = useTranscription({
 // Trigger: generate({ audio: dataUrl, language: 'en' })
 ```
 
-### 4. Video Generation (Experimental -- async polling)
+### 5. Video Generation (Experimental -- async polling)
 
 Video generation uses a jobs/polling architecture. The server creates a job,
 polls for status, and streams updates to the client.
@@ -454,11 +490,115 @@ for (const img of result.images) {
 Not all generation activities support streaming. Passing `stream: true` to
 an activity that does not support it may hang or produce unexpected results.
 Check the activity documentation before enabling streaming. All built-in
-activities (`generateImage`, `generateSpeech`, `generateTranscription`,
-`generateVideo`, `summarize`) support `stream: true`, but custom
-`useGeneration` setups may not.
+activities (`generateImage`, `generateAudio`, `generateSpeech`,
+`generateTranscription`, `generateVideo`, `summarize`) support `stream: true`,
+but custom `useGeneration` setups may not.
 
 > Source: docs/media/generations.md.
+
+### e. HIGH: Passing `responseMimeType` or `negativePrompt` to Gemini Lyria
+
+Gemini's `GenerateContentConfig` (used by Lyria 3 Pro / Lyria 3 Clip) does
+**not** support `responseMimeType` or `negativePrompt`. Lyria 3 Clip always
+returns 30-second `audio/mp3`; Lyria 3 Pro returns `audio/mp3`. These fields
+are not in `GeminiAudioProviderOptions` — don't reach for them via `as any`.
+
+```typescript
+// WRONG — both fields are silently ignored or rejected by the SDK
+generateAudio({
+  adapter: geminiAudio('lyria-3-pro-preview'),
+  prompt: 'ambient piano',
+  modelOptions: {
+    responseMimeType: 'audio/wav', // unsupported
+    negativePrompt: 'vocals', // unsupported
+  } as any,
+})
+
+// CORRECT — shape the prompt itself for what you want
+generateAudio({
+  adapter: geminiAudio('lyria-3-pro-preview'),
+  prompt: 'ambient piano, no vocals',
+})
+```
+
+> Source: Gemini API `GenerateContentConfig` type; docs/media/audio-generation.md.
+
+### f. MEDIUM: Passing `duration` to Lyria expecting it to control length
+
+Lyria 3 Clip is fixed at 30 seconds — the `duration` option is ignored on
+that model. Lyria 3 Pro accepts duration via natural-language in the
+**prompt** ("2-minute ambient track with a 30-second build"), not via the
+`duration` field. `duration` works for fal audio models (mapped to each
+model's native field like `music_length_ms` or `seconds_total`), but not
+for Lyria.
+
+```typescript
+// For Lyria: put length guidance in the prompt
+generateAudio({
+  adapter: geminiAudio('lyria-3-pro-preview'),
+  prompt: 'A 2-minute ambient piano piece with gentle strings',
+  // duration: 120  // ← does nothing; rely on the prompt
+})
+
+// For fal: duration works and is translated per-model
+generateAudio({
+  adapter: falAudio('fal-ai/minimax-music/v2'),
+  prompt: 'upbeat synth melody',
+  duration: 60, // → music_length_ms: 60_000
+})
+```
+
+> Source: Google Lyria 3 docs; docs/media/audio-generation.md.
+
+### g. MEDIUM: Gemini TTS multi-speaker with 0 or 3+ speakers
+
+`multiSpeakerVoiceConfig.speakerVoiceConfigs` is validated to be length 1 or 2. Passing an empty array or three+ entries throws at the adapter boundary
+(not at Gemini's API) with a clear error. Don't try to work around it with
+`as any`.
+
+```typescript
+generateSpeech({
+  adapter: geminiSpeech('gemini-2.5-pro-preview-tts'),
+  text: '[Alice] Hi. [Bob] Hello!',
+  modelOptions: {
+    multiSpeakerVoiceConfig: {
+      speakerVoiceConfigs: [
+        {
+          speaker: 'Alice',
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+        },
+        {
+          speaker: 'Bob',
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
+        },
+      ],
+    },
+  },
+})
+```
+
+> Source: Gemini TTS adapter validation; CodeRabbit review of PR #463.
+
+### h. LOW: Writing a logging middleware to see media chunks flow through
+
+Every media activity — `generateAudio`, `generateSpeech`,
+`generateTranscription`, `generateImage`, `generateVideo` — accepts the
+same `debug?: DebugOption` option that `chat()` does. Reach for `debug`
+instead of wiring up logging middleware.
+
+```typescript
+// When a speech generation sounds wrong or a transcription returns garbage
+generateSpeech({
+  adapter: openaiSpeech('tts-1'),
+  text: 'Hello',
+  debug: { provider: true, output: true }, // raw SDK chunks + yielded chunks
+})
+```
+
+See the `ai-core/debug-logging` sub-skill for full details on categories
+and piping into a custom logger.
+
+> Source: docs/advanced/debug-logging.md.
 
 ---
 
@@ -469,3 +609,7 @@ activities (`generateImage`, `generateSpeech`, `generateTranscription`,
   images, `openaiSpeech` for speech, `openaiTranscription` for transcription,
   `openaiVideo` for video). The adapter-configuration skill covers provider
   setup, API keys, and model selection.
+- See also: **ai-core/debug-logging/SKILL.md** -- When a media request
+  returns unexpected output or fails mid-stream, toggle `debug: true` on
+  any `generate*()` call to see request metadata, raw provider chunks, and
+  errors. Covers per-category toggling and piping into pino/winston.

@@ -1,5 +1,83 @@
 # @tanstack/ai-code-mode-models-eval
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies [[`c1fd96f`](https://github.com/TanStack/ai/commit/c1fd96ffbcee1372ab039127903162bdf5543dd9), [`c1fd96f`](https://github.com/TanStack/ai/commit/c1fd96ffbcee1372ab039127903162bdf5543dd9)]:
+  - @tanstack/ai-openai@0.8.1
+  - @tanstack/ai-anthropic@0.8.1
+  - @tanstack/ai-gemini@0.9.1
+  - @tanstack/ai-ollama@0.6.9
+  - @tanstack/ai-grok@0.6.8
+  - @tanstack/ai-groq@0.1.7
+  - @tanstack/ai@0.13.0
+  - @tanstack/ai-code-mode@0.1.7
+  - @tanstack/ai-isolate-node@0.1.7
+
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90), [`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90), [`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90), [`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90), [`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90), [`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai-anthropic@0.8.0
+  - @tanstack/ai@0.12.0
+  - @tanstack/ai-gemini@0.9.0
+  - @tanstack/ai-grok@0.6.7
+  - @tanstack/ai-groq@0.1.6
+  - @tanstack/ai-openai@0.8.0
+  - @tanstack/ai-code-mode@0.1.6
+  - @tanstack/ai-ollama@0.6.8
+  - @tanstack/ai-isolate-node@0.1.6
+
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies [[`633a3d9`](https://github.com/TanStack/ai/commit/633a3d93fff27e3de7c10ce0059b2d5d87f33245)]:
+  - @tanstack/ai@0.11.1
+  - @tanstack/ai-anthropic@0.7.5
+  - @tanstack/ai-code-mode@0.1.5
+  - @tanstack/ai-gemini@0.8.9
+  - @tanstack/ai-ollama@0.6.7
+  - @tanstack/ai-openai@0.7.6
+  - @tanstack/ai-isolate-node@0.1.5
+
+## 0.0.7
+
+### Patch Changes
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7), [`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7)]:
+  - @tanstack/ai-openai@0.7.6
+  - @tanstack/ai-anthropic@0.7.5
+  - @tanstack/ai-gemini@0.8.9
+  - @tanstack/ai-ollama@0.6.7
+  - @tanstack/ai-grok@0.6.6
+  - @tanstack/ai-groq@0.1.5
+  - @tanstack/ai@0.11.0
+  - @tanstack/ai-code-mode@0.1.4
+  - @tanstack/ai-isolate-node@0.1.4
+
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies [[`c780bc1`](https://github.com/TanStack/ai/commit/c780bc127755ecf7e900343bf0e4d4823ff526ca), [`cb07e01`](https://github.com/TanStack/ai/commit/cb07e015f2d4a27289d830a61dba48f8aa72cc6c)]:
+  - @tanstack/ai@0.10.3
+  - @tanstack/ai-openai@0.7.5
+  - @tanstack/ai-gemini@0.8.8
+  - @tanstack/ai-ollama@0.6.6
+  - @tanstack/ai-anthropic@0.7.4
+  - @tanstack/ai-code-mode@0.1.3
+  - @tanstack/ai-isolate-node@0.1.3
+
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [[`4990150`](https://github.com/TanStack/ai/commit/4990150957bfba72663b6a76f8057f2605e4ac62)]:
+  - @tanstack/ai-gemini@0.8.7
+
 ## 0.0.4
 
 ### Patch Changes

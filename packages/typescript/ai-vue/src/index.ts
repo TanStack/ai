@@ -19,6 +19,12 @@ export type {
   UseGenerateImageReturn,
 } from './use-generate-image'
 
+export { useGenerateAudio } from './use-generate-audio'
+export type {
+  UseGenerateAudioOptions,
+  UseGenerateAudioReturn,
+} from './use-generate-audio'
+
 export { useGenerateSpeech } from './use-generate-speech'
 export type {
   UseGenerateSpeechOptions,
@@ -51,6 +57,7 @@ export {
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,
+  type AudioGenerateInput,
   type SpeechGenerateInput,
   type TranscriptionGenerateInput,
   type SummarizeGenerateInput,

@@ -5,6 +5,20 @@ import { z } from 'zod'
  * Server-side tool definitions (for tools that execute on the server)
  */
 export const serverTools = {
+  check_status: toolDefinition({
+    name: 'check_status',
+    description: 'Check system status (no required input)',
+    inputSchema: z.object({
+      component: z.string().optional(),
+    }),
+  }).server(async (args) => {
+    return JSON.stringify({
+      status: 'ok',
+      component: args.component || 'all',
+      timestamp: Date.now(),
+    })
+  }),
+
   get_weather: toolDefinition({
     name: 'get_weather',
     description: 'Get weather for a city',
@@ -158,6 +172,11 @@ export const SCENARIO_LIST = [
     label: 'Tool Throws Error',
     category: 'basic',
   },
+  {
+    id: 'null-tool-input',
+    label: 'Null Tool Input (Regression #265)',
+    category: 'basic',
+  },
   // Race condition / event flow scenarios
   {
     id: 'sequential-client-tools',
@@ -263,6 +282,9 @@ export function getToolsForScenario(scenario: string) {
 
     case 'tool-error':
       return [failingTool]
+
+    case 'null-tool-input':
+      return [serverTools.check_status]
 
     default:
       return []

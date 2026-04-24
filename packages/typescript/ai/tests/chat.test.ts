@@ -223,11 +223,12 @@ describe('chat()', () => {
         expect.objectContaining({ toolCallId: 'call_1' }),
       )
 
-      // A TOOL_CALL_END chunk with result should have been yielded
-      const toolEndChunks = chunks.filter(
-        (c) => c.type === 'TOOL_CALL_END' && 'result' in c && c.result,
+      // A TOOL_CALL_RESULT chunk with content should have been yielded
+      // (TOOL_CALL_END is also emitted but `result` is stripped by strip-to-spec middleware)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT' && 'content' in c && c.content,
       )
-      expect(toolEndChunks.length).toBeGreaterThanOrEqual(1)
+      expect(toolResultChunks.length).toBeGreaterThanOrEqual(1)
 
       // Adapter was called twice (tool call iteration + final text)
       expect(calls).toHaveLength(2)
@@ -269,14 +270,15 @@ describe('chat()', () => {
 
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
-      // Should still complete and yield the error result
-      const toolEndChunks = chunks.filter(
-        (c) => c.type === 'TOOL_CALL_END' && 'result' in c,
+      // Should still complete and yield the error result via TOOL_CALL_RESULT
+      // (TOOL_CALL_END's `result` is stripped by strip-to-spec middleware)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT' && 'content' in c,
       )
-      expect(toolEndChunks.length).toBeGreaterThanOrEqual(1)
-      // Error should be in the result
-      const resultStr = (toolEndChunks[0] as any).result
-      expect(resultStr).toContain('error')
+      expect(toolResultChunks.length).toBeGreaterThanOrEqual(1)
+      // Error should be in the content
+      const contentStr = (toolResultChunks[0] as any).content
+      expect(contentStr).toContain('error')
     })
   })
 
@@ -401,15 +403,13 @@ describe('chat()', () => {
       // Server tool should have executed
       expect(searchExecute).toHaveBeenCalledTimes(1)
 
-      // TOOL_CALL_END with a result should be emitted for the server tool
-      const toolEndWithResult = chunks.filter(
+      // TOOL_CALL_RESULT with content should be emitted for the server tool
+      // (TOOL_CALL_END is also emitted but `result`/`toolName` are stripped by strip-to-spec middleware)
+      const toolResultChunks = chunks.filter(
         (c) =>
-          c.type === 'TOOL_CALL_END' &&
-          (c as any).toolName === 'searchTools' &&
-          'result' in c &&
-          (c as any).result,
+          c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
       )
-      expect(toolEndWithResult).toHaveLength(1)
+      expect(toolResultChunks).toHaveLength(1)
 
       // Client tool should get a tool-input-available event
       const customChunks = chunks.filter(
@@ -468,15 +468,13 @@ describe('chat()', () => {
       // Server tool should have executed
       expect(weatherExecute).toHaveBeenCalledTimes(1)
 
-      // TOOL_CALL_END with a result should be emitted for the server tool
-      const toolEndWithResult = chunks.filter(
+      // TOOL_CALL_RESULT with content should be emitted for the server tool
+      // (TOOL_CALL_END is also emitted but `result`/`toolName` are stripped by strip-to-spec middleware)
+      const toolResultChunks = chunks.filter(
         (c) =>
-          c.type === 'TOOL_CALL_END' &&
-          (c as any).toolName === 'getWeather' &&
-          'result' in c &&
-          (c as any).result,
+          c.type === 'TOOL_CALL_RESULT' && 'content' in c && (c as any).content,
       )
-      expect(toolEndWithResult).toHaveLength(1)
+      expect(toolResultChunks).toHaveLength(1)
 
       // Client tool should get a tool-input-available event
       const customChunks = chunks.filter(
@@ -601,11 +599,12 @@ describe('chat()', () => {
       // Tool should have been executed as pending
       expect(executeSpy).toHaveBeenCalledTimes(1)
 
-      // TOOL_CALL_END with result should be in the stream
-      const toolEndChunks = chunks.filter(
-        (c) => c.type === 'TOOL_CALL_END' && 'result' in c && c.result,
+      // TOOL_CALL_RESULT with content should be in the stream
+      // (TOOL_CALL_END's `result` is stripped by strip-to-spec middleware)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT' && 'content' in c && c.content,
       )
-      expect(toolEndChunks.length).toBeGreaterThanOrEqual(1)
+      expect(toolResultChunks.length).toBeGreaterThanOrEqual(1)
 
       // Adapter should have been called with the tool result in messages
       expect(calls).toHaveLength(1)
@@ -1026,7 +1025,7 @@ describe('chat()', () => {
       // RUN_ERROR should be in the chunks
       const errorChunks = chunks.filter((c) => c.type === 'RUN_ERROR')
       expect(errorChunks).toHaveLength(1)
-      expect((errorChunks[0] as any).error.message).toBe('API rate limited')
+      expect((errorChunks[0] as any).message).toBe('API rate limited')
     })
 
     it('should not continue the agent loop after RUN_ERROR', async () => {
@@ -1162,8 +1161,10 @@ describe('chat()', () => {
 
       const stepChunks = chunks.filter((c) => c.type === 'STEP_FINISHED')
       expect(stepChunks).toHaveLength(2)
-      expect((stepChunks[0] as any).delta).toBe('Let me think')
-      expect((stepChunks[1] as any).delta).toBe(' about this...')
+      // After strip-to-spec middleware, delta is removed from STEP_FINISHED (internal extension)
+      // Verify the events pass through with spec fields
+      expect((stepChunks[0] as any).stepName).toBeDefined()
+      expect((stepChunks[1] as any).stepName).toBeDefined()
     })
   })
 
@@ -1473,14 +1474,12 @@ describe('chat()', () => {
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       // The first tool call result should contain a "must be discovered first" error
-      const toolEndChunks = chunks.filter(
-        (c) => c.type === 'TOOL_CALL_END',
+      // TOOL_CALL_RESULT carries the content (TOOL_CALL_END's result is stripped by middleware)
+      const toolResultChunks = chunks.filter(
+        (c) => c.type === 'TOOL_CALL_RESULT',
       ) as Array<any>
-      const errorResult = toolEndChunks.find(
-        (c: any) =>
-          c.toolName === 'getWeather' &&
-          c.result &&
-          c.result.includes('must be discovered first'),
+      const errorResult = toolResultChunks.find(
+        (c: any) => c.content && c.content.includes('must be discovered first'),
       )
       expect(errorResult).toBeDefined()
 
@@ -1509,6 +1508,143 @@ describe('chat()', () => {
       const toolNames = (calls[0] as any).tools.map((t: any) => t.name)
       expect(toolNames).not.toContain('__lazy__tool__discovery__')
       expect(toolNames).toContain('normalTool')
+    })
+  })
+
+  // ==========================================================================
+  // AG-UI spec compliance (threadId, strip middleware)
+  // ==========================================================================
+  describe('AG-UI spec compliance', () => {
+    it('should pass through adapter-generated threadId on RUN_STARTED and RUN_FINISHED events', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Hi'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hello' }],
+        threadId: 'my-thread-id',
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      const runStarted = chunks.find((c) => c.type === 'RUN_STARTED')
+      expect(runStarted).toBeDefined()
+      expect((runStarted as any).threadId).toBe('thread-1')
+
+      const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
+      expect(runFinished).toBeDefined()
+      expect((runFinished as any).threadId).toBe('thread-1')
+    })
+
+    it('should include both toolCallName (spec) and toolName (deprecated) on TOOL_CALL_START', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.toolStart('tc-1', 'get_weather'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'get_weather', {
+              input: {},
+              result: '{}',
+            }),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather' }],
+        tools: [serverTool('get_weather', () => ({ temp: 72 }))],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      const toolStartChunks = chunks.filter((c) => c.type === 'TOOL_CALL_START')
+      for (const chunk of toolStartChunks) {
+        // Both spec and deprecated field present (passthrough)
+        expect((chunk as any).toolCallName).toBe('get_weather')
+        expect((chunk as any).toolName).toBe('get_weather')
+      }
+    })
+
+    it('should keep finishReason on RUN_FINISHED events', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Hi'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hello' }],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
+      expect(runFinished).toBeDefined()
+      expect((runFinished as any).finishReason).toBe('stop')
+    })
+
+    it('should emit TOOL_CALL_RESULT events during agent loop', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.toolStart('tc-1', 'get_weather'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'get_weather', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('72F'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather?' }],
+        tools: [serverTool('get_weather', () => ({ temp: 72 }))],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      const resultChunks = chunks.filter((c) => c.type === 'TOOL_CALL_RESULT')
+      expect(resultChunks.length).toBeGreaterThanOrEqual(1)
+      expect((resultChunks[0] as any).toolCallId).toBe('tc-1')
+      expect((resultChunks[0] as any).content).toContain('72')
+      // model is kept (passthrough allows extra fields)
+      expect((resultChunks[0] as any).toolCallId).toBeDefined()
     })
   })
 })

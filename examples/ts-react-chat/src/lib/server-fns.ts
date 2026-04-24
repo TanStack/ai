@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
+  generateAudio,
   generateImage,
   generateSpeech,
   generateTranscription,
@@ -9,13 +10,20 @@ import {
   summarize,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import { openaiImage, openaiSummarize, openaiVideo } from '@tanstack/ai-openai'
 import {
-  openaiImage,
-  openaiSpeech,
-  openaiTranscription,
-  openaiSummarize,
-  openaiVideo,
-} from '@tanstack/ai-openai'
+  buildAudioAdapter,
+  buildSpeechAdapter,
+  buildTranscriptionAdapter,
+} from './server-audio-adapters'
+
+const SPEECH_PROVIDER_SCHEMA = z.enum(['openai', 'gemini', 'fal']).optional()
+
+const TRANSCRIPTION_PROVIDER_SCHEMA = z.enum(['openai', 'fal']).optional()
+
+const AUDIO_PROVIDER_SCHEMA = z
+  .enum(['gemini-lyria', 'fal-audio', 'fal-sfx'])
+  .optional()
 
 // =============================================================================
 // Direct server functions (non-streaming, return the result directly)
@@ -44,11 +52,12 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
       text: z.string(),
       voice: z.string().optional(),
       format: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
+      provider: SPEECH_PROVIDER_SCHEMA,
     }),
   )
   .handler(async ({ data }) => {
     return generateSpeech({
-      adapter: openaiSpeech('tts-1'),
+      adapter: buildSpeechAdapter(data.provider ?? 'openai'),
       text: data.text,
       voice: data.voice,
       format: data.format,
@@ -60,13 +69,31 @@ export const transcribeFn = createServerFn({ method: 'POST' })
     z.object({
       audio: z.string(),
       language: z.string().optional(),
+      provider: TRANSCRIPTION_PROVIDER_SCHEMA,
     }),
   )
   .handler(async ({ data }) => {
     return generateTranscription({
-      adapter: openaiTranscription('whisper-1'),
+      adapter: buildTranscriptionAdapter(data.provider ?? 'openai'),
       audio: data.audio,
       language: data.language,
+    })
+  })
+
+export const generateAudioFn = createServerFn({ method: 'POST' })
+  .inputValidator(
+    z.object({
+      prompt: z.string(),
+      duration: z.number().optional(),
+      provider: AUDIO_PROVIDER_SCHEMA,
+      model: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    return generateAudio({
+      adapter: buildAudioAdapter(data.provider ?? 'gemini-lyria', data.model),
+      prompt: data.prompt,
+      duration: data.duration,
     })
   })
 
@@ -164,12 +191,13 @@ export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
       text: z.string(),
       voice: z.string().optional(),
       format: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
+      provider: SPEECH_PROVIDER_SCHEMA,
     }),
   )
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateSpeech({
-        adapter: openaiSpeech('tts-1'),
+        adapter: buildSpeechAdapter(data.provider ?? 'openai'),
         text: data.text,
         voice: data.voice,
         format: data.format,
@@ -183,12 +211,13 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
     z.object({
       audio: z.string(),
       language: z.string().optional(),
+      provider: TRANSCRIPTION_PROVIDER_SCHEMA,
     }),
   )
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateTranscription({
-        adapter: openaiTranscription('whisper-1'),
+        adapter: buildTranscriptionAdapter(data.provider ?? 'openai'),
         audio: data.audio,
         language: data.language,
         stream: true,

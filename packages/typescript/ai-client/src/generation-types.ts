@@ -208,6 +208,18 @@ export interface ImageGenerateInput {
 }
 
 /**
+ * Input for audio generation (music, sound effects).
+ */
+export interface AudioGenerateInput {
+  /** Text description of the desired audio */
+  prompt: string
+  /** Desired duration in seconds */
+  duration?: number
+  /** Model-specific options */
+  modelOptions?: Record<string, any>
+}
+
+/**
  * Input for text-to-speech generation.
  */
 export interface SpeechGenerateInput {
@@ -227,8 +239,8 @@ export interface SpeechGenerateInput {
  * Input for audio transcription.
  */
 export interface TranscriptionGenerateInput {
-  /** The audio data to transcribe - can be base64 string, File, or Blob */
-  audio: string | File | Blob
+  /** The audio data to transcribe - can be base64 string, File, Blob, or ArrayBuffer */
+  audio: string | File | Blob | ArrayBuffer
   /** The language of the audio in ISO-639-1 format (e.g., 'en') */
   language?: string
   /** An optional prompt to guide the transcription */

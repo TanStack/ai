@@ -2,6 +2,16 @@
 title: Thinking & Reasoning
 id: thinking-content
 order: 5
+description: "Render reasoning tokens from thinking models (Claude extended thinking, OpenAI o-series) as streamed ThinkingPart in TanStack AI chat UIs."
+keywords:
+  - tanstack ai
+  - thinking
+  - reasoning
+  - extended thinking
+  - claude thinking
+  - o-series
+  - chain of thought
+  - ThinkingPart
 ---
 
 Some models expose their internal reasoning as "thinking" content -- Claude with extended thinking, OpenAI o-series models with reasoning, and others. TanStack AI captures this as `ThinkingPart` in messages, streamed to your UI in real-time alongside text and tool calls.

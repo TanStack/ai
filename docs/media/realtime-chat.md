@@ -2,6 +2,17 @@
 title: Realtime Voice Chat
 id: realtime-chat
 order: 2
+description: "Build realtime voice-to-voice AI chat with TanStack AI — WebRTC and WebSocket, voice activity detection, interruptions, and multimodal input."
+keywords:
+  - tanstack ai
+  - realtime voice
+  - voice chat
+  - webrtc
+  - websocket
+  - vad
+  - voice ai
+  - multimodal
+  - useRealtimeChat
 ---
 
 TanStack AI provides a complete realtime voice chat system for building voice-to-voice AI interactions. The realtime API supports multiple providers (OpenAI, ElevenLabs), automatic tool execution, audio visualization, and multimodal input including images.

@@ -80,18 +80,26 @@ export class OpenAIVideoAdapter<
   async createVideoJob(
     options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
   ): Promise<VideoJobResult> {
-    const { model, size, duration, modelOptions } = options
+    const { model, size, duration, modelOptions, logger } = options
 
-    // Validate inputs
-    validateVideoSize(model, size)
-    // Duration maps to 'seconds' in the API
-    const seconds = duration ?? modelOptions?.seconds
-    validateVideoSeconds(model, seconds)
-
-    // Build request
-    const request = this.buildRequest(options)
+    logger.request(
+      `activity=generateVideo provider=openai model=${this.model}`,
+      {
+        provider: 'openai',
+        model: this.model,
+      },
+    )
 
     try {
+      // Validate inputs
+      validateVideoSize(model, size)
+      // Duration maps to 'seconds' in the API
+      const seconds = duration ?? modelOptions?.seconds
+      validateVideoSeconds(model, seconds)
+
+      // Build request
+      const request = this.buildRequest(options)
+
       // POST /v1/videos
       // Cast to any because the videos API may not be in SDK types yet
       const client = this.client
@@ -102,6 +110,10 @@ export class OpenAIVideoAdapter<
         model,
       }
     } catch (error: any) {
+      logger.errors('openai.createVideoJob fatal', {
+        error,
+        source: 'openai.createVideoJob',
+      })
       // Fallback for when the videos API is not available
       if (error?.message?.includes('videos') || error?.code === 'invalid_api') {
         throw new Error(

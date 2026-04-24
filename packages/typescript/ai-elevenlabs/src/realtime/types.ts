@@ -1,3 +1,5 @@
+import type { DebugOption } from '@tanstack/ai'
+
 /**
  * Options for the ElevenLabs realtime token adapter
  */
@@ -23,8 +25,13 @@ export interface ElevenLabsRealtimeTokenOptions {
 export interface ElevenLabsRealtimeOptions {
   /** Connection mode (default: auto-detect) */
   connectionMode?: 'websocket' | 'webrtc'
-  /** Enable debug logging */
-  debug?: boolean
+  /**
+   * Enable debug logging for this adapter.
+   *
+   * - `true` enables all categories (`request`, `response`, `provider`, `errors`).
+   * - A {@link DebugConfig} object selects categories and/or a custom sink.
+   */
+  debug?: DebugOption
 }
 
 /**

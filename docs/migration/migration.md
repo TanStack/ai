@@ -2,6 +2,15 @@
 title: Migration Guide
 id: migration
 order: 1
+description: "Migrate existing TanStack AI code to the latest version — adapter function splits, flattened options, renamed modelOptions, and removed embeddings."
+keywords:
+  - tanstack ai
+  - migration
+  - upgrade
+  - breaking changes
+  - tree-shaking
+  - modelOptions
+  - toServerSentEventsStream
 ---
 
 # Migration Guide
@@ -354,6 +363,56 @@ const result = await openai.embeddings.create({
 - **Simpler API** - Reduces API surface area and complexity
 - **Direct provider access** - You can use the provider SDK directly for embeddings
 - **Focused scope** - TanStack AI focuses on chat, tools, and agentic workflows
+
+## 6. Provider Tools Moved to `/tools` Subpath
+
+Provider-specific tools (web search, code execution, computer use, etc.) are now
+exported from a dedicated `/tools` subpath on every adapter package. This keeps
+tool imports tree-shakeable and avoids name collisions between providers.
+
+The only breaking change is in `@tanstack/ai-openrouter`:
+`createWebSearchTool` has been removed from the package root, renamed to
+`webSearchTool`, and moved to `@tanstack/ai-openrouter/tools`. Every other
+provider tool (Anthropic, OpenAI, Gemini) is newly exported — no existing
+import breaks.
+
+### Before
+
+```typescript
+import { createWebSearchTool } from '@tanstack/ai-openrouter'
+
+const tools = [
+  createWebSearchTool({ engine: 'native', maxResults: 5 }),
+]
+```
+
+### After
+
+```typescript
+import { webSearchTool } from '@tanstack/ai-openrouter/tools'
+
+const tools = [
+  webSearchTool({ engine: 'native', maxResults: 5 }),
+]
+```
+
+### Key Changes
+
+- **Import path is now `/tools`** — matches the existing `/adapters` subpath
+  pattern used elsewhere in each provider package.
+- **Factory renamed** — `createWebSearchTool` → `webSearchTool`. The `create*`
+  prefix has been dropped to align with every other provider
+  (`webSearchTool` in `@tanstack/ai-anthropic/tools`,
+  `@tanstack/ai-openai/tools`, etc.).
+- **Runtime behavior is unchanged** — the factory accepts the same config
+  object and returns a tool that works identically in `chat({ tools: [...] })`.
+- **Type-level gating is new** — if you pass a provider tool to a model that
+  doesn't support it (per the model's `supports.tools` array), you now get a
+  type error on the `tools` array. User-defined `toolDefinition()` tools are
+  unaffected.
+
+For the full list of available provider tools and which models support each
+one, see [Provider Tools](../tools/provider-tools.md).
 
 ## Complete Migration Example
 

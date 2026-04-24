@@ -1,4 +1,5 @@
-import { describe, it, expectTypeOf } from 'vitest'
+import { describe, it, expect, expectTypeOf } from 'vitest'
+import { GEMINI_TTS_MODELS } from '../src/model-meta'
 import type {
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,
@@ -8,7 +9,7 @@ import type {
   GeminiStructuredOutputOptions,
   GeminiToolConfigOptions,
   GeminiSafetyOptions,
-  GeminiGenerationConfigOptions,
+  GeminiCommonConfigOptions,
   GeminiCachedContentOptions,
 } from '../src/text/text-provider-options'
 import type {
@@ -33,7 +34,7 @@ import type {
 // Base options that ALL chat models should have
 type BaseOptions = GeminiToolConfigOptions &
   GeminiSafetyOptions &
-  GeminiGenerationConfigOptions &
+  GeminiCommonConfigOptions &
   GeminiCachedContentOptions
 
 describe('Gemini Model Provider Options Type Assertions', () => {
@@ -232,7 +233,7 @@ describe('Gemini Model Provider Options Type Assertions', () => {
     it('thinking models should allow thinkingConfig in generationConfig', () => {
       type Options = GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
 
-      // The generationConfig should include thinkingConfig from GeminiGenerationConfigOptions
+      // The generationConfig should include thinkingConfig from GeminiCommonConfigOptions
       // which intersects with GeminiThinkingOptions
       expectTypeOf<Options>().toHaveProperty('generationConfig')
     })
@@ -585,5 +586,16 @@ describe('Gemini Model Input Modality Type Assertions', () => {
     it('should NOT allow DocumentPart', () => {
       expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
     })
+  })
+})
+
+describe('Gemini TTS model registry', () => {
+  it('exposes the Pro TTS model under its own name (not a Flash duplicate)', () => {
+    // Regression: GEMINI_2_5_PRO_TTS.name used to copy-paste the Flash
+    // model name, so the "Pro" entry in GEMINI_TTS_MODELS was an
+    // unreachable duplicate.
+    expect(GEMINI_TTS_MODELS).toContain('gemini-2.5-pro-preview-tts')
+    expect(GEMINI_TTS_MODELS).toContain('gemini-2.5-flash-preview-tts')
+    expect(new Set(GEMINI_TTS_MODELS).size).toBe(GEMINI_TTS_MODELS.length)
   })
 })

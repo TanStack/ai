@@ -8,6 +8,9 @@
  */
 
 import { aiEventClient } from '@tanstack/ai-event-client'
+import { resolveDebugOption } from '../../logger/resolve'
+import type { InternalLogger } from '../../logger/internal-logger'
+import type { DebugOption } from '../../logger/types'
 import type { VideoAdapter } from './adapter'
 import type {
   StreamChunk,
@@ -100,6 +103,12 @@ export type VideoCreateOptions<
   maxDuration?: number
   /** Custom run ID (stream mode only) */
   runId?: string
+  /**
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
+  debug?: DebugOption
 } & ({} extends VideoProviderOptions<TAdapter>
     ? {
         /** Provider-specific options for video generation */ modelOptions?: VideoProviderOptions<TAdapter>
@@ -241,14 +250,38 @@ async function runCreateVideoJob<
 >(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
   const { adapter, prompt, size, duration, modelOptions } = options
   const model = adapter.model
+  const logger: InternalLogger = resolveDebugOption(options.debug)
+  const providerName =
+    (adapter as { name?: string; provider?: string }).provider ??
+    (adapter as { name?: string }).name ??
+    'unknown'
 
-  return adapter.createVideoJob({
+  logger.request(`activity=generateVideo provider=${providerName}`, {
+    provider: providerName,
     model,
-    prompt,
-    size,
-    duration,
-    modelOptions,
   })
+
+  try {
+    const result = await adapter.createVideoJob({
+      model,
+      prompt,
+      size,
+      duration,
+      modelOptions,
+      logger,
+    })
+    logger.output(`activity=generateVideo jobId=${result.jobId}`, {
+      jobId: result.jobId,
+      model: result.model,
+    })
+    return result
+  } catch (error) {
+    logger.errors('generateVideo activity failed', {
+      error,
+      source: 'generateVideo',
+    })
+    throw error
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -267,12 +300,28 @@ async function* runStreamingVideoGeneration<
   const runId = options.runId ?? createId('run')
   const pollingInterval = options.pollingInterval ?? 2000
   const maxDuration = options.maxDuration ?? 600_000
+  const logger: InternalLogger = resolveDebugOption(options.debug)
+  const providerName =
+    (adapter as { name?: string; provider?: string }).provider ??
+    (adapter as { name?: string }).name ??
+    'unknown'
+
+  const threadId = createId('thread')
 
   yield {
     type: 'RUN_STARTED',
     runId,
+    threadId,
     timestamp: Date.now(),
-  }
+  } as StreamChunk
+
+  logger.request(
+    `activity=generateVideo provider=${providerName} stream=true`,
+    {
+      provider: providerName,
+      model,
+    },
+  )
 
   try {
     // Create the video generation job
@@ -282,6 +331,7 @@ async function* runStreamingVideoGeneration<
       size,
       duration,
       modelOptions,
+      logger,
     })
 
     yield {
@@ -289,7 +339,7 @@ async function* runStreamingVideoGeneration<
       name: 'video:job:created',
       value: { jobId: jobResult.jobId },
       timestamp: Date.now(),
-    }
+    } as StreamChunk
 
     // Poll for completion
     const startTime = Date.now()
@@ -308,10 +358,18 @@ async function* runStreamingVideoGeneration<
           error: statusResult.error,
         },
         timestamp: Date.now(),
-      }
+      } as StreamChunk
 
       if (statusResult.status === 'completed') {
         const urlResult = await adapter.getVideoUrl(jobResult.jobId)
+
+        logger.output(
+          `activity=generateVideo jobId=${jobResult.jobId} status=completed`,
+          {
+            jobId: jobResult.jobId,
+            url: urlResult.url,
+          },
+        )
 
         yield {
           type: 'CUSTOM',
@@ -323,14 +381,15 @@ async function* runStreamingVideoGeneration<
             expiresAt: urlResult.expiresAt,
           },
           timestamp: Date.now(),
-        }
+        } as StreamChunk
 
         yield {
           type: 'RUN_FINISHED',
           runId,
+          threadId,
           finishReason: 'stop',
           timestamp: Date.now(),
-        }
+        } as StreamChunk
         return
       }
 
@@ -341,15 +400,22 @@ async function* runStreamingVideoGeneration<
 
     throw new Error('Video generation timed out')
   } catch (error: any) {
+    logger.errors('generateVideo activity failed', {
+      error,
+      source: 'generateVideo',
+    })
     yield {
       type: 'RUN_ERROR',
       runId,
+      threadId,
+      message: error.message || 'Video generation failed',
+      code: error.code,
       error: {
         message: error.message || 'Video generation failed',
         code: error.code,
       },
       timestamp: Date.now(),
-    }
+    } as StreamChunk
   }
 }
 

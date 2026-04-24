@@ -46,7 +46,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   readonly name = 'fal' as const
 
   constructor(model: TModel, config?: FalClientConfig) {
-    super({}, model)
+    super(model, {})
     configureFalClient(config)
   }
 
@@ -56,9 +56,24 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       FalModelImageSize<TModel>
     >,
   ): Promise<ImageGenerationResult> {
-    const input = this.buildInput(options)
-    const result = await fal.subscribe(this.model, { input })
-    return this.transformResponse(result)
+    const { logger } = options
+
+    logger.request(`activity=generateImage provider=fal model=${this.model}`, {
+      provider: 'fal',
+      model: this.model,
+    })
+
+    try {
+      const input = this.buildInput(options)
+      const result = await fal.subscribe(this.model, { input })
+      return this.transformResponse(result)
+    } catch (error) {
+      logger.errors('fal.generateImage fatal', {
+        error,
+        source: 'fal.generateImage',
+      })
+      throw error
+    }
   }
 
   private buildInput(
@@ -95,6 +110,13 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       images.push(this.parseImage(data.image))
     }
 
+    if (images.length === 0) {
+      throw new Error(
+        'Unexpected fal image response shape. Expected images[] or image{}. Got keys: ' +
+          Object.keys(data).join(','),
+      )
+    }
+
     return {
       id: response.requestId || this.generateId(),
       model: this.model,
@@ -102,16 +124,29 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
     }
   }
 
-  private parseImage(img: { url: string }): GeneratedImage {
-    const url = img.url
-    // Check if it's a base64 data URL
+  private parseImage(img: unknown): GeneratedImage {
+    let url: string
+    if (typeof img === 'string') {
+      url = img
+    } else if (
+      img &&
+      typeof img === 'object' &&
+      'url' in img &&
+      typeof (img as { url: unknown }).url === 'string'
+    ) {
+      url = (img as { url: string }).url
+    } else {
+      throw new Error(
+        `Invalid image payload from fal response: expected string or { url: string }, received ${
+          img === null ? 'null' : typeof img
+        }`,
+      )
+    }
+
     if (url.startsWith('data:')) {
       const base64Match = url.match(/^data:image\/[^;]+;base64,(.+)$/)
-      if (base64Match) {
-        return {
-          b64Json: base64Match[1],
-          url,
-        }
+      if (base64Match && base64Match[1]) {
+        return { b64Json: base64Match[1] }
       }
     }
     return { url }

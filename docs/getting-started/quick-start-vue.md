@@ -2,6 +2,16 @@
 title: "Quick Start: Vue"
 id: quick-start-vue
 order: 3
+description: "Build a streaming TanStack AI chat component in a Vue 3 app using the useChat composable and the OpenAI adapter."
+keywords:
+  - tanstack ai
+  - vue
+  - vue 3
+  - quick start
+  - useChat
+  - streaming chat
+  - openai
+  - composable
 ---
 
 You have a Vue 3 app and want to add AI chat. By the end of this guide, you'll have a streaming chat component powered by TanStack AI and OpenAI.

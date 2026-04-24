@@ -1,6 +1,11 @@
-import type { Tool } from '@tanstack/ai'
+import type { ProviderTool, Tool } from '@tanstack/ai'
 
-export interface CodeExecutionTool {}
+export interface CodeExecutionToolConfig {}
+
+/** @deprecated Renamed to `CodeExecutionToolConfig`. Will be removed in a future release. */
+export type CodeExecutionTool = CodeExecutionToolConfig
+
+export type GeminiCodeExecutionTool = ProviderTool<'gemini', 'code_execution'>
 
 export function convertCodeExecutionToolToAdapterFormat(_tool: Tool) {
   return {
@@ -8,10 +13,11 @@ export function convertCodeExecutionToolToAdapterFormat(_tool: Tool) {
   }
 }
 
-export function codeExecutionTool(): Tool {
+export function codeExecutionTool(): GeminiCodeExecutionTool {
+  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'code_execution',
     description: '',
     metadata: {},
-  }
+  } as unknown as GeminiCodeExecutionTool
 }

@@ -1,6 +1,15 @@
 ---
 title: AG-UI Event Definitions
 id: chunk-definitions
+description: "TanStack AI implements the AG-UI protocol — full event definitions, types, and streaming semantics for agent-to-UI communication."
+keywords:
+  - tanstack ai
+  - ag-ui
+  - ag-ui protocol
+  - events
+  - stream chunks
+  - streaming protocol
+  - agent protocol
 ---
 
 TanStack AI implements the [AG-UI (Agent-User Interaction) Protocol](https://docs.ag-ui.com/introduction), an open, lightweight, event-based protocol that standardizes how AI agents connect to user-facing applications.

@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createOpenRouterImage } from '../src/adapters/image'
+
+const testLogger = resolveDebugOption(false)
 
 // Declare mockSend at module level
 let mockSend: any
@@ -58,11 +61,12 @@ describe('OpenRouter Image Adapter', () => {
     const result = await adapter.generateImages({
       model: 'google/gemini-2.5-flash-image',
       prompt: 'A futuristic city at sunset',
+      logger: testLogger,
     })
 
     expect(mockSend).toHaveBeenCalledTimes(1)
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs).toMatchObject({
       model: 'google/gemini-2.5-flash-image',
       modalities: ['image'],
@@ -94,13 +98,14 @@ describe('OpenRouter Image Adapter', () => {
       model: 'google/gemini-2.5-flash-image',
       prompt: 'A cute robot mascot',
       numberOfImages: 2,
+      logger: testLogger,
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs.imageConfig).toMatchObject({
-      n: 2,
       numberOfImages: 2,
     })
+    expect(callArgs.imageConfig).not.toHaveProperty('n')
 
     expect(result.images).toHaveLength(2)
     expect(result.images[0]!.url).toBe('https://example.com/image1.png')
@@ -121,11 +126,12 @@ describe('OpenRouter Image Adapter', () => {
     const result = await adapter.generateImages({
       model: 'google/gemini-2.5-flash-image',
       prompt: 'A simple test image',
+      logger: testLogger,
     })
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0]!.b64Json).toBe(base64Data)
-    expect(result.images[0]!.url).toBe(`data:image/png;base64,${base64Data}`)
+    expect(result.images[0]!.url).toBeUndefined()
   })
 
   it('passes aspect ratio from size', async () => {
@@ -141,9 +147,10 @@ describe('OpenRouter Image Adapter', () => {
       model: 'google/gemini-2.5-flash-image',
       prompt: 'A wide landscape',
       size: '1344x768', // 16:9
+      logger: testLogger,
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs.imageConfig).toMatchObject({
       aspect_ratio: '16:9',
     })
@@ -162,25 +169,29 @@ describe('OpenRouter Image Adapter', () => {
       model: 'google/gemini-2.5-flash-image',
       prompt: 'A square image',
       size: '1024x1024',
+      logger: testLogger,
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs.imageConfig).toMatchObject({
       aspect_ratio: '1:1',
     })
   })
 
-  it('throws error on SDK error', async () => {
+  it('propagates SDK errors without rewrapping', async () => {
     mockSend = vi.fn().mockRejectedValueOnce(new Error('Model not found'))
 
     const adapter = createAdapter()
 
+    // SDK errors already have context/stack — they must propagate as-is,
+    // not be rewrapped with an "Image generation failed:" prefix.
     await expect(
       adapter.generateImages({
         model: 'invalid/model',
         prompt: 'Test prompt',
+        logger: testLogger,
       }),
-    ).rejects.toThrow('Image generation failed: Model not found')
+    ).rejects.toThrowError(new Error('Model not found'))
   })
 
   it('throws error on API error in response body', async () => {
@@ -192,12 +203,16 @@ describe('OpenRouter Image Adapter', () => {
 
     const adapter = createAdapter()
 
+    // Assert exact message — must not contain doubled "Image generation failed:" prefix
     await expect(
       adapter.generateImages({
         model: 'google/gemini-2.5-flash-image',
         prompt: 'Inappropriate content',
+        logger: testLogger,
       }),
-    ).rejects.toThrow('Image generation failed: Content policy violation')
+    ).rejects.toThrowError(
+      new Error('Image generation failed: Content policy violation'),
+    )
   })
 
   it('passes imageConfig correctly', async () => {
@@ -215,9 +230,10 @@ describe('OpenRouter Image Adapter', () => {
       modelOptions: {
         image_size: '4K',
       },
+      logger: testLogger,
     })
 
-    const callArgs = mockSend.mock.calls[0]![0]
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs.imageConfig).toMatchObject({
       image_size: '4K',
     })

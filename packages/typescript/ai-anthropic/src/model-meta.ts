@@ -21,6 +21,15 @@ interface ModelMeta<
     extended_thinking?: boolean
     adaptive_thinking?: boolean
     priority_tier?: boolean
+    tools?: Array<
+      | 'web_search'
+      | 'web_fetch'
+      | 'code_execution'
+      | 'computer_use'
+      | 'bash'
+      | 'text_editor'
+      | 'memory'
+    >
   }
   context_window?: number
   max_output_tokens?: number
@@ -66,6 +75,15 @@ const CLAUDE_OPUS_4_6 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -96,6 +114,15 @@ const CLAUDE_OPUS_4_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -127,6 +154,15 @@ const CLAUDE_SONNET_4_6 = {
     extended_thinking: true,
     adaptive_thinking: true,
     priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -157,6 +193,15 @@ const CLAUDE_SONNET_4_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -187,6 +232,15 @@ const CLAUDE_HAIKU_4_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -217,6 +271,15 @@ const CLAUDE_OPUS_4_1 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -247,6 +310,15 @@ const CLAUDE_SONNET_4 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -276,6 +348,15 @@ const CLAUDE_SONNET_3_7 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -306,6 +387,15 @@ const CLAUDE_OPUS_4 = {
     input: ['text', 'image', 'document'],
     extended_thinking: true,
     priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -336,6 +426,7 @@ const CLAUDE_HAIKU_3_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: false,
     priority_tier: true,
+    tools: ['web_search', 'web_fetch'],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -366,6 +457,7 @@ const CLAUDE_HAIKU_3 = {
     input: ['text', 'image', 'document'],
     extended_thinking: false,
     priority_tier: false,
+    tools: ['web_search'],
   },
 } as const satisfies ModelMeta<
   AnthropicContainerOptions &
@@ -432,6 +524,15 @@ const CLAUDE_OPUS_4_6_FAST = {
     input: ['text', 'image'],
     extended_thinking: true,
     priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
   pricing: {
     input: {
@@ -440,6 +541,45 @@ const CLAUDE_OPUS_4_6_FAST = {
     },
     output: {
       normal: 150,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_OPUS_4_7 = {
+  name: 'claude-opus-4.7',
+  id: 'claude-opus-4.7',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image'],
+    extended_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 25,
     },
   },
 } as const satisfies ModelMeta<
@@ -467,6 +607,8 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_HAIKU_3.id,
 
   CLAUDE_OPUS_4_6_FAST.id,
+
+  CLAUDE_OPUS_4_7.id,
 ] as const
 
 // const ANTHROPIC_IMAGE_MODELS = [] as const
@@ -577,6 +719,30 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicThinkingOptions &
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions
+  [CLAUDE_OPUS_4_7.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+}
+
+export type AnthropicChatModelToolCapabilitiesByName = {
+  [CLAUDE_OPUS_4_6.id]: typeof CLAUDE_OPUS_4_6.supports.tools
+  [CLAUDE_OPUS_4_5.id]: typeof CLAUDE_OPUS_4_5.supports.tools
+  [CLAUDE_SONNET_4_6.id]: typeof CLAUDE_SONNET_4_6.supports.tools
+  [CLAUDE_SONNET_4_5.id]: typeof CLAUDE_SONNET_4_5.supports.tools
+  [CLAUDE_HAIKU_4_5.id]: typeof CLAUDE_HAIKU_4_5.supports.tools
+  [CLAUDE_OPUS_4_1.id]: typeof CLAUDE_OPUS_4_1.supports.tools
+  [CLAUDE_SONNET_4.id]: typeof CLAUDE_SONNET_4.supports.tools
+  [CLAUDE_SONNET_3_7.id]: typeof CLAUDE_SONNET_3_7.supports.tools
+  [CLAUDE_OPUS_4.id]: typeof CLAUDE_OPUS_4.supports.tools
+  [CLAUDE_HAIKU_3_5.id]: typeof CLAUDE_HAIKU_3_5.supports.tools
+  [CLAUDE_HAIKU_3.id]: typeof CLAUDE_HAIKU_3.supports.tools
+  [CLAUDE_OPUS_4_6_FAST.id]: typeof CLAUDE_OPUS_4_6_FAST.supports.tools
+  [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.tools
 }
 
 /**
@@ -603,4 +769,5 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_HAIKU_3_5.id]: typeof CLAUDE_HAIKU_3_5.supports.input
   [CLAUDE_HAIKU_3.id]: typeof CLAUDE_HAIKU_3.supports.input
   [CLAUDE_OPUS_4_6_FAST.id]: typeof CLAUDE_OPUS_4_6_FAST.supports.input
+  [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.input
 }
