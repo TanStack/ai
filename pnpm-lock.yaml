@@ -959,6 +959,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.71.2
         version: 0.71.2(zod@4.2.1)
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1130,6 +1133,9 @@ importers:
       '@11labs/client':
         specifier: ^0.2.0
         version: 0.2.0(@types/dom-mediacapture-record@1.0.22)
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1159,6 +1165,9 @@ importers:
       '@fal-ai/client':
         specifier: ^1.9.4
         version: 1.9.4
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1175,6 +1184,9 @@ importers:
       '@google/genai':
         specifier: ^1.43.0
         version: 1.43.0
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1194,6 +1206,12 @@ importers:
       '@tanstack/ai':
         specifier: workspace:^
         version: link:../ai
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
+      '@tanstack/openai-base':
+        specifier: workspace:*
+        version: link:../openai-base
       openai:
         specifier: ^6.9.1
         version: 6.10.0(ws@8.19.0)(zod@4.2.1)
@@ -1213,6 +1231,12 @@ importers:
       '@tanstack/ai':
         specifier: workspace:^
         version: link:../ai
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
+      '@tanstack/openai-base':
+        specifier: workspace:*
+        version: link:../openai-base
       groq-sdk:
         specifier: ^0.37.0
         version: 0.37.0
@@ -1277,6 +1301,9 @@ importers:
 
   packages/typescript/ai-ollama:
     dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
       ollama:
         specifier: ^0.6.3
         version: 0.6.3
@@ -1293,6 +1320,12 @@ importers:
 
   packages/typescript/ai-openai:
     dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
+      '@tanstack/openai-base':
+        specifier: workspace:*
+        version: link:../openai-base
       openai:
         specifier: ^6.9.1
         version: 6.10.0(ws@8.19.0)(zod@4.2.1)
@@ -1321,6 +1354,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.0.14
@@ -1530,6 +1566,15 @@ importers:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/typescript/ai-utils:
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.1.4)
+      vite:
+        specifier: ^7.2.7
+        version: 7.3.1(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/typescript/ai-vue:
     dependencies:
       '@tanstack/ai-client':
@@ -1600,6 +1645,28 @@ importers:
       vue-tsc:
         specifier: ^2.2.10
         version: 2.2.12(typescript@5.9.3)
+
+  packages/typescript/openai-base:
+    dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
+      openai:
+        specifier: ^6.9.1
+        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.1.4)
+      vite:
+        specifier: ^7.2.7
+        version: 7.3.1(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
 
   packages/typescript/preact-ai-devtools:
     dependencies:
@@ -21120,6 +21187,11 @@ snapshots:
     optionalDependencies:
       ws: 8.19.0
       zod: 4.2.1
+
+  openai@6.10.0(ws@8.19.0)(zod@4.3.6):
+    optionalDependencies:
+      ws: 8.19.0
+      zod: 4.3.6
 
   optionator@0.9.4:
     dependencies:
