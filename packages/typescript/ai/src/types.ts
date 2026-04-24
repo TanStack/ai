@@ -829,15 +829,6 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
     completionTokens: number
     totalTokens: number
   }
-  /**
-   * Provider-specific metadata attached to the completed run.
-   *
-   * Use this to surface identifiers the provider returns that the caller
-   * needs for follow-up calls — for example Gemini's `interactionId` when
-   * using the stateful Interactions API, so a later turn can pass it as
-   * `previous_interaction_id`.
-   */
-  providerMetadata?: Record<string, unknown>
 }
 
 /**
