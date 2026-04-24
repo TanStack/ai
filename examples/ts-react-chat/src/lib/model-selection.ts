@@ -2,6 +2,7 @@ export type Provider =
   | 'openai'
   | 'anthropic'
   | 'gemini'
+  | 'gemini-interactions'
   | 'ollama'
   | 'grok'
   | 'groq'
@@ -52,7 +53,17 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     label: 'Anthropic - Claude Haiku 4.5',
   },
 
-  // Gemini
+  // Gemini (stateless `geminiText`)
+  {
+    provider: 'gemini',
+    model: 'gemini-3.1-pro-preview',
+    label: 'Gemini - 3.1 Pro Preview',
+  },
+  {
+    provider: 'gemini',
+    model: 'gemini-3.1-flash-lite-preview',
+    label: 'Gemini - 3.1 Flash Lite Preview',
+  },
   {
     provider: 'gemini',
     model: 'gemini-2.5-pro',
@@ -60,13 +71,20 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'gemini',
-    model: 'gemini-2.5-flash',
-    label: 'Gemini - 2.5 Flash',
-  },
-  {
-    provider: 'gemini',
     model: 'gemini-2.0-flash',
     label: 'Gemini - 2.0 Flash',
+  },
+
+  // Gemini Interactions (stateful — `geminiTextInteractions`)
+  {
+    provider: 'gemini-interactions',
+    model: 'gemini-3.1-pro-preview',
+    label: 'Gemini Interactions - 3.1 Pro Preview',
+  },
+  {
+    provider: 'gemini-interactions',
+    model: 'gemini-3.1-flash-lite-preview',
+    label: 'Gemini Interactions - 3.1 Flash Lite Preview',
   },
 
   // Openrouter — multi-provider via OpenRouter's unified API
@@ -124,16 +142,6 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Ollama
   {
     provider: 'ollama',
-    model: 'mistral:7b',
-    label: 'Ollama - Mistral 7B',
-  },
-  {
-    provider: 'ollama',
-    model: 'mistral',
-    label: 'Ollama - Mistral',
-  },
-  {
-    provider: 'ollama',
     model: 'gpt-oss:20b',
     label: 'Ollama - GPT-OSS 20B',
   },
@@ -144,15 +152,20 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'ollama',
-    model: 'smollm',
-    label: 'Ollama - SmolLM',
+    model: 'mistral',
+    label: 'Ollama - Mistral',
   },
 
   // Groq
   {
     provider: 'groq',
-    model: 'llama-3.3-70b-versatile',
-    label: 'Groq - Llama 3.3 70B',
+    model: 'openai/gpt-oss-120b',
+    label: 'Groq - GPT-OSS 120B',
+  },
+  {
+    provider: 'groq',
+    model: 'moonshotai/kimi-k2-instruct-0905',
+    label: 'Groq - Kimi K2 Instruct',
   },
   {
     provider: 'groq',
@@ -161,30 +174,30 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'groq',
-    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    label: 'Groq - Llama 4 Scout',
+    model: 'qwen/qwen3-32b',
+    label: 'Groq - Qwen3 32B',
   },
 
   // Grok
   {
     provider: 'grok',
-    model: 'grok-4',
-    label: 'Grok - Grok 4',
+    model: 'grok-4.20',
+    label: 'Grok - Grok 4.20',
   },
   {
     provider: 'grok',
-    model: 'grok-4-fast-non-reasoning',
-    label: 'Grok - Grok 4 Fast',
+    model: 'grok-4-1-fast-reasoning',
+    label: 'Grok - Grok 4.1 Fast (Reasoning)',
   },
   {
     provider: 'grok',
-    model: 'grok-3',
-    label: 'Grok - Grok 3',
+    model: 'grok-4-1-fast-non-reasoning',
+    label: 'Grok - Grok 4.1 Fast',
   },
   {
     provider: 'grok',
-    model: 'grok-3-mini',
-    label: 'Grok - Grok 3 Mini',
+    model: 'grok-code-fast-1',
+    label: 'Grok - Grok Code Fast 1',
   },
 ]
 
