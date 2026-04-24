@@ -126,10 +126,25 @@ export class OpenAICompatibleVideoAdapter<
     try {
       const client = this.client as any
 
-      let response: any
+      // Prefer retrieve() because many openai-compatible backends (and the
+      // aimock test harness) return the URL directly on the video resource
+      // and do not implement a separate /content endpoint. Subclasses can
+      // override this method if they need to download raw bytes via
+      // downloadContent()/content().
+      const videoInfo = await client.videos.retrieve(jobId)
+      if (videoInfo.url) {
+        return {
+          jobId,
+          url: videoInfo.url,
+          expiresAt: videoInfo.expires_at
+            ? new Date(videoInfo.expires_at)
+            : undefined,
+        }
+      }
 
+      // SDK download fall-through: try the various possible method names in
+      // decreasing order of modernity.
       if (typeof client.videos?.downloadContent === 'function') {
-        // OpenAI SDK's downloadContent returns raw video bytes as a Response
         const contentResponse = await client.videos.downloadContent(jobId)
         const videoBlob = await contentResponse.blob()
         const buffer = await videoBlob.arrayBuffer()
@@ -141,26 +156,17 @@ export class OpenAICompatibleVideoAdapter<
           url: `data:${mimeType};base64,${base64}`,
           expiresAt: undefined,
         }
-      } else if (typeof client.videos?.content === 'function') {
+      }
+
+      let response: any
+      if (typeof client.videos?.content === 'function') {
         response = await client.videos.content(jobId)
       } else if (typeof client.videos?.getContent === 'function') {
         response = await client.videos.getContent(jobId)
       } else if (typeof client.videos?.download === 'function') {
         response = await client.videos.download(jobId)
       } else {
-        // Fallback: check if retrieve returns the URL directly
-        const videoInfo = await client.videos.retrieve(jobId)
-        if (videoInfo.url) {
-          return {
-            jobId,
-            url: videoInfo.url,
-            expiresAt: videoInfo.expires_at
-              ? new Date(videoInfo.expires_at * 1000)
-              : undefined,
-          }
-        }
-
-        // Fetch and return a data URL
+        // Last resort: raw fetch with auth header.
         const baseUrl = this.clientConfig.baseURL || 'https://api.openai.com/v1'
         const apiKey = this.clientConfig.apiKey
 
@@ -205,7 +211,7 @@ export class OpenAICompatibleVideoAdapter<
         jobId,
         url: response.url,
         expiresAt: response.expires_at
-          ? new Date(response.expires_at * 1000)
+          ? new Date(response.expires_at)
           : undefined,
       }
     } catch (error: any) {
