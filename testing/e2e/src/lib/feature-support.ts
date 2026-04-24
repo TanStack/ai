@@ -129,6 +129,10 @@ export const matrix: Record<Feature, Set<Provider>> = {
   tts: new Set(['openai', 'grok']),
   transcription: new Set(['openai', 'grok']),
   'video-gen': new Set(['openai']),
+  // Only Gemini currently surfaces a first-class stateful conversation API via
+  // the adapter. aimock does not yet mock Gemini's interactions:create endpoint,
+  // so the stateful-interactions spec is skipped until fixture support lands.
+  'stateful-interactions': new Set(['gemini']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

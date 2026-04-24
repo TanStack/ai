@@ -89,4 +89,8 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'stateful-interactions': {
+    tools: [],
+    modelOptions: {},
+  },
 }
