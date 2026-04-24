@@ -48,6 +48,23 @@ function makeSessionResponse(expiresAt: number) {
   } as Partial<Response> as Response
 }
 
+describe('grokRealtimeToken request body', () => {
+  it('wraps the model under the `session` key per xAI /v1/realtime/client_secrets schema', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(makeSessionResponse(1_700_000_000))
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    await realtimeToken({
+      adapter: grokRealtimeToken({ model: 'grok-voice-think-fast-1.0' }),
+    })
+
+    const init = fetchMock.mock.calls[0]![1]!
+    const body = JSON.parse(init.body as string) as Record<string, unknown>
+    expect(body).toEqual({ session: { model: 'grok-voice-think-fast-1.0' } })
+  })
+})
+
 describe('grokRealtimeToken expires_at unit-safety', () => {
   it('treats a seconds timestamp as seconds (*1000)', async () => {
     const seconds = 1_700_000_000 // 2023-11-14 in seconds
