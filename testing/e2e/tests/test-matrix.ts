@@ -122,8 +122,11 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'openrouter',
   ]),
   'image-gen': new Set(['openai', 'grok']),
-  tts: new Set(['openai', 'elevenlabs']),
-  transcription: new Set(['openai', 'elevenlabs']),
+  // ElevenLabs is available via `createTTSAdapter`/`createTranscriptionAdapter`
+  // but not enrolled here yet — aimock doesn't mock api.elevenlabs.io routes.
+  // Re-add once aimock ships ElevenLabs stubs.
+  tts: new Set(['openai']),
+  transcription: new Set(['openai']),
   'video-gen': new Set(['openai']),
 }
 
