@@ -21,7 +21,8 @@ import type {
 // Accept-assign in both directions so the inlined types neither over- nor
 // under-specify the canonical ones.
 const _adapterFromLocal: CanonicalRealtimeAdapter = {} as LocalRealtimeAdapter
-const _adapterFromCanonical: LocalRealtimeAdapter = {} as CanonicalRealtimeAdapter
+const _adapterFromCanonical: LocalRealtimeAdapter =
+  {} as CanonicalRealtimeAdapter
 const _connectionFromLocal: CanonicalRealtimeConnection =
   {} as LocalRealtimeConnection
 const _connectionFromCanonical: LocalRealtimeConnection =
