@@ -25,6 +25,11 @@ import type { GeminiClientConfig } from '../utils'
 type Interaction = Interactions.Interaction
 type InteractionSSEEvent = Interactions.InteractionSSEEvent
 
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 export interface GeminiTextInteractionsConfig extends GeminiClientConfig {}
 
 export type GeminiTextInteractionsProviderOptions =
@@ -50,10 +55,11 @@ type ToolCallState = {
 /**
  * Tree-shakeable adapter for Gemini's stateful Interactions API. Routes
  * through `client.interactions.create` and surfaces the server-assigned
- * `interactionId` on `RUN_FINISHED.providerMetadata`; pass it back on the
- * next turn via `modelOptions.previous_interaction_id` to continue the
- * conversation without resending history. Text output + function tools
- * only.
+ * `interactionId` via an AG-UI `CUSTOM` event with
+ * `name: 'gemini.interactionId'` emitted just before `RUN_FINISHED`; pass
+ * that id back on the next turn via `modelOptions.previous_interaction_id`
+ * to continue the conversation without resending history. Text output +
+ * function tools only.
  *
  * @experimental Interactions API is in Beta per Google; shapes may change.
  * @see https://ai.google.dev/gemini-api/docs/interactions
@@ -97,7 +103,7 @@ export class GeminiTextInteractionsAdapter<
         this.name,
       )
     } catch (error) {
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId,
         model: options.model,
@@ -108,7 +114,7 @@ export class GeminiTextInteractionsAdapter<
               ? error.message
               : 'An unknown error occurred during the interactions stream.',
         },
-      }
+      })
     }
   }
 
@@ -470,12 +476,12 @@ async function* translateInteractionEvents(
   const emitRunStartedIfNeeded = function* (): Generator<StreamChunk> {
     if (!hasEmittedRunStarted) {
       hasEmittedRunStarted = true
-      yield {
+      yield asChunk({
         type: 'RUN_STARTED',
         runId,
         model,
         timestamp,
-      }
+      })
     }
   }
 
@@ -499,23 +505,23 @@ async function* translateInteractionEvents(
           case 'text': {
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
-              yield {
+              yield asChunk({
                 type: 'TEXT_MESSAGE_START',
                 messageId,
                 model,
                 timestamp,
                 role: 'assistant',
-              }
+              })
             }
             textAccumulated += delta.text
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_CONTENT',
               messageId,
               model,
               timestamp,
               delta: delta.text,
               content: textAccumulated,
-            }
+            })
             break
           }
           case 'function_call': {
@@ -541,23 +547,23 @@ async function* translateInteractionEvents(
             }
             if (!state.started) {
               state.started = true
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_START',
                 toolCallId,
                 toolName: state.name,
                 model,
                 timestamp,
                 index: state.index,
-              }
+              })
             }
-            yield {
+            yield asChunk({
               type: 'TOOL_CALL_ARGS',
               toolCallId,
               model,
               timestamp,
               delta: argsString,
               args: argsString,
-            }
+            })
             break
           }
           case 'thought_summary': {
@@ -566,23 +572,23 @@ async function* translateInteractionEvents(
             if (!thoughtText) break
             if (thinkingStepId === null) {
               thinkingStepId = generateId(adapterName)
-              yield {
+              yield asChunk({
                 type: 'STEP_STARTED',
                 stepId: thinkingStepId,
                 model,
                 timestamp,
                 stepType: 'thinking',
-              }
+              })
             }
             thinkingAccumulated += thoughtText
-            yield {
+            yield asChunk({
               type: 'STEP_FINISHED',
               stepId: thinkingStepId,
               model,
               timestamp,
               delta: thoughtText,
               content: thinkingAccumulated,
-            }
+            })
             break
           }
           default:
@@ -611,23 +617,23 @@ async function* translateInteractionEvents(
           } catch {
             parsedInput = {}
           }
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_END',
             toolCallId,
             toolName: state.name,
             model,
             timestamp,
             input: parsedInput,
-          }
+          })
         }
 
         if (hasEmittedTextMessageStart) {
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_END',
             messageId,
             model,
             timestamp,
-          }
+          })
         }
 
         const usage = event.interaction.usage
@@ -635,7 +641,17 @@ async function* translateInteractionEvents(
           ? 'tool_calls'
           : 'stop'
 
-        yield {
+        if (interactionId) {
+          yield asChunk({
+            type: 'CUSTOM',
+            name: 'gemini.interactionId',
+            value: { interactionId },
+            model,
+            timestamp,
+          })
+        }
+
+        yield asChunk({
           type: 'RUN_FINISHED',
           runId,
           model,
@@ -648,13 +664,12 @@ async function* translateInteractionEvents(
                 totalTokens: usage.total_tokens ?? 0,
               }
             : undefined,
-          ...(interactionId ? { providerMetadata: { interactionId } } : {}),
-        }
+        })
         break
       }
 
       case 'error': {
-        yield {
+        yield asChunk({
           type: 'RUN_ERROR',
           runId,
           model,
@@ -663,7 +678,7 @@ async function* translateInteractionEvents(
             message: event.error?.message ?? 'Unknown error',
             code: event.error?.code?.toString(),
           },
-        }
+        })
         break
       }
 

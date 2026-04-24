@@ -114,7 +114,7 @@ const stream = chat({
 
 Gemini's [Interactions API](https://ai.google.dev/gemini-api/docs/interactions) (currently in Beta) offers server-side conversation state — the Gemini equivalent of OpenAI's Responses API. Instead of replaying the full message history on every turn, you pass a `previous_interaction_id` and the server retains the transcript. This also improves cache hit rates for repeated prefixes.
 
-The `geminiTextInteractions` adapter routes through `client.interactions.create` and surfaces the server-assigned interaction id on the `RUN_FINISHED` event's `providerMetadata` so you can chain turns.
+The `geminiTextInteractions` adapter routes through `client.interactions.create` and surfaces the server-assigned interaction id via an AG-UI `CUSTOM` event (`name: 'gemini.interactionId'`) emitted just before `RUN_FINISHED`, so you can chain turns.
 
 > **⚠️ Experimental.** Google marks the Interactions API as Beta and explicitly flags possible breaking changes until it reaches general availability. Only text output and function tools are supported on this adapter today — use `geminiText()` for built-in Gemini tools (google_search, code_execution, url_context, file_search) or for any path you need stability guarantees on.
 
@@ -131,8 +131,8 @@ for await (const chunk of chat({
   adapter: geminiTextInteractions("gemini-2.5-flash"),
   messages: [{ role: "user", content: "Hi, my name is Amir." }],
 })) {
-  if (chunk.type === "RUN_FINISHED") {
-    interactionId = chunk.providerMetadata?.interactionId as string | undefined;
+  if (chunk.type === "CUSTOM" && chunk.name === "gemini.interactionId") {
+    interactionId = (chunk.value as { interactionId?: string }).interactionId;
   }
 }
 
@@ -193,12 +193,12 @@ const stream = chat({
 
 ### Reading the interaction id
 
-The server's interaction id arrives on `RUN_FINISHED` via a new `providerMetadata` field:
+The server's interaction id arrives as an AG-UI `CUSTOM` event emitted just before `RUN_FINISHED`:
 
 ```typescript
 for await (const chunk of stream) {
-  if (chunk.type === "RUN_FINISHED") {
-    const id = chunk.providerMetadata?.interactionId;
+  if (chunk.type === "CUSTOM" && chunk.name === "gemini.interactionId") {
+    const id = (chunk.value as { interactionId: string }).interactionId;
     // Persist `id` wherever you store per-user conversation pointers —
     // pass it back on the next turn as `previous_interaction_id`.
   }

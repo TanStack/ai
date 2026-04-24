@@ -118,7 +118,12 @@ describe('GeminiTextInteractionsAdapter', () => {
       completionTokens: 2,
       totalTokens: 5,
     })
-    expect(finished.providerMetadata).toEqual({ interactionId: 'int_1' })
+
+    const interactionCustom = chunks.find(
+      (c) => c.type === 'CUSTOM' && (c as any).name === 'gemini.interactionId',
+    ) as any
+    expect(interactionCustom).toBeDefined()
+    expect(interactionCustom.value).toEqual({ interactionId: 'int_1' })
   })
 
   it('forwards previous_interaction_id on the outgoing request and sends only the latest user turn', async () => {
