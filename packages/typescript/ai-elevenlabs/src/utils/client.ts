@@ -18,6 +18,7 @@ export interface ElevenLabsClientConfig {
 
 interface EnvObject {
   ELEVENLABS_API_KEY?: string
+  ELEVENLABS_AGENT_ID?: string
 }
 
 interface WindowWithEnv {
@@ -44,6 +45,17 @@ export function getElevenLabsApiKeyFromEnv(): string {
     )
   }
   return key
+}
+
+export function getElevenLabsAgentIdFromEnv(): string {
+  const id = getEnvironment()?.ELEVENLABS_AGENT_ID
+  if (!id) {
+    throw new Error(
+      'ELEVENLABS_AGENT_ID is required. Please set it in your environment ' +
+        'variables or pass `agentId` explicitly to elevenlabsRealtimeToken().',
+    )
+  }
+  return id
 }
 
 /**

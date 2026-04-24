@@ -27,6 +27,18 @@ const OUTPUT_MODE_OPTIONS: Array<{ value: OutputMode; label: string }> = [
   { value: 'audio-only', label: 'Audio Only' },
 ]
 
+const LANGUAGE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Agent default' },
+  { value: 'en', label: 'English' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' },
+  { value: 'it', label: 'Italian' },
+  { value: 'pt', label: 'Portuguese' },
+  { value: 'ja', label: 'Japanese' },
+  { value: 'zh', label: 'Chinese' },
+]
+
 function outputModeToModalities(
   mode: OutputMode,
 ): Array<'audio' | 'text'> | undefined {
@@ -44,7 +56,7 @@ function outputModeToModalities(
 
 function RealtimePage() {
   const [provider, setProvider] = useState<Provider>('openai')
-  const [agentId, setAgentId] = useState('')
+  const [language, setLanguage] = useState('')
   const [textInput, setTextInput] = useState('')
   const [outputMode, setOutputMode] = useState<OutputMode>('audio+text')
   const [temperature, setTemperature] = useState(0.8)
@@ -72,7 +84,7 @@ function RealtimePage() {
     getOutputTimeDomainData,
   } = useRealtime({
     provider,
-    agentId,
+    language: language || undefined,
     outputModalities: outputModeToModalities(outputMode),
     temperature,
     semanticEagerness,
@@ -178,20 +190,24 @@ function RealtimePage() {
                 </select>
               </div>
 
-              {/* ElevenLabs Agent ID (conditional) */}
+              {/* Language override (ElevenLabs only) */}
               {provider === 'elevenlabs' && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
-                    Agent ID
+                    Language
                   </label>
-                  <input
-                    type="text"
-                    value={agentId}
-                    onChange={(e) => setAgentId(e.target.value)}
-                    placeholder="Your ElevenLabs Agent ID"
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
                     disabled={status !== 'idle'}
-                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50 w-64"
-                  />
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                  >
+                    {LANGUAGE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 

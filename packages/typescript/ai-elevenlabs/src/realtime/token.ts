@@ -1,4 +1,7 @@
-import { createElevenLabsClient } from '../utils/client'
+import {
+  createElevenLabsClient,
+  getElevenLabsAgentIdFromEnv,
+} from '../utils/client'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
 import type { ElevenLabsRealtimeTokenOptions } from './types'
 
@@ -9,7 +12,8 @@ import type { ElevenLabsRealtimeTokenOptions } from './types'
  * for client-side conversation connections. The signed URL is valid for
  * 30 minutes.
  *
- * @param options - Configuration options including agentId
+ * @param options - Configuration. `agentId` falls back to
+ *   `ELEVENLABS_AGENT_ID` in the environment when omitted.
  * @returns A RealtimeTokenAdapter for use with realtimeToken()
  *
  * @example
@@ -17,15 +21,17 @@ import type { ElevenLabsRealtimeTokenOptions } from './types'
  * import { realtimeToken } from '@tanstack/ai'
  * import { elevenlabsRealtimeToken } from '@tanstack/ai-elevenlabs'
  *
+ * // Reads ELEVENLABS_AGENT_ID from env:
+ * const token = await realtimeToken({ adapter: elevenlabsRealtimeToken() })
+ *
+ * // Or pass explicitly:
  * const token = await realtimeToken({
- *   adapter: elevenlabsRealtimeToken({
- *     agentId: 'your-agent-id',
- *   }),
+ *   adapter: elevenlabsRealtimeToken({ agentId: 'your-agent-id' }),
  * })
  * ```
  */
 export function elevenlabsRealtimeToken(
-  options: ElevenLabsRealtimeTokenOptions,
+  options: ElevenLabsRealtimeTokenOptions = {},
 ): RealtimeTokenAdapter {
   const client = createElevenLabsClient()
 
@@ -33,7 +39,8 @@ export function elevenlabsRealtimeToken(
     provider: 'elevenlabs',
 
     async generateToken(): Promise<RealtimeToken> {
-      const { agentId, overrides } = options
+      const { overrides } = options
+      const agentId = options.agentId ?? getElevenLabsAgentIdFromEnv()
 
       const response = await client.conversationalAi.conversations.getSignedUrl(
         { agentId },
