@@ -4,7 +4,13 @@ import { z } from 'zod'
 import { buildAudioAdapter } from '../lib/server-audio-adapters'
 
 const AUDIO_PROVIDER_SCHEMA = z
-  .enum(['gemini-lyria', 'fal-audio', 'fal-sfx'])
+  .enum([
+    'gemini-lyria',
+    'fal-audio',
+    'fal-sfx',
+    'elevenlabs-music',
+    'elevenlabs-sfx',
+  ])
   .optional()
 
 const AUDIO_BODY_SCHEMA = z.object({

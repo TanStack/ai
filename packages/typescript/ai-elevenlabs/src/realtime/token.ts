@@ -1,38 +1,13 @@
+import { createElevenLabsClient } from '../utils/client'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
 import type { ElevenLabsRealtimeTokenOptions } from './types'
-
-const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1'
-
-/**
- * Get ElevenLabs API key from environment
- */
-function getElevenLabsApiKey(): string {
-  // Check process.env (Node.js)
-  if (typeof process !== 'undefined' && process.env.ELEVENLABS_API_KEY) {
-    return process.env.ELEVENLABS_API_KEY
-  }
-
-  // Check window.env (Browser with injected env)
-  if (
-    typeof window !== 'undefined' &&
-    (window as unknown as { env?: { ELEVENLABS_API_KEY?: string } }).env
-      ?.ELEVENLABS_API_KEY
-  ) {
-    return (window as unknown as { env: { ELEVENLABS_API_KEY: string } }).env
-      .ELEVENLABS_API_KEY
-  }
-
-  throw new Error(
-    'ELEVENLABS_API_KEY not found in environment variables. ' +
-      'Please set ELEVENLABS_API_KEY in your environment.',
-  )
-}
 
 /**
  * Creates an ElevenLabs realtime token adapter.
  *
- * This adapter generates signed URLs for client-side connections.
- * The signed URL is valid for 30 minutes.
+ * Uses the official `@elevenlabs/elevenlabs-js` SDK to request a signed URL
+ * for client-side conversation connections. The signed URL is valid for
+ * 30 minutes.
  *
  * @param options - Configuration options including agentId
  * @returns A RealtimeTokenAdapter for use with realtimeToken()
@@ -52,7 +27,7 @@ function getElevenLabsApiKey(): string {
 export function elevenlabsRealtimeToken(
   options: ElevenLabsRealtimeTokenOptions,
 ): RealtimeTokenAdapter {
-  const apiKey = getElevenLabsApiKey()
+  const client = createElevenLabsClient()
 
   return {
     provider: 'elevenlabs',
@@ -60,33 +35,16 @@ export function elevenlabsRealtimeToken(
     async generateToken(): Promise<RealtimeToken> {
       const { agentId, overrides } = options
 
-      // Get signed URL from ElevenLabs
-      const response = await fetch(
-        `${ELEVENLABS_API_URL}/convai/conversation/get_signed_url?agent_id=${agentId}`,
-        {
-          method: 'GET',
-          headers: {
-            'xi-api-key': apiKey,
-          },
-        },
+      const response = await client.conversationalAi.conversations.getSignedUrl(
+        { agentId },
       )
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(
-          `ElevenLabs signed URL request failed: ${response.status} ${errorText}`,
-        )
-      }
-
-      const data = await response.json()
-      const signedUrl = data.signed_url as string
 
       // Signed URLs are valid for 30 minutes
       const expiresAt = Date.now() + 30 * 60 * 1000
 
       return {
         provider: 'elevenlabs',
-        token: signedUrl,
+        token: response.signedUrl,
         expiresAt,
         config: {
           voice: overrides?.voiceId,

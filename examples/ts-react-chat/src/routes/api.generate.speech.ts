@@ -3,7 +3,9 @@ import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
 import { z } from 'zod'
 import { buildSpeechAdapter } from '../lib/server-audio-adapters'
 
-const SPEECH_PROVIDER_SCHEMA = z.enum(['openai', 'gemini', 'fal']).optional()
+const SPEECH_PROVIDER_SCHEMA = z
+  .enum(['openai', 'gemini', 'fal', 'elevenlabs'])
+  .optional()
 
 const SPEECH_BODY_SCHEMA = z.object({
   text: z.string().min(1),

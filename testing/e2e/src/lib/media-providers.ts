@@ -6,6 +6,10 @@ import {
 } from '@tanstack/ai-openai'
 import { createGeminiImage } from '@tanstack/ai-gemini'
 import { createGrokImage } from '@tanstack/ai-grok'
+import {
+  createElevenLabsSpeech,
+  createElevenLabsTranscription,
+} from '@tanstack/ai-elevenlabs'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -63,6 +67,10 @@ export function createTTSAdapter(
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
+    elevenlabs: () =>
+      createElevenLabsSpeech('eleven_multilingual_v2', DUMMY_KEY, {
+        baseUrl: llmockBase(aimockPort),
+      }),
   }
   const factory = factories[provider]
   if (!factory) throw new Error(`No TTS adapter for provider: ${provider}`)
@@ -80,6 +88,10 @@ export function createTranscriptionAdapter(
       createOpenaiTranscription('whisper-1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
+      }),
+    elevenlabs: () =>
+      createElevenLabsTranscription('scribe_v1', DUMMY_KEY, {
+        baseUrl: llmockBase(aimockPort),
       }),
   }
   const factory = factories[provider]

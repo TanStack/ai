@@ -8,6 +8,11 @@
 import { openaiSpeech, openaiTranscription } from '@tanstack/ai-openai'
 import { geminiAudio, geminiSpeech } from '@tanstack/ai-gemini'
 import { falAudio, falSpeech, falTranscription } from '@tanstack/ai-fal'
+import {
+  elevenlabsAudio,
+  elevenlabsSpeech,
+  elevenlabsTranscription,
+} from '@tanstack/ai-elevenlabs'
 import type {
   AnyAudioAdapter,
   AnyTranscriptionAdapter,
@@ -40,6 +45,8 @@ export function buildSpeechAdapter(provider: SpeechProviderId): AnyTTSAdapter {
       return geminiSpeech(config.model as 'gemini-2.5-flash-preview-tts')
     case 'fal':
       return falSpeech(config.model)
+    case 'elevenlabs':
+      return elevenlabsSpeech(config.model)
   }
 }
 
@@ -52,6 +59,8 @@ export function buildTranscriptionAdapter(
       return openaiTranscription(config.model as 'whisper-1')
     case 'fal':
       return falTranscription(config.model)
+    case 'elevenlabs':
+      return elevenlabsTranscription(config.model)
   }
 }
 
@@ -69,6 +78,9 @@ export function buildAudioAdapter(
     case 'fal-audio':
     case 'fal-sfx':
       return falAudio(model)
+    case 'elevenlabs-music':
+    case 'elevenlabs-sfx':
+      return elevenlabsAudio(model)
   }
 }
 

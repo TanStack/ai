@@ -8,6 +8,7 @@ export const providers: Provider[] = [
   'groq',
   'grok',
   'openrouter',
+  'elevenlabs',
 ]
 
 const supportMatrix: Record<Feature, Set<Provider>> = {
@@ -121,8 +122,8 @@ const supportMatrix: Record<Feature, Set<Provider>> = {
     'openrouter',
   ]),
   'image-gen': new Set(['openai', 'grok']),
-  tts: new Set(['openai']),
-  transcription: new Set(['openai']),
+  tts: new Set(['openai', 'elevenlabs']),
+  transcription: new Set(['openai', 'elevenlabs']),
   'video-gen': new Set(['openai']),
 }
 
