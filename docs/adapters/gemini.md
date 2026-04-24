@@ -209,7 +209,7 @@ for await (const chunk of stream) {
 
 - **Tools, `system_instruction`, and `generation_config` are interaction-scoped.** Per Google's docs these are NOT inherited from a prior interaction via `previous_interaction_id` — pass them again on every turn you need them.
 - `store: false` is incompatible with `previous_interaction_id` (no state to recall) and with `background: true`.
-- Retention: **55 days on the Paid Tier, 1 day on the Free Tier.**
+- Retention (as of the time of writing): **55 days on the Paid Tier, 1 day on the Free Tier.** See [Google's Interactions API docs](https://ai.google.dev/gemini-api/docs/interactions) for current retention policy.
 - Built-in Gemini tools (google_search, code_execution, etc.) throw a clear error today — their request shape on the Interactions API differs from `generateContent` and is tracked as follow-up work. Use `geminiText` for those.
 - Image and audio output via Interactions aren't routed through this adapter yet — it's text-only. Use `geminiImage` / `geminiSpeech` for non-text generation for now.
 
@@ -456,7 +456,7 @@ Creates a Gemini Interactions API text adapter with an explicit API key.
 
 - `model` - The model name (e.g. `gemini-2.5-flash`)
 - `apiKey` - Your Google API key
-- `config.httpOptions?` - Custom HTTP options (optional)
+- `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini Interactions text adapter instance.
 

@@ -216,44 +216,63 @@ function buildInteractionsRequest(
   }
 }
 
-// When `hasPreviousInteraction` is true the server holds the transcript;
-// per Google's Interactions docs we send only the latest user turn. Otherwise
-// we send the full conversation as `Turn[]`.
+// When `hasPreviousInteraction` is true the server holds the transcript up
+// through the last assistant turn, so we only send messages that come after
+// it (a new user turn, a tool result continuing a function call, etc.).
+// Otherwise we send the full conversation as `Turn[]`.
 function convertMessagesToInteractionsInput(
   messages: Array<ModelMessage>,
   hasPreviousInteraction: boolean,
 ): Array<TurnInput> {
-  if (hasPreviousInteraction) {
-    const latest = findLatestUserTurn(messages)
-    return latest ? [latest] : []
-  }
-
   const toolCallIdToName = new Map<string, string>()
-  const turns: Array<TurnInput> = []
-
   for (const msg of messages) {
     if (msg.role === 'assistant' && msg.toolCalls) {
       for (const tc of msg.toolCalls) {
         toolCallIdToName.set(tc.id, tc.function.name)
       }
     }
+  }
+
+  const source = hasPreviousInteraction
+    ? messagesAfterLastAssistant(messages)
+    : messages
+
+  const turns: Array<TurnInput> = []
+  for (const msg of source) {
     const turn = messageToTurn(msg, toolCallIdToName)
     if (turn) turns.push(turn)
+  }
+
+  if (hasPreviousInteraction && turns.length === 0) {
+    throw new Error(
+      'Gemini Interactions adapter: modelOptions.previous_interaction_id was provided but no new messages were found after the last assistant turn. Append at least one user or tool message before chaining.',
+    )
   }
 
   return turns
 }
 
-function findLatestUserTurn(
+function messagesAfterLastAssistant(
   messages: Array<ModelMessage>,
-): TurnInput | undefined {
+): Array<ModelMessage> {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i]
-    if (msg?.role === 'user') {
-      return messageToTurn(msg, new Map())
+    if (messages[i]?.role === 'assistant') {
+      return messages.slice(i + 1)
     }
   }
-  return undefined
+  return messages
+}
+
+function safeParseToolArguments(
+  raw: string | undefined,
+): Record<string, unknown> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
 }
 
 function messageToTurn(
@@ -280,9 +299,7 @@ function messageToTurn(
         type: 'function_call',
         id: toolCall.id,
         name: toolCall.function.name,
-        arguments: toolCall.function.arguments
-          ? JSON.parse(toolCall.function.arguments)
-          : {},
+        arguments: safeParseToolArguments(toolCall.function.arguments),
       })
     }
   }
@@ -472,6 +489,26 @@ async function* translateInteractionEvents(
   let nextToolIndex = 0
   let thinkingStepId: string | null = null
   let thinkingAccumulated = ''
+  let reasoningMessageId: string | null = null
+  let hasClosedReasoning = false
+
+  const closeReasoningIfNeeded = function* (): Generator<StreamChunk> {
+    if (reasoningMessageId && !hasClosedReasoning) {
+      hasClosedReasoning = true
+      yield asChunk({
+        type: 'REASONING_MESSAGE_END',
+        messageId: reasoningMessageId,
+        model,
+        timestamp,
+      })
+      yield asChunk({
+        type: 'REASONING_END',
+        messageId: reasoningMessageId,
+        model,
+        timestamp,
+      })
+    }
+  }
 
   const emitRunStartedIfNeeded = function* (): Generator<StreamChunk> {
     if (!hasEmittedRunStarted) {
@@ -503,6 +540,7 @@ async function* translateInteractionEvents(
         const delta = event.delta
         switch (delta.type) {
           case 'text': {
+            yield* closeReasoningIfNeeded()
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
               yield asChunk({
@@ -525,24 +563,38 @@ async function* translateInteractionEvents(
             break
           }
           case 'function_call': {
+            yield* closeReasoningIfNeeded()
             sawFunctionCall = true
             const toolCallId = delta.id
-            const argsString =
+            const deltaArgs: Record<string, unknown> =
               typeof delta.arguments === 'string'
-                ? delta.arguments
-                : JSON.stringify(delta.arguments)
+                ? safeParseToolArguments(delta.arguments)
+                : delta.arguments
             let state = toolCalls.get(toolCallId)
             if (!state) {
               state = {
                 name: delta.name,
-                args: argsString,
+                args: JSON.stringify(deltaArgs),
                 index: nextToolIndex++,
                 started: false,
                 ended: false,
               }
               toolCalls.set(toolCallId, state)
             } else {
-              state.args = argsString
+              // Merge incremental fragments at the object level — the SDK
+              // types args as an object per delta, so string concatenation
+              // would produce invalid JSON.
+              try {
+                const existing = JSON.parse(state.args)
+                state.args = JSON.stringify({
+                  ...(existing && typeof existing === 'object'
+                    ? existing
+                    : {}),
+                  ...deltaArgs,
+                })
+              } catch {
+                state.args = JSON.stringify(deltaArgs)
+              }
               if (delta.name) state.name = delta.name
             }
             if (!state.started) {
@@ -561,8 +613,8 @@ async function* translateInteractionEvents(
               toolCallId,
               model,
               timestamp,
-              delta: argsString,
-              args: argsString,
+              delta: JSON.stringify(deltaArgs),
+              args: state.args,
             })
             break
           }
@@ -572,6 +624,20 @@ async function* translateInteractionEvents(
             if (!thoughtText) break
             if (thinkingStepId === null) {
               thinkingStepId = generateId(adapterName)
+              reasoningMessageId = generateId(adapterName)
+              yield asChunk({
+                type: 'REASONING_START',
+                messageId: reasoningMessageId,
+                model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_MESSAGE_START',
+                messageId: reasoningMessageId,
+                role: 'reasoning',
+                model,
+                timestamp,
+              })
               yield asChunk({
                 type: 'STEP_STARTED',
                 stepId: thinkingStepId,
@@ -581,6 +647,13 @@ async function* translateInteractionEvents(
               })
             }
             thinkingAccumulated += thoughtText
+            yield asChunk({
+              type: 'REASONING_MESSAGE_CONTENT',
+              messageId: reasoningMessageId!,
+              delta: thoughtText,
+              model,
+              timestamp,
+            })
             yield asChunk({
               type: 'STEP_FINISHED',
               stepId: thinkingStepId,
@@ -606,6 +679,8 @@ async function* translateInteractionEvents(
         if (event.interaction.id) {
           interactionId = event.interaction.id
         }
+
+        yield* closeReasoningIfNeeded()
 
         for (const [toolCallId, state] of toolCalls) {
           if (state.ended) continue
@@ -679,7 +754,7 @@ async function* translateInteractionEvents(
             code: event.error?.code?.toString(),
           },
         })
-        break
+        return
       }
 
       default:

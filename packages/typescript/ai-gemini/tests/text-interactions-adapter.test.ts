@@ -170,6 +170,69 @@ describe('GeminiTextInteractionsAdapter', () => {
     ])
   })
 
+  it('includes trailing tool result when chaining with previous_interaction_id', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_followup', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_followup', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'Weather in Madrid?' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'lookup_weather',
+                  arguments: '{"location":"Madrid"}',
+                },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_1',
+            content: '{"tempC":22}',
+          },
+        ],
+        modelOptions: {
+          previous_interaction_id: 'int_prev',
+        } as GeminiTextInteractionsProviderOptions,
+      }),
+    )
+
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
+    expect(payload.previous_interaction_id).toBe('int_prev')
+    expect(payload.input).toEqual([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'function_result',
+            call_id: 'call_1',
+            name: 'lookup_weather',
+            result: '{"tempC":22}',
+          },
+        ],
+      },
+    ])
+  })
+
   it('sends full conversation as Turn[] when previous_interaction_id is absent', async () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
