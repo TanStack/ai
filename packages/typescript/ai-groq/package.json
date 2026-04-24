@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-groq",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
   "description": "Groq adapter for TanStack AI",
   "author": "",

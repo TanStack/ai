@@ -1,6 +1,6 @@
 {
   "name": "ts-vue-chat",
-  "version": "0.1.36",
+  "version": "0.1.37",
   "private": true,
   "type": "module",
   "scripts": {
