@@ -103,9 +103,9 @@ describe('OpenRouter Image Adapter', () => {
 
     const callArgs = mockSend.mock.calls[0]![0].chatRequest
     expect(callArgs.imageConfig).toMatchObject({
-      n: 2,
       numberOfImages: 2,
     })
+    expect(callArgs.imageConfig).not.toHaveProperty('n')
 
     expect(result.images).toHaveLength(2)
     expect(result.images[0]!.url).toBe('https://example.com/image1.png')
@@ -131,7 +131,7 @@ describe('OpenRouter Image Adapter', () => {
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0]!.b64Json).toBe(base64Data)
-    expect(result.images[0]!.url).toBe(`data:image/png;base64,${base64Data}`)
+    expect(result.images[0]!.url).toBeUndefined()
   })
 
   it('passes aspect ratio from size', async () => {
@@ -178,18 +178,20 @@ describe('OpenRouter Image Adapter', () => {
     })
   })
 
-  it('throws error on SDK error', async () => {
+  it('propagates SDK errors without rewrapping', async () => {
     mockSend = vi.fn().mockRejectedValueOnce(new Error('Model not found'))
 
     const adapter = createAdapter()
 
+    // SDK errors already have context/stack — they must propagate as-is,
+    // not be rewrapped with an "Image generation failed:" prefix.
     await expect(
       adapter.generateImages({
         model: 'invalid/model',
         prompt: 'Test prompt',
         logger: testLogger,
       }),
-    ).rejects.toThrow('Image generation failed: Model not found')
+    ).rejects.toThrowError(new Error('Model not found'))
   })
 
   it('throws error on API error in response body', async () => {
@@ -201,13 +203,16 @@ describe('OpenRouter Image Adapter', () => {
 
     const adapter = createAdapter()
 
+    // Assert exact message — must not contain doubled "Image generation failed:" prefix
     await expect(
       adapter.generateImages({
         model: 'google/gemini-2.5-flash-image',
         prompt: 'Inappropriate content',
         logger: testLogger,
       }),
-    ).rejects.toThrow('Image generation failed: Content policy violation')
+    ).rejects.toThrowError(
+      new Error('Image generation failed: Content policy violation'),
+    )
   })
 
   it('passes imageConfig correctly', async () => {

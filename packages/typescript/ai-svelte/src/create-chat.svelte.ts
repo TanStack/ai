@@ -55,7 +55,11 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
 
-  // Create ChatClient instance
+  // Create ChatClient instance.
+  // Note: Svelte's createChat runs once per instance and `options` is captured
+  // by reference. Callbacks are therefore frozen to whatever the caller passed
+  // at creation — to swap them dynamically, mutate the options object
+  // in-place or call `client.updateOptions(...)` imperatively.
   const client = new ChatClient({
     connection: options.connection,
     id: clientId,

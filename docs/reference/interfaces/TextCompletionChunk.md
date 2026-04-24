@@ -5,7 +5,7 @@ title: TextCompletionChunk
 
 # Interface: TextCompletionChunk
 
-Defined in: [packages/typescript/ai/src/types.ts:1147](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1147)
+Defined in: [packages/typescript/ai/src/types.ts:1156](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1156)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1147](https://github.com/TanSta
 content: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1150](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1150)
+Defined in: [packages/typescript/ai/src/types.ts:1159](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1159)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1150](https://github.com/TanSta
 optional finishReason: "length" | "stop" | "content_filter" | null;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1152](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1152)
+Defined in: [packages/typescript/ai/src/types.ts:1161](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1161)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1152](https://github.com/TanSta
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1148](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1148)
+Defined in: [packages/typescript/ai/src/types.ts:1157](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1157)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1148](https://github.com/TanSta
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1149](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1149)
+Defined in: [packages/typescript/ai/src/types.ts:1158](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1158)
 
 ***
 
@@ -55,7 +55,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1149](https://github.com/TanSta
 optional role: "assistant";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1151](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1151)
+Defined in: [packages/typescript/ai/src/types.ts:1160](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1160)
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1151](https://github.com/TanSta
 optional usage: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1153](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1153)
+Defined in: [packages/typescript/ai/src/types.ts:1162](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1162)
 
 #### completionTokens
 

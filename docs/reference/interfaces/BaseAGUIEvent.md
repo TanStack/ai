@@ -5,7 +5,7 @@ title: BaseAGUIEvent
 
 # Interface: BaseAGUIEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:785](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L785)
+Defined in: [packages/typescript/ai/src/types.ts:794](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L794)
 
 Base structure for AG-UI events.
 Extends @ag-ui/core BaseEvent with TanStack AI additions.
@@ -31,6 +31,6 @@ TanStack AI adds: `model?`
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:787](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L787)
+Defined in: [packages/typescript/ai/src/types.ts:796](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L796)
 
 Model identifier for multi-model support

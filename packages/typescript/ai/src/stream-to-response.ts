@@ -1,3 +1,4 @@
+import { toRunErrorPayload } from './activities/error-payload'
 import type { StreamChunk } from './types'
 
 /**
@@ -68,7 +69,7 @@ export function toServerSentEventsStream(
         }
 
         controller.close()
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Don't send error if aborted
         if (abortController?.signal.aborted) {
           controller.close()
@@ -81,10 +82,7 @@ export function toServerSentEventsStream(
             `data: ${JSON.stringify({
               type: 'RUN_ERROR',
               timestamp: Date.now(),
-              error: {
-                message: error.message || 'Unknown error occurred',
-                code: error.code,
-              },
+              error: toRunErrorPayload(error),
             })}\n\n`,
           ),
         )
@@ -190,7 +188,7 @@ export function toHttpStream(
         }
 
         controller.close()
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Don't send error if aborted
         if (abortController?.signal.aborted) {
           controller.close()
@@ -203,10 +201,7 @@ export function toHttpStream(
             `${JSON.stringify({
               type: 'RUN_ERROR',
               timestamp: Date.now(),
-              error: {
-                message: error.message || 'Unknown error occurred',
-                code: error.code,
-              },
+              error: toRunErrorPayload(error),
             })}\n`,
           ),
         )

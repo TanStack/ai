@@ -10,13 +10,13 @@ This package runs generated JavaScript in a Worker and keeps `external_*` tool e
 pnpm add @tanstack/ai-isolate-cloudflare
 ```
 
-## Environment Guidance (Conservative)
+## Environment Guidance
 
 - **Local development:** supported with the package's Miniflare dev server (`pnpm dev:worker`)
 - **Remote dev:** supported with `wrangler dev --remote`
-- **Production:** evaluate carefully before rollout; dynamic code execution with `unsafe_eval` has platform/security constraints and is often treated as an advanced or enterprise setup
+- **Production:** supported on Cloudflare accounts with the `unsafe_eval` binding enabled. Before rollout, put the Worker behind authentication (e.g. Cloudflare Access or the `authorization` driver option), rate limiting, and CORS restrictions — running LLM-authored code is a high-trust operation.
 
-If you need a fully local setup without Cloudflare constraints, prefer `@tanstack/ai-isolate-node` or `@tanstack/ai-isolate-quickjs`.
+If you want a self-contained host without Cloudflare infrastructure, prefer `@tanstack/ai-isolate-node` or `@tanstack/ai-isolate-quickjs`.
 
 ## Quick Start
 
@@ -68,7 +68,15 @@ From this package directory:
 pnpm dev:worker
 ```
 
-This starts a local Worker endpoint (default `http://localhost:8787`) with `UNSAFE_EVAL` configured for local testing.
+This starts a local Worker endpoint (default `http://localhost:8787`) with the `UNSAFE_EVAL` binding configured in `wrangler.toml`.
+
+### Option 3: Production deployment
+
+```bash
+wrangler deploy
+```
+
+The same `wrangler.toml` `[[unsafe.bindings]]` configuration applies in production. Deploying requires that your Cloudflare account has `unsafe_eval` enabled; without it, the Worker returns an `UnsafeEvalNotAvailable` error. Because this Worker executes LLM-generated code, only deploy it behind authentication, rate limiting, and an allow-listed origin.
 
 ### Option 2: Wrangler remote dev
 

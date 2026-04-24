@@ -4,7 +4,6 @@ import {
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
 } from '../utils'
-import type { SDKOptions } from '@openrouter/sdk'
 import type { OpenRouterClientConfig } from '../utils'
 import type {
   OpenRouterImageModelProviderOptionsByName,
@@ -54,7 +53,7 @@ export class OpenRouterImageAdapter<
   private client: OpenRouter
 
   constructor(config: OpenRouterImageConfig, model: TModel) {
-    super({}, model)
+    super(model, {})
     this.client = new OpenRouter({
       ...config,
       apiKey: config.apiKey,
@@ -78,54 +77,45 @@ export class OpenRouterImageAdapter<
       },
     )
 
-    try {
-      const response = await this.client.chat.send({
-        chatRequest: {
-          model,
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          modalities: ['image'],
-          stream: false,
-          // OpenRouter filters out invalid config per provider specifications
-          imageConfig: {
-            ...(numberOfImages ? { n: numberOfImages, numberOfImages } : {}),
-            ...(aspectRatio
-              ? {
-                  aspect_ratio: aspectRatio,
-                }
-              : {}),
-            ...(modelOptions?.image_size
-              ? {
-                  image_size: modelOptions.image_size,
-                }
-              : {}),
+    const response = await this.client.chat.send({
+      chatRequest: {
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
           },
+        ],
+        modalities: ['image'],
+        stream: false,
+        // OpenRouter filters out invalid config per provider specifications
+        imageConfig: {
+          ...(numberOfImages ? { numberOfImages } : {}),
+          ...(aspectRatio
+            ? {
+                aspect_ratio: aspectRatio,
+              }
+            : {}),
+          ...(modelOptions?.image_size
+            ? {
+                image_size: modelOptions.image_size,
+              }
+            : {}),
         },
-      })
+      },
+    })
 
-      // Check for error in response
-      if ('error' in response && response.error) {
-        const { error } = response
-        const errorMsg =
-          typeof error === 'object' && 'message' in error
-            ? String(error.message)
-            : String(error)
-        throw new Error(`Image generation failed: ${errorMsg}`)
-      }
-
-      return this.transformResponse(model, response)
-    } catch (error) {
-      logger.errors('openrouter.generateImage fatal', {
-        error,
-        source: 'openrouter.generateImage',
-      })
-      const message = (error as Error).message || 'Unknown error'
-      throw new Error(`Image generation failed: ${message}`)
+    // Check for error in response
+    if ('error' in response && response.error) {
+      const { error } = response
+      const errorMsg =
+        typeof error === 'object' && 'message' in error
+          ? String(error.message)
+          : String(error)
+      throw new Error(`Image generation failed: ${errorMsg}`)
     }
+
+    return this.transformResponse(model, response)
   }
 
   protected override generateId(): string {
@@ -142,14 +132,14 @@ export class OpenRouterImageAdapter<
       const choiceImages = choice.message.images
       if (choiceImages) {
         for (const img of choiceImages) {
+          if (typeof img.imageUrl.url !== 'string') {
+            continue
+          }
           const url = img.imageUrl.url
           if (url.startsWith('data:')) {
             const base64Match = url.match(/^data:image\/[^;]+;base64,(.+)$/)
-            if (base64Match) {
-              images.push({
-                b64Json: base64Match[1],
-                url: url,
-              })
+            if (base64Match && base64Match[1]) {
+              images.push({ b64Json: base64Match[1] })
             } else {
               images.push({ url })
             }
@@ -158,6 +148,10 @@ export class OpenRouterImageAdapter<
           }
         }
       }
+    }
+
+    if (images.length === 0) {
+      throw new Error('Image generation failed: response contained no images')
     }
 
     return {
@@ -171,14 +165,14 @@ export class OpenRouterImageAdapter<
 export function createOpenRouterImage<TModel extends OpenRouterImageModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterImageConfig, 'apiKey'>,
 ): OpenRouterImageAdapter<TModel> {
   return new OpenRouterImageAdapter({ apiKey, ...config }, model)
 }
 
 export function openRouterImage<TModel extends OpenRouterImageModel>(
   model: TModel,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterImageConfig, 'apiKey'>,
 ): OpenRouterImageAdapter<TModel> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterImage(model, apiKey, config)

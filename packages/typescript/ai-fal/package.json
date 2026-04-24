@@ -38,7 +38,12 @@
     "tanstack",
     "adapter",
     "image-generation",
-    "video-generation"
+    "video-generation",
+    "audio-generation",
+    "text-to-speech",
+    "speech-to-text",
+    "tts",
+    "transcription"
   ],
   "dependencies": {
     "@fal-ai/client": "^1.9.4"

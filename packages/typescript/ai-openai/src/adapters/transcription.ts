@@ -40,7 +40,7 @@ export class OpenAITranscriptionAdapter<
   private client: OpenAI_SDK
 
   constructor(config: OpenAITranscriptionConfig, model: TModel) {
-    super(config, model)
+    super(model, config)
     this.client = createOpenAIClient(config)
   }
 

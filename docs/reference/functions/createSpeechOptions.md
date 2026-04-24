@@ -9,7 +9,7 @@ title: createSpeechOptions
 function createSpeechOptions<TAdapter, TStream>(options): TTSActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateSpeech/index.ts:181](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/index.ts#L181)
+Defined in: [packages/typescript/ai/src/activities/generateSpeech/index.ts:213](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/index.ts#L213)
 
 Create typed options for the generateSpeech() function without executing.
 

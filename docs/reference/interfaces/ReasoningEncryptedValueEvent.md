@@ -5,7 +5,7 @@ title: ReasoningEncryptedValueEvent
 
 # Interface: ReasoningEncryptedValueEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1103](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1103)
+Defined in: [packages/typescript/ai/src/types.ts:1112](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1112)
 
 Emitted for encrypted reasoning values.
 
@@ -30,6 +30,6 @@ TanStack AI adds: `model?`
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1105](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1105)
+Defined in: [packages/typescript/ai/src/types.ts:1114](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1114)
 
 Model identifier for multi-model support

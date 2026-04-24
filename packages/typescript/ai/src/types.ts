@@ -1220,13 +1220,27 @@ export interface ImageGenerationOptions<
 }
 
 /**
+ * Source of a generated media asset. Exactly one of `url` or `b64Json` is
+ * present; the other is absent. Modeled as a mutually-exclusive union so the
+ * type rejects `{}` and `{ url, b64Json }` together at compile time while
+ * preserving the flat `.url` / `.b64Json` access patterns.
+ */
+export type GeneratedMediaSource =
+  | {
+      /** URL to the generated asset (may be temporary) */
+      url: string
+      b64Json?: never
+    }
+  | {
+      /** Base64-encoded asset data */
+      b64Json: string
+      url?: never
+    }
+
+/**
  * A single generated image
  */
-export interface GeneratedImage {
-  /** Base64-encoded image data */
-  b64Json?: string
-  /** URL to the generated image (may be temporary) */
-  url?: string
+export type GeneratedImage = GeneratedMediaSource & {
   /** Revised prompt used by the model (if applicable) */
   revisedPrompt?: string
 }
@@ -1241,6 +1255,61 @@ export interface ImageGenerationResult {
   model: string
   /** Array of generated images */
   images: Array<GeneratedImage>
+  /** Token usage information (if available) */
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+  }
+}
+
+// ============================================================================
+// Audio Generation Types
+// ============================================================================
+
+/**
+ * Options for audio generation (music, sound effects, etc.).
+ * These are the common options supported across providers.
+ */
+export interface AudioGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for audio generation */
+  model: string
+  /** Text description of the desired audio */
+  prompt: string
+  /** Desired duration in seconds */
+  duration?: number
+  /** Model-specific options for audio generation */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateAudio() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+}
+
+/**
+ * A single generated audio output
+ */
+export type GeneratedAudio = GeneratedMediaSource & {
+  /** Content type of the audio (e.g., 'audio/wav', 'audio/mp3') */
+  contentType?: string
+  /** Duration of the generated audio in seconds */
+  duration?: number
+}
+
+/**
+ * Result of audio generation
+ */
+export interface AudioGenerationResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** The generated audio */
+  audio: GeneratedAudio
   /** Token usage information (if available) */
   usage?: {
     inputTokens?: number

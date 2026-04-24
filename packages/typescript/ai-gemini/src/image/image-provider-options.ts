@@ -244,8 +244,28 @@ export function validateImageSize(
 }
 
 /**
- * Validates the number of images requested
- * Imagen models support 1-8 images per request (varies by model)
+ * Per-model caps on images per request.
+ * Imagen 3 and the Imagen 4 family all support up to 4 images per request
+ * via the Gemini API (the rumored 8-image tier is Vertex-only and isn't
+ * reachable through @google/genai today). Unknown models fall through to
+ * the shared cap defined below.
+ *
+ * @see https://ai.google.dev/gemini-api/docs/imagen
+ */
+const IMAGEN_MAX_IMAGES_BY_MODEL: Record<string, number> = {
+  'imagen-3.0-generate-002': 4,
+  'imagen-4.0-generate-001': 4,
+  'imagen-4.0-ultra-generate-001': 4,
+  'imagen-4.0-fast-generate-001': 4,
+}
+
+const DEFAULT_IMAGEN_MAX_IMAGES = 4
+
+/**
+ * Validates the number of images requested against the model's known cap.
+ * Uses a per-model table where available and falls back to the shared
+ * default otherwise — no more "some support up to 8" comments that don't
+ * match the error message.
  */
 export function validateNumberOfImages(
   model: string,
@@ -253,8 +273,8 @@ export function validateNumberOfImages(
 ): void {
   if (numberOfImages === undefined) return
 
-  // Most Imagen models support 1-4 images, some support up to 8
-  const maxImages = 4
+  const maxImages =
+    IMAGEN_MAX_IMAGES_BY_MODEL[model] ?? DEFAULT_IMAGEN_MAX_IMAGES
   if (numberOfImages < 1 || numberOfImages > maxImages) {
     throw new Error(
       `Invalid numberOfImages "${numberOfImages}" for model "${model}". ` +

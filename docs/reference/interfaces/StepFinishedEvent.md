@@ -5,7 +5,7 @@ title: StepFinishedEvent
 
 # Interface: StepFinishedEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:969](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L969)
+Defined in: [packages/typescript/ai/src/types.ts:978](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L978)
 
 Emitted when a thinking/reasoning step finishes.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `stepId?` (deprecated alias), `delta?`, `content?`
 optional content: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:980](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L980)
+Defined in: [packages/typescript/ai/src/types.ts:989](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L989)
 
 Full accumulated thinking content (TanStack AI internal)
 
@@ -42,7 +42,7 @@ Full accumulated thinking content (TanStack AI internal)
 optional delta: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:978](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L978)
+Defined in: [packages/typescript/ai/src/types.ts:987](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L987)
 
 Incremental thinking content (TanStack AI internal)
 
@@ -54,7 +54,7 @@ Incremental thinking content (TanStack AI internal)
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:971](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L971)
+Defined in: [packages/typescript/ai/src/types.ts:980](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L980)
 
 Model identifier for multi-model support
 
@@ -66,7 +66,7 @@ Model identifier for multi-model support
 optional stepId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:976](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L976)
+Defined in: [packages/typescript/ai/src/types.ts:985](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L985)
 
 #### Deprecated
 

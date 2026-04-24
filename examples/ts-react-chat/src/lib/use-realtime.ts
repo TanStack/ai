@@ -6,9 +6,10 @@ import {
   elevenlabsRealtime,
   elevenlabsRealtimeToken,
 } from '@tanstack/ai-elevenlabs'
+import { grokRealtime, grokRealtimeToken } from '@tanstack/ai-grok'
 import { realtimeClientTools } from '@/lib/realtime-tools'
 
-type Provider = 'openai' | 'elevenlabs'
+type Provider = 'openai' | 'elevenlabs' | 'grok'
 
 const getRealtimeTokenFn = createServerFn({ method: 'POST' })
   .inputValidator((data: { provider: Provider; agentId?: string }) => {
@@ -36,12 +37,30 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
       })
     }
 
+    if (data.provider === 'grok') {
+      return realtimeToken({
+        adapter: grokRealtimeToken({ model: 'grok-voice-fast-1.0' }),
+      })
+    }
+
     throw new Error(`Unknown provider: ${data.provider}`)
   })
+
+function adapterForProvider(provider: Provider) {
+  switch (provider) {
+    case 'openai':
+      return openaiRealtime()
+    case 'elevenlabs':
+      return elevenlabsRealtime()
+    case 'grok':
+      return grokRealtime()
+  }
+}
 
 export function useRealtime({
   provider,
   agentId,
+  voice,
   outputModalities,
   temperature,
   maxOutputTokens,
@@ -49,14 +68,12 @@ export function useRealtime({
 }: {
   provider: Provider
   agentId: string
+  voice?: string
   outputModalities?: Array<'audio' | 'text'>
   temperature?: number
   maxOutputTokens?: number | 'inf'
   semanticEagerness?: 'low' | 'medium' | 'high'
 }) {
-  const adapter =
-    provider === 'openai' ? openaiRealtime() : elevenlabsRealtime()
-
   return useRealtimeChat({
     getToken: () =>
       getRealtimeTokenFn({
@@ -65,7 +82,7 @@ export function useRealtime({
           ...(provider === 'elevenlabs' && agentId ? { agentId } : {}),
         },
       }),
-    adapter,
+    adapter: adapterForProvider(provider),
     instructions: `You are a helpful, friendly voice assistant with access to several tools.
 
 You can:
@@ -78,7 +95,7 @@ Keep your responses concise and conversational since this is a voice interface.
 When using tools, briefly explain what you're doing and then share the results naturally.
 If the user sends an image, describe what you see and answer any questions about it.
 Be friendly and engaging!`,
-    voice: 'alloy',
+    voice: voice ?? (provider === 'grok' ? 'eve' : 'alloy'),
     tools: realtimeClientTools,
     outputModalities,
     temperature,
