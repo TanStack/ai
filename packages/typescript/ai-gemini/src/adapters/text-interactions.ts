@@ -4,6 +4,7 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { GeminiModels } from '../model-meta'
 import type {
   StructuredOutputOptions,
@@ -87,9 +88,18 @@ export class GeminiTextInteractionsAdapter<
   ): AsyncIterable<StreamChunk> {
     const runId = generateId(this.name)
     const timestamp = Date.now()
+    const { logger } = options
 
     try {
       const request = buildInteractionsRequest(options)
+      logger.request(
+        `activity=chat provider=gemini-text-interactions model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        {
+          provider: 'gemini-text-interactions',
+          model: this.model,
+          request,
+        },
+      )
       const stream = await this.client.interactions.create({
         ...request,
         stream: true,
@@ -101,12 +111,17 @@ export class GeminiTextInteractionsAdapter<
         runId,
         timestamp,
         this.name,
+        logger,
       )
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : 'An unknown error occurred during the interactions stream.'
+      logger.errors('gemini-text-interactions.chatStream fatal', {
+        error,
+        source: 'gemini-text-interactions.chatStream',
+      })
       yield asChunk({
         type: 'RUN_ERROR',
         runId,
@@ -122,6 +137,7 @@ export class GeminiTextInteractionsAdapter<
     options: StructuredOutputOptions<GeminiTextInteractionsProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
+    const { logger } = chatOptions
     const baseRequest = buildInteractionsRequest(chatOptions)
 
     const request = {
@@ -131,6 +147,14 @@ export class GeminiTextInteractionsAdapter<
     }
 
     try {
+      logger.request(
+        `activity=chat provider=gemini-text-interactions model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        {
+          provider: 'gemini-text-interactions',
+          model: this.model,
+          request,
+        },
+      )
       const result = await this.client.interactions.create(request)
 
       const rawText = extractTextFromInteraction(result)
@@ -146,6 +170,10 @@ export class GeminiTextInteractionsAdapter<
 
       return { data: parsed, rawText }
     } catch (error) {
+      logger.errors('gemini-text-interactions.structuredOutput fatal', {
+        error,
+        source: 'gemini-text-interactions.structuredOutput',
+      })
       throw new Error(
         error instanceof Error
           ? error.message
@@ -478,6 +506,7 @@ async function* translateInteractionEvents(
   runId: string,
   timestamp: number,
   adapterName: string,
+  logger: InternalLogger,
 ): AsyncIterable<StreamChunk> {
   const messageId = generateId(adapterName)
   let hasEmittedRunStarted = false
@@ -523,6 +552,7 @@ async function* translateInteractionEvents(
   }
 
   for await (const event of stream) {
+    logger.provider(`provider=gemini-text-interactions`, { event })
     switch (event.event_type) {
       case 'interaction.start': {
         interactionId = event.interaction.id
