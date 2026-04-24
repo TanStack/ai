@@ -55,14 +55,28 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
 
-  // Create ChatClient instance
+  // Create ChatClient instance.
+  //
+  // Svelte's `createChat` runs once per instance, so `options` is captured by
+  // reference at creation time. Wrapping each user-supplied callback through
+  // `options.onX?.(...)` lets callers mutate the options object in place (or
+  // call `client.updateOptions(...)` imperatively) and have the next invocation
+  // pick up the new function — without this indirection, those five callbacks
+  // would be frozen to whatever was passed at `createChat(...)` time, which
+  // diverges from the React/Preact/Vue/Solid sibling wrappers. This is the
+  // same uniform treatment applied to `onFinish`/`onError`; the other three
+  // (`onResponse`, `onChunk`, `onCustomEvent`) used to be direct references.
   const client = new ChatClient({
     connection: options.connection,
     id: clientId,
     initialMessages: options.initialMessages,
     body: options.body,
-    onResponse: options.onResponse,
-    onChunk: options.onChunk,
+    onResponse: (response) => {
+      options.onResponse?.(response)
+    },
+    onChunk: (chunk) => {
+      options.onChunk?.(chunk)
+    },
     onFinish: (message) => {
       options.onFinish?.(message)
     },
@@ -70,7 +84,9 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       options.onError?.(err)
     },
     tools: options.tools,
-    onCustomEvent: options.onCustomEvent,
+    onCustomEvent: (eventType, data, context) => {
+      options.onCustomEvent?.(eventType, data, context)
+    },
     streamProcessor: options.streamProcessor,
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages = newMessages
