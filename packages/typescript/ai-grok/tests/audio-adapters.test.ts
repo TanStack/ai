@@ -145,7 +145,26 @@ describe('GrokSpeechAdapter', () => {
     })
 
     expect(result.format).toBe('pcm')
-    expect(result.contentType).toBe('audio/L16')
+    // `audio/L16` requires a `rate` parameter per RFC 3551/3555. The default
+    // sample rate documented in GrokTTSProviderOptions is 24000 Hz.
+    expect(result.contentType).toBe('audio/L16;rate=24000')
+  })
+
+  it('reports pcm audio with the explicit sample_rate when provided', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(mockTTSResponse())
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
+
+    const result = await generateSpeech({
+      adapter,
+      text: 'x',
+      format: 'pcm',
+      modelOptions: { sample_rate: 48000 },
+    })
+
+    expect(result.format).toBe('pcm')
+    expect(result.contentType).toBe('audio/L16;rate=48000')
   })
 
   it('throws a descriptive error when the request fails', async () => {
@@ -357,5 +376,31 @@ describe('toAudioFile', () => {
     expect(() => toAudioFile('!!!not-base64!!!', 'mp3')).toThrow(
       /Invalid base64 input to toAudioFile/,
     )
+  })
+
+  it('throws on a malformed data: URI with unparseable MIME type', () => {
+    expect(() => toAudioFile('data:,ABCD')).toThrow(
+      /Malformed data: URI in toAudioFile: cannot parse MIME type/,
+    )
+  })
+
+  it('throws on a data: URI with a missing base64 payload', () => {
+    expect(() => toAudioFile('data:audio/mpeg;base64,')).toThrow(
+      /Malformed data: URI in toAudioFile: missing base64 payload/,
+    )
+    expect(() => toAudioFile('data:audio/mpeg;base64')).toThrow(
+      /Malformed data: URI in toAudioFile: missing base64 payload/,
+    )
+  })
+
+  it('prefers explicit audioFormat over the data: URI MIME type', () => {
+    const base64 = Buffer.from([1, 2, 3]).toString('base64')
+    // URI says octet-stream; caller says wav. Caller wins.
+    const file = toAudioFile(
+      `data:application/octet-stream;base64,${base64}`,
+      'wav',
+    )
+    expect(file.type).toBe('audio/wav')
+    expect(file.name).toBe('audio.wav')
   })
 })

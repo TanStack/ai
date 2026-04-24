@@ -125,6 +125,8 @@ async function createWebRTCConnection(
         clearTimeout(dataChannelReadyTimeout)
         dataChannelReadyTimeout = null
       }
+      // One-shot: null out so later state transitions don't reject twice.
+      rejectDataChannelReady = null
       reject(reason)
     }
 
@@ -144,6 +146,9 @@ async function createWebRTCConnection(
         clearTimeout(dataChannelReadyTimeout)
         dataChannelReadyTimeout = null
       }
+      // Once resolved, rejecting is a no-op — null out so teardown paths
+      // don't attempt a redundant reject on an already-settled promise.
+      rejectDataChannelReady = null
       flushPendingEvents()
       emit('status_change', { status: 'connected' as RealtimeStatus })
       resolve()
@@ -203,6 +208,10 @@ async function createWebRTCConnection(
     }
   }
 
+  // `status_change` has a single source of truth: `onconnectionstatechange`
+  // (the higher-level aggregate state). `oniceconnectionstatechange` is
+  // responsible only for rejecting `dataChannelReady` on ICE failures so we
+  // surface them without waiting for the 15s timeout.
   pc.onconnectionstatechange = () => {
     const state = pc.connectionState
     logger.provider(`provider=grok pc.connectionState=${state}`, {
@@ -213,10 +222,16 @@ async function createWebRTCConnection(
         status:
           state === 'failed' ? ('error' as RealtimeStatus) : ('idle' as RealtimeStatus),
       })
-      if (state === 'failed' && !dataChannelOpened) {
-        rejectDataChannelReady?.(
-          new Error(`PeerConnection failed before data channel opened`),
-        )
+      if (!dataChannelOpened) {
+        // Reject on any terminal-ish pre-open state so callers don't hang
+        // for the full 15s timeout. The reject is one-shot — subsequent
+        // state changes become no-ops via the null-out in
+        // `rejectDataChannelReady`.
+        const message =
+          state === 'failed'
+            ? `PeerConnection failed before data channel opened`
+            : `PeerConnection entered state '${state}' before data channel opened`
+        rejectDataChannelReady?.(new Error(message))
       }
     }
   }
@@ -226,18 +241,114 @@ async function createWebRTCConnection(
     logger.provider(`provider=grok pc.iceConnectionState=${state}`, {
       state,
     })
-    if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-      emit('status_change', {
-        status:
-          state === 'failed' ? ('error' as RealtimeStatus) : ('idle' as RealtimeStatus),
-      })
-      if (state === 'failed' && !dataChannelOpened) {
-        rejectDataChannelReady?.(
-          new Error(
-            `ICE connection failed before data channel opened`,
-          ),
-        )
+    if (
+      !dataChannelOpened &&
+      (state === 'failed' ||
+        state === 'closed' ||
+        state === 'disconnected')
+    ) {
+      const message =
+        state === 'failed'
+          ? `ICE connection failed before data channel opened`
+          : `ICE connection entered state '${state}' before data channel opened`
+      rejectDataChannelReady?.(new Error(message))
+    }
+  }
+
+  /**
+   * Tear down every resource we may have allocated so the mic/pc/audio
+   * nodes/audio element don't leak on a failed connect. Safe to call from
+   * any point after `new RTCPeerConnection()`; each branch null-guards and
+   * swallows errors because cascading closes (e.g. `pc.close()` closing the
+   * data channel implicitly) are expected.
+   *
+   * Shared between the SDP-path catch, the post-SDP catch, and (implicitly
+   * via idempotency) the `disconnect()` entry point.
+   */
+  async function teardownConnection() {
+    // Clear the data-channel-open timeout / reject the readiness promise
+    // if it's still pending. `rejectDataChannelReady` is one-shot and nulls
+    // itself on first call, so calling it from `disconnect()` after a
+    // successful open is a no-op.
+    rejectDataChannelReady?.(
+      new Error('Connection torn down before data channel opened'),
+    )
+
+    if (localStream) {
+      for (const track of localStream.getTracks()) {
+        track.stop()
       }
+      localStream = null
+    }
+
+    // Output audio (populated by `pc.ontrack` → setupOutputAudioAnalysis,
+    // which may have fired during SDP negotiation before we threw).
+    if (audioElement) {
+      try {
+        audioElement.pause()
+      } catch {
+        // ignore — element may already be unloaded
+      }
+      audioElement.srcObject = null
+      audioElement = null
+    }
+    if (outputSource) {
+      try {
+        outputSource.disconnect()
+      } catch {
+        // ignore
+      }
+      outputSource = null
+    }
+    if (outputAnalyser) {
+      try {
+        outputAnalyser.disconnect()
+      } catch {
+        // ignore
+      }
+      outputAnalyser = null
+    }
+
+    // Input audio (populated by setupInputAudioAnalysis after SDP).
+    if (inputSource) {
+      try {
+        inputSource.disconnect()
+      } catch {
+        // ignore
+      }
+      inputSource = null
+    }
+    if (inputAnalyser) {
+      try {
+        inputAnalyser.disconnect()
+      } catch {
+        // ignore
+      }
+      inputAnalyser = null
+    }
+
+    if (dataChannel) {
+      try {
+        dataChannel.close()
+      } catch {
+        // ignore — channel may already be closed by pc.close()
+      }
+      dataChannel = null
+    }
+
+    try {
+      pc.close()
+    } catch {
+      // ignore — pc may already be closed
+    }
+
+    if (audioContext) {
+      try {
+        await audioContext.close()
+      } catch {
+        // ignore — context may already be closed
+      }
+      audioContext = null
     }
   }
 
@@ -296,50 +407,22 @@ async function createWebRTCConnection(
     const answerSdp = await sdpResponse.text()
     await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
   } catch (err) {
-    // Tear down everything we've allocated so the mic/pc/audioContext don't
-    // leak. `rejectDataChannelReady` also clears the open-timeout.
-    const reject = rejectDataChannelReady as
-      | ((reason: unknown) => void)
-      | null
-    reject?.(err)
-
-    // `localStream` and `dataChannel` are both non-null at this point (we
-    // got past getUserMedia and createDataChannel above), so no nullish
-    // guards are needed — but null them out so the connection's disconnect()
-    // path (called later by callers) is idempotent.
-    for (const track of localStream.getTracks()) {
-      track.stop()
-    }
-    localStream = null
-    try {
-      dataChannel.close()
-    } catch {
-      // ignore — channel may already be closed by pc.close()
-    }
-    dataChannel = null
-    try {
-      pc.close()
-    } catch {
-      // ignore — pc may already be closed
-    }
-    // Note: at this point in control flow TS narrows `audioContext` to
-    // `null` (nothing before the try-block reassigns it), but a caller may
-    // set it via the `setupInput/OutputAudioAnalysis` helpers in the future
-    // if this cleanup path is reused; guard via an explicit cast so we don't
-    // skip closing it.
-    const ctx = audioContext as AudioContext | null
-    if (ctx) {
-      try {
-        await ctx.close()
-      } catch {
-        // ignore — context may already be closed
-      }
-      audioContext = null
-    }
+    await teardownConnection()
     throw err
   }
 
-  setupInputAudioAnalysis(localStream)
+  // Second cleanup scope: after SDP succeeds we still have to set up input
+  // audio analysis and wait for the data channel to open. Both can fail
+  // (AudioContext allocation, 15s timeout, ICE failure, pc.close from the
+  // other end, etc.) and those failures must NOT leave the mic/pc/audio
+  // nodes running.
+  try {
+    setupInputAudioAnalysis(localStream)
+    await dataChannelReady
+  } catch (err) {
+    await teardownConnection()
+    throw err
+  }
 
   function handleServerEvent(event: Record<string, unknown>) {
     const type = event.type as string
@@ -645,31 +728,10 @@ async function createWebRTCConnection(
 
   const connection: RealtimeConnection = {
     async disconnect() {
-      if (localStream) {
-        for (const track of localStream.getTracks()) {
-          track.stop()
-        }
-        localStream = null
-      }
-
-      if (audioElement) {
-        audioElement.pause()
-        audioElement.srcObject = null
-        audioElement = null
-      }
-
-      if (dataChannel) {
-        dataChannel.close()
-        dataChannel = null
-      }
-
-      pc.close()
-
-      if (audioContext) {
-        await audioContext.close()
-        audioContext = null
-      }
-
+      // Reuse the same teardown path as the failed-connect branches so
+      // every cleanup site stays in sync (input analyser, output analyser,
+      // output source, audio element, etc.).
+      await teardownConnection()
       emit('status_change', { status: 'idle' as RealtimeStatus })
     },
 
@@ -706,15 +768,24 @@ async function createWebRTCConnection(
     },
 
     sendImage(imageData: string, mimeType: string) {
-      const isUrl =
-        imageData.startsWith('http://') || imageData.startsWith('https://')
+      // Accept:
+      //  - http(s):// URLs → forward as-is
+      //  - data: URIs (e.g. from FileReader.readAsDataURL) → forward as-is
+      //    so we don't double-wrap into `data:image/png;base64,data:image/png;base64,…`
+      //  - bare base64 → wrap in `data:${mimeType};base64,…`
+      const isAlreadyUrlOrDataUri =
+        imageData.startsWith('http://') ||
+        imageData.startsWith('https://') ||
+        imageData.startsWith('data:')
       const imageContent = {
         type: 'input_image',
         // The OpenAI-realtime content part (which this adapter mirrors) nests
         // the URL under an `image_url: { url: ... }` object, not a bare
         // string.
         image_url: {
-          url: isUrl ? imageData : `data:${mimeType};base64,${imageData}`,
+          url: isAlreadyUrlOrDataUri
+            ? imageData
+            : `data:${mimeType};base64,${imageData}`,
         },
       }
 
@@ -908,7 +979,7 @@ async function createWebRTCConnection(
     },
   }
 
-  await dataChannelReady
-
+  // `dataChannelReady` was already awaited inside the post-SDP try/catch
+  // above so we can short-circuit on failures with full teardown.
   return connection
 }

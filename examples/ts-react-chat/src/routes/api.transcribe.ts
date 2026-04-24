@@ -3,6 +3,7 @@ import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
 import { z } from 'zod'
 import {
   InvalidModelOverrideError,
+  UnknownProviderError,
   buildTranscriptionAdapter,
 } from '../lib/server-audio-adapters'
 
@@ -75,6 +76,17 @@ export const Route = createFileRoute('/api/transcribe')({
               provider: err.providerId,
               requestedModel: err.requestedModel,
               allowedModels: err.allowedModels,
+            })
+          }
+          // Defense-in-depth: the Zod enum schema above should already reject
+          // unknown providers, but surface a typed 400 here in case that
+          // validation drifts or is bypassed.
+          if (err instanceof UnknownProviderError) {
+            return jsonError(400, {
+              error: 'unknown_provider',
+              message: err.message,
+              providerId: err.providerId,
+              allowedProviders: err.allowedProviders,
             })
           }
           return jsonError(500, {

@@ -28,7 +28,12 @@ function findConfig<T extends { id: string }>(
   id: string,
 ): T {
   const match = list.find((entry) => entry.id === id)
-  if (!match) throw new Error(`Unknown provider: ${id}`)
+  if (!match) {
+    throw new UnknownProviderError(
+      id,
+      list.map((entry) => entry.id),
+    )
+  }
   return match
 }
 
@@ -84,6 +89,7 @@ export function buildAudioAdapter(
  * default model.
  */
 export class InvalidModelOverrideError extends Error {
+  readonly code = 'invalid_model_override' as const
   readonly providerId: string
   readonly requestedModel: string
   readonly allowedModels: ReadonlyArray<string>
@@ -102,6 +108,30 @@ export class InvalidModelOverrideError extends Error {
     this.providerId = providerId
     this.requestedModel = requestedModel
     this.allowedModels = allowedModels
+  }
+}
+
+/**
+ * Thrown when `findConfig` is called with a provider id that isn't in the
+ * allowed list. In practice the route-level Zod enum schema already rejects
+ * unknown providers before we ever reach this builder, so this is
+ * defense-in-depth for callers that bypass Zod validation (e.g. server-fns
+ * whose input schemas could drift from the provider registries).
+ */
+export class UnknownProviderError extends Error {
+  readonly code = 'unknown_provider' as const
+  readonly providerId: string
+  readonly allowedProviders: ReadonlyArray<string>
+
+  constructor(providerId: string, allowedProviders: ReadonlyArray<string>) {
+    super(
+      `Unknown provider "${providerId}". Allowed providers: ${
+        allowedProviders.length > 0 ? allowedProviders.join(', ') : '(none)'
+      }`,
+    )
+    this.name = 'UnknownProviderError'
+    this.providerId = providerId
+    this.allowedProviders = allowedProviders
   }
 }
 

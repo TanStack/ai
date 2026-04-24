@@ -58,6 +58,9 @@ export class GrokSpeechAdapter<
     })
 
     const codec = pickCodec(modelOptions?.codec, format)
+    // Default sample rate documented in GrokTTSProviderOptions (see
+    // audio/tts-provider-options.ts) is 24000 Hz.
+    const sampleRate = modelOptions?.sample_rate ?? 24000
     const outputFormat: Record<string, unknown> = { codec }
     if (modelOptions?.sample_rate !== undefined) {
       outputFormat.sample_rate = modelOptions.sample_rate
@@ -105,7 +108,7 @@ export class GrokSpeechAdapter<
         model,
         audio,
         format: codec,
-        contentType: getContentType(codec),
+        contentType: getContentType(codec, sampleRate),
       }
     } catch (error) {
       logger.errors('grok.generateSpeech fatal', {
@@ -144,15 +147,18 @@ function pickCodec(
   }
 }
 
-function getContentType(codec: GrokTTSCodec): string {
+function getContentType(codec: GrokTTSCodec, sampleRate: number): string {
   switch (codec) {
     case 'mp3':
       return 'audio/mpeg'
     case 'wav':
       return 'audio/wav'
     case 'pcm':
-      return 'audio/L16'
+      // `audio/L16` requires a `rate` parameter per RFC 3551/3555.
+      return `audio/L16;rate=${sampleRate}`
     case 'mulaw':
+      // `audio/basic` is 8 kHz mono by convention (RFC 2046); no rate param
+      // is defined by the media type registration.
       return 'audio/basic'
     case 'alaw':
       return 'audio/x-alaw-basic'

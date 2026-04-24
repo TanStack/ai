@@ -38,8 +38,26 @@ export function toAudioFile(
 
   if (typeof audio === 'string') {
     if (audio.startsWith('data:')) {
-      const [header, base64Data = ''] = audio.split(',')
-      const mimeType = header?.match(/data:([^;]+)/)?.[1] || 'audio/mpeg'
+      const [header, base64Data] = audio.split(',')
+      // Fail loudly on malformed data: URIs instead of silently defaulting
+      // to `audio/mpeg` — the file's contract is that we never mislabel
+      // audio for the server.
+      const headerMatch = header?.match(/data:([^;]+)/)
+      const uriMimeType = headerMatch?.[1]
+      if (!uriMimeType) {
+        throw new Error(
+          'Malformed data: URI in toAudioFile: cannot parse MIME type — expected data:<mime>[;charset=…][;base64],<payload>',
+        )
+      }
+      if (base64Data === undefined || base64Data.trim() === '') {
+        throw new Error(
+          'Malformed data: URI in toAudioFile: missing base64 payload after comma',
+        )
+      }
+      // Caller-supplied `audioFormat` wins over the URI-embedded MIME: the
+      // caller has more context (the URI MIME may be wrong, or a generic
+      // `application/octet-stream`).
+      const mimeType = audioFormat ? toMimeType(audioFormat) : uriMimeType
       const buffer = base64ToArrayBuffer(base64Data)
       return new File([buffer], `audio.${extensionFor(mimeType)}`, {
         type: mimeType,
