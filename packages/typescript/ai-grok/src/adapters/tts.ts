@@ -1,9 +1,5 @@
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
-import {
-  arrayBufferToBase64,
-  generateId,
-  getGrokApiKeyFromEnv,
-} from '../utils'
+import { arrayBufferToBase64, generateId, getGrokApiKeyFromEnv } from '../utils'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { GrokTTSModel } from '../model-meta'
 import type {

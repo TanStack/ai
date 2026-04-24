@@ -1163,14 +1163,16 @@ async function createWebRTCConnection(
         },
 
         getInputFrequencyData() {
-          if (!inputAnalyser) return new Uint8Array(FALLBACK_FREQUENCY_BIN_COUNT)
+          if (!inputAnalyser)
+            return new Uint8Array(FALLBACK_FREQUENCY_BIN_COUNT)
           const data = new Uint8Array(inputAnalyser.frequencyBinCount)
           inputAnalyser.getByteFrequencyData(data)
           return data
         },
 
         getOutputFrequencyData() {
-          if (!outputAnalyser) return new Uint8Array(FALLBACK_FREQUENCY_BIN_COUNT)
+          if (!outputAnalyser)
+            return new Uint8Array(FALLBACK_FREQUENCY_BIN_COUNT)
           const data = new Uint8Array(outputAnalyser.frequencyBinCount)
           outputAnalyser.getByteFrequencyData(data)
           return data

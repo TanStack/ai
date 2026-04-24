@@ -61,7 +61,8 @@ export function grokRealtimeToken(
       // realtime connect flow hangs forever on a dead endpoint.
       const controller = new AbortController()
       const timeout = setTimeout(
-        () => controller.abort(new Error('Grok realtime token request timed out')),
+        () =>
+          controller.abort(new Error('Grok realtime token request timed out')),
         DEFAULT_TOKEN_FETCH_TIMEOUT_MS,
       )
 
