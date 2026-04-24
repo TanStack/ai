@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { Send, Square } from 'lucide-react'
+import { Link, createFileRoute } from '@tanstack/react-router'
+import {
+  Braces,
+  FileAudio,
+  FileText,
+  Image,
+  ImagePlus,
+  Mic,
+  Music,
+  Send,
+  Square,
+  Video,
+  X,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
@@ -10,6 +22,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
+import type { ContentPart } from '@tanstack/ai'
 import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
@@ -18,11 +31,14 @@ import {
   getPersonalGuitarPreferenceToolDef,
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
-import {
-  MODEL_OPTIONS,
-  getDefaultModelOption,
-  setStoredModelPreference,
-} from '@/lib/model-selection'
+import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
+
+/**
+ * Generate a random message ID
+ */
+function generateMessageId(): string {
+  return `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+}
 
 const getPersonalGuitarPreferenceToolClient =
   getPersonalGuitarPreferenceToolDef.client(() => ({ preference: 'acoustic' }))
@@ -76,16 +92,103 @@ function Messages({
   }) => Promise<void>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const hasRenderablePart = (message: UIMessage): boolean => {
+    return message.parts.some((part) => {
+      if (part.type === 'thinking') return true
+      if (part.type === 'image') return true
+      if (part.type === 'text' && part.content.trim()) return true
+      if (
+        part.type === 'tool-call' &&
+        part.state === 'approval-requested' &&
+        part.approval
+      ) {
+        return true
+      }
+      if (
+        part.type === 'tool-call' &&
+        part.name === 'recommendGuitar' &&
+        part.output
+      ) {
+        return true
+      }
+      return false
+    })
+  }
+  const visibleMessages = messages.filter(hasRenderablePart)
 
   useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop =
         messagesContainerRef.current.scrollHeight
     }
-  }, [messages])
+  }, [visibleMessages])
 
-  if (!messages.length) {
-    return null
+  if (!visibleMessages.length) {
+    return (
+      <div className="flex-1 overflow-y-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-white mb-2">
+              Welcome to TanStack AI
+            </h2>
+            <p className="text-gray-400 text-sm">
+              Start a conversation below, or explore generation demos:
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Link
+              to="/generations/image"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Image size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Image</span>
+            </Link>
+            <Link
+              to="/generations/speech"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <FileAudio size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Speech</span>
+            </Link>
+            <Link
+              to="/generations/audio"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Music size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Audio</span>
+            </Link>
+            <Link
+              to="/generations/transcription"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Mic size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Transcription</span>
+            </Link>
+            <Link
+              to="/generations/summarize"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <FileText size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Summarize</span>
+            </Link>
+            <Link
+              to="/generations/video"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Video size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Video</span>
+            </Link>
+            <Link
+              to="/generations/structured-output"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Braces size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Structured</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -93,7 +196,7 @@ function Messages({
       ref={messagesContainerRef}
       className="flex-1 overflow-y-auto px-4 py-4"
     >
-      {messages.map((message) => {
+      {visibleMessages.map((message) => {
         return (
           <div
             key={message.id}
@@ -148,6 +251,23 @@ function Messages({
                         >
                           {part.content}
                         </ReactMarkdown>
+                      </div>
+                    )
+                  }
+
+                  // Render image parts
+                  if (part.type === 'image') {
+                    const imageUrl =
+                      part.source.type === 'url'
+                        ? part.source.value
+                        : `data:image/png;base64,${part.source.value}`
+                    return (
+                      <div key={`image-${index}`} className="mt-2 mb-2">
+                        <img
+                          src={imageUrl}
+                          alt="Attached image"
+                          className="max-w-md rounded-lg border border-gray-700"
+                        />
                       </div>
                     )
                   }
@@ -228,9 +348,12 @@ function Messages({
 }
 
 function ChatPage() {
-  const [selectedModel, setSelectedModel] = useState<ModelOption>(() =>
-    getDefaultModelOption(),
-  )
+  const [selectedModel, setSelectedModel] =
+    useState<ModelOption>(DEFAULT_MODEL_OPTION)
+  const [attachedImages, setAttachedImages] = useState<
+    Array<{ id: string; base64: string; mimeType: string; preview: string }>
+  >([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const body = useMemo(
     () => ({
@@ -240,13 +363,123 @@ function ChatPage() {
     [selectedModel.provider, selectedModel.model],
   )
 
-  const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
-    useChat({
-      connection: fetchServerSentEvents('/api/tanchat'),
-      tools,
-      body,
-    })
+  const {
+    messages,
+    sendMessage,
+    isLoading,
+    error,
+    addToolApprovalResponse,
+    stop,
+  } = useChat({
+    connection: fetchServerSentEvents('/api/tanchat'),
+    tools,
+    body,
+    onCustomEvent: (eventType, data, context) => {
+      console.log(
+        `[CustomEvent] ${eventType}`,
+        data,
+        context.toolCallId ? `(tool call: ${context.toolCallId})` : '',
+      )
+    },
+  })
   const [input, setInput] = useState('')
+
+  /**
+   * Handle file selection for image attachment
+   */
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const newImages: Array<{
+      id: string
+      base64: string
+      mimeType: string
+      preview: string
+    }> = []
+
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue
+
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result as string
+          // Remove data URL prefix (e.g., "data:image/png;base64,")
+          resolve(result.split(',')[1])
+        }
+        reader.readAsDataURL(file)
+      })
+
+      const preview = URL.createObjectURL(file)
+      newImages.push({
+        id: generateMessageId(),
+        base64,
+        mimeType: file.type, // Capture the actual mime type
+        preview,
+      })
+    }
+
+    setAttachedImages((prev) => [...prev, ...newImages])
+
+    // Reset the file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  /**
+   * Remove an attached image
+   */
+  const removeImage = (id: string) => {
+    setAttachedImages((prev) => {
+      const image = prev.find((img) => img.id === id)
+      if (image) {
+        URL.revokeObjectURL(image.preview)
+      }
+      return prev.filter((img) => img.id !== id)
+    })
+  }
+
+  /**
+   * Send message with optional image attachments
+   */
+  const handleSendMessage = () => {
+    if (!input.trim() && attachedImages.length === 0) return
+
+    if (attachedImages.length > 0) {
+      // Build multimodal content array
+      const contentParts: Array<ContentPart> = []
+
+      // Add text if present
+      if (input.trim()) {
+        contentParts.push({ type: 'text', content: input.trim() })
+      }
+
+      // Add images with mime type metadata
+      for (const img of attachedImages) {
+        contentParts.push({
+          type: 'image',
+          source: { type: 'data', value: img.base64, mimeType: img.mimeType },
+        })
+      }
+
+      // Send with custom message ID
+      sendMessage({
+        content: contentParts,
+        id: generateMessageId(),
+      })
+
+      // Clean up image previews
+      attachedImages.forEach((img) => URL.revokeObjectURL(img.preview))
+      setAttachedImages([])
+    } else {
+      // Simple text message
+      sendMessage(input.trim())
+    }
+
+    setInput('')
+  }
 
   return (
     <div className="flex h-[calc(100vh-72px)] bg-gray-900">
@@ -268,7 +501,6 @@ function ChatPage() {
                 onChange={(e) => {
                   const option = MODEL_OPTIONS[parseInt(e.target.value)]
                   setSelectedModel(option)
-                  setStoredModelPreference(option)
                 }}
                 disabled={isLoading}
                 className="w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
@@ -280,6 +512,13 @@ function ChatPage() {
                 ))}
               </select>
             </div>
+            <Link
+              to="/generations/image"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
+            >
+              <Image className="w-4 h-4" />
+              Image Gen
+            </Link>
           </div>
         </div>
 
@@ -287,6 +526,12 @@ function ChatPage() {
           messages={messages}
           addToolApprovalResponse={addToolApprovalResponse}
         />
+
+        {error && (
+          <div className="mx-4 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+            {error.message}
+          </div>
+        )}
 
         <ChatInputArea>
           <div className="space-y-3">
@@ -301,41 +546,89 @@ function ChatPage() {
                 </button>
               </div>
             )}
-            <div className="relative">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type something clever (or don't, we won't judge)..."
-                className="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
-                rows={1}
-                style={{ minHeight: '44px', maxHeight: '200px' }}
-                disabled={isLoading}
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement
-                  target.style.height = 'auto'
-                  target.style.height =
-                    Math.min(target.scrollHeight, 200) + 'px'
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey && input.trim()) {
-                    e.preventDefault()
-                    sendMessage(input)
-                    setInput('')
-                  }
-                }}
+
+            {/* Image attachment preview */}
+            {attachedImages.length > 0 && (
+              <div className="flex flex-wrap gap-2 p-2 bg-gray-800/50 rounded-lg border border-orange-500/20">
+                {attachedImages.map((img) => (
+                  <div key={img.id} className="relative group">
+                    <img
+                      src={img.preview}
+                      alt="Attached"
+                      className="w-16 h-16 object-cover rounded-lg border border-gray-700"
+                    />
+                    <button
+                      onClick={() => removeImage(img.id)}
+                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="relative flex items-end gap-2">
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
               />
+
+              {/* Image attachment button */}
               <button
-                onClick={() => {
-                  if (input.trim()) {
-                    sendMessage(input)
-                    setInput('')
-                  }
-                }}
-                disabled={!input.trim() || isLoading}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-500 hover:text-orange-400 disabled:text-gray-500 transition-colors focus:outline-none"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                className="p-3 text-gray-400 hover:text-orange-500 disabled:text-gray-600 transition-colors focus:outline-none"
+                title="Attach image"
               >
-                <Send className="w-4 h-4" />
+                <ImagePlus className="w-5 h-5" />
               </button>
+
+              <div className="flex-1 relative">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder={
+                    attachedImages.length > 0
+                      ? 'Add a message about your image(s)...'
+                      : "Type something clever (or don't, we won't judge)..."
+                  }
+                  className="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 pl-4 pr-12 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-transparent resize-none overflow-hidden shadow-lg"
+                  rows={1}
+                  style={{ minHeight: '44px', maxHeight: '200px' }}
+                  disabled={isLoading}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement
+                    target.style.height = 'auto'
+                    target.style.height =
+                      Math.min(target.scrollHeight, 200) + 'px'
+                  }}
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === 'Enter' &&
+                      !e.shiftKey &&
+                      (input.trim() || attachedImages.length > 0)
+                    ) {
+                      e.preventDefault()
+                      handleSendMessage()
+                    }
+                  }}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={
+                    (!input.trim() && attachedImages.length === 0) || isLoading
+                  }
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-500 hover:text-orange-400 disabled:text-gray-500 transition-colors focus:outline-none"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </ChatInputArea>

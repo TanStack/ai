@@ -31,8 +31,9 @@ export default mergeConfig(
   tanstackViteConfig({
     entry: [
       './src/index.ts',
-      './src/event-client.ts',
       './src/activities/index.ts',
+      './src/middlewares/index.ts',
+      './src/adapter-internals.ts',
     ],
     srcDir: './src',
     cjs: false,

@@ -205,13 +205,16 @@ class MockImageAdapter<TModel extends MockImageModel> extends BaseImageAdapter<
   readonly name = 'mock' as const
 
   constructor(model: TModel) {
-    super({}, model)
+    super(model, {})
   }
 
   /* eslint-disable @typescript-eslint/require-await */
-  async generateImages(
-    _options: ImageGenerationOptions<MockImageProviderOptions>,
-  ): Promise<ImageGenerationResult> {
+  generateImages = async (
+    _options: ImageGenerationOptions<
+      MockImageProviderOptions,
+      MockImageModelSizeByName[TModel]
+    >,
+  ): Promise<ImageGenerationResult> => {
     return {
       id: 'mock-id',
       model: this.model,

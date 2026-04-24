@@ -1588,6 +1588,713 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         font-weight: ${font.weight.semibold};
       `,
     },
+
+    iterationTimeline: {
+      container: css`
+        position: relative;
+        padding: ${size[3]} ${size[3]};
+        overflow-y: auto;
+        flex: 1;
+      `,
+      pipeline: css`
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: ${size[3]};
+      `,
+      iterList: css`
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      `,
+      // --- User message group card ---
+      card: css`
+        position: relative;
+        border-radius: ${border.radius.md};
+        background: ${t(colors.gray[50], colors.darkGray[700])};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
+        overflow: hidden;
+      `,
+      cardCompleted: css`
+        border-color: ${t(colors.green[200], colors.green[900] + '60')};
+      `,
+      cardError: css`
+        border-color: ${t(colors.red[300], colors.red[800])};
+      `,
+      cardActive: css`
+        border-color: ${t(colors.blue[300], colors.blue[700])};
+      `,
+      cardHeader: css`
+        display: flex;
+        align-items: flex-start;
+        gap: ${size[2]};
+        padding: ${size[3]} ${size[3]};
+        cursor: pointer;
+        user-select: none;
+
+        &:hover {
+          background: ${t(colors.gray[100], colors.darkGray[600])};
+        }
+      `,
+      cardHeaderContent: css`
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+      `,
+      cardHeaderLabel: css`
+        font-size: ${fontSize.sm};
+        font-weight: ${font.weight.semibold};
+        color: ${t(colors.gray[800], colors.gray[200])};
+        line-height: 1.3;
+      `,
+      cardSubtitle: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[1.5]};
+        flex-wrap: wrap;
+      `,
+      subtitleText: css`
+        font-size: 10px;
+        font-family: ${fontFamily.mono};
+        color: ${t(colors.gray[500], colors.gray[400])};
+      `,
+      subtitleBadge: css`
+        font-size: 9px;
+        padding: 0 ${size[1]};
+        border-radius: ${border.radius.xs};
+        background: ${t(colors.gray[100], colors.darkGray[500])};
+        color: ${t(colors.gray[500], colors.gray[400])};
+      `,
+      subtitleBadgeWarn: css`
+        font-size: 9px;
+        padding: 0 ${size[1]};
+        border-radius: ${border.radius.xs};
+        background: ${t(colors.purple[50], colors.purple[900] + '30')};
+        color: ${t(colors.purple[600], colors.purple[300])};
+      `,
+      subtitleExpandToggle: css`
+        font-size: 9px;
+        color: ${t(colors.blue[500], colors.blue[400])};
+        cursor: pointer;
+        text-decoration: underline;
+        text-decoration-style: dotted;
+        &:hover {
+          color: ${t(colors.blue[600], colors.blue[300])};
+        }
+      `,
+      configPanelWrapper: css`
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows 0.2s ease-out;
+      `,
+      configPanelWrapperOpen: css`
+        grid-template-rows: 1fr;
+      `,
+      configPanel: css`
+        overflow: hidden;
+        & > div {
+          padding: ${size[2]} ${size[3]};
+          border-top: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
+          background: ${t(colors.gray[50], colors.darkGray[700])};
+          font-size: ${fontSize.xs};
+        }
+      `,
+      configPanelSection: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+        padding-bottom: ${size[2]};
+
+        &:last-child {
+          padding-bottom: 0;
+        }
+
+        & + & {
+          border-top: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
+          padding-top: ${size[2]};
+        }
+      `,
+      configPanelLabel: css`
+        font-weight: ${font.weight.semibold};
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        flex-shrink: 0;
+      `,
+      configToolsList: css`
+        display: flex;
+        flex-wrap: wrap;
+        gap: ${size[1]};
+      `,
+      configToolChip: css`
+        display: inline-flex;
+        align-items: center;
+        gap: ${size[1]};
+        padding: 1px ${size[1.5]};
+        border-radius: ${border.radius.sm};
+        font-size: 10px;
+        font-family: ${fontFamily.mono};
+        color: ${t(colors.yellow[800], colors.yellow[300])};
+        background: ${t(colors.yellow[50], colors.yellow[900] + '25')};
+        border: 1px solid ${t(colors.yellow[200], colors.yellow[800] + '40')};
+      `,
+      configToolChipCount: css`
+        font-size: 9px;
+        font-weight: ${font.weight.bold};
+        padding: 0 ${size[1]};
+        border-radius: ${border.radius.xs};
+        background: ${t(colors.yellow[200], colors.yellow[800] + '50')};
+        color: ${t(colors.yellow[700], colors.yellow[200])};
+      `,
+      configJsonTreeContainer: css`
+        border-radius: ${border.radius.sm};
+        overflow: hidden;
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+        padding: ${size[1.5]} ${size[2]};
+      `,
+      systemPromptCard: css`
+        border-radius: ${border.radius.sm};
+        overflow: hidden;
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+      `,
+      systemPromptHeader: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[1.5]};
+        padding: ${size[1.5]} ${size[2]};
+        cursor: pointer;
+        user-select: none;
+        font-size: ${fontSize.xs};
+
+        &:hover {
+          background: ${t(colors.gray[100], colors.darkGray[700])};
+        }
+      `,
+      systemPromptIndex: css`
+        font-weight: ${font.weight.bold};
+        color: ${t(colors.gray[400], colors.gray[500])};
+        font-size: 10px;
+        flex-shrink: 0;
+      `,
+      systemPromptPreview: css`
+        flex: 1;
+        min-width: 0;
+        color: ${t(colors.gray[600], colors.gray[400])};
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      systemPromptFull: css`
+        margin: 0;
+        padding: ${size[2]} ${size[3]};
+        font-size: ${fontSize.xs};
+        font-family: ${fontFamily.mono};
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 300px;
+        overflow-y: auto;
+        color: ${t(colors.gray[700], colors.gray[200])};
+        border-top: 1px solid ${t(colors.gray[200], colors.darkGray[600])};
+        background: ${t(colors.gray[50], colors.darkGray[900])};
+        line-height: 1.5;
+      `,
+      cardHeaderBadges: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[1]};
+        flex-shrink: 0;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      `,
+      chevron: css`
+        color: ${t(colors.gray[400], colors.gray[500])};
+        font-size: 10px;
+        transition: transform 0.2s ease;
+        flex-shrink: 0;
+        margin-top: 3px;
+      `,
+      chevronOpen: css`
+        transform: rotate(90deg);
+      `,
+      badge: css`
+        font-size: ${fontSize.xs};
+        padding: 1px ${size[2]};
+        border-radius: ${border.radius.sm};
+        font-family: ${fontFamily.mono};
+        font-weight: ${font.weight.medium};
+        white-space: nowrap;
+      `,
+      badgeDuration: css`
+        background: ${t(colors.gray[100], colors.darkGray[500])};
+        color: ${t(colors.gray[600], colors.gray[300])};
+      `,
+      badgeFinishReason: css`
+        background: ${t(colors.blue[50], colors.blue[900] + '40')};
+        color: ${t(colors.blue[700], colors.blue[300])};
+      `,
+      badgeFinishReasonStop: css`
+        background: ${t(colors.green[50], colors.green[900] + '40')};
+        color: ${t(colors.green[700], colors.green[300])};
+      `,
+      badgeFinishReasonToolCalls: css`
+        background: ${t(colors.yellow[50], colors.yellow[900] + '40')};
+        color: ${t(colors.yellow[700], colors.yellow[300])};
+      `,
+      badgeUsage: css`
+        background: ${t(colors.purple[50], colors.purple[900] + '40')};
+        color: ${t(colors.purple[700], colors.purple[300])};
+      `,
+      cardBody: css`
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows 0.2s ease-out;
+      `,
+      cardBodyOpen: css`
+        grid-template-rows: 1fr;
+      `,
+      cardBodyInner: css`
+        overflow: hidden;
+      `,
+      userBubble: css`
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: ${font.weight.bold};
+        color: ${colors.white};
+        flex-shrink: 0;
+        background: ${t(colors.blue[500], colors.blue[600])};
+        margin-top: 1px;
+      `,
+
+      // --- Iteration card (inside user group) ---
+      iterCard: css`
+        position: relative;
+        background: ${t(colors.gray[50], colors.darkGray[700])};
+        border-top: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
+        overflow: hidden;
+        animation: iterStaggerIn 0.3s ease-out both;
+        width: 100%;
+
+        @keyframes iterStaggerIn {
+          from {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `,
+      iterCardHeader: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[2]};
+        padding: ${size[2]} ${size[3]};
+        cursor: pointer;
+        user-select: none;
+
+        &:hover {
+          background: ${t(colors.gray[100], colors.darkGray[600])};
+        }
+      `,
+      iterHeaderCompleted: css`
+        border-left: 3px solid ${t(colors.green[400], colors.green[500])};
+      `,
+      iterHeaderError: css`
+        border-left: 3px solid ${t(colors.red[400], colors.red[500])};
+      `,
+      iterHeaderActive: css`
+        border-left: 3px solid ${t(colors.blue[400], colors.blue[500])};
+        animation: iterActivePulse 2s ease-in-out infinite;
+
+        @keyframes iterActivePulse {
+          0%,
+          100% {
+            border-left-color: ${t(colors.blue[400], colors.blue[500])};
+          }
+          50% {
+            border-left-color: ${t(colors.blue[200], colors.blue[700])};
+          }
+        }
+      `,
+      iterCardTitle: css`
+        font-size: ${fontSize.xs};
+        font-weight: ${font.weight.semibold};
+        color: ${t(colors.gray[700], colors.gray[300])};
+      `,
+
+      // --- Config row ---
+      configRow: css`
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: ${size[2]};
+        padding: ${size[1.5]} ${size[3]};
+        font-size: ${fontSize.xs};
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-family: ${fontFamily.mono};
+        border-bottom: 1px solid ${t(colors.gray[100], colors.darkGray[600])};
+      `,
+      configRowText: css`
+        color: ${t(colors.gray[500], colors.gray[400])};
+      `,
+      configRowMeta: css`
+        color: ${t(colors.gray[400], colors.gray[500])};
+      `,
+      configDiffChip: css`
+        font-size: 9px;
+        padding: 0 ${size[1]};
+        border-radius: ${border.radius.xs};
+        background: ${t(colors.yellow[100], colors.yellow[900] + '40')};
+        color: ${t(colors.yellow[700], colors.yellow[400])};
+        font-weight: ${font.weight.bold};
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      `,
+      configDetails: css`
+        width: 100%;
+        margin-top: ${size[2]};
+        display: flex;
+        flex-direction: column;
+        gap: ${size[2]};
+      `,
+      configDiffSection: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+      `,
+      configDiffRow: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[1]};
+        font-size: 10px;
+      `,
+      configDiffKey: css`
+        font-weight: ${font.weight.semibold};
+        color: ${t(colors.gray[600], colors.gray[300])};
+      `,
+      configDiffFrom: css`
+        color: ${t(colors.red[600], colors.red[400])};
+        text-decoration: line-through;
+      `,
+      configDiffArrow: css`
+        color: ${t(colors.gray[400], colors.gray[500])};
+      `,
+      configDiffTo: css`
+        color: ${t(colors.green[600], colors.green[400])};
+        font-weight: ${font.weight.semibold};
+      `,
+      configSystemPrompts: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+      `,
+      systemPromptItem: css`
+        font-size: ${fontSize.xs};
+        padding: ${size[2]};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.gray[50], colors.darkGray[600])};
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.5;
+        color: ${t(colors.gray[700], colors.gray[200])};
+        max-height: 120px;
+        overflow-y: auto;
+      `,
+      // --- Step row ---
+      step: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[1.5]};
+        padding: ${size[1.5]} ${size[3]};
+        font-size: ${fontSize.xs};
+        border-bottom: 1px solid ${t(colors.gray[100], colors.darkGray[600])};
+
+        &:last-child {
+          border-bottom: none;
+        }
+      `,
+      stepResponseLong: css`
+        flex-direction: column;
+        align-items: flex-start;
+        gap: ${size[1]};
+      `,
+      stepPrefix: css`
+        flex-shrink: 0;
+        font-size: 10px;
+        font-weight: ${font.weight.bold};
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 1px ${size[1.5]};
+        border-radius: ${border.radius.xs};
+      `,
+      stepPrefixMiddleware: css`
+        color: ${t(colors.purple[700], colors.purple[300])};
+        background: ${t(colors.purple[50], colors.purple[900] + '30')};
+      `,
+      stepPrefixToolCall: css`
+        color: ${t(colors.yellow[800], colors.yellow[300])};
+        background: ${t(colors.yellow[50], colors.yellow[900] + '30')};
+      `,
+      stepPrefixToolResult: css`
+        color: ${t(colors.cyan[700], colors.cyan[300])};
+        background: ${t(colors.cyan[900] + '15', colors.cyan[900] + '30')};
+      `,
+      stepPrefixAssistant: css`
+        color: ${t(colors.blue[700], colors.blue[300])};
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+      `,
+      stepPrefixThinking: css`
+        color: ${t(colors.pink[700], colors.pink[300])};
+        background: ${t(colors.pink[50], colors.pink[900] + '30')};
+      `,
+      stepContent: css`
+        flex: 1;
+        min-width: 0;
+        color: ${t(colors.gray[600], colors.gray[400])};
+        font-family: ${fontFamily.mono};
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      stepContentLong: css`
+        color: ${t(colors.gray[700], colors.gray[200])};
+        font-size: ${fontSize.sm};
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+        width: 100%;
+      `,
+      stepDuration: css`
+        flex-shrink: 0;
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        color: ${t(colors.gray[400], colors.gray[500])};
+      `,
+      stepExpandToggle: css`
+        flex-shrink: 0;
+        cursor: pointer;
+        color: ${t(colors.blue[500], colors.blue[400])};
+        font-size: 10px;
+        user-select: none;
+        padding: 0 ${size[1]};
+
+        &:hover {
+          text-decoration: underline;
+        }
+      `,
+      stepJsonPanel: css`
+        margin: ${size[1.5]} ${size[3]};
+        padding: ${size[1.5]} ${size[2]} ${size[1.5]} ${size[5]};
+        border-radius: ${border.radius.sm};
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+      `,
+      stepDetail: css`
+        padding: ${size[2]};
+        margin: 0 ${size[3]} ${size[1.5]};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.gray[50], colors.darkGray[600])};
+        font-size: ${fontSize.xs};
+        font-family: ${fontFamily.mono};
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 200px;
+        overflow-y: auto;
+        color: ${t(colors.gray[700], colors.gray[200])};
+      `,
+      responseDetail: css`
+        padding: ${size[3]};
+        margin: 0 ${size[3]} ${size[1.5]};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.gray[50], colors.darkGray[600])};
+        font-size: ${fontSize.sm};
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 400px;
+        overflow-y: auto;
+        color: ${t(colors.gray[800], colors.gray[100])};
+      `,
+      thinkingDetail: css`
+        padding: ${size[3]};
+        margin: 0 ${size[3]} ${size[1.5]};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.pink[50], colors.pink[900] + '15')};
+        border-left: 3px solid ${t(colors.pink[300], colors.pink[600])};
+        font-size: ${fontSize.sm};
+        font-style: italic;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 400px;
+        overflow-y: auto;
+        color: ${t(colors.gray[700], colors.gray[200])};
+      `,
+      jsonTreeContainer: css`
+        padding: ${size[1]} ${size[3]} ${size[2]};
+      `,
+
+      // --- Middleware badge styles ---
+      mwBadge: css`
+        display: inline-flex;
+        align-items: center;
+        padding: 1px ${size[1.5]};
+        border-radius: ${border.radius.sm};
+        font-size: 10px;
+        font-family: ${fontFamily.mono};
+        font-weight: ${font.weight.semibold};
+        white-space: nowrap;
+        flex-shrink: 0;
+      `,
+      mwBadgeDefault: css`
+        background: ${t(colors.gray[100], colors.darkGray[500])};
+        color: ${t(colors.gray[600], colors.gray[300])};
+      `,
+      mwBadgeTransform: css`
+        background: ${t(colors.purple[50], colors.purple[900] + '30')};
+        color: ${t(colors.purple[700], colors.purple[300])};
+      `,
+      mwBadgeError: css`
+        background: ${t(colors.red[50], colors.red[900] + '30')};
+        color: ${t(colors.red[700], colors.red[300])};
+      `,
+      mwBadgeToolCall: css`
+        background: ${t(colors.yellow[50], colors.yellow[900] + '30')};
+        color: ${t(colors.yellow[800], colors.yellow[300])};
+      `,
+      mwBadgeToolResult: css`
+        background: ${t(colors.cyan[900] + '15', colors.cyan[900] + '30')};
+        color: ${t(colors.cyan[700], colors.cyan[300])};
+      `,
+      mwHook: css`
+        font-size: 10px;
+        font-family: ${fontFamily.mono};
+        color: ${t(colors.gray[500], colors.gray[400])};
+        flex-shrink: 0;
+      `,
+      mwSuffix: css`
+        font-size: 9px;
+        font-weight: ${font.weight.bold};
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 1px ${size[1]};
+        border-radius: ${border.radius.xs};
+        background: ${t(colors.yellow[100], colors.yellow[900] + '40')};
+        color: ${t(colors.yellow[800], colors.yellow[300])};
+        flex-shrink: 0;
+      `,
+      mwChangesContainer: css`
+        padding: ${size[1]} ${size[3]} ${size[2]};
+      `,
+
+      // --- JSON Viewer ---
+      jsonViewer: css`
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[500])};
+        border-radius: ${border.radius.sm};
+        overflow: hidden;
+        background: ${t(colors.gray[50], colors.darkGray[800])};
+      `,
+      jsonViewerHeader: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[1.5]};
+        padding: ${size[1.5]} ${size[2]};
+        cursor: pointer;
+        user-select: none;
+        font-size: 10px;
+
+        &:hover {
+          background: ${t(colors.gray[100], colors.darkGray[700])};
+        }
+      `,
+      jsonViewerChevron: css`
+        color: ${t(colors.gray[400], colors.gray[500])};
+        font-size: 8px;
+        transition: transform 0.15s ease;
+        flex-shrink: 0;
+      `,
+      jsonViewerLabel: css`
+        font-weight: ${font.weight.semibold};
+        color: ${t(colors.gray[600], colors.gray[300])};
+        font-size: 10px;
+        flex-shrink: 0;
+      `,
+      jsonViewerPreview: css`
+        flex: 1;
+        min-width: 0;
+        color: ${t(colors.gray[500], colors.gray[400])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      `,
+      jsonViewerContent: css`
+        margin: 0;
+        padding: ${size[2]};
+        font-size: ${fontSize.xs};
+        font-family: ${fontFamily.mono};
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 300px;
+        overflow-y: auto;
+        color: ${t(colors.gray[700], colors.gray[200])};
+        border-top: 1px solid ${t(colors.gray[200], colors.darkGray[600])};
+        background: ${t(colors.gray[50], colors.darkGray[900])};
+        line-height: 1.5;
+      `,
+      jsonViewerContainer: css`
+        padding: ${size[1]} ${size[3]} ${size[2]};
+      `,
+
+      // --- Standalone middleware display (MiddlewareEventsSection) ---
+      middlewareContainer: css`
+        display: flex;
+        flex-wrap: wrap;
+        gap: ${size[1]};
+      `,
+      middlewarePill: css`
+        display: inline-flex;
+        align-items: center;
+        gap: ${size[1]};
+        padding: 1px ${size[1.5]};
+        border-radius: ${border.radius.sm};
+        font-size: 10px;
+        font-family: ${fontFamily.mono};
+        background: ${t(colors.gray[100], colors.darkGray[500])};
+        color: ${t(colors.gray[600], colors.gray[300])};
+        white-space: nowrap;
+      `,
+      middlewarePillTransform: css`
+        background: ${t(colors.purple[50], colors.purple[900] + '30')};
+        color: ${t(colors.purple[700], colors.purple[300])};
+      `,
+      middlewarePillSuffix: css`
+        font-weight: ${font.weight.bold};
+        font-size: 9px;
+        text-transform: uppercase;
+      `,
+
+      noIterations: css`
+        text-align: center;
+        padding: ${size[6]};
+        color: ${t(colors.gray[400], colors.gray[500])};
+        font-size: ${fontSize.sm};
+      `,
+    },
   }
 }
 

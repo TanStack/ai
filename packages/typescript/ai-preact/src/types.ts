@@ -1,12 +1,15 @@
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   ChatClientOptions,
+  ChatClientState,
   ChatRequestBody,
+  ConnectionStatus,
+  MultimodalContent,
   UIMessage,
 } from '@tanstack/ai-client'
 
 // Re-export types from ai-client
-export type { UIMessage, ChatRequestBody }
+export type { ChatRequestBody, MultimodalContent, UIMessage }
 
 /**
  * Options for the useChat hook.
@@ -16,6 +19,7 @@ export type { UIMessage, ChatRequestBody }
  * - `onMessagesChange` - Managed by Preact state (exposed as `messages`)
  * - `onLoadingChange` - Managed by Preact state (exposed as `isLoading`)
  * - `onErrorChange` - Managed by Preact state (exposed as `error`)
+ * - `onStatusChange` - Managed by Preact state (exposed as `status`)
  *
  * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
@@ -26,8 +30,16 @@ export type { UIMessage, ChatRequestBody }
 export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
   Omit<
     ChatClientOptions<TTools>,
-    'onMessagesChange' | 'onLoadingChange' | 'onErrorChange'
-  >
+    | 'onMessagesChange'
+    | 'onLoadingChange'
+    | 'onErrorChange'
+    | 'onStatusChange'
+    | 'onSubscriptionChange'
+    | 'onConnectionStatusChange'
+    | 'onSessionGeneratingChange'
+  > & {
+    live?: boolean
+  }
 
 export interface UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -38,9 +50,10 @@ export interface UseChatReturn<
   messages: Array<UIMessage<TTools>>
 
   /**
-   * Send a message and get a response
+   * Send a message and get a response.
+   * Can be a simple string or multimodal content with images, audio, etc.
    */
-  sendMessage: (content: string) => Promise<void>
+  sendMessage: (content: string | MultimodalContent) => Promise<void>
 
   /**
    * Append a message to the conversation
@@ -95,4 +108,27 @@ export interface UseChatReturn<
    * Clear all messages
    */
   clear: () => void
+
+  /**
+   * Current generation status
+   */
+  status: ChatClientState
+
+  /**
+   * Whether the subscription loop is currently active
+   */
+  isSubscribed: boolean
+
+  /**
+   * Current connection lifecycle status
+   */
+  connectionStatus: ConnectionStatus
+
+  /**
+   * Whether the shared session is actively generating.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `isLoading` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
+  sessionGenerating: boolean
 }

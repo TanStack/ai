@@ -4,6 +4,7 @@ export type Provider =
   | 'gemini'
   | 'ollama'
   | 'grok'
+  | 'groq'
   | 'openrouter'
 
 export interface ModelOption {
@@ -19,6 +20,11 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   { provider: 'openai', model: 'gpt-5', label: 'OpenAI - GPT-5' },
 
   // Anthropic
+  {
+    provider: 'anthropic',
+    model: 'claude-sonnet-4-6',
+    label: 'Anthropic - Claude Sonnet 4.6',
+  },
   {
     provider: 'anthropic',
     model: 'claude-sonnet-4-5-20250929',
@@ -38,13 +44,18 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Gemini
   {
     provider: 'gemini',
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.0-flash',
     label: 'Gemini - 2.0 Flash',
   },
   {
     provider: 'gemini',
     model: 'gemini-2.5-flash',
-    label: 'Gemini 2.5 - Flash',
+    label: 'Gemini - 2.5 Flash',
+  },
+  {
+    provider: 'gemini',
+    model: 'gemini-2.5-pro',
+    label: 'Gemini - 2.5 Pro',
   },
 
   // Openrouter
@@ -86,7 +97,34 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     label: 'Ollama - SmolLM',
   },
 
+  // Groq
+  {
+    provider: 'groq',
+    model: 'llama-3.3-70b-versatile',
+    label: 'Groq - Llama 3.3 70B',
+  },
+  {
+    provider: 'groq',
+    model: 'meta-llama/llama-4-maverick-17b-128e-instruct',
+    label: 'Groq - Llama 4 Maverick',
+  },
+  {
+    provider: 'groq',
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    label: 'Groq - Llama 4 Scout',
+  },
+
   // Grok
+  {
+    provider: 'grok',
+    model: 'grok-4',
+    label: 'Grok - Grok 4',
+  },
+  {
+    provider: 'grok',
+    model: 'grok-4-fast-non-reasoning',
+    label: 'Grok - Grok 4 Fast',
+  },
   {
     provider: 'grok',
     model: 'grok-3',
@@ -97,47 +135,6 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     model: 'grok-3-mini',
     label: 'Grok - Grok 3 Mini',
   },
-  {
-    provider: 'grok',
-    model: 'grok-2-vision-1212',
-    label: 'Grok - Grok 2 Vision',
-  },
 ]
 
-const STORAGE_KEY = 'tanstack-ai-model-preference'
-
-export function getStoredModelPreference(): ModelOption | null {
-  if (typeof window === 'undefined') return null
-
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return null
-
-    const parsed = JSON.parse(stored) as { provider: Provider; model: string }
-    const option = MODEL_OPTIONS.find(
-      (opt) => opt.provider === parsed.provider && opt.model === parsed.model,
-    )
-
-    return option || null
-  } catch {
-    return null
-  }
-}
-
-export function setStoredModelPreference(option: ModelOption): void {
-  if (typeof window === 'undefined') return
-
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ provider: option.provider, model: option.model }),
-    )
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-export function getDefaultModelOption(): ModelOption {
-  const stored = getStoredModelPreference()
-  return stored || MODEL_OPTIONS[0]
-}
+export const DEFAULT_MODEL_OPTION = MODEL_OPTIONS[0]

@@ -2,6 +2,16 @@
 title: Ollama
 id: ollama-adapter
 order: 4
+description: "Run local LLMs with Ollama in TanStack AI for private, no-cost AI on your own hardware via the @tanstack/ai-ollama adapter."
+keywords:
+  - tanstack ai
+  - ollama
+  - local llm
+  - self-hosted
+  - privacy
+  - llama
+  - offline ai
+  - adapter
 ---
 
 The Ollama adapter provides access to local models running via Ollama, allowing you to run AI models on your own infrastructure with full privacy and no API costs.
@@ -288,5 +298,5 @@ Creates an Ollama summarization adapter with a custom host.
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
+- [Tools Guide](../tools/tools) - Learn about tools
 - [Other Adapters](./openai) - Explore other providers

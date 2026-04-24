@@ -2,6 +2,15 @@
 title: "@tanstack/ai"
 id: tanstack-ai-api
 order: 1
+description: "API reference for @tanstack/ai — the core TanStack AI library providing chat(), generateImage(), toolDefinition(), and streaming utilities."
+keywords:
+  - tanstack ai
+  - "@tanstack/ai"
+  - api reference
+  - chat
+  - toolDefinition
+  - generateImage
+  - core library
 ---
 
 The core AI library for TanStack AI.
@@ -302,7 +311,7 @@ const weatherTool = toolDefinition({
   name: "getWeather",
   description: "Get the current weather for a city",
   inputSchema: z.object({
-    city: z.string().describe("City name"),
+    city: z.string().meta({ description: "City name" }),
   }),
 }).server(async ({ city }) => {
   // Implementation that fetches weather info
@@ -343,5 +352,5 @@ const image = await generateImage({
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
+- [Tools Guide](../tools/tools) - Learn about tools
 - [Adapters](../adapters/openai) - Explore adapter options

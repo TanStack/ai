@@ -52,7 +52,13 @@ function generateChatModelsArray(): string {
   if (modelIds.length === 0) {
     return ''
   }
-  modelIds.push(`"openrouter/auto"`)
+  if (
+    !modelIds.some(
+      (id) => id.includes('openrouter/auto') || id === 'OPENROUTER_AUTO.id',
+    )
+  ) {
+    modelIds.push(`"openrouter/auto"`)
+  }
   return `export const OPENROUTER_CHAT_MODELS = [\n${modelIds
     .map((id) => `  ${id},`)
     .join('\n')}\n] as const`
@@ -82,9 +88,15 @@ function createPerModelModelOptions(): string {
   const entries = Object.entries(perModelProviderOptions).map(
     ([modelId, typeStr]) => `  [${modelId}]: ${typeStr};`,
   )
-  entries.push(
-    `  "openrouter/auto": OpenRouterCommonOptions & OpenRouterBaseOptions;`,
-  )
+  if (
+    !Object.keys(perModelProviderOptions).some((k) =>
+      k.includes('OPENROUTER_AUTO'),
+    )
+  ) {
+    entries.push(
+      `  "openrouter/auto": OpenRouterCommonOptions & OpenRouterBaseOptions;`,
+    )
+  }
 
   return `\nexport type OpenRouterModelOptionsByName  = {\n${entries.join(
     '\n',
@@ -97,9 +109,15 @@ function createPerModelInputModalities(): string {
       `  [${modelId}]: ReadonlyArray<${modalitiesStr}>;`,
   )
 
-  entries.push(
-    `  "openrouter/auto": ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>;`,
-  )
+  if (
+    !Object.keys(perModelInputModalities).some((k) =>
+      k.includes('OPENROUTER_AUTO'),
+    )
+  ) {
+    entries.push(
+      `  "openrouter/auto": ReadonlyArray<'text' | 'image' | 'audio' | 'video' | 'document'>;`,
+    )
+  }
   return `\nexport type OpenRouterModelInputModalitiesByName  = {\n${entries.join(
     '\n',
   )}\n}`
@@ -122,7 +140,11 @@ function generateModelMetaString(model: OpenRouterModel): string {
   if (!inputModalities.includes('text')) {
     inputModalities.unshift('text')
   }
-  if (outputModalities.includes('text')) {
+  const nonChatFamilies = ['lyria', 'veo', 'imagen', 'sora', 'dall-e', 'tts']
+  const isNonChat = nonChatFamilies.some((f) =>
+    model.id.toLowerCase().includes(f),
+  )
+  if (outputModalities.includes('text') && !isNonChat) {
     chatModels.add(`${constName}.id`)
   }
   if (outputModalities.includes('image')) {
@@ -141,6 +163,40 @@ function generateModelMetaString(model: OpenRouterModel): string {
     model.pricing.input_cache_write ?? '0',
   )
 
+  const paramNameMap: Record<string, string> = {
+    max_tokens: 'maxCompletionTokens',
+    frequency_penalty: 'frequencyPenalty',
+    presence_penalty: 'presencePenalty',
+    repetition_penalty: 'repetitionPenalty',
+    logit_bias: 'logitBias',
+    top_logprobs: 'topLogprobs',
+    top_k: 'topK',
+    top_p: 'topP',
+    top_a: 'topA',
+    min_p: 'minP',
+    response_format: 'responseFormat',
+    tool_choice: 'toolChoice',
+    include_reasoning: 'includeReasoning',
+    max_completion_tokens: 'maxCompletionTokens',
+    web_search_options: 'webSearchOptions',
+    parallel_tool_calls: 'parallelToolCalls',
+  }
+  // The @openrouter/sdk's ChatRequest$outboundSchema strips any keys it
+  // doesn't declare, so these arrive at OpenRouter as empty. We omit them
+  // from the public type surface to avoid silently no-op'ing user input.
+  const excludedParams = new Set([
+    'tools',
+    'reasoning_effort',
+    'structured_outputs',
+    'top_k',
+    'top_a',
+    'min_p',
+    'repetition_penalty',
+    'include_reasoning',
+    'verbosity',
+    'web_search_options',
+  ])
+
   // Build the object as a formatted string
   const lines: Array<string> = []
   lines.push(`const ${constName} =  {`)
@@ -154,7 +210,12 @@ function generateModelMetaString(model: OpenRouterModel): string {
     `      output: [${outputModalities.map((m) => `'${m}'`).join(', ')}],`,
   )
   lines.push(
-    `      supports: [${model.supported_parameters?.map((p) => `'${p}'`).join(', ') || ''}],`,
+    `      supports: [${
+      model.supported_parameters
+        ?.filter((p) => !excludedParams.has(p))
+        .map((p) => `'${paramNameMap[p] ?? p}'`)
+        .join(', ') || ''
+    }],`,
   )
   lines.push(`    },`)
 
@@ -184,11 +245,11 @@ function generateModelMetaString(model: OpenRouterModel): string {
 
   const supportedParams =
     model.supported_parameters
-      ?.map((p) =>
-        p === 'tools' || p === 'reasoning_effort' || p === 'structured_outputs'
-          ? ''
-          : `'${p === 'max_tokens' ? 'max_completion_tokens' : p}'`,
-      )
+      ?.map((p) => {
+        if (excludedParams.has(p)) return ''
+        const mapped = paramNameMap[p] ?? p
+        return `'${mapped}'`
+      })
       .filter(Boolean) ?? []
   perModelProviderOptions[`${constName}.id`] =
     supportedParams.length > 0

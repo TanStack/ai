@@ -2,6 +2,15 @@
 title: Grok (xAI)
 id: grok-adapter
 order: 5
+description: "Use xAI Grok models with TanStack AI — Grok 4.1, Grok 4, Grok 3, and Grok 2 Image generation via @tanstack/ai-grok."
+keywords:
+  - tanstack ai
+  - grok
+  - xai
+  - grok 4
+  - grok 4.1
+  - image generation
+  - adapter
 ---
 
 The Grok adapter provides access to xAI's Grok models, including Grok 4.1, Grok 4, Grok 3, and image generation with Grok 2 Image.
@@ -228,5 +237,14 @@ Creates a Grok image generation adapter with an explicit API key.
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
+- [Tools Guide](../tools/tools) - Learn about tools
 - [Other Adapters](./openai) - Explore other providers
+
+## Provider Tools
+
+Grok does not currently expose provider-specific tool factories.
+Define your own tools with `toolDefinition()` from `@tanstack/ai`.
+
+See [Tools](../tools/tools.md) for the general tool-definition flow, or
+[Provider Tools](../tools/provider-tools.md) for other providers'
+native-tool offerings.

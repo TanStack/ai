@@ -21,6 +21,7 @@ interface ConversationTabsProps {
 export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
   const styles = useStyles()
   const conv = () => props.conversation
+  const hasIterations = () => conv().iterations.length > 0
 
   // Total raw chunks = sum of all chunkCounts
   const totalRawChunks = () =>
@@ -79,11 +80,11 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
     previousVideoCount = count
   })
 
-  // Determine if we should show any chat-related tabs
-  // For server conversations, don't show messages tab - only chunks
+  // When iterations exist, only show activity tabs (no messages/chunks)
   const hasMessages = () =>
-    conv().type === 'client' && conv().messages.length > 0
-  const hasChunks = () => conv().chunks.length > 0 || conv().type === 'server'
+    !hasIterations() && conv().type === 'client' && conv().messages.length > 0
+  const hasChunks = () =>
+    !hasIterations() && (conv().chunks.length > 0 || conv().type === 'server')
   const hasSummaries = () => conv().hasSummarize || summariesCount() > 0
   const hasImage = () => conv().hasImage || imageCount() > 0
   const hasSpeech = () => conv().hasSpeech || speechCount() > 0
@@ -111,7 +112,6 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
 
   return (
     <div class={styles().conversationDetails.tabsContainer}>
-      {/* Show messages tab for client conversations or when there are messages */}
       <Show when={hasMessages()}>
         <button
           class={`${styles().actionButton} ${
@@ -121,10 +121,9 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
           }`}
           onClick={() => props.onTabChange('messages')}
         >
-          💬 Messages ({conv().messages.length})
+          Messages ({conv().messages.length})
         </button>
       </Show>
-      {/* Show chunks tab for server conversations or when there are chunks */}
       <Show when={hasChunks() && conv().type === 'server'}>
         <button
           class={`${styles().actionButton} ${
@@ -134,10 +133,9 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
           }`}
           onClick={() => props.onTabChange('chunks')}
         >
-          📦 Chunks ({totalRawChunks()})
+          Chunks ({totalRawChunks()})
         </button>
       </Show>
-      {/* Show summaries tab if there are summarize operations */}
       <Show when={hasSummaries()}>
         <button
           class={`${styles().actionButton} ${
@@ -147,7 +145,7 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
           }`}
           onClick={() => props.onTabChange('summaries')}
         >
-          📝 Summaries ({summariesCount()})
+          Summaries ({summariesCount()})
         </button>
       </Show>
       <Show when={hasImage()}>
@@ -159,7 +157,7 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
           } ${imagePulse() ? styles().conversationDetails.tabButtonPulse : ''}`}
           onClick={() => props.onTabChange('image')}
         >
-          🖼️ Image ({imageCount()})
+          Image ({imageCount()})
         </button>
       </Show>
       <Show when={hasSpeech()}>
@@ -171,7 +169,7 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
           } ${speechPulse() ? styles().conversationDetails.tabButtonPulse : ''}`}
           onClick={() => props.onTabChange('speech')}
         >
-          🔊 Speech ({speechCount()})
+          Speech ({speechCount()})
         </button>
       </Show>
       <Show when={hasTranscription()}>
@@ -187,7 +185,7 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
           }`}
           onClick={() => props.onTabChange('transcription')}
         >
-          📝 Transcription ({transcriptionCount()})
+          Transcription ({transcriptionCount()})
         </button>
       </Show>
       <Show when={hasVideo()}>
@@ -199,7 +197,7 @@ export const ConversationTabs: Component<ConversationTabsProps> = (props) => {
           } ${videoPulse() ? styles().conversationDetails.tabButtonPulse : ''}`}
           onClick={() => props.onTabChange('video')}
         >
-          🎬 Video ({videoCount()})
+          Video ({videoCount()})
         </button>
       </Show>
     </div>

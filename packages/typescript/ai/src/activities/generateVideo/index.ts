@@ -7,9 +7,13 @@
  * @experimental Video generation is an experimental feature and may change.
  */
 
-import { aiEventClient } from '../../event-client.js'
+import { aiEventClient } from '@tanstack/ai-event-client'
+import { resolveDebugOption } from '../../logger/resolve'
+import type { InternalLogger } from '../../logger/internal-logger'
+import type { DebugOption } from '../../logger/types'
 import type { VideoAdapter } from './adapter'
 import type {
+  StreamChunk,
   VideoJobResult,
   VideoStatusResult,
   VideoUrlResult,
@@ -30,9 +34,19 @@ export const kind = 'video' as const
  * Extract provider options from a VideoAdapter via ~types.
  */
 export type VideoProviderOptions<TAdapter> =
-  TAdapter extends VideoAdapter<any, any>
+  TAdapter extends VideoAdapter<any, any, any, any>
     ? TAdapter['~types']['providerOptions']
     : object
+
+/**
+ * Extract the size type for a VideoAdapter's model via ~types.
+ */
+export type VideoSizeForAdapter<TAdapter> =
+  TAdapter extends VideoAdapter<infer TModel, any, any, infer TSizeMap>
+    ? TModel extends keyof TSizeMap
+      ? TSizeMap[TModel]
+      : string
+    : string
 
 // ===========================
 // Activity Options Types
@@ -47,7 +61,7 @@ function createId(prefix: string): string {
  * The model is extracted from the adapter's model property.
  */
 interface VideoActivityBaseOptions<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
 > {
   /** The video adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
@@ -57,22 +71,51 @@ interface VideoActivityBaseOptions<
  * Options for creating a new video generation job.
  * The model is extracted from the adapter's model property.
  *
+ * @template TAdapter - The video adapter type
+ * @template TStream - Whether to stream the output
+ *
  * @experimental Video generation is an experimental feature and may change.
  */
-export interface VideoCreateOptions<
-  TAdapter extends VideoAdapter<string, object>,
-> extends VideoActivityBaseOptions<TAdapter> {
+export type VideoCreateOptions<
+  TAdapter extends VideoAdapter<string, any, any, any>,
+  TStream extends boolean = false,
+> = VideoActivityBaseOptions<TAdapter> & {
   /** Request type - create a new job (default if not specified) */
   request?: 'create'
   /** Text description of the desired video */
   prompt: string
-  /** Video size in WIDTHxHEIGHT format (e.g., "1280x720") */
-  size?: string
+  /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
+  size?: VideoSizeForAdapter<TAdapter>
   /** Video duration in seconds */
   duration?: number
-  /** Provider-specific options for video generation */
-  modelOptions?: VideoProviderOptions<TAdapter>
-}
+  /**
+   * Whether to stream the video generation lifecycle.
+   * When true, returns an AsyncIterable<StreamChunk> that handles the full
+   * job lifecycle: create job, poll for status, yield updates, and yield final result.
+   * When false or not provided, returns a Promise<VideoJobResult>.
+   *
+   * @default false
+   */
+  stream?: TStream
+  /** Polling interval in milliseconds (stream mode only). @default 2000 */
+  pollingInterval?: number
+  /** Maximum time to wait before timing out in milliseconds (stream mode only). @default 600000 */
+  maxDuration?: number
+  /** Custom run ID (stream mode only) */
+  runId?: string
+  /**
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
+  debug?: DebugOption
+} & ({} extends VideoProviderOptions<TAdapter>
+    ? {
+        /** Provider-specific options for video generation */ modelOptions?: VideoProviderOptions<TAdapter>
+      }
+    : {
+        /** Provider-specific options for video generation */ modelOptions: VideoProviderOptions<TAdapter>
+      })
 
 /**
  * Options for polling the status of a video generation job.
@@ -80,7 +123,7 @@ export interface VideoCreateOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoStatusOptions<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get job status */
   request: 'status'
@@ -94,7 +137,7 @@ export interface VideoStatusOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoUrlOptions<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
 > extends VideoActivityBaseOptions<TAdapter> {
   /** Request type - get video URL */
   request: 'url'
@@ -109,30 +152,36 @@ export interface VideoUrlOptions<
  * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoActivityOptions<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
   TRequest extends 'create' | 'status' | 'url' = 'create',
+  TStream extends boolean = false,
 > = TRequest extends 'status'
   ? VideoStatusOptions<TAdapter>
   : TRequest extends 'url'
     ? VideoUrlOptions<TAdapter>
-    : VideoCreateOptions<TAdapter>
+    : VideoCreateOptions<TAdapter, TStream>
 
 // ===========================
 // Activity Result Types
 // ===========================
 
 /**
- * Result type for the video activity, based on request type.
+ * Result type for the video activity, based on request type and streaming.
+ * - If stream is true (create request): AsyncIterable<StreamChunk>
+ * - Otherwise: Promise<VideoJobResult | VideoStatusResult | VideoUrlResult>
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type VideoActivityResult<
   TRequest extends 'create' | 'status' | 'url' = 'create',
+  TStream extends boolean = false,
 > = TRequest extends 'status'
   ? Promise<VideoStatusResult>
   : TRequest extends 'url'
     ? Promise<VideoUrlResult>
-    : Promise<VideoJobResult>
+    : TStream extends true
+      ? AsyncIterable<StreamChunk>
+      : Promise<VideoJobResult>
 
 // ===========================
 // Activity Implementation
@@ -143,6 +192,9 @@ export type VideoActivityResult<
  *
  * Uses AI video generation models to create videos based on natural language descriptions.
  * Unlike image generation, video generation is asynchronous and requires polling for completion.
+ *
+ * When `stream: true` is passed, handles the full job lifecycle automatically:
+ * create job → poll for status → stream updates → yield final result.
  *
  * @experimental Video generation is an experimental feature and may change.
  *
@@ -159,20 +211,212 @@ export type VideoActivityResult<
  *
  * console.log('Job started:', jobId)
  * ```
+ *
+ * @example Stream the full video generation lifecycle
+ * ```ts
+ * import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
+ * import { openaiVideo } from '@tanstack/ai-openai'
+ *
+ * const stream = generateVideo({
+ *   adapter: openaiVideo('sora-2'),
+ *   prompt: 'A cat chasing a dog in a sunny park',
+ *   stream: true,
+ *   pollingInterval: 3000,
+ * })
+ *
+ * return toServerSentEventsResponse(stream)
+ * ```
  */
-export async function generateVideo<
-  TAdapter extends VideoAdapter<string, object>,
->(options: VideoCreateOptions<TAdapter>): Promise<VideoJobResult> {
+export function generateVideo<
+  TAdapter extends VideoAdapter<string, any, any, any>,
+  TStream extends boolean = false,
+>(
+  options: VideoCreateOptions<TAdapter, TStream>,
+): VideoActivityResult<'create', TStream> {
+  if (options.stream) {
+    return runStreamingVideoGeneration(
+      options as VideoCreateOptions<TAdapter, true>,
+    ) as VideoActivityResult<'create', TStream>
+  }
+
+  return runCreateVideoJob(options) as VideoActivityResult<'create', TStream>
+}
+
+/**
+ * Internal implementation of non-streaming video job creation.
+ */
+async function runCreateVideoJob<
+  TAdapter extends VideoAdapter<string, any, any, any>,
+>(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
   const { adapter, prompt, size, duration, modelOptions } = options
   const model = adapter.model
+  const logger: InternalLogger = resolveDebugOption(options.debug)
+  const providerName =
+    (adapter as { name?: string; provider?: string }).provider ??
+    (adapter as { name?: string }).name ??
+    'unknown'
 
-  return adapter.createVideoJob({
+  logger.request(`activity=generateVideo provider=${providerName}`, {
+    provider: providerName,
     model,
-    prompt,
-    size,
-    duration,
-    modelOptions,
   })
+
+  try {
+    const result = await adapter.createVideoJob({
+      model,
+      prompt,
+      size,
+      duration,
+      modelOptions,
+      logger,
+    })
+    logger.output(`activity=generateVideo jobId=${result.jobId}`, {
+      jobId: result.jobId,
+      model: result.model,
+    })
+    return result
+  } catch (error) {
+    logger.errors('generateVideo activity failed', {
+      error,
+      source: 'generateVideo',
+    })
+    throw error
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Internal streaming implementation for video generation.
+ * Handles the full job lifecycle: create job → poll for status → stream updates → yield final result.
+ */
+async function* runStreamingVideoGeneration<
+  TAdapter extends VideoAdapter<string, any, any, any>,
+>(options: VideoCreateOptions<TAdapter, true>): AsyncIterable<StreamChunk> {
+  const { adapter, prompt, size, duration, modelOptions } = options
+  const model = adapter.model
+  const runId = options.runId ?? createId('run')
+  const pollingInterval = options.pollingInterval ?? 2000
+  const maxDuration = options.maxDuration ?? 600_000
+  const logger: InternalLogger = resolveDebugOption(options.debug)
+  const providerName =
+    (adapter as { name?: string; provider?: string }).provider ??
+    (adapter as { name?: string }).name ??
+    'unknown'
+
+  const threadId = createId('thread')
+
+  yield {
+    type: 'RUN_STARTED',
+    runId,
+    threadId,
+    timestamp: Date.now(),
+  } as StreamChunk
+
+  logger.request(
+    `activity=generateVideo provider=${providerName} stream=true`,
+    {
+      provider: providerName,
+      model,
+    },
+  )
+
+  try {
+    // Create the video generation job
+    const jobResult = await adapter.createVideoJob({
+      model,
+      prompt,
+      size,
+      duration,
+      modelOptions,
+      logger,
+    })
+
+    yield {
+      type: 'CUSTOM',
+      name: 'video:job:created',
+      value: { jobId: jobResult.jobId },
+      timestamp: Date.now(),
+    } as StreamChunk
+
+    // Poll for completion
+    const startTime = Date.now()
+    while (Date.now() - startTime < maxDuration) {
+      await sleep(pollingInterval)
+
+      const statusResult = await adapter.getVideoStatus(jobResult.jobId)
+
+      yield {
+        type: 'CUSTOM',
+        name: 'video:status',
+        value: {
+          jobId: jobResult.jobId,
+          status: statusResult.status,
+          progress: statusResult.progress,
+          error: statusResult.error,
+        },
+        timestamp: Date.now(),
+      } as StreamChunk
+
+      if (statusResult.status === 'completed') {
+        const urlResult = await adapter.getVideoUrl(jobResult.jobId)
+
+        logger.output(
+          `activity=generateVideo jobId=${jobResult.jobId} status=completed`,
+          {
+            jobId: jobResult.jobId,
+            url: urlResult.url,
+          },
+        )
+
+        yield {
+          type: 'CUSTOM',
+          name: 'generation:result',
+          value: {
+            jobId: jobResult.jobId,
+            status: 'completed',
+            url: urlResult.url,
+            expiresAt: urlResult.expiresAt,
+          },
+          timestamp: Date.now(),
+        } as StreamChunk
+
+        yield {
+          type: 'RUN_FINISHED',
+          runId,
+          threadId,
+          finishReason: 'stop',
+          timestamp: Date.now(),
+        } as StreamChunk
+        return
+      }
+
+      if (statusResult.status === 'failed') {
+        throw new Error(statusResult.error || 'Video generation failed')
+      }
+    }
+
+    throw new Error('Video generation timed out')
+  } catch (error: any) {
+    logger.errors('generateVideo activity failed', {
+      error,
+      source: 'generateVideo',
+    })
+    yield {
+      type: 'RUN_ERROR',
+      runId,
+      threadId,
+      message: error.message || 'Video generation failed',
+      code: error.code,
+      error: {
+        message: error.message || 'Video generation failed',
+        code: error.code,
+      },
+      timestamp: Date.now(),
+    } as StreamChunk
+  }
 }
 
 /**
@@ -201,7 +445,7 @@ export async function generateVideo<
  * ```
  */
 export async function getVideoJobStatus<
-  TAdapter extends VideoAdapter<string, object>,
+  TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: {
   adapter: TAdapter & { kind: typeof kind }
   jobId: string
@@ -249,25 +493,25 @@ export async function getVideoJobStatus<
         url: urlResult.url,
       }
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to get video URL'
       aiEventClient.emit('video:request:completed', {
         requestId,
         provider: adapter.name,
         model: adapter.model,
         requestType: 'status',
         jobId,
-        status: statusResult.status,
+        status: 'failed',
         progress: statusResult.progress,
-        error:
-          error instanceof Error ? error.message : 'Failed to get video URL',
+        error: errorMessage,
         duration: Date.now() - startTime,
         timestamp: Date.now(),
       })
-      // If URL fetch fails, still return status
+      // Provider reported completed but result fetch failed — treat as failed
       return {
-        status: statusResult.status,
+        status: 'failed' as const,
         progress: statusResult.progress,
-        error:
-          error instanceof Error ? error.message : 'Failed to get video URL',
+        error: errorMessage,
       }
     }
   }
@@ -301,8 +545,11 @@ export async function getVideoJobStatus<
  * Create typed options for the generateVideo() function without executing.
  */
 export function createVideoOptions<
-  TAdapter extends VideoAdapter<string, object>,
->(options: VideoCreateOptions<TAdapter>): VideoCreateOptions<TAdapter> {
+  TAdapter extends VideoAdapter<string, any, any, any>,
+  TStream extends boolean = false,
+>(
+  options: VideoCreateOptions<TAdapter, TStream>,
+): VideoCreateOptions<TAdapter, TStream> {
   return options
 }
 

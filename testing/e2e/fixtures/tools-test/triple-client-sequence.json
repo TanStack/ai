@@ -1,0 +1,58 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[triple-client-sequence] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "First step.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":\"Step 1\",\"type\":\"info\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[triple-client-sequence] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Second step.",
+        "toolCalls": [
+          {
+            "name": "display_chart",
+            "arguments": "{\"type\":\"pie\",\"data\":[25,25,50]}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[triple-client-sequence] run test",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "Third step.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":\"Step 3\",\"type\":\"warning\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[triple-client-sequence] run test",
+        "sequenceIndex": 3
+      },
+      "response": {
+        "content": "All three steps complete."
+      }
+    }
+  ]
+}

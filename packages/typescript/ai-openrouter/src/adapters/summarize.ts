@@ -1,11 +1,11 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
-import { buildOpenRouterUsage } from '../usage'
 import { OpenRouterTextAdapter } from './text'
 import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  TokenUsage,
 } from '@tanstack/ai'
 import type { OpenRouterConfig } from './text'
 import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
@@ -57,31 +57,58 @@ export class OpenRouterSummarizeAdapter<
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
+    const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    let summary = ''
-    let id = ''
-    let model = options.model
-    let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
-
-    for await (const chunk of this.textAdapter.chatStream({
+    logger.request(`activity=summarize provider=openrouter`, {
+      provider: 'openrouter',
       model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: this.maxTokens ?? options.maxLength,
-      temperature: this.temperature,
-    })) {
-      if (chunk.type === 'content') {
-        summary = chunk.content
-        id = chunk.id
-        model = chunk.model
+    })
+
+    let summary = ''
+    const id = ''
+    let model = options.model
+    let usage: TokenUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+    }
+
+    try {
+      for await (const chunk of this.textAdapter.chatStream({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        systemPrompts: [systemPrompt],
+        maxTokens: this.maxTokens ?? options.maxLength,
+        temperature: this.temperature,
+        logger,
+      })) {
+        // AG-UI TEXT_MESSAGE_CONTENT event
+        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+          if (chunk.content) {
+            summary = chunk.content
+          } else {
+            summary += chunk.delta
+          }
+          model = chunk.model || model
+        }
+        // AG-UI RUN_FINISHED event
+        if (chunk.type === 'RUN_FINISHED') {
+          if (chunk.usage) {
+            usage = chunk.usage
+          }
+        }
+        // AG-UI RUN_ERROR event
+        if (chunk.type === 'RUN_ERROR') {
+          throw new Error(`Error during summarization: ${chunk.error?.message}`)
+        }
       }
-      if (chunk.type === 'done' && chunk.usage) {
-        usage = buildOpenRouterUsage(chunk.usage)!
-      }
-      if (chunk.type === 'error') {
-        throw new Error(`Error during summarization: ${chunk.error.message}`)
-      }
+    } catch (error) {
+      logger.errors('openrouter.summarize fatal', {
+        error,
+        source: 'openrouter.summarize',
+      })
+      throw error
     }
 
     return { id, model, summary, usage }
@@ -90,15 +117,31 @@ export class OpenRouterSummarizeAdapter<
   async *summarizeStream(
     options: SummarizationOptions,
   ): AsyncIterable<StreamChunk> {
+    const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    yield* this.textAdapter.chatStream({
+    logger.request(`activity=summarize provider=openrouter`, {
+      provider: 'openrouter',
       model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: this.maxTokens ?? options.maxLength,
-      temperature: this.temperature,
+      stream: true,
     })
+
+    try {
+      yield* this.textAdapter.chatStream({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        systemPrompts: [systemPrompt],
+        maxTokens: this.maxTokens ?? options.maxLength,
+        temperature: this.temperature,
+        logger,
+      })
+    } catch (error) {
+      logger.errors('openrouter.summarize fatal', {
+        error,
+        source: 'openrouter.summarize',
+      })
+      throw error
+    }
   }
 
   private buildSummarizationPrompt(options: SummarizationOptions): string {

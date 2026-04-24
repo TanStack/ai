@@ -4,5 +4,7 @@ export type {
   Message,
   Chunk,
   Conversation,
+  Iteration,
+  MiddlewareEvent,
   TokenUsage,
 } from './ai-context'

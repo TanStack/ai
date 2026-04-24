@@ -6,10 +6,10 @@ title: generateSpeech
 # Function: generateSpeech()
 
 ```ts
-function generateSpeech<TAdapter>(options): TTSActivityResult;
+function generateSpeech<TAdapter, TStream>(options): TTSActivityResult<TStream>;
 ```
 
-Defined in: [activities/generateSpeech/index.ts:103](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/index.ts#L103)
+Defined in: [packages/typescript/ai/src/activities/generateSpeech/index.ts:128](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/index.ts#L128)
 
 TTS activity - generates speech from text.
 
@@ -21,15 +21,19 @@ Uses AI text-to-speech models to create audio from natural language text.
 
 `TAdapter` *extends* [`TTSAdapter`](../interfaces/TTSAdapter.md)\<`string`, `object`\>
 
+### TStream
+
+`TStream` *extends* `boolean` = `false`
+
 ## Parameters
 
 ### options
 
-`TTSActivityOptions`\<`TAdapter`\>
+`TTSActivityOptions`\<`TAdapter`, `TStream`\>
 
 ## Returns
 
-`TTSActivityResult`
+`TTSActivityResult`\<`TStream`\>
 
 ## Examples
 

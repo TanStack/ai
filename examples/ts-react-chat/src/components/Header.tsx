@@ -1,7 +1,19 @@
 import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
-import { Guitar, Home, Menu, X } from 'lucide-react'
+import {
+  Braces,
+  FileAudio,
+  FileText,
+  Guitar,
+  Home,
+  Image,
+  Menu,
+  Mic,
+  Music,
+  Video,
+  X,
+} from 'lucide-react'
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false)
@@ -57,10 +69,124 @@ export default function Header() {
             <span className="font-medium">Home</span>
           </Link>
 
-          <hr />
+          <hr className="border-gray-700 my-2" />
+
+          <p className="text-xs text-gray-500 uppercase tracking-wider px-3 pt-2 pb-1">
+            Generations
+          </p>
+
+          <Link
+            to="/generations/image"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Image size={20} />
+            <span className="font-medium">Image Generation</span>
+          </Link>
+
+          <Link
+            to="/generations/speech"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <FileAudio size={20} />
+            <span className="font-medium">Text-to-Speech</span>
+          </Link>
+
+          <Link
+            to="/generations/audio"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Music size={20} />
+            <span className="font-medium">Audio Generation</span>
+          </Link>
+
+          <Link
+            to="/generations/transcription"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Mic size={20} />
+            <span className="font-medium">Transcription</span>
+          </Link>
+
+          <Link
+            to="/generations/summarize"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <FileText size={20} />
+            <span className="font-medium">Summarization</span>
+          </Link>
+
+          <Link
+            to="/generations/video"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Video size={20} />
+            <span className="font-medium">Video Generation</span>
+          </Link>
+
+          <Link
+            to="/generations/structured-output"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Braces size={20} />
+            <span className="font-medium">Structured Output (OpenRouter)</span>
+          </Link>
+
+          <hr className="border-gray-700 my-2" />
+
+          <p className="text-xs text-gray-500 uppercase tracking-wider px-3 pt-2 pb-1">
+            Examples
+          </p>
 
           <Link
             to="/example/guitars"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Guitar size={20} />
+            <span className="font-medium">Guitar Demo</span>
+          </Link>
+
+          <Link
+            to="/realtime"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
             activeProps={{
@@ -68,8 +194,8 @@ export default function Header() {
                 'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
             }}
           >
-            <Guitar size={20} />
-            <span className="font-medium">Guitar Demo</span>
+            <Mic size={20} />
+            <span className="font-medium">Voice Chat (Realtime)</span>
           </Link>
         </nav>
       </aside>
