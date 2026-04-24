@@ -109,8 +109,17 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
+    // `buildSpeechAdapter` can throw `UnknownProviderError` (defense-in-depth;
+    // Zod should catch this first). Translate into a `ServerFnError` so
+    // clients can distinguish it from a generic failure via the stable `code`.
+    let adapter
+    try {
+      adapter = buildSpeechAdapter(data.provider ?? 'openai')
+    } catch (err) {
+      rethrowAudioAdapterError(err)
+    }
     return generateSpeech({
-      adapter: buildSpeechAdapter(data.provider ?? 'openai'),
+      adapter,
       text: data.text,
       voice: data.voice,
       format: data.format,
@@ -126,8 +135,18 @@ export const transcribeFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
+    // `buildTranscriptionAdapter` can throw `UnknownProviderError`
+    // (defense-in-depth; Zod should catch this first). Translate into a
+    // `ServerFnError` so clients can distinguish it from a generic failure
+    // via the stable `code`.
+    let adapter
+    try {
+      adapter = buildTranscriptionAdapter(data.provider ?? 'openai')
+    } catch (err) {
+      rethrowAudioAdapterError(err)
+    }
     return generateTranscription({
-      adapter: buildTranscriptionAdapter(data.provider ?? 'openai'),
+      adapter,
       audio: data.audio,
       language: data.language,
     })
@@ -258,9 +277,18 @@ export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(({ data }) => {
+    // `buildSpeechAdapter` can throw `UnknownProviderError` (defense-in-depth;
+    // Zod should catch this first). Translate into a `ServerFnError` so
+    // clients can distinguish it from a generic failure via the stable `code`.
+    let adapter
+    try {
+      adapter = buildSpeechAdapter(data.provider ?? 'openai')
+    } catch (err) {
+      rethrowAudioAdapterError(err)
+    }
     return toServerSentEventsResponse(
       generateSpeech({
-        adapter: buildSpeechAdapter(data.provider ?? 'openai'),
+        adapter,
         text: data.text,
         voice: data.voice,
         format: data.format,
@@ -278,9 +306,19 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(({ data }) => {
+    // `buildTranscriptionAdapter` can throw `UnknownProviderError`
+    // (defense-in-depth; Zod should catch this first). Translate into a
+    // `ServerFnError` so clients can distinguish it from a generic failure
+    // via the stable `code`.
+    let adapter
+    try {
+      adapter = buildTranscriptionAdapter(data.provider ?? 'openai')
+    } catch (err) {
+      rethrowAudioAdapterError(err)
+    }
     return toServerSentEventsResponse(
       generateTranscription({
-        adapter: buildTranscriptionAdapter(data.provider ?? 'openai'),
+        adapter,
         audio: data.audio,
         language: data.language,
         stream: true,

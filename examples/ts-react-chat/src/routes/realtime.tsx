@@ -370,9 +370,17 @@ function RealtimePage() {
                       )
                     }
                     if (part.type === 'image') {
-                      const src = part.data.startsWith('http')
-                        ? part.data
-                        : `data:${part.mimeType};base64,${part.data}`
+                      // If `part.data` is already a fully-qualified URL
+                      // (http/https) or a `data:` URI, use it verbatim;
+                      // otherwise treat it as raw base64 and wrap it.
+                      // Without the `data:` guard we'd produce malformed
+                      // `data:...;base64,data:...;base64,...` double wraps.
+                      const src =
+                        part.data.startsWith('http://') ||
+                        part.data.startsWith('https://') ||
+                        part.data.startsWith('data:')
+                          ? part.data
+                          : `data:${part.mimeType};base64,${part.data}`
                       return (
                         <img
                           key={idx}

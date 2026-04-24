@@ -61,9 +61,14 @@ export class GrokSpeechAdapter<
     // Default sample rate documented in GrokTTSProviderOptions (see
     // audio/tts-provider-options.ts) is 24000 Hz.
     const sampleRate = modelOptions?.sample_rate ?? 24000
-    const outputFormat: Record<string, unknown> = { codec }
-    if (modelOptions?.sample_rate !== undefined) {
-      outputFormat.sample_rate = modelOptions.sample_rate
+    // Always send the same sample_rate we advertise via contentType so the
+    // response label cannot drift from what the server produced. If we only
+    // forwarded sample_rate when the caller set it, xAI's server default for
+    // a codec could differ from our assumed 24000 and the returned
+    // `audio/L16;rate=24000` would mislabel the bytes.
+    const outputFormat: Record<string, unknown> = {
+      codec,
+      sample_rate: sampleRate,
     }
     if (codec === 'mp3' && modelOptions?.bit_rate !== undefined) {
       outputFormat.bit_rate = modelOptions.bit_rate

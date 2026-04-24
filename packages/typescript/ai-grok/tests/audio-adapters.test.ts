@@ -49,7 +49,10 @@ describe('GrokSpeechAdapter', () => {
     expect(body.text).toBe('hello world')
     expect(body.voice_id).toBe('eve')
     expect(body.language).toBe('en')
-    expect(body.output_format).toEqual({ codec: 'mp3' })
+    // We always forward `sample_rate` (defaulting to 24000 Hz) so the body
+    // can't disagree with the `audio/L16;rate=...` contentType we advertise
+    // for pcm responses.
+    expect(body.output_format).toEqual({ codec: 'mp3', sample_rate: 24000 })
 
     expect(result.model).toBe('grok-tts')
     expect(result.format).toBe('mp3')

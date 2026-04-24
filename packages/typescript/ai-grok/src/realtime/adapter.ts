@@ -92,6 +92,17 @@ async function createWebRTCConnection(
   let currentMode: RealtimeMode = 'idle'
   let currentMessageId: string | null = null
 
+  // Flipped by `teardownConnection`. Guards `sendEvent` so post-disconnect
+  // calls (e.g. a React `useEffect` cleanup flushing queued events) are
+  // logged and skipped instead of silently piling up in `pendingEvents`.
+  let isTornDown = false
+
+  // Outbound events queued while the data channel isn't yet open. Declared
+  // here (rather than next to `sendEvent`) so `teardownConnection` — which
+  // lives higher up and can run from the SDP-path catch before `sendEvent`
+  // is defined — can drain it without hitting the TDZ.
+  const pendingEvents: Array<Record<string, unknown>> = []
+
   // Tracks whether we've sent the first session.update. On the first update
   // we attach a default input_audio_transcription so the server will emit
   // user transcripts unless the caller opts out via
@@ -350,6 +361,13 @@ async function createWebRTCConnection(
       }
       audioContext = null
     }
+
+    // Drop any queued events the caller sent before the data channel opened.
+    // Without this they'd accumulate across reconnect attempts (each connect
+    // allocates a fresh closure, but a caller holding the old `connection`
+    // reference could otherwise keep appending forever).
+    pendingEvents.length = 0
+    isTornDown = true
   }
 
   // xAI requires an audio track in the SDP offer, same as OpenAI realtime.
@@ -701,9 +719,19 @@ async function createWebRTCConnection(
     inputSource.connect(inputAnalyser)
   }
 
-  const pendingEvents: Array<Record<string, unknown>> = []
-
   function sendEvent(event: Record<string, unknown>) {
+    if (isTornDown) {
+      // The caller is holding onto a `connection` object after `disconnect()`
+      // (or a failed connect). Silently queueing would leak memory and the
+      // events would never flush. Log + drop so the misuse is visible in
+      // debug mode without escalating to a throw — throwing from a React
+      // useEffect cleanup path can break teardown ordering in the UI.
+      logger.errors('grok.realtime sendEvent after disconnect', {
+        eventType: (event.type as string | undefined) ?? '<unknown>',
+        source: 'grok.realtime',
+      })
+      return
+    }
     if (dataChannel?.readyState === 'open') {
       logger.provider(
         `provider=grok direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
