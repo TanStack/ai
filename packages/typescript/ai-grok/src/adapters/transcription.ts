@@ -59,7 +59,7 @@ export class GrokTranscriptionAdapter<
   private readonly defaultHeaders: Record<string, string>
 
   constructor(config: GrokTranscriptionConfig, model: TModel) {
-    super(config, model)
+    super(model, config)
     this.apiKey = config.apiKey
     this.baseURL = (config.baseURL ?? DEFAULT_GROK_BASE_URL).replace(/\/+$/, '')
     this.defaultHeaders = config.defaultHeaders ?? {}
