@@ -1,9 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { generateSpeech, generateTranscription } from '@tanstack/ai'
 import { GrokSpeechAdapter } from '../src/adapters/tts'
 import { GrokTranscriptionAdapter } from '../src/adapters/transcription'
-
-const testLogger = resolveDebugOption(false)
 
 const originalFetch = globalThis.fetch
 
@@ -33,10 +31,9 @@ describe('GrokSpeechAdapter', () => {
       'grok-tts',
     )
 
-    const result = await adapter.generateSpeech({
-      model: 'grok-tts',
+    const result = await generateSpeech({
+      adapter,
       text: 'hello world',
-      logger: testLogger,
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -69,11 +66,10 @@ describe('GrokSpeechAdapter', () => {
 
     const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
 
-    await adapter.generateSpeech({
-      model: 'grok-tts',
+    await generateSpeech({
+      adapter,
       text: 'x',
       format: 'opus',
-      logger: testLogger,
     })
 
     const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
@@ -86,8 +82,8 @@ describe('GrokSpeechAdapter', () => {
 
     const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
 
-    await adapter.generateSpeech({
-      model: 'grok-tts',
+    await generateSpeech({
+      adapter,
       text: 'x',
       format: 'wav',
       voice: 'rex',
@@ -99,7 +95,6 @@ describe('GrokSpeechAdapter', () => {
         text_normalization: true,
         optimize_streaming_latency: 1,
       },
-      logger: testLogger,
     })
 
     const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
@@ -120,15 +115,14 @@ describe('GrokSpeechAdapter', () => {
 
     const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
 
-    await adapter.generateSpeech({
-      model: 'grok-tts',
+    await generateSpeech({
+      adapter,
       text: 'x',
       modelOptions: {
         codec: 'wav',
         sample_rate: 24000,
         bit_rate: 128000,
       },
-      logger: testLogger,
     })
 
     const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
@@ -145,11 +139,7 @@ describe('GrokSpeechAdapter', () => {
     const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
 
     await expect(
-      adapter.generateSpeech({
-        model: 'grok-tts',
-        text: 'x',
-        logger: testLogger,
-      }),
+      generateSpeech({ adapter, text: 'x' }),
     ).rejects.toThrow('Grok TTS request failed: 500 upstream boom')
   })
 })
@@ -186,12 +176,11 @@ describe('GrokTranscriptionAdapter', () => {
     const audioBlob = new Blob([new Uint8Array([1, 2, 3])], {
       type: 'audio/mpeg',
     })
-    const result = await adapter.transcribe({
-      model: 'grok-stt',
+    const result = await generateTranscription({
+      adapter,
       audio: audioBlob,
       language: 'en',
       modelOptions: { diarize: true, multichannel: false },
-      logger: testLogger,
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -234,10 +223,9 @@ describe('GrokTranscriptionAdapter', () => {
       'grok-stt',
     )
 
-    const result = await adapter.transcribe({
-      model: 'grok-stt',
+    const result = await generateTranscription({
+      adapter,
       audio: new Blob([new Uint8Array([1])], { type: 'audio/mpeg' }),
-      logger: testLogger,
     })
 
     expect(result.text).toBe('ok')
@@ -257,10 +245,9 @@ describe('GrokTranscriptionAdapter', () => {
     )
 
     await expect(
-      adapter.transcribe({
-        model: 'grok-stt',
+      generateTranscription({
+        adapter,
         audio: new Blob([new Uint8Array([1])]),
-        logger: testLogger,
       }),
     ).rejects.toThrow('Grok transcription request failed: 400 bad audio')
   })
