@@ -41,12 +41,12 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createOpenaiChat } from "@tanstack/ai-openai";
 
-const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, {
+const adapter = createOpenaiChat("gpt-5.2", process.env.OPENAI_API_KEY!, {
   // ... your config options
 });
 
 const stream = chat({
-  adapter: adapter("gpt-5.2"),
+  adapter,
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -54,14 +54,14 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { createOpenaiChat, type OpenAIChatConfig } from "@tanstack/ai-openai";
+import { createOpenaiChat, type OpenAITextConfig } from "@tanstack/ai-openai";
 
-const config: Omit<OpenAIChatConfig, 'apiKey'> = {
+const config: Omit<OpenAITextConfig, 'apiKey'> = {
   organization: "org-...", // Optional
   baseURL: "https://api.openai.com/v1", // Optional, for custom endpoints
 };
 
-const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, config);
+const adapter = createOpenaiChat("gpt-5.2", process.env.OPENAI_API_KEY!, config);
 ```
  
 ## Example: Chat Completion
@@ -198,10 +198,10 @@ Generate speech from text:
 
 ```typescript
 import { generateSpeech } from "@tanstack/ai";
-import { openaiTTS } from "@tanstack/ai-openai";
+import { openaiSpeech } from "@tanstack/ai-openai";
 
 const result = await generateSpeech({
-  adapter: openaiTTS("tts-1"),
+  adapter: openaiSpeech("tts-1"),
   text: "Hello, welcome to TanStack AI!",
   voice: "alloy",
   format: "mp3",
@@ -219,7 +219,7 @@ Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`, `ash`, `b
 
 ```typescript
 const result = await generateSpeech({
-  adapter: openaiTTS("tts-1-hd"),
+  adapter: openaiSpeech("tts-1-hd"),
   text: "High quality speech",
   modelOptions: {
     speed: 1.0, // 0.25 to 4.0
@@ -271,67 +271,68 @@ OPENAI_API_KEY=sk-...
 
 ## API Reference
 
-### `openaiText(config?)`
+### `openaiText(model, config?)`
 
 Creates an OpenAI chat adapter using environment variables.
 
 **Returns:** An OpenAI chat adapter instance.
 
-### `createOpenaiChat(apiKey, config?)`
+### `createOpenaiChat(model, apiKey, config?)`
 
 Creates an OpenAI chat adapter with an explicit API key.
 
 **Parameters:**
 
+- `model` - OpenAI chat model name (e.g., `gpt-5.2`)
 - `apiKey` - Your OpenAI API key
 - `config.organization?` - Organization ID (optional)
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** An OpenAI chat adapter instance.
 
-### `openaiSummarize(config?)`
+### `openaiSummarize(model, config?)`
 
 Creates an OpenAI summarization adapter using environment variables.
 
 **Returns:** An OpenAI summarize adapter instance.
 
-### `createOpenaiSummarize(apiKey, config?)`
+### `createOpenaiSummarize(model, apiKey, config?)`
 
 Creates an OpenAI summarization adapter with an explicit API key.
 
 **Returns:** An OpenAI summarize adapter instance.
 
-### `openaiImage(config?)`
+### `openaiImage(model, config?)`
 
 Creates an OpenAI image generation adapter using environment variables.
 
 **Returns:** An OpenAI image adapter instance.
 
-### `createOpenaiImage(apiKey, config?)`
+### `createOpenaiImage(model, apiKey, config?)`
 
 Creates an OpenAI image generation adapter with an explicit API key.
 
 **Returns:** An OpenAI image adapter instance.
 
-### `openaiTTS(config?)`
+### `openaiSpeech(model, config?)`
 
 Creates an OpenAI TTS adapter using environment variables.
 
 **Returns:** An OpenAI TTS adapter instance.
 
-### `createOpenaiTTS(apiKey, config?)`
+### `createOpenaiSpeech(model, apiKey, config?)`
 
 Creates an OpenAI TTS adapter with an explicit API key.
 
 **Returns:** An OpenAI TTS adapter instance.
 
-### `openaiTranscription(config?)`
+### `openaiTranscription(model, config?)`
 
 Creates an OpenAI transcription adapter using environment variables.
 
 **Returns:** An OpenAI transcription adapter instance.
 
-### `createOpenaiTranscription(apiKey, config?)`
+### `createOpenaiTranscription(model, apiKey, config?)`
 
 Creates an OpenAI transcription adapter with an explicit API key.
 
