@@ -49,7 +49,13 @@ export class GrokSpeechAdapter<
   async generateSpeech(
     options: TTSOptions<GrokTTSProviderOptions>,
   ): Promise<TTSResult> {
+    const { logger } = options
     const { model, text, voice, format, modelOptions } = options
+
+    logger.request(`activity=generateSpeech provider=grok model=${model}`, {
+      provider: 'grok',
+      model,
+    })
 
     const codec = pickCodec(modelOptions?.codec, format)
     const outputFormat: Record<string, unknown> = { codec }
@@ -73,32 +79,40 @@ export class GrokSpeechAdapter<
       body.text_normalization = modelOptions.text_normalization
     }
 
-    const response = await fetch(`${this.baseURL}/tts`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-        ...this.defaultHeaders,
-      },
-      body: JSON.stringify(body),
-    })
+    try {
+      const response = await fetch(`${this.baseURL}/tts`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+          ...this.defaultHeaders,
+        },
+        body: JSON.stringify(body),
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(
-        `Grok TTS request failed: ${response.status} ${errorText}`,
-      )
-    }
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(
+          `Grok TTS request failed: ${response.status} ${errorText}`,
+        )
+      }
 
-    const arrayBuffer = await response.arrayBuffer()
-    const audio = Buffer.from(arrayBuffer).toString('base64')
+      const arrayBuffer = await response.arrayBuffer()
+      const audio = Buffer.from(arrayBuffer).toString('base64')
 
-    return {
-      id: generateId(this.name),
-      model,
-      audio,
-      format: codec,
-      contentType: getContentType(codec),
+      return {
+        id: generateId(this.name),
+        model,
+        audio,
+        format: codec,
+        contentType: getContentType(codec),
+      }
+    } catch (error) {
+      logger.errors('grok.generateSpeech fatal', {
+        error,
+        source: 'grok.generateSpeech',
+      })
+      throw error
     }
   }
 }

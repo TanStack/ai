@@ -68,7 +68,13 @@ export class GrokTranscriptionAdapter<
   async transcribe(
     options: TranscriptionOptions<GrokTranscriptionProviderOptions>,
   ): Promise<TranscriptionResult> {
+    const { logger } = options
     const { model, audio, language, modelOptions } = options
+
+    logger.request(
+      `activity=generateTranscription provider=grok model=${model}`,
+      { provider: 'grok', model },
+    )
 
     const file = toAudioFile(audio)
     const form = new FormData()
@@ -93,39 +99,47 @@ export class GrokTranscriptionAdapter<
       form.set('diarize', modelOptions.diarize ? 'true' : 'false')
     }
 
-    const response = await fetch(`${this.baseURL}/stt`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        ...this.defaultHeaders,
-      },
-      body: form,
-    })
+    try {
+      const response = await fetch(`${this.baseURL}/stt`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          ...this.defaultHeaders,
+        },
+        body: form,
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(
-        `Grok transcription request failed: ${response.status} ${errorText}`,
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(
+          `Grok transcription request failed: ${response.status} ${errorText}`,
+        )
+      }
+
+      const data = (await response.json()) as GrokSTTResponse
+
+      const words: Array<TranscriptionWord> | undefined = data.words?.map(
+        (w) => ({
+          word: w.text,
+          start: w.start,
+          end: w.end,
+        }),
       )
-    }
 
-    const data = (await response.json()) as GrokSTTResponse
-
-    const words: Array<TranscriptionWord> | undefined = data.words?.map(
-      (w) => ({
-        word: w.text,
-        start: w.start,
-        end: w.end,
-      }),
-    )
-
-    return {
-      id: generateId(this.name),
-      model,
-      text: data.text,
-      language: data.language ?? language,
-      duration: data.duration,
-      words,
+      return {
+        id: generateId(this.name),
+        model,
+        text: data.text,
+        language: data.language ?? language,
+        duration: data.duration,
+        words,
+      }
+    } catch (error) {
+      logger.errors('grok.transcribe fatal', {
+        error,
+        source: 'grok.transcribe',
+      })
+      throw error
     }
   }
 }

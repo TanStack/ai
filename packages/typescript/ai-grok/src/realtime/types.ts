@@ -1,4 +1,4 @@
-import type { VADConfig } from '@tanstack/ai'
+import type { DebugOption, VADConfig } from '@tanstack/ai'
 
 /**
  * Grok realtime voice options (Voice Agent API).
@@ -43,6 +43,15 @@ export type GrokTurnDetection =
 export interface GrokRealtimeTokenOptions {
   /** Model to use (default: 'grok-voice-fast-1.0'). */
   model?: GrokRealtimeModel
+  /**
+   * Enable debug logging for token creation.
+   *
+   * - `true`: log all categories via the default `ConsoleLogger`
+   * - `false`: silence everything including errors
+   * - `DebugConfig`: per-category toggles plus an optional custom `logger`
+   * - omitted: only the `errors` category is active (default behaviour)
+   */
+  debug?: DebugOption
 }
 
 /**
@@ -51,6 +60,15 @@ export interface GrokRealtimeTokenOptions {
 export interface GrokRealtimeOptions {
   /** Connection mode (default: 'webrtc' in browser). */
   connectionMode?: 'webrtc' | 'websocket'
+  /**
+   * Enable debug logging for this adapter.
+   *
+   * - `true`: log all categories via the default `ConsoleLogger`
+   * - `false`: silence everything including errors
+   * - `DebugConfig`: per-category toggles plus an optional custom `logger`
+   * - omitted: only the `errors` category is active (default behaviour)
+   */
+  debug?: DebugOption
 }
 
 /**

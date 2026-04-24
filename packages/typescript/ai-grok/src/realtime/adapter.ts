@@ -1,3 +1,4 @@
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -9,6 +10,7 @@ import type {
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { GrokRealtimeOptions } from './types'
 
@@ -36,6 +38,7 @@ export function grokRealtime(
   options: GrokRealtimeOptions = {},
 ): RealtimeAdapter {
   const connectionMode = options.connectionMode ?? 'webrtc'
+  const logger = resolveDebugOption(options.debug)
 
   return {
     provider: 'grok',
@@ -44,10 +47,21 @@ export function grokRealtime(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
+      const model = token.config.model ?? 'grok-voice-fast-1.0'
+      logger.request(`activity=realtime provider=grok model=${model}`, {
+        provider: 'grok',
+        model,
+      })
+
       if (connectionMode === 'webrtc') {
-        return createWebRTCConnection(token)
+        return createWebRTCConnection(token, logger)
       }
-      throw new Error('WebSocket connection mode not yet implemented')
+      const error = new Error('WebSocket connection mode not yet implemented')
+      logger.errors('grok.realtime fatal', {
+        error,
+        source: 'grok.realtime',
+      })
+      throw error
     },
   }
 }
@@ -57,6 +71,7 @@ export function grokRealtime(
  */
 async function createWebRTCConnection(
   token: RealtimeToken,
+  logger: InternalLogger,
 ): Promise<RealtimeConnection> {
   const model = token.config.model ?? 'grok-voice-fast-1.0'
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
@@ -105,13 +120,24 @@ async function createWebRTCConnection(
   dataChannel.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data)
+      logger.provider(
+        `provider=grok direction=in type=${(message as { type?: string }).type ?? '<unknown>'}`,
+        { frame: message },
+      )
       handleServerEvent(message)
     } catch (e) {
-      console.error('Failed to parse realtime event:', e)
+      logger.errors('grok.realtime fatal', {
+        error: e,
+        source: 'grok.realtime',
+      })
     }
   }
 
   dataChannel.onerror = (error) => {
+    logger.errors('grok.realtime fatal', {
+      error,
+      source: 'grok.realtime',
+    })
     emit('error', { error: new Error(`Data channel error: ${error}`) })
   }
 
@@ -135,6 +161,10 @@ async function createWebRTCConnection(
       pc.addTrack(track, localStream)
     }
   } catch (error) {
+    logger.errors('grok.realtime fatal', {
+      error,
+      source: 'grok.realtime.getUserMedia',
+    })
     throw new Error(
       `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
     )
@@ -154,9 +184,15 @@ async function createWebRTCConnection(
 
   if (!sdpResponse.ok) {
     const errorText = await sdpResponse.text()
-    throw new Error(
+    const error = new Error(
       `Failed to establish WebRTC connection: ${sdpResponse.status} - ${errorText}`,
     )
+    logger.errors('grok.realtime fatal', {
+      error,
+      source: 'grok.realtime.sdp',
+      status: sdpResponse.status,
+    })
+    throw error
   }
 
   const answerSdp = await sdpResponse.text()
@@ -255,9 +291,9 @@ async function createWebRTCConnection(
         const name = event.name as string
         const args = event.arguments as string
         if (!callId) {
-          console.warn(
-            '[grokRealtime] function_call_arguments.done missing call_id/item_id',
-            event,
+          logger.errors(
+            'grok.realtime function_call_arguments.done missing call_id/item_id',
+            { event, source: 'grok.realtime' },
           )
           break
         }
@@ -318,9 +354,13 @@ async function createWebRTCConnection(
 
       case 'error': {
         const error = event.error as Record<string, unknown>
-        emit('error', {
-          error: new Error((error.message as string) || 'Unknown error'),
+        const err = new Error((error.message as string) || 'Unknown error')
+        logger.errors('grok.realtime server error', {
+          error: err,
+          source: 'grok.realtime',
+          event,
         })
+        emit('error', { error: err })
         break
       }
     }
@@ -331,7 +371,10 @@ async function createWebRTCConnection(
     audioElement.srcObject = stream
     audioElement.autoplay = true
     audioElement.play().catch((e) => {
-      console.warn('Audio autoplay failed:', e)
+      logger.errors('grok.realtime audio autoplay failed', {
+        error: e,
+        source: 'grok.realtime',
+      })
     })
 
     if (!audioContext) {
@@ -371,6 +414,10 @@ async function createWebRTCConnection(
 
   function sendEvent(event: Record<string, unknown>) {
     if (dataChannel?.readyState === 'open') {
+      logger.provider(
+        `provider=grok direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
+        { frame: event },
+      )
       dataChannel.send(JSON.stringify(event))
     } else {
       pendingEvents.push(event)
@@ -379,6 +426,10 @@ async function createWebRTCConnection(
 
   function flushPendingEvents() {
     for (const event of pendingEvents) {
+      logger.provider(
+        `provider=grok direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
+        { frame: event },
+      )
       dataChannel!.send(JSON.stringify(event))
     }
     pendingEvents.length = 0

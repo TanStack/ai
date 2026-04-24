@@ -1,3 +1,4 @@
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { getGrokApiKeyFromEnv } from '../utils'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
 import type {
@@ -32,6 +33,7 @@ export function grokRealtimeToken(
   options: GrokRealtimeTokenOptions = {},
 ): RealtimeTokenAdapter {
   const apiKey = getGrokApiKeyFromEnv()
+  const logger = resolveDebugOption(options.debug)
 
   return {
     provider: 'grok',
@@ -39,31 +41,44 @@ export function grokRealtimeToken(
     async generateToken(): Promise<RealtimeToken> {
       const model: GrokRealtimeModel = options.model ?? 'grok-voice-fast-1.0'
 
-      const response = await fetch(GROK_REALTIME_CLIENT_SECRETS_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ model }),
+      logger.request(`activity=realtimeToken provider=grok model=${model}`, {
+        provider: 'grok',
+        model,
       })
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(
-          `Grok realtime session creation failed: ${response.status} ${errorText}`,
-        )
-      }
+      try {
+        const response = await fetch(GROK_REALTIME_CLIENT_SECRETS_URL, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ model }),
+        })
 
-      const sessionData: GrokRealtimeSessionResponse = await response.json()
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(
+            `Grok realtime session creation failed: ${response.status} ${errorText}`,
+          )
+        }
 
-      return {
-        provider: 'grok',
-        token: sessionData.client_secret.value,
-        expiresAt: sessionData.client_secret.expires_at * 1000,
-        config: {
-          model: sessionData.model,
-        },
+        const sessionData: GrokRealtimeSessionResponse = await response.json()
+
+        return {
+          provider: 'grok',
+          token: sessionData.client_secret.value,
+          expiresAt: sessionData.client_secret.expires_at * 1000,
+          config: {
+            model: sessionData.model,
+          },
+        }
+      } catch (error) {
+        logger.errors('grok.realtimeToken fatal', {
+          error,
+          source: 'grok.realtimeToken',
+        })
+        throw error
       }
     },
   }
