@@ -65,7 +65,7 @@ describe('OpenAI usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage).toEqual({
       promptTokens: 100,
@@ -122,7 +122,7 @@ describe('OpenAI usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.promptTokensDetails).toEqual({
       cachedTokens: 25,
@@ -177,7 +177,7 @@ describe('OpenAI usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.completionTokensDetails).toEqual({
       reasoningTokens: 30,
@@ -225,7 +225,7 @@ describe('OpenAI usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage).toBeUndefined()
   })
@@ -279,7 +279,7 @@ describe('OpenAI usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.promptTokensDetails).toBeUndefined()
   })

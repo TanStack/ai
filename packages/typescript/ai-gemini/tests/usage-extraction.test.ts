@@ -81,7 +81,7 @@ describe('Gemini usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage).toMatchObject({
       promptTokens: 100,
@@ -120,7 +120,7 @@ describe('Gemini usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.promptTokensDetails).toMatchObject({
       cachedTokens: 25,
@@ -157,7 +157,7 @@ describe('Gemini usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.completionTokensDetails).toMatchObject({
       reasoningTokens: 30,
@@ -197,7 +197,7 @@ describe('Gemini usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.promptTokensDetails).toMatchObject({
       textTokens: 100,
@@ -238,7 +238,7 @@ describe('Gemini usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.completionTokensDetails).toMatchObject({
       textTokens: 50,
@@ -276,7 +276,7 @@ describe('Gemini usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.providerUsageDetails).toMatchObject({
       trafficType: 'ON_DEMAND',
@@ -313,7 +313,7 @@ describe('Gemini usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.providerUsageDetails).toMatchObject({
       toolUsePromptTokenCount: 20,
@@ -345,7 +345,7 @@ describe('Gemini usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     // When no usageMetadata is provided, usage is undefined
     expect(doneChunk?.usage).toBeUndefined()

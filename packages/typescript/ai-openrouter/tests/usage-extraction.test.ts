@@ -72,7 +72,7 @@ describe('OpenRouter usage extraction', () => {
     ]
 
     mockSend.mockImplementation((params) => {
-      if (params.stream) {
+      if (params.chatRequest?.stream) {
         return Promise.resolve(createAsyncIterable(streamChunks))
       }
       return Promise.resolve({})
@@ -86,13 +86,15 @@ describe('OpenRouter usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage).toMatchObject({
-      promptTokens: 100,
-      completionTokens: 50,
-      totalTokens: 150,
-    })
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage).toMatchObject({
+        promptTokens: 100,
+        completionTokens: 50,
+        totalTokens: 150,
+      })
+    }
   })
 
   it('extracts prompt tokens details', async () => {
@@ -128,7 +130,7 @@ describe('OpenRouter usage extraction', () => {
     ]
 
     mockSend.mockImplementation((params) => {
-      if (params.stream) {
+      if (params.chatRequest?.stream) {
         return Promise.resolve(createAsyncIterable(streamChunks))
       }
       return Promise.resolve({})
@@ -142,11 +144,13 @@ describe('OpenRouter usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.promptTokensDetails).toEqual({
-      cachedTokens: 25,
-    })
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage?.promptTokensDetails).toEqual({
+        cachedTokens: 25,
+      })
+    }
   })
 
   it('extracts completion tokens details with reasoning tokens', async () => {
@@ -182,7 +186,7 @@ describe('OpenRouter usage extraction', () => {
     ]
 
     mockSend.mockImplementation((params) => {
-      if (params.stream) {
+      if (params.chatRequest?.stream) {
         return Promise.resolve(createAsyncIterable(streamChunks))
       }
       return Promise.resolve({})
@@ -196,11 +200,13 @@ describe('OpenRouter usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.completionTokensDetails).toEqual({
-      reasoningTokens: 30,
-    })
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage?.completionTokensDetails).toEqual({
+        reasoningTokens: 30,
+      })
+    }
   })
 
   it('extracts completion tokens details with prediction tokens', async () => {
@@ -237,7 +243,7 @@ describe('OpenRouter usage extraction', () => {
     ]
 
     mockSend.mockImplementation((params) => {
-      if (params.stream) {
+      if (params.chatRequest?.stream) {
         return Promise.resolve(createAsyncIterable(streamChunks))
       }
       return Promise.resolve({})
@@ -251,13 +257,15 @@ describe('OpenRouter usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     // Prediction tokens are OpenRouter-specific, so they go in providerUsageDetails
-    expect(doneChunk?.usage?.providerUsageDetails).toEqual({
-      acceptedPredictionTokens: 20,
-      rejectedPredictionTokens: 5,
-    })
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage?.providerUsageDetails).toEqual({
+        acceptedPredictionTokens: 20,
+        rejectedPredictionTokens: 5,
+      })
+    }
   })
 
   it('handles response with no usage data - no done chunk emitted', async () => {
@@ -286,7 +294,7 @@ describe('OpenRouter usage extraction', () => {
     ]
 
     mockSend.mockImplementation((params) => {
-      if (params.stream) {
+      if (params.chatRequest?.stream) {
         return Promise.resolve(createAsyncIterable(streamChunks))
       }
       return Promise.resolve({})
@@ -300,8 +308,12 @@ describe('OpenRouter usage extraction', () => {
       chunks.push(chunk)
     }
 
-    // When usage is not provided, the adapter doesn't emit a done chunk
-    const doneChunk = chunks.find((c) => c.type === 'done')
-    expect(doneChunk).toBeUndefined()
+    // AG-UI RUN_FINISHED is always emitted on successful stream completion,
+    // but its usage field should be undefined when the provider doesn't
+    // include usage data.
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage).toBeUndefined()
+    }
   })
 })

@@ -82,13 +82,15 @@ describe('Grok usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage).toMatchObject({
-      promptTokens: 100,
-      completionTokens: 50,
-      totalTokens: 150,
-    })
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage).toMatchObject({
+        promptTokens: 100,
+        completionTokens: 50,
+        totalTokens: 150,
+      })
+    }
   })
 
   it('extracts prompt tokens details with cached tokens', async () => {
@@ -131,11 +133,13 @@ describe('Grok usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.promptTokensDetails).toEqual({
-      cachedTokens: 25,
-    })
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage?.promptTokensDetails).toEqual({
+        cachedTokens: 25,
+      })
+    }
   })
 
   it('extracts completion tokens details with reasoning tokens', async () => {
@@ -178,11 +182,13 @@ describe('Grok usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.completionTokensDetails).toEqual({
-      reasoningTokens: 30,
-    })
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage?.completionTokensDetails).toEqual({
+        reasoningTokens: 30,
+      })
+    }
   })
 
   it('extracts audio tokens in prompt details', async () => {
@@ -225,11 +231,13 @@ describe('Grok usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.promptTokensDetails).toEqual({
-      audioTokens: 15,
-    })
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage?.promptTokensDetails).toEqual({
+        audioTokens: 15,
+      })
+    }
   })
 
   it('handles response with no usage data', async () => {
@@ -265,9 +273,11 @@ describe('Grok usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage).toBeUndefined()
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage).toBeUndefined()
+    }
   })
 
   it('omits empty details when all values are zero', async () => {
@@ -314,9 +324,11 @@ describe('Grok usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.promptTokensDetails).toBeUndefined()
-    expect(doneChunk?.usage?.completionTokensDetails).toBeUndefined()
+    if (doneChunk?.type === 'RUN_FINISHED') {
+      expect(doneChunk.usage?.promptTokensDetails).toBeUndefined()
+      expect(doneChunk.usage?.completionTokensDetails).toBeUndefined()
+    }
   })
 })

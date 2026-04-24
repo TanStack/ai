@@ -99,7 +99,7 @@ describe('Anthropic usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage).toMatchObject({
       promptTokens: 100,
@@ -161,7 +161,7 @@ describe('Anthropic usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.promptTokensDetails).toEqual({
       cacheWriteTokens: 50,
@@ -222,7 +222,7 @@ describe('Anthropic usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(doneChunk?.usage?.providerUsageDetails).toMatchObject({
       serverToolUse: {
@@ -281,7 +281,7 @@ describe('Anthropic usage extraction', () => {
       chunks.push(chunk)
     }
 
-    const doneChunk = chunks.find((c) => c.type === 'done')
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     // promptTokensDetails should be empty object when no cache tokens
     expect(doneChunk?.usage?.promptTokensDetails).toEqual({})

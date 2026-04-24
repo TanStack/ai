@@ -9,7 +9,7 @@ import type { StreamChunk, Tool } from '@tanstack/ai'
 const testLogger = resolveDebugOption(false)
 
 // Declare mockCreate at module level
-let mockCreate: ReturnType<typeof vi.fn>
+let mockCreate: (...args: Array<unknown>) => unknown
 
 // Mock the OpenAI SDK
 vi.mock('openai', () => {
@@ -475,7 +475,7 @@ describe('Grok AG-UI event emission', () => {
     const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
-      expect(runErrorChunk.error.message).toBe('Stream interrupted')
+      expect(runErrorChunk.error?.message).toBe('Stream interrupted')
     }
   })
 
@@ -521,7 +521,7 @@ describe('Grok AG-UI event emission', () => {
     }
 
     // Verify proper AG-UI event sequence
-    const eventTypes = chunks.map((c) => c.type)
+    const eventTypes: Array<string> = chunks.map((c) => c.type)
 
     // Should start with RUN_STARTED
     expect(eventTypes[0]).toBe('RUN_STARTED')

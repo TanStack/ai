@@ -1,6 +1,6 @@
 import { buildBaseUsage } from '@tanstack/ai'
 import type { TokenUsage } from '@tanstack/ai'
-import type { ChatGenerationTokenUsage } from '@openrouter/sdk/models'
+import type { ChatUsage } from '@openrouter/sdk/models'
 
 /**
  * OpenRouter-specific provider usage details.
@@ -16,11 +16,11 @@ export interface OpenRouterProviderUsageDetails {
 }
 
 /**
- * Build normalized TokenUsage from OpenRouter's ChatGenerationTokenUsage
- * OpenRouter already has the detail fields structured correctly
+ * Build normalized TokenUsage from OpenRouter's ChatUsage object.
+ * OpenRouter already has the detail fields structured correctly.
  */
 export function buildOpenRouterUsage(
-  usage: ChatGenerationTokenUsage | undefined,
+  usage: ChatUsage | undefined,
 ): TokenUsage | undefined {
   if (!usage) return undefined
 
