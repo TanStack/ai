@@ -162,6 +162,10 @@ function extensionFor(mimeType: string): string {
       return 'webm'
     case 'audio/L16':
       return 'pcm'
+    case 'audio/basic':
+      return 'mulaw'
+    case 'audio/x-alaw-basic':
+      return 'alaw'
     default: {
       const slash = mimeType.indexOf('/')
       if (slash === -1) return 'bin'

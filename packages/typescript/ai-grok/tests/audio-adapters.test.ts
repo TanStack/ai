@@ -517,4 +517,18 @@ describe('toAudioFile', () => {
     // Same identity — we don't wrap when the File already carries a type.
     expect(result).toBe(f)
   })
+
+  it('produces sensible filename extensions for mulaw and alaw', () => {
+    // The MIME types audio/basic (mulaw) and audio/x-alaw-basic (alaw) have no
+    // obvious extension; without an explicit mapping the default `slice(slash+1)`
+    // would produce `audio.basic` / `audio.x-alaw-basic`, which servers treating
+    // the filename as a format hint won't recognize. Pin the explicit mapping.
+    const mulawFile = toAudioFile(new ArrayBuffer(3), 'mulaw')
+    expect(mulawFile.type).toBe('audio/basic')
+    expect(mulawFile.name).toBe('audio.mulaw')
+
+    const alawFile = toAudioFile(new ArrayBuffer(3), 'alaw')
+    expect(alawFile.type).toBe('audio/x-alaw-basic')
+    expect(alawFile.name).toBe('audio.alaw')
+  })
 })
