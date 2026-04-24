@@ -1,7 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateAudio, toServerSentEventsResponse } from '@tanstack/ai'
 import { z } from 'zod'
-import { buildAudioAdapter } from '../lib/server-audio-adapters'
+import {
+  InvalidModelOverrideError,
+  buildAudioAdapter,
+} from '../lib/server-audio-adapters'
 
 const AUDIO_PROVIDER_SCHEMA = z
   .enum(['gemini-lyria', 'fal-audio', 'fal-sfx'])
@@ -66,6 +69,15 @@ export const Route = createFileRoute('/api/generate/audio')({
 
           return toServerSentEventsResponse(stream)
         } catch (err) {
+          if (err instanceof InvalidModelOverrideError) {
+            return jsonError(400, {
+              error: 'invalid_model_override',
+              message: err.message,
+              provider: err.providerId,
+              requestedModel: err.requestedModel,
+              allowedModels: err.allowedModels,
+            })
+          }
           return jsonError(500, {
             error: 'generation_failed',
             message:

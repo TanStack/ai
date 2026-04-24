@@ -7,10 +7,12 @@ export { grokRealtime } from './adapter'
 // Types
 export type {
   GrokRealtimeVoice,
-  GrokRealtimeModel,
   GrokRealtimeTokenOptions,
   GrokRealtimeOptions,
   GrokTurnDetection,
   GrokSemanticVADConfig,
   GrokServerVADConfig,
 } from './types'
+
+// Re-export the realtime model type from the single source of truth.
+export type { GrokRealtimeModel } from '../model-meta'

@@ -92,6 +92,12 @@ async function createWebRTCConnection(
   let currentMode: RealtimeMode = 'idle'
   let currentMessageId: string | null = null
 
+  // Tracks whether we've sent the first session.update. On the first update
+  // we attach a default input_audio_transcription so the server will emit
+  // user transcripts unless the caller opts out via
+  // `providerOptions.inputAudioTranscription = null | false`.
+  let hasSentInitialSessionUpdate = false
+
   const emptyFrequencyData = new Uint8Array(1024)
   const emptyTimeDomainData = new Uint8Array(2048).fill(128)
 
@@ -109,8 +115,35 @@ async function createWebRTCConnection(
 
   dataChannel = pc.createDataChannel('oai-events')
 
-  const dataChannelReady = new Promise<void>((resolve) => {
+  let dataChannelOpened = false
+  let rejectDataChannelReady: ((reason: unknown) => void) | null = null
+  let dataChannelReadyTimeout: ReturnType<typeof setTimeout> | null = null
+
+  const dataChannelReady = new Promise<void>((resolve, reject) => {
+    rejectDataChannelReady = (reason) => {
+      if (dataChannelReadyTimeout !== null) {
+        clearTimeout(dataChannelReadyTimeout)
+        dataChannelReadyTimeout = null
+      }
+      reject(reason)
+    }
+
+    dataChannelReadyTimeout = setTimeout(() => {
+      if (!dataChannelOpened) {
+        rejectDataChannelReady?.(
+          new Error(
+            'Data channel did not open within 15000ms — aborting connection',
+          ),
+        )
+      }
+    }, 15000)
+
     dataChannel!.onopen = () => {
+      dataChannelOpened = true
+      if (dataChannelReadyTimeout !== null) {
+        clearTimeout(dataChannelReadyTimeout)
+        dataChannelReadyTimeout = null
+      }
       flushPendingEvents()
       emit('status_change', { status: 'connected' as RealtimeStatus })
       resolve()
@@ -125,10 +158,14 @@ async function createWebRTCConnection(
         { frame: message },
       )
       handleServerEvent(message)
-    } catch (e) {
+    } catch (parseErr) {
       logger.errors('grok.realtime fatal', {
-        error: e,
+        error: parseErr,
         source: 'grok.realtime',
+      })
+      emit('error', {
+        error:
+          parseErr instanceof Error ? parseErr : new Error(String(parseErr)),
       })
     }
   }
@@ -138,12 +175,69 @@ async function createWebRTCConnection(
       error,
       source: 'grok.realtime',
     })
-    emit('error', { error: new Error(`Data channel error: ${error}`) })
+    // RTCErrorEvent exposes a typed `.error`; fall back to the event type
+    // name, then to a string representation, so the emitted error message
+    // doesn't end up as "[object Event]".
+    const rtcError = (error as { error?: { message?: string } }).error
+    const msg =
+      rtcError?.message ??
+      (error instanceof Event ? error.type : String(error))
+    const dcErr = new Error(`Data channel error: ${msg}`)
+    if (!dataChannelOpened) {
+      rejectDataChannelReady?.(dcErr)
+    }
+    emit('error', { error: dcErr })
+  }
+
+  dataChannel.onclose = () => {
+    if (!dataChannelOpened) {
+      rejectDataChannelReady?.(
+        new Error('Data channel closed before opening'),
+      )
+    }
   }
 
   pc.ontrack = (event) => {
     if (event.track.kind === 'audio' && event.streams[0]) {
       setupOutputAudioAnalysis(event.streams[0])
+    }
+  }
+
+  pc.onconnectionstatechange = () => {
+    const state = pc.connectionState
+    logger.provider(`provider=grok pc.connectionState=${state}`, {
+      state,
+    })
+    if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+      emit('status_change', {
+        status:
+          state === 'failed' ? ('error' as RealtimeStatus) : ('idle' as RealtimeStatus),
+      })
+      if (state === 'failed' && !dataChannelOpened) {
+        rejectDataChannelReady?.(
+          new Error(`PeerConnection failed before data channel opened`),
+        )
+      }
+    }
+  }
+
+  pc.oniceconnectionstatechange = () => {
+    const state = pc.iceConnectionState
+    logger.provider(`provider=grok pc.iceConnectionState=${state}`, {
+      state,
+    })
+    if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+      emit('status_change', {
+        status:
+          state === 'failed' ? ('error' as RealtimeStatus) : ('idle' as RealtimeStatus),
+      })
+      if (state === 'failed' && !dataChannelOpened) {
+        rejectDataChannelReady?.(
+          new Error(
+            `ICE connection failed before data channel opened`,
+          ),
+        )
+      }
     }
   }
 
@@ -170,33 +264,80 @@ async function createWebRTCConnection(
     )
   }
 
-  const offer = await pc.createOffer()
-  await pc.setLocalDescription(offer)
+  // If anything between here and the completed remote-description fails we
+  // must tear down the already-acquired microphone, data channel, and peer
+  // connection — otherwise the mic indicator stays on forever.
+  try {
+    const offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
 
-  const sdpResponse = await fetch(`${GROK_REALTIME_URL}?model=${model}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token.token}`,
-      'Content-Type': 'application/sdp',
-    },
-    body: offer.sdp,
-  })
-
-  if (!sdpResponse.ok) {
-    const errorText = await sdpResponse.text()
-    const error = new Error(
-      `Failed to establish WebRTC connection: ${sdpResponse.status} - ${errorText}`,
-    )
-    logger.errors('grok.realtime fatal', {
-      error,
-      source: 'grok.realtime.sdp',
-      status: sdpResponse.status,
+    const sdpResponse = await fetch(`${GROK_REALTIME_URL}?model=${model}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token.token}`,
+        'Content-Type': 'application/sdp',
+      },
+      body: offer.sdp,
     })
-    throw error
-  }
 
-  const answerSdp = await sdpResponse.text()
-  await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+    if (!sdpResponse.ok) {
+      const errorText = await sdpResponse.text()
+      const error = new Error(
+        `Failed to establish WebRTC connection: ${sdpResponse.status} - ${errorText}`,
+      )
+      logger.errors('grok.realtime fatal', {
+        error,
+        source: 'grok.realtime.sdp',
+        status: sdpResponse.status,
+      })
+      throw error
+    }
+
+    const answerSdp = await sdpResponse.text()
+    await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+  } catch (err) {
+    // Tear down everything we've allocated so the mic/pc/audioContext don't
+    // leak. `rejectDataChannelReady` also clears the open-timeout.
+    const reject = rejectDataChannelReady as
+      | ((reason: unknown) => void)
+      | null
+    reject?.(err)
+
+    // `localStream` and `dataChannel` are both non-null at this point (we
+    // got past getUserMedia and createDataChannel above), so no nullish
+    // guards are needed — but null them out so the connection's disconnect()
+    // path (called later by callers) is idempotent.
+    for (const track of localStream.getTracks()) {
+      track.stop()
+    }
+    localStream = null
+    try {
+      dataChannel.close()
+    } catch {
+      // ignore — channel may already be closed by pc.close()
+    }
+    dataChannel = null
+    try {
+      pc.close()
+    } catch {
+      // ignore — pc may already be closed
+    }
+    // Note: at this point in control flow TS narrows `audioContext` to
+    // `null` (nothing before the try-block reassigns it), but a caller may
+    // set it via the `setupInput/OutputAudioAnalysis` helpers in the future
+    // if this cleanup path is reused; guard via an explicit cast so we don't
+    // skip closing it.
+    const ctx = audioContext as AudioContext | null
+    if (ctx) {
+      try {
+        await ctx.close()
+      } catch {
+        // ignore — context may already be closed
+      }
+      audioContext = null
+    }
+    throw err
+  }
 
   setupInputAudioAnalysis(localStream)
 
@@ -228,6 +369,10 @@ async function createWebRTCConnection(
       }
 
       case 'response.created':
+        // Reset message id so a tool-only response (which never emits
+        // response.output_item.added for a message) can't reuse the previous
+        // turn's id when `response.done` later inspects this flag.
+        currentMessageId = null
         currentMode = 'thinking'
         emit('mode_change', { mode: 'thinking' })
         break
@@ -312,8 +457,13 @@ async function createWebRTCConnection(
           | Array<Record<string, unknown>>
           | undefined
 
-        currentMode = 'listening'
-        emit('mode_change', { mode: 'listening' })
+        // Only transition back to `listening` if the user hasn't already
+        // stopped capture — otherwise we'd override their explicit `idle`
+        // state and re-arm the mic visualisation.
+        if (currentMode !== 'idle') {
+          currentMode = 'listening'
+          emit('mode_change', { mode: 'listening' })
+        }
 
         if (currentMessageId) {
           const message: RealtimeMessage = {
@@ -363,10 +513,49 @@ async function createWebRTCConnection(
         emit('error', { error: err })
         break
       }
+
+      default:
+        // The xAI realtime protocol is a moving target; log unhandled event
+        // types at provider level so they're visible during debugging without
+        // emitting a user-visible error.
+        logger.provider('grok.realtime unhandled server event', {
+          type: event.type,
+        })
+        break
     }
   }
 
   function setupOutputAudioAnalysis(stream: MediaStream) {
+    // Tear down any prior output audio before allocating new resources.
+    // `pc.ontrack` can fire multiple times over the lifetime of a session
+    // (e.g. after renegotiation), and without this we'd leak audio elements
+    // and analyser nodes.
+    if (audioElement) {
+      try {
+        audioElement.pause()
+      } catch {
+        // ignore — element may already be unloaded
+      }
+      audioElement.srcObject = null
+      audioElement = null
+    }
+    if (outputSource) {
+      try {
+        outputSource.disconnect()
+      } catch {
+        // ignore — may already be disconnected
+      }
+      outputSource = null
+    }
+    if (outputAnalyser) {
+      try {
+        outputAnalyser.disconnect()
+      } catch {
+        // ignore
+      }
+      outputAnalyser = null
+    }
+
     audioElement = new Audio()
     audioElement.srcObject = stream
     audioElement.autoplay = true
@@ -375,6 +564,9 @@ async function createWebRTCConnection(
         error: e,
         source: 'grok.realtime',
       })
+      emit('error', {
+        error: e instanceof Error ? e : new Error(String(e)),
+      })
     })
 
     if (!audioContext) {
@@ -382,7 +574,15 @@ async function createWebRTCConnection(
     }
 
     if (audioContext.state === 'suspended') {
-      audioContext.resume().catch(() => {})
+      audioContext.resume().catch((err) => {
+        logger.errors('grok.realtime audioContext.resume failed', {
+          error: err,
+          source: 'grok.realtime',
+        })
+        emit('error', {
+          error: err instanceof Error ? err : new Error(String(err)),
+        })
+      })
     }
 
     outputAnalyser = audioContext.createAnalyser()
@@ -399,7 +599,15 @@ async function createWebRTCConnection(
     }
 
     if (audioContext.state === 'suspended') {
-      audioContext.resume().catch(() => {})
+      audioContext.resume().catch((err) => {
+        logger.errors('grok.realtime audioContext.resume failed', {
+          error: err,
+          source: 'grok.realtime',
+        })
+        emit('error', {
+          error: err instanceof Error ? err : new Error(String(err)),
+        })
+      })
     }
 
     inputAnalyser = audioContext.createAnalyser()
@@ -500,12 +708,15 @@ async function createWebRTCConnection(
     sendImage(imageData: string, mimeType: string) {
       const isUrl =
         imageData.startsWith('http://') || imageData.startsWith('https://')
-      const imageContent = isUrl
-        ? { type: 'input_image', image_url: imageData }
-        : {
-            type: 'input_image',
-            image_url: `data:${mimeType};base64,${imageData}`,
-          }
+      const imageContent = {
+        type: 'input_image',
+        // The OpenAI-realtime content part (which this adapter mirrors) nests
+        // the URL under an `image_url: { url: ... }` object, not a bare
+        // string.
+        image_url: {
+          url: isUrl ? imageData : `data:${mimeType};base64,${imageData}`,
+        },
+      }
 
       sendEvent({
         type: 'conversation.item.create',
@@ -581,13 +792,31 @@ async function createWebRTCConnection(
         sessionUpdate.max_response_output_tokens = config.maxOutputTokens
       }
 
-      sessionUpdate.input_audio_transcription = { model: 'grok-stt' }
+      // Let callers forward an explicit `input_audio_transcription` value
+      // through `providerOptions` — including `null` / `false` to disable
+      // the feature. Only apply our `grok-stt` default on the first
+      // session.update and only if the caller hasn't set it themselves.
+      const providerOptions = config.providerOptions ?? {}
+      const callerTranscription =
+        'inputAudioTranscription' in providerOptions
+          ? providerOptions.inputAudioTranscription
+          : 'input_audio_transcription' in providerOptions
+            ? (providerOptions as Record<string, unknown>)
+                .input_audio_transcription
+            : undefined
+      if (callerTranscription !== undefined) {
+        sessionUpdate.input_audio_transcription =
+          callerTranscription === false ? null : callerTranscription
+      } else if (!hasSentInitialSessionUpdate) {
+        sessionUpdate.input_audio_transcription = { model: 'grok-stt' }
+      }
 
       if (Object.keys(sessionUpdate).length > 0) {
         sendEvent({
           type: 'session.update',
           session: sessionUpdate,
         })
+        hasSentInitialSessionUpdate = true
       }
     },
 

@@ -29,10 +29,15 @@ export interface GrokTranscriptionProviderOptions {
    */
   sample_rate?: number
   /**
-   * Apply inverse text normalization. Requires `language` to be set on the
-   * core `TranscriptionOptions`.
+   * Apply inverse text normalization (e.g. "one hundred" → "100"). Requires
+   * `language` to be set on the core `TranscriptionOptions`.
+   *
+   * NOTE: xAI's STT API exposes this on the wire as `format` (a boolean
+   * toggle). We surface it under the clearer name
+   * `inverse_text_normalization` on the SDK, and translate to the wire name
+   * inside the adapter.
    */
-  format?: boolean
+  inverse_text_normalization?: boolean
   /**
    * Treat the audio as multichannel. When enabled, `channels` must also be set.
    */

@@ -1,17 +1,11 @@
 import type { DebugOption, VADConfig } from '@tanstack/ai'
+import type { GrokRealtimeModel } from '../model-meta'
 
 /**
  * Grok realtime voice options (Voice Agent API).
  * https://docs.x.ai/developers/model-capabilities/audio/voice-agent
  */
 export type GrokRealtimeVoice = 'eve' | 'ara' | 'rex' | 'sal' | 'leo'
-
-/**
- * Grok realtime (Voice Agent) model options.
- */
-export type GrokRealtimeModel =
-  | 'grok-voice-fast-1.0'
-  | 'grok-voice-think-fast-1.0'
 
 /**
  * Grok semantic VAD configuration.

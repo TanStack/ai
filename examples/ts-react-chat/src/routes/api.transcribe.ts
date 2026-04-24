@@ -1,7 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
 import { z } from 'zod'
-import { buildTranscriptionAdapter } from '../lib/server-audio-adapters'
+import {
+  InvalidModelOverrideError,
+  buildTranscriptionAdapter,
+} from '../lib/server-audio-adapters'
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z
   .enum(['openai', 'fal', 'grok'])
@@ -65,6 +68,15 @@ export const Route = createFileRoute('/api/transcribe')({
 
           return toServerSentEventsResponse(stream)
         } catch (err) {
+          if (err instanceof InvalidModelOverrideError) {
+            return jsonError(400, {
+              error: 'invalid_model_override',
+              message: err.message,
+              provider: err.providerId,
+              requestedModel: err.requestedModel,
+              allowedModels: err.allowedModels,
+            })
+          }
           return jsonError(500, {
             error: 'transcription_failed',
             message:

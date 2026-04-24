@@ -151,7 +151,7 @@ function getContentType(codec: GrokTTSCodec): string {
     case 'wav':
       return 'audio/wav'
     case 'pcm':
-      return 'audio/pcm'
+      return 'audio/L16'
     case 'mulaw':
       return 'audio/basic'
     case 'alaw':

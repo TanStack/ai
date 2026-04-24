@@ -77,15 +77,40 @@ export function buildAudioAdapter(
   }
 }
 
+/**
+ * Thrown when a caller supplies a `modelOverride` that is not present in the
+ * provider's allowed model list. HTTP routes map this to a 400 response so the
+ * user sees a clear rejection instead of silently getting output from the
+ * default model.
+ */
+export class InvalidModelOverrideError extends Error {
+  readonly providerId: string
+  readonly requestedModel: string
+  readonly allowedModels: ReadonlyArray<string>
+
+  constructor(
+    providerId: string,
+    requestedModel: string,
+    allowedModels: ReadonlyArray<string>,
+  ) {
+    super(
+      `Invalid model override "${requestedModel}" for provider "${providerId}". Allowed models: ${
+        allowedModels.length > 0 ? allowedModels.join(', ') : '(none)'
+      }`,
+    )
+    this.name = 'InvalidModelOverrideError'
+    this.providerId = providerId
+    this.requestedModel = requestedModel
+    this.allowedModels = allowedModels
+  }
+}
+
 function resolveModel(
   config: (typeof AUDIO_PROVIDERS)[number],
   modelOverride: string | undefined,
 ): string {
   if (!modelOverride) return config.model
-  const allowed = config.models?.some((m) => m.id === modelOverride)
-  if (allowed) return modelOverride
-  console.warn(
-    `[audio] rejected model override "${modelOverride}" for provider "${config.id}"; falling back to "${config.model}"`,
-  )
-  return config.model
+  const allowedModels = config.models?.map((m) => m.id) ?? []
+  if (allowedModels.includes(modelOverride)) return modelOverride
+  throw new InvalidModelOverrideError(config.id, modelOverride, allowedModels)
 }

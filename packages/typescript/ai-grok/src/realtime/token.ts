@@ -1,8 +1,8 @@
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { getGrokApiKeyFromEnv } from '../utils'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
+import type { GrokRealtimeModel } from '../model-meta'
 import type {
-  GrokRealtimeModel,
   GrokRealtimeSessionResponse,
   GrokRealtimeTokenOptions,
 } from './types'
@@ -65,10 +65,16 @@ export function grokRealtimeToken(
 
         const sessionData: GrokRealtimeSessionResponse = await response.json()
 
+        // xAI docs describe `expires_at` as a unix timestamp in seconds, but
+        // in practice different deployments have returned milliseconds. Treat
+        // any value that already looks like ms (>1e12 ≈ Sep 2001 in ms) as ms.
+        const raw = sessionData.client_secret.expires_at
+        const expiresAt = raw > 1e12 ? raw : raw * 1000
+
         return {
           provider: 'grok',
           token: sessionData.client_secret.value,
-          expiresAt: sessionData.client_secret.expires_at * 1000,
+          expiresAt,
           config: {
             model: sessionData.model,
           },

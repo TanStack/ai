@@ -76,7 +76,7 @@ export class GrokTranscriptionAdapter<
       { provider: 'grok', model },
     )
 
-    const file = toAudioFile(audio)
+    const file = toAudioFile(audio, modelOptions?.audio_format)
     const form = new FormData()
     form.set('file', file)
     if (language) form.set('language', language)
@@ -86,8 +86,13 @@ export class GrokTranscriptionAdapter<
     if (modelOptions?.sample_rate !== undefined) {
       form.set('sample_rate', String(modelOptions.sample_rate))
     }
-    if (modelOptions?.format !== undefined) {
-      form.set('format', modelOptions.format ? 'true' : 'false')
+    if (modelOptions?.inverse_text_normalization !== undefined) {
+      // xAI's wire-level field is named `format`; surface it under the clearer
+      // SDK name `inverse_text_normalization`.
+      form.set(
+        'format',
+        modelOptions.inverse_text_normalization ? 'true' : 'false',
+      )
     }
     if (modelOptions?.multichannel !== undefined) {
       form.set('multichannel', modelOptions.multichannel ? 'true' : 'false')

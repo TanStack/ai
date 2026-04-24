@@ -1,6 +1,13 @@
 import type { Provider, Feature } from '@/lib/types'
 
-const matrix: Record<Feature, Set<Provider>> = {
+/**
+ * Single source of truth for provider × feature support.
+ *
+ * This matrix is imported by `tests/test-matrix.ts` (Playwright specs) and
+ * by the dev routes under `src/routes/` to decide which provider/feature
+ * combinations to render and test. Update this file only — do not fork.
+ */
+export const matrix: Record<Feature, Set<Provider>> = {
   chat: new Set([
     'openai',
     'anthropic',

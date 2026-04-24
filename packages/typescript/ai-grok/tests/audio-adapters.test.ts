@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateSpeech, generateTranscription } from '@tanstack/ai'
 import { GrokSpeechAdapter } from '../src/adapters/tts'
 import { GrokTranscriptionAdapter } from '../src/adapters/transcription'
+import { toAudioFile } from '../src/utils/audio'
 
 const originalFetch = globalThis.fetch
 
@@ -40,12 +41,9 @@ describe('GrokSpeechAdapter', () => {
     const [url, init] = fetchMock.mock.calls[0]!
     expect(url).toBe('https://example.test/v1/tts')
     expect(init?.method).toBe('POST')
-    expect((init?.headers as Record<string, string>).Authorization).toBe(
-      'Bearer xai-test',
-    )
-    expect((init?.headers as Record<string, string>)['Content-Type']).toBe(
-      'application/json',
-    )
+    const ttsHeaders = new Headers(init?.headers)
+    expect(ttsHeaders.get('authorization')).toBe('Bearer xai-test')
+    expect(ttsHeaders.get('content-type')).toBe('application/json')
 
     const body = JSON.parse(init!.body as string)
     expect(body.text).toBe('hello world')
@@ -60,21 +58,26 @@ describe('GrokSpeechAdapter', () => {
     expect(result.id).toMatch(/^grok-/)
   })
 
-  it('maps unsupported TTSOptions formats (opus, aac, flac) to mp3', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(mockTTSResponse())
-    globalThis.fetch = fetchMock as unknown as typeof fetch
+  it.each(['opus', 'aac', 'flac'] as const)(
+    'maps unsupported TTSOptions format %s to mp3',
+    async (fmt) => {
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(mockTTSResponse())
+      globalThis.fetch = fetchMock as unknown as typeof fetch
 
-    const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
+      const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
 
-    await generateSpeech({
-      adapter,
-      text: 'x',
-      format: 'opus',
-    })
+      await generateSpeech({
+        adapter,
+        text: 'x',
+        format: fmt,
+      })
 
-    const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
-    expect(body.output_format.codec).toBe('mp3')
-  })
+      const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
+      expect(body.output_format.codec).toBe('mp3')
+    },
+  )
 
   it('honours modelOptions.codec over options.format and passes sample_rate/bit_rate', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(mockTTSResponse())
@@ -127,6 +130,22 @@ describe('GrokSpeechAdapter', () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
     expect(body.output_format.bit_rate).toBeUndefined()
+  })
+
+  it('reports pcm audio with the registered `audio/L16` MIME type', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(mockTTSResponse())
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
+
+    const result = await generateSpeech({
+      adapter,
+      text: 'x',
+      format: 'pcm',
+    })
+
+    expect(result.format).toBe('pcm')
+    expect(result.contentType).toBe('audio/L16')
   })
 
   it('throws a descriptive error when the request fails', async () => {
@@ -187,13 +206,10 @@ describe('GrokTranscriptionAdapter', () => {
     const [url, init] = fetchMock.mock.calls[0]!
     expect(url).toBe('https://example.test/v1/stt')
     expect(init?.method).toBe('POST')
-    expect((init?.headers as Record<string, string>).Authorization).toBe(
-      'Bearer xai-test',
-    )
+    const sttHeaders = new Headers(init?.headers)
+    expect(sttHeaders.get('authorization')).toBe('Bearer xai-test')
     // FormData sets Content-Type automatically; ensure we didn't hardcode it
-    expect(
-      (init?.headers as Record<string, string>)['Content-Type'],
-    ).toBeUndefined()
+    expect(sttHeaders.get('content-type')).toBeNull()
 
     const form = init!.body as FormData
     expect(form.get('language')).toBe('en')
@@ -250,5 +266,96 @@ describe('GrokTranscriptionAdapter', () => {
         audio: new Blob([new Uint8Array([1])]),
       }),
     ).rejects.toThrow('Grok transcription request failed: 400 bad audio')
+  })
+
+  it('surfaces modelOptions.inverse_text_normalization as the wire-level `format` field', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      mockSTTResponse({ text: 'hi', language: 'en' }),
+    )
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const adapter = new GrokTranscriptionAdapter(
+      { apiKey: 'xai-test' },
+      'grok-stt',
+    )
+
+    await generateTranscription({
+      adapter,
+      audio: new Blob([new Uint8Array([1])], { type: 'audio/mpeg' }),
+      language: 'en',
+      modelOptions: { inverse_text_normalization: true },
+    })
+
+    const init = fetchMock.mock.calls[0]![1]!
+    const form = init.body as FormData
+    expect(form.get('format')).toBe('true')
+  })
+
+  it('threads modelOptions.audio_format through to toAudioFile for bare base64', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      mockSTTResponse({ text: 'hi', language: 'en' }),
+    )
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const adapter = new GrokTranscriptionAdapter(
+      { apiKey: 'xai-test' },
+      'grok-stt',
+    )
+
+    // Bare base64 payload — without audio_format, toAudioFile would throw.
+    const base64 = Buffer.from([1, 2, 3]).toString('base64')
+
+    await generateTranscription({
+      adapter,
+      audio: base64,
+      modelOptions: { audio_format: 'wav' },
+    })
+
+    const init = fetchMock.mock.calls[0]![1]!
+    const form = init.body as FormData
+    expect(form.get('audio_format')).toBe('wav')
+    const file = form.get('file') as File
+    expect(file).toBeInstanceOf(File)
+    expect(file.type).toBe('audio/wav')
+  })
+})
+
+describe('toAudioFile', () => {
+  it('throws when given a bare base64 string without an audioFormat', () => {
+    const base64 = Buffer.from([1, 2, 3]).toString('base64')
+    expect(() => toAudioFile(base64)).toThrow(/data: URI|audioFormat/)
+  })
+
+  it('throws when given an ArrayBuffer without an audioFormat', () => {
+    const buf = new Uint8Array([1, 2, 3]).buffer
+    expect(() => toAudioFile(buf)).toThrow(/cannot infer type|audioFormat/)
+  })
+
+  it('honours explicit audioFormat for bare base64 input', () => {
+    const base64 = Buffer.from([1, 2, 3]).toString('base64')
+    const file = toAudioFile(base64, 'wav')
+    expect(file).toBeInstanceOf(File)
+    expect(file.type).toBe('audio/wav')
+    expect(file.name).toBe('audio.wav')
+  })
+
+  it('honours explicit audioFormat for ArrayBuffer input', () => {
+    const buf = new Uint8Array([1, 2, 3]).buffer
+    const file = toAudioFile(buf, 'flac')
+    expect(file.type).toBe('audio/flac')
+    expect(file.name).toBe('audio.flac')
+  })
+
+  it('parses mime type from data: URI', () => {
+    const base64 = Buffer.from([1, 2, 3]).toString('base64')
+    const file = toAudioFile(`data:audio/ogg;base64,${base64}`)
+    expect(file.type).toBe('audio/ogg')
+    expect(file.name).toBe('audio.ogg')
+  })
+
+  it('wraps atob errors with a descriptive message', () => {
+    expect(() => toAudioFile('!!!not-base64!!!', 'mp3')).toThrow(
+      /Invalid base64 input to toAudioFile/,
+    )
   })
 })
