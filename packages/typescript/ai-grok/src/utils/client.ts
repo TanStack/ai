@@ -1,4 +1,5 @@
-import OpenAI_SDK from 'openai'
+import { getApiKeyFromEnv } from '@tanstack/ai-utils'
+import type { OpenAICompatibleClientConfig } from '@tanstack/openai-base'
 import type { ClientOptions } from 'openai'
 
 export interface GrokClientConfig extends ClientOptions {
@@ -6,41 +7,28 @@ export interface GrokClientConfig extends ClientOptions {
 }
 
 /**
- * Creates a Grok SDK client instance using OpenAI SDK with xAI's base URL
- */
-export function createGrokClient(config: GrokClientConfig): OpenAI_SDK {
-  return new OpenAI_SDK({
-    ...config,
-    apiKey: config.apiKey,
-    baseURL: config.baseURL || 'https://api.x.ai/v1',
-  })
-}
-
-/**
  * Gets Grok API key from environment variables
  * @throws Error if XAI_API_KEY is not found
  */
 export function getGrokApiKeyFromEnv(): string {
-  const env =
-    typeof globalThis !== 'undefined' && (globalThis as any).window?.env
-      ? (globalThis as any).window.env
-      : typeof process !== 'undefined'
-        ? process.env
-        : undefined
-  const key = env?.XAI_API_KEY
-
-  if (!key) {
+  try {
+    return getApiKeyFromEnv('XAI_API_KEY')
+  } catch {
     throw new Error(
       'XAI_API_KEY is required. Please set it in your environment variables or use the factory function with an explicit API key.',
     )
   }
-
-  return key
 }
 
 /**
- * Generates a unique ID with a prefix
+ * Converts a GrokClientConfig to OpenAICompatibleClientConfig.
+ * Sets the default xAI base URL if not already set.
  */
-export function generateId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+export function toCompatibleConfig(
+  config: GrokClientConfig,
+): OpenAICompatibleClientConfig {
+  return {
+    ...config,
+    baseURL: config.baseURL || 'https://api.x.ai/v1',
+  } as unknown as OpenAICompatibleClientConfig
 }

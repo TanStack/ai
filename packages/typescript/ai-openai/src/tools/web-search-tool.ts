@@ -1,25 +1,17 @@
-import type OpenAI from 'openai'
-import type { ProviderTool, Tool } from '@tanstack/ai'
+import type { ProviderTool } from '@tanstack/ai'
+import type { WebSearchToolConfig } from '@tanstack/openai-base'
 
-export type WebSearchToolConfig = OpenAI.Responses.WebSearchTool
-
-/** @deprecated Renamed to `WebSearchToolConfig`. Will be removed in a future release. */
-export type WebSearchTool = WebSearchToolConfig
+export {
+  type WebSearchToolConfig,
+  type WebSearchTool,
+  convertWebSearchToolToAdapterFormat,
+} from '@tanstack/openai-base'
 
 export type OpenAIWebSearchTool = ProviderTool<'openai', 'web_search'>
 
 /**
- * Converts a standard Tool to OpenAI WebSearchTool format
- */
-export function convertWebSearchToolToAdapterFormat(
-  tool: Tool,
-): WebSearchToolConfig {
-  const metadata = tool.metadata as WebSearchToolConfig
-  return metadata
-}
-
-/**
- * Creates a standard Tool from WebSearchTool parameters
+ * Creates a standard Tool from WebSearchTool parameters, branded as an OpenAI
+ * provider tool.
  */
 export function webSearchTool(
   toolData: WebSearchToolConfig,

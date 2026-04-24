@@ -93,9 +93,7 @@ describe('Groq adapters', () => {
     it('throws if GROQ_API_KEY is not set when using groqText', () => {
       vi.stubEnv('GROQ_API_KEY', '')
 
-      expect(() => groqText('llama-3.3-70b-versatile')).toThrow(
-        'GROQ_API_KEY is required',
-      )
+      expect(() => groqText('llama-3.3-70b-versatile')).toThrow('GROQ_API_KEY')
     })
 
     it('allows custom baseURL override', () => {

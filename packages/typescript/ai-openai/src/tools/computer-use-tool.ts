@@ -1,30 +1,17 @@
-import type OpenAI from 'openai'
-import type { ProviderTool, Tool } from '@tanstack/ai'
+import type { ProviderTool } from '@tanstack/ai'
+import type { ComputerUseToolConfig } from '@tanstack/openai-base'
 
-export type ComputerUseToolConfig = OpenAI.Responses.ComputerTool
-
-/** @deprecated Renamed to `ComputerUseToolConfig`. Will be removed in a future release. */
-export type ComputerUseTool = ComputerUseToolConfig
+export {
+  type ComputerUseToolConfig,
+  type ComputerUseTool,
+  convertComputerUseToolToAdapterFormat,
+} from '@tanstack/openai-base'
 
 export type OpenAIComputerUseTool = ProviderTool<'openai', 'computer_use'>
 
 /**
- * Converts a standard Tool to OpenAI ComputerUseTool format
- */
-export function convertComputerUseToolToAdapterFormat(
-  tool: Tool,
-): ComputerUseToolConfig {
-  const metadata = tool.metadata as ComputerUseToolConfig
-  return {
-    type: 'computer_use_preview',
-    display_height: metadata.display_height,
-    display_width: metadata.display_width,
-    environment: metadata.environment,
-  }
-}
-
-/**
- * Creates a standard Tool from ComputerUseTool parameters
+ * Creates a standard Tool from ComputerUseTool parameters, branded as an
+ * OpenAI provider tool.
  */
 export function computerUseTool(
   toolData: ComputerUseToolConfig,

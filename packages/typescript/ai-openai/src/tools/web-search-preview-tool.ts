@@ -1,10 +1,11 @@
-import type OpenAI from 'openai'
-import type { ProviderTool, Tool } from '@tanstack/ai'
+import type { ProviderTool } from '@tanstack/ai'
+import type { WebSearchPreviewToolConfig } from '@tanstack/openai-base'
 
-export type WebSearchPreviewToolConfig = OpenAI.Responses.WebSearchPreviewTool
-
-/** @deprecated Renamed to `WebSearchPreviewToolConfig`. Will be removed in a future release. */
-export type WebSearchPreviewTool = WebSearchPreviewToolConfig
+export {
+  type WebSearchPreviewToolConfig,
+  type WebSearchPreviewTool,
+  convertWebSearchPreviewToolToAdapterFormat,
+} from '@tanstack/openai-base'
 
 export type OpenAIWebSearchPreviewTool = ProviderTool<
   'openai',
@@ -12,21 +13,8 @@ export type OpenAIWebSearchPreviewTool = ProviderTool<
 >
 
 /**
- * Converts a standard Tool to OpenAI WebSearchPreviewTool format
- */
-export function convertWebSearchPreviewToolToAdapterFormat(
-  tool: Tool,
-): WebSearchPreviewToolConfig {
-  const metadata = tool.metadata as WebSearchPreviewToolConfig
-  return {
-    type: metadata.type,
-    search_context_size: metadata.search_context_size,
-    user_location: metadata.user_location,
-  }
-}
-
-/**
- * Creates a standard Tool from WebSearchPreviewTool parameters
+ * Creates a standard Tool from WebSearchPreviewTool parameters, branded as an
+ * OpenAI provider tool.
  */
 export function webSearchPreviewTool(
   toolData: WebSearchPreviewToolConfig,

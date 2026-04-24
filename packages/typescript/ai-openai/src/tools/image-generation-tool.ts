@@ -1,10 +1,11 @@
-import type OpenAI from 'openai'
-import type { ProviderTool, Tool } from '@tanstack/ai'
+import type { ProviderTool } from '@tanstack/ai'
+import type { ImageGenerationToolConfig } from '@tanstack/openai-base'
 
-export type ImageGenerationToolConfig = OpenAI.Responses.Tool.ImageGeneration
-
-/** @deprecated Renamed to `ImageGenerationToolConfig`. Will be removed in a future release. */
-export type ImageGenerationTool = ImageGenerationToolConfig
+export {
+  type ImageGenerationToolConfig,
+  type ImageGenerationTool,
+  convertImageGenerationToolToAdapterFormat,
+} from '@tanstack/openai-base'
 
 export type OpenAIImageGenerationTool = ProviderTool<
   'openai',
@@ -18,20 +19,8 @@ const validatePartialImages = (value: number | undefined) => {
 }
 
 /**
- * Converts a standard Tool to OpenAI ImageGenerationTool format
- */
-export function convertImageGenerationToolToAdapterFormat(
-  tool: Tool,
-): ImageGenerationToolConfig {
-  const metadata = tool.metadata as Omit<ImageGenerationToolConfig, 'type'>
-  return {
-    type: 'image_generation',
-    ...metadata,
-  }
-}
-
-/**
- * Creates a standard Tool from ImageGenerationTool parameters
+ * Creates a standard Tool from ImageGenerationTool parameters, branded as an
+ * OpenAI provider tool.
  */
 export function imageGenerationTool(
   toolData: Omit<ImageGenerationToolConfig, 'type'>,

@@ -44,7 +44,8 @@
   ],
   "dependencies": {
     "@openrouter/sdk": "0.12.14",
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-utils": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",

@@ -46,7 +46,8 @@
     "transcription"
   ],
   "dependencies": {
-    "@fal-ai/client": "^1.9.4"
+    "@fal-ai/client": "^1.9.4",
+    "@tanstack/ai-utils": "workspace:*"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",

@@ -44,7 +44,8 @@
     "adapter"
   ],
   "dependencies": {
-    "@google/genai": "^1.43.0"
+    "@google/genai": "^1.43.0",
+    "@tanstack/ai-utils": "workspace:*"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"

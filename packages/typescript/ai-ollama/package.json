@@ -41,6 +41,7 @@
     "adapter"
   ],
   "dependencies": {
+    "@tanstack/ai-utils": "workspace:*",
     "ollama": "^0.6.3"
   },
   "peerDependencies": {

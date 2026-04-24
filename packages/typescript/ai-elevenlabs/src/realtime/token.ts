@@ -1,3 +1,4 @@
+import { getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
 import type { ElevenLabsRealtimeTokenOptions } from './types'
 
@@ -7,25 +8,7 @@ const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1'
  * Get ElevenLabs API key from environment
  */
 function getElevenLabsApiKey(): string {
-  // Check process.env (Node.js)
-  if (typeof process !== 'undefined' && process.env.ELEVENLABS_API_KEY) {
-    return process.env.ELEVENLABS_API_KEY
-  }
-
-  // Check window.env (Browser with injected env)
-  if (
-    typeof window !== 'undefined' &&
-    (window as unknown as { env?: { ELEVENLABS_API_KEY?: string } }).env
-      ?.ELEVENLABS_API_KEY
-  ) {
-    return (window as unknown as { env: { ELEVENLABS_API_KEY: string } }).env
-      .ELEVENLABS_API_KEY
-  }
-
-  throw new Error(
-    'ELEVENLABS_API_KEY not found in environment variables. ' +
-      'Please set ELEVENLABS_API_KEY in your environment.',
-  )
+  return getApiKeyFromEnv('ELEVENLABS_API_KEY')
 }
 
 /**

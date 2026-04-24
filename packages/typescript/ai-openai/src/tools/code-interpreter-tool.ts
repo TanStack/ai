@@ -1,10 +1,11 @@
-import type { ProviderTool, Tool } from '@tanstack/ai'
-import type OpenAI from 'openai'
+import type { ProviderTool } from '@tanstack/ai'
+import type { CodeInterpreterToolConfig } from '@tanstack/openai-base'
 
-export type CodeInterpreterToolConfig = OpenAI.Responses.Tool.CodeInterpreter
-
-/** @deprecated Renamed to `CodeInterpreterToolConfig`. Will be removed in a future release. */
-export type CodeInterpreterTool = CodeInterpreterToolConfig
+export {
+  type CodeInterpreterToolConfig,
+  type CodeInterpreterTool,
+  convertCodeInterpreterToolToAdapterFormat,
+} from '@tanstack/openai-base'
 
 export type OpenAICodeInterpreterTool = ProviderTool<
   'openai',
@@ -12,20 +13,8 @@ export type OpenAICodeInterpreterTool = ProviderTool<
 >
 
 /**
- * Converts a standard Tool to OpenAI CodeInterpreterTool format
- */
-export function convertCodeInterpreterToolToAdapterFormat(
-  tool: Tool,
-): CodeInterpreterToolConfig {
-  const metadata = tool.metadata as CodeInterpreterToolConfig
-  return {
-    type: 'code_interpreter',
-    container: metadata.container,
-  }
-}
-
-/**
- * Creates a standard Tool from CodeInterpreterTool parameters
+ * Creates a standard Tool from CodeInterpreterTool parameters, branded as an
+ * OpenAI provider tool.
  */
 export function codeInterpreterTool(
   container: CodeInterpreterToolConfig,
