@@ -201,8 +201,9 @@ export class ElevenLabsTranscriptionAdapter<
         (max, t) => Math.max(max, t.audioDurationSecs ?? 0),
         0,
       )
-      const firstLang = data.transcripts.find((t) => t.languageCode)
-        ?.languageCode
+      const firstLang = data.transcripts.find(
+        (t) => t.languageCode,
+      )?.languageCode
       return {
         id: generateId(this.name),
         model: this.model,
@@ -276,14 +277,12 @@ function buildWordsAndSegments(
   // Group contiguous words that share a speaker into segments. If no speaker
   // is ever set, we still emit one segment per sentence-ish grouping.
   const segments: Array<TranscriptionSegment> = []
-  let current:
-    | {
-        start: number
-        end: number
-        text: string
-        speaker?: string
-      }
-    | null = null
+  let current: {
+    start: number
+    end: number
+    text: string
+    speaker?: string
+  } | null = null
 
   for (const w of timedWords) {
     if (!current) {

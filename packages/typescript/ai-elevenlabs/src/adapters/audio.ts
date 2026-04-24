@@ -69,8 +69,7 @@ export interface ElevenLabsMusicProviderOptions extends CommonAudioOptions {
 /**
  * Provider options for sound-effect generation (`eleven_text_to_sound_v*`).
  */
-export interface ElevenLabsSoundEffectsProviderOptions
-  extends CommonAudioOptions {
+export interface ElevenLabsSoundEffectsProviderOptions extends CommonAudioOptions {
   /** Prompt influence, 0..1. Default 0.3. Higher = more prompt adherence. */
   promptInfluence?: number
   /** Generate a loopable SFX (v2 only). */
@@ -142,8 +141,7 @@ export class ElevenLabsAudioAdapter<
   private async runMusic(
     options: AudioGenerationOptions<ElevenLabsAudioProviderOptions>,
   ): Promise<AudioGenerationResult> {
-    const music = (options.modelOptions ??
-      {}) as ElevenLabsMusicProviderOptions
+    const music = (options.modelOptions ?? {}) as ElevenLabsMusicProviderOptions
     const outputFormat = music.outputFormat
 
     const stream = await this.client.music.compose({

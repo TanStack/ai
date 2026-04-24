@@ -62,7 +62,10 @@ export function isElevenLabsSoundEffectsModel(model: string): boolean {
  * Speech-to-text (transcription) models — Scribe family.
  * @see https://elevenlabs.io/docs/overview/capabilities/speech-to-text
  */
-export const ELEVENLABS_TRANSCRIPTION_MODELS = ['scribe_v2', 'scribe_v1'] as const
+export const ELEVENLABS_TRANSCRIPTION_MODELS = [
+  'scribe_v2',
+  'scribe_v1',
+] as const
 
 export type ElevenLabsTranscriptionModel =
   | (typeof ELEVENLABS_TRANSCRIPTION_MODELS)[number]
