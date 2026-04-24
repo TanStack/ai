@@ -5,7 +5,7 @@ title: RealtimeToken
 
 # Interface: RealtimeToken
 
-Defined in: [realtime/types.ts:58](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L58)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:58](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L58)
 
 Token returned by the server for client authentication
 
@@ -17,7 +17,7 @@ Token returned by the server for client authentication
 config: RealtimeSessionConfig;
 ```
 
-Defined in: [realtime/types.ts:66](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L66)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:66](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L66)
 
 Session configuration embedded in the token
 
@@ -29,7 +29,7 @@ Session configuration embedded in the token
 expiresAt: number;
 ```
 
-Defined in: [realtime/types.ts:64](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L64)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:64](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L64)
 
 Token expiration timestamp (ms since epoch)
 
@@ -41,7 +41,7 @@ Token expiration timestamp (ms since epoch)
 provider: string;
 ```
 
-Defined in: [realtime/types.ts:60](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L60)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:60](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L60)
 
 Provider identifier
 
@@ -53,6 +53,6 @@ Provider identifier
 token: string;
 ```
 
-Defined in: [realtime/types.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L62)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L62)
 
 The ephemeral token value

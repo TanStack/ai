@@ -13,6 +13,7 @@ import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
+import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
@@ -21,6 +22,10 @@ import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-t
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
+import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
+import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
+import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
+import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
@@ -40,6 +45,11 @@ const IndexRoute = IndexRouteImport.update({
 const ProviderIndexRoute = ProviderIndexRouteImport.update({
   id: '/$provider/',
   path: '/$provider/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVideoRoute = ApiVideoRouteImport.update({
+  id: '/api/video',
+  path: '/api/video',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
@@ -82,6 +92,26 @@ const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
   path: '/$provider/$feature',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiVideoStreamRoute = ApiVideoStreamRouteImport.update({
+  id: '/stream',
+  path: '/stream',
+  getParentRoute: () => ApiVideoRoute,
+} as any)
+const ApiTtsStreamRoute = ApiTtsStreamRouteImport.update({
+  id: '/stream',
+  path: '/stream',
+  getParentRoute: () => ApiTtsRoute,
+} as any)
+const ApiTranscriptionStreamRoute = ApiTranscriptionStreamRouteImport.update({
+  id: '/stream',
+  path: '/stream',
+  getParentRoute: () => ApiTranscriptionRoute,
+} as any)
+const ApiImageStreamRoute = ApiImageStreamRouteImport.update({
+  id: '/stream',
+  path: '/stream',
+  getParentRoute: () => ApiImageRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,13 +119,18 @@ export interface FileRoutesByFullPath {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/image': typeof ApiImageRoute
+  '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
-  '/api/transcription': typeof ApiTranscriptionRoute
-  '/api/tts': typeof ApiTtsRoute
+  '/api/transcription': typeof ApiTranscriptionRouteWithChildren
+  '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider/': typeof ProviderIndexRoute
+  '/api/image/stream': typeof ApiImageStreamRoute
+  '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
+  '/api/tts/stream': typeof ApiTtsStreamRoute
+  '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -103,13 +138,18 @@ export interface FileRoutesByTo {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/image': typeof ApiImageRoute
+  '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
-  '/api/transcription': typeof ApiTranscriptionRoute
-  '/api/tts': typeof ApiTtsRoute
+  '/api/transcription': typeof ApiTranscriptionRouteWithChildren
+  '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider': typeof ProviderIndexRoute
+  '/api/image/stream': typeof ApiImageStreamRoute
+  '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
+  '/api/tts/stream': typeof ApiTtsStreamRoute
+  '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -118,13 +158,18 @@ export interface FileRoutesById {
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/image': typeof ApiImageRoute
+  '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tools-test': typeof ApiToolsTestRoute
-  '/api/transcription': typeof ApiTranscriptionRoute
-  '/api/tts': typeof ApiTtsRoute
+  '/api/transcription': typeof ApiTranscriptionRouteWithChildren
+  '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider/': typeof ProviderIndexRoute
+  '/api/image/stream': typeof ApiImageStreamRoute
+  '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
+  '/api/tts/stream': typeof ApiTtsStreamRoute
+  '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -140,7 +185,12 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/video'
     | '/$provider/'
+    | '/api/image/stream'
+    | '/api/transcription/stream'
+    | '/api/tts/stream'
+    | '/api/video/stream'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -154,7 +204,12 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/video'
     | '/$provider'
+    | '/api/image/stream'
+    | '/api/transcription/stream'
+    | '/api/tts/stream'
+    | '/api/video/stream'
   id:
     | '__root__'
     | '/'
@@ -168,7 +223,12 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/video'
     | '/$provider/'
+    | '/api/image/stream'
+    | '/api/transcription/stream'
+    | '/api/tts/stream'
+    | '/api/video/stream'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -177,12 +237,13 @@ export interface RootRouteChildren {
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiChatRoute: typeof ApiChatRoute
-  ApiImageRoute: typeof ApiImageRoute
+  ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
-  ApiTranscriptionRoute: typeof ApiTranscriptionRoute
-  ApiTtsRoute: typeof ApiTtsRoute
+  ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
+  ApiTtsRoute: typeof ApiTtsRouteWithChildren
+  ApiVideoRoute: typeof ApiVideoRouteWithChildren
   ProviderIndexRoute: typeof ProviderIndexRoute
 }
 
@@ -214,6 +275,13 @@ declare module '@tanstack/react-router' {
       path: '/$provider'
       fullPath: '/$provider/'
       preLoaderRoute: typeof ProviderIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/video': {
+      id: '/api/video'
+      path: '/api/video'
+      fullPath: '/api/video'
+      preLoaderRoute: typeof ApiVideoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tts': {
@@ -272,8 +340,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProviderFeatureRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/video/stream': {
+      id: '/api/video/stream'
+      path: '/stream'
+      fullPath: '/api/video/stream'
+      preLoaderRoute: typeof ApiVideoStreamRouteImport
+      parentRoute: typeof ApiVideoRoute
+    }
+    '/api/tts/stream': {
+      id: '/api/tts/stream'
+      path: '/stream'
+      fullPath: '/api/tts/stream'
+      preLoaderRoute: typeof ApiTtsStreamRouteImport
+      parentRoute: typeof ApiTtsRoute
+    }
+    '/api/transcription/stream': {
+      id: '/api/transcription/stream'
+      path: '/stream'
+      fullPath: '/api/transcription/stream'
+      preLoaderRoute: typeof ApiTranscriptionStreamRouteImport
+      parentRoute: typeof ApiTranscriptionRoute
+    }
+    '/api/image/stream': {
+      id: '/api/image/stream'
+      path: '/stream'
+      fullPath: '/api/image/stream'
+      preLoaderRoute: typeof ApiImageStreamRouteImport
+      parentRoute: typeof ApiImageRoute
+    }
   }
 }
+
+interface ApiImageRouteChildren {
+  ApiImageStreamRoute: typeof ApiImageStreamRoute
+}
+
+const ApiImageRouteChildren: ApiImageRouteChildren = {
+  ApiImageStreamRoute: ApiImageStreamRoute,
+}
+
+const ApiImageRouteWithChildren = ApiImageRoute._addFileChildren(
+  ApiImageRouteChildren,
+)
+
+interface ApiTranscriptionRouteChildren {
+  ApiTranscriptionStreamRoute: typeof ApiTranscriptionStreamRoute
+}
+
+const ApiTranscriptionRouteChildren: ApiTranscriptionRouteChildren = {
+  ApiTranscriptionStreamRoute: ApiTranscriptionStreamRoute,
+}
+
+const ApiTranscriptionRouteWithChildren =
+  ApiTranscriptionRoute._addFileChildren(ApiTranscriptionRouteChildren)
+
+interface ApiTtsRouteChildren {
+  ApiTtsStreamRoute: typeof ApiTtsStreamRoute
+}
+
+const ApiTtsRouteChildren: ApiTtsRouteChildren = {
+  ApiTtsStreamRoute: ApiTtsStreamRoute,
+}
+
+const ApiTtsRouteWithChildren =
+  ApiTtsRoute._addFileChildren(ApiTtsRouteChildren)
+
+interface ApiVideoRouteChildren {
+  ApiVideoStreamRoute: typeof ApiVideoStreamRoute
+}
+
+const ApiVideoRouteChildren: ApiVideoRouteChildren = {
+  ApiVideoStreamRoute: ApiVideoStreamRoute,
+}
+
+const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
+  ApiVideoRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -281,12 +423,13 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiChatRoute: ApiChatRoute,
-  ApiImageRoute: ApiImageRoute,
+  ApiImageRoute: ApiImageRouteWithChildren,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
-  ApiTranscriptionRoute: ApiTranscriptionRoute,
-  ApiTtsRoute: ApiTtsRoute,
+  ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
+  ApiTtsRoute: ApiTtsRouteWithChildren,
+  ApiVideoRoute: ApiVideoRouteWithChildren,
   ProviderIndexRoute: ProviderIndexRoute,
 }
 export const routeTree = rootRouteImport

@@ -5,13 +5,22 @@ title: StateSnapshotEvent
 
 # Interface: StateSnapshotEvent
 
-Defined in: [types.ts:926](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L926)
+Defined in: [packages/typescript/ai/src/types.ts:1015](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1015)
 
 Emitted to provide a full state snapshot.
 
+@ag-ui/core provides: `snapshot` (any)
+TanStack AI adds: `model?`, `state?` (deprecated alias for snapshot)
+
 ## Extends
 
-- [`BaseAGUIEvent`](BaseAGUIEvent.md)
+- `StateSnapshotEvent`
+
+## Indexable
+
+```ts
+[k: string]: unknown
+```
 
 ## Properties
 
@@ -21,66 +30,21 @@ Emitted to provide a full state snapshot.
 optional model: string;
 ```
 
-Defined in: [types.ts:756](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L756)
+Defined in: [packages/typescript/ai/src/types.ts:1017](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1017)
 
 Model identifier for multi-model support
 
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`model`](BaseAGUIEvent.md#model)
-
 ***
 
-### rawEvent?
+### ~~state?~~
 
 ```ts
-optional rawEvent: unknown;
+optional state: Record<string, unknown>;
 ```
 
-Defined in: [types.ts:758](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L758)
+Defined in: [packages/typescript/ai/src/types.ts:1022](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1022)
 
-Original provider event for debugging/advanced use cases
+#### Deprecated
 
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`rawEvent`](BaseAGUIEvent.md#rawevent)
-
-***
-
-### state
-
-```ts
-state: Record<string, unknown>;
-```
-
-Defined in: [types.ts:929](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L929)
-
-The complete state object
-
-***
-
-### timestamp
-
-```ts
-timestamp: number;
-```
-
-Defined in: [types.ts:754](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L754)
-
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`timestamp`](BaseAGUIEvent.md#timestamp)
-
-***
-
-### type
-
-```ts
-type: "STATE_SNAPSHOT";
-```
-
-Defined in: [types.ts:927](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L927)
-
-#### Overrides
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`type`](BaseAGUIEvent.md#type)
+Use `snapshot` instead (from @ag-ui/core spec).
+Kept for backward compatibility.

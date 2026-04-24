@@ -2,9 +2,21 @@
 title: Code Mode with Skills
 id: code-mode-with-skills
 order: 3
+description: "Teach Code Mode to save and reuse working code as named skills backed by persistent storage — faster follow-up requests and composable agent memory."
+keywords:
+  - tanstack ai
+  - code mode
+  - skills
+  - skill library
+  - register_skill
+  - reusable snippets
+  - agent memory
+  - skill storage
 ---
 
 Skills extend [Code Mode](./code-mode.md) with a persistent library of reusable TypeScript snippets. When the LLM writes a useful piece of code — say, a function that fetches and ranks NPM packages — it can save that code as a _skill_. On future requests, relevant skills are loaded from storage and made available as first-class tools the LLM can call without re-writing the logic.
+
+> **Different from agent-authoring skills.** The skills on this page are _runtime_ snippets the chat LLM saves and reuses. If you're looking to teach your coding assistant (Claude Code, Cursor, etc.) how TanStack AI itself works, see [Agent Skills (TanStack Intent)](../getting-started/agent-skills).
 
 ## Overview
 

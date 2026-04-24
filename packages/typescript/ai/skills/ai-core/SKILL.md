@@ -3,9 +3,9 @@ name: ai-core
 description: >
   Entry point for TanStack AI skills. Routes to chat-experience, tool-calling,
   media-generation, structured-outputs, adapter-configuration, ag-ui-protocol,
-  middleware, and custom-backend-integration. Use chat() not streamText(),
-  openaiText() not createOpenAI(), toServerSentEventsResponse() not manual SSE,
-  middleware hooks not onEnd callbacks.
+  middleware, custom-backend-integration, and debug-logging. Use chat() not
+  streamText(), openaiText() not createOpenAI(), toServerSentEventsResponse()
+  not manual SSE, middleware hooks not onEnd callbacks.
 type: core
 library: tanstack-ai
 library_version: '0.10.0'
@@ -31,6 +31,7 @@ Always import from the framework package on the client — never from
 | Implement AG-UI streaming protocol server-side    | ai-core/ag-ui-protocol/SKILL.md             |
 | Add analytics, logging, or lifecycle hooks        | ai-core/middleware/SKILL.md                 |
 | Connect to a non-TanStack-AI backend              | ai-core/custom-backend-integration/SKILL.md |
+| Turn on/off debug logging, pipe into pino/winston | ai-core/debug-logging/SKILL.md              |
 | Set up Code Mode (LLM code execution)             | See `@tanstack/ai-code-mode` package skills |
 
 ## Quick Decision Tree
@@ -43,6 +44,7 @@ Always import from the framework package on the client — never from
 - Building a server-only AG-UI backend? → ai-core/ag-ui-protocol
 - Adding analytics or post-stream events? → ai-core/middleware
 - Connecting to a custom backend? → ai-core/custom-backend-integration
+- Turning on debug logging to trace chunks/tools/middleware? → ai-core/debug-logging
 - Debugging mistakes? → Check Common Mistakes in the relevant sub-skill
 
 ## Critical Rules

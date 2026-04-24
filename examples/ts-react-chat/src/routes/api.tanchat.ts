@@ -11,8 +11,8 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
-import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import { groqText } from '@tanstack/ai-groq'
+import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -146,8 +146,6 @@ export const Route = createFileRoute('/api/tanchat')({
             createChatOptions({
               adapter: openRouterText('openai/gpt-5.1'),
               modelOptions: {
-                models: ['openai/chatgpt-4o-latest'],
-                route: 'fallback',
                 reasoning: {
                   effort: 'medium',
                 },

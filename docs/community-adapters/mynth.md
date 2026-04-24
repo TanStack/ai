@@ -1,3 +1,18 @@
+---
+title: Mynth
+id: mynth-adapter
+description: "Generate images with Mynth models — Flux, Recraft, Gemini, Qwen, Seedream, Wan, and Grok Imagine — in TanStack AI via the Mynth community adapter."
+keywords:
+  - tanstack ai
+  - mynth
+  - image generation
+  - flux
+  - recraft
+  - qwen
+  - seedream
+  - community adapter
+---
+
 # Mynth
 
 > **Alpha:** Mynth is currently in public alpha. We are publishing TanStack AI adapters early to gather feedback on the API, supported models, and integration experience while the platform is still evolving.

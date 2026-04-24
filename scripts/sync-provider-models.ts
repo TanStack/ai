@@ -11,6 +11,7 @@
  *   pnpm tsx scripts/sync-provider-models.ts
  */
 
+import { execFileSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -71,7 +72,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     referenceSupportsBody: `    output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs', 'distillation'],
-    tools: ['web_search', 'file_search', 'image_generation', 'code_interpreter', 'mcp'],`,
+    tools: ['web_search', 'web_search_preview', 'file_search', 'image_generation', 'code_interpreter', 'mcp', 'computer_use', 'local_shell', 'shell', 'apply_patch'],`,
     referenceSatisfies:
       'ModelMeta<OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
     referenceProviderOptionsEntry:
@@ -99,7 +100,8 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     referenceSupportsBody: `    extended_thinking: true,
-    priority_tier: true,`,
+    priority_tier: true,
+    tools: ['web_search', 'web_fetch', 'code_execution', 'computer_use', 'bash', 'text_editor', 'memory'],`,
     referenceSatisfies:
       'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
     referenceProviderOptionsEntry:
@@ -118,7 +120,8 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'GeminiModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     referenceSupportsBody: `    output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],`,
+    capabilities: ['batch_api', 'caching', 'function_calling', 'structured_output', 'thinking'],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],`,
     referenceSatisfies:
       'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>',
     referenceProviderOptionsEntry:
@@ -139,7 +142,8 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'GrokModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     referenceSupportsBody: `    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],`,
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [],`,
     referenceSatisfies: 'ModelMeta',
     referenceProviderOptionsEntry: 'GrokProviderOptions',
     hasBothNameAndId: false,
@@ -497,6 +501,38 @@ function addToTypeMap(
 }
 
 // ---------------------------------------------------------------------------
+// Git-based change detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect packages with uncommitted changes by running `git diff`.
+ * This captures changes from ALL prior pipeline steps (e.g. convert-openrouter-models.ts)
+ * not just the models added by this script.
+ */
+function detectChangedPackages(): Set<string> {
+  const changed = new Set<string>()
+  try {
+    const diff = execFileSync(
+      'git',
+      ['diff', 'HEAD', '--name-only', '--', 'packages/'],
+      { encoding: 'utf-8', cwd: ROOT },
+    ).trim()
+    if (!diff) return changed
+
+    for (const line of diff.split('\n')) {
+      // packages/typescript/ai-openrouter/... → @tanstack/ai-openrouter
+      const match = line.match(/^packages\/typescript\/([\w-]+)\//)
+      if (match) {
+        changed.add(`@tanstack/${match[1]}`)
+      }
+    }
+  } catch {
+    // git not available (e.g. running outside a repo) — fall back to empty set
+  }
+  return changed
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -672,20 +708,23 @@ async function main() {
   // Record this run's timestamp for future age-based filtering
   await writeLastRunTimestamp()
 
-  // Create changeset if any models were added
-  if (totalAdded > 0) {
-    await createChangeset(changedPackages)
+  // Detect all packages with uncommitted changes (includes changes from
+  // convert-openrouter-models.ts which runs before this script)
+  const allChangedPackages = detectChangedPackages()
+  for (const pkg of changedPackages) {
+    allChangedPackages.add(pkg)
+  }
+
+  if (allChangedPackages.size > 0) {
+    await createChangeset(allChangedPackages)
   }
 }
 
 /**
  * Create or update the sync-models changeset file.
  * If one already exists, merges the package lists. Otherwise creates a new one.
- * Always includes @tanstack/ai-openrouter since the convert script regenerates it.
  */
 async function createChangeset(changedPackages: Set<string>) {
-  changedPackages.add('@tanstack/ai-openrouter')
-
   const changesetDir = resolve(ROOT, '.changeset')
   const { readdir } = await import('node:fs/promises')
   const files = await readdir(changesetDir)

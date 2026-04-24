@@ -15,6 +15,10 @@ import type {
 import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '../src/types'
 
+/** Cast an event object to StreamChunk for type compatibility with EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 describe('ChatClient', () => {
   describe('constructor', () => {
     it('should create a client with default options', () => {
@@ -155,7 +159,7 @@ describe('ChatClient', () => {
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        },
+        } as unknown as StreamChunk,
       ])
       const client = new ChatClient({ connection: adapter })
 
@@ -261,7 +265,7 @@ describe('ChatClient', () => {
           timestamp: Date.now(),
           delta: 'H',
           content: 'H',
-        },
+        } as unknown as StreamChunk,
       ])
       const client = new ChatClient({ connection: adapter })
 
@@ -320,7 +324,7 @@ describe('ChatClient', () => {
           timestamp: Date.now(),
           delta: 'H',
           content: 'H',
-        },
+        } as unknown as StreamChunk,
       ])
       const client = new ChatClient({ connection: adapter })
 
@@ -354,7 +358,7 @@ describe('ChatClient', () => {
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
-          },
+          } as unknown as StreamChunk,
           {
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: 'msg-1',
@@ -362,14 +366,14 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
             delta: 'Hi',
             content: 'Hi',
-          },
+          } as unknown as StreamChunk,
           {
             type: 'RUN_FINISHED',
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
             finishReason: 'stop',
-          },
+          } as unknown as StreamChunk,
         ]
         const adapter = createSubscribeAdapter(chunks)
         const generatingChanges: Array<boolean> = []
@@ -393,14 +397,14 @@ describe('ChatClient', () => {
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
-          },
+          } as unknown as StreamChunk,
           {
             type: 'RUN_ERROR',
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
             error: { message: 'something went wrong' },
-          },
+          } as unknown as StreamChunk,
         ]
         const adapter = createSubscribeAdapter(chunks)
         const generatingChanges: Array<boolean> = []
@@ -424,7 +428,7 @@ describe('ChatClient', () => {
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
-          },
+          } as unknown as StreamChunk,
           {
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: 'msg-1',
@@ -432,14 +436,14 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
             delta: 'Hi',
             content: 'Hi',
-          },
+          } as unknown as StreamChunk,
           {
             type: 'RUN_FINISHED',
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
             finishReason: 'stop',
-          },
+          } as unknown as StreamChunk,
         ]
         const adapter = createSubscribeAdapter(chunks)
         const client = new ChatClient({ connection: adapter })
@@ -460,12 +464,12 @@ describe('ChatClient', () => {
             while (!signal?.aborted) {
               if (!yieldedStart) {
                 yieldedStart = true
-                yield {
+                yield asChunk({
                   type: 'RUN_STARTED' as const,
                   runId: 'run-1',
                   model: 'test',
                   timestamp: Date.now(),
-                }
+                })
               }
               await new Promise<void>((resolve) => {
                 const onAbort = () => resolve()
@@ -503,12 +507,12 @@ describe('ChatClient', () => {
             while (!signal?.aborted) {
               if (!yieldedStart) {
                 yieldedStart = true
-                yield {
+                yield asChunk({
                   type: 'RUN_STARTED' as const,
                   runId: 'run-1',
                   model: 'test',
                   timestamp: Date.now(),
-                }
+                })
               }
               await new Promise<void>((resolve) => {
                 const onAbort = () => resolve()
@@ -546,13 +550,13 @@ describe('ChatClient', () => {
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
-          },
+          } as unknown as StreamChunk,
           {
             type: 'RUN_STARTED',
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
-          },
+          } as unknown as StreamChunk,
           {
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: 'msg-1',
@@ -560,21 +564,21 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
             delta: 'Hi',
             content: 'Hi',
-          },
+          } as unknown as StreamChunk,
           {
             type: 'RUN_FINISHED',
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
             finishReason: 'stop',
-          },
+          } as unknown as StreamChunk,
           {
             type: 'RUN_FINISHED',
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
             finishReason: 'stop',
-          },
+          } as unknown as StreamChunk,
         ]
         const adapter = createSubscribeAdapter(chunks)
         const generatingChanges: Array<boolean> = []
@@ -597,7 +601,7 @@ describe('ChatClient', () => {
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
-          },
+          } as unknown as StreamChunk,
           {
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: 'msg-1',
@@ -605,14 +609,14 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
             delta: 'A',
             content: 'A',
-          },
+          } as unknown as StreamChunk,
           {
             type: 'RUN_FINISHED',
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
             finishReason: 'stop',
-          },
+          } as unknown as StreamChunk,
         ]
         const adapter = createSubscribeAdapter(chunks)
         const generatingChanges: Array<boolean> = []
@@ -671,13 +675,13 @@ describe('ChatClient', () => {
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
-          },
+          } as unknown as StreamChunk,
           {
             type: 'RUN_STARTED',
             runId: 'run-2',
             model: 'test',
             timestamp: Date.now(),
-          },
+          } as unknown as StreamChunk,
         )
         wake.fn?.()
         await new Promise((resolve) => setTimeout(resolve, 20))
@@ -691,7 +695,7 @@ describe('ChatClient', () => {
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        })
+        } as unknown as StreamChunk)
         wake.fn?.()
         await new Promise((resolve) => setTimeout(resolve, 20))
 
@@ -704,7 +708,7 @@ describe('ChatClient', () => {
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        })
+        } as unknown as StreamChunk)
         wake.fn?.()
         await new Promise((resolve) => setTimeout(resolve, 20))
 
@@ -756,13 +760,13 @@ describe('ChatClient', () => {
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
-          },
+          } as unknown as StreamChunk,
           {
             type: 'RUN_STARTED',
             runId: 'run-2',
             model: 'test',
             timestamp: Date.now(),
-          },
+          } as unknown as StreamChunk,
         )
         wake.fn?.()
         await new Promise((resolve) => setTimeout(resolve, 20))
@@ -775,7 +779,7 @@ describe('ChatClient', () => {
           model: 'test',
           timestamp: Date.now(),
           error: { message: 'session crashed' },
-        })
+        } as unknown as StreamChunk)
         wake.fn?.()
         await new Promise((resolve) => setTimeout(resolve, 20))
 
@@ -791,12 +795,12 @@ describe('ChatClient', () => {
           subscribe: async function* (_signal?: AbortSignal) {
             if (!yieldedStart) {
               yieldedStart = true
-              yield {
+              yield asChunk({
                 type: 'RUN_STARTED' as const,
                 runId: 'run-1',
                 model: 'test',
                 timestamp: Date.now(),
-              }
+              })
               await new Promise((resolve) => setTimeout(resolve, 10))
             }
             throw new Error('subscription failed')
@@ -1351,7 +1355,7 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
             delta: 'H',
             content: 'H',
-          },
+          } as unknown as StreamChunk,
         ],
         chunkDelay: 50,
       })
@@ -1993,21 +1997,21 @@ describe('ChatClient', () => {
                 model: 'test',
                 timestamp: Date.now(),
                 index: 0,
-              },
+              } as unknown as StreamChunk,
               {
                 type: 'TOOL_CALL_ARGS',
                 toolCallId: 'tc-2',
                 model: 'test',
                 timestamp: Date.now(),
                 delta: '{}',
-              },
+              } as unknown as StreamChunk,
               {
                 type: 'TOOL_CALL_END',
                 toolCallId: 'tc-2',
                 toolName: 'dangerous_tool_2',
                 model: 'test',
                 timestamp: Date.now(),
-              },
+              } as unknown as StreamChunk,
               {
                 type: 'CUSTOM',
                 model: 'test',
@@ -2019,7 +2023,7 @@ describe('ChatClient', () => {
                   input: {},
                   approval: { id: 'approval-2', needsApproval: true },
                 },
-              },
+              } as unknown as StreamChunk,
             ]
             for (const chunk of preChunks) yield chunk
 
@@ -2028,13 +2032,13 @@ describe('ChatClient', () => {
               resolveStreamPause = resolve
             })
 
-            yield {
+            yield asChunk({
               type: 'RUN_FINISHED' as const,
               runId: 'run-2',
               model: 'test',
               timestamp: Date.now(),
               finishReason: 'tool_calls' as const,
-            }
+            })
           } else if (streamCount === 3) {
             // Third stream (after second approval): final text response
             const chunks = createTextChunks('All done!')
@@ -2134,7 +2138,7 @@ describe('ChatClient', () => {
           runId: 'run-a',
           model: 'test',
           timestamp: Date.now(),
-        },
+        } as unknown as StreamChunk,
         {
           type: 'TEXT_MESSAGE_START',
           messageId: 'msg-a',
@@ -2160,7 +2164,7 @@ describe('ChatClient', () => {
           runId: 'run-b',
           model: 'test',
           timestamp: Date.now(),
-        },
+        } as unknown as StreamChunk,
         {
           type: 'TEXT_MESSAGE_START',
           messageId: 'msg-b',
@@ -2186,7 +2190,7 @@ describe('ChatClient', () => {
         model: 'test',
         timestamp: Date.now(),
         finishReason: 'stop',
-      })
+      } as unknown as StreamChunk)
       wake.fn?.()
       await new Promise((resolve) => setTimeout(resolve, 20))
 
@@ -2225,7 +2229,7 @@ describe('ChatClient', () => {
         model: 'test',
         timestamp: Date.now(),
         finishReason: 'stop',
-      })
+      } as unknown as StreamChunk)
       wake.fn?.()
       await new Promise((resolve) => setTimeout(resolve, 20))
 
@@ -2289,7 +2293,7 @@ describe('ChatClient', () => {
           runId: 'run-1',
           model: 'test',
           timestamp: Date.now(),
-        },
+        } as unknown as StreamChunk,
         {
           type: 'TEXT_MESSAGE_CONTENT',
           messageId: 'asst-1',
@@ -2303,7 +2307,7 @@ describe('ChatClient', () => {
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        },
+        } as unknown as StreamChunk,
       )
       wake.fn?.()
       await new Promise((resolve) => setTimeout(resolve, 20))

@@ -108,7 +108,7 @@ describe('Fal Image Adapter', () => {
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0]!.b64Json).toBe(base64Data)
-    expect(result.images[0]!.url).toBe(`data:image/png;base64,${base64Data}`)
+    expect(result.images[0]!.url).toBeUndefined()
   })
 
   it('passes image_size preset through model options', async () => {
@@ -222,14 +222,81 @@ describe('Fal Image Adapter', () => {
     })
   })
 
-  it('configures client with proxy URL when provided', () => {
+  it('configures client with proxy URL and credentials when both provided', () => {
     falImage('fal-ai/flux/dev', {
       apiKey: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })
 
     expect(mockConfig).toHaveBeenCalledWith({
+      credentials: 'my-api-key',
       proxyUrl: '/api/fal/proxy',
     })
+  })
+
+  it('throws a descriptive error when image payload is missing a url', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        images: [{ not_a_url: 'oops' }],
+      },
+      requestId: 'req-bad-1',
+    })
+
+    const adapter = createAdapter()
+
+    await expect(
+      generateImage({ adapter, prompt: 'bad payload' }),
+    ).rejects.toThrow(/Invalid image payload from fal response/)
+  })
+
+  it('throws on unknown response shape (no images[] or image{})', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        image_url: 'https://fal.media/files/unexpected.png',
+      },
+      requestId: 'req-unknown-1',
+    })
+
+    const adapter = createAdapter()
+
+    await expect(
+      generateImage({ adapter, prompt: 'unknown shape' }),
+    ).rejects.toThrow(
+      /Unexpected fal image response shape\. Expected images\[\] or image\{\}\. Got keys: image_url/,
+    )
+  })
+
+  it('throws on unknown response shape with array under different key', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        output: [{ url: 'https://fal.media/files/output.png' }],
+      },
+      requestId: 'req-unknown-2',
+    })
+
+    const adapter = createAdapter()
+
+    await expect(
+      generateImage({ adapter, prompt: 'unknown shape 2' }),
+    ).rejects.toThrow(
+      /Unexpected fal image response shape\. Expected images\[\] or image\{\}\. Got keys: output/,
+    )
+  })
+
+  it('accepts bare string URLs in the images array', async () => {
+    mockSubscribe.mockResolvedValueOnce({
+      data: {
+        images: ['https://fal.media/files/direct-string.png'],
+      },
+      requestId: 'req-str-1',
+    })
+
+    const adapter = createAdapter()
+
+    const result = await generateImage({ adapter, prompt: 'string image' })
+    expect(result.images).toHaveLength(1)
+    expect(result.images[0]!.url).toBe(
+      'https://fal.media/files/direct-string.png',
+    )
   })
 })

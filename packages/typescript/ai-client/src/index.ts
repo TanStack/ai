@@ -31,6 +31,7 @@ export type {
   VideoStatusInfo,
   VideoGenerateResult,
   ImageGenerateInput,
+  AudioGenerateInput,
   SpeechGenerateInput,
   TranscriptionGenerateInput,
   SummarizeGenerateInput,

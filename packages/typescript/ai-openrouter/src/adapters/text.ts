@@ -1,5 +1,6 @@
 import { OpenRouter } from '@openrouter/sdk'
 import { RequestAbortedError } from '@openrouter/sdk/models/errors'
+import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools'
 import {
@@ -9,6 +10,7 @@ import {
 import type { SDKOptions } from '@openrouter/sdk'
 import type {
   OPENROUTER_CHAT_MODELS,
+  OpenRouterChatModelToolCapabilitiesByName,
   OpenRouterModelInputModalitiesByName,
   OpenRouterModelOptionsByName,
 } from '../model-meta'
@@ -22,21 +24,23 @@ import type {
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type {
-  ExternalTextProviderOptions,
-  InternalTextProviderOptions,
-} from '../text/text-provider-options'
+import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
   OpenRouterMessageMetadataByModality,
 } from '../message-types'
 import type {
-  ChatGenerationParams,
-  ChatGenerationTokenUsage,
-  ChatMessageContentItem,
-  ChatStreamingChoice,
-  Message,
+  ChatContentItems,
+  ChatMessages,
+  ChatRequest,
+  ChatStreamChoice,
+  ChatUsage,
 } from '@openrouter/sdk/models'
+
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
 
 export interface OpenRouterConfig extends SDKOptions {}
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
@@ -53,6 +57,11 @@ type ResolveInputModalities<TModel extends string> =
     ? OpenRouterModelInputModalitiesByName[TModel]
     : readonly ['text', 'image']
 
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof OpenRouterChatModelToolCapabilitiesByName
+    ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
 // Internal buffer for accumulating streamed tool calls
 interface ToolCallBuffer {
   id: string
@@ -64,20 +73,32 @@ interface ToolCallBuffer {
 // AG-UI lifecycle state tracking
 interface AGUIState {
   runId: string
+  threadId: string
   messageId: string
   stepId: string | null
+  reasoningMessageId: string | null
+  hasClosedReasoning: boolean
   hasEmittedRunStarted: boolean
   hasEmittedTextMessageStart: boolean
+  hasEmittedTextMessageEnd: boolean
+  hasEmittedRunFinished: boolean
   hasEmittedStepStarted: boolean
+  deferredUsage:
+    | { promptTokens: number; completionTokens: number; totalTokens: number }
+    | undefined
+  computedFinishReason: string | undefined
 }
 
 export class OpenRouterTextAdapter<
   TModel extends OpenRouterTextModels,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>,
-  OpenRouterMessageMetadataByModality
+  OpenRouterMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'openrouter' as const
@@ -98,50 +119,66 @@ export class OpenRouterTextAdapter<
     let accumulatedContent = ''
     let responseId: string | null = null
     let currentModel = options.model
+    const { logger } = options
     // AG-UI lifecycle tracking
     const aguiState: AGUIState = {
-      runId: this.generateId(),
+      runId: options.runId ?? this.generateId(),
+      threadId: options.threadId ?? this.generateId(),
       messageId: this.generateId(),
       stepId: null,
+      reasoningMessageId: null,
+      hasClosedReasoning: false,
       hasEmittedRunStarted: false,
       hasEmittedTextMessageStart: false,
+      hasEmittedTextMessageEnd: false,
+      hasEmittedRunFinished: false,
       hasEmittedStepStarted: false,
+      deferredUsage: undefined,
+      computedFinishReason: undefined,
     }
 
     try {
       const requestParams = this.mapTextOptionsToSDK(options)
+      logger.request(
+        `activity=chat provider=openrouter model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'openrouter', model: this.model },
+      )
       const stream = await this.client.chat.send(
-        { ...requestParams, stream: true },
+        { chatRequest: { ...requestParams, stream: true } },
         { signal: options.request?.signal },
       )
 
       for await (const chunk of stream) {
+        logger.provider(`provider=openrouter`, { chunk })
         if (chunk.id) responseId = chunk.id
         if (chunk.model) currentModel = chunk.model
 
         // Emit RUN_STARTED on first chunk
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
-          yield {
+          yield asChunk({
             type: 'RUN_STARTED',
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: currentModel || options.model,
             timestamp,
-          }
+          })
         }
 
         if (chunk.error) {
           // Emit AG-UI RUN_ERROR
-          yield {
+          yield asChunk({
             type: 'RUN_ERROR',
             runId: aguiState.runId,
             model: currentModel || options.model,
             timestamp,
+            message: chunk.error.message || 'Unknown error',
+            code: String(chunk.error.code),
             error: {
               message: chunk.error.message || 'Unknown error',
               code: String(chunk.error.code),
             },
-          }
+          })
           continue
         }
 
@@ -164,43 +201,65 @@ export class OpenRouterTextAdapter<
           )
         }
       }
+
+      // Emit RUN_FINISHED after the stream ends so we capture usage from
+      // any chunk (some SDKs send usage on a separate trailing chunk).
+      if (aguiState.hasEmittedRunFinished && aguiState.computedFinishReason) {
+        yield asChunk({
+          type: 'RUN_FINISHED',
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model: currentModel || options.model,
+          timestamp,
+          usage: aguiState.deferredUsage,
+          finishReason: aguiState.computedFinishReason,
+        })
+      }
     } catch (error) {
+      logger.errors('openrouter.chatStream fatal', {
+        error,
+        source: 'openrouter.chatStream',
+      })
       // Emit RUN_STARTED if not yet emitted (error on first call)
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
-        yield {
+        yield asChunk({
           type: 'RUN_STARTED',
           runId: aguiState.runId,
+          threadId: aguiState.threadId,
           model: options.model,
           timestamp,
-        }
+        })
       }
 
       if (error instanceof RequestAbortedError) {
         // Emit AG-UI RUN_ERROR
-        yield {
+        yield asChunk({
           type: 'RUN_ERROR',
           runId: aguiState.runId,
           model: options.model,
           timestamp,
+          message: 'Request aborted',
+          code: 'aborted',
           error: {
             message: 'Request aborted',
             code: 'aborted',
           },
-        }
+        })
         return
       }
 
       // Emit AG-UI RUN_ERROR
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
         timestamp,
+        message: (error as Error).message || 'Unknown error',
         error: {
           message: (error as Error).message || 'Unknown error',
         },
-      }
+      })
     }
   }
 
@@ -208,61 +267,59 @@ export class OpenRouterTextAdapter<
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
+    const { logger } = chatOptions
 
     const requestParams = this.mapTextOptionsToSDK(chatOptions)
 
-    const structuredOutputTool = {
-      type: 'function' as const,
-      function: {
-        name: 'structured_output',
-        description:
-          'Use this tool to provide your response in the required structured format.',
-        parameters: outputSchema,
-      },
-    }
+    // OpenRouter uses OpenAI-style strict JSON schema. Upstream providers
+    // (OpenAI especially) reject schemas that aren't strict-compatible — all
+    // properties required, additionalProperties: false, optional fields
+    // nullable. Apply that transformation before sending.
+    const strictSchema = convertSchemaToJsonSchema(outputSchema, {
+      forStructuredOutput: true,
+    })
 
     try {
+      logger.request(
+        `activity=chat provider=openrouter model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'openrouter', model: this.model },
+      )
       const result = await this.client.chat.send(
         {
-          ...requestParams,
-          stream: false,
-          tools: [structuredOutputTool],
-          toolChoice: {
-            type: 'function',
-            function: { name: 'structured_output' },
+          chatRequest: {
+            ...requestParams,
+            stream: false,
+            responseFormat: {
+              type: 'json_schema',
+              jsonSchema: {
+                name: 'structured_output',
+                schema: strictSchema,
+                strict: true,
+              },
+            },
           },
         },
         { signal: chatOptions.request?.signal },
       )
-
-      const message = result.choices[0]?.message
-      const toolCall = message?.toolCalls?.[0]
-
-      if (toolCall && toolCall.function.name === 'structured_output') {
-        const parsed = JSON.parse(toolCall.function.arguments || '{}')
-        return {
-          data: parsed,
-          rawText: toolCall.function.arguments || '',
-        }
+      const content = result.choices[0]?.message.content
+      const rawText = typeof content === 'string' ? content : ''
+      if (!rawText) {
+        throw new Error('Structured output response contained no content')
       }
-
-      const content = (message?.content as any) || ''
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(content)
-      } catch {
-        throw new Error(
-          `Failed to parse structured output as JSON. Content: ${content.slice(0, 200)}${content.length > 200 ? '...' : ''}`,
-        )
-      }
-
-      return {
-        data: parsed,
-        rawText: content,
-      }
+      const parsed = JSON.parse(rawText)
+      return { data: parsed, rawText }
     } catch (error: unknown) {
+      logger.errors('openrouter.structuredOutput fatal', {
+        error,
+        source: 'openrouter.structuredOutput',
+      })
       if (error instanceof RequestAbortedError) {
         throw new Error('Structured output generation aborted')
+      }
+      if (error instanceof SyntaxError) {
+        throw new Error(
+          `Failed to parse structured output as JSON: ${error.message}`,
+        )
       }
       const err = error as Error
       throw new Error(
@@ -276,107 +333,172 @@ export class OpenRouterTextAdapter<
   }
 
   private *processChoice(
-    choice: ChatStreamingChoice,
+    choice: ChatStreamChoice,
     toolCallBuffers: Map<number, ToolCallBuffer>,
     meta: { id: string; model: string; timestamp: number },
     accumulated: { reasoning: string; content: string },
     updateAccumulated: (reasoning: string, content: string) => void,
-    usage: ChatGenerationTokenUsage | undefined,
+    usage: ChatUsage | undefined,
     aguiState: AGUIState,
   ): Iterable<StreamChunk> {
     const delta = choice.delta
     const finishReason = choice.finishReason
-
-    if (delta.content) {
-      // Emit TEXT_MESSAGE_START on first text content
-      if (!aguiState.hasEmittedTextMessageStart) {
-        aguiState.hasEmittedTextMessageStart = true
-        yield {
-          type: 'TEXT_MESSAGE_START',
-          messageId: aguiState.messageId,
-          model: meta.model,
-          timestamp: meta.timestamp,
-          role: 'assistant',
-        }
-      }
-
-      accumulated.content += delta.content
-      updateAccumulated(accumulated.reasoning, accumulated.content)
-
-      // Emit AG-UI TEXT_MESSAGE_CONTENT
-      yield {
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: aguiState.messageId,
-        model: meta.model,
-        timestamp: meta.timestamp,
-        delta: delta.content,
-        content: accumulated.content,
-      }
-    }
 
     if (delta.reasoningDetails) {
       for (const detail of delta.reasoningDetails) {
         if (detail.type === 'reasoning.text') {
           const text = detail.text || ''
 
-          // Emit STEP_STARTED on first reasoning content
+          // Emit STEP_STARTED and REASONING events on first reasoning content
           if (!aguiState.hasEmittedStepStarted) {
             aguiState.hasEmittedStepStarted = true
             aguiState.stepId = this.generateId()
-            yield {
+            aguiState.reasoningMessageId = this.generateId()
+
+            // Spec REASONING events
+            yield asChunk({
+              type: 'REASONING_START',
+              messageId: aguiState.reasoningMessageId,
+              model: meta.model,
+              timestamp: meta.timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_MESSAGE_START',
+              messageId: aguiState.reasoningMessageId,
+              role: 'reasoning' as const,
+              model: meta.model,
+              timestamp: meta.timestamp,
+            })
+
+            // Legacy STEP events (kept during transition)
+            yield asChunk({
               type: 'STEP_STARTED',
+              stepName: aguiState.stepId,
               stepId: aguiState.stepId,
               model: meta.model,
               timestamp: meta.timestamp,
               stepType: 'thinking',
-            }
+            })
           }
 
           accumulated.reasoning += text
           updateAccumulated(accumulated.reasoning, accumulated.content)
 
-          // Emit AG-UI STEP_FINISHED for reasoning delta
-          yield {
-            type: 'STEP_FINISHED',
-            stepId: aguiState.stepId!,
+          // Spec REASONING content event
+          yield asChunk({
+            type: 'REASONING_MESSAGE_CONTENT',
+            messageId: aguiState.reasoningMessageId!,
+            delta: text,
             model: meta.model,
             timestamp: meta.timestamp,
-            delta: text,
-            content: accumulated.reasoning,
-          }
+          })
           continue
         }
         if (detail.type === 'reasoning.summary') {
           const text = detail.summary || ''
 
-          // Emit STEP_STARTED on first reasoning content
+          // Emit STEP_STARTED and REASONING events on first reasoning content
           if (!aguiState.hasEmittedStepStarted) {
             aguiState.hasEmittedStepStarted = true
             aguiState.stepId = this.generateId()
-            yield {
+            aguiState.reasoningMessageId = this.generateId()
+
+            // Spec REASONING events
+            yield asChunk({
+              type: 'REASONING_START',
+              messageId: aguiState.reasoningMessageId,
+              model: meta.model,
+              timestamp: meta.timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_MESSAGE_START',
+              messageId: aguiState.reasoningMessageId,
+              role: 'reasoning' as const,
+              model: meta.model,
+              timestamp: meta.timestamp,
+            })
+
+            // Legacy STEP events (kept during transition)
+            yield asChunk({
               type: 'STEP_STARTED',
+              stepName: aguiState.stepId,
               stepId: aguiState.stepId,
               model: meta.model,
               timestamp: meta.timestamp,
               stepType: 'thinking',
-            }
+            })
           }
 
           accumulated.reasoning += text
           updateAccumulated(accumulated.reasoning, accumulated.content)
 
-          // Emit AG-UI STEP_FINISHED for reasoning delta
-          yield {
-            type: 'STEP_FINISHED',
-            stepId: aguiState.stepId!,
+          // Spec REASONING content event
+          yield asChunk({
+            type: 'REASONING_MESSAGE_CONTENT',
+            messageId: aguiState.reasoningMessageId!,
+            delta: text,
             model: meta.model,
             timestamp: meta.timestamp,
-            delta: text,
-            content: accumulated.reasoning,
-          }
+          })
           continue
         }
       }
+    }
+
+    if (delta.content) {
+      // Close reasoning before text starts
+      if (aguiState.reasoningMessageId && !aguiState.hasClosedReasoning) {
+        aguiState.hasClosedReasoning = true
+        yield asChunk({
+          type: 'REASONING_MESSAGE_END',
+          messageId: aguiState.reasoningMessageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+        })
+        yield asChunk({
+          type: 'REASONING_END',
+          messageId: aguiState.reasoningMessageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+        })
+
+        // Legacy: single STEP_FINISHED to close the STEP_STARTED
+        if (aguiState.stepId) {
+          yield asChunk({
+            type: 'STEP_FINISHED',
+            stepName: aguiState.stepId,
+            stepId: aguiState.stepId,
+            model: meta.model,
+            timestamp: meta.timestamp,
+            content: accumulated.reasoning,
+          })
+        }
+      }
+
+      // Emit TEXT_MESSAGE_START on first text content
+      if (!aguiState.hasEmittedTextMessageStart) {
+        aguiState.hasEmittedTextMessageStart = true
+        yield asChunk({
+          type: 'TEXT_MESSAGE_START',
+          messageId: aguiState.messageId,
+          model: meta.model,
+          timestamp: meta.timestamp,
+          role: 'assistant',
+        })
+      }
+
+      accumulated.content += delta.content
+      updateAccumulated(accumulated.reasoning, accumulated.content)
+
+      // Emit AG-UI TEXT_MESSAGE_CONTENT
+      yield asChunk({
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: aguiState.messageId,
+        model: meta.model,
+        timestamp: meta.timestamp,
+        delta: delta.content,
+        content: accumulated.content,
+      })
     }
 
     if (delta.toolCalls) {
@@ -404,107 +526,141 @@ export class OpenRouterTextAdapter<
         // Emit TOOL_CALL_START when we have id and name
         if (buffer.id && buffer.name && !buffer.started) {
           buffer.started = true
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_START',
             toolCallId: buffer.id,
+            toolCallName: buffer.name,
             toolName: buffer.name,
             model: meta.model,
             timestamp: meta.timestamp,
             index: tc.index,
-          }
+          })
         }
 
         // Emit TOOL_CALL_ARGS for argument deltas
         if (tc.function?.arguments && buffer.started) {
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_ARGS',
             toolCallId: buffer.id,
             model: meta.model,
             timestamp: meta.timestamp,
             delta: tc.function.arguments,
-          }
+          })
         }
       }
     }
 
     if (delta.refusal) {
       // Emit AG-UI RUN_ERROR for refusal
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: meta.model,
         timestamp: meta.timestamp,
+        message: delta.refusal,
+        code: 'refusal',
         error: { message: delta.refusal, code: 'refusal' },
-      }
+      })
     }
 
     if (finishReason) {
-      // Emit all completed tool calls when finish reason indicates tool usage
-      if (finishReason === 'tool_calls' || toolCallBuffers.size > 0) {
-        for (const [, tc] of toolCallBuffers.entries()) {
-          // Parse arguments for TOOL_CALL_END
-          let parsedInput: unknown = {}
-          try {
-            parsedInput = tc.arguments ? JSON.parse(tc.arguments) : {}
-          } catch {
-            parsedInput = {}
+      // Capture usage from whichever chunk provides it (may arrive on a
+      // later duplicate finishReason chunk from the SDK).
+      if (usage) {
+        aguiState.deferredUsage = {
+          promptTokens: usage.promptTokens || 0,
+          completionTokens: usage.completionTokens || 0,
+          totalTokens: usage.totalTokens || 0,
+        }
+      }
+
+      // Guard: only emit finish events once.  OpenAI-compatible APIs often
+      // send two chunks with finishReason (one for the finish, one carrying
+      // usage data).  Without this guard TEXT_MESSAGE_END and RUN_FINISHED
+      // would be emitted twice.
+      if (!aguiState.hasEmittedRunFinished) {
+        aguiState.hasEmittedRunFinished = true
+
+        // Emit all completed tool calls when finish reason indicates tool usage
+        if (finishReason === 'tool_calls' || toolCallBuffers.size > 0) {
+          for (const [, tc] of toolCallBuffers.entries()) {
+            // Parse arguments for TOOL_CALL_END
+            let parsedInput: unknown = {}
+            try {
+              parsedInput = tc.arguments ? JSON.parse(tc.arguments) : {}
+            } catch {
+              parsedInput = {}
+            }
+
+            // Emit AG-UI TOOL_CALL_END
+            yield asChunk({
+              type: 'TOOL_CALL_END',
+              toolCallId: tc.id,
+              toolCallName: tc.name,
+              toolName: tc.name,
+              model: meta.model,
+              timestamp: meta.timestamp,
+              input: parsedInput,
+            })
           }
 
-          // Emit AG-UI TOOL_CALL_END
-          yield {
-            type: 'TOOL_CALL_END',
-            toolCallId: tc.id,
-            toolName: tc.name,
+          toolCallBuffers.clear()
+        }
+
+        aguiState.computedFinishReason =
+          finishReason === 'tool_calls'
+            ? 'tool_calls'
+            : finishReason === 'length'
+              ? 'length'
+              : 'stop'
+
+        // Close reasoning events if still open
+        if (aguiState.reasoningMessageId && !aguiState.hasClosedReasoning) {
+          aguiState.hasClosedReasoning = true
+          yield asChunk({
+            type: 'REASONING_MESSAGE_END',
+            messageId: aguiState.reasoningMessageId,
             model: meta.model,
             timestamp: meta.timestamp,
-            input: parsedInput,
+          })
+          yield asChunk({
+            type: 'REASONING_END',
+            messageId: aguiState.reasoningMessageId,
+            model: meta.model,
+            timestamp: meta.timestamp,
+          })
+
+          // Legacy: single STEP_FINISHED to close the STEP_STARTED
+          if (aguiState.stepId) {
+            yield asChunk({
+              type: 'STEP_FINISHED',
+              stepName: aguiState.stepId,
+              stepId: aguiState.stepId,
+              model: meta.model,
+              timestamp: meta.timestamp,
+              content: accumulated.reasoning,
+            })
           }
         }
 
-        toolCallBuffers.clear()
-      }
-
-      const computedFinishReason =
-        finishReason === 'tool_calls'
-          ? 'tool_calls'
-          : finishReason === 'length'
-            ? 'length'
-            : 'stop'
-
-      // Emit TEXT_MESSAGE_END if we had text content
-      if (aguiState.hasEmittedTextMessageStart) {
-        yield {
-          type: 'TEXT_MESSAGE_END',
-          messageId: aguiState.messageId,
-          model: meta.model,
-          timestamp: meta.timestamp,
+        // Emit TEXT_MESSAGE_END if we had text content
+        if (aguiState.hasEmittedTextMessageStart) {
+          aguiState.hasEmittedTextMessageEnd = true
+          yield asChunk({
+            type: 'TEXT_MESSAGE_END',
+            messageId: aguiState.messageId,
+            model: meta.model,
+            timestamp: meta.timestamp,
+          })
         }
-      }
-
-      // Emit AG-UI RUN_FINISHED
-      yield {
-        type: 'RUN_FINISHED',
-        runId: aguiState.runId,
-        model: meta.model,
-        timestamp: meta.timestamp,
-        usage: usage
-          ? {
-              promptTokens: usage.promptTokens || 0,
-              completionTokens: usage.completionTokens || 0,
-              totalTokens: usage.totalTokens || 0,
-            }
-          : undefined,
-        finishReason: computedFinishReason,
       }
     }
   }
 
   private mapTextOptionsToSDK(
     options: TextOptions<ResolveProviderOptions<TModel>>,
-  ): ChatGenerationParams {
-    const modelOptions = options.modelOptions as
-      | Omit<InternalTextProviderOptions, 'model' | 'messages' | 'tools'>
-      | undefined
+  ): ChatRequest {
+    const modelOptions = options.modelOptions
 
     const messages = this.convertMessages(options.messages)
 
@@ -515,15 +671,22 @@ export class OpenRouterTextAdapter<
       })
     }
 
-    const request: ChatGenerationParams = {
+    // Spread modelOptions first, then conditionally override with explicit
+    // top-level options so undefined values don't clobber modelOptions. Fixes
+    // #310, where the reverse order silently dropped user-set values.
+    const request: ChatRequest = {
+      ...modelOptions,
       model:
         options.model +
         (modelOptions?.variant ? `:${modelOptions.variant}` : ''),
       messages,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-      topP: options.topP,
-      ...modelOptions,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.maxTokens !== undefined && {
+        maxCompletionTokens: options.maxTokens,
+      }),
+      ...(options.topP !== undefined && { topP: options.topP }),
       tools: options.tools
         ? convertToolsToProviderFormat(options.tools)
         : undefined,
@@ -532,7 +695,7 @@ export class OpenRouterTextAdapter<
     return request
   }
 
-  private convertMessages(messages: Array<ModelMessage>): Array<Message> {
+  private convertMessages(messages: Array<ModelMessage>): Array<ChatMessages> {
     return messages.map((msg) => {
       if (msg.role === 'tool') {
         return {
@@ -572,11 +735,11 @@ export class OpenRouterTextAdapter<
 
   private convertContentParts(
     content: string | null | Array<ContentPart>,
-  ): Array<ChatMessageContentItem> {
+  ): Array<ChatContentItems> {
     if (!content) return [{ type: 'text', text: '' }]
     if (typeof content === 'string') return [{ type: 'text', text: content }]
 
-    const parts: Array<ChatMessageContentItem> = []
+    const parts: Array<ChatContentItems> = []
     for (const part of content) {
       switch (part.type) {
         case 'text':
@@ -631,14 +794,14 @@ export function createOpenRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
   config?: Omit<SDKOptions, 'apiKey'>,
-): OpenRouterTextAdapter<TModel> {
+): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   return new OpenRouterTextAdapter({ apiKey, ...config }, model)
 }
 
 export function openRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   config?: Omit<SDKOptions, 'apiKey'>,
-): OpenRouterTextAdapter<TModel> {
+): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterText(model, apiKey, config)
 }

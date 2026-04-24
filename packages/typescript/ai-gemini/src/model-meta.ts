@@ -17,16 +17,19 @@ interface ModelMeta<TProviderOptions = unknown> {
       | 'audio_generation'
       | 'batch_api'
       | 'caching'
-      | 'code_execution'
-      | 'file_search'
       | 'function_calling'
-      | 'grounding_with_gmaps'
-      | 'image_generation'
       | 'live_api'
-      | 'search_grounding'
       | 'structured_output'
       | 'thinking'
+    >
+    tools?: Array<
+      | 'code_execution'
+      | 'file_search'
+      | 'google_search'
+      | 'google_search_retrieval'
+      | 'google_maps'
       | 'url_context'
+      | 'computer_use'
     >
   }
   max_input_tokens?: number
@@ -58,14 +61,11 @@ const GEMINI_3_1_PRO = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -96,14 +96,11 @@ const GEMINI_3_PRO = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -134,14 +131,11 @@ const GEMINI_3_FLASH = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -169,13 +163,8 @@ const GEMINI_3_PRO_IMAGE = {
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
-    capabilities: [
-      'batch_api',
-      'image_generation',
-      'search_grounding',
-      'structured_output',
-      'thinking',
-    ],
+    capabilities: ['batch_api', 'structured_output', 'thinking'],
+    tools: ['google_search'],
   },
   pricing: {
     input: {
@@ -203,13 +192,8 @@ const GEMINI_3_1_FLASH_IMAGE = {
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
-    capabilities: [
-      'batch_api',
-      'image_generation',
-      'search_grounding',
-      'structured_output',
-      'thinking',
-    ],
+    capabilities: ['batch_api', 'structured_output', 'thinking'],
+    tools: ['google_search'],
   },
   pricing: {
     input: {
@@ -239,14 +223,11 @@ const GEMINI_3_1_FLASH_LITE = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -276,13 +257,15 @@ const GEMINI_2_5_PRO = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'grounding_with_gmaps',
-      'search_grounding',
       'structured_output',
       'thinking',
+    ],
+    tools: [
+      'code_execution',
+      'file_search',
+      'google_maps',
+      'google_search',
       'url_context',
     ],
   },
@@ -311,7 +294,7 @@ const GEMINI_2_5_PRO_TTS = {
   supports: {
     input: ['text'],
     output: ['audio'],
-    capabilities: ['audio_generation', 'file_search'],
+    capabilities: ['audio_generation'],
   },
   pricing: {
     input: {
@@ -339,13 +322,15 @@ const GEMINI_2_5_FLASH = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'grounding_with_gmaps',
-      'search_grounding',
       'structured_output',
       'thinking',
+    ],
+    tools: [
+      'code_execution',
+      'file_search',
+      'google_maps',
+      'google_search',
       'url_context',
     ],
   },
@@ -377,14 +362,11 @@ const GEMINI_2_5_FLASH_PREVIEW = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
-      'file_search',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -411,13 +393,8 @@ const GEMINI_2_5_FLASH_IMAGE = {
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
-    capabilities: [
-      'batch_api',
-      'caching',
-      'file_search',
-      'image_generation',
-      'structured_output',
-    ],
+    capabilities: ['batch_api', 'caching', 'structured_output'],
+    tools: ['file_search'],
   },
   pricing: {
     input: {
@@ -476,7 +453,7 @@ const GEMINI_2_5_FLASH_TTS = {
   supports: {
     input: ['text'],
     output: ['audio'],
-    capabilities: ['audio_generation', 'batch_api', 'file_search'],
+    capabilities: ['audio_generation', 'batch_api'],
   },
   pricing: {
     input: {
@@ -493,6 +470,82 @@ const GEMINI_2_5_FLASH_TTS = {
     GeminiCachedContentOptions
 >
 
+/**
+ * Gemini 3.1 Flash TTS Preview - latest expressive TTS model with
+ * 200+ audio tags, 70+ languages, and multi-speaker dialogue support.
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-tts-preview
+ */
+const GEMINI_3_1_FLASH_TTS = {
+  name: 'gemini-3.1-flash-tts-preview',
+  max_input_tokens: 32_768,
+  max_output_tokens: 16_384,
+  knowledge_cutoff: '2025-05-01',
+  supports: {
+    input: ['text'],
+    output: ['audio'],
+    capabilities: ['audio_generation', 'batch_api'],
+  },
+  pricing: {
+    input: {
+      normal: 0.5,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
+>
+
+/**
+ * Lyria 3 Pro Preview — Google's flagship music generation model.
+ * Generates full-length songs with multiple verses, choruses, and bridges.
+ * Outputs MP3 or WAV at 48 kHz stereo.
+ * @see https://ai.google.dev/gemini-api/docs/models/lyria-3-pro-preview
+ */
+const LYRIA_3_PRO = {
+  name: 'lyria-3-pro-preview',
+  max_input_tokens: 131_072,
+  supports: {
+    input: ['text', 'image'],
+    output: ['audio'],
+    capabilities: ['audio_generation'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0,
+    },
+  },
+} as const satisfies ModelMeta
+
+/**
+ * Lyria 3 Clip Preview — 30-second music clips in MP3 format.
+ * @see https://ai.google.dev/gemini-api/docs/music-generation
+ */
+const LYRIA_3_CLIP = {
+  name: 'lyria-3-clip-preview',
+  max_input_tokens: 131_072,
+  supports: {
+    input: ['text', 'image'],
+    output: ['audio'],
+    capabilities: ['audio_generation'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0,
+    },
+  },
+} as const satisfies ModelMeta
+
 const GEMINI_2_5_FLASH_LITE = {
   name: 'gemini-2.5-flash-lite',
   max_input_tokens: 1_048_576,
@@ -504,14 +557,11 @@ const GEMINI_2_5_FLASH_LITE = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
       'function_calling',
-      'grounding_with_gmaps',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'google_maps', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -541,13 +591,11 @@ const GEMINI_2_5_FLASH_LITE_PREVIEW = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
       'function_calling',
-      'search_grounding',
       'structured_output',
       'thinking',
-      'url_context',
     ],
+    tools: ['code_execution', 'google_search', 'url_context'],
   },
   pricing: {
     input: {
@@ -577,13 +625,11 @@ const GEMINI_2_FLASH = {
     capabilities: [
       'batch_api',
       'caching',
-      'code_execution',
       'function_calling',
-      'grounding_with_gmaps',
       'live_api',
-      'search_grounding',
       'structured_output',
     ],
+    tools: ['code_execution', 'google_maps', 'google_search'],
   },
   pricing: {
     input: {
@@ -608,13 +654,9 @@ const GEMINI_2_FLASH_IMAGE = {
   knowledge_cutoff: '2024-08-01',
   supports: {
     input: ['text', 'image', 'audio', 'video'],
-    output: ['text'],
-    capabilities: [
-      'batch_api',
-      'caching',
-      'image_generation',
-      'structured_output',
-    ],
+    output: ['text', 'image'],
+    capabilities: ['batch_api', 'caching', 'structured_output'],
+    tools: [],
   },
   pricing: {
     input: {
@@ -679,6 +721,7 @@ const GEMINI_2_FLASH_LITE = {
       'function_calling',
       'structured_output',
     ],
+    tools: [],
   },
   pricing: {
     input: {
@@ -961,8 +1004,18 @@ export const GEMINI_IMAGE_MODELS = [
  * @experimental Gemini TTS is an experimental feature and may change.
  */
 export const GEMINI_TTS_MODELS = [
+  GEMINI_3_1_FLASH_TTS.name,
   GEMINI_2_5_FLASH_TTS.name,
   GEMINI_2_5_PRO_TTS.name,
+] as const
+
+/**
+ * Audio generation models (Lyria music generation).
+ * @experimental Lyria music generation is an experimental feature and may change.
+ */
+export const GEMINI_AUDIO_MODELS = [
+  LYRIA_3_PRO.name,
+  LYRIA_3_CLIP.name,
 ] as const
 
 /**
@@ -1090,6 +1143,24 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions
+}
+
+/**
+ * Type-only map from chat model name to its supported tool capabilities.
+ * Based on the 'supports.tools' arrays defined for each model.
+ */
+export type GeminiChatModelToolCapabilitiesByName = {
+  [GEMINI_3_1_PRO.name]: typeof GEMINI_3_1_PRO.supports.tools
+  [GEMINI_3_PRO.name]: typeof GEMINI_3_PRO.supports.tools
+  [GEMINI_3_FLASH.name]: typeof GEMINI_3_FLASH.supports.tools
+  [GEMINI_3_1_FLASH_LITE.name]: typeof GEMINI_3_1_FLASH_LITE.supports.tools
+  [GEMINI_2_5_PRO.name]: typeof GEMINI_2_5_PRO.supports.tools
+  [GEMINI_2_5_FLASH.name]: typeof GEMINI_2_5_FLASH.supports.tools
+  [GEMINI_2_5_FLASH_PREVIEW.name]: typeof GEMINI_2_5_FLASH_PREVIEW.supports.tools
+  [GEMINI_2_5_FLASH_LITE.name]: typeof GEMINI_2_5_FLASH_LITE.supports.tools
+  [GEMINI_2_5_FLASH_LITE_PREVIEW.name]: typeof GEMINI_2_5_FLASH_LITE_PREVIEW.supports.tools
+  [GEMINI_2_FLASH.name]: typeof GEMINI_2_FLASH.supports.tools
+  [GEMINI_2_FLASH_LITE.name]: typeof GEMINI_2_FLASH_LITE.supports.tools
 }
 
 /**

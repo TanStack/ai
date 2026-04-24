@@ -2,6 +2,13 @@
 title: Decart
 id: decart-adapter
 order: 2
+description: "Generate images and videos with Decart's AI models in TanStack AI via the Decart community adapter."
+keywords:
+  - tanstack ai
+  - decart
+  - image generation
+  - video generation
+  - community adapter
 ---
 
 The Decart adapter provides access to Decart's image and video generation models.

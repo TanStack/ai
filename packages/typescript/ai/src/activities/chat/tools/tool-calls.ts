@@ -93,11 +93,12 @@ export class ToolCallManager {
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
     const index = event.index ?? this.toolCallsMap.size
+    const name = event.toolCallName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',
       function: {
-        name: event.toolName,
+        name,
         arguments: '',
       },
       ...(event.providerMetadata && {
@@ -127,7 +128,10 @@ export class ToolCallManager {
     for (const [, toolCall] of this.toolCallsMap.entries()) {
       if (toolCall.id === event.toolCallId) {
         if (event.input !== undefined) {
-          toolCall.function.arguments = JSON.stringify(event.input)
+          // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
+          const normalized =
+            event.input && typeof event.input === 'object' ? event.input : {}
+          toolCall.function.arguments = JSON.stringify(normalized)
         }
         break
       }
@@ -167,11 +171,12 @@ export class ToolCallManager {
       let toolResultContent: string
       if (tool?.execute) {
         try {
-          // Parse arguments (normalize "null" to "{}" for empty tool_use blocks)
+          // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
           let args: unknown
           try {
             const argsString = toolCall.function.arguments.trim() || '{}'
-            args = JSON.parse(argsString === 'null' ? '{}' : argsString)
+            const parsed = JSON.parse(argsString)
+            args = parsed && typeof parsed === 'object' ? parsed : {}
           } catch (parseError) {
             throw new Error(
               `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
@@ -233,11 +238,12 @@ export class ToolCallManager {
       yield {
         type: 'TOOL_CALL_END',
         toolCallId: toolCall.id,
+        toolCallName: toolCall.function.name,
         toolName: toolCall.function.name,
         model: finishEvent.model,
         timestamp: Date.now(),
         result: toolResultContent,
-      }
+      } as ToolCallEndEvent
 
       // Add tool result message
       toolResults.push({
@@ -543,7 +549,9 @@ export async function* executeToolCalls(
     const argsStr = toolCall.function.arguments.trim() || '{}'
     if (argsStr) {
       try {
-        input = JSON.parse(argsStr)
+        const parsed = JSON.parse(argsStr)
+        // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
+        input = parsed && typeof parsed === 'object' ? parsed : {}
       } catch (parseError) {
         // If parsing fails, throw error to fail fast
         throw new Error(`Failed to parse tool arguments as JSON: ${argsStr}`)

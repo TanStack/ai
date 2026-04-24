@@ -1,3 +1,4 @@
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -9,6 +10,7 @@ import type {
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { OpenAIRealtimeOptions } from './types'
 
@@ -37,6 +39,7 @@ export function openaiRealtime(
   options: OpenAIRealtimeOptions = {},
 ): RealtimeAdapter {
   const connectionMode = options.connectionMode ?? 'webrtc'
+  const logger = resolveDebugOption(options.debug)
 
   return {
     provider: 'openai',
@@ -45,10 +48,21 @@ export function openaiRealtime(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
+      const model = token.config.model ?? 'gpt-4o-realtime-preview'
+      logger.request(`activity=realtime provider=openai model=${model}`, {
+        provider: 'openai',
+        model,
+      })
+
       if (connectionMode === 'webrtc') {
-        return createWebRTCConnection(token)
+        return createWebRTCConnection(token, logger)
       }
-      throw new Error('WebSocket connection mode not yet implemented')
+      const error = new Error('WebSocket connection mode not yet implemented')
+      logger.errors('openai.realtime fatal', {
+        error,
+        source: 'openai.realtime',
+      })
+      throw error
     },
   }
 }
@@ -58,6 +72,7 @@ export function openaiRealtime(
  */
 async function createWebRTCConnection(
   token: RealtimeToken,
+  logger: InternalLogger,
 ): Promise<RealtimeConnection> {
   const model = token.config.model ?? 'gpt-4o-realtime-preview'
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
@@ -116,13 +131,24 @@ async function createWebRTCConnection(
   dataChannel.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data)
+      logger.provider(
+        `provider=openai direction=in type=${(message as { type?: string }).type ?? '<unknown>'}`,
+        { frame: message },
+      )
       handleServerEvent(message)
     } catch (e) {
-      console.error('Failed to parse realtime event:', e)
+      logger.errors('openai.realtime fatal', {
+        error: e,
+        source: 'openai.realtime',
+      })
     }
   }
 
   dataChannel.onerror = (error) => {
+    logger.errors('openai.realtime fatal', {
+      error,
+      source: 'openai.realtime',
+    })
     emit('error', { error: new Error(`Data channel error: ${error}`) })
   }
 
@@ -170,9 +196,14 @@ async function createWebRTCConnection(
 
   if (!sdpResponse.ok) {
     const errorText = await sdpResponse.text()
-    throw new Error(
+    const error = new Error(
       `Failed to establish WebRTC connection: ${sdpResponse.status} - ${errorText}`,
     )
+    logger.errors('openai.realtime fatal', {
+      error,
+      source: 'openai.realtime',
+    })
+    throw error
   }
 
   const answerSdp = await sdpResponse.text()
@@ -276,9 +307,12 @@ async function createWebRTCConnection(
         const name = event.name as string
         const args = event.arguments as string
         if (!callId) {
-          console.warn(
-            '[openaiRealtime] function_call_arguments.done missing call_id/item_id',
-            event,
+          logger.errors(
+            'openai.realtime function_call_arguments.done missing ids',
+            {
+              event,
+              source: 'openai.realtime',
+            },
           )
           break
         }
@@ -286,7 +320,11 @@ async function createWebRTCConnection(
           const input = JSON.parse(args)
           emit('tool_call', { toolCallId: callId, toolName: name, input })
         } catch {
-          emit('tool_call', { toolCallId: callId, toolName: name, input: args })
+          emit('tool_call', {
+            toolCallId: callId,
+            toolName: name,
+            input: args,
+          })
         }
         break
       }
@@ -357,7 +395,10 @@ async function createWebRTCConnection(
     audioElement.autoplay = true
     // Some browsers require this for autoplay
     audioElement.play().catch((e) => {
-      console.warn('Audio autoplay failed:', e)
+      logger.errors('openai.realtime audio autoplay failed', {
+        error: e,
+        source: 'openai.realtime',
+      })
     })
 
     // Set up AudioContext for visualization only (not playback)
@@ -408,6 +449,10 @@ async function createWebRTCConnection(
   // Send event to server (queues if data channel not yet open)
   function sendEvent(event: Record<string, unknown>) {
     if (dataChannel?.readyState === 'open') {
+      logger.provider(
+        `provider=openai direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
+        { frame: event },
+      )
       dataChannel.send(JSON.stringify(event))
     } else {
       pendingEvents.push(event)
@@ -417,6 +462,10 @@ async function createWebRTCConnection(
   // Flush any queued events (called when data channel opens)
   function flushPendingEvents() {
     for (const event of pendingEvents) {
+      logger.provider(
+        `provider=openai direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
+        { frame: event },
+      )
       dataChannel!.send(JSON.stringify(event))
     }
     pendingEvents.length = 0

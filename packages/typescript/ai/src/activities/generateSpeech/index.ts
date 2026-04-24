@@ -7,6 +7,9 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
+import { resolveDebugOption } from '../../logger/resolve'
+import type { InternalLogger } from '../../logger/internal-logger'
+import type { DebugOption } from '../../logger/types'
 import type { TTSAdapter } from './adapter'
 import type { StreamChunk, TTSResult } from '../../types'
 
@@ -41,7 +44,7 @@ export type TTSProviderOptions<TAdapter> =
  * @template TStream - Whether to stream the output
  */
 export interface TTSActivityOptions<
-  TAdapter extends TTSAdapter<string, object>,
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 > {
   /** The TTS adapter to use (must be created with a model) */
@@ -64,6 +67,12 @@ export interface TTSActivityOptions<
    * @default false
    */
   stream?: TStream
+  /**
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
+  debug?: DebugOption
 }
 
 // ===========================
@@ -117,7 +126,7 @@ function createId(prefix: string): string {
  * ```
  */
 export function generateSpeech<
-  TAdapter extends TTSAdapter<string, object>,
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 >(options: TTSActivityOptions<TAdapter, TStream>): TTSActivityResult<TStream> {
   if (options.stream) {
@@ -131,13 +140,18 @@ export function generateSpeech<
 /**
  * Run the core TTS generation logic (non-streaming).
  */
-async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
-  options: TTSActivityOptions<TAdapter, boolean>,
-): Promise<TTSResult> {
-  const { adapter, stream: _stream, ...rest } = options
+async function runGenerateSpeech<
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
+>(options: TTSActivityOptions<TAdapter, boolean>): Promise<TTSResult> {
+  const { adapter, stream: _stream, debug: _debug, ...rest } = options
   const model = adapter.model
   const requestId = createId('speech')
   const startTime = Date.now()
+  const logger: InternalLogger = resolveDebugOption(options.debug)
+  const providerName =
+    (adapter as { name?: string; provider?: string }).provider ??
+    (adapter as { name?: string }).name ??
+    'unknown'
 
   aiEventClient.emit('speech:request:started', {
     requestId,
@@ -151,7 +165,13 @@ async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
     timestamp: startTime,
   })
 
-  return adapter.generateSpeech({ ...rest, model }).then((result) => {
+  logger.request(`activity=generateSpeech provider=${providerName}`, {
+    provider: providerName,
+    model,
+  })
+
+  try {
+    const result = await adapter.generateSpeech({ ...rest, model, logger })
     const duration = Date.now() - startTime
 
     aiEventClient.emit('speech:request:completed', {
@@ -167,8 +187,30 @@ async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
       timestamp: Date.now(),
     })
 
+    logger.output(`activity=generateSpeech bytes=${result.audio.length}`, {
+      bytes: result.audio.length,
+      contentType: result.contentType,
+    })
+
     return result
-  })
+  } catch (error) {
+    const duration = Date.now() - startTime
+    const err = error as Error
+    aiEventClient.emit('speech:request:error', {
+      requestId,
+      provider: adapter.name,
+      model,
+      error: { message: err.message, name: err.name },
+      duration,
+      modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+      timestamp: Date.now(),
+    })
+    logger.errors('generateSpeech activity failed', {
+      error,
+      source: 'generateSpeech',
+    })
+    throw error
+  }
 }
 
 // ===========================
@@ -179,7 +221,7 @@ async function runGenerateSpeech<TAdapter extends TTSAdapter<string, object>>(
  * Create typed options for the generateSpeech() function without executing.
  */
 export function createSpeechOptions<
-  TAdapter extends TTSAdapter<string, object>,
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 >(
   options: TTSActivityOptions<TAdapter, TStream>,

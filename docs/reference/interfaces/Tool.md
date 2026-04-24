@@ -5,7 +5,7 @@ title: Tool
 
 # Interface: Tool\<TInput, TOutput, TName\>
 
-Defined in: [types.ts:390](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L390)
+Defined in: [packages/typescript/ai/src/types.ts:417](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L417)
 
 Tool/Function definition for function calling.
 
@@ -25,6 +25,7 @@ or plain JSON Schema objects for runtime validation and type safety.
 
 - [`ToolDefinitionInstance`](ToolDefinitionInstance.md)
 - [`ServerTool`](ServerTool.md)
+- [`ProviderTool`](ProviderTool.md)
 
 ## Type Parameters
 
@@ -48,7 +49,7 @@ or plain JSON Schema objects for runtime validation and type safety.
 description: string;
 ```
 
-Defined in: [types.ts:413](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L413)
+Defined in: [packages/typescript/ai/src/types.ts:440](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L440)
 
 Clear description of what the tool does.
 
@@ -69,7 +70,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute: (args, context?) => any;
 ```
 
-Defined in: [types.ts:493](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L493)
+Defined in: [packages/typescript/ai/src/types.ts:520](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L520)
 
 Optional function to execute when the model calls this tool.
 
@@ -113,7 +114,7 @@ execute: async (args) => {
 optional inputSchema: TInput;
 ```
 
-Defined in: [types.ts:453](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L453)
+Defined in: [packages/typescript/ai/src/types.ts:480](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L480)
 
 Schema describing the tool's input parameters.
 
@@ -167,7 +168,7 @@ type({
 optional lazy: boolean;
 ```
 
-Defined in: [types.ts:499](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L499)
+Defined in: [packages/typescript/ai/src/types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L526)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat().
 
@@ -179,7 +180,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [types.ts:502](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L502)
+Defined in: [packages/typescript/ai/src/types.ts:529](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L529)
 
 Additional metadata for adapters or custom extensions
 
@@ -191,7 +192,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [types.ts:403](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L403)
+Defined in: [packages/typescript/ai/src/types.ts:430](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L430)
 
 Unique name of the tool (used by the model to call it).
 
@@ -212,7 +213,7 @@ Must be unique within the tools array.
 optional needsApproval: boolean;
 ```
 
-Defined in: [types.ts:496](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L496)
+Defined in: [packages/typescript/ai/src/types.ts:523](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L523)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -224,7 +225,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema: TOutput;
 ```
 
-Defined in: [types.ts:474](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L474)
+Defined in: [packages/typescript/ai/src/types.ts:501](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L501)
 
 Optional schema for validating tool output.
 

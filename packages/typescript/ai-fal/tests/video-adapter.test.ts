@@ -293,13 +293,14 @@ describe('Fal Video Adapter', () => {
       })
     })
 
-    it('configures client with proxy URL when provided', () => {
+    it('configures client with proxy URL and credentials when both provided', () => {
       falVideo('fal-ai/veo3/image-to-video', {
         apiKey: 'my-api-key',
         proxyUrl: '/api/fal/proxy',
       })
 
       expect(mockConfig).toHaveBeenCalledWith({
+        credentials: 'my-api-key',
         proxyUrl: '/api/fal/proxy',
       })
     })

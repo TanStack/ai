@@ -2,6 +2,15 @@
 title: Code Mode
 id: code-mode
 order: 1
+description: "Let LLMs write and execute TypeScript programs that orchestrate tools in a secure sandbox with TanStack AI Code Mode — fewer loops, richer logic."
+keywords:
+  - tanstack ai
+  - code mode
+  - sandbox
+  - typescript execution
+  - tool orchestration
+  - execute_typescript
+  - ai agents
 ---
 
 Code Mode lets an LLM write and execute TypeScript programs inside a secure sandbox. Instead of making one tool call at a time, the model writes a short script that orchestrates multiple tools with loops, conditionals, `Promise.all`, and data transformations — then returns a single result.

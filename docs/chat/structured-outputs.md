@@ -2,6 +2,16 @@
 title: Structured Outputs
 id: structured-outputs
 order: 4
+description: "Constrain TanStack AI responses to a JSON Schema for typed, predictable structured output using Zod, Valibot, or any Standard Schema library."
+keywords:
+  - tanstack ai
+  - structured outputs
+  - json schema
+  - zod
+  - valibot
+  - standard schema
+  - type-safe llm
+  - outputSchema
 ---
 
 Structured outputs allow you to constrain AI model responses to match a specific JSON schema, ensuring consistent and type-safe data extraction. TanStack AI uses the [Standard JSON Schema](https://standardschema.dev/) specification, allowing you to use any compatible schema library.

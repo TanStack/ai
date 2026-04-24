@@ -5,7 +5,7 @@ title: ModelMessage
 
 # Interface: ModelMessage\<TContent\>
 
-Defined in: [types.ts:262](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L262)
+Defined in: [packages/typescript/ai/src/types.ts:289](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L289)
 
 ## Type Parameters
 
@@ -21,7 +21,7 @@ Defined in: [types.ts:262](https://github.com/TanStack/ai/blob/main/packages/typ
 content: TContent;
 ```
 
-Defined in: [types.ts:269](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L269)
+Defined in: [packages/typescript/ai/src/types.ts:296](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L296)
 
 ***
 
@@ -31,7 +31,7 @@ Defined in: [types.ts:269](https://github.com/TanStack/ai/blob/main/packages/typ
 optional name: string;
 ```
 
-Defined in: [types.ts:270](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L270)
+Defined in: [packages/typescript/ai/src/types.ts:297](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L297)
 
 ***
 
@@ -41,7 +41,7 @@ Defined in: [types.ts:270](https://github.com/TanStack/ai/blob/main/packages/typ
 role: "user" | "assistant" | "tool";
 ```
 
-Defined in: [types.ts:268](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L268)
+Defined in: [packages/typescript/ai/src/types.ts:295](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L295)
 
 ***
 
@@ -51,7 +51,7 @@ Defined in: [types.ts:268](https://github.com/TanStack/ai/blob/main/packages/typ
 optional toolCallId: string;
 ```
 
-Defined in: [types.ts:272](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L272)
+Defined in: [packages/typescript/ai/src/types.ts:299](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L299)
 
 ***
 
@@ -61,4 +61,4 @@ Defined in: [types.ts:272](https://github.com/TanStack/ai/blob/main/packages/typ
 optional toolCalls: ToolCall[];
 ```
 
-Defined in: [types.ts:271](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L271)
+Defined in: [packages/typescript/ai/src/types.ts:298](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L298)

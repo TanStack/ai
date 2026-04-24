@@ -1,7 +1,15 @@
 ---
 title: Tree-Shaking
 id: tree-shaking
-order: 6
+order: 7
+description: "TanStack AI's tree-shakeable architecture — import only the activities and adapters you use for minimal bundle size across chat, image, and speech."
+keywords:
+  - tanstack ai
+  - tree-shaking
+  - bundle size
+  - modular imports
+  - performance
+  - tree-shakeable
 ---
 
 # Tree-Shaking & Bundle Optimization

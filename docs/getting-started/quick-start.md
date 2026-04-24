@@ -2,6 +2,16 @@
 title: "Quick Start: React"
 id: quick-start
 order: 2
+description: "Add a streaming TanStack AI chat to a React app in minutes using the useChat hook and the OpenAI adapter."
+keywords:
+  - tanstack ai
+  - react
+  - quick start
+  - useChat
+  - streaming chat
+  - openai
+  - tutorial
+  - ai chatbot
 ---
 
 Get started with TanStack AI in minutes. This guide will walk you through creating a simple chat application using the React integration and OpenAI adapter.

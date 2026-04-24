@@ -112,34 +112,11 @@ const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
-  // Routed through chat — all providers with chat support work
-  'image-gen': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  tts: new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  transcription: new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
+  // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
+  'image-gen': new Set(['openai', 'grok']),
+  tts: new Set(['openai']),
+  transcription: new Set(['openai']),
+  'video-gen': new Set(['openai']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {
