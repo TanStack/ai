@@ -3,6 +3,7 @@ import type {
   ToolDefinition,
   ToolExecutionContext,
 } from '@tanstack/ai'
+import type { SecretParameterHandler } from './validate-bindings'
 
 // ============================================================================
 // Isolate Driver Interfaces
@@ -193,6 +194,20 @@ export interface CodeModeToolConfig {
    * ```
    */
   getSkillBindings?: () => Promise<Record<string, ToolBinding>>
+
+  /**
+   * How to surface tool parameters whose names look like secrets.
+   * Defaults to `'warn'` (logs via `console.warn`).
+   *
+   * - `'warn'`: log a warning for each match.
+   * - `'throw'`: throw an Error on the first match — useful in tests/CI.
+   * - `'ignore'`: suppress the check entirely.
+   * - `(info) => void`: receive each match and decide how to react.
+   *
+   * Matches are deduplicated per `(toolName, paramPath)` across the lifetime
+   * of a single `createCodeModeTool` instance.
+   */
+  onSecretParameter?: SecretParameterHandler
 }
 
 /**
