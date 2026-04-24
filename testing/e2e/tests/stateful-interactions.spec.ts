@@ -20,12 +20,9 @@ import { providersFor } from './test-matrix'
 //      omits prior history.
 for (const provider of providersFor('stateful-interactions')) {
   test.describe(`${provider} — stateful-interactions`, () => {
-    test.skip(
-      'two-turn conversation chained via previous_interaction_id',
-      () => {
-        // TODO(tanstack/ai#501 follow-up): implement once aimock supports
-        // Gemini's interactions:create endpoint.
-      },
-    )
+    test.skip('two-turn conversation chained via previous_interaction_id', () => {
+      // TODO(tanstack/ai#501 follow-up): implement once aimock supports
+      // Gemini's interactions:create endpoint.
+    })
   })
 }
