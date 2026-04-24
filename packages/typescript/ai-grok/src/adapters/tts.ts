@@ -57,47 +57,12 @@ export class GrokSpeechAdapter<
       model,
     })
 
-    const codec = pickCodec(modelOptions?.codec, format)
-    // Only forward `sample_rate` when either:
-    //   - the caller explicitly set `modelOptions.sample_rate`, or
-    //   - the codec's Content-Type carries the rate (pcm → audio/L16;rate=…).
-    // For mp3/wav/opus/aac/flac we leave sample_rate unset so xAI's server
-    // default applies. Forcing a rate on every codec was over-constraining
-    // and would surface as a subtle mislabel only for codecs whose MIME type
-    // doesn't encode the rate.
-    const callerSampleRate = modelOptions?.sample_rate
-    // Default sample rate documented in GrokTTSProviderOptions (see
-    // audio/tts-provider-options.ts) is 24000 Hz — used only when we MUST
-    // attach a rate to the contentType (pcm) and the caller didn't pick one.
-    const pcmDefault = 24000
-    const needsRateInContentType = codec === 'pcm'
-
-    const outputFormat: Record<string, unknown> = { codec }
-    if (callerSampleRate !== undefined) {
-      outputFormat.sample_rate = callerSampleRate
-    } else if (needsRateInContentType) {
-      outputFormat.sample_rate = pcmDefault
-    }
-    if (codec === 'mp3' && modelOptions?.bit_rate !== undefined) {
-      outputFormat.bit_rate = modelOptions.bit_rate
-    }
-
-    // Only the pcm contentType embeds a rate; other codecs' Content-Types
-    // don't carry one so this value is unused for them.
-    const sampleRateForContentType = callerSampleRate ?? pcmDefault
-
-    const body: Record<string, unknown> = {
+    const { body, codec, sampleRateForContentType } = buildTTSRequestBody({
       text,
-      voice_id: (voice as GrokTTSVoice | undefined) ?? 'eve',
-      language: modelOptions?.language ?? 'en',
-      output_format: outputFormat,
-    }
-    if (modelOptions?.optimize_streaming_latency !== undefined) {
-      body.optimize_streaming_latency = modelOptions.optimize_streaming_latency
-    }
-    if (modelOptions?.text_normalization !== undefined) {
-      body.text_normalization = modelOptions.text_normalization
-    }
+      voice,
+      format,
+      modelOptions,
+    })
 
     try {
       const response = await fetch(`${this.baseURL}/tts`, {
@@ -138,9 +103,73 @@ export class GrokSpeechAdapter<
 }
 
 /**
+ * Build the JSON body for `POST /v1/tts`, resolving codec / sample-rate / voice
+ * defaults in one place.
+ *
+ * Returns the request `body`, the resolved `codec`, and the `sampleRateForContentType`
+ * used by the caller to label the response via `getContentType`.
+ */
+export function buildTTSRequestBody(options: {
+  text: string
+  voice: string | undefined
+  format: TTSOptions['format'] | undefined
+  modelOptions: GrokTTSProviderOptions | undefined
+}): {
+  body: Record<string, unknown>
+  codec: GrokTTSCodec
+  sampleRateForContentType: number
+} {
+  const { text, voice, format, modelOptions } = options
+
+  const codec = pickCodec(modelOptions?.codec, format)
+
+  // Only forward `sample_rate` when either:
+  //   - the caller explicitly set `modelOptions.sample_rate`, or
+  //   - the codec's Content-Type carries the rate (pcm → audio/L16;rate=…).
+  // For mp3/wav/opus/aac/flac we leave sample_rate unset so xAI's server
+  // default applies.
+  const callerSampleRate = modelOptions?.sample_rate
+  // Default sample rate documented in GrokTTSProviderOptions is 24000 Hz —
+  // used only when we MUST attach a rate to the contentType (pcm) and the
+  // caller didn't pick one.
+  const pcmDefault = 24000
+  const needsRateInContentType = codec === 'pcm'
+
+  const outputFormat: Record<string, unknown> = { codec }
+  if (callerSampleRate !== undefined) {
+    outputFormat.sample_rate = callerSampleRate
+  } else if (needsRateInContentType) {
+    outputFormat.sample_rate = pcmDefault
+  }
+  if (codec === 'mp3' && modelOptions?.bit_rate !== undefined) {
+    outputFormat.bit_rate = modelOptions.bit_rate
+  }
+
+  // Only the pcm contentType embeds a rate; other codecs' Content-Types
+  // don't carry one so this value is unused for them.
+  const sampleRateForContentType = callerSampleRate ?? pcmDefault
+
+  const body: Record<string, unknown> = {
+    text,
+    voice_id: (voice as GrokTTSVoice | undefined) ?? 'eve',
+    language: modelOptions?.language ?? 'en',
+    output_format: outputFormat,
+  }
+  if (modelOptions?.optimize_streaming_latency !== undefined) {
+    body.optimize_streaming_latency = modelOptions.optimize_streaming_latency
+  }
+  if (modelOptions?.text_normalization !== undefined) {
+    body.text_normalization = modelOptions.text_normalization
+  }
+
+  return { body, codec, sampleRateForContentType }
+}
+
+/**
  * Maps the cross-provider `TTSOptions.format` onto Grok's supported codecs.
- * `opus` and `aac` are not supported by Grok — we fall back to mp3.
- * An explicit `modelOptions.codec` always wins.
+ * `opus`, `aac`, and `flac` are not supported by xAI TTS (which only exposes
+ * mp3/wav/pcm/mulaw/alaw) — we fall back to mp3. An explicit
+ * `modelOptions.codec` always wins.
  */
 function pickCodec(
   codecOverride: GrokTTSCodec | undefined,
@@ -154,8 +183,6 @@ function pickCodec(
     case 'pcm':
       return format
     case 'flac':
-      // Grok doesn't support flac output; fall back to mp3.
-      return 'mp3'
     case 'opus':
     case 'aac':
       return 'mp3'
@@ -164,7 +191,7 @@ function pickCodec(
   }
 }
 
-function getContentType(codec: GrokTTSCodec, sampleRate: number): string {
+export function getContentType(codec: GrokTTSCodec, sampleRate: number): string {
   switch (codec) {
     case 'mp3':
       return 'audio/mpeg'

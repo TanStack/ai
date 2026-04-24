@@ -17,6 +17,45 @@ import type { GrokRealtimeOptions } from './types'
 const GROK_REALTIME_URL = 'https://api.x.ai/v1/realtime'
 
 /**
+ * Runtime-checked field readers for untyped server events. Replace the
+ * drive-by `event.X as string` / `event.X as Record<string, unknown>` casts
+ * with readers that return `undefined` when the shape doesn't match, so a
+ * malformed frame can't throw a TypeError inside `handleServerEvent`.
+ */
+function readString(obj: Record<string, unknown>, key: string): string | undefined {
+  const value = obj[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+function readObject(
+  obj: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | undefined {
+  const value = obj[key]
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
+function readObjectArray(
+  obj: Record<string, unknown>,
+  key: string,
+): Array<Record<string, unknown>> | undefined {
+  const value = obj[key]
+  if (!Array.isArray(value)) return undefined
+  return value.filter(
+    (item): item is Record<string, unknown> =>
+      item !== null && typeof item === 'object' && !Array.isArray(item),
+  )
+}
+
+type RealtimeServerError = Error & {
+  code?: string
+  type?: string
+  param?: string
+}
+
+/**
  * Creates a Grok realtime adapter for client-side use.
  *
  * Uses WebRTC for browser connections (default). Mirrors the OpenAI realtime
@@ -169,11 +208,13 @@ async function createWebRTCConnection(
   dataChannel.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data)
+      const messageRecord: Record<string, unknown> =
+        message !== null && typeof message === 'object' ? message : {}
       logger.provider(
-        `provider=grok direction=in type=${(message as { type?: string }).type ?? '<unknown>'}`,
-        { frame: message },
+        `provider=grok direction=in type=${readString(messageRecord, 'type') ?? '<unknown>'}`,
+        { frame: messageRecord },
       )
-      handleServerEvent(message)
+      handleServerEvent(messageRecord)
     } catch (parseErr) {
       logger.errors('grok.realtime fatal', {
         error: parseErr,
@@ -199,9 +240,13 @@ async function createWebRTCConnection(
     // RTCErrorEvent exposes a typed `.error`; fall back to the event type
     // name, then to a string representation, so the emitted error message
     // doesn't end up as "[object Event]".
-    const rtcError = (error as { error?: { message?: string } }).error
+    // `onerror` always fires with an Event (often an RTCErrorEvent), so we
+    // can read it via the untyped helpers without first proving object-ness.
+    const errorRecord = error as unknown as Record<string, unknown>
+    const rtcError = readObject(errorRecord, 'error')
     const msg =
-      rtcError?.message ?? (error instanceof Event ? error.type : String(error))
+      (rtcError && readString(rtcError, 'message')) ??
+      (error.type || 'unknown')
     const dcErr = new Error(`Data channel error: ${msg}`)
     if (!dataChannelOpened) {
       rejectDataChannelReady?.(dcErr)
@@ -215,7 +260,9 @@ async function createWebRTCConnection(
     // teardown, there's nothing to do here.
     if (isTornDown) return
     if (!dataChannelOpened) {
-      rejectDataChannelReady?.(new Error('Data channel closed before opening'))
+      rejectDataChannelReady?.(
+        new Error('Data channel closed before opening'),
+      )
     }
   }
 
@@ -243,9 +290,7 @@ async function createWebRTCConnection(
       if (!isTornDown) {
         emit('status_change', {
           status:
-            state === 'failed'
-              ? ('error' as RealtimeStatus)
-              : ('idle' as RealtimeStatus),
+            state === 'failed' ? ('error' as RealtimeStatus) : ('idle' as RealtimeStatus),
         })
       }
       if (!dataChannelOpened) {
@@ -280,7 +325,9 @@ async function createWebRTCConnection(
     })
     if (
       !dataChannelOpened &&
-      (state === 'failed' || state === 'closed' || state === 'disconnected')
+      (state === 'failed' ||
+        state === 'closed' ||
+        state === 'disconnected')
     ) {
       const message =
         state === 'failed'
@@ -481,7 +528,7 @@ async function createWebRTCConnection(
   }
 
   function handleServerEvent(event: Record<string, unknown>) {
-    const type = event.type as string
+    const type = readString(event, 'type')
 
     switch (type) {
       case 'session.created':
@@ -502,7 +549,8 @@ async function createWebRTCConnection(
         break
 
       case 'conversation.item.input_audio_transcription.completed': {
-        const transcript = event.transcript as string
+        const transcript = readString(event, 'transcript')
+        if (transcript === undefined) break
         emit('transcript', { role: 'user', transcript, isFinal: true })
         break
       }
@@ -517,15 +565,21 @@ async function createWebRTCConnection(
         break
 
       case 'response.output_item.added': {
-        const item = event.item as Record<string, unknown>
-        if (item.type === 'message') {
-          currentMessageId = item.id as string
+        const item = readObject(event, 'item')
+        if (item && readString(item, 'type') === 'message') {
+          const id = readString(item, 'id')
+          if (id !== undefined) currentMessageId = id
         }
         break
       }
 
+      // xAI realtime per docs uses `response.output_audio_transcript.*`;
+      // accept the legacy OpenAI-realtime `response.audio_transcript.*` as
+      // an alias so this adapter stays compatible across protocol versions.
+      case 'response.output_audio_transcript.delta':
       case 'response.audio_transcript.delta': {
-        const delta = event.delta as string
+        const delta = readString(event, 'delta')
+        if (delta === undefined) break
         emit('transcript', {
           role: 'assistant',
           transcript: delta,
@@ -534,14 +588,20 @@ async function createWebRTCConnection(
         break
       }
 
+      case 'response.output_audio_transcript.done':
       case 'response.audio_transcript.done': {
-        const transcript = event.transcript as string
+        const transcript = readString(event, 'transcript')
+        if (transcript === undefined) break
         emit('transcript', { role: 'assistant', transcript, isFinal: true })
         break
       }
 
+      // xAI realtime per docs uses `response.text.*`; accept the legacy
+      // OpenAI-realtime `response.output_text.*` as an alias.
+      case 'response.text.delta':
       case 'response.output_text.delta': {
-        const delta = event.delta as string
+        const delta = readString(event, 'delta')
+        if (delta === undefined) break
         emit('transcript', {
           role: 'assistant',
           transcript: delta,
@@ -550,8 +610,10 @@ async function createWebRTCConnection(
         break
       }
 
+      case 'response.text.done':
       case 'response.output_text.done': {
-        const text = event.text as string
+        const text = readString(event, 'text')
+        if (text === undefined) break
         emit('transcript', {
           role: 'assistant',
           transcript: text,
@@ -560,6 +622,9 @@ async function createWebRTCConnection(
         break
       }
 
+      // xAI realtime per docs uses `response.output_audio.*`; accept the
+      // legacy OpenAI-realtime `response.audio.*` as an alias.
+      case 'response.output_audio.delta':
       case 'response.audio.delta':
         if (currentMode !== 'speaking') {
           currentMode = 'speaking'
@@ -567,6 +632,7 @@ async function createWebRTCConnection(
         }
         break
 
+      case 'response.output_audio.done':
       case 'response.audio.done':
         break
 
@@ -576,9 +642,9 @@ async function createWebRTCConnection(
         // recognise when the result is posted back, silently dropping the
         // tool execution. If `call_id` is missing we surface an error event
         // so the UI can react instead of pretending the tool call succeeded.
-        const callId = event.call_id as string | undefined
-        const name = event.name as string
-        const args = event.arguments as string
+        const callId = readString(event, 'call_id')
+        const name = readString(event, 'name') ?? ''
+        const args = readString(event, 'arguments') ?? ''
         if (!callId) {
           logger.errors(
             'grok.realtime tool_call missing call_id — dropping tool_call',
@@ -605,10 +671,8 @@ async function createWebRTCConnection(
       }
 
       case 'response.done': {
-        const response = event.response as Record<string, unknown>
-        const output = response.output as
-          | Array<Record<string, unknown>>
-          | undefined
+        const response = readObject(event, 'response') ?? {}
+        const output = readObjectArray(response, 'output')
 
         // Only transition back to `listening` if the user hasn't already
         // stopped capture — otherwise we'd override their explicit `idle`
@@ -626,20 +690,21 @@ async function createWebRTCConnection(
             parts: [],
           }
 
-          for (const item of output || []) {
-            if (item.type === 'message' && item.content) {
-              const content = item.content as Array<Record<string, unknown>>
-              for (const part of content) {
-                if (part.type === 'audio' && part.transcript) {
-                  message.parts.push({
-                    type: 'audio',
-                    transcript: part.transcript as string,
-                  })
-                } else if (part.type === 'text' && part.text) {
-                  message.parts.push({
-                    type: 'text',
-                    content: part.text as string,
-                  })
+          for (const item of output ?? []) {
+            if (readString(item, 'type') !== 'message') continue
+            const content = readObjectArray(item, 'content')
+            if (!content) continue
+            for (const part of content) {
+              const partType = readString(part, 'type')
+              if (partType === 'audio') {
+                const transcript = readString(part, 'transcript')
+                if (transcript) {
+                  message.parts.push({ type: 'audio', transcript })
+                }
+              } else if (partType === 'text') {
+                const content = readString(part, 'text')
+                if (content) {
+                  message.parts.push({ type: 'text', content })
                 }
               }
             }
@@ -661,25 +726,18 @@ async function createWebRTCConnection(
         // drift, etc.). Validate shape before dereferencing so a malformed
         // payload can't throw a TypeError inside this handler and stop the
         // switch from running for the rest of the session.
-        const raw = event.error
-        const errorObj =
-          raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+        const errorObj = readObject(event, 'error') ?? {}
         const message =
-          typeof errorObj.message === 'string'
-            ? errorObj.message
-            : 'Unknown realtime server error'
-        const err = new Error(message)
+          readString(errorObj, 'message') ?? 'Unknown realtime server error'
+        const err: RealtimeServerError = new Error(message)
         // Preserve `code` / `type` / `param` on the Error as extra props so
         // consumers can branch on them without re-parsing the raw event.
-        if (typeof errorObj.code === 'string') {
-          ;(err as Error & { code?: string }).code = errorObj.code
-        }
-        if (typeof errorObj.type === 'string') {
-          ;(err as Error & { type?: string }).type = errorObj.type
-        }
-        if (typeof errorObj.param === 'string') {
-          ;(err as Error & { param?: string }).param = errorObj.param
-        }
+        const code = readString(errorObj, 'code')
+        if (code !== undefined) err.code = code
+        const errType = readString(errorObj, 'type')
+        if (errType !== undefined) err.type = errType
+        const param = readString(errorObj, 'param')
+        if (param !== undefined) err.param = param
         logger.errors('grok.realtime server error', {
           ...errorObj,
           source: 'grok.realtime server',
@@ -817,14 +875,14 @@ async function createWebRTCConnection(
       // debug mode without escalating to a throw — throwing from a React
       // useEffect cleanup path can break teardown ordering in the UI.
       logger.errors('grok.realtime sendEvent after disconnect', {
-        eventType: (event.type as string | undefined) ?? '<unknown>',
+        eventType: readString(event, 'type') ?? '<unknown>',
         source: 'grok.realtime',
       })
       return
     }
     if (dataChannel?.readyState === 'open') {
       logger.provider(
-        `provider=grok direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
+        `provider=grok direction=out type=${readString(event, 'type') ?? '<unknown>'}`,
         { frame: event },
       )
       dataChannel.send(JSON.stringify(event))
@@ -837,7 +895,7 @@ async function createWebRTCConnection(
     try {
       for (const event of pendingEvents) {
         logger.provider(
-          `provider=grok direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
+          `provider=grok direction=out type=${readString(event, 'type') ?? '<unknown>'}`,
           { frame: event },
         )
         dataChannel!.send(JSON.stringify(event))
@@ -1001,13 +1059,13 @@ async function createWebRTCConnection(
       // through `providerOptions` — including `null` / `false` to disable
       // the feature. Only apply our `grok-stt` default on the first
       // session.update and only if the caller hasn't set it themselves.
-      const providerOptions = config.providerOptions ?? {}
+      const providerOptions: Record<string, unknown> =
+        config.providerOptions ?? {}
       const callerTranscription =
         'inputAudioTranscription' in providerOptions
           ? providerOptions.inputAudioTranscription
           : 'input_audio_transcription' in providerOptions
-            ? (providerOptions as Record<string, unknown>)
-                .input_audio_transcription
+            ? providerOptions.input_audio_transcription
             : undefined
       if (callerTranscription !== undefined) {
         sessionUpdate.input_audio_transcription =

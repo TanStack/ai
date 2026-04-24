@@ -77,32 +77,7 @@ export class GrokTranscriptionAdapter<
     )
 
     const file = toAudioFile(audio, modelOptions?.audio_format)
-    const form = new FormData()
-    form.set('file', file)
-    if (language) form.set('language', language)
-    if (modelOptions?.audio_format !== undefined) {
-      form.set('audio_format', modelOptions.audio_format)
-    }
-    if (modelOptions?.sample_rate !== undefined) {
-      form.set('sample_rate', String(modelOptions.sample_rate))
-    }
-    if (modelOptions?.inverse_text_normalization !== undefined) {
-      // xAI's wire-level field is named `format`; surface it under the clearer
-      // SDK name `inverse_text_normalization`.
-      form.set(
-        'format',
-        modelOptions.inverse_text_normalization ? 'true' : 'false',
-      )
-    }
-    if (modelOptions?.multichannel !== undefined) {
-      form.set('multichannel', modelOptions.multichannel ? 'true' : 'false')
-    }
-    if (modelOptions?.channels !== undefined) {
-      form.set('channels', String(modelOptions.channels))
-    }
-    if (modelOptions?.diarize !== undefined) {
-      form.set('diarize', modelOptions.diarize ? 'true' : 'false')
-    }
+    const form = buildTranscriptionFormData({ file, language, modelOptions })
 
     try {
       const response = await fetch(`${this.baseURL}/stt`, {
@@ -147,6 +122,51 @@ export class GrokTranscriptionAdapter<
       throw error
     }
   }
+}
+
+/**
+ * Build the multipart/form-data body for `POST /v1/stt`, coercing SDK-level
+ * model options into xAI's wire format (booleans as `'true'`/`'false'`
+ * strings, numeric fields stringified, etc.).
+ *
+ * Wire-field mapping:
+ *   - `modelOptions.inverse_text_normalization` → `format` (xAI's chosen
+ *     wire-field name for the ITN boolean; the SDK surfaces it under the
+ *     clearer `inverse_text_normalization` key).
+ *   - `modelOptions.audio_format`, `sample_rate`, `multichannel`, `channels`,
+ *     `diarize` map to same-named form fields.
+ */
+export function buildTranscriptionFormData(options: {
+  file: File
+  language: string | undefined
+  modelOptions: GrokTranscriptionProviderOptions | undefined
+}): FormData {
+  const { file, language, modelOptions } = options
+  const form = new FormData()
+  form.set('file', file)
+  if (language) form.set('language', language)
+  if (modelOptions?.audio_format !== undefined) {
+    form.set('audio_format', modelOptions.audio_format)
+  }
+  if (modelOptions?.sample_rate !== undefined) {
+    form.set('sample_rate', String(modelOptions.sample_rate))
+  }
+  if (modelOptions?.inverse_text_normalization !== undefined) {
+    form.set(
+      'format',
+      modelOptions.inverse_text_normalization ? 'true' : 'false',
+    )
+  }
+  if (modelOptions?.multichannel !== undefined) {
+    form.set('multichannel', modelOptions.multichannel ? 'true' : 'false')
+  }
+  if (modelOptions?.channels !== undefined) {
+    form.set('channels', String(modelOptions.channels))
+  }
+  if (modelOptions?.diarize !== undefined) {
+    form.set('diarize', modelOptions.diarize ? 'true' : 'false')
+  }
+  return form
 }
 
 /**

@@ -47,13 +47,21 @@ export function grokRealtimeToken(
       })
 
       try {
+        // xAI docs (docs.x.ai/developers/rest-api-reference/inference/voice)
+        // specify the body as `{ expires_after: { seconds }, session: { model } }`.
+        // `expires_after` defaults to 600s on the server, so we only set it
+        // if the caller overrides; `session.model` is required to pin the
+        // voice agent model for this token.
+        const requestBody: Record<string, unknown> = {
+          session: { model },
+        }
         const response = await fetch(GROK_REALTIME_CLIENT_SECRETS_URL, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ model }),
+          body: JSON.stringify(requestBody),
         })
 
         if (!response.ok) {
