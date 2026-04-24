@@ -283,8 +283,39 @@ export const GROK_CHAT_MODELS = [
  */
 export const GROK_IMAGE_MODELS = [GROK_2_IMAGE.name] as const
 
+/**
+ * Grok Text-to-Speech Models.
+ *
+ * xAI's `/v1/tts` endpoint does not take a `model` parameter — it is
+ * endpoint-addressed. This synthetic identifier satisfies the SDK's
+ * `TTSOptions.model` contract and provides a stable value for logging
+ * and fixture matching.
+ */
+export const GROK_TTS_MODELS = ['grok-tts'] as const
+
+/**
+ * Grok Speech-to-Text Models.
+ *
+ * xAI's `/v1/stt` endpoint does not take a `model` parameter — it is
+ * endpoint-addressed. This synthetic identifier satisfies the SDK's
+ * `TranscriptionOptions.model` contract.
+ */
+export const GROK_TRANSCRIPTION_MODELS = ['grok-stt'] as const
+
+/**
+ * Grok Realtime (Voice Agent) Models.
+ * Used by the `grokRealtime` / `grokRealtimeToken` adapters.
+ */
+export const GROK_REALTIME_MODELS = [
+  'grok-voice-fast-1.0',
+  'grok-voice-think-fast-1.0',
+] as const
+
 export type GrokChatModel = (typeof GROK_CHAT_MODELS)[number]
 export type GrokImageModel = (typeof GROK_IMAGE_MODELS)[number]
+export type GrokTTSModel = (typeof GROK_TTS_MODELS)[number]
+export type GrokTranscriptionModel = (typeof GROK_TRANSCRIPTION_MODELS)[number]
+export type GrokRealtimeModel = (typeof GROK_REALTIME_MODELS)[number]
 
 /**
  * Type-only map from Grok chat model name to its supported input modalities.

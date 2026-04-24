@@ -114,8 +114,8 @@ const matrix: Record<Feature, Set<Provider>> = {
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
-  tts: new Set(['openai']),
-  transcription: new Set(['openai']),
+  tts: new Set(['openai', 'grok']),
+  transcription: new Set(['openai', 'grok']),
   'video-gen': new Set(['openai']),
 }
 

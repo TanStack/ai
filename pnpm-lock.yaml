@@ -1191,22 +1191,25 @@ importers:
 
   packages/typescript/ai-grok:
     dependencies:
-      '@tanstack/ai':
-        specifier: workspace:^
-        version: link:../ai
       openai:
         specifier: ^6.9.1
-        version: 6.10.0(ws@8.19.0)(zod@4.2.1)
-      zod:
-        specifier: ^4.0.0
-        version: 4.2.1
+        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../ai-client
       '@vitest/coverage-v8':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.1.4)
       vite:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
 
   packages/typescript/ai-groq:
     dependencies:
@@ -21120,6 +21123,11 @@ snapshots:
     optionalDependencies:
       ws: 8.19.0
       zod: 4.2.1
+
+  openai@6.10.0(ws@8.19.0)(zod@4.3.6):
+    optionalDependencies:
+      ws: 8.19.0
+      zod: 4.3.6
 
   optionator@0.9.4:
     dependencies:
