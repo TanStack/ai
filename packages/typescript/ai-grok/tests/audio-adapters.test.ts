@@ -138,9 +138,9 @@ describe('GrokSpeechAdapter', () => {
 
     const adapter = new GrokSpeechAdapter({ apiKey: 'xai-test' }, 'grok-tts')
 
-    await expect(
-      generateSpeech({ adapter, text: 'x' }),
-    ).rejects.toThrow('Grok TTS request failed: 500 upstream boom')
+    await expect(generateSpeech({ adapter, text: 'x' })).rejects.toThrow(
+      'Grok TTS request failed: 500 upstream boom',
+    )
   })
 })
 
