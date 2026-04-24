@@ -59,8 +59,15 @@ type ToolCallState = {
  * `interactionId` via an AG-UI `CUSTOM` event with
  * `name: 'gemini.interactionId'` emitted just before `RUN_FINISHED`; pass
  * that id back on the next turn via `modelOptions.previous_interaction_id`
- * to continue the conversation without resending history. Text output +
- * function tools only.
+ * to continue the conversation without resending history.
+ *
+ * Supports user-defined function tools and the built-in tools
+ * `google_search`, `code_execution`, `url_context`, `file_search`, and
+ * `computer_use`. Built-in tool activity is surfaced via `CUSTOM` events
+ * named `gemini.googleSearchCall`/`gemini.googleSearchResult` (and the
+ * corresponding per-tool variants) carrying the raw Interactions delta.
+ * `google_search_retrieval`, `google_maps`, and `mcp_server` are not
+ * supported on this adapter.
  *
  * @experimental Interactions API is in Beta per Google; shapes may change.
  * @see https://ai.google.dev/gemini-api/docs/interactions
@@ -455,9 +462,10 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
   }
 }
 
-// Built-in Gemini tools use a snake_case shape that differs from what the
-// generateContent converter emits — reject them with a clear error rather
-// than silently producing an invalid request.
+// Built-in Gemini tools use snake_case field names in the Interactions API
+// that differ from the camelCase fields used on `client.models.generateContent`
+// (e.g. `fileSearchStoreNames` vs `file_search_store_names`). Translate
+// explicitly so callers keep using the same tool factories across adapters.
 function convertToolsToInteractionsFormat<TTool extends Tool>(
   tools: Array<TTool> | undefined,
 ): Array<InteractionsTool> | undefined {
@@ -467,15 +475,79 @@ function convertToolsToInteractionsFormat<TTool extends Tool>(
 
   for (const tool of tools) {
     switch (tool.name) {
-      case 'code_execution':
-      case 'google_search':
+      case 'google_search': {
+        const metadata = (tool.metadata ?? {}) as {
+          search_types?: Array<'web_search' | 'image_search'>
+        }
+        result.push({
+          type: 'google_search',
+          ...(metadata.search_types
+            ? { search_types: metadata.search_types }
+            : {}),
+        })
+        break
+      }
+      case 'code_execution': {
+        result.push({ type: 'code_execution' })
+        break
+      }
+      case 'url_context': {
+        result.push({ type: 'url_context' })
+        break
+      }
+      case 'file_search': {
+        const metadata = (tool.metadata ?? {}) as {
+          fileSearchStoreNames?: Array<string>
+          topK?: number
+          metadataFilter?: string
+        }
+        result.push({
+          type: 'file_search',
+          ...(metadata.fileSearchStoreNames
+            ? { file_search_store_names: metadata.fileSearchStoreNames }
+            : {}),
+          ...(metadata.topK !== undefined ? { top_k: metadata.topK } : {}),
+          ...(metadata.metadataFilter !== undefined
+            ? { metadata_filter: metadata.metadataFilter }
+            : {}),
+        })
+        break
+      }
+      case 'computer_use': {
+        const metadata = (tool.metadata ?? {}) as {
+          environment?: string
+          excludedPredefinedFunctions?: Array<string>
+        }
+        if (metadata.environment && metadata.environment !== 'browser') {
+          throw new Error(
+            `computer_use environment "${metadata.environment}" is not supported on the Gemini Interactions API. Only "browser" is accepted.`,
+          )
+        }
+        result.push({
+          type: 'computer_use',
+          ...(metadata.environment
+            ? { environment: metadata.environment as 'browser' }
+            : {}),
+          ...(metadata.excludedPredefinedFunctions
+            ? {
+                excludedPredefinedFunctions:
+                  metadata.excludedPredefinedFunctions,
+              }
+            : {}),
+        })
+        break
+      }
       case 'google_search_retrieval':
-      case 'google_maps':
-      case 'url_context':
-      case 'file_search':
-      case 'computer_use':
         throw new Error(
-          `Tool "${tool.name}" is a built-in Gemini tool and is not yet supported via the Interactions API adapter. Use geminiText() for built-in tools, or use function tools with geminiTextInteractions().`,
+          '`google_search_retrieval` is not supported on the Gemini Interactions API. Use `googleSearchTool()` (`google_search`) with `geminiTextInteractions()`, or call `geminiText()` for the legacy retrieval tool.',
+        )
+      case 'google_maps':
+        throw new Error(
+          '`google_maps` is not yet supported on the Gemini Interactions API. Use `geminiText()` for Google Maps grounding.',
+        )
+      case 'mcp_server':
+        throw new Error(
+          '`mcp_server` is not yet supported on the `geminiTextInteractions()` adapter.',
         )
       default: {
         if (!tool.description) {
@@ -646,6 +718,34 @@ async function* translateInteractionEvents(
             })
             break
           }
+          case 'google_search_call':
+          case 'code_execution_call':
+          case 'url_context_call':
+          case 'file_search_call': {
+            yield* closeReasoningIfNeeded()
+            yield asChunk({
+              type: 'CUSTOM',
+              name: `gemini.${camelizeDeltaType(delta.type)}`,
+              value: delta,
+              model,
+              timestamp,
+            })
+            break
+          }
+          case 'google_search_result':
+          case 'code_execution_result':
+          case 'url_context_result':
+          case 'file_search_result': {
+            yield* closeReasoningIfNeeded()
+            yield asChunk({
+              type: 'CUSTOM',
+              name: `gemini.${camelizeDeltaType(delta.type)}`,
+              value: delta,
+              model,
+              timestamp,
+            })
+            break
+          }
           case 'thought_summary': {
             const thoughtText =
               delta.content && 'text' in delta.content ? delta.content.text : ''
@@ -790,6 +890,13 @@ async function* translateInteractionEvents(
         break
     }
   }
+}
+
+function camelizeDeltaType(type: string): string {
+  const [first, ...rest] = type.split('_')
+  return (
+    (first ?? '') + rest.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
+  )
 }
 
 function extractTextFromInteraction(interaction: Interaction): string {
