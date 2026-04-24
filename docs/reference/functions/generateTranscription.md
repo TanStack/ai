@@ -9,7 +9,7 @@ title: generateTranscription
 function generateTranscription<TAdapter, TStream>(options): TranscriptionActivityResult<TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateTranscription/index.ts:143](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateTranscription/index.ts#L143)
+Defined in: [packages/typescript/ai/src/activities/generateTranscription/index.ts:146](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateTranscription/index.ts#L146)
 
 Transcription activity - converts audio to text.
 
@@ -19,7 +19,7 @@ Uses AI speech-to-text models to transcribe audio content.
 
 ### TAdapter
 
-`TAdapter` *extends* [`TranscriptionAdapter`](../interfaces/TranscriptionAdapter.md)\<`string`, `object`\>
+`TAdapter` *extends* [`TranscriptionAdapter`](../interfaces/TranscriptionAdapter.md)\<`string`, `TranscriptionProviderOptions`\<`TAdapter`\>\>
 
 ### TStream
 
