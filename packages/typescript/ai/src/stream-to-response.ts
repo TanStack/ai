@@ -250,3 +250,71 @@ export function toHttpResponse(
     ...init,
   })
 }
+
+/**
+ * Drain a StreamChunk async iterable fully, then return the collected chunks
+ * as a single JSON-array `Response`.
+ *
+ * Use this when the target runtime does not support streaming
+ * `ReadableStream` responses — for example Expo's `@expo/server` runtime,
+ * Vercel Edge/Node hybrids behind certain proxies, or Cloudflare setups
+ * without streaming enabled. The consumer pairs with
+ * `fetchJSON` on the client, which decodes the array and yields each
+ * chunk back into the normal streaming pipeline — so the on-screen UX
+ * becomes "render everything at once when the request resolves" instead
+ * of incremental streaming, but the rest of the chat pipeline is unchanged.
+ *
+ * Trade-off: you lose the incremental rendering. Use only when you can't
+ * ship SSE / HTTP-stream responses.
+ *
+ * @param stream - AsyncIterable of StreamChunks from chat()
+ * @param init - Optional Response initialization options (including `abortController`)
+ * @returns Response with `Content-Type: application/json` containing an array of StreamChunks
+ *
+ * @example
+ * ```typescript
+ * // Expo API route where streaming responses aren't supported
+ * export async function POST(request: Request) {
+ *   const stream = chat({ adapter: openaiText(), messages: [...] })
+ *   return toJSONResponse(stream)
+ * }
+ * ```
+ */
+export async function toJSONResponse(
+  stream: AsyncIterable<StreamChunk>,
+  init?: ResponseInit & { abortController?: AbortController },
+): Promise<Response> {
+  const { abortController, headers, ...rest } = init ?? {}
+
+  // Honor a pre-aborted signal: don't drain the stream at all, throw the
+  // caller's abort reason (or a synthesized AbortError) so behavior matches
+  // the SSE / HTTP-stream variants, which both short-circuit on aborted.
+  if (abortController?.signal.aborted) {
+    throw (
+      abortController.signal.reason ??
+      new DOMException('The operation was aborted', 'AbortError')
+    )
+  }
+
+  const chunks: Array<StreamChunk> = []
+  try {
+    for await (const chunk of stream) {
+      // Honor mid-drain abort: break out early rather than over-draining an
+      // upstream that may not itself honor the signal.
+      if (abortController?.signal.aborted) {
+        throw (
+          abortController.signal.reason ??
+          new DOMException('The operation was aborted', 'AbortError')
+        )
+      }
+      chunks.push(chunk)
+    }
+  } catch (error) {
+    abortController?.abort()
+    throw error
+  }
+  const merged = new Headers(headers)
+  if (!merged.has('Content-Type'))
+    merged.set('Content-Type', 'application/json')
+  return new Response(JSON.stringify(chunks), { ...rest, headers: merged })
+}

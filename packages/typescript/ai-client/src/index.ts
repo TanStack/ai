@@ -55,6 +55,7 @@ export type {
 export {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJSON,
   stream,
   rpcStream,
   type ConnectConnectionAdapter,

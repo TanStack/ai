@@ -81,6 +81,21 @@ const { messages } = useChat({
 });
 ```
 
+### JSON Array (non-streaming runtimes)
+
+For runtimes that can't emit `ReadableStream` responses — Expo / React Native, some edge proxies, certain legacy serverless runtimes — pair `fetchJSON` on the client with [`toJSONResponse`](../api/ai#tojsonresponsestream-init) on the server:
+
+```typescript
+import { useChat } from "@tanstack/ai-react";
+import { fetchJSON } from "@tanstack/ai-client";
+
+const { messages } = useChat({
+  connection: fetchJSON("/api/chat"),
+});
+```
+
+The server drains the whole chat stream before responding, and this adapter replays each chunk into the normal `ChatClient` pipeline. Trade-off: no incremental rendering — the UI sees every chunk at once when the request resolves. See [React Native & Expo](./non-streaming-runtimes) for the full walkthrough.
+
 ## Custom Adapters
 
 For specialized use cases, you can create custom adapters to meet specific protocols or requirements:

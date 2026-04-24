@@ -36,6 +36,6 @@ export default mergeConfig(
       './src/adapter-internals.ts',
     ],
     srcDir: './src',
-    cjs: false,
+    cjs: true,
   }),
 )
