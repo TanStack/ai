@@ -59,6 +59,16 @@ export function getOtelCapture(captureId: string): OtelCapture {
   return bucketFor(captureId)
 }
 
+/**
+ * Append a new span or patch an existing one.
+ *
+ * Patches are applied with a shallow `Object.assign`, so nested objects and
+ * arrays (e.g. `attributes`, `events`, `exceptions`) are replaced, not merged.
+ * Callers that want to extend those fields must pre-merge before passing the
+ * patch (see how `api.middleware-test.ts` spreads `{ ...attrs }`). Prefer
+ * `recordOtelEvent` / `recordOtelException` for those fields — they append
+ * rather than replace.
+ */
 export function recordOtelSpan(
   captureId: string,
   entry:

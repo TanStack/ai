@@ -7,19 +7,19 @@ import {
 } from '@tanstack/ai'
 import type { ChatMiddleware } from '@tanstack/ai'
 import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
+import { SpanStatusCode } from '@opentelemetry/api'
 import type {
-  Attributes,
   AttributeValue,
+  Attributes,
   Context,
   Histogram,
-  MetricOptions,
   Meter,
+  MetricOptions,
   Span,
   SpanContext,
   SpanStatus,
   Tracer,
 } from '@opentelemetry/api'
-import { SpanStatusCode } from '@opentelemetry/api'
 import { z } from 'zod'
 import { createTextAdapter } from '@/lib/providers'
 import {
@@ -30,6 +30,12 @@ import {
   recordOtelSpan,
   resetOtelCapture,
 } from '@/lib/otel-capture'
+
+// The otel capture endpoint is only useful during E2E runs. Gate both the
+// POST 'otel' mode and the GET capture fetch behind this flag so the route
+// cannot be used as an oracle in a production-like build.
+const OTEL_TEST_ENABLED =
+  process.env.E2E_TEST === '1' || process.env.NODE_ENV !== 'production'
 
 const weatherTool = toolDefinition({
   name: 'get_weather',
@@ -89,6 +95,7 @@ function createCaptureTracer(captureId: string): Tracer {
         ended: false,
       })
       const status: SpanStatus = { code: SpanStatusCode.UNSET }
+      let ended = false
       const span: Span = {
         spanContext(): SpanContext {
           return { traceId: 'capture-trace', spanId: id, traceFlags: 1 }
@@ -132,10 +139,11 @@ function createCaptureTracer(captureId: string): Tracer {
           return span
         },
         end() {
+          ended = true
           recordOtelSpan(captureId, { id, patch: { ended: true } })
         },
         isRecording() {
-          return status.code === SpanStatusCode.UNSET
+          return !ended
         },
         recordException(exception, exceptionAttrs) {
           recordOtelException(captureId, id, {
@@ -215,6 +223,9 @@ export const Route = createFileRoute('/api/middleware-test')({
           if (middlewareMode === 'tool-skip')
             middleware.push(toolSkipMiddleware)
           if (middlewareMode === 'otel') {
+            if (!OTEL_TEST_ENABLED) {
+              return new Response(null, { status: 404 })
+            }
             if (!testId) {
               return new Response(
                 JSON.stringify({ error: 'otel mode requires testId' }),
@@ -258,6 +269,9 @@ export const Route = createFileRoute('/api/middleware-test')({
         }
       },
       GET: async ({ request }) => {
+        if (!OTEL_TEST_ENABLED) {
+          return new Response(null, { status: 404 })
+        }
         const url = new URL(request.url)
         const testId = url.searchParams.get('testId')
         if (!testId) {

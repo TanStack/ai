@@ -1,4 +1,21 @@
+import { SpanKind } from '@opentelemetry/api'
 import { test, expect } from './fixtures'
+
+async function fetchOtelCapture(
+  page: import('@playwright/test').Page,
+  baseURL: string | undefined,
+  testId: string | undefined,
+) {
+  if (!testId) throw new Error('otel capture test requires a testId fixture')
+  const url = `${baseURL ?? ''}/api/middleware-test?testId=${encodeURIComponent(testId)}`
+  const response = await page.request.get(url)
+  if (!response.ok()) {
+    throw new Error(
+      `GET ${url} failed: ${response.status()} ${await response.text()}`,
+    )
+  }
+  return response.json()
+}
 
 test.describe('Middleware Lifecycle', () => {
   test('onChunk transforms text content', async ({
@@ -89,23 +106,21 @@ test.describe('Middleware Lifecycle', () => {
       { timeout: 10000 },
     )
 
-    // Fetch the captured otel state from the server.
-    const captureUrl = `${baseURL ?? ''}/api/middleware-test?testId=${encodeURIComponent(testId)}`
-    const response = await page.request.get(captureUrl)
-    expect(response.ok()).toBe(true)
-    const capture = await response.json()
+    const capture = await fetchOtelCapture(page, baseURL, testId)
 
-    // Chat span + at least one iteration span, all ended.
-    const chatSpan = capture.spans.find(
-      (s: any) =>
-        s.attributes['gen_ai.operation.name'] === 'chat' &&
-        !('tanstack.ai.iteration' in s.attributes),
+    // Root span is kind=INTERNAL; iteration spans are kind=CLIENT. This is a
+    // structural discriminator, immune to accidental attribute renames on
+    // either span.
+    const chatSpans = capture.spans.filter(
+      (s: any) => s.kind === SpanKind.INTERNAL,
     )
-    expect(chatSpan).toBeDefined()
+    expect(chatSpans).toHaveLength(1)
+    const chatSpan = chatSpans[0]
     expect(chatSpan.ended).toBe(true)
+    expect(chatSpan.attributes['gen_ai.operation.name']).toBe('chat')
 
     const iterationSpans = capture.spans.filter(
-      (s: any) => 'tanstack.ai.iteration' in s.attributes,
+      (s: any) => s.kind === SpanKind.CLIENT,
     )
     expect(iterationSpans.length).toBeGreaterThanOrEqual(1)
     for (const iter of iterationSpans) {
@@ -160,9 +175,7 @@ test.describe('Middleware Lifecycle', () => {
       { timeout: 15000 },
     )
 
-    const captureUrl = `${baseURL ?? ''}/api/middleware-test?testId=${encodeURIComponent(testId)}`
-    const response = await page.request.get(captureUrl)
-    const capture = await response.json()
+    const capture = await fetchOtelCapture(page, baseURL, testId)
 
     // Every tool span carries gen_ai.tool.name + ended outcome. This also
     // guards against the "iteration span closed before onBeforeToolCall"

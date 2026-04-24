@@ -127,7 +127,10 @@ describe('otelMiddleware — iteration span lifecycle', () => {
 })
 
 describe('otelMiddleware — token histogram', () => {
-  it('records input and output token histograms from RUN_FINISHED usage', async () => {
+  it('sets usage attributes on the iteration span from RUN_FINISHED chunk.usage without recording a histogram', async () => {
+    // The chat runner always follows onChunk(RUN_FINISHED) with runOnUsage, so
+    // histogram recording lives in onUsage alone to avoid double-counting.
+    // onChunk is responsible only for the per-iteration span attributes.
     const { tracer, spans } = createFakeTracer()
     const { meter, records } = createFakeMeter()
     const mw = otelMiddleware({ tracer, meter })
@@ -140,24 +143,11 @@ describe('otelMiddleware — token histogram', () => {
       usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
     })
 
-    const tokenRecords = records.filter(
-      (r) => r.name === 'gen_ai.client.token.usage',
-    )
-    expect(tokenRecords).toHaveLength(2)
-    expect(
-      tokenRecords.find((r) => r.attributes!['gen_ai.token.type'] === 'input')!
-        .value,
-    ).toBe(100)
-    expect(
-      tokenRecords.find((r) => r.attributes!['gen_ai.token.type'] === 'output')!
-        .value,
-    ).toBe(50)
-    // Cardinality guard: response.id must NOT appear on metric attributes.
-    for (const r of tokenRecords) {
-      expect(r.attributes!['gen_ai.response.id']).toBeUndefined()
-    }
     expect(spans[1]!.attributes['gen_ai.usage.input_tokens']).toBe(100)
     expect(spans[1]!.attributes['gen_ai.usage.output_tokens']).toBe(50)
+    expect(
+      records.filter((r) => r.name === 'gen_ai.client.token.usage'),
+    ).toHaveLength(0)
   })
 
   it('records token histograms from onUsage in production hook order (after RUN_FINISHED)', async () => {
@@ -372,6 +362,45 @@ describe('otelMiddleware — tool spans', () => {
     const toolSpan = spans[2]!
     expect(toolSpan.exceptions[0]!.exception).toBe(plainError)
     expect(toolSpan.status.message).toBe('plain-object error')
+  })
+
+  it('finalizes the tool span even when the result fails to JSON.stringify', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-cyc', function: { name: 'circular' } }),
+      tool: undefined,
+      args: {},
+      toolName: 'circular',
+      toolCallId: 'tc-cyc',
+    })
+
+    // Craft a result that JSON.stringify cannot handle (circular ref).
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+
+    await mw.onAfterToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-cyc' }),
+      tool: undefined,
+      toolName: 'circular',
+      toolCallId: 'tc-cyc',
+      ok: true,
+      duration: 3,
+      result: circular,
+    })
+
+    const iter = spans[1]!
+    const toolSpan = spans[2]!
+    // The span is still properly ended — no dangling state.
+    expect(toolSpan.ended).toBe(true)
+    // The tool-message event uses the sentinel instead of raw serialization.
+    const toolEvt = iter.events.find((e) => e.name === 'gen_ai.tool.message')!
+    expect(toolEvt.attributes!['content']).toBe('[unserializable_tool_result]')
+    warn.mockRestore()
   })
 })
 

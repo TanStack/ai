@@ -406,30 +406,16 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         }
         if (chunk.model) span.setAttribute('gen_ai.response.model', chunk.model)
 
-        // Capture usage attributes and token-histogram metrics directly from
-        // the chunk. `onUsage` can still fire later (per-provider quirks); its
-        // implementation is additive to what's recorded here so nothing is
-        // lost regardless of ordering.
+        // Set usage attributes on the iteration span directly from the chunk
+        // so they're available before `onUsage` fires. Histogram recording is
+        // deliberately NOT done here — the chat runner always invokes
+        // `runOnUsage` when `chunk.usage` is present, and `onUsage` is the
+        // canonical place for the metric. Recording in both would double-count.
         if (chunk.usage) {
           span.setAttributes({
             'gen_ai.usage.input_tokens': chunk.usage.promptTokens,
             'gen_ai.usage.output_tokens': chunk.usage.completionTokens,
           })
-          if (tokenHistogram) {
-            const metricAttrs = {
-              'gen_ai.system': ctx.provider,
-              'gen_ai.operation.name': 'chat',
-              'gen_ai.request.model': ctx.model,
-            }
-            tokenHistogram.record(chunk.usage.promptTokens, {
-              ...metricAttrs,
-              'gen_ai.token.type': 'input',
-            })
-            tokenHistogram.record(chunk.usage.completionTokens, {
-              ...metricAttrs,
-              'gen_ai.token.type': 'output',
-            })
-          }
         }
 
         if (captureContent && state.assistantTextBuffer.length > 0) {
@@ -550,10 +536,16 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         }
 
         if (captureContent && state.currentIterationSpan) {
+          // Serialization can throw on circular refs or `BigInt` values. If it
+          // does, fall back to a sentinel so the rest of this handler (span
+          // end, onSpanEnd, toolSpans cleanup) still runs — otherwise the tool
+          // span would dangle until the onFinish/onError sweep.
           const body =
             typeof info.result === 'string'
               ? info.result
-              : JSON.stringify(info.result ?? null)
+              : (safeCall('otel.serializeToolResult', () =>
+                  JSON.stringify(info.result ?? null),
+                ) ?? '[unserializable_tool_result]')
           state.currentIterationSpan.addEvent('gen_ai.tool.message', {
             content: redactContent(body),
             tool_call_id: info.toolCallId,

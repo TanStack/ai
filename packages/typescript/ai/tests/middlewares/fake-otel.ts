@@ -62,6 +62,7 @@ function makeSpan(
   options: SpanOptions,
   parent: FakeSpan | null,
 ): FakeSpan {
+  const spanId = `fake-span-${Math.random().toString(36).slice(2, 10)}`
   const span: FakeSpan = {
     name,
     kind: options.kind,
@@ -80,7 +81,7 @@ function makeSpan(
     spanContext(): SpanContext {
       return {
         traceId: 'fake-trace',
-        spanId: `fake-span-${Math.random().toString(36).slice(2, 10)}`,
+        spanId,
         traceFlags: 1,
       }
     },
