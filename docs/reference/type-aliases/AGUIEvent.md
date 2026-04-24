@@ -16,14 +16,21 @@ type AGUIEvent =
   | ToolCallStartEvent
   | ToolCallArgsEvent
   | ToolCallEndEvent
+  | ToolCallResultEvent
   | StepStartedEvent
   | StepFinishedEvent
   | MessagesSnapshotEvent
   | StateSnapshotEvent
   | StateDeltaEvent
-  | CustomEvent;
+  | CustomEvent
+  | ReasoningStartEvent
+  | ReasoningMessageStartEvent
+  | ReasoningMessageContentEvent
+  | ReasoningMessageEndEvent
+  | ReasoningEndEvent
+  | ReasoningEncryptedValueEvent;
 ```
 
-Defined in: [types.ts:955](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L955)
+Defined in: [packages/typescript/ai/src/types.ts:1124](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1124)
 
 Union of all AG-UI events.

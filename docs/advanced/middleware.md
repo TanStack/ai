@@ -2,6 +2,16 @@
 title: Middleware
 id: middleware
 order: 1
+description: "Hook into every stage of TanStack AI's chat() lifecycle with middleware — logging, analytics, stream transforms, tool interception, and side effects."
+keywords:
+  - tanstack ai
+  - middleware
+  - chat middleware
+  - lifecycle hooks
+  - observability
+  - logging
+  - tool interception
+  - stream transform
 ---
 
 Middleware lets you hook into every stage of the `chat()` lifecycle — from configuration to streaming, tool execution, usage tracking, and completion. You can observe, transform, or short-circuit behavior at each stage without modifying your adapter or tool implementations.
@@ -38,6 +48,9 @@ const stream = chat({
   middleware: [logger],
 });
 ```
+
+> **Just want to see chunks flowing through your middleware during development?**
+> Use `debug: { middleware: true }` on your `chat()` call — no custom middleware required. See [Debug Logging](./debug-logging).
 
 ## Lifecycle Overview
 

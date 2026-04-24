@@ -2,6 +2,15 @@
 title: Lazy Tool Discovery
 id: lazy-tool-discovery
 order: 6
+description: "Reduce token cost in tool-heavy TanStack AI apps with lazy tool discovery — the LLM discovers only the tools it needs for the current task."
+keywords:
+  - tanstack ai
+  - lazy tools
+  - tool discovery
+  - token optimization
+  - context optimization
+  - performance
+  - large tool sets
 ---
 
 When an application has many tools, sending all tool definitions to the LLM on every request wastes tokens and can degrade response quality. Lazy tool discovery lets the LLM selectively discover only the tools it needs for the current task.

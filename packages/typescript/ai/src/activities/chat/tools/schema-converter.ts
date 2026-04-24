@@ -75,18 +75,24 @@ function makeStructuredOutputCompatible(
 
       // Recursively transform nested objects/arrays
       if (prop.type === 'object' && prop.properties) {
-        properties[propName] = makeStructuredOutputCompatible(
+        const transformed = makeStructuredOutputCompatible(
           prop,
           prop.required || [],
         )
+        properties[propName] = wasOptional
+          ? { ...transformed, type: ['object', 'null'] }
+          : transformed
       } else if (prop.type === 'array' && prop.items) {
-        properties[propName] = {
+        const transformed = {
           ...prop,
           items: makeStructuredOutputCompatible(
             prop.items,
             prop.items.required || [],
           ),
         }
+        properties[propName] = wasOptional
+          ? { ...transformed, type: ['array', 'null'] }
+          : transformed
       } else if (wasOptional) {
         // Make optional fields nullable by adding null to the type
         if (prop.type && !Array.isArray(prop.type)) {

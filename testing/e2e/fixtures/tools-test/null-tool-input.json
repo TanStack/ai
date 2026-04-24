@@ -1,0 +1,23 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[null-tool-input] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Let me check the system status.",
+        "toolCalls": [{ "name": "check_status", "arguments": "null" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[null-tool-input] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The system status check is complete. Everything is working normally."
+      }
+    }
+  ]
+}

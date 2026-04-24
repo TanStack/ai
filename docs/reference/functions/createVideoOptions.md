@@ -9,7 +9,7 @@ title: createVideoOptions
 function createVideoOptions<TAdapter, TStream>(options): VideoCreateOptions<TAdapter, TStream>;
 ```
 
-Defined in: [activities/generateVideo/index.ts:481](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/index.ts#L481)
+Defined in: [packages/typescript/ai/src/activities/generateVideo/index.ts:547](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/index.ts#L547)
 
 Create typed options for the generateVideo() function without executing.
 

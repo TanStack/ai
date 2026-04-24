@@ -140,7 +140,11 @@ function generateModelMetaString(model: OpenRouterModel): string {
   if (!inputModalities.includes('text')) {
     inputModalities.unshift('text')
   }
-  if (outputModalities.includes('text')) {
+  const nonChatFamilies = ['lyria', 'veo', 'imagen', 'sora', 'dall-e', 'tts']
+  const isNonChat = nonChatFamilies.some((f) =>
+    model.id.toLowerCase().includes(f),
+  )
+  if (outputModalities.includes('text') && !isNonChat) {
     chatModels.add(`${constName}.id`)
   }
   if (outputModalities.includes('image')) {
@@ -177,10 +181,20 @@ function generateModelMetaString(model: OpenRouterModel): string {
     web_search_options: 'webSearchOptions',
     parallel_tool_calls: 'parallelToolCalls',
   }
+  // The @openrouter/sdk's ChatRequest$outboundSchema strips any keys it
+  // doesn't declare, so these arrive at OpenRouter as empty. We omit them
+  // from the public type surface to avoid silently no-op'ing user input.
   const excludedParams = new Set([
     'tools',
     'reasoning_effort',
     'structured_outputs',
+    'top_k',
+    'top_a',
+    'min_p',
+    'repetition_penalty',
+    'include_reasoning',
+    'verbosity',
+    'web_search_options',
   ])
 
   // Build the object as a formatted string

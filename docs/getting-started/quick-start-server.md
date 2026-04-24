@@ -2,6 +2,16 @@
 title: "Quick Start: Server Only"
 id: quick-start-server
 order: 5
+description: "Add a streaming AI chat endpoint to a Node.js backend with TanStack AI — no UI framework required."
+keywords:
+  - tanstack ai
+  - node.js
+  - server
+  - backend
+  - quick start
+  - streaming chat
+  - openai
+  - sse
 ---
 
 You have a Node.js backend and want to add AI capabilities. By the end of this guide, you'll have a working chat endpoint powered by TanStack AI and OpenAI -- no UI framework required.

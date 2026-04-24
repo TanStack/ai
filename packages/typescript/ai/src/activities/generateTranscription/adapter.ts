@@ -74,7 +74,7 @@ export abstract class BaseTranscriptionAdapter<
 
   protected config: TranscriptionAdapterConfig
 
-  constructor(config: TranscriptionAdapterConfig = {}, model: TModel) {
+  constructor(model: TModel, config: TranscriptionAdapterConfig = {}) {
     this.config = config
     this.model = model
   }

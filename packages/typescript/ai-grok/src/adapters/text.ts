@@ -10,6 +10,7 @@ import {
 } from '../utils'
 import type {
   GROK_CHAT_MODELS,
+  GrokChatModelToolCapabilitiesByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
@@ -17,19 +18,34 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type OpenAI_SDK from 'openai'
 import type {
   ContentPart,
+  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type { InternalTextProviderOptions } from '../text/text-provider-options'
+import type {
+  ExternalTextProviderOptions as GrokTextProviderOptions,
+  InternalTextProviderOptions,
+} from '../text/text-provider-options'
 import type {
   GrokImageMetadata,
   GrokMessageMetadataByModality,
 } from '../message-types'
 import type { GrokClientConfig } from '../utils'
+
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof GrokChatModelToolCapabilitiesByName
+    ? NonNullable<GrokChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
 
 /**
  * Configuration for Grok text adapter
@@ -49,11 +65,17 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  */
 export class GrokTextAdapter<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>,
-  GrokMessageMetadataByModality
+  TProviderOptions,
+  TInputModalities,
+  GrokMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'grok' as const
@@ -66,56 +88,65 @@ export class GrokTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<ResolveProviderOptions<TModel>>,
+    options: TextOptions<GrokTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const requestParams = this.mapTextOptionsToGrok(options)
     const timestamp = Date.now()
+    const { logger } = options
 
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
-      runId: generateId(this.name),
+      runId: options.runId ?? generateId(this.name),
+      threadId: options.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
       timestamp,
       hasEmittedRunStarted: false,
     }
 
     try {
+      logger.request(
+        `activity=chat provider=grok model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'grok', model: this.model },
+      )
       const stream = await this.client.chat.completions.create({
         ...requestParams,
         stream: true,
       })
 
-      yield* this.processGrokStreamChunks(stream, options, aguiState)
+      yield* this.processGrokStreamChunks(stream, options, aguiState, logger)
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
-        yield {
+        yield asChunk({
           type: 'RUN_STARTED',
           runId: aguiState.runId,
+          threadId: aguiState.threadId,
           model: options.model,
           timestamp,
-        }
+        })
       }
 
       // Emit AG-UI RUN_ERROR
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
         timestamp,
+        message: err.message || 'Unknown error',
+        code: err.code,
         error: {
           message: err.message || 'Unknown error',
           code: err.code,
         },
-      }
+      })
 
-      console.error('>>> chatStream: Fatal error during response creation <<<')
-      console.error('>>> Error message:', err.message)
-      console.error('>>> Error stack:', err.stack)
-      console.error('>>> Full error:', err)
+      logger.errors('grok.chatStream fatal', {
+        error,
+        source: 'grok.chatStream',
+      })
     }
   }
 
@@ -132,10 +163,11 @@ export class GrokTextAdapter<
    * We apply Grok-specific transformations for structured output compatibility.
    */
   async structuredOutput(
-    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+    options: StructuredOutputOptions<GrokTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapTextOptionsToGrok(chatOptions)
+    const { logger } = chatOptions
 
     // Apply Grok-specific transformations for structured output compatibility
     const jsonSchema = makeGrokStructuredOutputCompatible(
@@ -144,6 +176,10 @@ export class GrokTextAdapter<
     )
 
     try {
+      logger.request(
+        `activity=chat provider=grok model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'grok', model: this.model },
+      )
       const response = await this.client.chat.completions.create({
         ...requestParams,
         stream: false,
@@ -179,9 +215,10 @@ export class GrokTextAdapter<
         rawText,
       }
     } catch (error: unknown) {
-      const err = error as Error
-      console.error('>>> structuredOutput: Error during response creation <<<')
-      console.error('>>> Error message:', err.message)
+      logger.errors('grok.structuredOutput fatal', {
+        error,
+        source: 'grok.structuredOutput',
+      })
       throw error
     }
   }
@@ -191,10 +228,12 @@ export class GrokTextAdapter<
     options: TextOptions,
     aguiState: {
       runId: string
+      threadId: string
       messageId: string
       timestamp: number
       hasEmittedRunStarted: boolean
     },
+    logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     const timestamp = aguiState.timestamp
@@ -213,6 +252,7 @@ export class GrokTextAdapter<
 
     try {
       for await (const chunk of stream) {
+        logger.provider(`provider=grok`, { chunk })
         const choice = chunk.choices[0]
 
         if (!choice) continue
@@ -220,12 +260,13 @@ export class GrokTextAdapter<
         // Emit RUN_STARTED on first chunk
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
-          yield {
+          yield asChunk({
             type: 'RUN_STARTED',
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp,
-          }
+          })
         }
 
         const delta = choice.delta
@@ -237,26 +278,26 @@ export class GrokTextAdapter<
           // Emit TEXT_MESSAGE_START on first text content
           if (!hasEmittedTextMessageStart) {
             hasEmittedTextMessageStart = true
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_START',
               messageId: aguiState.messageId,
               model: chunk.model || options.model,
               timestamp,
               role: 'assistant',
-            }
+            })
           }
 
           accumulatedContent += deltaContent
 
           // Emit AG-UI TEXT_MESSAGE_CONTENT
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: aguiState.messageId,
             model: chunk.model || options.model,
             timestamp,
             delta: deltaContent,
             content: accumulatedContent,
-          }
+          })
         }
 
         // Handle tool calls - they come in as deltas
@@ -290,25 +331,26 @@ export class GrokTextAdapter<
             // Emit TOOL_CALL_START when we have id and name
             if (toolCall.id && toolCall.name && !toolCall.started) {
               toolCall.started = true
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_START',
                 toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
                 index,
-              }
+              })
             }
 
             // Emit TOOL_CALL_ARGS for argument deltas
             if (toolCallDelta.function?.arguments && toolCall.started) {
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_ARGS',
                 toolCallId: toolCall.id,
                 model: chunk.model || options.model,
                 timestamp,
                 delta: toolCallDelta.function.arguments,
-              }
+              })
             }
           }
         }
@@ -332,14 +374,15 @@ export class GrokTextAdapter<
               }
 
               // Emit AG-UI TOOL_CALL_END
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_END',
                 toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
                 input: parsedInput,
-              }
+              })
             }
           }
 
@@ -351,18 +394,19 @@ export class GrokTextAdapter<
 
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_END',
               messageId: aguiState.messageId,
               model: chunk.model || options.model,
               timestamp,
-            }
+            })
           }
 
           // Emit AG-UI RUN_FINISHED
-          yield {
+          yield asChunk({
             type: 'RUN_FINISHED',
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp,
             usage: chunk.usage
@@ -373,24 +417,29 @@ export class GrokTextAdapter<
                 }
               : undefined,
             finishReason: computedFinishReason,
-          }
+          })
         }
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
-      console.log('[Grok Adapter] Stream ended with error:', err.message)
+      logger.errors('grok stream ended with error', {
+        error,
+        source: 'grok.processGrokStreamChunks',
+      })
 
       // Emit AG-UI RUN_ERROR
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
         timestamp,
+        message: err.message || 'Unknown error occurred',
+        code: err.code,
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code,
         },
-      }
+      })
     }
   }
 

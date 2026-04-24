@@ -10,6 +10,7 @@ import {
 } from '../utils'
 import type {
   GROQ_CHAT_MODELS,
+  GroqChatModelToolCapabilitiesByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
@@ -17,15 +18,20 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type GROQ_SDK from 'groq-sdk'
 import type { ChatCompletionCreateParamsStreaming } from 'groq-sdk/resources/chat/completions'
 import type {
   ContentPart,
+  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type { InternalTextProviderOptions } from '../text/text-provider-options'
+import type {
+  ExternalTextProviderOptions,
+  InternalTextProviderOptions,
+} from '../text/text-provider-options'
 import type {
   ChatCompletionContentPart,
   ChatCompletionMessageParam,
@@ -33,6 +39,18 @@ import type {
   GroqMessageMetadataByModality,
 } from '../message-types'
 import type { GroqClientConfig } from '../utils'
+
+type GroqTextProviderOptions = ExternalTextProviderOptions
+
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof GroqChatModelToolCapabilitiesByName
+    ? NonNullable<GroqChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
 
 /**
  * Configuration for Groq text adapter
@@ -52,11 +70,17 @@ export type { ExternalTextProviderOptions as GroqTextProviderOptions } from '../
  */
 export class GroqTextAdapter<
   TModel extends (typeof GROQ_CHAT_MODELS)[number],
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>,
-  GroqMessageMetadataByModality
+  TProviderOptions,
+  TInputModalities,
+  GroqMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'groq' as const
@@ -69,53 +93,62 @@ export class GroqTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<ResolveProviderOptions<TModel>>,
+    options: TextOptions<GroqTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const requestParams = this.mapTextOptionsToGroq(options)
     const timestamp = Date.now()
+    const { logger } = options
 
     const aguiState = {
-      runId: generateId(this.name),
+      runId: options.runId ?? generateId(this.name),
+      threadId: options.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
       timestamp,
       hasEmittedRunStarted: false,
     }
 
     try {
+      logger.request(
+        `activity=chat provider=groq model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'groq', model: this.model },
+      )
       const stream = await this.client.chat.completions.create({
         ...requestParams,
         stream: true,
       })
 
-      yield* this.processGroqStreamChunks(stream, options, aguiState)
+      yield* this.processGroqStreamChunks(stream, options, aguiState, logger)
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
 
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
-        yield {
+        yield asChunk({
           type: 'RUN_STARTED',
           runId: aguiState.runId,
+          threadId: aguiState.threadId,
           model: options.model,
           timestamp,
-        }
+        })
       }
 
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
         timestamp,
+        message: err.message || 'Unknown error',
+        code: err.code,
         error: {
           message: err.message || 'Unknown error',
           code: err.code,
         },
-      }
+      })
 
-      console.error('>>> chatStream: Fatal error during response creation <<<')
-      console.error('>>> Error message:', err.message)
-      console.error('>>> Error stack:', err.stack)
-      console.error('>>> Full error:', err)
+      logger.errors('groq.chatStream fatal', {
+        error,
+        source: 'groq.chatStream',
+      })
     }
   }
 
@@ -132,10 +165,11 @@ export class GroqTextAdapter<
    * We apply Groq-specific transformations for structured output compatibility.
    */
   async structuredOutput(
-    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+    options: StructuredOutputOptions<GroqTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapTextOptionsToGroq(chatOptions)
+    const { logger } = chatOptions
 
     const jsonSchema = makeGroqStructuredOutputCompatible(
       outputSchema,
@@ -143,6 +177,10 @@ export class GroqTextAdapter<
     )
 
     try {
+      logger.request(
+        `activity=chat provider=groq model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'groq', model: this.model },
+      )
       const response = await this.client.chat.completions.create({
         ...requestParams,
         stream: false,
@@ -174,9 +212,10 @@ export class GroqTextAdapter<
         rawText,
       }
     } catch (error: unknown) {
-      const err = error as Error
-      console.error('>>> structuredOutput: Error during response creation <<<')
-      console.error('>>> Error message:', err.message)
+      logger.errors('groq.structuredOutput fatal', {
+        error,
+        source: 'groq.structuredOutput',
+      })
       throw error
     }
   }
@@ -190,10 +229,12 @@ export class GroqTextAdapter<
     options: TextOptions,
     aguiState: {
       runId: string
+      threadId: string
       messageId: string
       timestamp: number
       hasEmittedRunStarted: boolean
     },
+    logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     const timestamp = aguiState.timestamp
@@ -211,18 +252,20 @@ export class GroqTextAdapter<
 
     try {
       for await (const chunk of stream) {
+        logger.provider(`provider=groq`, { chunk })
         const choice = chunk.choices[0]
 
         if (!choice) continue
 
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
-          yield {
+          yield asChunk({
             type: 'RUN_STARTED',
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp,
-          }
+          })
         }
 
         const delta = choice.delta
@@ -232,25 +275,25 @@ export class GroqTextAdapter<
         if (deltaContent) {
           if (!hasEmittedTextMessageStart) {
             hasEmittedTextMessageStart = true
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_START',
               messageId: aguiState.messageId,
               model: chunk.model || options.model,
               timestamp,
               role: 'assistant',
-            }
+            })
           }
 
           accumulatedContent += deltaContent
 
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: aguiState.messageId,
             model: chunk.model || options.model,
             timestamp,
             delta: deltaContent,
             content: accumulatedContent,
-          }
+          })
         }
 
         if (deltaToolCalls) {
@@ -280,24 +323,25 @@ export class GroqTextAdapter<
 
             if (toolCall.id && toolCall.name && !toolCall.started) {
               toolCall.started = true
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_START',
                 toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
                 index,
-              }
+              })
             }
 
             if (toolCallDelta.function?.arguments && toolCall.started) {
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_ARGS',
                 toolCallId: toolCall.id,
                 model: chunk.model || options.model,
                 timestamp,
                 delta: toolCallDelta.function.arguments,
-              }
+              })
             }
           }
         }
@@ -321,14 +365,15 @@ export class GroqTextAdapter<
                 parsedInput = {}
               }
 
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_END',
                 toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
                 timestamp,
                 input: parsedInput,
-              }
+              })
             }
           }
 
@@ -341,19 +386,20 @@ export class GroqTextAdapter<
                 : 'stop'
 
           if (hasEmittedTextMessageStart) {
-            yield {
+            yield asChunk({
               type: 'TEXT_MESSAGE_END',
               messageId: aguiState.messageId,
               model: chunk.model || options.model,
               timestamp,
-            }
+            })
           }
 
           const groqUsage = chunk.x_groq?.usage
 
-          yield {
+          yield asChunk({
             type: 'RUN_FINISHED',
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp,
             usage: groqUsage
@@ -364,23 +410,28 @@ export class GroqTextAdapter<
                 }
               : undefined,
             finishReason: computedFinishReason,
-          }
+          })
         }
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
-      console.log('[Groq Adapter] Stream ended with error:', err.message)
+      logger.errors('groq stream ended with error', {
+        error,
+        source: 'groq.processGroqStreamChunks',
+      })
 
-      yield {
+      yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
         timestamp,
+        message: err.message || 'Unknown error occurred',
+        code: err.code,
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code,
         },
-      }
+      })
     }
   }
 

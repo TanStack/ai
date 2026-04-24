@@ -2,6 +2,15 @@
 title: "@tanstack/ai-solid"
 slug: /api/ai-solid
 order: 4
+description: "API reference for @tanstack/ai-solid — SolidJS primitives including useChat for streaming chat with full type safety."
+keywords:
+  - tanstack ai
+  - "@tanstack/ai-solid"
+  - solidjs
+  - solid
+  - useChat
+  - solid primitives
+  - api reference
 ---
 
 SolidJS primitives for TanStack AI, providing convenient SolidJS bindings for the headless client.

@@ -2,6 +2,15 @@
 title: Code Mode
 id: code-mode
 order: 1
+description: "Let LLMs write and execute TypeScript programs that orchestrate tools in a secure sandbox with TanStack AI Code Mode — fewer loops, richer logic."
+keywords:
+  - tanstack ai
+  - code mode
+  - sandbox
+  - typescript execution
+  - tool orchestration
+  - execute_typescript
+  - ai agents
 ---
 
 Code Mode lets an LLM write and execute TypeScript programs inside a secure sandbox. Instead of making one tool call at a time, the model writes a short script that orchestrates multiple tools with loops, conditionals, `Promise.all`, and data transformations — then returns a single result.
@@ -230,6 +239,44 @@ Code Mode emits custom events during execution that you can observe through the 
 | `code_mode:external_error` | When an `external_*` call fails | `{ function, error, duration }` |
 
 To display these events in your React app, see [Showing Code Mode in the UI](./client-integration).
+
+## Model Compatibility
+
+Code Mode asks the model to write valid TypeScript that calls your tools through the sandbox bridge. Not every model handles this equally — many small or older models mishandle the `external_*` calling conventions even when the system prompt is explicit. We track a single multi-step benchmark (joining three tables, filtering customers who bought from every product category, aggregating spend per category) against a gold reference. The full harness lives at `packages/typescript/ai-code-mode/models-eval/`.
+
+| Rank | Model | Stars | Acc | Comp | TS | CME | Latency | Tokens |
+|------|-------|:-----:|:---:|:----:|:--:|:---:|--------:|-------:|
+| 1 | `grok:grok-4-1-fast-non-reasoning` | ★★★ | 10 | 9 | 6 | 10 | 7.0s | — |
+| 2 | `ollama:gpt-oss:20b` | ★★★ | 10 | 8 | 6 | 5 | 45.1s | 23.6k |
+| 3 | `anthropic:claude-haiku-4-5` | ★★★ | 10 | 10 | 7 | 10 | 9.4s | 8.5k |
+| 4 | `gemini:gemini-2.5-flash` | ★★★ | 10 | 7 | 5 | 9 | 7.3s | 6.9k |
+| 5 | `ollama:nemotron-cascade-2` | ★★★ | 10 | 9 | 5 | 5 | 60.4s | 11.7k |
+| 6 | `openai:gpt-4o-mini` | ★★☆ | 10 | 8 | 8 | 10 | 19.2s | 8.7k |
+| 7 | `ollama:gemma4:31b` | ★★☆ | 10 | 8 | 4 | 5 | 264.2s | 6.4k |
+
+**Columns**
+
+- **Stars** — overall weighted rating (1-3) combining accuracy, comprehensiveness, code quality, code-mode efficiency, speed, token efficiency, and stability.
+- **Acc / Comp / TS / CME** — Anthropic-judged subscores out of 10: accuracy vs gold, comprehensiveness, TypeScript quality, code-mode efficiency (fewer wasted attempts is better).
+- **Latency** — wall-clock time for the full agentic loop.
+- **Tokens** — total prompt + completion tokens. Grok's adapter does not report usage.
+
+**Takeaways**
+
+- **Strongest cloud picks:** Grok 4.1 Fast, Claude Haiku 4.5, and Gemini 2.5 Flash all finish under 10s and handle the multi-step task cleanly. Claude Haiku 4.5 has the highest comprehensiveness score (10/10).
+- **Strongest local pick:** `ollama:gpt-oss:20b` is the best local performer at 45s with zero compilation failures. `ollama:nemotron-cascade-2` is a close second.
+- **Avoid:** the smaller `gemma4` (9.6 GB) and the other local models commented out at the top of `eval-config.ts` (`granite4:3b`, `ministral-3`, `mistral:7b`, `qwen3:8b`, etc.) — they either ignore the `external_queryTable` shape, hallucinate results, or refuse to invoke `execute_typescript`.
+- **Caveat:** this is a single‑prompt benchmark. Local model results can vary noticeably between runs; use these as a rough capability filter rather than a definitive ranking.
+
+Reproduce locally:
+
+```bash
+cd packages/typescript/ai-code-mode/models-eval
+pnpm install
+pnpm eval                    # full suite (needs cloud API keys + Anthropic for judging)
+pnpm eval -- --ollama-only   # local models only
+pnpm eval -- --no-judge      # skip Anthropic-based judging
+```
 
 ## Tips
 

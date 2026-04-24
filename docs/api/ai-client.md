@@ -2,6 +2,15 @@
 title: "@tanstack/ai-client"
 slug: /api/ai-client
 order: 2
+description: "API reference for @tanstack/ai-client — the framework-agnostic headless client for managing chat state and streaming transports."
+keywords:
+  - tanstack ai
+  - "@tanstack/ai-client"
+  - headless client
+  - ChatClient
+  - chat state
+  - connection adapters
+  - api reference
 ---
 
 Framework-agnostic headless client for managing chat state and streaming.

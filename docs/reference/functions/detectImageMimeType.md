@@ -9,7 +9,7 @@ title: detectImageMimeType
 function detectImageMimeType(base64Data): "image/jpeg" | "image/png" | "image/gif" | "image/webp" | undefined;
 ```
 
-Defined in: [utils.ts:17](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/utils.ts#L17)
+Defined in: [packages/typescript/ai/src/utils.ts:17](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/utils.ts#L17)
 
 Detect image mime type from base64 data using magic bytes.
 Returns undefined if the format cannot be detected.

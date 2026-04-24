@@ -9,12 +9,14 @@ import {
 import type {
   GEMINI_MODELS,
   GeminiChatModelProviderOptionsByName,
+  GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
 } from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   Content,
   GenerateContentParameters,
@@ -33,6 +35,11 @@ import type {
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type { GeminiMessageMetadataByModality } from '../message-types'
 import type { GeminiClientConfig } from '../utils'
+
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
 
 /**
  * Configuration for Gemini text adapter
@@ -66,6 +73,15 @@ type ResolveInputModalities<TModel extends string> =
     ? GeminiModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'audio', 'video', 'document']
 
+/**
+ * Resolve tool capabilities for a specific model.
+ * If the model has explicit tools in the map, use those; otherwise use empty tuple.
+ */
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof GeminiChatModelToolCapabilitiesByName
+    ? NonNullable<GeminiChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
 // ===========================
 // Adapter Implementation
 // ===========================
@@ -78,14 +94,17 @@ type ResolveInputModalities<TModel extends string> =
  */
 export class GeminiTextAdapter<
   TModel extends (typeof GEMINI_MODELS)[number],
-  TProviderOptions extends object = ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
-  GeminiMessageMetadataByModality
+  GeminiMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'gemini' as const
@@ -101,25 +120,38 @@ export class GeminiTextAdapter<
     options: TextOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const mappedOptions = this.mapCommonOptionsToGemini(options)
+    const { logger } = options
 
     try {
+      logger.request(
+        `activity=chat provider=gemini model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'gemini', model: this.model },
+      )
       const result =
         await this.client.models.generateContentStream(mappedOptions)
 
-      yield* this.processStreamChunks(result, options.model)
+      yield* this.processStreamChunks(result, options, logger)
     } catch (error) {
       const timestamp = Date.now()
-      yield {
+      logger.errors('gemini.chatStream fatal', {
+        error,
+        source: 'gemini.chatStream',
+      })
+      yield asChunk({
         type: 'RUN_ERROR',
         model: options.model,
         timestamp,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'An unknown error occurred during the chat stream.',
         error: {
           message:
             error instanceof Error
               ? error.message
               : 'An unknown error occurred during the chat stream.',
         },
-      }
+      })
     }
   }
 
@@ -132,10 +164,15 @@ export class GeminiTextAdapter<
     options: StructuredOutputOptions<GeminiTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
+    const { logger } = chatOptions
 
     const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
 
     try {
+      logger.request(
+        `activity=chat provider=gemini model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'gemini', model: this.model },
+      )
       // Add structured output configuration
       const result = await this.client.models.generateContent({
         ...mappedOptions,
@@ -164,6 +201,10 @@ export class GeminiTextAdapter<
         rawText,
       }
     } catch (error) {
+      logger.errors('gemini.structuredOutput fatal', {
+        error,
+        source: 'gemini.structuredOutput',
+      })
       throw new Error(
         error instanceof Error
           ? error.message
@@ -191,8 +232,10 @@ export class GeminiTextAdapter<
 
   private async *processStreamChunks(
     result: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
-    model: string,
+    options: TextOptions<GeminiTextProviderOptions>,
+    logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
+    const model = options.model
     const timestamp = Date.now()
     let accumulatedContent = ''
     let accumulatedThinking = ''
@@ -209,23 +252,28 @@ export class GeminiTextAdapter<
     let nextToolIndex = 0
 
     // AG-UI lifecycle tracking
-    const runId = generateId(this.name)
+    const runId = options.runId ?? generateId(this.name)
+    const threadId = options.threadId ?? generateId(this.name)
     const messageId = generateId(this.name)
     let stepId: string | null = null
+    let reasoningMessageId: string | null = null
+    let hasClosedReasoning = false
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
     let hasEmittedStepStarted = false
 
     for await (const chunk of result) {
+      logger.provider(`provider=gemini`, { chunk })
       // Emit RUN_STARTED on first chunk
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
-        yield {
+        yield asChunk({
           type: 'RUN_STARTED',
           runId,
+          threadId,
           model,
           timestamp,
-        }
+        })
       }
 
       if (chunk.candidates?.[0]?.content?.parts) {
@@ -234,51 +282,99 @@ export class GeminiTextAdapter<
         for (const part of parts) {
           if (part.text) {
             if (part.thought) {
-              // Emit STEP_STARTED on first thinking content
+              // Emit STEP_STARTED and REASONING events on first thinking content
               if (!hasEmittedStepStarted) {
                 hasEmittedStepStarted = true
                 stepId = generateId(this.name)
-                yield {
+                reasoningMessageId = generateId(this.name)
+
+                // Spec REASONING events
+                yield asChunk({
+                  type: 'REASONING_START',
+                  messageId: reasoningMessageId,
+                  model,
+                  timestamp,
+                })
+                yield asChunk({
+                  type: 'REASONING_MESSAGE_START',
+                  messageId: reasoningMessageId,
+                  role: 'reasoning' as const,
+                  model,
+                  timestamp,
+                })
+
+                // Legacy STEP events (kept during transition)
+                yield asChunk({
                   type: 'STEP_STARTED',
+                  stepName: stepId,
                   stepId,
                   model,
                   timestamp,
                   stepType: 'thinking',
-                }
+                })
               }
 
               accumulatedThinking += part.text
-              yield {
+
+              // Spec REASONING content event
+              yield asChunk({
+                type: 'REASONING_MESSAGE_CONTENT',
+                messageId: reasoningMessageId!,
+                delta: part.text,
+                model,
+                timestamp,
+              })
+
+              // Legacy STEP event
+              yield asChunk({
                 type: 'STEP_FINISHED',
+                stepName: stepId || generateId(this.name),
                 stepId: stepId || generateId(this.name),
                 model,
                 timestamp,
                 delta: part.text,
                 content: accumulatedThinking,
-              }
+              })
             } else if (part.text.trim()) {
+              // Close reasoning before text starts
+              if (reasoningMessageId && !hasClosedReasoning) {
+                hasClosedReasoning = true
+                yield asChunk({
+                  type: 'REASONING_MESSAGE_END',
+                  messageId: reasoningMessageId,
+                  model,
+                  timestamp,
+                })
+                yield asChunk({
+                  type: 'REASONING_END',
+                  messageId: reasoningMessageId,
+                  model,
+                  timestamp,
+                })
+              }
+
               // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
               // Emit TEXT_MESSAGE_START on first text content
               if (!hasEmittedTextMessageStart) {
                 hasEmittedTextMessageStart = true
-                yield {
+                yield asChunk({
                   type: 'TEXT_MESSAGE_START',
                   messageId,
                   model,
                   timestamp,
                   role: 'assistant',
-                }
+                })
               }
 
               accumulatedContent += part.text
-              yield {
+              yield asChunk({
                 type: 'TEXT_MESSAGE_CONTENT',
                 messageId,
                 model,
                 timestamp,
                 delta: part.text,
                 content: accumulatedContent,
-              }
+              })
             }
           }
 
@@ -323,9 +419,10 @@ export class GeminiTextAdapter<
             // Emit TOOL_CALL_START if not already started
             if (!toolCallData.started) {
               toolCallData.started = true
-              yield {
+              yield asChunk({
                 type: 'TOOL_CALL_START',
                 toolCallId,
+                toolCallName: toolCallData.name,
                 toolName: toolCallData.name,
                 model,
                 timestamp,
@@ -335,18 +432,18 @@ export class GeminiTextAdapter<
                     thoughtSignature: toolCallData.thoughtSignature,
                   },
                 }),
-              }
+              })
             }
 
             // Emit TOOL_CALL_ARGS
-            yield {
+            yield asChunk({
               type: 'TOOL_CALL_ARGS',
               toolCallId,
               model,
               timestamp,
               delta: toolCallData.args,
               args: toolCallData.args,
-            }
+            })
           }
         }
       } else if (chunk.data && chunk.data.trim()) {
@@ -354,24 +451,24 @@ export class GeminiTextAdapter<
         // Emit TEXT_MESSAGE_START on first text content
         if (!hasEmittedTextMessageStart) {
           hasEmittedTextMessageStart = true
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_START',
             messageId,
             model,
             timestamp,
             role: 'assistant',
-          }
+          })
         }
 
         accumulatedContent += chunk.data
-        yield {
+        yield asChunk({
           type: 'TEXT_MESSAGE_CONTENT',
           messageId,
           model,
           timestamp,
           delta: chunk.data,
           content: accumulatedContent,
-        }
+        })
       }
 
       if (chunk.candidates?.[0]?.finishReason) {
@@ -400,34 +497,38 @@ export class GeminiTextAdapter<
                 })
 
                 // Emit TOOL_CALL_START
-                yield {
+                yield asChunk({
                   type: 'TOOL_CALL_START',
                   toolCallId,
+                  toolCallName: functionCall.name || '',
                   toolName: functionCall.name || '',
                   model,
                   timestamp,
                   index: nextToolIndex - 1,
-                }
+                })
 
                 // Emit TOOL_CALL_END with parsed input
                 let parsedInput: unknown = {}
                 try {
-                  parsedInput =
+                  const parsed =
                     typeof functionArgs === 'string'
                       ? JSON.parse(functionArgs)
                       : functionArgs
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
                 } catch {
                   parsedInput = {}
                 }
 
-                yield {
+                yield asChunk({
                   type: 'TOOL_CALL_END',
                   toolCallId,
+                  toolCallName: functionCall.name || '',
                   toolName: functionCall.name || '',
                   model,
                   timestamp,
                   input: parsedInput,
-                }
+                })
               }
             }
           }
@@ -437,19 +538,21 @@ export class GeminiTextAdapter<
         for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
           let parsedInput: unknown = {}
           try {
-            parsedInput = JSON.parse(toolCallData.args)
+            const parsed = JSON.parse(toolCallData.args)
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = {}
           }
 
-          yield {
+          yield asChunk({
             type: 'TOOL_CALL_END',
             toolCallId,
+            toolCallName: toolCallData.name,
             toolName: toolCallData.name,
             model,
             timestamp,
             input: parsedInput,
-          }
+          })
         }
 
         // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
@@ -458,32 +561,53 @@ export class GeminiTextAdapter<
         }
 
         if (finishReason === FinishReason.MAX_TOKENS) {
-          yield {
+          yield asChunk({
             type: 'RUN_ERROR',
             runId,
             model,
             timestamp,
+            message:
+              'The response was cut off because the maximum token limit was reached.',
+            code: 'max_tokens',
             error: {
               message:
                 'The response was cut off because the maximum token limit was reached.',
               code: 'max_tokens',
             },
-          }
+          })
+        }
+
+        // Close reasoning events if still open
+        if (reasoningMessageId && !hasClosedReasoning) {
+          hasClosedReasoning = true
+          yield asChunk({
+            type: 'REASONING_MESSAGE_END',
+            messageId: reasoningMessageId,
+            model,
+            timestamp,
+          })
+          yield asChunk({
+            type: 'REASONING_END',
+            messageId: reasoningMessageId,
+            model,
+            timestamp,
+          })
         }
 
         // Emit TEXT_MESSAGE_END if we had text content
         if (hasEmittedTextMessageStart) {
-          yield {
+          yield asChunk({
             type: 'TEXT_MESSAGE_END',
             messageId,
             model,
             timestamp,
-          }
+          })
         }
 
-        yield {
+        yield asChunk({
           type: 'RUN_FINISHED',
           runId,
+          threadId,
           model,
           timestamp,
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
@@ -494,7 +618,7 @@ export class GeminiTextAdapter<
                 totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
               }
             : undefined,
-        }
+        })
       }
     }
   }
@@ -562,7 +686,7 @@ export class GeminiTextAdapter<
         for (const contentPart of msg.content) {
           parts.push(this.convertContentPartToGemini(contentPart))
         }
-      } else if (msg.content) {
+      } else if (msg.content && msg.role !== 'tool') {
         parts.push({ text: msg.content })
       }
 
@@ -720,7 +844,8 @@ export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
 ): GeminiTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
+  ResolveInputModalities<TModel>,
+  ResolveToolCapabilities<TModel>
 > {
   return new GeminiTextAdapter({ apiKey, ...config }, model)
 }
@@ -735,7 +860,8 @@ export function geminiText<TModel extends (typeof GEMINI_MODELS)[number]>(
 ): GeminiTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
+  ResolveInputModalities<TModel>,
+  ResolveToolCapabilities<TModel>
 > {
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiChat(model, apiKey, config)

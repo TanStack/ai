@@ -12,6 +12,10 @@ import type {
 } from '@tanstack/ai'
 import type { AnthropicClientConfig } from '../utils'
 
+/** Cast an event object to StreamChunk. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 /**
  * Configuration for Anthropic summarize adapter
  */
@@ -50,36 +54,52 @@ export class AnthropicSummarizeAdapter<
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
+    const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    const response = await this.client.messages.create({
+    logger.request(`activity=summarize provider=anthropic`, {
+      provider: 'anthropic',
       model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      system: systemPrompt,
-      max_tokens: options.maxLength || 500,
-      temperature: 0.3,
-      stream: false,
     })
 
-    const content = response.content
-      .map((c) => (c.type === 'text' ? c.text : ''))
-      .join('')
+    try {
+      const response = await this.client.messages.create({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        system: systemPrompt,
+        max_tokens: options.maxLength || 500,
+        temperature: 0.3,
+        stream: false,
+      })
 
-    return {
-      id: response.id,
-      model: response.model,
-      summary: content,
-      usage: {
-        promptTokens: response.usage.input_tokens,
-        completionTokens: response.usage.output_tokens,
-        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-      },
+      const content = response.content
+        .map((c) => (c.type === 'text' ? c.text : ''))
+        .join('')
+
+      return {
+        id: response.id,
+        model: response.model,
+        summary: content,
+        usage: {
+          promptTokens: response.usage.input_tokens,
+          completionTokens: response.usage.output_tokens,
+          totalTokens:
+            response.usage.input_tokens + response.usage.output_tokens,
+        },
+      }
+    } catch (error) {
+      logger.errors('anthropic.summarize fatal', {
+        error,
+        source: 'anthropic.summarize',
+      })
+      throw error
     }
   }
 
   async *summarizeStream(
     options: SummarizationOptions,
   ): AsyncIterable<StreamChunk> {
+    const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
     const id = generateId(this.name)
     const model = options.model
@@ -87,50 +107,68 @@ export class AnthropicSummarizeAdapter<
     let inputTokens = 0
     let outputTokens = 0
 
-    const stream = await this.client.messages.create({
-      model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      system: systemPrompt,
-      max_tokens: options.maxLength || 500,
-      temperature: 0.3,
+    logger.request(`activity=summarize provider=anthropic`, {
+      provider: 'anthropic',
+      model,
       stream: true,
     })
 
-    for await (const event of stream) {
-      if (event.type === 'message_start') {
-        inputTokens = event.message.usage.input_tokens
-      } else if (event.type === 'content_block_delta') {
-        if (event.delta.type === 'text_delta') {
-          const delta = event.delta.text
-          accumulatedContent += delta
-          yield {
-            type: 'TEXT_MESSAGE_CONTENT',
-            messageId: id,
+    try {
+      const stream = await this.client.messages.create({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        system: systemPrompt,
+        max_tokens: options.maxLength || 500,
+        temperature: 0.3,
+        stream: true,
+      })
+
+      for await (const event of stream) {
+        logger.provider(`provider=anthropic type=${event.type}`, {
+          chunk: event,
+        })
+
+        if (event.type === 'message_start') {
+          inputTokens = event.message.usage.input_tokens
+        } else if (event.type === 'content_block_delta') {
+          if (event.delta.type === 'text_delta') {
+            const delta = event.delta.text
+            accumulatedContent += delta
+            yield asChunk({
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId: id,
+              model,
+              timestamp: Date.now(),
+              delta,
+              content: accumulatedContent,
+            })
+          }
+        } else if (event.type === 'message_delta') {
+          outputTokens = event.usage.output_tokens
+          yield asChunk({
+            type: 'RUN_FINISHED',
+            runId: id,
             model,
             timestamp: Date.now(),
-            delta,
-            content: accumulatedContent,
-          }
-        }
-      } else if (event.type === 'message_delta') {
-        outputTokens = event.usage.output_tokens
-        yield {
-          type: 'RUN_FINISHED',
-          runId: id,
-          model,
-          timestamp: Date.now(),
-          finishReason: event.delta.stop_reason as
-            | 'stop'
-            | 'length'
-            | 'content_filter'
-            | null,
-          usage: {
-            promptTokens: inputTokens,
-            completionTokens: outputTokens,
-            totalTokens: inputTokens + outputTokens,
-          },
+            finishReason: event.delta.stop_reason as
+              | 'stop'
+              | 'length'
+              | 'content_filter'
+              | null,
+            usage: {
+              promptTokens: inputTokens,
+              completionTokens: outputTokens,
+              totalTokens: inputTokens + outputTokens,
+            },
+          })
         }
       }
+    } catch (error) {
+      logger.errors('anthropic.summarize fatal', {
+        error,
+        source: 'anthropic.summarize',
+      })
+      throw error
     }
   }
 

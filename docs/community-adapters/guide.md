@@ -1,7 +1,16 @@
---- 
+---
 title: "Community Adapters Guide"
 slug: /community-adapters/guide
 order: 1
+description: "Build and publish a community adapter for TanStack AI — package conventions, implementing the adapter interface, and publishing to npm."
+keywords:
+  - tanstack ai
+  - community adapters
+  - build adapter
+  - custom adapter
+  - provider integration
+  - adapter authoring
+  - contribute
 ---
 
 # Community Adapters Guide

@@ -32,6 +32,19 @@
         {
           "label": "Quick Start: Server Only",
           "to": "getting-started/quick-start-server"
+        },
+        {
+          "label": "Agent Skills (TanStack Intent)",
+          "to": "getting-started/agent-skills"
+        }
+      ]
+    },
+    {
+      "label": "Comparison",
+      "children": [
+        {
+          "label": "TanStack AI vs Vercel AI SDK",
+          "to": "comparison/vercel-ai-sdk"
         }
       ]
     },
@@ -41,6 +54,10 @@
         {
           "label": "Tools",
           "to": "tools/tools"
+        },
+        {
+          "label": "Provider Tools",
+          "to": "tools/provider-tools"
         },
         {
           "label": "Tool Architecture",
@@ -130,6 +147,10 @@
           "to": "media/transcription"
         },
         {
+          "label": "Audio Generation",
+          "to": "media/audio-generation"
+        },
+        {
           "label": "Image Generation",
           "to": "media/image-generation"
         },
@@ -149,6 +170,10 @@
         {
           "label": "Middleware",
           "to": "advanced/middleware"
+        },
+        {
+          "label": "Debug Logging",
+          "to": "advanced/debug-logging"
         },
         {
           "label": "Observability",
@@ -182,6 +207,10 @@
         {
           "label": "Migration Guide",
           "to": "migration/migration"
+        },
+        {
+          "label": "From Vercel AI SDK",
+          "to": "migration/migration-from-vercel-ai"
         }
       ]
     },

@@ -58,6 +58,7 @@ export const EVAL_MODELS: Array<EvalModel> = [
   // --- Ollama (working) ---
   { name: 'GPT-OSS 20B', model: 'ollama:gpt-oss:20b' },
   { name: 'Nemotron Cascade 2', model: 'ollama:nemotron-cascade-2' },
+  { name: 'Gemma 4 31B', model: 'ollama:gemma4:31b' },
 
   // --- Cloud baselines ---
   { name: 'Claude Haiku 4.5', model: 'anthropic:claude-haiku-4-5' },
