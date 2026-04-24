@@ -56,6 +56,10 @@
           "to": "tools/tools"
         },
         {
+          "label": "Provider Tools",
+          "to": "tools/provider-tools"
+        },
+        {
           "label": "Tool Architecture",
           "to": "tools/tool-architecture"
         },
@@ -143,6 +147,10 @@
           "to": "media/transcription"
         },
         {
+          "label": "Audio Generation",
+          "to": "media/audio-generation"
+        },
+        {
           "label": "Image Generation",
           "to": "media/image-generation"
         },
@@ -162,6 +170,10 @@
         {
           "label": "Middleware",
           "to": "advanced/middleware"
+        },
+        {
+          "label": "Debug Logging",
+          "to": "advanced/debug-logging"
         },
         {
           "label": "Observability",
@@ -195,6 +207,10 @@
         {
           "label": "Migration Guide",
           "to": "migration/migration"
+        },
+        {
+          "label": "From Vercel AI SDK",
+          "to": "migration/migration-from-vercel-ai"
         }
       ]
     },

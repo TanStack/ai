@@ -18,6 +18,7 @@ import { Route as GenerationsSummarizeRouteImport } from './routes/generations.s
 import { Route as GenerationsStructuredOutputRouteImport } from './routes/generations.structured-output'
 import { Route as GenerationsSpeechRouteImport } from './routes/generations.speech'
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
+import { Route as GenerationsAudioRouteImport } from './routes/generations.audio'
 import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
@@ -28,6 +29,7 @@ import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.gui
 import { Route as ApiGenerateVideoRouteImport } from './routes/api.generate.video'
 import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.speech'
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
+import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
@@ -74,6 +76,11 @@ const GenerationsSpeechRoute = GenerationsSpeechRouteImport.update({
 const GenerationsImageRoute = GenerationsImageRouteImport.update({
   id: '/generations/image',
   path: '/generations/image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GenerationsAudioRoute = GenerationsAudioRouteImport.update({
+  id: '/generations/audio',
+  path: '/generations/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
@@ -126,6 +133,11 @@ const ApiGenerateImageRoute = ApiGenerateImageRouteImport.update({
   path: '/api/generate/image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
+  id: '/api/generate/audio',
+  path: '/api/generate/audio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -136,12 +148,14 @@ export interface FileRoutesByFullPath {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
   '/generations/structured-output': typeof GenerationsStructuredOutputRoute
   '/generations/summarize': typeof GenerationsSummarizeRoute
   '/generations/transcription': typeof GenerationsTranscriptionRoute
   '/generations/video': typeof GenerationsVideoRoute
+  '/api/generate/audio': typeof ApiGenerateAudioRoute
   '/api/generate/image': typeof ApiGenerateImageRoute
   '/api/generate/speech': typeof ApiGenerateSpeechRoute
   '/api/generate/video': typeof ApiGenerateVideoRoute
@@ -157,12 +171,14 @@ export interface FileRoutesByTo {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
   '/generations/structured-output': typeof GenerationsStructuredOutputRoute
   '/generations/summarize': typeof GenerationsSummarizeRoute
   '/generations/transcription': typeof GenerationsTranscriptionRoute
   '/generations/video': typeof GenerationsVideoRoute
+  '/api/generate/audio': typeof ApiGenerateAudioRoute
   '/api/generate/image': typeof ApiGenerateImageRoute
   '/api/generate/speech': typeof ApiGenerateSpeechRoute
   '/api/generate/video': typeof ApiGenerateVideoRoute
@@ -179,12 +195,14 @@ export interface FileRoutesById {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
   '/generations/structured-output': typeof GenerationsStructuredOutputRoute
   '/generations/summarize': typeof GenerationsSummarizeRoute
   '/generations/transcription': typeof GenerationsTranscriptionRoute
   '/generations/video': typeof GenerationsVideoRoute
+  '/api/generate/audio': typeof ApiGenerateAudioRoute
   '/api/generate/image': typeof ApiGenerateImageRoute
   '/api/generate/speech': typeof ApiGenerateSpeechRoute
   '/api/generate/video': typeof ApiGenerateVideoRoute
@@ -202,12 +220,14 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
     | '/generations/structured-output'
     | '/generations/summarize'
     | '/generations/transcription'
     | '/generations/video'
+    | '/api/generate/audio'
     | '/api/generate/image'
     | '/api/generate/speech'
     | '/api/generate/video'
@@ -223,12 +243,14 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
     | '/generations/structured-output'
     | '/generations/summarize'
     | '/generations/transcription'
     | '/generations/video'
+    | '/api/generate/audio'
     | '/api/generate/image'
     | '/api/generate/speech'
     | '/api/generate/video'
@@ -244,12 +266,14 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
     | '/generations/structured-output'
     | '/generations/summarize'
     | '/generations/transcription'
     | '/generations/video'
+    | '/api/generate/audio'
     | '/api/generate/image'
     | '/api/generate/speech'
     | '/api/generate/video'
@@ -266,12 +290,14 @@ export interface RootRouteChildren {
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  GenerationsAudioRoute: typeof GenerationsAudioRoute
   GenerationsImageRoute: typeof GenerationsImageRoute
   GenerationsSpeechRoute: typeof GenerationsSpeechRoute
   GenerationsStructuredOutputRoute: typeof GenerationsStructuredOutputRoute
   GenerationsSummarizeRoute: typeof GenerationsSummarizeRoute
   GenerationsTranscriptionRoute: typeof GenerationsTranscriptionRoute
   GenerationsVideoRoute: typeof GenerationsVideoRoute
+  ApiGenerateAudioRoute: typeof ApiGenerateAudioRoute
   ApiGenerateImageRoute: typeof ApiGenerateImageRoute
   ApiGenerateSpeechRoute: typeof ApiGenerateSpeechRoute
   ApiGenerateVideoRoute: typeof ApiGenerateVideoRoute
@@ -344,6 +370,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GenerationsImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/generations/audio': {
+      id: '/generations/audio'
+      path: '/generations/audio'
+      fullPath: '/generations/audio'
+      preLoaderRoute: typeof GenerationsAudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/transcribe': {
       id: '/api/transcribe'
       path: '/api/transcribe'
@@ -414,6 +447,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerateImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/generate/audio': {
+      id: '/api/generate/audio'
+      path: '/api/generate/audio'
+      fullPath: '/api/generate/audio'
+      preLoaderRoute: typeof ApiGenerateAudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -426,12 +466,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  GenerationsAudioRoute: GenerationsAudioRoute,
   GenerationsImageRoute: GenerationsImageRoute,
   GenerationsSpeechRoute: GenerationsSpeechRoute,
   GenerationsStructuredOutputRoute: GenerationsStructuredOutputRoute,
   GenerationsSummarizeRoute: GenerationsSummarizeRoute,
   GenerationsTranscriptionRoute: GenerationsTranscriptionRoute,
   GenerationsVideoRoute: GenerationsVideoRoute,
+  ApiGenerateAudioRoute: ApiGenerateAudioRoute,
   ApiGenerateImageRoute: ApiGenerateImageRoute,
   ApiGenerateSpeechRoute: ApiGenerateSpeechRoute,
   ApiGenerateVideoRoute: ApiGenerateVideoRoute,

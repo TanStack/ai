@@ -17,6 +17,7 @@
 import type { AnyTextAdapter } from './chat/adapter'
 import type { AnySummarizeAdapter } from './summarize/adapter'
 import type { AnyImageAdapter } from './generateImage/adapter'
+import type { AnyAudioAdapter } from './generateAudio/adapter'
 import type { AnyVideoAdapter } from './generateVideo/adapter'
 import type { AnyTTSAdapter } from './generateSpeech/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
@@ -79,6 +80,25 @@ export {
   type ImageAdapterConfig,
   type AnyImageAdapter,
 } from './generateImage/adapter'
+
+// ===========================
+// Audio Activity
+// ===========================
+
+export {
+  kind as audioKind,
+  generateAudio,
+  type AudioActivityOptions,
+  type AudioActivityResult,
+  type AudioProviderOptions,
+} from './generateAudio/index'
+
+export {
+  BaseAudioAdapter,
+  type AudioAdapter,
+  type AudioAdapterConfig,
+  type AnyAudioAdapter,
+} from './generateAudio/adapter'
 
 // ===========================
 // Video Activity (Experimental)
@@ -150,6 +170,7 @@ export type AIAdapter =
   | AnyTextAdapter
   | AnySummarizeAdapter
   | AnyImageAdapter
+  | AnyAudioAdapter
   | AnyVideoAdapter
   | AnyTTSAdapter
   | AnyTranscriptionAdapter
@@ -159,6 +180,7 @@ export type AdapterKind =
   | 'text'
   | 'summarize'
   | 'image'
+  | 'audio'
   | 'video'
   | 'tts'
   | 'transcription'

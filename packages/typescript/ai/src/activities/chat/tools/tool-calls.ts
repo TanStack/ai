@@ -93,11 +93,12 @@ export class ToolCallManager {
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
     const index = event.index ?? this.toolCallsMap.size
+    const name = event.toolCallName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',
       function: {
-        name: event.toolName,
+        name,
         arguments: '',
       },
       ...(event.providerMetadata && {
@@ -237,11 +238,12 @@ export class ToolCallManager {
       yield {
         type: 'TOOL_CALL_END',
         toolCallId: toolCall.id,
+        toolCallName: toolCall.function.name,
         toolName: toolCall.function.name,
         model: finishEvent.model,
         timestamp: Date.now(),
         result: toolResultContent,
-      }
+      } as ToolCallEndEvent
 
       // Add tool result message
       toolResults.push({

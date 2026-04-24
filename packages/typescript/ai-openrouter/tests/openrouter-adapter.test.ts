@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ChatRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterText } from '../src/adapters/text'
 import type { OpenRouterTextModelOptions } from '../src/adapters/text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
+
+// Test helper: a silent logger for test chatStream calls.
+const testLogger = resolveDebugOption(false)
 // Declare mockSend at module level
 let mockSend: any
 
@@ -222,24 +226,16 @@ describe('OpenRouter adapter option mapping', () => {
     expect(contentChunks[0]).toMatchObject({
       type: 'TEXT_MESSAGE_CONTENT',
       delta: 'Hello ',
-      content: 'Hello ',
     })
 
     expect(contentChunks[1]).toMatchObject({
       type: 'TEXT_MESSAGE_CONTENT',
       delta: 'world',
-      content: 'Hello world',
     })
 
     const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(runFinishedChunk).toMatchObject({
       type: 'RUN_FINISHED',
-      finishReason: 'stop',
-      usage: {
-        promptTokens: 5,
-        completionTokens: 2,
-        totalTokens: 7,
-      },
     })
   })
 
@@ -312,6 +308,7 @@ describe('OpenRouter adapter option mapping', () => {
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
       tools: [weatherTool],
+      logger: testLogger,
     })) {
       chunks.push(chunk)
     }
@@ -386,6 +383,7 @@ describe('OpenRouter adapter option mapping', () => {
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
     })) {
       chunks.push(chunk)
     }
@@ -395,8 +393,8 @@ describe('OpenRouter adapter option mapping', () => {
     const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(errorChunk).toBeDefined()
 
-    if (errorChunk) {
-      expect(errorChunk.error.message).toBe('Invalid API key')
+    if (errorChunk && errorChunk.type === 'RUN_ERROR') {
+      expect(errorChunk.error?.message).toBe('Invalid API key')
     }
   })
 })
@@ -442,6 +440,7 @@ describe('OpenRouter AG-UI event emission', () => {
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
     })) {
       chunks.push(chunk)
     }
@@ -489,6 +488,7 @@ describe('OpenRouter AG-UI event emission', () => {
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
     })) {
       chunks.push(chunk)
     }
@@ -547,6 +547,7 @@ describe('OpenRouter AG-UI event emission', () => {
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
     })) {
       chunks.push(chunk)
     }
@@ -638,6 +639,7 @@ describe('OpenRouter AG-UI event emission', () => {
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
       tools: [weatherTool],
+      logger: testLogger,
     })) {
       chunks.push(chunk)
     }
@@ -677,6 +679,7 @@ describe('OpenRouter AG-UI event emission', () => {
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
     })) {
       chunks.push(chunk)
     }
@@ -689,7 +692,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
-      expect(runErrorChunk.error.message).toBe('API key invalid')
+      expect(runErrorChunk.error?.message).toBe('API key invalid')
     }
   })
 
@@ -729,6 +732,7 @@ describe('OpenRouter AG-UI event emission', () => {
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
     })) {
       chunks.push(chunk)
     }
@@ -740,14 +744,14 @@ describe('OpenRouter AG-UI event emission', () => {
     expect(eventTypes[0]).toBe('RUN_STARTED')
 
     // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
-    const textStartIndex = eventTypes.indexOf('TEXT_MESSAGE_START')
-    const textContentIndex = eventTypes.indexOf('TEXT_MESSAGE_CONTENT')
+    const textStartIndex = eventTypes.indexOf('TEXT_MESSAGE_START' as any)
+    const textContentIndex = eventTypes.indexOf('TEXT_MESSAGE_CONTENT' as any)
     expect(textStartIndex).toBeGreaterThan(-1)
     expect(textContentIndex).toBeGreaterThan(textStartIndex)
 
     // Should have TEXT_MESSAGE_END before RUN_FINISHED
-    const textEndIndex = eventTypes.indexOf('TEXT_MESSAGE_END')
-    const runFinishedIndex = eventTypes.indexOf('RUN_FINISHED')
+    const textEndIndex = eventTypes.indexOf('TEXT_MESSAGE_END' as any)
+    const runFinishedIndex = eventTypes.indexOf('RUN_FINISHED' as any)
     expect(textEndIndex).toBeGreaterThan(-1)
     expect(runFinishedIndex).toBeGreaterThan(textEndIndex)
 
@@ -776,6 +780,7 @@ describe('OpenRouter AG-UI event emission', () => {
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
     })) {
       chunks.push(chunk)
     }
@@ -783,7 +788,7 @@ describe('OpenRouter AG-UI event emission', () => {
     const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
-      expect(runErrorChunk.error.message).toBe('Rate limit exceeded')
+      expect(runErrorChunk.error?.message).toBe('Rate limit exceeded')
     }
   })
 
@@ -840,6 +845,7 @@ describe('OpenRouter AG-UI event emission', () => {
     for await (const chunk of adapter.chatStream({
       model: 'openai/o1-preview',
       messages: [{ role: 'user', content: 'What is the meaning of life?' }],
+      logger: testLogger,
     })) {
       chunks.push(chunk)
     }
@@ -852,13 +858,13 @@ describe('OpenRouter AG-UI event emission', () => {
       expect(stepStartedChunk.stepType).toBe('thinking')
     }
 
-    // Check for STEP_FINISHED event
+    // Check for STEP_FINISHED event — emitted once when reasoning closes
     const stepFinishedChunks = chunks.filter((c) => c.type === 'STEP_FINISHED')
-    expect(stepFinishedChunks.length).toBeGreaterThan(0)
+    expect(stepFinishedChunks).toHaveLength(1)
     const stepFinishedChunk = stepFinishedChunks[0]
     if (stepFinishedChunk?.type === 'STEP_FINISHED') {
       expect(stepFinishedChunk.stepId).toBeDefined()
-      expect(stepFinishedChunk.delta).toBe('Let me think about this...')
+      expect(stepFinishedChunk.content).toBe('Let me think about this...')
     }
   })
 })
@@ -895,6 +901,7 @@ describe('OpenRouter structured output', () => {
       chatOptions: {
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'Give me a person' }],
+        logger: testLogger,
       },
       outputSchema,
     })
@@ -962,6 +969,7 @@ describe('OpenRouter structured output', () => {
       chatOptions: {
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'Generate' }],
+        logger: testLogger,
       },
       outputSchema,
     })
@@ -972,8 +980,11 @@ describe('OpenRouter structured output', () => {
     // Root object: all props required, additionalProperties: false
     expect(sentSchema.additionalProperties).toBe(false)
     expect(sentSchema.required).toEqual(['title', 'description', 'tags'])
-    // Optional field is made nullable
+    // Optional primitive is made nullable
     expect(sentSchema.properties.description.type).toEqual(['string', 'null'])
+    // Optional array must also be made nullable (strict mode requires every
+    // required property to be nullable if it was originally optional)
+    expect(sentSchema.properties.tags.type).toEqual(['array', 'null'])
     // Nested array items: same transformation applied recursively
     expect(sentSchema.properties.tags.items.additionalProperties).toBe(false)
     expect(sentSchema.properties.tags.items.required).toEqual([
@@ -984,6 +995,47 @@ describe('OpenRouter structured output', () => {
       'number',
       'null',
     ])
+  })
+
+  it('makes optional nested objects nullable under strict mode', async () => {
+    const nonStreamResponse = {
+      choices: [{ message: { content: '{"id":"x","meta":null}' } }],
+    }
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    const outputSchema = {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        meta: {
+          type: 'object',
+          properties: {
+            createdAt: { type: 'string' },
+          },
+          required: ['createdAt'],
+        },
+      },
+      required: ['id'],
+    }
+
+    await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Generate' }],
+        logger: testLogger,
+      },
+      outputSchema,
+    })
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const sentSchema = rawParams.chatRequest.responseFormat.jsonSchema.schema
+
+    expect(sentSchema.required).toEqual(['id', 'meta'])
+    expect(sentSchema.properties.meta.type).toEqual(['object', 'null'])
+    // Inner object still strict-compatible
+    expect(sentSchema.properties.meta.additionalProperties).toBe(false)
+    expect(sentSchema.properties.meta.required).toEqual(['createdAt'])
   })
 
   it('flows through core chat() entrypoint with strict transformation', async () => {
@@ -1060,6 +1112,7 @@ describe('OpenRouter structured output', () => {
       chatOptions: {
         model: 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content: 'List items' }],
+        logger: testLogger,
       },
       outputSchema: { type: 'object' },
     })
@@ -1086,6 +1139,7 @@ describe('OpenRouter structured output', () => {
         chatOptions: {
           model: 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: 'Give me data' }],
+          logger: testLogger,
         },
         outputSchema: { type: 'object' },
       }),
@@ -1102,6 +1156,7 @@ describe('OpenRouter structured output', () => {
         chatOptions: {
           model: 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: 'Give me data' }],
+          logger: testLogger,
         },
         outputSchema: { type: 'object' },
       }),
@@ -1127,6 +1182,7 @@ describe('OpenRouter structured output', () => {
         chatOptions: {
           model: 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: 'Give me data' }],
+          logger: testLogger,
         },
         outputSchema: { type: 'object' },
       }),
@@ -1288,5 +1344,323 @@ describe('OpenRouter modelOptions pass-through', () => {
     const [rawParams] = mockSend.mock.calls[0]!
     const params = rawParams.chatRequest
     expect(params.toolChoice).toBe('required')
+  })
+})
+
+describe('OpenRouter duplicate event prevention', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('does not emit duplicate TEXT_MESSAGE_END when SDK sends separate usage chunk with finishReason', async () => {
+    // Real-world pattern: OpenAI-compatible APIs often send a finish chunk
+    // followed by a separate usage-only chunk, both with finishReason set.
+    const streamChunks = [
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hello' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+      },
+      {
+        // Separate usage chunk — also has finishReason
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 5, completionTokens: 1, totalTokens: 6 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const textEndChunks = chunks.filter((c) => c.type === 'TEXT_MESSAGE_END')
+    expect(textEndChunks).toHaveLength(1)
+  })
+
+  it('does not emit duplicate RUN_FINISHED when SDK sends separate usage chunk with finishReason', async () => {
+    const streamChunks = [
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hello' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 5, completionTokens: 1, totalTokens: 6 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runFinishedChunks = chunks.filter((c) => c.type === 'RUN_FINISHED')
+    expect(runFinishedChunks).toHaveLength(1)
+  })
+
+  it('preserves usage data from the second finishReason chunk', async () => {
+    // When the first finish chunk has no usage but the second does,
+    // the single RUN_FINISHED should carry the usage from the second chunk.
+    const streamChunks = [
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hi' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        // No usage on first finish chunk
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runFinished = chunks.filter((c) => c.type === 'RUN_FINISHED')
+    expect(runFinished).toHaveLength(1)
+    if (runFinished[0]?.type === 'RUN_FINISHED') {
+      expect(runFinished[0].usage).toMatchObject({
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+      })
+    }
+  })
+
+  it('ensures TEXT_MESSAGE_END comes before RUN_FINISHED even with duplicate finishReason chunks', async () => {
+    const streamChunks = [
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hello' }, finishReason: null }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+      },
+      {
+        id: 'chatcmpl-dup',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 5, completionTokens: 1, totalTokens: 6 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const eventTypes = chunks.map((c) => c.type)
+    const textEndIndex = eventTypes.lastIndexOf('TEXT_MESSAGE_END' as any)
+    const runFinishedIndex = eventTypes.lastIndexOf('RUN_FINISHED' as any)
+
+    expect(textEndIndex).toBeGreaterThan(-1)
+    expect(runFinishedIndex).toBeGreaterThan(-1)
+    expect(textEndIndex).toBeLessThan(runFinishedIndex)
+  })
+})
+
+describe('OpenRouter STEP event consistency', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('every STEP_FINISHED has a preceding STEP_STARTED', async () => {
+    const streamChunks = [
+      {
+        id: 'chatcmpl-step',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: {
+              reasoningDetails: [
+                { type: 'reasoning.text', text: 'Thinking...' },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-step',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: { content: 'Answer: 42' },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-step',
+        model: 'openai/o1-preview',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/o1-preview',
+      messages: [{ role: 'user', content: 'What is the meaning of life?' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const eventTypes = chunks.map((c) => c.type)
+    const stepFinishedIndices = eventTypes
+      .map((t, i) => (t === 'STEP_FINISHED' ? i : -1))
+      .filter((i) => i !== -1)
+    const stepStartedIndices = eventTypes
+      .map((t, i) => (t === 'STEP_STARTED' ? i : -1))
+      .filter((i) => i !== -1)
+
+    // Every STEP_FINISHED must have a STEP_STARTED before it
+    expect(stepStartedIndices.length).toBeGreaterThan(0)
+    for (const finIdx of stepFinishedIndices) {
+      const hasMatchingStart = stepStartedIndices.some(
+        (startIdx) => startIdx < finIdx,
+      )
+      expect(hasMatchingStart).toBe(true)
+    }
+  })
+
+  it('emits exactly one STEP_STARTED and one STEP_FINISHED for multi-delta reasoning', async () => {
+    // When multiple reasoning deltas arrive, the adapter should emit a
+    // single STEP_STARTED/STEP_FINISHED pair — not one STEP_FINISHED per
+    // delta.  A 1:N ratio causes verifiers to report orphan STEP_FINISHED.
+    const streamChunks = [
+      {
+        id: 'chatcmpl-multi',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: {
+              reasoningDetails: [{ type: 'reasoning.text', text: 'Let me ' }],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-multi',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: {
+              reasoningDetails: [
+                { type: 'reasoning.text', text: 'think about ' },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-multi',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: {
+              reasoningDetails: [{ type: 'reasoning.text', text: 'this...' }],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-multi',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: { content: 'The answer is 42.' },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'chatcmpl-multi',
+        model: 'openai/o1-preview',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+        usage: { promptTokens: 20, completionTokens: 10, totalTokens: 30 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/o1-preview',
+      messages: [{ role: 'user', content: 'What is the meaning of life?' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const stepStarted = chunks.filter((c) => c.type === 'STEP_STARTED')
+    const stepFinished = chunks.filter((c) => c.type === 'STEP_FINISHED')
+
+    expect(stepStarted).toHaveLength(1)
+    expect(stepFinished).toHaveLength(1)
   })
 })

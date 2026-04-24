@@ -5,7 +5,7 @@ title: RealtimeToolResultPart
 
 # Interface: RealtimeToolResultPart
 
-Defined in: [realtime/types.ts:127](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L127)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:127](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L127)
 
 Tool result part in a realtime message
 
@@ -17,7 +17,7 @@ Tool result part in a realtime message
 content: string;
 ```
 
-Defined in: [realtime/types.ts:130](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L130)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:130](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L130)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [realtime/types.ts:130](https://github.com/TanStack/ai/blob/main/pac
 toolCallId: string;
 ```
 
-Defined in: [realtime/types.ts:129](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L129)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:129](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L129)
 
 ***
 
@@ -37,4 +37,4 @@ Defined in: [realtime/types.ts:129](https://github.com/TanStack/ai/blob/main/pac
 type: "tool-result";
 ```
 
-Defined in: [realtime/types.ts:128](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L128)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:128](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L128)

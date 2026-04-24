@@ -2,23 +2,34 @@ import type {
   BetaCodeExecutionTool20250522,
   BetaCodeExecutionTool20250825,
 } from '@anthropic-ai/sdk/resources/beta'
-import type { Tool } from '@tanstack/ai'
+import type { ProviderTool, Tool } from '@tanstack/ai'
 
-export type CodeExecutionTool =
+export type CodeExecutionToolConfig =
   | BetaCodeExecutionTool20250522
   | BetaCodeExecutionTool20250825
 
+/** @deprecated Renamed to `CodeExecutionToolConfig`. Will be removed in a future release. */
+export type CodeExecutionTool = CodeExecutionToolConfig
+
+export type AnthropicCodeExecutionTool = ProviderTool<
+  'anthropic',
+  'code_execution'
+>
+
 export function convertCodeExecutionToolToAdapterFormat(
   tool: Tool,
-): CodeExecutionTool {
-  const metadata = tool.metadata as CodeExecutionTool
+): CodeExecutionToolConfig {
+  const metadata = tool.metadata as CodeExecutionToolConfig
   return metadata
 }
 
-export function codeExecutionTool(config: CodeExecutionTool): Tool {
+export function codeExecutionTool(
+  config: CodeExecutionToolConfig,
+): AnthropicCodeExecutionTool {
+  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'code_execution',
     description: '',
     metadata: config,
-  }
+  } as unknown as AnthropicCodeExecutionTool
 }

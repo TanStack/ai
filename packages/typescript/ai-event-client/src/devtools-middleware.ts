@@ -254,15 +254,16 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
         }
         case 'TOOL_CALL_START': {
           const toolIndex = chunk.index ?? 0
+          const toolName = chunk.toolCallName
           activeToolCalls.set(chunk.toolCallId, {
-            toolName: chunk.toolName,
+            toolName,
             index: toolIndex,
           })
           aiEventClient.emit('text:chunk:tool-call', {
             ...base,
             messageId: localMessageId || undefined,
             toolCallId: chunk.toolCallId,
-            toolName: chunk.toolName,
+            toolName,
             index: toolIndex,
             arguments: '',
             timestamp: Date.now(),
@@ -297,7 +298,7 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
           aiEventClient.emit('text:chunk:done', {
             ...base,
             messageId: localMessageId || undefined,
-            finishReason: chunk.finishReason,
+            finishReason: chunk.finishReason ?? null,
             usage: chunk.usage,
             timestamp: Date.now(),
           })
@@ -312,11 +313,14 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
           break
         }
         case 'RUN_ERROR': {
-          const err = chunk.error as { message?: string } | undefined
+          const errorMessage =
+            chunk.message ||
+            (chunk.error as { message?: string } | undefined)?.message ||
+            'Unknown error'
           aiEventClient.emit('text:chunk:error', {
             ...base,
             messageId: localMessageId || undefined,
-            error: err?.message ?? String(chunk.error),
+            error: errorMessage,
             timestamp: Date.now(),
           })
           break

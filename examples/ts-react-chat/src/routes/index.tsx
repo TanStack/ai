@@ -7,6 +7,7 @@ import {
   Image,
   ImagePlus,
   Mic,
+  Music,
   Send,
   Square,
   Video,
@@ -148,6 +149,13 @@ function Messages({
             >
               <FileAudio size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">Speech</span>
+            </Link>
+            <Link
+              to="/generations/audio"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Music size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Audio</span>
             </Link>
             <Link
               to="/generations/transcription"
@@ -505,7 +513,7 @@ function ChatPage() {
               </select>
             </div>
             <Link
-              to="/image-gen"
+              to="/generations/image"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
             >
               <Image className="w-4 h-4" />

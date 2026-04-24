@@ -10,6 +10,7 @@ import {
   Image,
   Menu,
   Mic,
+  Music,
   Video,
   X,
 } from 'lucide-react'
@@ -98,6 +99,19 @@ export default function Header() {
           >
             <FileAudio size={20} />
             <span className="font-medium">Text-to-Speech</span>
+          </Link>
+
+          <Link
+            to="/generations/audio"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Music size={20} />
+            <span className="font-medium">Audio Generation</span>
           </Link>
 
           <Link

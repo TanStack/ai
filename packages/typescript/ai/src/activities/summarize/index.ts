@@ -7,6 +7,9 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
+import { resolveDebugOption } from '../../logger/resolve'
+import type { InternalLogger } from '../../logger/internal-logger'
+import type { DebugOption } from '../../logger/types'
 import type { SummarizeAdapter } from './adapter'
 import type {
   StreamChunk,
@@ -66,6 +69,12 @@ export interface SummarizeActivityOptions<
    * @default false
    */
   stream?: TStream
+  /**
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
+  debug?: DebugOption
 }
 
 // ===========================
@@ -180,6 +189,7 @@ async function runSummarize(
   const requestId = createId('summarize')
   const inputLength = text.length
   const startTime = Date.now()
+  const logger: InternalLogger = resolveDebugOption(options.debug)
 
   aiEventClient.emit('summarize:request:started', {
     requestId,
@@ -189,30 +199,50 @@ async function runSummarize(
     timestamp: startTime,
   })
 
+  logger.request(`activity=summarize provider=${adapter.name}`, {
+    provider: adapter.name,
+    model,
+    inputLength,
+  })
+
   const summarizeOptions: SummarizationOptions = {
     model,
     text,
     maxLength,
     style,
     focus,
+    logger,
   }
 
-  const result = await adapter.summarize(summarizeOptions)
+  try {
+    const result = await adapter.summarize(summarizeOptions)
 
-  const duration = Date.now() - startTime
-  const outputLength = result.summary.length
+    const duration = Date.now() - startTime
+    const outputLength = result.summary.length
 
-  aiEventClient.emit('summarize:request:completed', {
-    requestId,
-    provider: adapter.name,
-    model,
-    inputLength,
-    outputLength,
-    duration,
-    timestamp: Date.now(),
-  })
+    aiEventClient.emit('summarize:request:completed', {
+      requestId,
+      provider: adapter.name,
+      model,
+      inputLength,
+      outputLength,
+      duration,
+      timestamp: Date.now(),
+    })
 
-  return result
+    logger.output(`activity=summarize length=${outputLength}`, {
+      hasSummary: !!result.summary,
+      outputLength,
+    })
+
+    return result
+  } catch (error) {
+    logger.errors('summarize activity failed', {
+      error,
+      source: 'summarize',
+    })
+    throw error
+  }
 }
 
 /**
@@ -225,6 +255,13 @@ async function* runStreamingSummarize(
 ): AsyncIterable<StreamChunk> {
   const { adapter, text, maxLength, style, focus } = options
   const model = adapter.model
+  const logger: InternalLogger = resolveDebugOption(options.debug)
+
+  logger.request(`activity=summarize provider=${adapter.name}`, {
+    provider: adapter.name,
+    model,
+    stream: true,
+  })
 
   const summarizeOptions: SummarizationOptions = {
     model,
@@ -232,16 +269,25 @@ async function* runStreamingSummarize(
     maxLength,
     style,
     focus,
+    logger,
   }
 
-  // Use real streaming if the adapter supports it
-  if (adapter.summarizeStream) {
-    yield* adapter.summarizeStream(summarizeOptions)
-    return
-  }
+  try {
+    // Use real streaming if the adapter supports it
+    if (adapter.summarizeStream) {
+      yield* adapter.summarizeStream(summarizeOptions)
+      return
+    }
 
-  // Fall back to non-streaming — wrap result with streamGenerationResult
-  yield* streamGenerationResult(() => adapter.summarize(summarizeOptions))
+    // Fall back to non-streaming — wrap result with streamGenerationResult
+    yield* streamGenerationResult(() => adapter.summarize(summarizeOptions))
+  } catch (error) {
+    logger.errors('summarize activity failed', {
+      error,
+      source: 'summarize',
+    })
+    throw error
+  }
 }
 
 // ===========================

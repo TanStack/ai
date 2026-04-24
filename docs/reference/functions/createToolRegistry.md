@@ -9,7 +9,7 @@ title: createToolRegistry
 function createToolRegistry(initialTools): ToolRegistry;
 ```
 
-Defined in: [tool-registry.ts:78](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tool-registry.ts#L78)
+Defined in: [packages/typescript/ai/src/tool-registry.ts:78](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/tool-registry.ts#L78)
 
 Create a mutable tool registry for dynamic tool scenarios.
 

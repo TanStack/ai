@@ -5,7 +5,7 @@ title: TTSAdapter
 
 # Interface: TTSAdapter\<TModel, TProviderOptions\>
 
-Defined in: [activities/generateSpeech/adapter.ts:24](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L24)
+Defined in: [packages/typescript/ai/src/activities/generateSpeech/adapter.ts:24](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L24)
 
 TTS adapter interface with pre-resolved generics.
 
@@ -34,7 +34,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [activities/generateSpeech/adapter.ts:38](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L38)
+Defined in: [packages/typescript/ai/src/activities/generateSpeech/adapter.ts:38](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L38)
 
 **`Internal`**
 
@@ -54,7 +54,7 @@ providerOptions: TProviderOptions;
 generateSpeech: (options) => Promise<TTSResult>;
 ```
 
-Defined in: [activities/generateSpeech/adapter.ts:45](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L45)
+Defined in: [packages/typescript/ai/src/activities/generateSpeech/adapter.ts:45](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L45)
 
 Generate speech from text
 
@@ -76,7 +76,7 @@ Generate speech from text
 readonly kind: "tts";
 ```
 
-Defined in: [activities/generateSpeech/adapter.ts:29](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L29)
+Defined in: [packages/typescript/ai/src/activities/generateSpeech/adapter.ts:29](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L29)
 
 Discriminator for adapter kind - used to determine API shape
 
@@ -88,7 +88,7 @@ Discriminator for adapter kind - used to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [activities/generateSpeech/adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L33)
+Defined in: [packages/typescript/ai/src/activities/generateSpeech/adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L33)
 
 The model this adapter is configured for
 
@@ -100,6 +100,6 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [activities/generateSpeech/adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L31)
+Defined in: [packages/typescript/ai/src/activities/generateSpeech/adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateSpeech/adapter.ts#L31)
 
 Adapter name identifier

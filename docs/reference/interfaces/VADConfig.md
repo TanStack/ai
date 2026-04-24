@@ -5,7 +5,7 @@ title: VADConfig
 
 # Interface: VADConfig
 
-Defined in: [realtime/types.ts:8](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L8)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:8](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L8)
 
 Voice activity detection configuration
 
@@ -17,7 +17,7 @@ Voice activity detection configuration
 optional prefixPaddingMs: number;
 ```
 
-Defined in: [realtime/types.ts:12](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L12)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:12](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L12)
 
 Audio to include before speech detection (ms)
 
@@ -29,7 +29,7 @@ Audio to include before speech detection (ms)
 optional silenceDurationMs: number;
 ```
 
-Defined in: [realtime/types.ts:14](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L14)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:14](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L14)
 
 Silence duration to end turn (ms)
 
@@ -41,6 +41,6 @@ Silence duration to end turn (ms)
 optional threshold: number;
 ```
 
-Defined in: [realtime/types.ts:10](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L10)
+Defined in: [packages/typescript/ai/src/realtime/types.ts:10](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/types.ts#L10)
 
 Sensitivity threshold (0.0-1.0)

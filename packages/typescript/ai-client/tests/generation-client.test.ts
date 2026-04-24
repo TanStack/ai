@@ -3,6 +3,10 @@ import { GenerationClient } from '../src/generation-client'
 import type { StreamChunk } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
 
+/** Cast an event object to StreamChunk for type compatibility with EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 // Helper to create a mock connect-based adapter from StreamChunks
 function createMockConnection(
   chunks: Array<StreamChunk>,
@@ -129,19 +133,19 @@ describe('GenerationClient', () => {
       const onResult = vi.fn()
 
       const connection = createMockConnection([
-        { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
-        {
+        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
+        asChunk({
           type: 'CUSTOM',
           name: 'generation:result',
           value: mockResult,
           timestamp: Date.now(),
-        },
-        {
+        }),
+        asChunk({
           type: 'RUN_FINISHED',
           runId: 'run-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        },
+        }),
       ])
 
       const client = new GenerationClient({
@@ -160,13 +164,13 @@ describe('GenerationClient', () => {
       const onError = vi.fn()
 
       const connection = createMockConnection([
-        { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
-        {
+        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
+        asChunk({
           type: 'RUN_ERROR',
           runId: 'run-1',
           error: { message: 'Generation failed' },
           timestamp: Date.now(),
-        },
+        }),
       ])
 
       const client = new GenerationClient({
@@ -185,25 +189,25 @@ describe('GenerationClient', () => {
       const onProgress = vi.fn()
 
       const connection = createMockConnection([
-        { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
-        {
+        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
+        asChunk({
           type: 'CUSTOM',
           name: 'generation:progress',
           value: { progress: 50, message: 'Halfway' },
           timestamp: Date.now(),
-        },
-        {
+        }),
+        asChunk({
           type: 'CUSTOM',
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
-        },
-        {
+        }),
+        asChunk({
           type: 'RUN_FINISHED',
           runId: 'run-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        },
+        }),
       ])
 
       const client = new GenerationClient({
@@ -220,19 +224,23 @@ describe('GenerationClient', () => {
       const onChunk = vi.fn()
 
       const chunks: Array<StreamChunk> = [
-        { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
+        {
+          type: 'RUN_STARTED',
+          runId: 'run-1',
+          timestamp: Date.now(),
+        } as unknown as StreamChunk,
         {
           type: 'CUSTOM',
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
-        },
+        } as unknown as StreamChunk,
         {
           type: 'RUN_FINISHED',
           runId: 'run-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        },
+        } as unknown as StreamChunk,
       ]
 
       const connection = createMockConnection(chunks)
@@ -249,18 +257,18 @@ describe('GenerationClient', () => {
 
     it('should pass body and input as data to connection', async () => {
       const connectSpy = vi.fn(async function* () {
-        yield {
+        yield asChunk({
           type: 'CUSTOM' as const,
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
-        }
-        yield {
+        })
+        yield asChunk({
           type: 'RUN_FINISHED' as const,
           runId: 'run-1',
           finishReason: 'stop' as const,
           timestamp: Date.now(),
-        }
+        })
       })
 
       const connection: ConnectConnectionAdapter = {
@@ -326,12 +334,12 @@ describe('GenerationClient', () => {
   describe('updateOptions()', () => {
     it('should update body without recreating client', async () => {
       const connectSpy = vi.fn(async function* () {
-        yield {
+        yield asChunk({
           type: 'RUN_FINISHED' as const,
           runId: 'run-1',
           finishReason: 'stop' as const,
           timestamp: Date.now(),
-        }
+        })
       })
 
       const connection: ConnectConnectionAdapter = { connect: connectSpy }
@@ -358,23 +366,23 @@ describe('GenerationClient', () => {
 
       const connection: ConnectConnectionAdapter = {
         async *connect(_msgs, _data, signal) {
-          yield {
+          yield asChunk({
             type: 'RUN_STARTED' as const,
             runId: 'run-1',
             timestamp: Date.now(),
-          }
+          })
           // Wait until abort is triggered
           await new Promise<void>((resolve) => {
             signal?.addEventListener('abort', () => resolve())
           })
           // Adapter honors abort signal and stops yielding
           if (signal?.aborted) return
-          yield {
+          yield asChunk({
             type: 'CUSTOM' as const,
             name: 'generation:result',
             value: { id: '1' },
             timestamp: Date.now(),
-          }
+          })
         },
       }
 
@@ -456,13 +464,13 @@ describe('GenerationClient', () => {
       const onResult = vi.fn()
 
       const connection = createMockConnection([
-        { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
-        {
+        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
+        asChunk({
           type: 'RUN_FINISHED',
           runId: 'run-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        },
+        }),
       ])
 
       const client = new GenerationClient({
@@ -481,19 +489,19 @@ describe('GenerationClient', () => {
       const onChunk = vi.fn()
 
       const connection = createMockConnection([
-        { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
-        {
+        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
+        asChunk({
           type: 'CUSTOM',
           name: 'unknown:event',
           value: { foo: 'bar' },
           timestamp: Date.now(),
-        },
-        {
+        }),
+        asChunk({
           type: 'RUN_FINISHED',
           runId: 'run-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        },
+        }),
       ])
 
       const client = new GenerationClient({
@@ -586,19 +594,19 @@ describe('GenerationClient', () => {
 
     it('should transform result from stream CUSTOM event', async () => {
       const connection = createMockConnection([
-        { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
-        {
+        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
+        asChunk({
           type: 'CUSTOM',
           name: 'generation:result',
           value: { id: '1', images: [] },
           timestamp: Date.now(),
-        },
-        {
+        }),
+        asChunk({
           type: 'RUN_FINISHED',
           runId: 'run-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        },
+        }),
       ])
 
       const client = new GenerationClient<
