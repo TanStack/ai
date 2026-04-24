@@ -23,6 +23,7 @@ Text-to-speech (TTS) is handled by TTS adapters that follow the same tree-shakea
 
 - **OpenAI**: TTS-1, TTS-1-HD, and audio-capable GPT-4o models
 - **Gemini**: Gemini 2.5 Flash TTS (experimental)
+- **fal.ai**: Kokoro, ElevenLabs, MiniMax, Chatterbox, Dia, Orpheus, F5-TTS, VibeVoice, and more
 
 ## Basic Usage
 
@@ -63,6 +64,47 @@ const result = await generateSpeech({
 })
 
 console.log(result.audio) // Base64 encoded audio
+```
+
+### fal.ai Text-to-Speech
+
+fal.ai offers a broad selection of TTS models — Google's brand-new `gemini-3.1-flash-tts`, ElevenLabs v3, MiniMax 2.6 HD, Kokoro's multilingual voices, and more. Pass the model ID as a string literal for fully typed `modelOptions`.
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { falSpeech } from '@tanstack/ai-fal'
+
+// Google Gemini 3.1 Flash TTS — 80+ languages, expressive audio tags
+const result = await generateSpeech({
+  adapter: falSpeech('fal-ai/gemini-3.1-flash-tts'),
+  text: '[warm, enthusiastic] Welcome to TanStack AI!',
+  voice: 'Kore',
+})
+```
+
+```typescript
+// Kokoro multilingual
+const result = await generateSpeech({
+  adapter: falSpeech('fal-ai/kokoro/american-english'),
+  text: 'Hello from fal!',
+  voice: 'af_heart',
+  speed: 1.0,
+})
+
+console.log(result.audio) // Base64 encoded audio
+console.log(result.format) // e.g. "wav"
+```
+
+```typescript
+// ElevenLabs v3 with model-specific options
+const result = await generateSpeech({
+  adapter: falSpeech('fal-ai/elevenlabs/tts/eleven-v3'),
+  text: 'Welcome to TanStack AI.',
+  modelOptions: {
+    voice: 'Rachel',
+    stability: 0.5,
+  },
+})
 ```
 
 ## Options
@@ -443,6 +485,8 @@ try {
 ```
 
 > **Tip:** To trigger speech generation from your frontend with loading states, see [Generation Hooks](./generation-hooks).
+
+> **Debugging:** When a TTS request fails or produces unexpected output, pass `debug: true` on `generateSpeech({...})` to log the outgoing request, every raw provider chunk, and any caught error. See [Debug Logging](../advanced/debug-logging).
 
 ## Environment Variables
 

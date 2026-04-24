@@ -43,7 +43,7 @@ export class OpenAITTSAdapter<
   private client: OpenAI_SDK
 
   constructor(config: OpenAITTSConfig, model: TModel) {
-    super(config, model)
+    super(model, config)
     this.client = createOpenAIClient(config)
   }
 

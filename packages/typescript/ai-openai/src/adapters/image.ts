@@ -53,7 +53,7 @@ export class OpenAIImageAdapter<
   private client: OpenAI_SDK
 
   constructor(config: OpenAIImageConfig, model: TModel) {
-    super({}, model)
+    super(model, {})
     this.client = createOpenAIClient(config)
   }
 
@@ -99,12 +99,14 @@ export class OpenAIImageAdapter<
   ): OpenAI_SDK.Images.ImageGenerateParams {
     const { model, prompt, numberOfImages, size, modelOptions } = options
 
+    // Spread modelOptions FIRST so explicit args (model, prompt, n, size) win
+    // and user-supplied modelOptions cannot silently override them.
     return {
+      ...modelOptions,
       model,
       prompt,
       n: numberOfImages ?? 1,
       size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
-      ...modelOptions,
     }
   }
 
@@ -112,11 +114,18 @@ export class OpenAIImageAdapter<
     model: string,
     response: OpenAI_SDK.Images.ImagesResponse,
   ): ImageGenerationResult {
-    const images: Array<GeneratedImage> = (response.data ?? []).map((item) => ({
-      b64Json: item.b64_json,
-      url: item.url,
-      revisedPrompt: item.revised_prompt,
-    }))
+    const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
+      (item): Array<GeneratedImage> => {
+        const revisedPrompt = item.revised_prompt
+        if (item.b64_json) {
+          return [{ b64Json: item.b64_json, revisedPrompt }]
+        }
+        if (item.url) {
+          return [{ url: item.url, revisedPrompt }]
+        }
+        return []
+      },
+    )
 
     return {
       id: generateId(this.name),

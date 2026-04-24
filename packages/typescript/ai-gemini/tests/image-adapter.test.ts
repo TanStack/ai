@@ -89,6 +89,24 @@ describe('Gemini Image Adapter', () => {
       ).toThrow()
     })
 
+    it('uses the per-model cap for Imagen 4 models', () => {
+      // Per-model cap lookup: each Imagen family model has its own max
+      // rather than relying on a misleading comment about "up to 8".
+      expect(() =>
+        validateNumberOfImages('imagen-4.0-generate-001', 4),
+      ).not.toThrow()
+      expect(() =>
+        validateNumberOfImages('imagen-4.0-generate-001', 5),
+      ).toThrow(/Must be between 1 and 4/)
+    })
+
+    it('falls back to the default cap for unknown models', () => {
+      expect(() => validateNumberOfImages('unknown-model', 4)).not.toThrow()
+      expect(() => validateNumberOfImages('unknown-model', 5)).toThrow(
+        /Must be between 1 and 4/,
+      )
+    })
+
     it('rejects 0 images', () => {
       expect(() =>
         validateNumberOfImages('imagen-3.0-generate-002', 0),
@@ -341,7 +359,10 @@ describe('Gemini Image Adapter', () => {
       expect(result.images).toHaveLength(1)
     })
 
-    it('handles empty response from Gemini image model', async () => {
+    it('throws when Gemini returns no image parts at all', async () => {
+      // Regression: previously returned an empty images array silently,
+      // which meant callers couldn't distinguish "safety refusal" from
+      // "successful empty response".
       const mockResponse = {
         candidates: [
           {
@@ -368,13 +389,93 @@ describe('Gemini Image Adapter', () => {
         },
       }
 
-      const result = await adapter.generateImages({
+      await expect(
+        adapter.generateImages({
+          model: 'gemini-3.1-flash-image-preview',
+          prompt: 'A test prompt',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/returned no images/)
+    })
+
+    it('throws with the refusal text when Gemini returns only text parts', async () => {
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'I cannot generate that image.' }],
+            },
+          },
+        ],
+      }
+
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: mockGenerateContent,
+        },
+      }
+
+      await expect(
+        adapter.generateImages({
+          model: 'gemini-3.1-flash-image-preview',
+          prompt: 'A test prompt',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/I cannot generate that image/)
+    })
+
+    it('does not let modelOptions override responseModalities', async () => {
+      // Regression: modelOptions was spread after responseModalities, so a
+      // user could silently break image generation by passing
+      // { responseModalities: ['TEXT'] }.
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [{ inlineData: { mimeType: 'image/png', data: 'img1' } }],
+            },
+          },
+        ],
+      }
+
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: {
+          generateContent: mockGenerateContent,
+        },
+      }
+
+      await adapter.generateImages({
         model: 'gemini-3.1-flash-image-preview',
-        prompt: 'A test prompt',
+        prompt: 'A simple sketch',
+        modelOptions: {
+          // User tries to strip IMAGE from modalities — must be ignored.
+          responseModalities: ['TEXT'],
+        } as unknown as never,
         logger: testLogger,
       })
 
-      expect(result.images).toHaveLength(0)
+      const args = mockGenerateContent.mock.calls[0]![0]
+      expect(args.config.responseModalities).toEqual(['TEXT', 'IMAGE'])
     })
 
     it('augments prompt when numberOfImages > 1 for Gemini models', async () => {

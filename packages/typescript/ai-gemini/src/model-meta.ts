@@ -295,7 +295,6 @@ const GEMINI_2_5_PRO_TTS = {
     input: ['text'],
     output: ['audio'],
     capabilities: ['audio_generation'],
-    tools: ['file_search'],
   },
   pricing: {
     input: {
@@ -455,7 +454,6 @@ const GEMINI_2_5_FLASH_TTS = {
     input: ['text'],
     output: ['audio'],
     capabilities: ['audio_generation', 'batch_api'],
-    tools: ['file_search'],
   },
   pricing: {
     input: {
@@ -471,6 +469,82 @@ const GEMINI_2_5_FLASH_TTS = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions
 >
+
+/**
+ * Gemini 3.1 Flash TTS Preview - latest expressive TTS model with
+ * 200+ audio tags, 70+ languages, and multi-speaker dialogue support.
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-tts-preview
+ */
+const GEMINI_3_1_FLASH_TTS = {
+  name: 'gemini-3.1-flash-tts-preview',
+  max_input_tokens: 32_768,
+  max_output_tokens: 16_384,
+  knowledge_cutoff: '2025-05-01',
+  supports: {
+    input: ['text'],
+    output: ['audio'],
+    capabilities: ['audio_generation', 'batch_api'],
+  },
+  pricing: {
+    input: {
+      normal: 0.5,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions
+>
+
+/**
+ * Lyria 3 Pro Preview — Google's flagship music generation model.
+ * Generates full-length songs with multiple verses, choruses, and bridges.
+ * Outputs MP3 or WAV at 48 kHz stereo.
+ * @see https://ai.google.dev/gemini-api/docs/models/lyria-3-pro-preview
+ */
+const LYRIA_3_PRO = {
+  name: 'lyria-3-pro-preview',
+  max_input_tokens: 131_072,
+  supports: {
+    input: ['text', 'image'],
+    output: ['audio'],
+    capabilities: ['audio_generation'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0,
+    },
+  },
+} as const satisfies ModelMeta
+
+/**
+ * Lyria 3 Clip Preview — 30-second music clips in MP3 format.
+ * @see https://ai.google.dev/gemini-api/docs/music-generation
+ */
+const LYRIA_3_CLIP = {
+  name: 'lyria-3-clip-preview',
+  max_input_tokens: 131_072,
+  supports: {
+    input: ['text', 'image'],
+    output: ['audio'],
+    capabilities: ['audio_generation'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0,
+    },
+  },
+} as const satisfies ModelMeta
 
 const GEMINI_2_5_FLASH_LITE = {
   name: 'gemini-2.5-flash-lite',
@@ -580,7 +654,7 @@ const GEMINI_2_FLASH_IMAGE = {
   knowledge_cutoff: '2024-08-01',
   supports: {
     input: ['text', 'image', 'audio', 'video'],
-    output: ['text'],
+    output: ['text', 'image'],
     capabilities: ['batch_api', 'caching', 'structured_output'],
     tools: [],
   },
@@ -930,8 +1004,18 @@ export const GEMINI_IMAGE_MODELS = [
  * @experimental Gemini TTS is an experimental feature and may change.
  */
 export const GEMINI_TTS_MODELS = [
+  GEMINI_3_1_FLASH_TTS.name,
   GEMINI_2_5_FLASH_TTS.name,
   GEMINI_2_5_PRO_TTS.name,
+] as const
+
+/**
+ * Audio generation models (Lyria music generation).
+ * @experimental Lyria music generation is an experimental feature and may change.
+ */
+export const GEMINI_AUDIO_MODELS = [
+  LYRIA_3_PRO.name,
+  LYRIA_3_CLIP.name,
 ] as const
 
 /**

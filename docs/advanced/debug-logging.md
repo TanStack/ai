@@ -128,7 +128,7 @@ const logger: Logger = {
 | Category | Logs | Applies to |
 |----------|------|------------|
 | `request` | Outgoing call to a provider (model, message count, tool count) | All activities |
-| `provider` | Every raw chunk/frame received from a provider SDK | Streaming activities (chat, realtime) |
+| `provider` | Every raw chunk/frame received from a provider SDK | Streaming activities (`chat`, `realtime`, and streaming `generateAudio`/`generateSpeech`/`generateTranscription`) |
 | `output` | Every chunk or result yielded to the caller | All activities |
 | `middleware` | Inputs and outputs around every middleware hook | `chat()` only |
 | `tools` | Before/after tool call execution | `chat()` only |
@@ -154,7 +154,11 @@ The same `debug` option works on every activity:
 summarize({ adapter, text, debug: true });
 generateImage({ adapter, prompt: "a cat", debug: { logger } });
 generateSpeech({ adapter, text, debug: { request: true } });
+generateAudio({ adapter, prompt: "ambient piano", debug: true });
+generateTranscription({ adapter, audio, debug: { provider: true } });
 ```
+
+When streaming any of these (`generateAudio`, `generateSpeech`, `generateTranscription` with `stream: true`), the `provider` category emits the raw SDK chunks and `output` emits the AG-UI-shaped chunks yielded to the caller — useful when a media pipeline looks stuck or the bytes arriving don't match what you expected.
 
 The chat-only categories (`middleware`, `tools`, `agentLoop`, `config`) simply never fire for these activities because those concepts don't exist in their pipelines.
 
