@@ -3,7 +3,7 @@ import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
 import { z } from 'zod'
 import { buildTranscriptionAdapter } from '../lib/server-audio-adapters'
 
-const TRANSCRIPTION_PROVIDER_SCHEMA = z.enum(['openai', 'fal']).optional()
+const TRANSCRIPTION_PROVIDER_SCHEMA = z.enum(['openai', 'fal', 'grok']).optional()
 
 const TRANSCRIBE_BODY_SCHEMA = z.object({
   audio: z.string().min(1),

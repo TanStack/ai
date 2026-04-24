@@ -8,6 +8,7 @@
 import { openaiSpeech, openaiTranscription } from '@tanstack/ai-openai'
 import { geminiAudio, geminiSpeech } from '@tanstack/ai-gemini'
 import { falAudio, falSpeech, falTranscription } from '@tanstack/ai-fal'
+import { grokSpeech, grokTranscription } from '@tanstack/ai-grok'
 import type {
   AnyAudioAdapter,
   AnyTranscriptionAdapter,
@@ -40,6 +41,8 @@ export function buildSpeechAdapter(provider: SpeechProviderId): AnyTTSAdapter {
       return geminiSpeech(config.model as 'gemini-2.5-flash-preview-tts')
     case 'fal':
       return falSpeech(config.model)
+    case 'grok':
+      return grokSpeech(config.model as 'grok-tts')
   }
 }
 
@@ -52,6 +55,8 @@ export function buildTranscriptionAdapter(
       return openaiTranscription(config.model as 'whisper-1')
     case 'fal':
       return falTranscription(config.model)
+    case 'grok':
+      return grokTranscription(config.model as 'grok-stt')
   }
 }
 

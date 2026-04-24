@@ -17,9 +17,13 @@ import {
   buildTranscriptionAdapter,
 } from './server-audio-adapters'
 
-const SPEECH_PROVIDER_SCHEMA = z.enum(['openai', 'gemini', 'fal']).optional()
+const SPEECH_PROVIDER_SCHEMA = z
+  .enum(['openai', 'gemini', 'fal', 'grok'])
+  .optional()
 
-const TRANSCRIPTION_PROVIDER_SCHEMA = z.enum(['openai', 'fal']).optional()
+const TRANSCRIPTION_PROVIDER_SCHEMA = z
+  .enum(['openai', 'fal', 'grok'])
+  .optional()
 
 const AUDIO_PROVIDER_SCHEMA = z
   .enum(['gemini-lyria', 'fal-audio', 'fal-sfx'])

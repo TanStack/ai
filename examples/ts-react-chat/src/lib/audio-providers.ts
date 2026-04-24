@@ -6,7 +6,7 @@
  * and audio generation flows.
  */
 
-export type SpeechProviderId = 'openai' | 'gemini' | 'fal'
+export type SpeechProviderId = 'openai' | 'gemini' | 'fal' | 'grok'
 
 export interface SpeechProviderConfig {
   id: SpeechProviderId
@@ -55,9 +55,22 @@ export const SPEECH_PROVIDERS: ReadonlyArray<SpeechProviderConfig> = [
     ],
     placeholder: 'Enter text to synthesize with Fal Kokoro…',
   },
+  {
+    id: 'grok',
+    label: 'Grok TTS',
+    model: 'grok-tts',
+    voices: [
+      { id: 'eve', label: 'Eve' },
+      { id: 'ara', label: 'Ara' },
+      { id: 'rex', label: 'Rex' },
+      { id: 'sal', label: 'Sal' },
+      { id: 'leo', label: 'Leo' },
+    ],
+    placeholder: 'Enter text for Grok speech…',
+  },
 ]
 
-export type TranscriptionProviderId = 'openai' | 'fal'
+export type TranscriptionProviderId = 'openai' | 'fal' | 'grok'
 
 export interface TranscriptionProviderConfig {
   id: TranscriptionProviderId
@@ -79,6 +92,12 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
       label: 'Fal Whisper',
       model: 'fal-ai/whisper',
       description: 'Fal-hosted Whisper with word-level timestamps.',
+    },
+    {
+      id: 'grok',
+      label: 'Grok STT',
+      model: 'grok-stt',
+      description: 'xAI speech-to-text with word-level timestamps.',
     },
   ]
 

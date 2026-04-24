@@ -13,13 +13,17 @@ import {
 import { AudioSparkline } from '@/components/AudioSparkline'
 import { useRealtime } from '@/lib/use-realtime'
 
-type Provider = 'openai' | 'elevenlabs'
+type Provider = 'openai' | 'elevenlabs' | 'grok'
 type OutputMode = 'audio+text' | 'text-only' | 'audio-only'
 
 const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
   { value: 'openai', label: 'OpenAI Realtime' },
   { value: 'elevenlabs', label: 'ElevenLabs' },
+  { value: 'grok', label: 'Grok Voice Agent' },
 ]
+
+const GROK_VOICES = ['eve', 'ara', 'rex', 'sal', 'leo'] as const
+type GrokVoice = (typeof GROK_VOICES)[number]
 
 const OUTPUT_MODE_OPTIONS: Array<{ value: OutputMode; label: string }> = [
   { value: 'audio+text', label: 'Audio + Text' },
@@ -45,6 +49,7 @@ function outputModeToModalities(
 function RealtimePage() {
   const [provider, setProvider] = useState<Provider>('openai')
   const [agentId, setAgentId] = useState('')
+  const [grokVoice, setGrokVoice] = useState<GrokVoice>('eve')
   const [textInput, setTextInput] = useState('')
   const [outputMode, setOutputMode] = useState<OutputMode>('audio+text')
   const [temperature, setTemperature] = useState(0.8)
@@ -73,6 +78,7 @@ function RealtimePage() {
   } = useRealtime({
     provider,
     agentId,
+    voice: provider === 'grok' ? grokVoice : undefined,
     outputModalities: outputModeToModalities(outputMode),
     temperature,
     semanticEagerness,
@@ -195,8 +201,29 @@ function RealtimePage() {
                 </div>
               )}
 
-              {/* Output mode selector (OpenAI only) */}
-              {provider === 'openai' && (
+              {/* Grok voice selector */}
+              {provider === 'grok' && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Voice
+                  </label>
+                  <select
+                    value={grokVoice}
+                    onChange={(e) => setGrokVoice(e.target.value as GrokVoice)}
+                    disabled={status !== 'idle'}
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                  >
+                    {GROK_VOICES.map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Output mode selector (OpenAI-compatible realtime) */}
+              {(provider === 'openai' || provider === 'grok') && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
                     Output
@@ -219,7 +246,7 @@ function RealtimePage() {
               )}
 
               {/* Temperature slider */}
-              {provider === 'openai' && (
+              {(provider === 'openai' || provider === 'grok') && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
                     Temp: {temperature.toFixed(1)}
@@ -238,7 +265,7 @@ function RealtimePage() {
               )}
 
               {/* Semantic eagerness */}
-              {provider === 'openai' && (
+              {(provider === 'openai' || provider === 'grok') && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
                     Eagerness
@@ -275,7 +302,7 @@ function RealtimePage() {
         </div>
 
         {/* Tools indicator */}
-        {provider === 'openai' && (
+        {(provider === 'openai' || provider === 'grok') && (
           <div className="border-b border-orange-500/10 bg-gray-800/50 px-4 py-2">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Wrench className="w-3 h-3" />
@@ -422,8 +449,8 @@ function RealtimePage() {
                 placeholder="Type a message..."
                 className="flex-1 rounded-lg border border-orange-500/20 bg-gray-800 px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
               />
-              {/* Image upload button (OpenAI only) */}
-              {provider === 'openai' && (
+              {/* Image upload button (OpenAI-compatible realtime) */}
+              {(provider === 'openai' || provider === 'grok') && (
                 <>
                   <input
                     ref={imageInputRef}
