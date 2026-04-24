@@ -1,4 +1,6 @@
 import { FinishReason } from '@google/genai'
+import { buildBaseUsage } from '@tanstack/ai'
+import { buildGeminiUsage } from '../usage'
 import {
   createGeminiClient,
   generateId,
@@ -114,18 +116,12 @@ export class GeminiSummarizeAdapter<
       })
 
       const summary = response.text ?? ''
-      const inputTokens = response.usageMetadata?.promptTokenCount ?? 0
-      const outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0
 
       return {
         id: generateId('sum'),
         model,
         summary,
-        usage: {
-          promptTokens: inputTokens,
-          completionTokens: outputTokens,
-          totalTokens: inputTokens + outputTokens,
-        },
+        usage: buildGeminiUsage(response.usageMetadata),
       }
     } catch (error) {
       logger.errors('gemini.summarize fatal', {
@@ -145,6 +141,7 @@ export class GeminiSummarizeAdapter<
     let accumulatedContent = ''
     let inputTokens = 0
     let outputTokens = 0
+    let latestUsageMetadata: Parameters<typeof buildGeminiUsage>[0]
 
     // Build the system prompt based on format
     const formatInstructions = this.getFormatInstructions(options.style)
@@ -180,6 +177,7 @@ export class GeminiSummarizeAdapter<
         logger.provider(`provider=gemini`, { chunk })
         // Track usage metadata
         if (chunk.usageMetadata) {
+          latestUsageMetadata = chunk.usageMetadata
           inputTokens = chunk.usageMetadata.promptTokenCount ?? inputTokens
           outputTokens =
             chunk.usageMetadata.candidatesTokenCount ?? outputTokens
@@ -219,11 +217,13 @@ export class GeminiSummarizeAdapter<
                 : finishReason === FinishReason.MAX_TOKENS
                   ? 'length'
                   : 'content_filter',
-            usage: {
-              promptTokens: inputTokens,
-              completionTokens: outputTokens,
-              totalTokens: inputTokens + outputTokens,
-            },
+            usage: latestUsageMetadata
+              ? buildGeminiUsage(latestUsageMetadata)
+              : buildBaseUsage({
+                  promptTokens: inputTokens,
+                  completionTokens: outputTokens,
+                  totalTokens: inputTokens + outputTokens,
+                }),
           })
         }
       }

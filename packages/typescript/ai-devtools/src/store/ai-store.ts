@@ -6,4 +6,5 @@ export type {
   Conversation,
   Iteration,
   MiddlewareEvent,
+  TokenUsage,
 } from './ai-context'

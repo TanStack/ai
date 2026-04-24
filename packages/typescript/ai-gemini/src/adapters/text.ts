@@ -1,6 +1,7 @@
 import { FinishReason } from '@google/genai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { buildGeminiUsage } from '../usage'
 import {
   createGeminiClient,
   generateId,
@@ -199,6 +200,9 @@ export class GeminiTextAdapter<
       return {
         data: parsed,
         rawText,
+        usage: result.usageMetadata
+          ? buildGeminiUsage(result.usageMetadata)
+          : undefined,
       }
     } catch (error) {
       logger.errors('gemini.structuredOutput fatal', {
@@ -612,11 +616,7 @@ export class GeminiTextAdapter<
           timestamp,
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
           usage: chunk.usageMetadata
-            ? {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-              }
+            ? buildGeminiUsage(chunk.usageMetadata)
             : undefined,
         })
       }

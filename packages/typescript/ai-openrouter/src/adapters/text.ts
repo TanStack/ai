@@ -3,6 +3,7 @@ import { RequestAbortedError } from '@openrouter/sdk/models/errors'
 import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools'
+import { buildOpenRouterUsage } from '../usage'
 import {
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
@@ -23,6 +24,7 @@ import type {
   ModelMessage,
   StreamChunk,
   TextOptions,
+  TokenUsage,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
 import type {
@@ -83,9 +85,7 @@ interface AGUIState {
   hasEmittedTextMessageEnd: boolean
   hasEmittedRunFinished: boolean
   hasEmittedStepStarted: boolean
-  deferredUsage:
-    | { promptTokens: number; completionTokens: number; totalTokens: number }
-    | undefined
+  deferredUsage: TokenUsage | undefined
   computedFinishReason: string | undefined
 }
 
@@ -307,7 +307,11 @@ export class OpenRouterTextAdapter<
         throw new Error('Structured output response contained no content')
       }
       const parsed = JSON.parse(rawText)
-      return { data: parsed, rawText }
+      return {
+        data: parsed,
+        rawText,
+        usage: buildOpenRouterUsage(result.usage),
+      }
     } catch (error: unknown) {
       logger.errors('openrouter.structuredOutput fatal', {
         error,
@@ -565,13 +569,11 @@ export class OpenRouterTextAdapter<
 
     if (finishReason) {
       // Capture usage from whichever chunk provides it (may arrive on a
-      // later duplicate finishReason chunk from the SDK).
+      // later duplicate finishReason chunk from the SDK). Use the provider's
+      // extended-usage builder to preserve cached-token / reasoning-token
+      // breakdowns when available.
       if (usage) {
-        aguiState.deferredUsage = {
-          promptTokens: usage.promptTokens || 0,
-          completionTokens: usage.completionTokens || 0,
-          totalTokens: usage.totalTokens || 0,
-        }
+        aguiState.deferredUsage = buildOpenRouterUsage(usage)
       }
 
       // Guard: only emit finish events once.  OpenAI-compatible APIs often

@@ -5,6 +5,7 @@ import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
+  TokenUsage,
 } from '@tanstack/ai'
 import type { OpenRouterConfig } from './text'
 import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
@@ -67,7 +68,11 @@ export class OpenRouterSummarizeAdapter<
     let summary = ''
     const id = ''
     let model = options.model
-    let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+    let usage: TokenUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+    }
 
     try {
       for await (const chunk of this.textAdapter.chatStream({

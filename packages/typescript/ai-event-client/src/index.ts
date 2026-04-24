@@ -98,6 +98,63 @@ export interface ToolCall {
 }
 
 /**
+ * Detailed breakdown of prompt/input token usage.
+ * Fields are populated based on provider support.
+ */
+export interface PromptTokensDetails {
+  /** Tokens read from cache */
+  cachedTokens?: number
+  /** Tokens written to cache */
+  cacheWriteTokens?: number
+  /** Audio input tokens */
+  audioTokens?: number
+  /** Video input tokens */
+  videoTokens?: number
+  /** Image input tokens */
+  imageTokens?: number
+  /** Text input tokens */
+  textTokens?: number
+}
+
+/**
+ * Detailed breakdown of completion/output token usage.
+ * Fields are populated based on provider support.
+ */
+export interface CompletionTokensDetails {
+  /** Reasoning/thinking tokens */
+  reasoningTokens?: number
+  /** Audio output tokens */
+  audioTokens?: number
+  /** Video output tokens */
+  videoTokens?: number
+  /** Image output tokens */
+  imageTokens?: number
+  /** Text output tokens */
+  textTokens?: number
+}
+
+/**
+ * Token usage information with optional detailed breakdowns.
+ * Core fields are always present; detail fields are provider-dependent.
+ */
+export interface TokenUsage {
+  /** Total input/prompt tokens */
+  promptTokens: number
+  /** Total output/completion tokens */
+  completionTokens: number
+  /** Total tokens (prompt + completion) */
+  totalTokens: number
+  /** Detailed breakdown of prompt tokens by category */
+  promptTokensDetails?: PromptTokensDetails
+  /** Detailed breakdown of completion tokens by category */
+  completionTokensDetails?: CompletionTokensDetails
+  /** Duration in seconds for duration-based billing (e.g., Whisper transcription) */
+  durationSeconds?: number
+  /** Provider-specific usage details not covered by standard fields */
+  providerUsageDetails?: Record<string, unknown>
+}
+
+/**
  * Tool call states - track the lifecycle of a tool call
  * Must match @tanstack/ai-client ToolCallState
  */
@@ -116,12 +173,6 @@ export type ToolResultState =
   | 'streaming' // Placeholder for future streamed output
   | 'complete' // Result is complete
   | 'error' // Error occurred
-
-export interface TokenUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
 
 export interface ImageUsage {
   inputTokens?: number

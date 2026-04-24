@@ -1,6 +1,7 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
+import { buildGrokUsage } from '../usage'
 import {
   createGrokClient,
   generateId,
@@ -213,6 +214,7 @@ export class GrokTextAdapter<
       return {
         data: transformed,
         rawText,
+        usage: buildGrokUsage(response.usage),
       }
     } catch (error: unknown) {
       logger.errors('grok.structuredOutput fatal', {
@@ -409,13 +411,7 @@ export class GrokTextAdapter<
             threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp,
-            usage: chunk.usage
-              ? {
-                  promptTokens: chunk.usage.prompt_tokens || 0,
-                  completionTokens: chunk.usage.completion_tokens || 0,
-                  totalTokens: chunk.usage.total_tokens || 0,
-                }
-              : undefined,
+            usage: buildGrokUsage(chunk.usage),
             finishReason: computedFinishReason,
           })
         }

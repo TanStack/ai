@@ -1,5 +1,5 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-
+import { buildOllamaUsage } from '../usage'
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
 import type { OllamaClientConfig } from '../utils/client'
 
@@ -207,6 +207,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       return {
         data: parsed,
         rawText,
+        usage: buildOllamaUsage(response),
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -365,12 +366,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           model: chunk.model,
           timestamp,
           finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
-          usage: {
-            promptTokens: chunk.prompt_eval_count || 0,
-            completionTokens: chunk.eval_count || 0,
-            totalTokens:
-              (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
-          },
+          usage: buildOllamaUsage(chunk),
         })
         continue
       }

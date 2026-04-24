@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createGrokText, grokText } from '../src/adapters/text'
 import { createGrokImage, grokImage } from '../src/adapters/image'
@@ -9,7 +9,7 @@ import type { StreamChunk, Tool } from '@tanstack/ai'
 const testLogger = resolveDebugOption(false)
 
 // Declare mockCreate at module level
-let mockCreate: ReturnType<typeof vi.fn>
+let mockCreate: (...args: Array<unknown>) => unknown
 
 // Mock the OpenAI SDK
 vi.mock('openai', () => {
@@ -77,11 +77,11 @@ describe('Grok adapters', () => {
     it('creates a text adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokText('grok-4-0709')
+      const adapter = grokText('grok-4')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
-      expect(adapter.model).toBe('grok-4-0709')
+      expect(adapter.model).toBe('grok-4')
     })
 
     it('throws if XAI_API_KEY is not set when using grokText', () => {
@@ -140,7 +140,7 @@ describe('Grok adapters', () => {
     it('creates a summarize adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokSummarize('grok-4-0709')
+      const adapter = grokSummarize('grok-4')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('summarize')
@@ -475,7 +475,7 @@ describe('Grok AG-UI event emission', () => {
     const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
-      expect(runErrorChunk.error.message).toBe('Stream interrupted')
+      expect(runErrorChunk.error?.message).toBe('Stream interrupted')
     }
   })
 
@@ -521,7 +521,7 @@ describe('Grok AG-UI event emission', () => {
     }
 
     // Verify proper AG-UI event sequence
-    const eventTypes = chunks.map((c) => c.type)
+    const eventTypes: Array<string> = chunks.map((c) => c.type)
 
     // Should start with RUN_STARTED
     expect(eventTypes[0]).toBe('RUN_STARTED')

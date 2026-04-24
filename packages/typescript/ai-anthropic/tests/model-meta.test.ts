@@ -1,4 +1,4 @@
-import { describe, it, expectTypeOf } from 'vitest'
+import { describe, expectTypeOf, it } from 'vitest'
 import type {
   AnthropicChatModelProviderOptionsByName,
   AnthropicModelInputModalitiesByName,
@@ -7,11 +7,11 @@ import type {
   AnthropicContainerOptions,
   AnthropicContextManagementOptions,
   AnthropicMCPOptions,
+  AnthropicSamplingOptions,
   AnthropicServiceTierOptions,
   AnthropicStopSequencesOptions,
   AnthropicThinkingOptions,
   AnthropicToolChoiceOptions,
-  AnthropicSamplingOptions,
 } from '../src/text/text-provider-options'
 import type {
   AudioPart,

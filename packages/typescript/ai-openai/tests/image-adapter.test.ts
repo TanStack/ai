@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIImageAdapter, createOpenaiImage } from '../src/adapters/image'
 import {
@@ -178,8 +178,8 @@ describe('OpenAI Image Adapter', () => {
 
       expect(result.model).toBe('gpt-image-1')
       expect(result.images).toHaveLength(1)
-      expect(result.images[0].b64Json).toBe('base64encodedimage')
-      expect(result.images[0].revisedPrompt).toBe('A beautiful cat')
+      expect(result.images[0]?.b64Json).toBe('base64encodedimage')
+      expect(result.images[0]?.revisedPrompt).toBe('A beautiful cat')
       expect(result.usage).toEqual({
         inputTokens: 10,
         outputTokens: 100,

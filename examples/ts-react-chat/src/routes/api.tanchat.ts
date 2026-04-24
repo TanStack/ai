@@ -183,7 +183,10 @@ export const Route = createFileRoute('/api/tanchat')({
           openai: () =>
             createChatOptions({
               adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
-              modelOptions: {},
+              modelOptions: {
+                prompt_cache_key: 'user-session-12345',
+                prompt_cache_retention: '24h',
+              },
             }),
         }
 

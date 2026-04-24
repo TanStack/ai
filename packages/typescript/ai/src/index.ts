@@ -104,6 +104,9 @@ export type {
 // All types
 export * from './types'
 
+// Usage utilities
+export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
+
 // Utility functions
 export { detectImageMimeType } from './utils'
 

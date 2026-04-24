@@ -1,16 +1,16 @@
-import { describe, it, expect, expectTypeOf } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { GEMINI_TTS_MODELS } from '../src/model-meta'
 import type {
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,
 } from '../src/model-meta'
 import type {
-  GeminiThinkingOptions,
-  GeminiStructuredOutputOptions,
-  GeminiToolConfigOptions,
-  GeminiSafetyOptions,
-  GeminiCommonConfigOptions,
   GeminiCachedContentOptions,
+  GeminiCommonConfigOptions,
+  GeminiSafetyOptions,
+  GeminiStructuredOutputOptions,
+  GeminiThinkingOptions,
+  GeminiToolConfigOptions,
 } from '../src/text/text-provider-options'
 import type {
   AudioPart,
@@ -53,7 +53,6 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
 
       // Verify specific properties exist
-      expectTypeOf<Options>().toHaveProperty('generationConfig')
       expectTypeOf<Options>().toHaveProperty('safetySettings')
       expectTypeOf<Options>().toHaveProperty('toolConfig')
       expectTypeOf<Options>().toHaveProperty('cachedContent')
@@ -75,7 +74,6 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
 
       // Verify specific properties exist
-      expectTypeOf<Options>().toHaveProperty('generationConfig')
       expectTypeOf<Options>().toHaveProperty('safetySettings')
       expectTypeOf<Options>().toHaveProperty('toolConfig')
       expectTypeOf<Options>().toHaveProperty('cachedContent')
@@ -182,7 +180,6 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
       // Should NOT have thinking options - verify it's not assignable
-      // GeminiThinkingOptions has generationConfig.thinkingConfig which should not exist
       expectTypeOf<Options>().not.toExtend<GeminiThinkingOptions>()
 
       // Should have structured output options
@@ -230,7 +227,7 @@ describe('Gemini Model Provider Options Type Assertions', () => {
   })
 
   describe('Detailed property type assertions', () => {
-    it('thinking models should allow thinkingConfig in generationConfig', () => {
+    it('thinking models should have thinkingConfig option', () => {
       type Options = GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
 
       // The generationConfig should include thinkingConfig from GeminiCommonConfigOptions

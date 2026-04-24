@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { GeminiImageAdapter, createGeminiImage } from '../src/adapters/image'
 import {
@@ -209,7 +209,7 @@ describe('Gemini Image Adapter', () => {
 
       expect(result.model).toBe('imagen-3.0-generate-002')
       expect(result.images).toHaveLength(1)
-      expect(result.images[0].b64Json).toBe('base64encodedimage')
+      expect(result.images[0]?.b64Json).toBe('base64encodedimage')
     })
 
     it('generates a unique ID for each response', async () => {
