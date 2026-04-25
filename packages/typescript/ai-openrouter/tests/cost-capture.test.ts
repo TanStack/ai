@@ -1,0 +1,495 @@
+import { describe, expect, it, vi } from 'vitest'
+import { HTTPClient } from '@openrouter/sdk'
+import {
+  CostStore,
+  attachCostCapture,
+  createCostCaptureHook,
+} from '../src/adapters/cost-capture'
+import type { CostInfo } from '../src/adapters/cost-capture'
+import type { Fetcher } from '@openrouter/sdk'
+
+function makeSseResponse(body: string): Response {
+  return new Response(body, {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream' },
+  })
+}
+
+function makeJsonResponse(payload: unknown): Response {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+
+const fakeFetcher =
+  (response: Response): Fetcher =>
+  () =>
+    Promise.resolve(response)
+
+async function readAll(
+  stream: ReadableStream<Uint8Array> | null,
+): Promise<string> {
+  if (!stream) return ''
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let out = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (value) out += decoder.decode(value, { stream: true })
+    if (done) break
+  }
+  return out
+}
+
+const chatUrl = 'https://openrouter.ai/api/v1/chat/completions'
+
+function makeChatRequest(url = chatUrl): Request {
+  return new Request(url, { method: 'POST' })
+}
+
+function buildClient(
+  response: Response,
+  store: CostStore = new CostStore(),
+): { client: HTTPClient; store: CostStore } {
+  const client = new HTTPClient({ fetcher: fakeFetcher(response) })
+  client.addHook('response', createCostCaptureHook(store))
+  return { client, store }
+}
+
+describe('createCostCaptureHook — SSE chat-completion responses', () => {
+  it('extracts cost and cost_details from the trailing usage chunk', async () => {
+    const body =
+      `data: ${JSON.stringify({ id: 'gen-1', choices: [{ delta: { content: 'Hi' }, index: 0 }] })}\n\n` +
+      `data: ${JSON.stringify({
+        id: 'gen-1',
+        choices: [],
+        usage: {
+          prompt_tokens: 5,
+          completion_tokens: 2,
+          total_tokens: 7,
+          cost: 0.001234,
+          cost_details: {
+            upstream_inference_cost: 0.001,
+            upstream_inference_input_cost: 0.0004,
+            upstream_inference_output_cost: 0.0006,
+            cache_discount: -0.0001,
+          },
+        },
+      })}\n\n` +
+      `data: [DONE]\n\n`
+
+    const { client, store } = buildClient(makeSseResponse(body))
+    const res = await client.request(makeChatRequest())
+
+    expect(await readAll(res.body)).toBe(body)
+    expect(await store.take('gen-1')).toEqual({
+      cost: 0.001234,
+      costDetails: {
+        upstreamInferenceCost: 0.001,
+        upstreamInferenceInputCost: 0.0004,
+        upstreamInferenceOutputCost: 0.0006,
+        cacheDiscount: -0.0001,
+      },
+    })
+  })
+
+  it('handles cost without cost_details', async () => {
+    const body = `data: ${JSON.stringify({
+      id: 'gen-2',
+      choices: [],
+      usage: {
+        prompt_tokens: 1,
+        completion_tokens: 1,
+        total_tokens: 2,
+        cost: 0.5,
+      },
+    })}\n\ndata: [DONE]\n\n`
+
+    const { client, store } = buildClient(makeSseResponse(body))
+    const res = await client.request(makeChatRequest())
+    await readAll(res.body)
+
+    expect(await store.take('gen-2')).toEqual({ cost: 0.5 })
+  })
+
+  // Skipping an orphan `cost_details` is deliberate: a breakdown without the
+  // authoritative `cost` total can't be reconciled, and surfacing it invites
+  // callers to misread a partial bill.
+  it.each([
+    [
+      'no cost_details',
+      { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    ],
+    [
+      'orphan cost_details',
+      {
+        prompt_tokens: 1,
+        completion_tokens: 1,
+        total_tokens: 2,
+        cost_details: { upstream_inference_cost: 0.0005 },
+      },
+    ],
+  ])(
+    'stores nothing when the response has no cost field (%s)',
+    async (_label, usage) => {
+      const id = 'gen-nocost'
+      const body = `data: ${JSON.stringify({ id, choices: [], usage })}\n\ndata: [DONE]\n\n`
+
+      const { client, store } = buildClient(makeSseResponse(body))
+      const res = await client.request(makeChatRequest())
+      await readAll(res.body)
+
+      expect(await store.take(id)).toBeUndefined()
+    },
+  )
+})
+
+describe('createCostCaptureHook — non-streaming responses are skipped', () => {
+  // Non-SSE responses on /chat/completions come from `structuredOutput()`
+  // (stream: false). These never consume the cost store, so cloning and
+  // re-parsing them is wasted work — the hook should bail early.
+  it('does not clone or parse a JSON response on the chat completions endpoint', async () => {
+    const payload = {
+      id: 'gen-json-1',
+      choices: [{ message: { content: '{}' } }],
+      usage: {
+        prompt_tokens: 4,
+        completion_tokens: 2,
+        total_tokens: 6,
+        cost: 0.0008,
+        cost_details: { upstream_inference_cost: 0.0005 },
+      },
+    }
+    const json = JSON.stringify(payload)
+
+    const { client, store } = buildClient(makeJsonResponse(payload))
+    const res = await client.request(makeChatRequest())
+
+    // Body is delivered to the caller unchanged and nothing is cached.
+    expect(await res.text()).toBe(json)
+    expect(await store.take('gen-json-1')).toBeUndefined()
+  })
+})
+
+describe('createCostCaptureHook — passes through unrelated requests', () => {
+  it('does not parse non-chat responses', async () => {
+    const body = JSON.stringify({ data: { id: 'x', total_cost: 5 } })
+    const passed = new Response(body, {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })
+
+    const { client, store } = buildClient(passed)
+    const res = await client.request(
+      new Request('https://openrouter.ai/api/v1/generation?id=x'),
+    )
+
+    expect(await res.text()).toBe(body)
+    expect(await store.take('x')).toBeUndefined()
+  })
+
+  it('ignores SSE responses whose query string mentions /chat/completions', async () => {
+    // Pathname-only matching: a query param that happens to contain the
+    // chat-completions path must not activate the hook on an unrelated
+    // endpoint.
+    const body = `data: ${JSON.stringify({
+      id: 'spoof-1',
+      choices: [],
+      usage: {
+        prompt_tokens: 1,
+        completion_tokens: 1,
+        total_tokens: 2,
+        cost: 0.42,
+      },
+    })}\n\ndata: [DONE]\n\n`
+
+    const { client, store } = buildClient(makeSseResponse(body))
+    const res = await client.request(
+      makeChatRequest(
+        'https://openrouter.ai/api/v1/generation?next=/chat/completions',
+      ),
+    )
+
+    expect(await readAll(res.body)).toBe(body)
+    expect(await store.take('spoof-1')).toBeUndefined()
+  })
+})
+
+describe('createCostCaptureHook — robustness', () => {
+  it('survives malformed SSE payloads without breaking the SDK stream', async () => {
+    const body =
+      `data: not-json\n\n` +
+      `data: ${JSON.stringify({
+        id: 'gen-mix',
+        choices: [],
+        usage: {
+          prompt_tokens: 1,
+          completion_tokens: 1,
+          total_tokens: 2,
+          cost: 0.1,
+        },
+      })}\n\ndata: [DONE]\n\n`
+
+    const { client, store } = buildClient(makeSseResponse(body))
+    const res = await client.request(makeChatRequest())
+
+    expect(await readAll(res.body)).toBe(body)
+    expect(await store.take('gen-mix')).toEqual({ cost: 0.1 })
+  })
+
+  it('returns the original response unchanged when there is no body', async () => {
+    const { client } = buildClient(new Response(null, { status: 204 }))
+    const res = await client.request(makeChatRequest())
+    expect(res.status).toBe(204)
+  })
+
+  // Regression: proxies and some runtimes emit spec-compliant CRLF-framed
+  // SSE (`\r\n\r\n`). Splitting only on `\n\n` used to silently drop cost.
+  it('parses SSE with CRLF-delimited frames', async () => {
+    const body = `data: ${JSON.stringify({
+      id: 'gen-crlf',
+      choices: [],
+      usage: {
+        prompt_tokens: 1,
+        completion_tokens: 1,
+        total_tokens: 2,
+        cost: 0.3,
+      },
+    })}\r\n\r\ndata: [DONE]\r\n\r\n`
+
+    const { client, store } = buildClient(makeSseResponse(body))
+    const res = await client.request(makeChatRequest())
+    await readAll(res.body)
+
+    expect(await store.take('gen-crlf')).toEqual({ cost: 0.3 })
+  })
+
+  // Regression: EOF-terminated SSE (proxies omitting the trailing blank
+  // line) used to drop the final usage chunk because the read loop broke
+  // on `done` before flushing `buffer`.
+  it('flushes the trailing SSE frame when the stream ends without a blank line', async () => {
+    const body = `data: ${JSON.stringify({
+      id: 'gen-eof',
+      choices: [],
+      usage: {
+        prompt_tokens: 1,
+        completion_tokens: 1,
+        total_tokens: 2,
+        cost: 0.2,
+      },
+    })}\n`
+
+    const { client, store } = buildClient(makeSseResponse(body))
+    const res = await client.request(makeChatRequest())
+    await readAll(res.body)
+
+    expect(await store.take('gen-eof')).toEqual({ cost: 0.2 })
+  })
+})
+
+describe('attachCostCapture', () => {
+  const costBody = `data: ${JSON.stringify({
+    id: 'gen-attach',
+    choices: [],
+    usage: {
+      prompt_tokens: 1,
+      completion_tokens: 1,
+      total_tokens: 2,
+      cost: 0.25,
+    },
+  })}\n\ndata: [DONE]\n\n`
+
+  it('returns a fresh HTTPClient when no caller client is supplied', () => {
+    const store = new CostStore()
+    const wrapped = attachCostCapture(store)
+    expect(wrapped).toBeInstanceOf(HTTPClient)
+  })
+
+  it('clones the caller-supplied HTTPClient rather than mutating it', async () => {
+    const callerClient = new HTTPClient({
+      fetcher: fakeFetcher(makeSseResponse(costBody)),
+    })
+
+    const store = new CostStore()
+    const wrapped = attachCostCapture(store, callerClient)
+
+    expect(wrapped).not.toBe(callerClient)
+
+    // Calling the caller's original client must not populate our store —
+    // proves we did not mutate it.
+    const direct = await callerClient.request(makeChatRequest())
+    await readAll(direct.body)
+    expect(await store.take('gen-attach')).toBeUndefined()
+  })
+
+  it('preserves hooks registered on the caller before wrapping', async () => {
+    const callerClient = new HTTPClient({
+      fetcher: fakeFetcher(makeSseResponse(costBody)),
+    })
+    const callerHook = vi.fn()
+    callerClient.addHook('response', callerHook)
+
+    const store = new CostStore()
+    const wrapped = attachCostCapture(store, callerClient)
+
+    const res = await wrapped.request(makeChatRequest())
+    await readAll(res.body)
+
+    expect(callerHook).toHaveBeenCalledTimes(1)
+    expect(await store.take('gen-attach')).toEqual({ cost: 0.25 })
+  })
+
+  it('inherits the caller fetcher (proxies, tracing, retries, etc.)', async () => {
+    const callerFetcher = vi.fn(fakeFetcher(makeSseResponse(costBody)))
+    const callerClient = new HTTPClient({ fetcher: callerFetcher })
+
+    const store = new CostStore()
+    const wrapped = attachCostCapture(store, callerClient)
+
+    const res = await wrapped.request(makeChatRequest())
+    await readAll(res.body)
+
+    expect(callerFetcher).toHaveBeenCalledTimes(1)
+    expect(await store.take('gen-attach')).toEqual({ cost: 0.25 })
+  })
+})
+
+describe('CostStore', () => {
+  it('take() removes the entry after reading', async () => {
+    const store = new CostStore()
+    store.set('a', { cost: 1 })
+    expect(await store.take('a')).toEqual({ cost: 1 })
+    expect(await store.take('a')).toBeUndefined()
+  })
+
+  it('overwrites entries with the same id', async () => {
+    const store = new CostStore()
+    store.set('a', { cost: 1 })
+    store.set('a', { cost: 2 })
+    expect(await store.take('a')).toEqual({ cost: 2 })
+  })
+
+  // Regression: the tee'd parse is fire-and-forget, so the adapter can
+  // reach `take(id)` before `store.set(id, ...)` has run. `take` must
+  // await outstanding parses to keep cost capture deterministic.
+  it('take() awaits an in-flight parse before reading', async () => {
+    const store = new CostStore()
+    let resolveParse!: () => void
+    const parse = new Promise<void>((resolve) => {
+      resolveParse = resolve
+    }).then(() => {
+      store.set('racey', { cost: 7 })
+    })
+    store.recordParse(parse)
+
+    let taken: CostInfo | undefined
+    const takePromise = store.take('racey').then((info) => {
+      taken = info
+    })
+
+    expect(taken).toBeUndefined()
+    resolveParse()
+    await takePromise
+
+    expect(taken).toEqual({ cost: 7 })
+  })
+
+  // Regression: a shared adapter can have overlapping `chat.send` calls.
+  // Previously `take(id)` awaited *every* in-flight parse, so a long-
+  // running concurrent stream could block an already-completed request's
+  // RUN_FINISHED. Per-id announcements mean `take(id)` awaits only the
+  // matching parse.
+  it('take(id) does not block on an unrelated in-flight parse', async () => {
+    const store = new CostStore()
+
+    let resolveFast!: () => void
+    const fastParse = new Promise<void>((resolve) => {
+      resolveFast = resolve
+    }).then(() => {
+      store.set('fast', { cost: 1 })
+    })
+    store.recordParse(fastParse)
+    store.announceId('fast', fastParse)
+
+    let resolveSlow!: () => void
+    const slowParse = new Promise<void>((resolve) => {
+      resolveSlow = resolve
+    })
+    store.recordParse(slowParse)
+    store.announceId('slow', slowParse)
+
+    let taken: CostInfo | undefined
+    const takePromise = store.take('fast').then((info) => {
+      taken = info
+    })
+
+    resolveFast()
+    await takePromise
+
+    expect(taken).toEqual({ cost: 1 })
+
+    resolveSlow()
+    await slowParse
+  })
+
+  // Regression: a parse that announces its id but never produces cost
+  // (response simply had no `usage.cost`) used to lose its `idToParse`
+  // entry in `parse.finally`, forcing a subsequent `take(id)` to fall
+  // through to the pending-parses wait — which could then block on an
+  // unrelated concurrent stream. The settled parse must stay resolvable
+  // until `take(id)` consumes it (or TTL expires).
+  it('take(id) returns undefined promptly when the matching parse finished without cost', async () => {
+    const store = new CostStore()
+
+    // Parse A announces id but never calls `set`, then settles.
+    const parseA = Promise.resolve()
+    store.recordParse(parseA)
+    store.announceId('A', parseA)
+    await parseA
+
+    // Parse B stays in flight and never announces 'A'.
+    let resolveB!: () => void
+    const parseB = new Promise<void>((resolve) => {
+      resolveB = resolve
+    })
+    store.recordParse(parseB)
+    store.announceId('B', parseB)
+
+    const info = await store.take('A')
+    expect(info).toBeUndefined()
+
+    resolveB()
+    await parseB
+  })
+})
+
+describe('createCostCaptureHook — resilience to preceding hooks', () => {
+  it('does not fail the request when a preceding hook consumed the body', async () => {
+    const body = `data: ${JSON.stringify({
+      id: 'gen-disturbed',
+      choices: [],
+      usage: {
+        prompt_tokens: 1,
+        completion_tokens: 1,
+        total_tokens: 2,
+        cost: 0.9,
+      },
+    })}\n\ndata: [DONE]\n\n`
+
+    const client = new HTTPClient({
+      fetcher: fakeFetcher(makeSseResponse(body)),
+    })
+    // A preceding caller hook reads the body directly; this disturbs `res`
+    // so that subsequent `res.clone()` throws. We must not surface that as
+    // a request failure.
+    client.addHook('response', async (res) => {
+      await res.text()
+    })
+    const store = new CostStore()
+    client.addHook('response', createCostCaptureHook(store))
+
+    await expect(client.request(makeChatRequest())).resolves.toBeDefined()
+    expect(await store.take('gen-disturbed')).toBeUndefined()
+  })
+})

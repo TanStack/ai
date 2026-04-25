@@ -1,20 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { HTTPClient } from '@openrouter/sdk'
 import { ChatRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterText } from '../src/adapters/text'
-import type { OpenRouterTextModelOptions } from '../src/adapters/text'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type {
+  OpenRouterTextAdapter,
+  OpenRouterTextModelOptions,
+} from '../src/adapters/text'
+import type { CostStore } from '../src/adapters/cost-capture'
+import type { RunFinishedEvent, StreamChunk, Tool } from '@tanstack/ai'
+import type * as OpenRouterSDK from '@openrouter/sdk'
 
 // Test helper: a silent logger for test chatStream calls.
 const testLogger = resolveDebugOption(false)
-// Declare mockSend at module level
+// Declare mocks at module level
 let mockSend: any
 
-// Mock the SDK with a class defined inline
-// eslint-disable-next-line @typescript-eslint/require-await
+// Mock `OpenRouter` so unit tests can drive chat chunks without real HTTP.
+// Keep the real `HTTPClient` (and other exports) since the adapter clones
+// the caller's HTTPClient via `attachCostCapture` — a stubbed HTTPClient
+// would break that path and hide regressions.
 vi.mock('@openrouter/sdk', async () => {
+  const actual = await vi.importActual<typeof OpenRouterSDK>('@openrouter/sdk')
   return {
+    ...actual,
     OpenRouter: class {
       chat = {
         send: (...args: Array<unknown>) => mockSend(...args),
@@ -25,6 +35,13 @@ vi.mock('@openrouter/sdk', async () => {
 
 const createAdapter = () =>
   createOpenRouterText('openai/gpt-4o-mini', 'test-key')
+
+// Tests that exercise cost-aware behavior seed the adapter's cost store
+// directly, since the real hook only fires on actual HTTP responses (which
+// are mocked away here). Real-HTTP coverage lives in tests/cost-capture.test.ts.
+function getCostStore(adapter: OpenRouterTextAdapter<any>): CostStore {
+  return (adapter as unknown as { costStore: CostStore }).costStore
+}
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 
@@ -393,7 +410,7 @@ describe('OpenRouter adapter option mapping', () => {
     const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(errorChunk).toBeDefined()
 
-    if (errorChunk && errorChunk.type === 'RUN_ERROR') {
+    if (errorChunk) {
       expect(errorChunk.error?.message).toBe('Invalid API key')
     }
   })
@@ -1662,5 +1679,151 @@ describe('OpenRouter STEP event consistency', () => {
 
     expect(stepStarted).toHaveLength(1)
     expect(stepFinished).toHaveLength(1)
+  })
+})
+describe('OpenRouter cost tracking', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const baseStreamChunks = (id = 'gen-cost-1') => [
+    {
+      id,
+      model: 'openai/gpt-4o-mini',
+      choices: [{ delta: { content: 'Hi' }, finishReason: null }],
+    },
+    {
+      id,
+      model: 'openai/gpt-4o-mini',
+      choices: [{ delta: {}, finishReason: 'stop' }],
+      usage: { promptTokens: 9, completionTokens: 3, totalTokens: 12 },
+    },
+  ]
+
+  async function runAndGetFinished(
+    adapter: OpenRouterTextAdapter<any>,
+  ): Promise<RunFinishedEvent | undefined> {
+    let finished: RunFinishedEvent | undefined
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      if (chunk.type === 'RUN_FINISHED') finished = chunk
+    }
+    return finished
+  }
+
+  it('attaches OpenRouter cost and details to RUN_FINISHED.usage when the hook populated the store', async () => {
+    setupMockSdkClient(baseStreamChunks('gen-cost-1'))
+
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key')
+    getCostStore(adapter).set('gen-cost-1', {
+      cost: 0.0012,
+      costDetails: {
+        upstreamInferenceCost: 0.001,
+        upstreamInferenceInputCost: 0.0004,
+        upstreamInferenceOutputCost: 0.0006,
+        cacheDiscount: -0.0001,
+      },
+    })
+
+    const finished = await runAndGetFinished(adapter)
+
+    expect(finished?.usage).toMatchObject({
+      promptTokens: 9,
+      completionTokens: 3,
+      totalTokens: 12,
+      cost: 0.0012,
+      costDetails: {
+        upstreamInferenceCost: 0.001,
+        upstreamInferenceInputCost: 0.0004,
+        upstreamInferenceOutputCost: 0.0006,
+        cacheDiscount: -0.0001,
+      },
+    })
+  })
+
+  it('omits cost when the response had no cost in its trailing chunk', async () => {
+    setupMockSdkClient(baseStreamChunks('gen-cost-2'))
+
+    // No store seeding — simulates a response without cost (or one the
+    // hook never populated).
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key')
+    const finished = await runAndGetFinished(adapter)
+
+    expect(finished?.usage).toEqual({
+      promptTokens: 9,
+      completionTokens: 3,
+      totalTokens: 12,
+    })
+    expect(finished?.usage).not.toHaveProperty('cost')
+  })
+
+  it('uses usage from a trailing usage-only chunk and still attaches cost', async () => {
+    const id = 'gen-trailing-usage'
+    const streamChunks = [
+      {
+        id,
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'Hi' }, finishReason: null }],
+      },
+      {
+        id,
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+      },
+      {
+        id,
+        model: 'openai/gpt-4o-mini',
+        choices: [],
+        usage: { promptTokens: 7, completionTokens: 2, totalTokens: 9 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key')
+    getCostStore(adapter).set(id, { cost: 0.42 })
+
+    const finished = await runAndGetFinished(adapter)
+
+    expect(finished?.usage).toMatchObject({
+      promptTokens: 7,
+      completionTokens: 2,
+      totalTokens: 9,
+      cost: 0.42,
+    })
+  })
+
+  it('cost-store entries are consumed (each id is read at most once)', async () => {
+    setupMockSdkClient(baseStreamChunks('gen-consume'))
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key')
+    const store = getCostStore(adapter)
+    store.set('gen-consume', { cost: 0.99 })
+
+    await runAndGetFinished(adapter)
+
+    expect(await store.take('gen-consume')).toBeUndefined()
+  })
+
+  // Regression: passing a custom httpClient used to bypass cost tracking
+  // entirely. The adapter now clones the caller's client and attaches the
+  // cost-capture hook to the clone, so the store is still populated and
+  // RUN_FINISHED still carries cost.
+  it('tracks cost when the caller supplies a custom httpClient', async () => {
+    setupMockSdkClient(baseStreamChunks('gen-custom-http'))
+
+    const customClient = new HTTPClient()
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      httpClient: customClient,
+    })
+
+    const store = getCostStore(adapter)
+    expect(store).toBeDefined()
+    store.set('gen-custom-http', { cost: 0.75 })
+
+    const finished = await runAndGetFinished(adapter)
+
+    expect(finished?.usage).toMatchObject({ cost: 0.75 })
   })
 })

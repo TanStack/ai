@@ -813,6 +813,30 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
 }
 
 /**
+ * Per-run token and cost totals, shared between `RunFinishedEvent.usage`
+ * and the middleware `UsageInfo` so the two can never drift.
+ */
+export interface UsageTotals {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  /**
+   * Provider-reported cost amount. Optional because most providers don't
+   * report cost per request. Adapters MUST forward only what the provider
+   * returned; they MUST NOT multiply tokens × price tables, since stale or
+   * wrong pricing data would silently corrupt accounting.
+   */
+  cost?: number
+  /**
+   * Provider-reported cost breakdown. Loosely typed because providers
+   * disagree on what to expose (BYOK upstream costs, cache discounts,
+   * per-tier rates, ...) and adapters should preserve only the numeric
+   * provider fields they received, using the provider's native units.
+   */
+  costDetails?: Record<string, number | null | undefined>
+}
+
+/**
  * Emitted when a run completes successfully.
  *
  * @ag-ui/core provides: `threadId`, `runId`, `result?`
@@ -823,12 +847,8 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
   model?: string
   /** Why the generation stopped */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  /** Token usage statistics */
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  /** Token and cost totals */
+  usage?: UsageTotals
 }
 
 /**
