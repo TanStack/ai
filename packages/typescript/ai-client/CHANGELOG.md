@@ -1,5 +1,50 @@
 # @tanstack/ai-client
 
+## 0.8.0
+
+### Minor Changes
+
+- feat: add `useGenerateAudio` hook and streaming support for `generateAudio()` ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Closes the parity gap between audio generation and the other media
+  activities (image, speech, video, transcription, summarize):
+  - `generateAudio()` now accepts `stream: true`, returning an
+    `AsyncIterable<StreamChunk>` that can be piped through
+    `toServerSentEventsResponse()`.
+  - `AudioGenerateInput` type added to `@tanstack/ai-client`.
+  - `useGenerateAudio` hook added to `@tanstack/ai-react`,
+    `@tanstack/ai-solid`, and `@tanstack/ai-vue`; matching
+    `createGenerateAudio` added to `@tanstack/ai-svelte`. All follow the same
+    `{ generate, result, isLoading, error, status, stop, reset }` shape as
+    the existing media hooks and support both `connection` (SSE) and
+    `fetcher` transports.
+
+### Patch Changes
+
+- fix(ai-client): prevent drainPostStreamActions re-entrancy stealing queued actions ([#429](https://github.com/TanStack/ai/pull/429))
+
+  When multiple client tools complete in the same round, nested `drainPostStreamActions()` calls from `streamResponse()`'s `finally` block could steal queued actions, permanently stalling the conversation. Added a re-entrancy guard and a `shouldAutoSend()` check requiring tool-call parts before triggering continuation.
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+  - @tanstack/ai-event-client@0.2.8
+
+## 0.7.14
+
+### Patch Changes
+
+- Updated dependencies [[`c1fd96f`](https://github.com/TanStack/ai/commit/c1fd96ffbcee1372ab039127903162bdf5543dd9)]:
+  - @tanstack/ai@0.13.0
+  - @tanstack/ai-event-client@0.2.7
+
+## 0.7.13
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+  - @tanstack/ai-event-client@0.2.6
+
 ## 0.7.12
 
 ### Patch Changes

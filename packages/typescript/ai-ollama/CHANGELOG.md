@@ -1,5 +1,32 @@
 # @tanstack/ai-ollama
 
+## 0.6.10
+
+### Patch Changes
+
+- refactor(ai-ollama): extract tool conversion into `src/tools/` matching peer adapters ([#465](https://github.com/TanStack/ai/pull/465))
+
+  Tool handling lived inline inside the text adapter with raw type casts. It is now split into a dedicated `tool-converter.ts` / `function-tool.ts` pair (mirroring the structure used by `ai-openai`, `ai-anthropic`, `ai-grok`, and `ai-groq`) and re-exported from the package index as `convertFunctionToolToAdapterFormat` and `convertToolsToProviderFormat`. Runtime behavior is unchanged.
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+
+## 0.6.9
+
+### Patch Changes
+
+- Wire each adapter's text, summarize, image, speech, transcription, and video paths through the new `InternalLogger` from `@tanstack/ai/adapter-internals`: `logger.request(...)` before each SDK call, `logger.provider(...)` for every chunk received, and `logger.errors(...)` in catch blocks. Migrates all pre-existing ad-hoc `console.*` calls in adapter catch blocks (including the OpenAI and ElevenLabs realtime adapters) onto the structured logger. No adapter factory or config-shape changes. ([#467](https://github.com/TanStack/ai/pull/467))
+
+- Updated dependencies [[`c1fd96f`](https://github.com/TanStack/ai/commit/c1fd96ffbcee1372ab039127903162bdf5543dd9)]:
+  - @tanstack/ai@0.13.0
+
+## 0.6.8
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+
 ## 0.6.7
 
 ### Patch Changes

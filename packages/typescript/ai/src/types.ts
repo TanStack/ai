@@ -1,4 +1,5 @@
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
+import type { InternalLogger } from './logger/internal-logger'
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
@@ -738,6 +739,14 @@ export interface TextOptions<
    * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortController
    */
   abortController?: AbortController
+
+  /**
+   * Internal logger threaded from the chat entry point. Adapter implementations
+   * must call `logger.request()` before SDK calls, `logger.provider()` for each
+   * chunk received, and `logger.errors()` in catch blocks.
+   */
+  logger: InternalLogger
+
   /**
    * Thread ID for AG-UI protocol run correlation.
    * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
@@ -1163,6 +1172,11 @@ export interface SummarizationOptions {
   maxLength?: number
   style?: 'bullet-points' | 'paragraph' | 'concise'
   focus?: Array<string>
+  /**
+   * Internal logger threaded from the summarize() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 export interface SummarizationResult {
@@ -1198,16 +1212,35 @@ export interface ImageGenerationOptions<
   size?: TSize
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateImage() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
+
+/**
+ * Source of a generated media asset. Exactly one of `url` or `b64Json` is
+ * present; the other is absent. Modeled as a mutually-exclusive union so the
+ * type rejects `{}` and `{ url, b64Json }` together at compile time while
+ * preserving the flat `.url` / `.b64Json` access patterns.
+ */
+export type GeneratedMediaSource =
+  | {
+      /** URL to the generated asset (may be temporary) */
+      url: string
+      b64Json?: never
+    }
+  | {
+      /** Base64-encoded asset data */
+      b64Json: string
+      url?: never
+    }
 
 /**
  * A single generated image
  */
-export interface GeneratedImage {
-  /** Base64-encoded image data */
-  b64Json?: string
-  /** URL to the generated image (may be temporary) */
-  url?: string
+export type GeneratedImage = GeneratedMediaSource & {
   /** Revised prompt used by the model (if applicable) */
   revisedPrompt?: string
 }
@@ -1222,6 +1255,61 @@ export interface ImageGenerationResult {
   model: string
   /** Array of generated images */
   images: Array<GeneratedImage>
+  /** Token usage information (if available) */
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+  }
+}
+
+// ============================================================================
+// Audio Generation Types
+// ============================================================================
+
+/**
+ * Options for audio generation (music, sound effects, etc.).
+ * These are the common options supported across providers.
+ */
+export interface AudioGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for audio generation */
+  model: string
+  /** Text description of the desired audio */
+  prompt: string
+  /** Desired duration in seconds */
+  duration?: number
+  /** Model-specific options for audio generation */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateAudio() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+}
+
+/**
+ * A single generated audio output
+ */
+export type GeneratedAudio = GeneratedMediaSource & {
+  /** Content type of the audio (e.g., 'audio/wav', 'audio/mp3') */
+  contentType?: string
+  /** Duration of the generated audio in seconds */
+  duration?: number
+}
+
+/**
+ * Result of audio generation
+ */
+export interface AudioGenerationResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** The generated audio */
+  audio: GeneratedAudio
   /** Token usage information (if available) */
   usage?: {
     inputTokens?: number
@@ -1254,6 +1342,11 @@ export interface VideoGenerationOptions<
   duration?: number
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateVideo() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
@@ -1319,6 +1412,12 @@ export interface TTSOptions<TProviderOptions extends object = object> {
   speed?: number
   /** Model-specific options for TTS generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateSpeech() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
@@ -1362,6 +1461,12 @@ export interface TranscriptionOptions<
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Model-specific options for transcription */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateTranscription() entry point.
+   * Adapters must call logger.request() before the SDK call and logger.errors()
+   * in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**

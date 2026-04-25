@@ -1,6 +1,13 @@
 import type { Provider, Feature } from '@/lib/types'
 
-const matrix: Record<Feature, Set<Provider>> = {
+/**
+ * Single source of truth for provider × feature support.
+ *
+ * This matrix is imported by `tests/test-matrix.ts` (Playwright specs) and
+ * by the dev routes under `src/routes/` to decide which provider/feature
+ * combinations to render and test. Update this file only — do not fork.
+ */
+export const matrix: Record<Feature, Set<Provider>> = {
   chat: new Set([
     'openai',
     'anthropic',
@@ -114,8 +121,8 @@ const matrix: Record<Feature, Set<Provider>> = {
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
-  tts: new Set(['openai']),
-  transcription: new Set(['openai']),
+  tts: new Set(['openai', 'grok']),
+  transcription: new Set(['openai', 'grok']),
   'video-gen': new Set(['openai']),
 }
 

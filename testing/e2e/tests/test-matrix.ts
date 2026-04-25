@@ -1,4 +1,17 @@
 import type { Provider, Feature } from '../src/lib/types'
+import { isSupported } from '../src/lib/feature-support'
+
+/**
+ * Provider × feature matrix for Playwright specs.
+ *
+ * The underlying `matrix` and `isSupported` are imported from
+ * `src/lib/feature-support.ts` — that file is the single source of truth.
+ * Any provider-exclusion notes (Gemini tool-approval, Gemini image-gen,
+ * Ollama text-tool-text) live there.
+ *
+ * The `providers` iteration order below is the order specs run in. Keep it
+ * stable to avoid unrelated churn in screenshots, logs, and grep filters.
+ */
 
 export const providers: Provider[] = [
   'openai',
@@ -10,125 +23,7 @@ export const providers: Provider[] = [
   'openrouter',
 ]
 
-const supportMatrix: Record<Feature, Set<Provider>> = {
-  chat: new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  'one-shot-text': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  reasoning: new Set(['openai', 'anthropic', 'gemini']),
-  'multi-turn': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  'tool-calling': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  'parallel-tool-calls': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  'tool-approval': new Set([
-    'openai',
-    'anthropic',
-    'ollama',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  'text-tool-text': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  'structured-output': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  'agentic-structured': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'groq',
-    'grok',
-    'openrouter',
-  ]),
-  'multimodal-image': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'grok',
-    'openrouter',
-  ]),
-  'multimodal-structured': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'grok',
-    'openrouter',
-  ]),
-  summarize: new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'grok',
-    'openrouter',
-  ]),
-  'summarize-stream': new Set([
-    'openai',
-    'anthropic',
-    'gemini',
-    'ollama',
-    'grok',
-    'openrouter',
-  ]),
-  'image-gen': new Set(['openai', 'grok']),
-  tts: new Set(['openai']),
-  transcription: new Set(['openai']),
-  'video-gen': new Set(['openai']),
-}
-
-export function isSupported(provider: Provider, feature: Feature): boolean {
-  return supportMatrix[feature]?.has(provider) ?? false
-}
+export { isSupported }
 
 /** Get only the providers that support a given feature */
 export function providersFor(feature: Feature): Provider[] {

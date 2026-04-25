@@ -16,6 +16,7 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   Content,
   GenerateContentParameters,
@@ -119,14 +120,23 @@ export class GeminiTextAdapter<
     options: TextOptions<GeminiTextProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const mappedOptions = this.mapCommonOptionsToGemini(options)
+    const { logger } = options
 
     try {
+      logger.request(
+        `activity=chat provider=gemini model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'gemini', model: this.model },
+      )
       const result =
         await this.client.models.generateContentStream(mappedOptions)
 
-      yield* this.processStreamChunks(result, options)
+      yield* this.processStreamChunks(result, options, logger)
     } catch (error) {
       const timestamp = Date.now()
+      logger.errors('gemini.chatStream fatal', {
+        error,
+        source: 'gemini.chatStream',
+      })
       yield asChunk({
         type: 'RUN_ERROR',
         model: options.model,
@@ -154,10 +164,15 @@ export class GeminiTextAdapter<
     options: StructuredOutputOptions<GeminiTextProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
+    const { logger } = chatOptions
 
     const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
 
     try {
+      logger.request(
+        `activity=chat provider=gemini model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'gemini', model: this.model },
+      )
       // Add structured output configuration
       const result = await this.client.models.generateContent({
         ...mappedOptions,
@@ -186,6 +201,10 @@ export class GeminiTextAdapter<
         rawText,
       }
     } catch (error) {
+      logger.errors('gemini.structuredOutput fatal', {
+        error,
+        source: 'gemini.structuredOutput',
+      })
       throw new Error(
         error instanceof Error
           ? error.message
@@ -214,6 +233,7 @@ export class GeminiTextAdapter<
   private async *processStreamChunks(
     result: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
     options: TextOptions<GeminiTextProviderOptions>,
+    logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
     const model = options.model
     const timestamp = Date.now()
@@ -243,6 +263,7 @@ export class GeminiTextAdapter<
     let hasEmittedStepStarted = false
 
     for await (const chunk of result) {
+      logger.provider(`provider=gemini`, { chunk })
       // Emit RUN_STARTED on first chunk
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true

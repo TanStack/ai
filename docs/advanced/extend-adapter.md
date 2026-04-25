@@ -1,7 +1,7 @@
 ---
 title: Extend Adapter
 id: extend-adapter
-order: 7
+order: 8
 description: "Extend TanStack AI adapter factories with custom model IDs and fine-tuned models while keeping full type safety for input modalities and provider options."
 keywords:
   - tanstack ai

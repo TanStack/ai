@@ -96,7 +96,7 @@ export abstract class BaseImageAdapter<
 
   protected config: ImageAdapterConfig
 
-  constructor(config: ImageAdapterConfig = {}, model: TModel) {
+  constructor(model: TModel, config: ImageAdapterConfig = {}) {
     this.config = config
     this.model = model
   }

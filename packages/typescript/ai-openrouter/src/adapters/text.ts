@@ -119,6 +119,7 @@ export class OpenRouterTextAdapter<
     let accumulatedContent = ''
     let responseId: string | null = null
     let currentModel = options.model
+    const { logger } = options
     // AG-UI lifecycle tracking
     const aguiState: AGUIState = {
       runId: options.runId ?? this.generateId(),
@@ -138,12 +139,17 @@ export class OpenRouterTextAdapter<
 
     try {
       const requestParams = this.mapTextOptionsToSDK(options)
+      logger.request(
+        `activity=chat provider=openrouter model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'openrouter', model: this.model },
+      )
       const stream = await this.client.chat.send(
         { chatRequest: { ...requestParams, stream: true } },
         { signal: options.request?.signal },
       )
 
       for await (const chunk of stream) {
+        logger.provider(`provider=openrouter`, { chunk })
         if (chunk.id) responseId = chunk.id
         if (chunk.model) currentModel = chunk.model
 
@@ -210,6 +216,10 @@ export class OpenRouterTextAdapter<
         })
       }
     } catch (error) {
+      logger.errors('openrouter.chatStream fatal', {
+        error,
+        source: 'openrouter.chatStream',
+      })
       // Emit RUN_STARTED if not yet emitted (error on first call)
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
@@ -257,6 +267,7 @@ export class OpenRouterTextAdapter<
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
+    const { logger } = chatOptions
 
     const requestParams = this.mapTextOptionsToSDK(chatOptions)
 
@@ -269,6 +280,10 @@ export class OpenRouterTextAdapter<
     })
 
     try {
+      logger.request(
+        `activity=chat provider=openrouter model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'openrouter', model: this.model },
+      )
       const result = await this.client.chat.send(
         {
           chatRequest: {
@@ -294,6 +309,10 @@ export class OpenRouterTextAdapter<
       const parsed = JSON.parse(rawText)
       return { data: parsed, rawText }
     } catch (error: unknown) {
+      logger.errors('openrouter.structuredOutput fatal', {
+        error,
+        source: 'openrouter.structuredOutput',
+      })
       if (error instanceof RequestAbortedError) {
         throw new Error('Structured output generation aborted')
       }
