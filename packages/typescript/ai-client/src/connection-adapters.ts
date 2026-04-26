@@ -20,6 +20,43 @@ function mergeHeaders(
 }
 
 /**
+ * Parse SSE-formatted lines into StreamChunks.
+ * Handles both `data: {...}` lines and bare JSON lines, and skips `[DONE]`.
+ */
+async function* parseSSEChunks(
+  lines: AsyncIterable<string>,
+): AsyncGenerator<StreamChunk> {
+  for await (const line of lines) {
+    const data = line.startsWith('data: ') ? line.slice(6) : line
+    if (data === '[DONE]') continue
+    try {
+      yield JSON.parse(data) as StreamChunk
+    } catch {
+      console.warn('Failed to parse SSE chunk:', data)
+    }
+  }
+}
+
+/**
+ * Yield StreamChunks from a Response body parsed as SSE.
+ */
+async function* responseToSSEChunks(
+  response: Response,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<StreamChunk> {
+  if (!response.ok) {
+    throw new Error(
+      `HTTP error! status: ${response.status} ${response.statusText}`,
+    )
+  }
+  const reader = response.body?.getReader()
+  if (!reader) {
+    throw new Error('Response body is not readable')
+  }
+  yield* parseSSEChunks(readStreamLines(reader, abortSignal))
+}
+
+/**
  * Read lines from a stream (newline-delimited)
  */
 async function* readStreamLines(
@@ -294,32 +331,7 @@ export function fetchServerSentEvents(
         signal: abortSignal || resolvedOptions.signal,
       })
 
-      if (!response.ok) {
-        throw new Error(
-          `HTTP error! status: ${response.status} ${response.statusText}`,
-        )
-      }
-
-      // Parse Server-Sent Events format
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('Response body is not readable')
-      }
-
-      for await (const line of readStreamLines(reader, abortSignal)) {
-        // Handle Server-Sent Events format
-        const data = line.startsWith('data: ') ? line.slice(6) : line
-
-        if (data === '[DONE]') continue
-
-        try {
-          const parsed: StreamChunk = JSON.parse(data)
-          yield parsed
-        } catch (parseError) {
-          // Skip non-JSON lines or malformed chunks
-          console.warn('Failed to parse SSE chunk:', data)
-        }
-      }
+      yield* responseToSSEChunks(response, abortSignal)
     },
   }
 }
@@ -418,36 +430,79 @@ export function fetchHttpStream(
 }
 
 /**
- * Create a direct stream connection adapter (for server functions or direct streams)
+ * Result shapes a `stream()` factory may return.
  *
- * @param streamFactory - A function that returns an async iterable of StreamChunks
- * @returns A connection adapter for direct streams
+ * - `AsyncIterable<StreamChunk>` — a direct in-process stream (e.g. `chat()`).
+ * - `Promise<AsyncIterable<StreamChunk>>` — a TanStack Start server function
+ *   whose handler returns the chat stream directly.
+ * - `Promise<Response>` — a server function whose handler returns
+ *   `toServerSentEventsResponse(stream)` (or any HTTP endpoint returning SSE).
+ */
+export type StreamFactoryResult =
+  | AsyncIterable<StreamChunk>
+  | Promise<AsyncIterable<StreamChunk> | Response>
+
+/**
+ * Create a direct stream connection adapter.
+ *
+ * Accepts any of:
+ *
+ * 1. An in-process async iterable factory (returns `AsyncIterable<StreamChunk>`).
+ * 2. A TanStack Start server function whose handler returns the chat stream
+ *    (returns `Promise<AsyncIterable<StreamChunk>>`).
+ * 3. A TanStack Start server function whose handler returns an SSE `Response`
+ *    via `toServerSentEventsResponse(stream)` (returns `Promise<Response>`).
+ *
+ * Server functions are just async API endpoints — the third shape is the
+ * recommended pattern when you want to keep network bytes small (SSE) and
+ * still get end-to-end type safety from the server function call.
+ *
+ * @param streamFactory - Function called per request; returns one of the shapes above.
  *
  * @example
  * ```typescript
- * // With TanStack Start server function
- * const connection = stream(() => serverFunction({ messages }));
+ * // 1. In-process async iterable (e.g. tests, in-memory loop)
+ * useChat({ connection: stream(async function* () { yield ... }) })
  *
- * const client = new ChatClient({ connection });
+ * // 2. Server function returning the chat stream directly
+ * const chatFn = createServerFn({ method: 'POST' })
+ *   .inputValidator((data: { messages: UIMessage[] }) => data)
+ *   .handler(({ data }) => chat({ adapter, messages: data.messages }))
+ *
+ * useChat({ connection: stream((messages) => chatFn({ data: { messages } })) })
+ *
+ * // 3. Server function returning an SSE Response (recommended)
+ * const chatFn = createServerFn({ method: 'POST' })
+ *   .inputValidator((data: { messages: UIMessage[] }) => data)
+ *   .handler(({ data }) =>
+ *     toServerSentEventsResponse(chat({ adapter, messages: data.messages })),
+ *   )
+ *
+ * useChat({ connection: stream((messages) => chatFn({ data: { messages } })) })
  * ```
  */
 export function stream(
   streamFactory: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
-  ) => AsyncIterable<StreamChunk>,
+  ) => StreamFactoryResult,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data) {
-      // Pass messages as-is (UIMessages with parts preserved)
-      // Server-side chat() handles conversion to ModelMessages
-      yield* streamFactory(messages, data)
+    async *connect(messages, data, abortSignal) {
+      const result = await streamFactory(messages, data)
+      if (result instanceof Response) {
+        yield* responseToSSEChunks(result, abortSignal)
+      } else {
+        yield* result
+      }
     },
   }
 }
 
 /**
- * Create an RPC stream connection adapter (for RPC-based streaming like Cap'n Web RPC)
+ * Create an RPC stream connection adapter (for RPC-based streaming like Cap'n Web RPC).
+ *
+ * The RPC call may return the async iterable synchronously or as a Promise.
  *
  * @param rpcCall - A function that accepts messages and returns an async iterable of StreamChunks
  * @returns A connection adapter for RPC streams
@@ -466,13 +521,12 @@ export function rpcStream(
   rpcCall: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
-  ) => AsyncIterable<StreamChunk>,
+  ) => AsyncIterable<StreamChunk> | Promise<AsyncIterable<StreamChunk>>,
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data) {
-      // Pass messages as-is (UIMessages with parts preserved)
-      // Server-side chat() handles conversion to ModelMessages
-      yield* rpcCall(messages, data)
+      const iterable = await rpcCall(messages, data)
+      yield* iterable
     },
   }
 }

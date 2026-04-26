@@ -59,6 +59,7 @@ export {
   type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type StreamFactoryResult,
   type SubscribeConnectionAdapter,
 } from './connection-adapters'
 

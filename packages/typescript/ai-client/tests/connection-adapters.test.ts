@@ -827,6 +827,90 @@ describe('connection-adapters', () => {
         data,
       )
     })
+
+    it('should await Promise<AsyncIterable> from a server function', async () => {
+      // Simulates a TanStack Start server function whose handler returns an
+      // async iterable directly: `createServerFn().handler(() => chat({...}))`.
+      async function* serverStream(): AsyncGenerator<StreamChunk> {
+        yield {
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hi',
+          content: 'Hi',
+        }
+        yield {
+          type: 'RUN_FINISHED',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        }
+      }
+      const serverFn = vi.fn(
+        async (
+          _messages: Parameters<Parameters<typeof stream>[0]>[0],
+          _data?: Parameters<Parameters<typeof stream>[0]>[1],
+        ) => serverStream(),
+      )
+
+      const adapter = stream((messages, data) => serverFn(messages, data))
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        chunks.push(chunk)
+      }
+
+      expect(serverFn).toHaveBeenCalled()
+      expect(chunks).toHaveLength(2)
+      expect(chunks[0]?.type).toBe('TEXT_MESSAGE_CONTENT')
+      expect(chunks[1]?.type).toBe('RUN_FINISHED')
+    })
+
+    it('should parse Promise<Response> SSE body from a server function', async () => {
+      // Simulates a server function whose handler returns
+      // `toServerSentEventsResponse(chat({...}))`.
+      const sseBody = [
+        'data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":1,"delta":"Hi","content":"Hi"}\n\n',
+        'data: {"type":"RUN_FINISHED","runId":"run-1","model":"test","timestamp":2,"finishReason":"stop"}\n\n',
+        'data: [DONE]\n\n',
+      ].join('')
+      const serverFn = vi.fn(async () => new Response(sseBody, { status: 200 }))
+
+      const adapter = stream(() => serverFn())
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        chunks.push(chunk)
+      }
+
+      expect(serverFn).toHaveBeenCalled()
+      expect(chunks).toHaveLength(2)
+      expect(chunks[0]?.type).toBe('TEXT_MESSAGE_CONTENT')
+      expect(chunks[1]?.type).toBe('RUN_FINISHED')
+    })
+
+    it('should throw when Response from server function is not ok', async () => {
+      const serverFn = vi.fn(
+        async () =>
+          new Response('boom', { status: 500, statusText: 'Server Error' }),
+      )
+
+      const adapter = stream(() => serverFn())
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect([
+            { role: 'user', content: 'Hello' },
+          ])) {
+            // Consume
+          }
+        })(),
+      ).rejects.toThrow('HTTP error! status: 500 Server Error')
+    })
   })
 
   describe('normalizeConnectionAdapter', () => {
@@ -1013,6 +1097,37 @@ describe('connection-adapters', () => {
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
       )
+    })
+
+    it('should await Promise<AsyncIterable> from RPC call', async () => {
+      async function* rpcStreamGen(): AsyncGenerator<StreamChunk> {
+        yield {
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hi',
+          content: 'Hi',
+        }
+      }
+      const rpcCall = vi.fn(
+        async (
+          _messages: Parameters<Parameters<typeof rpcStream>[0]>[0],
+          _data?: Parameters<Parameters<typeof rpcStream>[0]>[1],
+        ) => rpcStreamGen(),
+      )
+
+      const adapter = rpcStream((messages, data) => rpcCall(messages, data))
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        chunks.push(chunk)
+      }
+
+      expect(rpcCall).toHaveBeenCalled()
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]?.type).toBe('TEXT_MESSAGE_CONTENT')
     })
   })
 })
