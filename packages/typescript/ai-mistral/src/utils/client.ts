@@ -1,4 +1,4 @@
-import { Mistral, HTTPClient } from '@mistralai/mistralai'
+import { HTTPClient, Mistral } from '@mistralai/mistralai'
 
 export interface MistralClientConfig {
   /** Mistral API key. */
@@ -62,17 +62,9 @@ export function getMistralApiKeyFromEnv(): string {
   return key
 }
 
-function uuidv4Fallback(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
-  })
-}
-
 /**
  * Generates a unique ID with a prefix.
  */
 export function generateId(prefix: string): string {
-  const uuid = globalThis.crypto?.randomUUID?.() ?? uuidv4Fallback()
-  return `${prefix}-${uuid}`
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
 }
