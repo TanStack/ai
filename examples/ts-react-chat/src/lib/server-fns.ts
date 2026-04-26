@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
+  chat,
   generateImage,
   generateSpeech,
   generateTranscription,
@@ -12,10 +13,12 @@ import {
 import {
   openaiImage,
   openaiSpeech,
+  openaiText,
   openaiTranscription,
   openaiSummarize,
   openaiVideo,
 } from '@tanstack/ai-openai'
+import type { UIMessage } from '@tanstack/ai'
 
 // =============================================================================
 // Direct server functions (non-streaming, return the result directly)
@@ -235,3 +238,26 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
       }),
     )
   })
+
+// =============================================================================
+// Chat server function (streams via SSE Response)
+// Used with: stream((messages) => chatFn({ data: { messages } }))
+// =============================================================================
+
+export const chatFn = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (data: { messages: Array<UIMessage>; data?: Record<string, any> }) => data,
+  )
+  .handler(({ data }) =>
+    toServerSentEventsResponse(
+      chat({
+        adapter: openaiText('gpt-4o'),
+        // chat() converts UIMessage[] to ModelMessage[] internally, but the
+        // exported type signature only accepts ModelMessage[] — cast to any.
+        messages: data.messages as any,
+        systemPrompts: [
+          'You are a helpful assistant. Keep replies short and friendly.',
+        ],
+      }),
+    ),
+  )

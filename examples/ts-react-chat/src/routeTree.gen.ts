@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as IndexRouteImport } from './routes/index'
@@ -27,6 +28,11 @@ import { Route as ApiGenerateVideoRouteImport } from './routes/api.generate.vide
 import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.speech'
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 
+const ServerFnChatRoute = ServerFnChatRouteImport.update({
+  id: '/server-fn-chat',
+  path: '/server-fn-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
@@ -157,6 +165,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
   '/realtime': typeof RealtimeRoute
+  '/server-fn-chat': typeof ServerFnChatRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
@@ -178,6 +187,7 @@ export interface FileRouteTypes {
     | '/'
     | '/image-gen'
     | '/realtime'
+    | '/server-fn-chat'
     | '/api/image-gen'
     | '/api/summarize'
     | '/api/tanchat'
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/'
     | '/image-gen'
     | '/realtime'
+    | '/server-fn-chat'
     | '/api/image-gen'
     | '/api/summarize'
     | '/api/tanchat'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/'
     | '/image-gen'
     | '/realtime'
+    | '/server-fn-chat'
     | '/api/image-gen'
     | '/api/summarize'
     | '/api/tanchat'
@@ -236,6 +248,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ImageGenRoute: typeof ImageGenRoute
   RealtimeRoute: typeof RealtimeRoute
+  ServerFnChatRoute: typeof ServerFnChatRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
@@ -254,6 +267,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/server-fn-chat': {
+      id: '/server-fn-chat'
+      path: '/server-fn-chat'
+      fullPath: '/server-fn-chat'
+      preLoaderRoute: typeof ServerFnChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/realtime': {
       id: '/realtime'
       path: '/realtime'
@@ -380,6 +400,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ImageGenRoute: ImageGenRoute,
   RealtimeRoute: RealtimeRoute,
+  ServerFnChatRoute: ServerFnChatRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTanchatRoute: ApiTanchatRoute,
