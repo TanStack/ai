@@ -115,7 +115,7 @@ export class ChatClient {
     // Create StreamProcessor with event handlers
     this.processor = new StreamProcessor({
       chunkStrategy: options.streamProcessor?.chunkStrategy,
-      initialMessages: options.initialMessages,
+      initialMessages: options.initialMessages as unknown as Array<UIMessage> | undefined,
       events: {
         onMessagesChange: (messages: Array<UIMessage>) => {
           this.callbacksRef.current.onMessagesChange(messages)
@@ -390,17 +390,21 @@ export class ChatClient {
       }
       this.callbacksRef.current.onChunk(chunk)
       this.processor.processChunk(chunk)
-      if (chunk.type === 'RUN_STARTED') {
-        this.activeRunIds.add(chunk.runId)
+      const chunkType = (chunk as unknown as { type: string }).type
+      if (chunkType === 'RUN_STARTED') {
+        this.activeRunIds.add((chunk as unknown as { runId: string }).runId)
         this.setSessionGenerating(true)
       }
       // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
       // (redundant if onStreamEnd already resolved it, harmless)
-      if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-        const runId = chunk.type === 'RUN_FINISHED' ? chunk.runId : undefined
+      if (chunkType === 'RUN_FINISHED' || chunkType === 'RUN_ERROR') {
+        const runId =
+          chunkType === 'RUN_FINISHED'
+            ? (chunk as unknown as { runId: string }).runId
+            : undefined
         if (runId) {
           this.activeRunIds.delete(runId)
-        } else if (chunk.type === 'RUN_ERROR') {
+        } else if (chunkType === 'RUN_ERROR') {
           // RUN_ERROR without runId is a session-level error; clear all runs
           this.activeRunIds.clear()
         }
@@ -522,7 +526,10 @@ export class ChatClient {
    */
   async append(message: UIMessage | ModelMessage): Promise<void> {
     // Normalize the message to ensure it has id and createdAt
-    const normalizedMessage = normalizeToUIMessage(message, generateMessageId)
+    const normalizedMessage = normalizeToUIMessage(
+      message as Parameters<typeof normalizeToUIMessage>[0],
+      generateMessageId,
+    )
 
     // Skip system messages - they're handled via systemPrompts, not UIMessages
     if (normalizedMessage.role === 'system') {
@@ -530,14 +537,14 @@ export class ChatClient {
     }
 
     // Type assertion: after checking for system, we know it's user or assistant
-    const uiMessage = normalizedMessage as UIMessage
+    const uiMessage = normalizedMessage as unknown as UIMessage
 
     // Emit message appended event
     this.events.messageAppended(uiMessage)
 
     // Add to messages
     const messages = this.processor.getMessages()
-    this.processor.setMessages([...messages, uiMessage])
+    this.processor.setMessages([...messages, uiMessage] as unknown as Array<UIMessage>)
 
     // If stream is in progress, queue the response for after it ends
     if (this.isLoading) {
@@ -805,6 +812,8 @@ export class ChatClient {
     // Find the tool call ID from the approval ID
     const messages = this.processor.getMessages()
     let foundToolCallId: string | undefined
+    let foundToolName: string | undefined
+    let foundToolInput: any | undefined
 
     for (const msg of messages) {
       const toolCallPart = msg.parts.find(
@@ -813,6 +822,12 @@ export class ChatClient {
       )
       if (toolCallPart) {
         foundToolCallId = toolCallPart.id
+        foundToolName = toolCallPart.name
+        try {
+          foundToolInput = JSON.parse(toolCallPart.arguments)
+        } catch {
+          // Ignore parse errors
+        }
         break
       }
     }
@@ -827,6 +842,32 @@ export class ChatClient {
 
     // Add response via processor
     this.processor.addToolApprovalResponse(response.id, response.approved)
+
+    // Execute client-side tool if approved
+    if (response.approved && foundToolCallId && foundToolName) {
+      const clientTool = this.clientToolsRef.current.get(foundToolName)
+      if (clientTool?.execute) {
+        try {
+          const output = await clientTool.execute(foundToolInput)
+          await this.addToolResult({
+            toolCallId: foundToolCallId,
+            tool: foundToolName,
+            output,
+            state: 'output-available',
+          })
+          return
+        } catch (error: any) {
+          await this.addToolResult({
+            toolCallId: foundToolCallId,
+            tool: foundToolName,
+            output: null,
+            state: 'output-error',
+            errorText: error.message,
+          })
+          return
+        }
+      }
+    }
 
     // If stream is in progress, queue continuation check for after it ends
     if (this.isLoading) {
@@ -961,7 +1002,7 @@ export class ChatClient {
    * Manually set messages
    */
   setMessagesManually(messages: Array<UIMessage>): void {
-    this.processor.setMessages(messages)
+    this.processor.setMessages(messages as unknown as Array<UIMessage>)
   }
 
   /**

@@ -178,7 +178,8 @@ export function normalizeConnectionAdapter(
       try {
         const stream = connection.connect(messages, data, abortSignal)
         for await (const chunk of stream) {
-          if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+          const chunkType = (chunk as unknown as { type: string }).type
+          if (chunkType === 'RUN_FINISHED' || chunkType === 'RUN_ERROR') {
             hasTerminalEvent = true
           }
           push(chunk)
@@ -225,6 +226,12 @@ export interface FetchConnectionOptions {
   signal?: AbortSignal
   body?: Record<string, any>
   fetchClient?: typeof globalThis.fetch
+  /**
+   * Send full UIMessage objects (including `parts`) instead of ModelMessages.
+   * Required for advanced server features that depend on UIMessage metadata
+   * (e.g. tool approvals and client tool results tracked in parts).
+   */
+  sendFullMessages?: boolean
 }
 
 /**

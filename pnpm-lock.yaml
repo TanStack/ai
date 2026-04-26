@@ -15,6 +15,10 @@ patchedDependencies:
 importers:
 
   .:
+    dependencies:
+      '@ag-ui/core':
+        specifier: 0.0.49
+        version: 0.0.49
     devDependencies:
       '@changesets/cli':
         specifier: ^2.30.0
@@ -1671,7 +1675,7 @@ importers:
     dependencies:
       '@copilotkit/aimock':
         specifier: latest
-        version: 1.14.0
+        version: 1.15.1(vitest@4.1.4(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
       '@tailwindcss/vite':
         specifier: ^4.1.18
         version: 4.1.18(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -2189,10 +2193,18 @@ packages:
   '@cloudflare/workers-types@4.20260317.1':
     resolution: {integrity: sha512-+G4eVwyCpm8Au1ex8vQBCuA9wnwqetz4tPNRoB/53qvktERWBRMQnrtvC1k584yRE3emMThtuY0gWshvSJ++PQ==}
 
-  '@copilotkit/aimock@1.14.0':
-    resolution: {integrity: sha512-1NqwWEameArC7HWT7UHBlkq3pNlCA0eHBocaeL6mS5CULolT9XFL27tC9jJ+OSmREzLwkKbFYaAl2SssaXexVA==}
-    engines: {node: '>=20.15.0'}
+  '@copilotkit/aimock@1.15.1':
+    resolution: {integrity: sha512-DG9p6fKdYmuTW0zaUe9iDbgB/CM3SWhpdhVBrszQ6+L2UW4+DZB0gvICFQXRWhVXMpqxEkI9Pqhm/MtMb8li9A==}
+    engines: {node: '>=24.0.0'}
     hasBin: true
+    peerDependencies:
+      jest: '>=29'
+      vitest: '>=3'
+    peerDependenciesMeta:
+      jest:
+        optional: true
+      vitest:
+        optional: true
 
   '@crazydos/vue-markdown@1.1.4':
     resolution: {integrity: sha512-0I1QMP59LJ3aEjE7bolgvPU4JAFt+pykdDo5674CbsCwFo7OVFos50+MPhGdWflCz1mac5t152lB1qvV/tR/rw==}
@@ -12437,7 +12449,9 @@ snapshots:
 
   '@cloudflare/workers-types@4.20260317.1': {}
 
-  '@copilotkit/aimock@1.14.0': {}
+  '@copilotkit/aimock@1.15.1(vitest@4.1.4(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))':
+    optionalDependencies:
+      vitest: 4.1.4(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
   '@crazydos/vue-markdown@1.1.4(vue@3.5.25(typescript@5.9.3))':
     dependencies:
