@@ -2,6 +2,16 @@
 title: Overview
 id: overview
 order: 1
+description: "TanStack AI is a type-safe, provider-agnostic TypeScript SDK for building streaming chat, tool calling, and AI features that work across any framework."
+keywords:
+  - tanstack ai
+  - ai sdk
+  - typescript ai
+  - streaming chat
+  - tool calling
+  - isomorphic tools
+  - framework agnostic
+  - llm sdk
 ---
 
 TanStack AI is a lightweight, type-safe SDK for building production-ready AI experiences. Its framework-agnostic core provides type-safe tool/function calling, streaming responses, and first-class React and Solid integrations, with adapters for multiple LLM providers — enabling predictable, composable, and testable AI features across any stack.
@@ -12,7 +22,7 @@ TanStack AI is a lightweight, type-safe SDK for building production-ready AI exp
 - ✅ **Streaming** - Built-in streaming support for real-time responses
 - ✅ **Isomorphic Tools** - Define once with `toolDefinition()`, implement with `.server()` or `.client()`
 - ✅ **Framework Agnostic** - Core library works anywhere
-- ✅ **Multiple Providers** - OpenAI, Anthropic, Gemini, Ollama, and more
+- ✅ **Multiple Providers** - OpenRouter, OpenAI, Anthropic, Gemini, Ollama, and more
 - ✅ **Approval Flow** - Built-in support for tool approval workflows
 - ✅ **Automatic Execution** - Both server and client tools execute automatically
 
@@ -92,13 +102,17 @@ Solid hooks for TanStack AI:
 
 With the help of adapters, TanStack AI can connect to various LLM providers. Available adapters include:
 
-- **@tanstack/ai-openai** - OpenAI (GPT-4, GPT-3.5, etc.)
+- **@tanstack/ai-openrouter** - OpenRouter (300+ models via a single API key — recommended)
+- **@tanstack/ai-openai** - OpenAI (GPT series)
 - **@tanstack/ai-anthropic** - Anthropic (Claude)
 - **@tanstack/ai-gemini** - Google Gemini
 - **@tanstack/ai-ollama** - Ollama (local models)
+- **@tanstack/ai-groq** - Groq
+- **@tanstack/ai-grok** - xAI Grok
+- **@tanstack/ai-fal** - fal (image & video generation)
 
 ## Next Steps
 
 - [Quick Start Guide](./quick-start) - Get up and running in minutes
-- [Tools Guide](../guides/tools) - Learn about the isomorphic tool system
+- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
 - [API Reference](../api/ai) - Explore the full API

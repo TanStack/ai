@@ -1,5 +1,406 @@
 # ts-svelte-chat
 
+## 0.1.37
+
+### Patch Changes
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`008f015`](https://github.com/TanStack/ai/commit/008f0154f852e7e6734d3e3d35cad47780b52b7a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1)]:
+  - @tanstack/ai@0.14.0
+  - @tanstack/ai-client@0.8.0
+  - @tanstack/ai-svelte@0.7.0
+  - @tanstack/ai-openai@0.8.2
+  - @tanstack/ai-gemini@0.10.0
+  - @tanstack/ai-ollama@0.6.10
+  - @tanstack/ai-anthropic@0.8.2
+
+## 0.1.36
+
+### Patch Changes
+
+- Updated dependencies [[`c1fd96f`](https://github.com/TanStack/ai/commit/c1fd96ffbcee1372ab039127903162bdf5543dd9), [`c1fd96f`](https://github.com/TanStack/ai/commit/c1fd96ffbcee1372ab039127903162bdf5543dd9)]:
+  - @tanstack/ai-openai@0.8.1
+  - @tanstack/ai-anthropic@0.8.1
+  - @tanstack/ai-gemini@0.9.1
+  - @tanstack/ai-ollama@0.6.9
+  - @tanstack/ai@0.13.0
+  - @tanstack/ai-client@0.7.14
+  - @tanstack/ai-svelte@0.6.19
+
+## 0.1.35
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90), [`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90), [`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90), [`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai-anthropic@0.8.0
+  - @tanstack/ai@0.12.0
+  - @tanstack/ai-gemini@0.9.0
+  - @tanstack/ai-openai@0.8.0
+  - @tanstack/ai-client@0.7.13
+  - @tanstack/ai-ollama@0.6.8
+  - @tanstack/ai-svelte@0.6.18
+
+## 0.1.34
+
+### Patch Changes
+
+- Updated dependencies [[`633a3d9`](https://github.com/TanStack/ai/commit/633a3d93fff27e3de7c10ce0059b2d5d87f33245)]:
+  - @tanstack/ai@0.11.1
+  - @tanstack/ai-anthropic@0.7.5
+  - @tanstack/ai-client@0.7.12
+  - @tanstack/ai-gemini@0.8.9
+  - @tanstack/ai-ollama@0.6.7
+  - @tanstack/ai-openai@0.7.6
+  - @tanstack/ai-svelte@0.6.17
+
+## 0.1.33
+
+### Patch Changes
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7), [`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7), [`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7), [`1d6f3be`](https://github.com/TanStack/ai/commit/1d6f3bef4fd1c4917823612fbcd9450a0fd2e627)]:
+  - @tanstack/ai-openai@0.7.6
+  - @tanstack/ai-anthropic@0.7.5
+  - @tanstack/ai-gemini@0.8.9
+  - @tanstack/ai-ollama@0.6.7
+  - @tanstack/ai@0.11.0
+  - @tanstack/ai-client@0.7.11
+  - @tanstack/ai-svelte@0.6.16
+
+## 0.1.32
+
+### Patch Changes
+
+- Updated dependencies [[`c780bc1`](https://github.com/TanStack/ai/commit/c780bc127755ecf7e900343bf0e4d4823ff526ca), [`cb07e01`](https://github.com/TanStack/ai/commit/cb07e015f2d4a27289d830a61dba48f8aa72cc6c)]:
+  - @tanstack/ai@0.10.3
+  - @tanstack/ai-openai@0.7.5
+  - @tanstack/ai-gemini@0.8.8
+  - @tanstack/ai-ollama@0.6.6
+  - @tanstack/ai-anthropic@0.7.4
+  - @tanstack/ai-client@0.7.10
+  - @tanstack/ai-svelte@0.6.15
+
+## 0.1.31
+
+### Patch Changes
+
+- Updated dependencies [[`4990150`](https://github.com/TanStack/ai/commit/4990150957bfba72663b6a76f8057f2605e4ac62)]:
+  - @tanstack/ai-gemini@0.8.7
+
+## 0.1.30
+
+### Patch Changes
+
+- Updated dependencies [[`4445410`](https://github.com/TanStack/ai/commit/44454100e5825f948bab0ce52c57c80d70c0ebe7)]:
+  - @tanstack/ai@0.10.2
+  - @tanstack/ai-anthropic@0.7.3
+  - @tanstack/ai-client@0.7.9
+  - @tanstack/ai-gemini@0.8.6
+  - @tanstack/ai-ollama@0.6.5
+  - @tanstack/ai-openai@0.7.4
+  - @tanstack/ai-svelte@0.6.14
+
+## 0.1.29
+
+### Patch Changes
+
+- Updated dependencies [[`1bdd07c`](https://github.com/TanStack/ai/commit/1bdd07c941859da4a2848a486a18dd3057a605a6), [`ca1ca44`](https://github.com/TanStack/ai/commit/ca1ca44866030a06599133f64c699c4f2f42353c)]:
+  - @tanstack/ai-anthropic@0.7.3
+  - @tanstack/ai-gemini@0.8.6
+  - @tanstack/ai-openai@0.7.4
+  - @tanstack/ai-ollama@0.6.5
+
+## 0.1.28
+
+### Patch Changes
+
+- Updated dependencies [[`1d1c58f`](https://github.com/TanStack/ai/commit/1d1c58f33188ff98893edb626efd66ac73b8eadb)]:
+  - @tanstack/ai@0.10.1
+  - @tanstack/ai-anthropic@0.7.2
+  - @tanstack/ai-client@0.7.8
+  - @tanstack/ai-gemini@0.8.5
+  - @tanstack/ai-ollama@0.6.4
+  - @tanstack/ai-openai@0.7.3
+  - @tanstack/ai-svelte@0.6.13
+
+## 0.1.27
+
+### Patch Changes
+
+- Updated dependencies [[`54abae0`](https://github.com/TanStack/ai/commit/54abae063c91b8b04b91ecb2c6785f5ff9168a7c)]:
+  - @tanstack/ai@0.10.0
+  - @tanstack/ai-ollama@0.6.4
+  - @tanstack/ai-openai@0.7.3
+  - @tanstack/ai-client@0.7.7
+  - @tanstack/ai-anthropic@0.7.2
+  - @tanstack/ai-gemini@0.8.5
+  - @tanstack/ai-svelte@0.6.12
+
+## 0.1.26
+
+### Patch Changes
+
+- Updated dependencies [[`c0ae603`](https://github.com/TanStack/ai/commit/c0ae603b4febbfc2d5f549a67e107a4bd0ec09cc)]:
+  - @tanstack/ai-client@0.7.6
+  - @tanstack/ai-openai@0.7.2
+  - @tanstack/ai-svelte@0.6.11
+
+## 0.1.25
+
+### Patch Changes
+
+- Updated dependencies [[`26d8243`](https://github.com/TanStack/ai/commit/26d8243bab564a547fed8adb5e129d981ba228ea)]:
+  - @tanstack/ai@0.9.2
+  - @tanstack/ai-anthropic@0.7.1
+  - @tanstack/ai-client@0.7.5
+  - @tanstack/ai-gemini@0.8.4
+  - @tanstack/ai-ollama@0.6.3
+  - @tanstack/ai-openai@0.7.2
+  - @tanstack/ai-svelte@0.6.10
+
+## 0.1.24
+
+### Patch Changes
+
+- Updated dependencies [[`b8cc69e`](https://github.com/TanStack/ai/commit/b8cc69e15eda49ce68cc48848284b0d74a55a97c)]:
+  - @tanstack/ai-gemini@0.8.4
+  - @tanstack/ai@0.9.1
+  - @tanstack/ai-anthropic@0.7.1
+  - @tanstack/ai-client@0.7.4
+  - @tanstack/ai-ollama@0.6.3
+  - @tanstack/ai-openai@0.7.2
+  - @tanstack/ai-svelte@0.6.9
+
+## 0.1.23
+
+### Patch Changes
+
+- Updated dependencies [[`842e119`](https://github.com/TanStack/ai/commit/842e119a07377307ba0834ccca0e224dcb5c46ea)]:
+  - @tanstack/ai@0.9.0
+  - @tanstack/ai-anthropic@0.7.1
+  - @tanstack/ai-client@0.7.3
+  - @tanstack/ai-gemini@0.8.3
+  - @tanstack/ai-ollama@0.6.3
+  - @tanstack/ai-openai@0.7.2
+  - @tanstack/ai-svelte@0.6.8
+
+## 0.1.22
+
+### Patch Changes
+
+- Updated dependencies [[`b7d6194`](https://github.com/TanStack/ai/commit/b7d619470a2d03e8c0ceed0c13be31bab1e68017), [`64b9cba`](https://github.com/TanStack/ai/commit/64b9cba2ebf89162b809ba575c49ef12c0e87ee7), [`dc53e1b`](https://github.com/TanStack/ai/commit/dc53e1b89fddf6fc744e4788731e8ca64ec3d250)]:
+  - @tanstack/ai-anthropic@0.7.0
+  - @tanstack/ai@0.8.1
+  - @tanstack/ai-client@0.7.2
+  - @tanstack/ai-svelte@0.6.7
+  - @tanstack/ai-gemini@0.8.2
+  - @tanstack/ai-ollama@0.6.2
+  - @tanstack/ai-openai@0.7.1
+
+## 0.1.21
+
+### Patch Changes
+
+- Updated dependencies [[`f62eeb0`](https://github.com/TanStack/ai/commit/f62eeb0d7efd002894435c7f2c8a9f2790f0b6d7)]:
+  - @tanstack/ai@0.8.0
+  - @tanstack/ai-client@0.7.1
+  - @tanstack/ai-anthropic@0.6.2
+  - @tanstack/ai-gemini@0.8.2
+  - @tanstack/ai-ollama@0.6.2
+  - @tanstack/ai-openai@0.7.1
+  - @tanstack/ai-svelte@0.6.6
+
+## 0.1.20
+
+### Patch Changes
+
+- Updated dependencies [[`86be1c8`](https://github.com/TanStack/ai/commit/86be1c8262bb3176ea786aa0af115b38c3e3f51a)]:
+  - @tanstack/ai@0.7.0
+  - @tanstack/ai-client@0.7.0
+  - @tanstack/ai-openai@0.7.0
+  - @tanstack/ai-anthropic@0.6.1
+  - @tanstack/ai-gemini@0.8.1
+  - @tanstack/ai-ollama@0.6.1
+  - @tanstack/ai-svelte@0.6.5
+
+## 0.1.19
+
+### Patch Changes
+
+- Updated dependencies [[`6dfffca`](https://github.com/TanStack/ai/commit/6dfffca99aeac1ada59eb288f8eb09e564d3db1e), [`6dfffca`](https://github.com/TanStack/ai/commit/6dfffca99aeac1ada59eb288f8eb09e564d3db1e)]:
+  - @tanstack/ai@0.6.3
+  - @tanstack/ai-client@0.6.0
+  - @tanstack/ai-svelte@0.6.4
+  - @tanstack/ai-anthropic@0.6.0
+  - @tanstack/ai-gemini@0.8.0
+  - @tanstack/ai-ollama@0.6.0
+  - @tanstack/ai-openai@0.6.0
+
+## 0.1.18
+
+### Patch Changes
+
+- Updated dependencies [[`f737db8`](https://github.com/TanStack/ai/commit/f737db8076f5e9bdc55690c5ec6d39898f839512)]:
+  - @tanstack/ai-gemini@0.8.0
+
+## 0.1.17
+
+### Patch Changes
+
+- Updated dependencies [[`2ee0b33`](https://github.com/TanStack/ai/commit/2ee0b33386c1f1604c04c1f2f78a859f8a83fd2d)]:
+  - @tanstack/ai@0.6.2
+  - @tanstack/ai-anthropic@0.6.0
+  - @tanstack/ai-client@0.5.3
+  - @tanstack/ai-gemini@0.7.0
+  - @tanstack/ai-ollama@0.6.0
+  - @tanstack/ai-openai@0.6.0
+  - @tanstack/ai-svelte@0.6.3
+
+## 0.1.16
+
+### Patch Changes
+
+- Updated dependencies [[`4fe31d4`](https://github.com/TanStack/ai/commit/4fe31d41c2c67ea721173d63cdfd5fbcbaf13d93)]:
+  - @tanstack/ai-client@0.5.2
+  - @tanstack/ai-svelte@0.6.2
+
+## 0.1.15
+
+### Patch Changes
+
+- Updated dependencies [[`87ae93a`](https://github.com/TanStack/ai/commit/87ae93a1a3e4fca732b0ceddb374d446086d591f)]:
+  - @tanstack/ai-gemini@0.7.0
+
+## 0.1.14
+
+### Patch Changes
+
+- Updated dependencies [[`d8678e2`](https://github.com/TanStack/ai/commit/d8678e254a8edfa4f95eeb059aa30083c18f52f8)]:
+  - @tanstack/ai@0.6.1
+  - @tanstack/ai-anthropic@0.6.0
+  - @tanstack/ai-client@0.5.1
+  - @tanstack/ai-gemini@0.6.0
+  - @tanstack/ai-ollama@0.6.0
+  - @tanstack/ai-openai@0.6.0
+  - @tanstack/ai-svelte@0.6.1
+
+## 0.1.13
+
+### Patch Changes
+
+- Updated dependencies [[`5aa6acc`](https://github.com/TanStack/ai/commit/5aa6acc1a4faea5346f750322e80984abf2d7059), [`1f800aa`](https://github.com/TanStack/ai/commit/1f800aacf57081f37a075bc8d08ff397cb33cbe9)]:
+  - @tanstack/ai@0.6.0
+  - @tanstack/ai-client@0.5.0
+  - @tanstack/ai-svelte@0.6.0
+  - @tanstack/ai-anthropic@0.6.0
+  - @tanstack/ai-gemini@0.6.0
+  - @tanstack/ai-ollama@0.6.0
+  - @tanstack/ai-openai@0.6.0
+
+## 0.1.12
+
+### Patch Changes
+
+- Updated dependencies [[`58702bc`](https://github.com/TanStack/ai/commit/58702bcaad31c46f8fd747b2f0e1daff2003beb9)]:
+  - @tanstack/ai@0.5.1
+  - @tanstack/ai-anthropic@0.5.0
+  - @tanstack/ai-client@0.4.5
+  - @tanstack/ai-gemini@0.5.0
+  - @tanstack/ai-ollama@0.5.0
+  - @tanstack/ai-openai@0.5.0
+  - @tanstack/ai-svelte@0.5.4
+
+## 0.1.11
+
+### Patch Changes
+
+- Updated dependencies [[`5d98472`](https://github.com/TanStack/ai/commit/5d984722e1f84725e3cfda834fbda3d0341ecedd), [`5d98472`](https://github.com/TanStack/ai/commit/5d984722e1f84725e3cfda834fbda3d0341ecedd)]:
+  - @tanstack/ai@0.5.0
+  - @tanstack/ai-client@0.4.4
+  - @tanstack/ai-anthropic@0.5.0
+  - @tanstack/ai-gemini@0.5.0
+  - @tanstack/ai-ollama@0.5.0
+  - @tanstack/ai-openai@0.5.0
+  - @tanstack/ai-svelte@0.5.0
+
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies [[`6bd3a8b`](https://github.com/TanStack/ai/commit/6bd3a8ba76594f302333625605dbb428f2413d29)]:
+  - @tanstack/ai-anthropic@0.4.2
+  - @tanstack/ai-gemini@0.4.1
+
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [[`6f886e9`](https://github.com/TanStack/ai/commit/6f886e96f2478374520998395357fdf3aa9149ab)]:
+  - @tanstack/ai@0.4.2
+  - @tanstack/ai-anthropic@0.4.1
+  - @tanstack/ai-client@0.4.3
+  - @tanstack/ai-gemini@0.4.0
+  - @tanstack/ai-ollama@0.4.0
+  - @tanstack/ai-openai@0.4.0
+  - @tanstack/ai-svelte@0.5.2
+
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies [[`6e1bb50`](https://github.com/TanStack/ai/commit/6e1bb5097178a6ad795273ca715f1e09d3f5a006)]:
+  - @tanstack/ai-anthropic@0.4.1
+  - @tanstack/ai@0.4.1
+  - @tanstack/ai-client@0.4.2
+  - @tanstack/ai-gemini@0.4.0
+  - @tanstack/ai-ollama@0.4.0
+  - @tanstack/ai-openai@0.4.0
+  - @tanstack/ai-svelte@0.5.1
+
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies [[`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f), [`0158d14`](https://github.com/TanStack/ai/commit/0158d14df00639ff5325680ae91b7791c189e60f)]:
+  - @tanstack/ai-anthropic@0.4.0
+  - @tanstack/ai-gemini@0.4.0
+  - @tanstack/ai-openai@0.4.0
+  - @tanstack/ai-svelte@0.4.0
+  - @tanstack/ai@0.4.0
+  - @tanstack/ai-client@0.4.1
+  - @tanstack/ai-ollama@0.4.0
+
+## 0.1.6
+
+### Patch Changes
+
+- Updated dependencies [[`99ccee5`](https://github.com/TanStack/ai/commit/99ccee5c72df12adc13bede98142c6da84d13cc4), [`230bab6`](https://github.com/TanStack/ai/commit/230bab6417c8ff2c25586a12126c85e27dd7bc15)]:
+  - @tanstack/ai-client@0.4.0
+  - @tanstack/ai-svelte@0.4.0
+  - @tanstack/ai@0.3.1
+  - @tanstack/ai-anthropic@0.3.0
+  - @tanstack/ai-gemini@0.3.0
+  - @tanstack/ai-ollama@0.3.0
+  - @tanstack/ai-openai@0.3.0
+
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [[`e52135f`](https://github.com/TanStack/ai/commit/e52135f6ec3285227679411636e208ae84a408d7)]:
+  - @tanstack/ai@0.3.0
+  - @tanstack/ai-client@0.3.0
+  - @tanstack/ai-openai@0.3.0
+  - @tanstack/ai-anthropic@0.3.0
+  - @tanstack/ai-gemini@0.3.0
+  - @tanstack/ai-ollama@0.3.0
+  - @tanstack/ai-svelte@0.3.0
+
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [[`356df1a`](https://github.com/TanStack/ai/commit/356df1a6d1f19b00eff3399068eb4086bd6616b9)]:
+  - @tanstack/ai-openai@0.3.0
+
 ## 0.1.3
 
 ### Patch Changes
@@ -41,13 +442,13 @@
 ### Patch Changes
 
 - Updated dependencies [[`c5df33c`](https://github.com/TanStack/ai/commit/c5df33c2d3e72c3332048ffe7c64a553e5ea86fb)]:
-  - @tanstack/ai-anthropic@1.0.0
+  - @tanstack/ai-anthropic@0.3.0
   - @tanstack/ai-client@0.2.0
-  - @tanstack/ai-ollama@1.0.0
-  - @tanstack/ai-svelte@1.0.0
+  - @tanstack/ai-ollama@0.3.0
+  - @tanstack/ai-svelte@0.3.0
   - @tanstack/ai@0.2.0
-  - @tanstack/ai-gemini@1.0.0
-  - @tanstack/ai-openai@1.0.0
+  - @tanstack/ai-gemini@0.3.0
+  - @tanstack/ai-openai@0.3.0
 
 ## 0.0.4
 

@@ -10,10 +10,17 @@
   "pnpm": {
     "overrides": {
       "abbrev": "^3.0.0"
+    },
+    "ignoredBuiltDependencies": [
+      "isolated-vm"
+    ],
+    "patchedDependencies": {
+      "@changesets/assemble-release-plan@6.0.9": "patches/@changesets__assemble-release-plan@6.0.9.patch"
     }
   },
   "scripts": {
     "clean": "pnpm --filter \"./packages/**\" run clean",
+    "clean:all": "git clean -fdx --exclude=\"!.env\"",
     "test": "pnpm run test:ci",
     "test:pr": "nx affected --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build",
     "test:ci": "nx run-many --targets=test:sherif,test:knip,test:docs,test:eslint,test:lib,test:types,test:build,build",
@@ -28,10 +35,13 @@
     "test:docs": "node scripts/verify-links.ts",
     "build": "nx affected --skip-nx-cache --targets=build --exclude=examples/**",
     "build:all": "nx run-many --targets=build --exclude=examples/**",
-    "watch": "pnpm run build:all && nx watch --all -- pnpm run build:all",
+    "watch": "pnpm run build:all && env NX_DAEMON=true nx watch --all -- pnpm run build:all",
     "dev": "pnpm run watch",
     "format": "prettier --experimental-cli --ignore-unknown '**/*' --write",
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
+    "generate:models": "pnpm generate:models:fetch && pnpm regenerate:models && tsx scripts/sync-provider-models.ts && pnpm format",
+    "generate:models:fetch": "tsx scripts/fetch-openrouter-models.ts",
+    "regenerate:models": "tsx scripts/convert-openrouter-models.ts",
     "sync-docs-config": "node scripts/sync-docs-config.ts",
     "copy:readme": "cp README.md packages/typescript/ai/README.md && cp README.md packages/typescript/ai-devtools/README.md && cp README.md packages/typescript/preact-ai-devtools/README.md && cp README.md packages/typescript/ai-client/README.md && cp README.md packages/typescript/ai-gemini/README.md && cp README.md packages/typescript/ai-ollama/README.md && cp README.md packages/typescript/ai-openai/README.md && cp README.md packages/typescript/ai-react/README.md && cp README.md packages/typescript/ai-react-ui/README.md && cp README.md packages/typescript/react-ai-devtools/README.md && cp README.md packages/typescript/solid-ai-devtools/README.md",
     "changeset": "changeset",
@@ -46,7 +56,7 @@
     ]
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.8",
+    "@changesets/cli": "^2.30.0",
     "@faker-js/faker": "^10.1.0",
     "@svitejs/changesets-changelog-github-compact": "^1.2.0",
     "@tanstack/eslint-config": "0.3.3",
@@ -65,6 +75,7 @@
     "publint": "^0.3.15",
     "sherif": "^1.9.0",
     "tinyglobby": "^0.2.15",
+    "tsx": "^4.21.0",
     "typescript": "5.9.3",
     "vite": "^7.2.7",
     "vitest": "^4.0.14"

@@ -9,7 +9,7 @@ title: maxIterations
 function maxIterations(max): AgentLoopStrategy;
 ```
 
-Defined in: [activities/chat/agent-loop-strategies.ts:20](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/agent-loop-strategies.ts#L20)
+Defined in: [packages/typescript/ai/src/activities/chat/agent-loop-strategies.ts:20](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/agent-loop-strategies.ts#L20)
 
 Creates a strategy that continues for a maximum number of iterations
 
@@ -32,7 +32,7 @@ AgentLoopStrategy that stops after max iterations
 ```typescript
 const stream = chat({
   adapter: openaiText(),
-  model: "gpt-5.2",
+  model: "gpt-4o",
   messages: [...],
   tools: [weatherTool],
   agentLoopStrategy: maxIterations(3), // Max 3 iterations

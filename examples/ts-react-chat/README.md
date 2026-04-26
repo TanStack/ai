@@ -39,6 +39,41 @@ An example chat application built with TanStack Start, TanStack Store, and **Tan
 OPENAI_API_KEY=your_openai_api_key
 ```
 
+## Trying Out Lazy Tool Discovery
+
+This example includes three **lazy tools** — tools that are not sent to the LLM upfront. Instead, the LLM sees a `__lazy__tool__discovery__` tool that lists their names. When the LLM needs one, it discovers it first (getting the full description and schema), then calls it normally.
+
+The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
+
+### Test Prompts
+
+**Compare guitars** — triggers discovery of `compareGuitars`:
+
+> "Can you compare the Motherboard Guitar and the Racing Guitar for me?"
+
+**Financing** — triggers discovery of `calculateFinancing`:
+
+> "How much would it cost per month if I financed the Superhero Guitar over 12 months?"
+
+**Search** — triggers discovery of `searchGuitars`:
+
+> "Do you have any guitars with LED lights or tech features?"
+
+**Multi-discovery** — triggers discovery of multiple lazy tools at once:
+
+> "I'm looking for acoustic guitars. Can you search for them, then compare the ones you find, and show me financing options for the cheapest one?"
+
+**Self-correction** — the LLM may try calling a lazy tool directly without discovering it first. It will get an error telling it to discover first, then self-correct:
+
+> "Compare guitar 1 and guitar 4 right now"
+
+### What to watch for
+
+- The LLM calls `__lazy__tool__discovery__` before using a lazy tool for the first time
+- After discovery, the tool is called directly like any normal tool
+- In multi-turn conversations, previously discovered tools are usable immediately without re-discovery
+- If the LLM skips discovery, it gets an error and self-corrects
+
 ## ✨ Features
 
 ### AI Capabilities

@@ -5,7 +5,7 @@ title: JSONSchema
 
 # Interface: JSONSchema
 
-Defined in: [types.ts:25](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L25)
+Defined in: [packages/typescript/ai/src/types.ts:52](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L52)
 
 JSON Schema type for defining tool input/output schemas as raw JSON Schema objects.
 This allows tools to be defined without schema libraries when you have JSON Schema definitions available.
@@ -24,7 +24,7 @@ This allows tools to be defined without schema libraries when you have JSON Sche
 optional $defs: Record<string, JSONSchema>;
 ```
 
-Defined in: [types.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L35)
+Defined in: [packages/typescript/ai/src/types.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L62)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [types.ts:35](https://github.com/TanStack/ai/blob/main/packages/type
 optional $ref: string;
 ```
 
-Defined in: [types.ts:34](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L34)
+Defined in: [packages/typescript/ai/src/types.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L61)
 
 ***
 
@@ -44,7 +44,7 @@ Defined in: [types.ts:34](https://github.com/TanStack/ai/blob/main/packages/type
 optional additionalItems: boolean | JSONSchema;
 ```
 
-Defined in: [types.ts:56](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L56)
+Defined in: [packages/typescript/ai/src/types.ts:83](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L83)
 
 ***
 
@@ -54,7 +54,7 @@ Defined in: [types.ts:56](https://github.com/TanStack/ai/blob/main/packages/type
 optional additionalProperties: boolean | JSONSchema;
 ```
 
-Defined in: [types.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L55)
+Defined in: [packages/typescript/ai/src/types.ts:82](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L82)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [types.ts:55](https://github.com/TanStack/ai/blob/main/packages/type
 optional allOf: JSONSchema[];
 ```
 
-Defined in: [types.ts:37](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L37)
+Defined in: [packages/typescript/ai/src/types.ts:64](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L64)
 
 ***
 
@@ -74,7 +74,7 @@ Defined in: [types.ts:37](https://github.com/TanStack/ai/blob/main/packages/type
 optional anyOf: JSONSchema[];
 ```
 
-Defined in: [types.ts:38](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L38)
+Defined in: [packages/typescript/ai/src/types.ts:65](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L65)
 
 ***
 
@@ -84,7 +84,7 @@ Defined in: [types.ts:38](https://github.com/TanStack/ai/blob/main/packages/type
 optional const: unknown;
 ```
 
-Defined in: [types.ts:31](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L31)
+Defined in: [packages/typescript/ai/src/types.ts:58](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L58)
 
 ***
 
@@ -94,7 +94,7 @@ Defined in: [types.ts:31](https://github.com/TanStack/ai/blob/main/packages/type
 optional default: unknown;
 ```
 
-Defined in: [types.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L33)
+Defined in: [packages/typescript/ai/src/types.ts:60](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L60)
 
 ***
 
@@ -104,7 +104,7 @@ Defined in: [types.ts:33](https://github.com/TanStack/ai/blob/main/packages/type
 optional definitions: Record<string, JSONSchema>;
 ```
 
-Defined in: [types.ts:36](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L36)
+Defined in: [packages/typescript/ai/src/types.ts:63](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L63)
 
 ***
 
@@ -114,7 +114,7 @@ Defined in: [types.ts:36](https://github.com/TanStack/ai/blob/main/packages/type
 optional description: string;
 ```
 
-Defined in: [types.ts:32](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L32)
+Defined in: [packages/typescript/ai/src/types.ts:59](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L59)
 
 ***
 
@@ -124,7 +124,7 @@ Defined in: [types.ts:32](https://github.com/TanStack/ai/blob/main/packages/type
 optional else: JSONSchema;
 ```
 
-Defined in: [types.ts:43](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L43)
+Defined in: [packages/typescript/ai/src/types.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L70)
 
 ***
 
@@ -134,7 +134,7 @@ Defined in: [types.ts:43](https://github.com/TanStack/ai/blob/main/packages/type
 optional enum: unknown[];
 ```
 
-Defined in: [types.ts:30](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L30)
+Defined in: [packages/typescript/ai/src/types.ts:57](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L57)
 
 ***
 
@@ -144,7 +144,7 @@ Defined in: [types.ts:30](https://github.com/TanStack/ai/blob/main/packages/type
 optional examples: unknown[];
 ```
 
-Defined in: [types.ts:62](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L62)
+Defined in: [packages/typescript/ai/src/types.ts:89](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L89)
 
 ***
 
@@ -154,7 +154,7 @@ Defined in: [types.ts:62](https://github.com/TanStack/ai/blob/main/packages/type
 optional exclusiveMaximum: number;
 ```
 
-Defined in: [types.ts:47](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L47)
+Defined in: [packages/typescript/ai/src/types.ts:74](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L74)
 
 ***
 
@@ -164,7 +164,7 @@ Defined in: [types.ts:47](https://github.com/TanStack/ai/blob/main/packages/type
 optional exclusiveMinimum: number;
 ```
 
-Defined in: [types.ts:46](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L46)
+Defined in: [packages/typescript/ai/src/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L73)
 
 ***
 
@@ -174,7 +174,7 @@ Defined in: [types.ts:46](https://github.com/TanStack/ai/blob/main/packages/type
 optional format: string;
 ```
 
-Defined in: [types.ts:51](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L51)
+Defined in: [packages/typescript/ai/src/types.ts:78](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L78)
 
 ***
 
@@ -184,7 +184,7 @@ Defined in: [types.ts:51](https://github.com/TanStack/ai/blob/main/packages/type
 optional if: JSONSchema;
 ```
 
-Defined in: [types.ts:41](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L41)
+Defined in: [packages/typescript/ai/src/types.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L68)
 
 ***
 
@@ -194,7 +194,7 @@ Defined in: [types.ts:41](https://github.com/TanStack/ai/blob/main/packages/type
 optional items: JSONSchema | JSONSchema[];
 ```
 
-Defined in: [types.ts:28](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L28)
+Defined in: [packages/typescript/ai/src/types.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L55)
 
 ***
 
@@ -204,7 +204,7 @@ Defined in: [types.ts:28](https://github.com/TanStack/ai/blob/main/packages/type
 optional maximum: number;
 ```
 
-Defined in: [types.ts:45](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L45)
+Defined in: [packages/typescript/ai/src/types.ts:72](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L72)
 
 ***
 
@@ -214,7 +214,7 @@ Defined in: [types.ts:45](https://github.com/TanStack/ai/blob/main/packages/type
 optional maxItems: number;
 ```
 
-Defined in: [types.ts:53](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L53)
+Defined in: [packages/typescript/ai/src/types.ts:80](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L80)
 
 ***
 
@@ -224,7 +224,7 @@ Defined in: [types.ts:53](https://github.com/TanStack/ai/blob/main/packages/type
 optional maxLength: number;
 ```
 
-Defined in: [types.ts:49](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L49)
+Defined in: [packages/typescript/ai/src/types.ts:76](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L76)
 
 ***
 
@@ -234,7 +234,7 @@ Defined in: [types.ts:49](https://github.com/TanStack/ai/blob/main/packages/type
 optional maxProperties: number;
 ```
 
-Defined in: [types.ts:60](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L60)
+Defined in: [packages/typescript/ai/src/types.ts:87](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L87)
 
 ***
 
@@ -244,7 +244,7 @@ Defined in: [types.ts:60](https://github.com/TanStack/ai/blob/main/packages/type
 optional minimum: number;
 ```
 
-Defined in: [types.ts:44](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L44)
+Defined in: [packages/typescript/ai/src/types.ts:71](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L71)
 
 ***
 
@@ -254,7 +254,7 @@ Defined in: [types.ts:44](https://github.com/TanStack/ai/blob/main/packages/type
 optional minItems: number;
 ```
 
-Defined in: [types.ts:52](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L52)
+Defined in: [packages/typescript/ai/src/types.ts:79](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L79)
 
 ***
 
@@ -264,7 +264,7 @@ Defined in: [types.ts:52](https://github.com/TanStack/ai/blob/main/packages/type
 optional minLength: number;
 ```
 
-Defined in: [types.ts:48](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L48)
+Defined in: [packages/typescript/ai/src/types.ts:75](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L75)
 
 ***
 
@@ -274,7 +274,7 @@ Defined in: [types.ts:48](https://github.com/TanStack/ai/blob/main/packages/type
 optional minProperties: number;
 ```
 
-Defined in: [types.ts:59](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L59)
+Defined in: [packages/typescript/ai/src/types.ts:86](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L86)
 
 ***
 
@@ -284,7 +284,7 @@ Defined in: [types.ts:59](https://github.com/TanStack/ai/blob/main/packages/type
 optional not: JSONSchema;
 ```
 
-Defined in: [types.ts:40](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L40)
+Defined in: [packages/typescript/ai/src/types.ts:67](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L67)
 
 ***
 
@@ -294,7 +294,7 @@ Defined in: [types.ts:40](https://github.com/TanStack/ai/blob/main/packages/type
 optional oneOf: JSONSchema[];
 ```
 
-Defined in: [types.ts:39](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L39)
+Defined in: [packages/typescript/ai/src/types.ts:66](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L66)
 
 ***
 
@@ -304,7 +304,7 @@ Defined in: [types.ts:39](https://github.com/TanStack/ai/blob/main/packages/type
 optional pattern: string;
 ```
 
-Defined in: [types.ts:50](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L50)
+Defined in: [packages/typescript/ai/src/types.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L77)
 
 ***
 
@@ -314,7 +314,7 @@ Defined in: [types.ts:50](https://github.com/TanStack/ai/blob/main/packages/type
 optional patternProperties: Record<string, JSONSchema>;
 ```
 
-Defined in: [types.ts:57](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L57)
+Defined in: [packages/typescript/ai/src/types.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L84)
 
 ***
 
@@ -324,7 +324,7 @@ Defined in: [types.ts:57](https://github.com/TanStack/ai/blob/main/packages/type
 optional properties: Record<string, JSONSchema>;
 ```
 
-Defined in: [types.ts:27](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L27)
+Defined in: [packages/typescript/ai/src/types.ts:54](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L54)
 
 ***
 
@@ -334,7 +334,7 @@ Defined in: [types.ts:27](https://github.com/TanStack/ai/blob/main/packages/type
 optional propertyNames: JSONSchema;
 ```
 
-Defined in: [types.ts:58](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L58)
+Defined in: [packages/typescript/ai/src/types.ts:85](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L85)
 
 ***
 
@@ -344,7 +344,7 @@ Defined in: [types.ts:58](https://github.com/TanStack/ai/blob/main/packages/type
 optional required: string[];
 ```
 
-Defined in: [types.ts:29](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L29)
+Defined in: [packages/typescript/ai/src/types.ts:56](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L56)
 
 ***
 
@@ -354,7 +354,7 @@ Defined in: [types.ts:29](https://github.com/TanStack/ai/blob/main/packages/type
 optional then: JSONSchema;
 ```
 
-Defined in: [types.ts:42](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L42)
+Defined in: [packages/typescript/ai/src/types.ts:69](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L69)
 
 ***
 
@@ -364,7 +364,7 @@ Defined in: [types.ts:42](https://github.com/TanStack/ai/blob/main/packages/type
 optional title: string;
 ```
 
-Defined in: [types.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L61)
+Defined in: [packages/typescript/ai/src/types.ts:88](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L88)
 
 ***
 
@@ -374,7 +374,7 @@ Defined in: [types.ts:61](https://github.com/TanStack/ai/blob/main/packages/type
 optional type: string | string[];
 ```
 
-Defined in: [types.ts:26](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L26)
+Defined in: [packages/typescript/ai/src/types.ts:53](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L53)
 
 ***
 
@@ -384,4 +384,4 @@ Defined in: [types.ts:26](https://github.com/TanStack/ai/blob/main/packages/type
 optional uniqueItems: boolean;
 ```
 
-Defined in: [types.ts:54](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L54)
+Defined in: [packages/typescript/ai/src/types.ts:81](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L81)

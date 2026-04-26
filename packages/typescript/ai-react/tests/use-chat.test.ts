@@ -1,14 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { waitFor } from '@testing-library/react'
+import type { ModelMessage } from '@tanstack/ai'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
+import { describe, expect, it, vi } from 'vitest'
+import type { UIMessage, UseChatOptions } from '../src/types'
 import { useChat } from '../src/use-chat'
 import {
-  renderUseChat,
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
+  renderUseChat,
 } from './test-utils'
-import type { UIMessage } from '../src/types'
-import type { ModelMessage } from '@tanstack/ai'
 
 describe('useChat', () => {
   describe('initialization', () => {
@@ -19,6 +20,22 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual([])
       expect(result.current.isLoading).toBe(false)
       expect(result.current.error).toBeUndefined()
+      expect(result.current.status).toBe('ready')
+      expect(result.current.isSubscribed).toBe(false)
+      expect(result.current.connectionStatus).toBe('disconnected')
+      expect(result.current.sessionGenerating).toBe(false)
+    })
+
+    it('should subscribe immediately when live is true', async () => {
+      const adapter = createMockConnectionAdapter()
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.isSubscribed).toBe(true)
+      })
+      expect(['connecting', 'connected']).toContain(
+        result.current.connectionStatus,
+      )
     })
 
     it('should initialize with provided messages', () => {
@@ -473,6 +490,7 @@ describe('useChat', () => {
       await waitFor(
         () => {
           expect(result.current.isLoading).toBe(false)
+          expect(result.current.status).toBe('ready')
         },
         { timeout: 1000 },
       )
@@ -488,6 +506,7 @@ describe('useChat', () => {
       result.current.stop()
 
       expect(result.current.isLoading).toBe(false)
+      expect(result.current.status).toBe('ready')
     })
 
     it('should clear loading state when stopped', async () => {
@@ -509,12 +528,46 @@ describe('useChat', () => {
       await waitFor(
         () => {
           expect(result.current.isLoading).toBe(false)
+          expect(result.current.status).toBe('ready')
         },
         { timeout: 1000 },
       )
 
       await sendPromise.catch(() => {
         // Ignore errors from stopped request
+      })
+    })
+  })
+
+  describe('status', () => {
+    it('should transition through states during generation', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 50,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      const sendPromise = result.current.sendMessage('Test')
+
+      // Should leave ready state
+      await waitFor(() => {
+        expect(result.current.status).not.toBe('ready')
+      })
+
+      // Should be submitted or streaming
+      expect(['submitted', 'streaming']).toContain(result.current.status)
+
+      // Should eventually match streaming
+      await waitFor(() => {
+        expect(result.current.status).toBe('streaming')
+      })
+
+      await sendPromise
+
+      // Should return to ready
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready')
       })
     })
   })
@@ -746,6 +799,32 @@ describe('useChat', () => {
         expect(result.current.messages.length).toBeGreaterThan(0)
       })
     })
+
+    it('should use the latest onChunk after the parent rerenders with a new callback', async () => {
+      const first = vi.fn()
+      const second = vi.fn()
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Hello'),
+      })
+
+      const { result, rerender } = renderHook(
+        (opts: UseChatOptions) => useChat(opts),
+        {
+          initialProps: { connection: adapter, onChunk: first },
+        },
+      )
+
+      // Swap in a new callback before the next sendMessage
+      rerender({ connection: adapter, onChunk: second })
+
+      await result.current.sendMessage('Test')
+
+      // Only the newer callback should have seen this stream
+      await waitFor(() => {
+        expect(second).toHaveBeenCalled()
+      })
+      expect(first).not.toHaveBeenCalled()
+    })
   })
 
   describe('edge cases and error handling', () => {
@@ -796,6 +875,64 @@ describe('useChat', () => {
 
         // Should not throw
         expect(result.current).toBeDefined()
+      })
+    })
+
+    describe('client recreation', () => {
+      it('should pass existing messages to new client when id changes in a batched update', async () => {
+        const connectSpy = vi.fn()
+        const chunks = createTextChunks('Reply')
+        const adapter = createMockConnectionAdapter({
+          chunks,
+          onConnect: connectSpy,
+        })
+
+        // Control id via state so setMessages and setId are both React
+        // state updates that get batched into a single render.
+        const { result } = renderHook(() => {
+          const [id, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, id })
+          return { ...chat, switchId: setId }
+        })
+
+        const messages: Array<UIMessage> = [
+          {
+            id: 'msg-1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Hello' }],
+            createdAt: new Date(),
+          },
+          {
+            id: 'msg-2',
+            role: 'assistant',
+            parts: [{ type: 'text', content: 'Hi there!' }],
+            createdAt: new Date(),
+          },
+        ]
+
+        // Batch: set messages AND change id in one render cycle.
+        // With the useEffect ref pattern, the new ChatClient is created
+        // with stale (empty) initialMessages because messagesRef hasn't
+        // been updated yet.
+        act(() => {
+          result.current.setMessages(messages)
+          result.current.switchId('client-B')
+        })
+
+        // Send a message through the new client. If the client lost the
+        // previous messages, the adapter only receives the new message.
+        await act(async () => {
+          await result.current.sendMessage('Follow-up')
+        })
+
+        await waitFor(() => {
+          expect(connectSpy).toHaveBeenCalled()
+        })
+
+        // The adapter should receive the previous conversation + new message.
+        const sentMessages = connectSpy.mock.calls[0]![0] as Array<any>
+        const userMessages = sentMessages.filter((m: any) => m.role === 'user')
+        expect(userMessages.length).toBeGreaterThanOrEqual(2)
       })
     })
 
@@ -1203,6 +1340,407 @@ describe('useChat', () => {
             }
           })
         }
+      })
+    })
+  })
+
+  describe('multimodal sendMessage', () => {
+    it('should send a multimodal message with image URL', async () => {
+      const chunks = createTextChunks('I see a cat in the image')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'What is in this image?' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/cat.jpg' },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage).toBeDefined()
+      expect(userMessage?.parts.length).toBe(2)
+      expect(userMessage?.parts[0]).toEqual({
+        type: 'text',
+        content: 'What is in this image?',
+      })
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/cat.jpg' },
+      })
+    })
+
+    it('should send a multimodal message with image data and required mimeType', async () => {
+      const chunks = createTextChunks('I see a cat in the image')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'What is in this image?' },
+          {
+            type: 'image',
+            source: {
+              type: 'data',
+              value: 'base64ImageData',
+              mimeType: 'image/png',
+            },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'image',
+        source: {
+          type: 'data',
+          value: 'base64ImageData',
+          mimeType: 'image/png',
+        },
+      })
+    })
+
+    it('should send a multimodal message with audio data and required mimeType', async () => {
+      const chunks = createTextChunks('The audio says hello')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Transcribe this audio' },
+          {
+            type: 'audio',
+            source: {
+              type: 'data',
+              value: 'base64AudioData',
+              mimeType: 'audio/mp3',
+            },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'audio',
+        source: {
+          type: 'data',
+          value: 'base64AudioData',
+          mimeType: 'audio/mp3',
+        },
+      })
+    })
+
+    it('should send a multimodal message with video URL', async () => {
+      const chunks = createTextChunks('The video shows a sunset')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Describe this video' },
+          {
+            type: 'video',
+            source: { type: 'url', value: 'https://example.com/video.mp4' },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'video',
+        source: { type: 'url', value: 'https://example.com/video.mp4' },
+      })
+    })
+
+    it('should send a multimodal message with video data and required mimeType', async () => {
+      const chunks = createTextChunks('The video shows a sunset')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Describe this video' },
+          {
+            type: 'video',
+            source: {
+              type: 'data',
+              value: 'base64VideoData',
+              mimeType: 'video/mp4',
+            },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'video',
+        source: {
+          type: 'data',
+          value: 'base64VideoData',
+          mimeType: 'video/mp4',
+        },
+      })
+    })
+
+    it('should send a multimodal message with document data and required mimeType', async () => {
+      const chunks = createTextChunks('The document discusses AI')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Summarize this PDF' },
+          {
+            type: 'document',
+            source: {
+              type: 'data',
+              value: 'base64PdfData',
+              mimeType: 'application/pdf',
+            },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'document',
+        source: {
+          type: 'data',
+          value: 'base64PdfData',
+          mimeType: 'application/pdf',
+        },
+      })
+    })
+
+    it('should send a multimodal message with document URL', async () => {
+      const chunks = createTextChunks('The document discusses AI')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Summarize this document' },
+          {
+            type: 'document',
+            source: {
+              type: 'url',
+              value: 'https://example.com/doc.pdf',
+            },
+          },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'document',
+        source: {
+          type: 'url',
+          value: 'https://example.com/doc.pdf',
+        },
+      })
+    })
+
+    it('should send complex multimodal message with multiple content parts', async () => {
+      const chunks = createTextChunks('I see multiple items')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [
+          { type: 'text', content: 'Compare these items' },
+          {
+            type: 'image',
+            source: {
+              type: 'data',
+              value: 'base64Image1',
+              mimeType: 'image/jpeg',
+            },
+          },
+          {
+            type: 'image',
+            source: {
+              type: 'url',
+              value: 'https://example.com/image2.png',
+            },
+          },
+          { type: 'text', content: 'Which one is better?' },
+        ],
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts.length).toBe(4)
+      expect(userMessage?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Compare these items',
+      })
+      expect(userMessage?.parts[1]).toEqual({
+        type: 'image',
+        source: {
+          type: 'data',
+          value: 'base64Image1',
+          mimeType: 'image/jpeg',
+        },
+      })
+      expect(userMessage?.parts[2]).toEqual({
+        type: 'image',
+        source: {
+          type: 'url',
+          value: 'https://example.com/image2.png',
+        },
+      })
+      expect(userMessage?.parts[3]).toEqual({
+        type: 'text',
+        content: 'Which one is better?',
+      })
+    })
+
+    it('should use custom message id when provided in multimodal message', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: [{ type: 'text', content: 'Hello' }],
+        id: 'custom-multimodal-id-123',
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      expect(result.current.messages[0]?.id).toBe('custom-multimodal-id-123')
+    })
+
+    it('should send string content as simple text message via multimodal interface', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const { result } = renderUseChat({ connection: adapter })
+
+      await result.current.sendMessage({
+        content: 'Hello world',
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      const userMessage = result.current.messages.find((m) => m.role === 'user')
+      expect(userMessage?.parts).toEqual([
+        { type: 'text', content: 'Hello world' },
+      ])
+    })
+  })
+
+  describe('sessionGenerating', () => {
+    it('should expose sessionGenerating and update from stream run events', async () => {
+      const adapter: import('@tanstack/ai-client').SubscribeConnectionAdapter =
+        {
+          subscribe: async function* (signal?: AbortSignal) {
+            yield {
+              type: 'RUN_STARTED' as const,
+              runId: 'run-1',
+              model: 'test',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: 'TEXT_MESSAGE_CONTENT' as const,
+              messageId: 'msg-1',
+              model: 'test',
+              timestamp: Date.now(),
+              delta: 'Hi',
+              content: 'Hi',
+            }
+            yield {
+              type: 'RUN_FINISHED' as const,
+              runId: 'run-1',
+              model: 'test',
+              timestamp: Date.now(),
+              finishReason: 'stop' as const,
+            }
+          },
+          send: vi.fn(async () => {}),
+        }
+
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.isSubscribed).toBe(true)
+      })
+
+      await result.current.sendMessage('Hello')
+
+      await waitFor(() => {
+        expect(result.current.sessionGenerating).toBe(false)
+      })
+    })
+
+    it('should integrate correctly with live subscription lifecycle', async () => {
+      const adapter: import('@tanstack/ai-client').SubscribeConnectionAdapter =
+        {
+          subscribe: async function* () {
+            yield {
+              type: 'RUN_STARTED' as const,
+              runId: 'run-1',
+              model: 'test',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: 'RUN_FINISHED' as const,
+              runId: 'run-1',
+              model: 'test',
+              timestamp: Date.now(),
+              finishReason: 'stop' as const,
+            }
+          },
+          send: vi.fn(async () => {}),
+        }
+
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await waitFor(() => {
+        expect(result.current.isSubscribed).toBe(true)
+      })
+
+      await result.current.sendMessage('Hello')
+
+      await waitFor(() => {
+        expect(result.current.sessionGenerating).toBe(false)
+        expect(result.current.isLoading).toBe(false)
       })
     })
   })

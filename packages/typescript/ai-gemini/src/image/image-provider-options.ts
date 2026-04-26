@@ -145,11 +145,49 @@ export type GeminiImageSize =
   | '1080x1920'
 
 /**
- * Model-specific size options mapping
- * All Imagen models use the same size options
+ * Aspect ratios supported by Gemini native image models (via generateContent API).
+ * Matches the SDK's ImageConfig.aspectRatio values.
+ */
+export type GeminiNativeImageAspectRatio =
+  | '1:1'
+  | '2:3'
+  | '3:2'
+  | '3:4'
+  | '4:3'
+  | '9:16'
+  | '16:9'
+  | '21:9'
+
+/**
+ * Resolution tiers for Gemini native image models.
+ * Matches the SDK's ImageConfig.imageSize values.
+ */
+export type GeminiNativeImageResolution = '1K' | '2K' | '4K'
+
+/**
+ * Template literal size type for Gemini native image models: "16:9_4K", "1:1_2K", etc.
+ */
+export type GeminiNativeImageSize =
+  `${GeminiNativeImageAspectRatio}_${GeminiNativeImageResolution}`
+
+/**
+ * Gemini native image models that use the generateContent API path.
+ * These models support template literal sizes (aspectRatio_resolution).
+ */
+export type GeminiNativeImageModels =
+  | 'gemini-3.1-flash-image-preview'
+  | 'gemini-3-pro-image-preview'
+  | 'gemini-2.5-flash-image'
+  | 'gemini-2.0-flash-preview-image-generation'
+
+/**
+ * Model-specific size options mapping.
+ * Gemini native image models use template literal sizes, Imagen models use pixel sizes.
  */
 export type GeminiImageModelSizeByName = {
-  [K in GeminiImageModels]: GeminiImageSize
+  [K in GeminiNativeImageModels]: GeminiNativeImageSize
+} & {
+  [K in Exclude<GeminiImageModels, GeminiNativeImageModels>]: GeminiImageSize
 }
 
 /**
@@ -206,8 +244,28 @@ export function validateImageSize(
 }
 
 /**
- * Validates the number of images requested
- * Imagen models support 1-8 images per request (varies by model)
+ * Per-model caps on images per request.
+ * Imagen 3 and the Imagen 4 family all support up to 4 images per request
+ * via the Gemini API (the rumored 8-image tier is Vertex-only and isn't
+ * reachable through @google/genai today). Unknown models fall through to
+ * the shared cap defined below.
+ *
+ * @see https://ai.google.dev/gemini-api/docs/imagen
+ */
+const IMAGEN_MAX_IMAGES_BY_MODEL: Record<string, number> = {
+  'imagen-3.0-generate-002': 4,
+  'imagen-4.0-generate-001': 4,
+  'imagen-4.0-ultra-generate-001': 4,
+  'imagen-4.0-fast-generate-001': 4,
+}
+
+const DEFAULT_IMAGEN_MAX_IMAGES = 4
+
+/**
+ * Validates the number of images requested against the model's known cap.
+ * Uses a per-model table where available and falls back to the shared
+ * default otherwise — no more "some support up to 8" comments that don't
+ * match the error message.
  */
 export function validateNumberOfImages(
   model: string,
@@ -215,8 +273,8 @@ export function validateNumberOfImages(
 ): void {
   if (numberOfImages === undefined) return
 
-  // Most Imagen models support 1-4 images, some support up to 8
-  const maxImages = 4
+  const maxImages =
+    IMAGEN_MAX_IMAGES_BY_MODEL[model] ?? DEFAULT_IMAGEN_MAX_IMAGES
   if (numberOfImages < 1 || numberOfImages > maxImages) {
     throw new Error(
       `Invalid numberOfImages "${numberOfImages}" for model "${model}". ` +
@@ -236,4 +294,16 @@ export function validatePrompt(options: {
   if (!prompt || prompt.trim().length === 0) {
     throw new Error(`Prompt cannot be empty for model "${model}".`)
   }
+}
+
+/**
+ * Parses a Gemini native image size string into its components.
+ * Format: "aspectRatio_resolution" e.g. "16:9_4K" → { aspectRatio: "16:9", resolution: "4K" }
+ */
+export function parseNativeImageSize(
+  size: string,
+): { aspectRatio: string; resolution: string } | undefined {
+  const match = size.match(/^(\d+:\d+)_(.+)$/)
+  if (!match) return undefined
+  return { aspectRatio: match[1]!, resolution: match[2]! }
 }

@@ -24,6 +24,12 @@ export {
 } from './adapters/summarize'
 export { OLLAMA_TEXT_MODELS as OllamaSummarizeModels } from './model-meta'
 
+// Tool converters
+export {
+  convertFunctionToolToAdapterFormat,
+  convertToolsToProviderFormat,
+} from './tools'
+
 // ===========================
 // Type Exports
 // ===========================

@@ -3,13 +3,13 @@ import {
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
-} from '../utils'
+} from '../utils/client'
 import {
   validateAudioInput,
   validateInstructions,
   validateSpeed,
 } from '../audio/audio-provider-options'
-import type { OPENAI_TTS_MODELS } from '../model-meta'
+import type { OpenAITTSModel } from '../model-meta'
 import type {
   OpenAITTSFormat,
   OpenAITTSProviderOptions,
@@ -17,15 +17,12 @@ import type {
 } from '../audio/tts-provider-options'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
-import type { OpenAIClientConfig } from '../utils'
+import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI TTS adapter
  */
 export interface OpenAITTSConfig extends OpenAIClientConfig {}
-
-/** Model type for OpenAI TTS */
-export type OpenAITTSModel = (typeof OPENAI_TTS_MODELS)[number]
 
 /**
  * OpenAI Text-to-Speech Adapter
@@ -46,14 +43,20 @@ export class OpenAITTSAdapter<
   private client: OpenAI_SDK
 
   constructor(config: OpenAITTSConfig, model: TModel) {
-    super(config, model)
+    super(model, config)
     this.client = createOpenAIClient(config)
   }
 
   async generateSpeech(
     options: TTSOptions<OpenAITTSProviderOptions>,
   ): Promise<TTSResult> {
+    const { logger } = options
     const { model, text, voice, format, speed, modelOptions } = options
+
+    logger.request(`activity=generateSpeech provider=openai model=${model}`, {
+      provider: 'openai',
+      model,
+    })
 
     // Validate inputs using existing validators
     const audioOptions = {
@@ -79,22 +82,30 @@ export class OpenAITTSAdapter<
       ...modelOptions,
     }
 
-    // Call OpenAI API
-    const response = await this.client.audio.speech.create(request)
+    try {
+      // Call OpenAI API
+      const response = await this.client.audio.speech.create(request)
 
-    // Convert response to base64
-    const arrayBuffer = await response.arrayBuffer()
-    const base64 = Buffer.from(arrayBuffer).toString('base64')
+      // Convert response to base64
+      const arrayBuffer = await response.arrayBuffer()
+      const base64 = Buffer.from(arrayBuffer).toString('base64')
 
-    const outputFormat = format || 'mp3'
-    const contentType = this.getContentType(outputFormat)
+      const outputFormat = format || 'mp3'
+      const contentType = this.getContentType(outputFormat)
 
-    return {
-      id: generateId(this.name),
-      model,
-      audio: base64,
-      format: outputFormat,
-      contentType,
+      return {
+        id: generateId(this.name),
+        model,
+        audio: base64,
+        format: outputFormat,
+        contentType,
+      }
+    } catch (error) {
+      logger.errors('openai.generateSpeech fatal', {
+        error,
+        source: 'openai.generateSpeech',
+      })
+      throw error
     }
   }
 

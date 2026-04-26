@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "0.2.2",
+  "version": "0.14.0",
   "description": "Core TanStack AI library - Open source AI SDK",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -21,9 +21,13 @@
       "types": "./dist/esm/activities/index.d.ts",
       "import": "./dist/esm/activities/index.js"
     },
-    "./event-client": {
-      "types": "./dist/esm/event-client.d.ts",
-      "import": "./dist/esm/event-client.js"
+    "./middlewares": {
+      "types": "./dist/esm/middlewares/index.d.ts",
+      "import": "./dist/esm/middlewares/index.js"
+    },
+    "./adapter-internals": {
+      "types": "./dist/esm/adapter-internals.d.ts",
+      "import": "./dist/esm/adapter-internals.js"
     }
   },
   "sideEffects": false,
@@ -32,7 +36,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "skills"
   ],
   "scripts": {
     "build": "vite build",
@@ -52,10 +57,12 @@
     "sdk",
     "llm",
     "chat",
-    "embeddings"
+    "embeddings",
+    "tanstack-intent"
   ],
   "dependencies": {
-    "@tanstack/devtools-event-client": "^0.4.0",
+    "@ag-ui/core": "0.0.49",
+    "@tanstack/ai-event-client": "workspace:*",
     "partial-json": "^0.1.7"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-client",
-  "version": "0.2.2",
+  "version": "0.8.0",
   "description": "Framework-agnostic headless client for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -43,9 +43,11 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-event-client": "workspace:*"
   },
   "devDependencies": {
+    "@standard-schema/spec": "^1.1.0",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7",
     "zod": "^4.2.0"

@@ -2,6 +2,17 @@
 title: OpenAI
 id: openai-adapter
 order: 1
+description: "Use OpenAI models with TanStack AI — GPT-4o, GPT-5, DALL-E image generation, TTS, and Whisper transcription via @tanstack/ai-openai."
+keywords:
+  - tanstack ai
+  - openai
+  - gpt-4o
+  - gpt-5
+  - dall-e
+  - whisper
+  - openai tts
+  - adapter
+  - chatgpt
 ---
 
 The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, image generation (DALL-E), text-to-speech (TTS), and audio transcription (Whisper).
@@ -329,5 +340,267 @@ Creates an OpenAI transcription adapter with an explicit API key.
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about tools
+- [Tools Guide](../tools/tools) - Learn about tools
 - [Other Adapters](./anthropic) - Explore other providers
+
+## Provider Tools
+
+OpenAI exposes several native tools beyond user-defined function calls.
+Import them from `@tanstack/ai-openai/tools` and pass them into
+`chat({ tools: [...] })`.
+
+> For the full concept, a comparison matrix, and type-gating details, see
+> [Provider Tools](../tools/provider-tools.md).
+
+### `webSearchTool`
+
+Enables the model to run a web search and return grounded results with
+citations. Pass a `WebSearchToolConfig` object (typed from the OpenAI SDK)
+to configure the tool.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { webSearchTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "What's new in AI this week?" }],
+  tools: [webSearchTool({ type: "web_search" })],
+});
+```
+
+**Supported models:** GPT-4o, GPT-5, and Responses API-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `webSearchPreviewTool`
+
+The preview variant of web search with additional options for controlling
+search context size and user location. Use this when you want fine-grained
+control over the search context sent to the model.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { webSearchPreviewTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "Latest news about TypeScript" }],
+  tools: [
+    webSearchPreviewTool({
+      type: "web_search_preview_2025_03_11",
+      search_context_size: "high",
+    }),
+  ],
+});
+```
+
+**Supported models:** GPT-4o and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `fileSearchTool`
+
+Searches OpenAI vector stores that you have pre-populated, letting the model
+retrieve relevant document chunks. Provide the `vector_store_ids` to search
+and optionally limit results with `max_num_results` (1–50).
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { fileSearchTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "What does the handbook say about PTO?" }],
+  tools: [
+    fileSearchTool({
+      type: "file_search",
+      vector_store_ids: ["vs_abc123"],
+      max_num_results: 5,
+    }),
+  ],
+});
+```
+
+**Supported models:** GPT-4o and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `imageGenerationTool`
+
+Allows the model to generate images inline during a conversation using
+DALL-E/GPT-Image. Pass quality, size, and style options via the config object.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { imageGenerationTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "Draw a logo for my app" }],
+  tools: [
+    imageGenerationTool({
+      quality: "high",
+      size: "1024x1024",
+    }),
+  ],
+});
+```
+
+**Supported models:** GPT-5 and GPT-Image-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `codeInterpreterTool`
+
+Gives the model a sandboxed Python execution environment. The `container`
+field configures the execution environment; pass the full
+`CodeInterpreterToolConfig` object.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { codeInterpreterTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "Analyse this CSV and plot a chart" }],
+  tools: [
+    codeInterpreterTool({ type: "code_interpreter", container: { type: "auto" } }),
+  ],
+});
+```
+
+**Supported models:** GPT-4o and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `mcpTool`
+
+Connects the model to a remote MCP (Model Context Protocol) server, exposing
+all its capabilities as callable tools. Provide either `server_url` or
+`connector_id` — not both.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { mcpTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "List my GitHub issues" }],
+  tools: [
+    mcpTool({
+      server_url: "https://mcp.example.com",
+      server_label: "github",
+    }),
+  ],
+});
+```
+
+**Supported models:** GPT-4o and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `computerUseTool`
+
+Lets the model observe a virtual desktop via screenshots and interact with
+it using keyboard and mouse events. Provide the display dimensions and the
+execution environment type.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { computerUseTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("computer-use-preview"),
+  messages: [{ role: "user", content: "Open Chrome and navigate to example.com" }],
+  tools: [
+    computerUseTool({
+      type: "computer_use_preview",
+      display_width: 1024,
+      display_height: 768,
+      environment: "browser",
+    }),
+  ],
+});
+```
+
+**Supported models:** `computer-use-preview`. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `localShellTool`
+
+Provides the model with a local shell for executing system commands. Takes no
+arguments — the tool is enabled simply by including it in the `tools` array.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { localShellTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "Run the test suite and summarise failures" }],
+  tools: [localShellTool()],
+});
+```
+
+**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `shellTool`
+
+A function-style shell tool that exposes shell execution as a structured
+function call. Takes no arguments.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { shellTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "Count lines in all JS files" }],
+  tools: [shellTool()],
+});
+```
+
+**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `applyPatchTool`
+
+Lets the model apply unified-diff patches to modify files directly. Takes no
+arguments — include it in the `tools` array to enable patch application.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { applyPatchTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "Fix the import paths in src/index.ts" }],
+  tools: [applyPatchTool()],
+});
+```
+
+**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+### `customTool`
+
+Defines a custom Responses API tool with an explicit name, description, and
+format. Use this when none of the structured tool types fits your use case.
+Unlike branded provider tools, `customTool` returns a plain `Tool` and is
+accepted by any chat model.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { customTool } from "@tanstack/ai-openai/tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "Look up order #1234" }],
+  tools: [
+    customTool({
+      type: "custom",
+      name: "lookup_order",
+      description: "Look up the status of a customer order by order ID",
+    }),
+  ],
+});
+```
+
+**Supported models:** all Responses API models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).

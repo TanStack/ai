@@ -51,11 +51,26 @@ export {
   type GeminiTTSProviderOptions,
 } from './adapters/tts'
 
+// Audio / Lyria music generation adapter (experimental)
+/**
+ * @experimental Gemini Lyria music generation is an experimental feature and may change.
+ */
+export {
+  GeminiAudioAdapter,
+  createGeminiAudio,
+  geminiAudio,
+  type GeminiAudioConfig,
+  type GeminiAudioModel,
+  type GeminiAudioProviderOptions,
+} from './adapters/audio'
+
 // Re-export models from model-meta for convenience
+export { GEMINI_MODELS } from './model-meta'
 export { GEMINI_MODELS as GeminiTextModels } from './model-meta'
 export { GEMINI_IMAGE_MODELS as GeminiImageModels } from './model-meta'
 export { GEMINI_TTS_MODELS as GeminiTTSModels } from './model-meta'
 export { GEMINI_TTS_VOICES as GeminiTTSVoices } from './model-meta'
+export { GEMINI_AUDIO_MODELS as GeminiAudioModels } from './model-meta'
 export type { GeminiModels as GeminiTextModel } from './model-meta'
 export type { GeminiImageModels as GeminiImageModel } from './model-meta'
 export type { GeminiTTSVoice } from './model-meta'
@@ -66,6 +81,7 @@ export type { GeminiTTSVoice } from './model-meta'
 
 export type {
   GeminiChatModelProviderOptionsByName,
+  GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
 } from './model-meta'
 export type {
@@ -79,9 +95,5 @@ export type {
   GeminiAudioMetadata,
   GeminiVideoMetadata,
   GeminiDocumentMetadata,
-  GeminiImageMimeType,
-  GeminiAudioMimeType,
-  GeminiVideoMimeType,
-  GeminiDocumentMimeType,
   GeminiMessageMetadataByModality,
 } from './message-types'

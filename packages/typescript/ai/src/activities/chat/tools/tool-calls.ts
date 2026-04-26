@@ -1,20 +1,59 @@
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type {
-  DoneStreamChunk,
+  CustomEvent,
   ModelMessage,
+  RunFinishedEvent,
   Tool,
   ToolCall,
-  ToolResultStreamChunk,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+  ToolCallStartEvent,
+  ToolExecutionContext,
 } from '../../../types'
+import type {
+  AfterToolCallInfo,
+  BeforeToolCallDecision,
+} from '../middleware/types'
+
+function safeJsonParse(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
+/**
+ * Optional middleware hooks for tool execution.
+ * When provided, these callbacks are invoked before/after each tool execution.
+ */
+export interface ToolExecutionMiddlewareHooks {
+  onBeforeToolCall?: (
+    toolCall: ToolCall,
+    tool: Tool | undefined,
+    args: unknown,
+  ) => Promise<BeforeToolCallDecision>
+  onAfterToolCall?: (info: AfterToolCallInfo) => Promise<void>
+}
+
+/**
+ * Error thrown when middleware decides to abort the chat run during tool execution.
+ */
+export class MiddlewareAbortError extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'MiddlewareAbortError'
+  }
+}
 
 /**
  * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
  *
  * Responsibilities:
- * - Accumulates streaming tool call chunks (ID, name, arguments)
+ * - Accumulates streaming tool call events (ID, name, arguments)
  * - Validates tool calls (filters out incomplete ones)
  * - Executes tool `execute` functions with parsed arguments
- * - Emits `tool_result` chunks for client visibility
+ * - Emits `TOOL_CALL_END` events for client visibility
  * - Returns tool result messages for conversation history
  *
  * This class is used internally by the AI.chat() method to handle the automatic
@@ -26,14 +65,16 @@ import type {
  *
  * // During streaming, accumulate tool calls
  * for await (const chunk of stream) {
- *   if (chunk.type === "tool_call") {
- *     manager.addToolCallChunk(chunk);
+ *   if (chunk.type === 'TOOL_CALL_START') {
+ *     manager.addToolCallStartEvent(chunk);
+ *   } else if (chunk.type === 'TOOL_CALL_ARGS') {
+ *     manager.addToolCallArgsEvent(chunk);
  *   }
  * }
  *
  * // After stream completes, execute tools
  * if (manager.hasToolCalls()) {
- *   const toolResults = yield* manager.executeTools(doneChunk);
+ *   const toolResults = yield* manager.executeTools(finishEvent);
  *   messages = [...messages, ...toolResults];
  *   manager.clear();
  * }
@@ -48,43 +89,51 @@ export class ToolCallManager {
   }
 
   /**
-   * Add a tool call chunk to the accumulator
-   * Handles streaming tool calls by accumulating arguments
+   * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
    */
-  addToolCallChunk(chunk: {
-    toolCall: {
-      id: string
-      type: 'function'
+  addToolCallStartEvent(event: ToolCallStartEvent): void {
+    const index = event.index ?? this.toolCallsMap.size
+    const name = event.toolCallName
+    this.toolCallsMap.set(index, {
+      id: event.toolCallId,
+      type: 'function',
       function: {
-        name: string
-        arguments: string
+        name,
+        arguments: '',
+      },
+      ...(event.providerMetadata && {
+        providerMetadata: event.providerMetadata,
+      }),
+    })
+  }
+
+  /**
+   * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
+   */
+  addToolCallArgsEvent(event: ToolCallArgsEvent): void {
+    // Find the tool call by ID
+    for (const [, toolCall] of this.toolCallsMap.entries()) {
+      if (toolCall.id === event.toolCallId) {
+        toolCall.function.arguments += event.delta
+        break
       }
     }
-    index: number
-  }): void {
-    const index = chunk.index
-    const existing = this.toolCallsMap.get(index)
+  }
 
-    if (!existing) {
-      // Only create entry if we have a tool call ID and name
-      if (chunk.toolCall.id && chunk.toolCall.function.name) {
-        this.toolCallsMap.set(index, {
-          id: chunk.toolCall.id,
-          type: 'function',
-          function: {
-            name: chunk.toolCall.function.name,
-            arguments: chunk.toolCall.function.arguments || '',
-          },
-        })
-      }
-    } else {
-      // Update name if it wasn't set before
-      if (chunk.toolCall.function.name && !existing.function.name) {
-        existing.function.name = chunk.toolCall.function.name
-      }
-      // Accumulate arguments for streaming tool calls
-      if (chunk.toolCall.function.arguments) {
-        existing.function.arguments += chunk.toolCall.function.arguments
+  /**
+   * Complete a tool call with its final input
+   * Called when TOOL_CALL_END is received
+   */
+  completeToolCall(event: ToolCallEndEvent): void {
+    for (const [, toolCall] of this.toolCallsMap.entries()) {
+      if (toolCall.id === event.toolCallId) {
+        if (event.input !== undefined) {
+          // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
+          const normalized =
+            event.input && typeof event.input === 'object' ? event.input : {}
+          toolCall.function.arguments = JSON.stringify(normalized)
+        }
+        break
       }
     }
   }
@@ -107,11 +156,12 @@ export class ToolCallManager {
 
   /**
    * Execute all tool calls and return tool result messages
-   * Also yields tool_result chunks for streaming
+   * Yields TOOL_CALL_END events for streaming
+   * @param finishEvent - RUN_FINISHED event from the stream
    */
   async *executeTools(
-    doneChunk: DoneStreamChunk,
-  ): AsyncGenerator<ToolResultStreamChunk, Array<ModelMessage>, void> {
+    finishEvent: RunFinishedEvent,
+  ): AsyncGenerator<ToolCallEndEvent, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
 
@@ -121,10 +171,12 @@ export class ToolCallManager {
       let toolResultContent: string
       if (tool?.execute) {
         try {
-          // Parse arguments
+          // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
           let args: unknown
           try {
-            args = JSON.parse(toolCall.function.arguments)
+            const argsString = toolCall.function.arguments.trim() || '{}'
+            const parsed = JSON.parse(argsString)
+            args = parsed && typeof parsed === 'object' ? parsed : {}
           } catch (parseError) {
             throw new Error(
               `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
@@ -182,15 +234,16 @@ export class ToolCallManager {
         toolResultContent = `Tool ${toolCall.function.name} does not have an execute function`
       }
 
-      // Emit tool_result chunk so callers can track tool execution
+      // Emit TOOL_CALL_END event
       yield {
-        type: 'tool_result',
-        id: doneChunk.id,
-        model: doneChunk.model,
-        timestamp: Date.now(),
+        type: 'TOOL_CALL_END',
         toolCallId: toolCall.id,
-        content: toolResultContent,
-      }
+        toolCallName: toolCall.function.name,
+        toolName: toolCall.function.name,
+        model: finishEvent.model,
+        timestamp: Date.now(),
+        result: toolResultContent,
+      } as ToolCallEndEvent
 
       // Add tool result message
       toolResults.push({
@@ -243,7 +296,192 @@ interface ExecuteToolCallsResult {
 }
 
 /**
- * Execute tool calls based on their configuration
+ * Helper that runs a tool execution promise while polling for pending custom events.
+ * Yields any custom events that are emitted during execution, then returns the
+ * execution result.
+ */
+async function* executeWithEventPolling<T>(
+  executionPromise: Promise<T>,
+  pendingEvents: Array<CustomEvent>,
+): AsyncGenerator<CustomEvent, T, void> {
+  // Use an object to track mutable state across the async boundary
+  const state = { done: false, result: undefined as T }
+  const executionWithFlag = executionPromise.then((r) => {
+    state.done = true
+    state.result = r
+    return r
+  })
+
+  while (!state.done) {
+    // Wait for either the execution to complete or a short timeout
+    await Promise.race([
+      executionWithFlag,
+      new Promise((resolve) => setTimeout(resolve, 10)),
+    ])
+
+    // Flush any pending events
+    while (pendingEvents.length > 0) {
+      yield pendingEvents.shift()!
+    }
+  }
+
+  // Final flush in case events were emitted right at completion
+  while (pendingEvents.length > 0) {
+    yield pendingEvents.shift()!
+  }
+
+  return state.result
+}
+
+/**
+ * Apply a middleware onBeforeToolCall decision.
+ * Returns the (possibly transformed) input if execution should proceed,
+ * or undefined if the tool call was skipped (result already pushed).
+ * Throws MiddlewareAbortError if the decision is 'abort'.
+ */
+async function applyBeforeToolCallDecision(
+  toolCall: ToolCall,
+  tool: Tool,
+  input: unknown,
+  toolName: string,
+  middlewareHooks: ToolExecutionMiddlewareHooks,
+  results: Array<ToolResult>,
+): Promise<{ proceed: true; input: unknown } | { proceed: false }> {
+  if (!middlewareHooks.onBeforeToolCall) {
+    return { proceed: true, input }
+  }
+
+  const decision = await middlewareHooks.onBeforeToolCall(toolCall, tool, input)
+  if (!decision) {
+    return { proceed: true, input }
+  }
+
+  if (decision.type === 'abort') {
+    throw new MiddlewareAbortError(decision.reason || 'Aborted by middleware')
+  }
+
+  if (decision.type === 'skip') {
+    const skipResult = decision.result
+    results.push({
+      toolCallId: toolCall.id,
+      toolName,
+      result:
+        typeof skipResult === 'string'
+          ? safeJsonParse(skipResult)
+          : skipResult || null,
+      duration: 0,
+    })
+    if (middlewareHooks.onAfterToolCall) {
+      await middlewareHooks.onAfterToolCall({
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        ok: true,
+        duration: 0,
+        result: skipResult,
+      })
+    }
+    return { proceed: false }
+  }
+
+  return { proceed: true, input: decision.args }
+}
+
+/**
+ * Execute a server-side tool with event polling, output validation, and middleware hooks.
+ * Yields CustomEvent chunks during execution and pushes the result to the results array.
+ */
+async function* executeServerTool(
+  toolCall: ToolCall,
+  tool: Tool,
+  toolName: string,
+  input: unknown,
+  context: ToolExecutionContext,
+  pendingEvents: Array<CustomEvent>,
+  results: Array<ToolResult>,
+  middlewareHooks?: ToolExecutionMiddlewareHooks,
+): AsyncGenerator<CustomEvent, void, void> {
+  const startTime = Date.now()
+  try {
+    const executionPromise = Promise.resolve(tool.execute!(input, context))
+    let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
+    const duration = Date.now() - startTime
+
+    // Flush remaining events
+    while (pendingEvents.length > 0) {
+      yield pendingEvents.shift()!
+    }
+
+    // Validate output against outputSchema if provided
+    if (
+      tool.outputSchema &&
+      isStandardSchema(tool.outputSchema) &&
+      result !== undefined &&
+      result !== null
+    ) {
+      result = parseWithStandardSchema(tool.outputSchema, result)
+    }
+
+    const finalResult =
+      typeof result === 'string' ? safeJsonParse(result) : result || null
+
+    results.push({
+      toolCallId: toolCall.id,
+      toolName,
+      result: finalResult,
+      duration,
+    })
+
+    if (middlewareHooks?.onAfterToolCall) {
+      await middlewareHooks.onAfterToolCall({
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        ok: true,
+        duration,
+        result: finalResult,
+      })
+    }
+  } catch (error: unknown) {
+    const duration = Date.now() - startTime
+
+    // Flush remaining events
+    while (pendingEvents.length > 0) {
+      yield pendingEvents.shift()!
+    }
+
+    if (error instanceof MiddlewareAbortError) {
+      throw error
+    }
+
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    results.push({
+      toolCallId: toolCall.id,
+      toolName,
+      result: { error: message },
+      state: 'output-error',
+      duration,
+    })
+
+    if (middlewareHooks?.onAfterToolCall) {
+      await middlewareHooks.onAfterToolCall({
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        ok: false,
+        duration,
+        error,
+      })
+    }
+  }
+}
+
+/**
+ * Execute tool calls based on their configuration.
+ * Yields CustomEvent chunks during tool execution for real-time progress updates.
  *
  * Handles three cases:
  * 1. Client tools (no execute) - request client to execute
@@ -254,13 +492,19 @@ interface ExecuteToolCallsResult {
  * @param tools - Available tools with their configurations
  * @param approvals - Map of approval decisions (approval.id -> approved boolean)
  * @param clientResults - Map of client-side execution results (toolCallId -> result)
+ * @param createCustomEventChunk - Factory to create CustomEvent chunks (optional)
  */
-export async function executeToolCalls(
+export async function* executeToolCalls(
   toolCalls: Array<ToolCall>,
   tools: ReadonlyArray<Tool>,
   approvals: Map<string, boolean> = new Map(),
   clientResults: Map<string, any> = new Map(),
-): Promise<ExecuteToolCallsResult> {
+  createCustomEventChunk?: (
+    eventName: string,
+    value: Record<string, any>,
+  ) => CustomEvent,
+  middlewareHooks?: ToolExecutionMiddlewareHooks,
+): AsyncGenerator<CustomEvent, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
   const needsClientExecution: Array<ClientToolRequest> = []
@@ -270,6 +514,13 @@ export async function executeToolCalls(
   for (const tool of tools) {
     toolMap.set(tool.name, tool)
   }
+
+  // Batch gating: when any tool in the batch still needs an approval decision,
+  // defer all execution so side effects don't happen before the user decides.
+  const hasPendingApprovals = toolCalls.some((tc) => {
+    const t = toolMap.get(tc.function.name)
+    return t?.needsApproval && !approvals.has(`approval_${tc.id}`)
+  })
 
   for (const toolCall of toolCalls) {
     const tool = toolMap.get(toolCall.function.name)
@@ -286,12 +537,21 @@ export async function executeToolCalls(
       continue
     }
 
+    // Skip non-pending tools while approvals are outstanding
+    if (hasPendingApprovals) {
+      if (!tool.needsApproval || approvals.has(`approval_${toolCall.id}`)) {
+        continue
+      }
+    }
+
     // Parse arguments, throwing error if invalid JSON
     let input: unknown = {}
     const argsStr = toolCall.function.arguments.trim() || '{}'
     if (argsStr) {
       try {
-        input = JSON.parse(argsStr)
+        const parsed = JSON.parse(argsStr)
+        // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
+        input = parsed && typeof parsed === 'object' ? parsed : {}
       } catch (parseError) {
         // If parsing fails, throw error to fail fast
         throw new Error(`Failed to parse tool arguments as JSON: ${argsStr}`)
@@ -317,6 +577,22 @@ export async function executeToolCalls(
         })
         continue
       }
+    }
+
+    // Create a ToolExecutionContext for this tool call with event emission
+    const pendingEvents: Array<CustomEvent> = []
+    const context: ToolExecutionContext = {
+      toolCallId: toolCall.id,
+      emitCustomEvent: (eventName: string, value: Record<string, any>) => {
+        if (createCustomEventChunk) {
+          pendingEvents.push(
+            createCustomEventChunk(eventName, {
+              ...value,
+              toolCallId: toolCall.id,
+            }),
+          )
+        }
+      },
     }
 
     // CASE 1: Client-side tool (no execute function)
@@ -392,43 +668,30 @@ export async function executeToolCalls(
         const approved = approvals.get(approvalId)
 
         if (approved) {
-          // Execute after approval
-          const startTime = Date.now()
-          try {
-            let result = await tool.execute(input)
-            const duration = Date.now() - startTime
-
-            // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
-            if (
-              tool.outputSchema &&
-              isStandardSchema(tool.outputSchema) &&
-              result !== undefined &&
-              result !== null
-            ) {
-              result = parseWithStandardSchema(tool.outputSchema, result)
-            }
-
-            results.push({
-              toolCallId: toolCall.id,
+          // Apply middleware before-hook for approved tools
+          if (middlewareHooks) {
+            const decision = await applyBeforeToolCallDecision(
+              toolCall,
+              tool,
+              input,
               toolName,
-              result:
-                typeof result === 'string'
-                  ? JSON.parse(result)
-                  : result || null,
-              duration,
-            })
-          } catch (error: unknown) {
-            const duration = Date.now() - startTime
-            const message =
-              error instanceof Error ? error.message : 'Unknown error'
-            results.push({
-              toolCallId: toolCall.id,
-              toolName,
-              result: { error: message },
-              state: 'output-error',
-              duration,
-            })
+              middlewareHooks,
+              results,
+            )
+            if (!decision.proceed) continue
+            input = decision.input
           }
+
+          yield* executeServerTool(
+            toolCall,
+            tool,
+            toolName,
+            input,
+            context,
+            pendingEvents,
+            results,
+            middlewareHooks,
+          )
         } else {
           // User declined
           results.push({
@@ -451,39 +714,29 @@ export async function executeToolCalls(
     }
 
     // CASE 3: Normal server tool - execute immediately
-    const startTime = Date.now()
-    try {
-      let result = await tool.execute(input)
-      const duration = Date.now() - startTime
-
-      // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
-      if (
-        tool.outputSchema &&
-        isStandardSchema(tool.outputSchema) &&
-        result !== undefined &&
-        result !== null
-      ) {
-        result = parseWithStandardSchema(tool.outputSchema, result)
-      }
-
-      results.push({
-        toolCallId: toolCall.id,
+    if (middlewareHooks) {
+      const decision = await applyBeforeToolCallDecision(
+        toolCall,
+        tool,
+        input,
         toolName,
-        result:
-          typeof result === 'string' ? JSON.parse(result) : result || null,
-        duration,
-      })
-    } catch (error: unknown) {
-      const duration = Date.now() - startTime
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      results.push({
-        toolCallId: toolCall.id,
-        toolName,
-        result: { error: message },
-        state: 'output-error',
-        duration,
-      })
+        middlewareHooks,
+        results,
+      )
+      if (!decision.proceed) continue
+      input = decision.input
     }
+
+    yield* executeServerTool(
+      toolCall,
+      tool,
+      toolName,
+      input,
+      context,
+      pendingEvents,
+      results,
+      middlewareHooks,
+    )
   }
 
   return { results, needsApproval, needsClientExecution }

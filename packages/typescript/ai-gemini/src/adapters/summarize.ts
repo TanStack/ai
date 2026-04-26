@@ -4,8 +4,8 @@ import {
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
-
 import type { GoogleGenAI } from '@google/genai'
+import type { GeminiClientConfig } from '../utils'
 import type { SummarizeAdapter } from '@tanstack/ai/adapters'
 import type {
   StreamChunk,
@@ -13,10 +13,19 @@ import type {
   SummarizationResult,
 } from '@tanstack/ai'
 
+/** Cast an event object to StreamChunk. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
+/**
+ * Configuration for Gemini summarize adapter
+ */
+export interface GeminiSummarizeConfig extends GeminiClientConfig {}
 /**
  * Available Gemini models for summarization
  */
 export const GeminiSummarizeModels = [
+  'gemini-3.1-flash-lite-preview',
   'gemini-2.0-flash',
   'gemini-1.5-flash',
   'gemini-1.5-pro',
@@ -66,20 +75,19 @@ export class GeminiSummarizeAdapter<
 
   private client: GoogleGenAI
 
-  constructor(
-    apiKeyOrClient: string | GoogleGenAI,
-    model: TModel,
-    _options: GeminiSummarizeAdapterOptions = {},
-  ) {
-    this.client =
-      typeof apiKeyOrClient === 'string'
-        ? createGeminiClient({ apiKey: apiKeyOrClient })
-        : apiKeyOrClient
+  constructor(config: GeminiSummarizeConfig, model: TModel) {
+    this.client = createGeminiClient(config)
     this.model = model
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
+    const { logger } = options
     const model = options.model
+
+    logger.request(`activity=summarize provider=gemini`, {
+      provider: 'gemini',
+      model,
+    })
 
     // Build the system prompt based on format
     const formatInstructions = this.getFormatInstructions(options.style)
@@ -89,40 +97,49 @@ export class GeminiSummarizeAdapter<
 
     const systemPrompt = `You are a helpful assistant that summarizes text. ${formatInstructions}${lengthInstructions}`
 
-    const response = await this.client.models.generateContent({
-      model,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: `Please summarize the following:\n\n${options.text}` },
-          ],
+    try {
+      const response = await this.client.models.generateContent({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: `Please summarize the following:\n\n${options.text}` },
+            ],
+          },
+        ],
+        config: {
+          systemInstruction: systemPrompt,
         },
-      ],
-      config: {
-        systemInstruction: systemPrompt,
-      },
-    })
+      })
 
-    const summary = response.text ?? ''
-    const inputTokens = response.usageMetadata?.promptTokenCount ?? 0
-    const outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0
+      const summary = response.text ?? ''
+      const inputTokens = response.usageMetadata?.promptTokenCount ?? 0
+      const outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0
 
-    return {
-      id: generateId('sum'),
-      model,
-      summary,
-      usage: {
-        promptTokens: inputTokens,
-        completionTokens: outputTokens,
-        totalTokens: inputTokens + outputTokens,
-      },
+      return {
+        id: generateId('sum'),
+        model,
+        summary,
+        usage: {
+          promptTokens: inputTokens,
+          completionTokens: outputTokens,
+          totalTokens: inputTokens + outputTokens,
+        },
+      }
+    } catch (error) {
+      logger.errors('gemini.summarize fatal', {
+        error,
+        source: 'gemini.summarize',
+      })
+      throw error
     }
   }
 
   async *summarizeStream(
     options: SummarizationOptions,
   ): AsyncIterable<StreamChunk> {
+    const { logger } = options
     const model = options.model
     const id = generateId('sum')
     let accumulatedContent = ''
@@ -137,70 +154,85 @@ export class GeminiSummarizeAdapter<
 
     const systemPrompt = `You are a helpful assistant that summarizes text. ${formatInstructions}${lengthInstructions}`
 
-    const result = await this.client.models.generateContentStream({
+    logger.request(`activity=summarize provider=gemini`, {
+      provider: 'gemini',
       model,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: `Please summarize the following:\n\n${options.text}` },
-          ],
-        },
-      ],
-      config: {
-        systemInstruction: systemPrompt,
-      },
+      stream: true,
     })
 
-    for await (const chunk of result) {
-      // Track usage metadata
-      if (chunk.usageMetadata) {
-        inputTokens = chunk.usageMetadata.promptTokenCount ?? inputTokens
-        outputTokens = chunk.usageMetadata.candidatesTokenCount ?? outputTokens
-      }
+    try {
+      const result = await this.client.models.generateContentStream({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: `Please summarize the following:\n\n${options.text}` },
+            ],
+          },
+        ],
+        config: {
+          systemInstruction: systemPrompt,
+        },
+      })
 
-      if (chunk.candidates?.[0]?.content?.parts) {
-        for (const part of chunk.candidates[0].content.parts) {
-          if (part.text) {
-            accumulatedContent += part.text
-            yield {
-              type: 'content',
-              id,
-              model,
-              timestamp: Date.now(),
-              delta: part.text,
-              content: accumulatedContent,
-              role: 'assistant',
+      for await (const chunk of result) {
+        logger.provider(`provider=gemini`, { chunk })
+        // Track usage metadata
+        if (chunk.usageMetadata) {
+          inputTokens = chunk.usageMetadata.promptTokenCount ?? inputTokens
+          outputTokens =
+            chunk.usageMetadata.candidatesTokenCount ?? outputTokens
+        }
+
+        if (chunk.candidates?.[0]?.content?.parts) {
+          for (const part of chunk.candidates[0].content.parts) {
+            if (part.text) {
+              accumulatedContent += part.text
+              yield asChunk({
+                type: 'TEXT_MESSAGE_CONTENT',
+                messageId: id,
+                model,
+                timestamp: Date.now(),
+                delta: part.text,
+                content: accumulatedContent,
+              })
             }
           }
         }
-      }
 
-      // Check for finish reason
-      const finishReason = chunk.candidates?.[0]?.finishReason
-      if (
-        finishReason === FinishReason.STOP ||
-        finishReason === FinishReason.MAX_TOKENS ||
-        finishReason === FinishReason.SAFETY
-      ) {
-        yield {
-          type: 'done',
-          id,
-          model,
-          timestamp: Date.now(),
-          finishReason:
-            finishReason === FinishReason.STOP
-              ? 'stop'
-              : finishReason === FinishReason.MAX_TOKENS
-                ? 'length'
-                : 'content_filter',
-          usage: {
-            promptTokens: inputTokens,
-            completionTokens: outputTokens,
-            totalTokens: inputTokens + outputTokens,
-          },
+        // Check for finish reason
+        const finishReason = chunk.candidates?.[0]?.finishReason
+        if (
+          finishReason === FinishReason.STOP ||
+          finishReason === FinishReason.MAX_TOKENS ||
+          finishReason === FinishReason.SAFETY
+        ) {
+          yield asChunk({
+            type: 'RUN_FINISHED',
+            runId: id,
+            model,
+            timestamp: Date.now(),
+            finishReason:
+              finishReason === FinishReason.STOP
+                ? 'stop'
+                : finishReason === FinishReason.MAX_TOKENS
+                  ? 'length'
+                  : 'content_filter',
+            usage: {
+              promptTokens: inputTokens,
+              completionTokens: outputTokens,
+              totalTokens: inputTokens + outputTokens,
+            },
+          })
         }
       }
+    } catch (error) {
+      logger.errors('gemini.summarize fatal', {
+        error,
+        source: 'gemini.summarize',
+      })
+      throw error
     }
   }
 
@@ -225,9 +257,9 @@ export class GeminiSummarizeAdapter<
 export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
   apiKey: string,
   model: TModel,
-  options?: GeminiSummarizeAdapterOptions,
+  config?: Omit<GeminiSummarizeConfig, 'apiKey'>,
 ): GeminiSummarizeAdapter<TModel> {
-  return new GeminiSummarizeAdapter(apiKey, model, options)
+  return new GeminiSummarizeAdapter({ ...config, apiKey }, model)
 }
 
 /**
@@ -235,8 +267,8 @@ export function createGeminiSummarize<TModel extends GeminiSummarizeModel>(
  */
 export function geminiSummarize<TModel extends GeminiSummarizeModel>(
   model: TModel,
-  options?: GeminiSummarizeAdapterOptions,
+  config?: Omit<GeminiSummarizeConfig, 'apiKey'>,
 ): GeminiSummarizeAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
-  return new GeminiSummarizeAdapter(apiKey, model, options)
+  return new GeminiSummarizeAdapter({ ...config, apiKey }, model)
 }

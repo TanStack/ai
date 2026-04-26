@@ -2,6 +2,14 @@
 title: "@tanstack/ai-preact"
 slug: /api/ai-preact
 order: 5
+description: "API reference for @tanstack/ai-preact — Preact hooks including useChat for streaming chat with full type safety in Preact apps."
+keywords:
+  - tanstack ai
+  - "@tanstack/ai-preact"
+  - preact
+  - useChat
+  - preact hooks
+  - api reference
 ---
 
 Preact hooks for TanStack AI, providing convenient Preact bindings for the headless client.
@@ -313,5 +321,5 @@ Re-exported from `@tanstack/ai`:
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../guides/tools) - Learn about the isomorphic tool system
-- [Client Tools](../guides/client-tools) - Learn about client-side tools
+- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
+- [Client Tools](../tools/client-tools) - Learn about client-side tools

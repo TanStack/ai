@@ -1,0 +1,29 @@
+{
+  "name": "@tanstack/ai-code-mode-models-eval",
+  "version": "0.0.11",
+  "private": true,
+  "type": "module",
+  "description": "Dev benchmark: local/cloud models vs code-mode database-demo gold (not published)",
+  "scripts": {
+    "eval": "tsx run-eval.ts",
+    "eval:capture": "tsx run-eval.ts --capture-only",
+    "eval:judge": "tsx run-eval.ts --judge-latest",
+    "test:types": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-code-mode": "workspace:*",
+    "@tanstack/ai-gemini": "workspace:*",
+    "@tanstack/ai-grok": "workspace:*",
+    "@tanstack/ai-groq": "workspace:*",
+    "@tanstack/ai-isolate-node": "workspace:*",
+    "@tanstack/ai-ollama": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "dotenv": "^17.2.3",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}

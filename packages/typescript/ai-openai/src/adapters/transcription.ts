@@ -3,8 +3,8 @@ import {
   createOpenAIClient,
   generateId,
   getOpenAIApiKeyFromEnv,
-} from '../utils'
-import type { OPENAI_TRANSCRIPTION_MODELS } from '../model-meta'
+} from '../utils/client'
+import type { OpenAITranscriptionModel } from '../model-meta'
 import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-provider-options'
 import type {
   TranscriptionOptions,
@@ -12,16 +12,12 @@ import type {
   TranscriptionSegment,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
-import type { OpenAIClientConfig } from '../utils'
+import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI Transcription adapter
  */
 export interface OpenAITranscriptionConfig extends OpenAIClientConfig {}
-
-/** Model type for OpenAI Transcription */
-export type OpenAITranscriptionModel =
-  (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
 
 /**
  * OpenAI Transcription (Speech-to-Text) Adapter
@@ -44,70 +40,86 @@ export class OpenAITranscriptionAdapter<
   private client: OpenAI_SDK
 
   constructor(config: OpenAITranscriptionConfig, model: TModel) {
-    super(config, model)
+    super(model, config)
     this.client = createOpenAIClient(config)
   }
 
   async transcribe(
     options: TranscriptionOptions<OpenAITranscriptionProviderOptions>,
   ): Promise<TranscriptionResult> {
+    const { logger } = options
     const { model, audio, language, prompt, responseFormat, modelOptions } =
       options
 
-    // Convert audio input to File object
-    const file = this.prepareAudioFile(audio)
+    logger.request(
+      `activity=generateTranscription provider=openai model=${model}`,
+      { provider: 'openai', model },
+    )
 
-    // Build request
-    const request: OpenAI_SDK.Audio.TranscriptionCreateParams = {
-      model,
-      file,
-      language,
-      prompt,
-      response_format: this.mapResponseFormat(responseFormat),
-      ...modelOptions,
-    }
+    try {
+      // Convert audio input to File object
+      const file = this.prepareAudioFile(audio)
 
-    // Call OpenAI API - use verbose_json to get timestamps when available
-    const useVerbose =
-      responseFormat === 'verbose_json' ||
-      (!responseFormat && model !== 'whisper-1')
-
-    if (useVerbose) {
-      const response = await this.client.audio.transcriptions.create({
-        ...request,
-        response_format: 'verbose_json',
-      })
-
-      return {
-        id: generateId(this.name),
+      // Build request
+      const request: OpenAI_SDK.Audio.TranscriptionCreateParams = {
         model,
-        text: response.text,
-        language: response.language,
-        duration: response.duration,
-        segments: response.segments?.map(
-          (seg): TranscriptionSegment => ({
-            id: seg.id,
-            start: seg.start,
-            end: seg.end,
-            text: seg.text,
-            confidence: seg.avg_logprob ? Math.exp(seg.avg_logprob) : undefined,
-          }),
-        ),
-        words: response.words?.map((w) => ({
-          word: w.word,
-          start: w.start,
-          end: w.end,
-        })),
-      }
-    } else {
-      const response = await this.client.audio.transcriptions.create(request)
-
-      return {
-        id: generateId(this.name),
-        model,
-        text: typeof response === 'string' ? response : response.text,
+        file,
         language,
+        prompt,
+        response_format: this.mapResponseFormat(responseFormat),
+        ...modelOptions,
       }
+
+      // Call OpenAI API - use verbose_json to get timestamps when available
+      const useVerbose =
+        responseFormat === 'verbose_json' ||
+        (!responseFormat && model !== 'whisper-1')
+
+      if (useVerbose) {
+        const response = await this.client.audio.transcriptions.create({
+          ...request,
+          response_format: 'verbose_json',
+        })
+
+        return {
+          id: generateId(this.name),
+          model,
+          text: response.text,
+          language: response.language,
+          duration: response.duration,
+          segments: response.segments?.map(
+            (seg): TranscriptionSegment => ({
+              id: seg.id,
+              start: seg.start,
+              end: seg.end,
+              text: seg.text,
+              confidence: seg.avg_logprob
+                ? Math.exp(seg.avg_logprob)
+                : undefined,
+            }),
+          ),
+          words: response.words?.map((w) => ({
+            word: w.word,
+            start: w.start,
+            end: w.end,
+          })),
+        }
+      } else {
+        const response = await this.client.audio.transcriptions.create(request)
+
+        return {
+          id: generateId(this.name),
+          model,
+          text: typeof response === 'string' ? response : response.text,
+          language,
+        }
+      }
+    } catch (error) {
+      logger.errors('openai.transcribe fatal', {
+        error,
+        source: 'openai.transcribe',
+      })
+      throw error
     }
   }
 

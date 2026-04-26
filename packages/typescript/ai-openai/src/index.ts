@@ -77,7 +77,13 @@ export type { OpenAITranscriptionProviderOptions } from './audio/transcription-p
 
 export type {
   OpenAIChatModelProviderOptionsByName,
+  OpenAIChatModelToolCapabilitiesByName,
   OpenAIModelInputModalitiesByName,
+  OpenAIChatModel,
+  OpenAIImageModel,
+  OpenAIVideoModel,
+  OpenAITTSModel,
+  OpenAITranscriptionModel,
 } from './model-meta'
 export {
   OPENAI_IMAGE_MODELS,
@@ -94,3 +100,20 @@ export type {
   OpenAIDocumentMetadata,
   OpenAIMessageMetadataByModality,
 } from './message-types'
+export type { OpenAIClientConfig } from './utils/client'
+
+// ============================================================================
+// Realtime (Voice) Adapters
+// ============================================================================
+
+export { openaiRealtimeToken, openaiRealtime } from './realtime/index'
+
+export type {
+  OpenAIRealtimeVoice,
+  OpenAIRealtimeModel,
+  OpenAIRealtimeTokenOptions,
+  OpenAIRealtimeOptions,
+  OpenAITurnDetection,
+  OpenAISemanticVADConfig,
+  OpenAIServerVADConfig,
+} from './realtime/index'

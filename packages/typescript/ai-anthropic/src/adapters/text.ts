@@ -9,12 +9,14 @@ import {
 import type {
   ANTHROPIC_MODELS,
   AnthropicChatModelProviderOptionsByName,
+  AnthropicChatModelToolCapabilitiesByName,
   AnthropicModelInputModalitiesByName,
 } from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   Base64ImageSource,
   Base64PDFSource,
@@ -44,6 +46,11 @@ import type {
   AnthropicTextMetadata,
 } from '../message-types'
 import type { AnthropicClientConfig } from '../utils'
+
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
 
 /**
  * Configuration for Anthropic text adapter
@@ -84,6 +91,11 @@ type ResolveInputModalities<TModel extends string> =
     ? AnthropicModelInputModalitiesByName[TModel]
     : readonly ['text', 'image', 'document']
 
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof AnthropicChatModelToolCapabilitiesByName
+    ? NonNullable<AnthropicChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
 // ===========================
 // Adapter Implementation
 // ===========================
@@ -96,14 +108,17 @@ type ResolveInputModalities<TModel extends string> =
  */
 export class AnthropicTextAdapter<
   TModel extends (typeof ANTHROPIC_MODELS)[number],
-  TProviderOptions extends object = ResolveProviderOptions<TModel>,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
-  AnthropicMessageMetadataByModality
+  AnthropicMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'anthropic' as const
@@ -116,11 +131,16 @@ export class AnthropicTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<AnthropicTextProviderOptions>,
+    options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
+    const { logger } = options
     try {
       const requestParams = this.mapCommonOptionsToAnthropic(options)
 
+      logger.request(
+        `activity=chat provider=anthropic model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'anthropic', model: this.model },
+      )
       const stream = await this.client.beta.messages.create(
         { ...requestParams, stream: true },
         {
@@ -129,21 +149,29 @@ export class AnthropicTextAdapter<
         },
       )
 
-      yield* this.processAnthropicStream(stream, options.model, () =>
-        generateId(this.name),
+      yield* this.processAnthropicStream(
+        stream,
+        options,
+        () => generateId(this.name),
+        logger,
       )
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
-      yield {
-        type: 'error',
-        id: generateId(this.name),
+      logger.errors('anthropic.chatStream fatal', {
+        error,
+        source: 'anthropic.chatStream',
+      })
+      yield asChunk({
+        type: 'RUN_ERROR',
         model: options.model,
         timestamp: Date.now(),
+        message: err.message || 'Unknown error occurred',
+        code: err.code || String(err.status),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
         },
-      }
+      })
     }
   }
 
@@ -154,9 +182,10 @@ export class AnthropicTextAdapter<
    * The outputSchema is already JSON Schema (converted in the ai layer).
    */
   async structuredOutput(
-    options: StructuredOutputOptions<AnthropicTextProviderOptions>,
+    options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
+    const { logger } = chatOptions
 
     const requestParams = this.mapCommonOptionsToAnthropic(chatOptions)
 
@@ -174,6 +203,10 @@ export class AnthropicTextAdapter<
     }
 
     try {
+      logger.request(
+        `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'anthropic', model: this.model },
+      )
       // Make non-streaming request with tool_choice forced to our structured output tool
       const response = await this.client.messages.create(
         {
@@ -225,6 +258,10 @@ export class AnthropicTextAdapter<
       }
     } catch (error: unknown) {
       const err = error as Error
+      logger.errors('anthropic.structuredOutput fatal', {
+        error,
+        source: 'anthropic.structuredOutput',
+      })
       throw new Error(
         `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
       )
@@ -248,6 +285,7 @@ export class AnthropicTextAdapter<
       const validKeys: Array<keyof InternalTextProviderOptions> = [
         'container',
         'context_management',
+        'effort',
         'mcp_servers',
         'service_tier',
         'stop_sequences',
@@ -314,17 +352,20 @@ export class AnthropicTextAdapter<
             ? {
                 type: 'base64',
                 data: part.source.value,
-                media_type: metadata?.mediaType ?? 'image/jpeg',
+                media_type: part.source.mimeType as
+                  | 'image/jpeg'
+                  | 'image/png'
+                  | 'image/gif'
+                  | 'image/webp',
               }
             : {
                 type: 'url',
                 url: part.source.value,
               }
-        const { mediaType: _mediaType, ...meta } = metadata || {}
         return {
           type: 'image',
           source: imageSource,
-          ...meta,
+          ...metadata,
         }
       }
       case 'document': {
@@ -334,7 +375,7 @@ export class AnthropicTextAdapter<
             ? {
                 type: 'base64',
                 data: part.source.value,
-                media_type: 'application/pdf',
+                media_type: part.source.mimeType as 'application/pdf',
               }
             : {
                 type: 'url',
@@ -399,9 +440,10 @@ export class AnthropicTextAdapter<
         for (const toolCall of message.toolCalls) {
           let parsedInput: unknown = {}
           try {
-            parsedInput = toolCall.function.arguments
+            const parsed = toolCall.function.arguments
               ? JSON.parse(toolCall.function.arguments)
               : {}
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
             parsedInput = toolCall.function.arguments
           }
@@ -447,117 +489,367 @@ export class AnthropicTextAdapter<
       })
     }
 
-    return formattedMessages
+    // Post-process: Anthropic requires strictly alternating user/assistant roles.
+    // Tool results are sent as role:'user' messages, which can create consecutive
+    // user messages when followed by a new user message. Merge them.
+    return this.mergeConsecutiveSameRoleMessages(formattedMessages)
+  }
+
+  /**
+   * Merge consecutive messages of the same role into a single message.
+   * Anthropic's API requires strictly alternating user/assistant roles.
+   * Tool results are wrapped as role:'user' messages, which can collide
+   * with actual user messages in multi-turn conversations.
+   *
+   * Also filters out empty assistant messages (e.g., from a previous failed request).
+   */
+  private mergeConsecutiveSameRoleMessages(
+    messages: InternalTextProviderOptions['messages'],
+  ): InternalTextProviderOptions['messages'] {
+    const merged: InternalTextProviderOptions['messages'] = []
+
+    for (const msg of messages) {
+      // Skip empty assistant messages (no content or empty string)
+      if (msg.role === 'assistant') {
+        const hasContent = Array.isArray(msg.content)
+          ? msg.content.length > 0
+          : typeof msg.content === 'string' && msg.content.length > 0
+        if (!hasContent) {
+          continue
+        }
+      }
+
+      const prev = merged[merged.length - 1]
+      if (prev && prev.role === msg.role) {
+        // Normalize both contents to arrays and concatenate
+        const prevBlocks = Array.isArray(prev.content)
+          ? prev.content
+          : typeof prev.content === 'string' && prev.content
+            ? [{ type: 'text' as const, text: prev.content }]
+            : []
+        const msgBlocks = Array.isArray(msg.content)
+          ? msg.content
+          : typeof msg.content === 'string' && msg.content
+            ? [{ type: 'text' as const, text: msg.content }]
+            : []
+        prev.content = [...prevBlocks, ...msgBlocks]
+      } else {
+        merged.push({ ...msg })
+      }
+    }
+
+    // De-duplicate tool_result blocks with the same tool_use_id.
+    // This can happen when the core layer generates tool results from both
+    // the tool-result part and the tool-call part's output field.
+    for (const msg of merged) {
+      if (Array.isArray(msg.content)) {
+        const seenToolResultIds = new Set<string>()
+        msg.content = msg.content.filter((block: any) => {
+          if (block.type === 'tool_result' && block.tool_use_id) {
+            if (seenToolResultIds.has(block.tool_use_id)) {
+              return false // Remove duplicate
+            }
+            seenToolResultIds.add(block.tool_use_id)
+          }
+          return true
+        })
+      }
+    }
+
+    return merged
   }
 
   private async *processAnthropicStream(
     stream: AsyncIterable<Anthropic_SDK.Beta.BetaRawMessageStreamEvent>,
-    model: string,
+    options: TextOptions<AnthropicTextProviderOptions>,
     genId: () => string,
+    logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
+    const model = options.model
     let accumulatedContent = ''
     let accumulatedThinking = ''
     const timestamp = Date.now()
     const toolCallsMap = new Map<
       number,
-      { id: string; name: string; input: string }
+      { id: string; name: string; input: string; started: boolean }
     >()
     let currentToolIndex = -1
 
+    // AG-UI lifecycle tracking
+    const runId = options.runId ?? genId()
+    const threadId = options.threadId ?? genId()
+    const messageId = genId()
+    let stepId: string | null = null
+    let reasoningMessageId: string | null = null
+    let hasClosedReasoning = false
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedRunFinished = false
+    // Track current content block type for proper content_block_stop handling
+    let currentBlockType: string | null = null
+
     try {
       for await (const event of stream) {
+        logger.provider(`provider=anthropic type=${event.type}`, {
+          chunk: event,
+        })
+        // Emit RUN_STARTED on first event
+        if (!hasEmittedRunStarted) {
+          hasEmittedRunStarted = true
+          yield asChunk({
+            type: 'RUN_STARTED',
+            runId,
+            threadId,
+            model,
+            timestamp,
+          })
+        }
+
         if (event.type === 'content_block_start') {
+          currentBlockType = event.content_block.type
           if (event.content_block.type === 'tool_use') {
             currentToolIndex++
             toolCallsMap.set(currentToolIndex, {
               id: event.content_block.id,
               name: event.content_block.name,
               input: '',
+              started: false,
             })
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
+            // Emit REASONING and STEP_STARTED for thinking
+            stepId = genId()
+            reasoningMessageId = genId()
+
+            // Spec REASONING events
+            yield asChunk({
+              type: 'REASONING_START',
+              messageId: reasoningMessageId,
+              model,
+              timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_MESSAGE_START',
+              messageId: reasoningMessageId,
+              role: 'reasoning' as const,
+              model,
+              timestamp,
+            })
+
+            // Legacy STEP events (kept during transition)
+            yield asChunk({
+              type: 'STEP_STARTED',
+              stepName: stepId,
+              stepId,
+              model,
+              timestamp,
+              stepType: 'thinking',
+            })
           }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
+            // Close reasoning before text starts
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield asChunk({
+                type: 'REASONING_MESSAGE_END',
+                messageId: reasoningMessageId,
+                model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_END',
+                messageId: reasoningMessageId,
+                model,
+                timestamp,
+              })
+            }
+
+            // Emit TEXT_MESSAGE_START on first text content
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield asChunk({
+                type: 'TEXT_MESSAGE_START',
+                messageId,
+                model,
+                timestamp,
+                role: 'assistant',
+              })
+            }
+
             const delta = event.delta.text
             accumulatedContent += delta
-            yield {
-              type: 'content',
-              id: genId(),
-              model: model,
+            yield asChunk({
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId,
+              model,
               timestamp,
               delta,
               content: accumulatedContent,
-              role: 'assistant',
-            }
+            })
           } else if (event.delta.type === 'thinking_delta') {
             const delta = event.delta.thinking
             accumulatedThinking += delta
-            yield {
-              type: 'thinking',
-              id: genId(),
-              model: model,
+
+            // Spec REASONING content event
+            yield asChunk({
+              type: 'REASONING_MESSAGE_CONTENT',
+              messageId: reasoningMessageId!,
+              delta,
+              model,
+              timestamp,
+            })
+
+            // Legacy STEP event
+            yield asChunk({
+              type: 'STEP_FINISHED',
+              stepName: stepId || genId(),
+              stepId: stepId || genId(),
+              model,
               timestamp,
               delta,
               content: accumulatedThinking,
-            }
+            })
           } else if (event.delta.type === 'input_json_delta') {
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
+              // Emit TOOL_CALL_START on first args delta
+              if (!existing.started) {
+                existing.started = true
+                yield asChunk({
+                  type: 'TOOL_CALL_START',
+                  toolCallId: existing.id,
+                  toolCallName: existing.name,
+                  toolName: existing.name,
+                  model,
+                  timestamp,
+                  index: currentToolIndex,
+                })
+              }
+
               existing.input += event.delta.partial_json
 
-              yield {
-                type: 'tool_call',
-                id: genId(),
-                model: model,
+              yield asChunk({
+                type: 'TOOL_CALL_ARGS',
+                toolCallId: existing.id,
+                model,
                 timestamp,
-                toolCall: {
-                  id: existing.id,
-                  type: 'function',
-                  function: {
-                    name: existing.name,
-                    arguments: event.delta.partial_json,
-                  },
-                },
-                index: currentToolIndex,
-              }
+                delta: event.delta.partial_json,
+                args: existing.input,
+              })
             }
           }
         } else if (event.type === 'content_block_stop') {
-          const existing = toolCallsMap.get(currentToolIndex)
-          if (existing && existing.input === '') {
-            yield {
-              type: 'tool_call',
-              id: genId(),
-              model: model,
-              timestamp,
-              toolCall: {
-                id: existing.id,
-                type: 'function',
-                function: {
-                  name: existing.name,
-                  arguments: '{}',
-                },
-              },
-              index: currentToolIndex,
+          if (currentBlockType === 'tool_use') {
+            const existing = toolCallsMap.get(currentToolIndex)
+            if (existing) {
+              // If tool call wasn't started yet (no args), start it now
+              if (!existing.started) {
+                existing.started = true
+                yield asChunk({
+                  type: 'TOOL_CALL_START',
+                  toolCallId: existing.id,
+                  toolCallName: existing.name,
+                  toolName: existing.name,
+                  model,
+                  timestamp,
+                  index: currentToolIndex,
+                })
+              }
+
+              // Emit TOOL_CALL_END
+              let parsedInput: unknown = {}
+              try {
+                const parsed = existing.input ? JSON.parse(existing.input) : {}
+                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              } catch {
+                parsedInput = {}
+              }
+
+              yield asChunk({
+                type: 'TOOL_CALL_END',
+                toolCallId: existing.id,
+                toolCallName: existing.name,
+                toolName: existing.name,
+                model,
+                timestamp,
+                input: parsedInput,
+              })
+
+              // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
+              hasEmittedTextMessageStart = false
+            }
+          } else {
+            // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
+            if (hasEmittedTextMessageStart && accumulatedContent) {
+              yield asChunk({
+                type: 'TEXT_MESSAGE_END',
+                messageId,
+                model,
+                timestamp,
+              })
             }
           }
+          currentBlockType = null
         } else if (event.type === 'message_stop') {
-          yield {
-            type: 'done',
-            id: genId(),
-            model: model,
-            timestamp,
-            finishReason: 'stop',
+          // Close reasoning events if still open
+          if (reasoningMessageId && !hasClosedReasoning) {
+            hasClosedReasoning = true
+            yield asChunk({
+              type: 'REASONING_MESSAGE_END',
+              messageId: reasoningMessageId,
+              model,
+              timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_END',
+              messageId: reasoningMessageId,
+              model,
+              timestamp,
+            })
+          }
+
+          // Only emit RUN_FINISHED from message_stop if message_delta didn't already emit one.
+          // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
+          // while message_stop is just a completion signal.
+          if (!hasEmittedRunFinished) {
+            yield asChunk({
+              type: 'RUN_FINISHED',
+              runId,
+              threadId,
+              model,
+              timestamp,
+              finishReason: 'stop',
+            })
           }
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
+            hasEmittedRunFinished = true
+
+            // Close reasoning events if still open
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield asChunk({
+                type: 'REASONING_MESSAGE_END',
+                messageId: reasoningMessageId,
+                model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_END',
+                messageId: reasoningMessageId,
+                model,
+                timestamp,
+              })
+            }
+
             switch (event.delta.stop_reason) {
               case 'tool_use': {
-                yield {
-                  type: 'done',
-                  id: genId(),
-                  model: model,
+                yield asChunk({
+                  type: 'RUN_FINISHED',
+                  runId,
+                  threadId,
+                  model,
                   timestamp,
                   finishReason: 'tool_calls',
                   usage: {
@@ -567,28 +859,32 @@ export class AnthropicTextAdapter<
                       (event.usage.input_tokens || 0) +
                       (event.usage.output_tokens || 0),
                   },
-                }
+                })
                 break
               }
               case 'max_tokens': {
-                yield {
-                  type: 'error',
-                  id: genId(),
-                  model: model,
+                yield asChunk({
+                  type: 'RUN_ERROR',
+                  runId,
+                  model,
                   timestamp,
+                  message:
+                    'The response was cut off because the maximum token limit was reached.',
+                  code: 'max_tokens',
                   error: {
                     message:
                       'The response was cut off because the maximum token limit was reached.',
                     code: 'max_tokens',
                   },
-                }
+                })
                 break
               }
               default: {
-                yield {
-                  type: 'done',
-                  id: genId(),
-                  model: model,
+                yield asChunk({
+                  type: 'RUN_FINISHED',
+                  runId,
+                  threadId,
+                  model,
                   timestamp,
                   finishReason: 'stop',
                   usage: {
@@ -598,7 +894,7 @@ export class AnthropicTextAdapter<
                       (event.usage.input_tokens || 0) +
                       (event.usage.output_tokens || 0),
                   },
-                }
+                })
               }
             }
           }
@@ -607,16 +903,22 @@ export class AnthropicTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }
 
-      yield {
-        type: 'error',
-        id: genId(),
-        model: model,
+      logger.errors('anthropic.processAnthropicStream fatal', {
+        error,
+        source: 'anthropic.processAnthropicStream',
+      })
+      yield asChunk({
+        type: 'RUN_ERROR',
+        runId,
+        model,
         timestamp,
+        message: err.message || 'Unknown error occurred',
+        code: err.code || String(err.status),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
         },
-      }
+      })
     }
   }
 }

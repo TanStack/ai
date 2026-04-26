@@ -3,6 +3,7 @@ export {
   chat,
   summarize,
   generateImage,
+  generateAudio,
   generateVideo,
   getVideoJobStatus,
   generateSpeech,
@@ -13,6 +14,7 @@ export {
 export { createChatOptions } from './activities/chat/index'
 export { createSummarizeOptions } from './activities/summarize/index'
 export { createImageOptions } from './activities/generateImage/index'
+export { createAudioOptions } from './activities/generateAudio/index'
 export { createVideoOptions } from './activities/generateVideo/index'
 export { createSpeechOptions } from './activities/generateSpeech/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
@@ -26,6 +28,8 @@ export type {
   AnyTextAdapter,
   AnySummarizeAdapter,
   SummarizeAdapter,
+  AnyAudioAdapter,
+  AudioAdapter,
   AnyTTSAdapter,
   TTSAdapter,
   AnyTranscriptionAdapter,
@@ -63,6 +67,9 @@ export {
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
 
+// Provider tool type
+export type { ProviderTool } from './tools/provider-tool'
+
 // Agent loop strategies
 export {
   maxIterations,
@@ -70,11 +77,60 @@ export {
   combineStrategies,
 } from './activities/chat/agent-loop-strategies'
 
+// Tool registry
+export {
+  createToolRegistry,
+  createFrozenRegistry,
+  type ToolRegistry,
+} from './tool-registry'
+
+// Chat middleware
+export type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+  ChatMiddlewarePhase,
+  ChatMiddlewareConfig,
+  ToolCallHookContext,
+  BeforeToolCallDecision,
+  AfterToolCallInfo,
+  IterationInfo,
+  ToolPhaseCompleteInfo,
+  UsageInfo,
+  FinishInfo,
+  AbortInfo,
+  ErrorInfo,
+} from './activities/chat/middleware/index'
+
 // All types
 export * from './types'
 
-// Event client
-export { aiEventClient } from './event-client'
+// Utility functions
+export { detectImageMimeType } from './utils'
+
+// Realtime
+export { realtimeToken } from './realtime/index'
+export type {
+  RealtimeToken,
+  RealtimeTokenAdapter,
+  RealtimeTokenOptions,
+  RealtimeSessionConfig,
+  VADConfig,
+  RealtimeMessage,
+  RealtimeMessagePart,
+  RealtimeTextPart,
+  RealtimeAudioPart,
+  RealtimeToolCallPart,
+  RealtimeToolResultPart,
+  RealtimeImagePart,
+  RealtimeStatus,
+  RealtimeMode,
+  AudioVisualization,
+  RealtimeEvent,
+  RealtimeEventPayloads,
+  RealtimeEventHandler,
+  RealtimeErrorCode,
+  RealtimeError,
+} from './realtime/index'
 
 // Message converters
 export {
@@ -106,9 +162,21 @@ export type {
   ProcessorResult,
   ProcessorState,
   StreamProcessorEvents,
-  StreamProcessorHandlers,
   StreamProcessorOptions,
   ToolCallState,
   ToolResultState,
   JSONParser,
 } from './activities/chat/stream/index'
+
+// Adapter extension utilities
+export { createModel, extendAdapter } from './extend-adapter'
+export type { ExtendedModelDef } from './extend-adapter'
+
+// Logger
+export type {
+  Logger,
+  DebugCategories,
+  DebugConfig,
+  DebugOption,
+} from './logger/types'
+export { ConsoleLogger } from './logger/console-logger'

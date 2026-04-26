@@ -7,6 +7,7 @@ interface ModelMeta {
     input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     output: Array<'text' | 'image' | 'audio' | 'video'>
     capabilities?: Array<'reasoning' | 'tool_calling' | 'structured_outputs'>
+    tools?: ReadonlyArray<never>
   }
   max_input_tokens?: number
   max_output_tokens?: number
@@ -30,6 +31,7 @@ const GROK_4_1_FAST_REASONING = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -49,6 +51,7 @@ const GROK_4_1_FAST_NON_REASONING = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -68,6 +71,7 @@ const GROK_CODE_FAST_1 = {
     input: ['text'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -87,6 +91,7 @@ const GROK_4_FAST_REASONING = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -106,6 +111,7 @@ const GROK_4_FAST_NON_REASONING = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -125,6 +131,7 @@ const GROK_4 = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -144,6 +151,7 @@ const GROK_3_MINI = {
     input: ['text'],
     output: ['text'],
     capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -163,6 +171,7 @@ const GROK_3 = {
     input: ['text'],
     output: ['text'],
     capabilities: ['structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -182,6 +191,7 @@ const GROK_2_VISION = {
     input: ['text', 'image'],
     output: ['text'],
     capabilities: ['structured_outputs', 'tool_calling'],
+    tools: [] as const,
   },
   pricing: {
     input: {
@@ -213,6 +223,46 @@ const GROK_2_IMAGE = {
  * Grok Chat Models
  * Based on xAI's available models as of 2025
  */
+const GROK_4_20 = {
+  name: 'grok-4.20',
+  context_window: 2_000_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 6,
+    },
+  },
+} as const satisfies ModelMeta
+
+const GROK_4_20_MULTI_AGENT = {
+  name: 'grok-4.20-multi-agent',
+  context_window: 2_000_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 6,
+    },
+  },
+} as const satisfies ModelMeta
+
 export const GROK_CHAT_MODELS = [
   GROK_4_1_FAST_REASONING.name,
   GROK_4_1_FAST_NON_REASONING.name,
@@ -223,12 +273,72 @@ export const GROK_CHAT_MODELS = [
   GROK_3.name,
   GROK_3_MINI.name,
   GROK_2_VISION.name,
+
+  GROK_4_20.name,
+  GROK_4_20_MULTI_AGENT.name,
 ] as const
 
 /**
  * Grok Image Generation Models
  */
 export const GROK_IMAGE_MODELS = [GROK_2_IMAGE.name] as const
+
+// xAI's `/v1/tts` endpoint is endpoint-addressed and does not take a `model`
+// parameter. This synthetic identifier satisfies the SDK's `TTSOptions.model`
+// contract and provides a stable value for logging and fixture matching.
+const GROK_TTS = {
+  name: 'grok-tts',
+  supports: {
+    input: ['text'],
+    output: ['audio'],
+  },
+} as const satisfies ModelMeta
+
+// xAI's `/v1/stt` endpoint is endpoint-addressed and does not take a `model`
+// parameter. This synthetic identifier satisfies the SDK's
+// `TranscriptionOptions.model` contract.
+const GROK_STT = {
+  name: 'grok-stt',
+  supports: {
+    input: ['audio'],
+    output: ['text'],
+  },
+} as const satisfies ModelMeta
+
+const GROK_VOICE_FAST_1 = {
+  name: 'grok-voice-fast-1.0',
+  supports: {
+    input: ['audio', 'text'],
+    output: ['audio', 'text'],
+    capabilities: ['tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+const GROK_VOICE_THINK_FAST_1 = {
+  name: 'grok-voice-think-fast-1.0',
+  supports: {
+    input: ['audio', 'text'],
+    output: ['audio', 'text'],
+    capabilities: ['reasoning', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+export const GROK_TTS_MODELS = [GROK_TTS.name] as const
+
+export const GROK_TRANSCRIPTION_MODELS = [GROK_STT.name] as const
+
+export const GROK_REALTIME_MODELS = [
+  GROK_VOICE_FAST_1.name,
+  GROK_VOICE_THINK_FAST_1.name,
+] as const
+
+export type GrokChatModel = (typeof GROK_CHAT_MODELS)[number]
+export type GrokImageModel = (typeof GROK_IMAGE_MODELS)[number]
+export type GrokTTSModel = (typeof GROK_TTS_MODELS)[number]
+export type GrokTranscriptionModel = (typeof GROK_TRANSCRIPTION_MODELS)[number]
+export type GrokRealtimeModel = (typeof GROK_REALTIME_MODELS)[number]
 
 /**
  * Type-only map from Grok chat model name to its supported input modalities.
@@ -244,6 +354,8 @@ export type GrokModelInputModalitiesByName = {
   [GROK_3.name]: typeof GROK_3.supports.input
   [GROK_3_MINI.name]: typeof GROK_3_MINI.supports.input
   [GROK_2_VISION.name]: typeof GROK_2_VISION.supports.input
+  [GROK_4_20.name]: typeof GROK_4_20.supports.input
+  [GROK_4_20_MULTI_AGENT.name]: typeof GROK_4_20_MULTI_AGENT.supports.input
 }
 
 /**
@@ -252,6 +364,26 @@ export type GrokModelInputModalitiesByName = {
  */
 export type GrokChatModelProviderOptionsByName = {
   [K in (typeof GROK_CHAT_MODELS)[number]]: GrokProviderOptions
+}
+
+/**
+ * Type-only map from Grok chat model name to its supported provider tools.
+ * Grok exposes no provider-specific tool factories, so every model gets an
+ * empty tuple. This ensures that passing an Anthropic/OpenAI ProviderTool to
+ * a Grok adapter produces a compile-time type error.
+ */
+export type GrokChatModelToolCapabilitiesByName = {
+  [GROK_4_1_FAST_REASONING.name]: typeof GROK_4_1_FAST_REASONING.supports.tools
+  [GROK_4_1_FAST_NON_REASONING.name]: typeof GROK_4_1_FAST_NON_REASONING.supports.tools
+  [GROK_CODE_FAST_1.name]: typeof GROK_CODE_FAST_1.supports.tools
+  [GROK_4_FAST_REASONING.name]: typeof GROK_4_FAST_REASONING.supports.tools
+  [GROK_4_FAST_NON_REASONING.name]: typeof GROK_4_FAST_NON_REASONING.supports.tools
+  [GROK_4.name]: typeof GROK_4.supports.tools
+  [GROK_3.name]: typeof GROK_3.supports.tools
+  [GROK_3_MINI.name]: typeof GROK_3_MINI.supports.tools
+  [GROK_2_VISION.name]: typeof GROK_2_VISION.supports.tools
+  [GROK_4_20.name]: typeof GROK_4_20.supports.tools
+  [GROK_4_20_MULTI_AGENT.name]: typeof GROK_4_20_MULTI_AGENT.supports.tools
 }
 
 /**

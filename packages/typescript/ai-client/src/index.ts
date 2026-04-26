@@ -1,4 +1,7 @@
 export { ChatClient } from './chat-client'
+export { RealtimeClient } from './realtime-client'
+export { GenerationClient } from './generation-client'
+export { VideoGenerationClient } from './video-generation-client'
 export type {
   // Core message types (re-exported from @tanstack/ai via types.ts)
   UIMessage,
@@ -11,7 +14,30 @@ export type {
   ChatClientOptions,
   ChatRequestBody,
   InferChatMessages,
+  ChatClientState,
+  ConnectionStatus,
+  // Multimodal content input type
+  MultimodalContent,
 } from './types'
+// Generation client types
+export type {
+  InferGenerationOutput,
+  GenerationClientState,
+  GenerationClientOptions,
+  GenerationFetcher,
+  GenerationFetcherOptions,
+  GenerationTransport,
+  VideoGenerationClientOptions,
+  VideoStatusInfo,
+  VideoGenerateResult,
+  ImageGenerateInput,
+  AudioGenerateInput,
+  SpeechGenerateInput,
+  TranscriptionGenerateInput,
+  SummarizeGenerateInput,
+  VideoGenerateInput,
+} from './generation-types'
+export { GENERATION_EVENTS } from './generation-types'
 export { clientTools, createChatClientOptions } from './types'
 export type {
   ExtractToolNames,
@@ -19,13 +45,22 @@ export type {
   ExtractToolOutput,
 } from './tool-types'
 export type { AnyClientTool } from '@tanstack/ai'
+export type {
+  RealtimeAdapter,
+  RealtimeConnection,
+  RealtimeClientOptions,
+  RealtimeClientState,
+  RealtimeStateChangeCallback,
+} from './realtime-types'
 export {
   fetchServerSentEvents,
   fetchHttpStream,
   stream,
   rpcStream,
+  type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type SubscribeConnectionAdapter,
 } from './connection-adapters'
 
 // Re-export message converters from @tanstack/ai
@@ -51,7 +86,6 @@ export {
   defaultJSONParser,
   type ChunkStrategy,
   type StreamProcessorOptions,
-  type StreamProcessorHandlers,
   type StreamProcessorEvents,
   type InternalToolCallState,
   type ToolCallState,

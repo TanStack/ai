@@ -14,93 +14,203 @@
           "to": "getting-started/overview"
         },
         {
-          "label": "Quick Start",
+          "label": "Quick Start: React",
           "to": "getting-started/quick-start"
         },
         {
           "label": "Devtools",
           "to": "getting-started/devtools"
+        },
+        {
+          "label": "Quick Start: Vue",
+          "to": "getting-started/quick-start-vue"
+        },
+        {
+          "label": "Quick Start: Svelte",
+          "to": "getting-started/quick-start-svelte"
+        },
+        {
+          "label": "Quick Start: Server Only",
+          "to": "getting-started/quick-start-server"
+        },
+        {
+          "label": "Agent Skills (TanStack Intent)",
+          "to": "getting-started/agent-skills"
         }
       ]
     },
     {
-      "label": "Guides",
+      "label": "Comparison",
+      "children": [
+        {
+          "label": "TanStack AI vs Vercel AI SDK",
+          "to": "comparison/vercel-ai-sdk"
+        }
+      ]
+    },
+    {
+      "label": "Tools",
       "children": [
         {
           "label": "Tools",
-          "to": "guides/tools"
+          "to": "tools/tools"
+        },
+        {
+          "label": "Provider Tools",
+          "to": "tools/provider-tools"
         },
         {
           "label": "Tool Architecture",
-          "to": "guides/tool-architecture"
+          "to": "tools/tool-architecture"
         },
         {
           "label": "Server Tools",
-          "to": "guides/server-tools"
+          "to": "tools/server-tools"
         },
         {
           "label": "Client Tools",
-          "to": "guides/client-tools"
+          "to": "tools/client-tools"
         },
         {
           "label": "Tool Approval Flow",
-          "to": "guides/tool-approval"
+          "to": "tools/tool-approval"
         },
+        {
+          "label": "Lazy Tool Discovery",
+          "to": "tools/lazy-tool-discovery"
+        }
+      ]
+    },
+    {
+      "label": "Chat & Streaming",
+      "children": [
         {
           "label": "Agentic Cycle",
-          "to": "guides/agentic-cycle"
-        },
-        {
-          "label": "Structured Outputs",
-          "to": "guides/structured-outputs"
+          "to": "chat/agentic-cycle"
         },
         {
           "label": "Streaming",
-          "to": "guides/streaming"
-        },
-        {
-          "label": "Multimodal Content",
-          "to": "guides/multimodal-content"
+          "to": "chat/streaming"
         },
         {
           "label": "Connection Adapters",
-          "to": "guides/connection-adapters"
+          "to": "chat/connection-adapters"
         },
         {
-          "label": "Observability",
-          "to": "guides/observability"
+          "label": "Structured Outputs",
+          "to": "chat/structured-outputs"
         },
         {
-          "label": "Per-Model Type Safety",
-          "to": "guides/per-model-type-safety"
+          "label": "Thinking & Reasoning",
+          "to": "chat/thinking-content"
+        }
+      ]
+    },
+    {
+      "label": "Code Mode",
+      "children": [
+        {
+          "label": "Code Mode",
+          "to": "code-mode/code-mode"
         },
         {
-          "label": "Runtime Adapter Switching",
-          "to": "guides/runtime-adapter-switching"
+          "label": "Showing Code Mode in the UI",
+          "to": "code-mode/client-integration"
+        },
+        {
+          "label": "Code Mode with Skills",
+          "to": "code-mode/code-mode-with-skills"
+        },
+        {
+          "label": "Code Mode Isolate Drivers",
+          "to": "code-mode/code-mode-isolates"
+        }
+      ]
+    },
+    {
+      "label": "Media",
+      "children": [
+        {
+          "label": "Generations",
+          "to": "media/generations"
+        },
+        {
+          "label": "Realtime Voice Chat",
+          "to": "media/realtime-chat"
         },
         {
           "label": "Text-to-Speech",
-          "to": "guides/text-to-speech"
+          "to": "media/text-to-speech"
         },
         {
           "label": "Transcription",
-          "to": "guides/transcription"
+          "to": "media/transcription"
+        },
+        {
+          "label": "Audio Generation",
+          "to": "media/audio-generation"
         },
         {
           "label": "Image Generation",
-          "to": "guides/image-generation"
+          "to": "media/image-generation"
         },
         {
           "label": "Video Generation",
-          "to": "guides/video-generation"
+          "to": "media/video-generation"
+        },
+        {
+          "label": "Generation Hooks",
+          "to": "media/generation-hooks"
+        }
+      ]
+    },
+    {
+      "label": "Advanced",
+      "children": [
+        {
+          "label": "Middleware",
+          "to": "advanced/middleware"
+        },
+        {
+          "label": "Debug Logging",
+          "to": "advanced/debug-logging"
+        },
+        {
+          "label": "Observability",
+          "to": "advanced/observability"
+        },
+        {
+          "label": "Multimodal Content",
+          "to": "advanced/multimodal-content"
+        },
+        {
+          "label": "Per-Model Type Safety",
+          "to": "advanced/per-model-type-safety"
+        },
+        {
+          "label": "Runtime Adapter Switching",
+          "to": "advanced/runtime-adapter-switching"
         },
         {
           "label": "Tree-Shaking",
-          "to": "guides/tree-shaking"
+          "to": "advanced/tree-shaking"
         },
         {
+          "label": "Extend Adapter",
+          "to": "advanced/extend-adapter"
+        }
+      ]
+    },
+    {
+      "label": "Migration",
+      "children": [
+        {
           "label": "Migration Guide",
-          "to": "guides/migration"
+          "to": "migration/migration"
+        },
+        {
+          "label": "From Vercel AI SDK",
+          "to": "migration/migration-from-vercel-ai"
         }
       ]
     },
@@ -126,6 +236,14 @@
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact"
+        },
+        {
+          "label": "@tanstack/ai-vue",
+          "to": "api/ai-vue"
+        },
+        {
+          "label": "@tanstack/ai-svelte",
+          "to": "api/ai-svelte"
         }
       ]
     },
@@ -151,6 +269,22 @@
         {
           "label": "Grok (xAI)",
           "to": "adapters/grok"
+        },
+        {
+          "label": "Groq",
+          "to": "adapters/groq"
+        },
+        {
+          "label": "ElevenLabs",
+          "to": "adapters/elevenlabs"
+        },
+        {
+          "label": "fal.ai",
+          "to": "adapters/fal"
+        },
+        {
+          "label": "OpenRouter Adapter",
+          "to": "adapters/openrouter"
         }
       ]
     },
@@ -164,6 +298,22 @@
         {
           "label": "Decart",
           "to": "community-adapters/decart"
+        },
+        {
+          "label": "Cencori",
+          "to": "community-adapters/cencori"
+        },
+        {
+          "label": "Cloudflare",
+          "to": "community-adapters/cloudflare"
+        },
+        {
+          "label": "Soniox",
+          "to": "community-adapters/soniox"
+        },
+        {
+          "label": "Mynth",
+          "to": "community-adapters/mynth"
         }
       ]
     },
@@ -203,6 +353,10 @@
         {
           "label": "ToolCallManager",
           "to": "reference/classes/ToolCallManager"
+        },
+        {
+          "label": "RealtimeClient",
+          "to": "reference/classes/RealtimeClient"
         },
         {
           "label": "WordBoundaryStrategy",
@@ -292,6 +446,10 @@
           "to": "reference/functions/uiMessageToModelMessages"
         },
         {
+          "label": "realtimeToken",
+          "to": "reference/functions/realtimeToken"
+        },
+        {
           "label": "untilFinishReason",
           "to": "reference/functions/untilFinishReason"
         }
@@ -321,6 +479,10 @@
         {
           "label": "AudioPart",
           "to": "reference/interfaces/AudioPart"
+        },
+        {
+          "label": "AudioVisualization",
+          "to": "reference/interfaces/AudioVisualization"
         },
         {
           "label": "BaseStreamChunk",
@@ -401,6 +563,38 @@
         {
           "label": "ProcessorState",
           "to": "reference/interfaces/ProcessorState"
+        },
+        {
+          "label": "RealtimeAdapter",
+          "to": "reference/interfaces/RealtimeAdapter"
+        },
+        {
+          "label": "RealtimeClientOptions",
+          "to": "reference/interfaces/RealtimeClientOptions"
+        },
+        {
+          "label": "RealtimeConnection",
+          "to": "reference/interfaces/RealtimeConnection"
+        },
+        {
+          "label": "RealtimeMessage",
+          "to": "reference/interfaces/RealtimeMessage"
+        },
+        {
+          "label": "RealtimeSessionConfig",
+          "to": "reference/interfaces/RealtimeSessionConfig"
+        },
+        {
+          "label": "RealtimeToken",
+          "to": "reference/interfaces/RealtimeToken"
+        },
+        {
+          "label": "RealtimeTokenAdapter",
+          "to": "reference/interfaces/RealtimeTokenAdapter"
+        },
+        {
+          "label": "RealtimeTokenOptions",
+          "to": "reference/interfaces/RealtimeTokenOptions"
         },
         {
           "label": "ResponseFormat",
@@ -556,6 +750,22 @@
         {
           "label": "MessagePart",
           "to": "reference/type-aliases/MessagePart"
+        },
+        {
+          "label": "RealtimeEvent",
+          "to": "reference/type-aliases/RealtimeEvent"
+        },
+        {
+          "label": "RealtimeMessagePart",
+          "to": "reference/type-aliases/RealtimeMessagePart"
+        },
+        {
+          "label": "RealtimeMode",
+          "to": "reference/type-aliases/RealtimeMode"
+        },
+        {
+          "label": "RealtimeStatus",
+          "to": "reference/type-aliases/RealtimeStatus"
         },
         {
           "label": "ModalitiesArrayToUnion",

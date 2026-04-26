@@ -63,30 +63,26 @@ export function updateToolCallPart(
     }
 
     const parts = [...msg.parts]
-    // Find by ID, not index!
-    const existingPartIndex = parts.findIndex(
+    const existing = parts.find(
       (p): p is ToolCallPart => p.type === 'tool-call' && p.id === toolCall.id,
     )
 
-    if (existingPartIndex >= 0) {
+    const toolCallPart: ToolCallPart = {
+      type: 'tool-call',
+      id: toolCall.id,
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+      state: toolCall.state,
+      // Carry forward approval and output from the existing part
+      ...(existing?.approval && { approval: { ...existing.approval } }),
+      ...(existing?.output !== undefined && { output: existing.output }),
+    }
+
+    if (existing) {
       // Update existing tool call
-      const existing = parts[existingPartIndex] as ToolCallPart
-      parts[existingPartIndex] = {
-        ...existing,
-        id: toolCall.id,
-        name: toolCall.name,
-        arguments: toolCall.arguments,
-        state: toolCall.state,
-      }
+      parts[parts.indexOf(existing)] = toolCallPart
     } else {
       // Add new tool call at the end (preserve natural streaming order)
-      const toolCallPart: ToolCallPart = {
-        type: 'tool-call',
-        id: toolCall.id,
-        name: toolCall.name,
-        arguments: toolCall.arguments,
-        state: toolCall.state,
-      }
       parts.push(toolCallPart)
     }
 

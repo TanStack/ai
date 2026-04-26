@@ -3,10 +3,18 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
+  onCleanup,
 } from 'solid-js'
+
 import { ChatClient } from '@tanstack/ai-client'
+import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
 import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
-import type { UIMessage, UseChatOptions, UseChatReturn } from './types'
+import type {
+  MultimodalContent,
+  UIMessage,
+  UseChatOptions,
+  UseChatReturn,
+} from './types'
 
 export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   options: UseChatOptions<TTools> = {} as UseChatOptions<TTools>,
@@ -19,22 +27,35 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   )
   const [isLoading, setIsLoading] = createSignal(false)
   const [error, setError] = createSignal<Error | undefined>(undefined)
+  const [status, setStatus] = createSignal<ChatClientState>('ready')
+  const [isSubscribed, setIsSubscribed] = createSignal(false)
+  const [connectionStatus, setConnectionStatus] =
+    createSignal<ConnectionStatus>('disconnected')
+  const [sessionGenerating, setSessionGenerating] = createSignal(false)
 
-  // Create ChatClient instance with callbacks to sync state
-  // Note: Options are captured at client creation time.
-  // The connection adapter can use functions for dynamic values (url, headers, etc.)
-  // which are evaluated lazily on each request.
+  // Create ChatClient instance with callbacks to sync state.
+  // Every user-provided callback is wrapped so the LATEST `options.xxx` value
+  // is read at call time. Direct assignment would freeze the callback to the
+  // reference we saw at creation; the wrapper lets reactive `options` or
+  // in-place mutations propagate. When the user clears a callback (sets it to
+  // undefined), `?.` no-ops.
   const client = createMemo(() => {
     return new ChatClient({
       connection: options.connection,
       id: clientId,
       initialMessages: options.initialMessages,
       body: options.body,
-      onResponse: options.onResponse,
-      onChunk: options.onChunk,
-      onFinish: options.onFinish,
-      onError: options.onError,
+      onResponse: (response) => options.onResponse?.(response),
+      onChunk: (chunk) => options.onChunk?.(chunk),
+      onFinish: (message) => {
+        options.onFinish?.(message)
+      },
+      onError: (err) => {
+        options.onError?.(err)
+      },
       tools: options.tools,
+      onCustomEvent: (eventType, data, context) =>
+        options.onCustomEvent?.(eventType, data, context),
       streamProcessor: options.streamProcessor,
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
@@ -42,13 +63,32 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       onLoadingChange: (newIsLoading: boolean) => {
         setIsLoading(newIsLoading)
       },
+      onStatusChange: (newStatus: ChatClientState) => {
+        setStatus(newStatus)
+      },
       onErrorChange: (newError: Error | undefined) => {
         setError(newError)
+      },
+      onSubscriptionChange: (nextIsSubscribed: boolean) => {
+        setIsSubscribed(nextIsSubscribed)
+      },
+      onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+        setConnectionStatus(nextStatus)
+      },
+      onSessionGeneratingChange: (isGenerating: boolean) => {
+        setSessionGenerating(isGenerating)
       },
     })
     // Only recreate when clientId changes
     // Connection and other options are captured at creation time
   }, [clientId])
+
+  // Sync body changes to the client
+  // This allows dynamic body values (like model selection) to be updated without recreating the client
+  createEffect(() => {
+    const currentBody = options.body
+    client().updateOptions({ body: currentBody })
+  })
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also
@@ -62,21 +102,34 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     }
   }) // Only run on mount - initialMessages are handled by ChatClient constructor
 
-  // Cleanup on unmount: stop any in-flight requests
-  // Note: We use createEffect with a cleanup return to handle component unmount.
-  // The cleanup only runs on disposal (unmount), not on signal changes.
+  // Apply initial live mode immediately on hook creation.
+  if (options.live) {
+    client().subscribe()
+  } else {
+    client().unsubscribe()
+  }
+
   createEffect(() => {
-    return () => {
-      // Stop any active generation when component unmounts
+    if (options.live) {
+      client().subscribe()
+    } else {
+      client().unsubscribe()
+    }
+  })
+
+  // Cleanup on unmount: stop any in-flight requests.
+  onCleanup(() => {
+    if (options.live) {
+      client().unsubscribe()
+    } else {
       client().stop()
     }
   })
 
-  // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
-  // are captured at client creation time. Changes to these callbacks require
-  // remounting the component or changing the connection to recreate the client.
+  // Callback options are read through `options.xxx` at call time, so reactive
+  // or mutated options propagate without recreating the client.
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string | MultimodalContent) => {
     await client().sendMessage(content)
   }
 
@@ -125,6 +178,10 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     stop,
     isLoading,
     error,
+    status,
+    isSubscribed,
+    connectionStatus,
+    sessionGenerating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,

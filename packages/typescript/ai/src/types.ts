@@ -1,4 +1,31 @@
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
+import type { InternalLogger } from './logger/internal-logger'
+import type {
+  BaseEvent as AGUIBaseEvent,
+  CustomEvent as AGUICustomEvent,
+  MessagesSnapshotEvent as AGUIMessagesSnapshotEvent,
+  ReasoningEncryptedValueEvent as AGUIReasoningEncryptedValueEvent,
+  ReasoningEndEvent as AGUIReasoningEndEvent,
+  ReasoningMessageContentEvent as AGUIReasoningMessageContentEvent,
+  ReasoningMessageEndEvent as AGUIReasoningMessageEndEvent,
+  ReasoningMessageStartEvent as AGUIReasoningMessageStartEvent,
+  ReasoningStartEvent as AGUIReasoningStartEvent,
+  RunErrorEvent as AGUIRunErrorEvent,
+  RunFinishedEvent as AGUIRunFinishedEvent,
+  RunStartedEvent as AGUIRunStartedEvent,
+  StateDeltaEvent as AGUIStateDeltaEvent,
+  StateSnapshotEvent as AGUIStateSnapshotEvent,
+  StepFinishedEvent as AGUIStepFinishedEvent,
+  StepStartedEvent as AGUIStepStartedEvent,
+  TextMessageContentEvent as AGUITextMessageContentEvent,
+  TextMessageEndEvent as AGUITextMessageEndEvent,
+  TextMessageStartEvent as AGUITextMessageStartEvent,
+  ToolCallArgsEvent as AGUIToolCallArgsEvent,
+  ToolCallEndEvent as AGUIToolCallEndEvent,
+  ToolCallResultEvent as AGUIToolCallResultEvent,
+  ToolCallStartEvent as AGUIToolCallStartEvent,
+  EventType,
+} from '@ag-ui/core'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -91,6 +118,8 @@ export interface ToolCall {
     name: string
     arguments: string // JSON string
   }
+  /** Provider-specific metadata to carry through the tool call lifecycle */
+  providerMetadata?: Record<string, unknown>
 }
 
 // ============================================================================
@@ -108,23 +137,51 @@ export interface ToolCall {
 export type Modality = 'text' | 'image' | 'audio' | 'video' | 'document'
 
 /**
- * Source specification for multimodal content.
- * Supports both inline data (base64) and URL-based content.
+ * Source specification for inline data content (base64).
+ * Requires a mimeType to ensure providers receive proper content type information.
  */
-export interface ContentPartSource {
+export interface ContentPartDataSource {
   /**
-   * The type of source:
-   * - 'data': Inline data (typically base64 encoded)
-   * - 'url': URL reference to the content
+   * Indicates this is inline data content.
    */
-  type: 'data' | 'url'
+  type: 'data'
   /**
-   * The actual content value:
-   * - For 'data': base64-encoded string
-   * - For 'url': HTTP(S) URL or data URI
+   * The base64-encoded content value.
    */
   value: string
+  /**
+   * The MIME type of the content (e.g., 'image/png', 'audio/wav').
+   * Required for data sources to ensure proper handling by providers.
+   */
+  mimeType: string
 }
+
+/**
+ * Source specification for URL-based content.
+ * mimeType is optional as it can often be inferred from the URL or response headers.
+ */
+export interface ContentPartUrlSource {
+  /**
+   * Indicates this is URL-referenced content.
+   */
+  type: 'url'
+  /**
+   * HTTP(S) URL or data URI pointing to the content.
+   */
+  value: string
+  /**
+   * Optional MIME type hint for cases where providers can't infer it from the URL.
+   */
+  mimeType?: string
+}
+
+/**
+ * Source specification for multimodal content.
+ * Discriminated union supporting both inline data (base64) and URL-based content.
+ * - For 'data' sources: mimeType is required
+ * - For 'url' sources: mimeType is optional
+ */
+export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
 
 /**
  * Image content part for multimodal messages.
@@ -282,6 +339,10 @@ export interface ThinkingPart {
 
 export type MessagePart =
   | TextPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
@@ -310,6 +371,34 @@ export type ConstrainedModelMessage<
   TInputModalitiesTypes extends InputModalitiesTypes,
 > = Omit<ModelMessage, 'content'> & {
   content: ConstrainedContent<TInputModalitiesTypes>
+}
+
+/**
+ * Context passed to tool execute functions, providing capabilities like
+ * emitting custom events during execution.
+ */
+export interface ToolExecutionContext {
+  /** The ID of the tool call being executed */
+  toolCallId?: string
+  /**
+   * Emit a custom event during tool execution.
+   * Events are streamed to the client in real-time as AG-UI CUSTOM events.
+   *
+   * @param eventName - Name of the custom event
+   * @param value - Event payload value
+   *
+   * @example
+   * ```ts
+   * const tool = toolDefinition({ ... }).server(async (args, context) => {
+   *   context?.emitCustomEvent('progress', { step: 1, total: 3 })
+   *   // ... do work ...
+   *   context?.emitCustomEvent('progress', { step: 2, total: 3 })
+   *   // ... do more work ...
+   *   return result
+   * })
+   * ```
+   */
+  emitCustomEvent: (eventName: string, value: Record<string, any>) => void
 }
 
 /**
@@ -428,10 +517,13 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?: (args: any) => Promise<any> | any
+  execute?: (args: any, context?: ToolExecutionContext) => Promise<any> | any
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
+
+  /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat(). */
+  lazy?: boolean
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any>
@@ -647,54 +739,91 @@ export interface TextOptions<
    * @see https://developer.mozilla.org/en-US/docs/Web/API/AbortController
    */
   abortController?: AbortController
+
+  /**
+   * Internal logger threaded from the chat entry point. Adapter implementations
+   * must call `logger.request()` before SDK calls, `logger.provider()` for each
+   * chunk received, and `logger.errors()` in catch blocks.
+   */
+  logger: InternalLogger
+
+  /**
+   * Thread ID for AG-UI protocol run correlation.
+   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+   */
+  threadId?: string
+  /**
+   * Run ID for AG-UI protocol run correlation.
+   * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+   * If not provided, a unique ID will be generated.
+   */
+  runId?: string
 }
 
-export type StreamChunkType =
-  | 'content'
-  | 'tool_call'
-  | 'tool_result'
-  | 'done'
-  | 'error'
-  | 'approval-requested'
-  | 'tool-input-available'
-  | 'thinking'
+// ============================================================================
+// AG-UI Protocol Event Types
+// ============================================================================
 
-export interface BaseStreamChunk {
-  type: StreamChunkType
-  id: string
-  model: string
-  timestamp: number
+/**
+ * Re-export EventType enum from @ag-ui/core for use in event creation.
+ * Use `EventType.RUN_STARTED` etc. when constructing event objects.
+ */
+export { EventType } from '@ag-ui/core'
+
+/**
+ * AG-UI Protocol event types.
+ * @deprecated Use `EventType` enum from `@ag-ui/core` instead. This type alias
+ * is kept for backward compatibility but will be removed in a future version.
+ * @see https://docs.ag-ui.com/concepts/events
+ */
+export type AGUIEventType = `${EventType}`
+
+/**
+ * Stream chunk/event types (AG-UI protocol).
+ * @deprecated Use `EventType` enum instead.
+ */
+export type StreamChunkType = AGUIEventType
+
+/**
+ * Base structure for AG-UI events.
+ * Extends @ag-ui/core BaseEvent with TanStack AI additions.
+ *
+ * @ag-ui/core provides: `type`, `timestamp?`, `rawEvent?`
+ * TanStack AI adds: `model?`
+ */
+export interface BaseAGUIEvent extends AGUIBaseEvent {
+  /** Model identifier for multi-model support */
+  model?: string
 }
 
-export interface ContentStreamChunk extends BaseStreamChunk {
-  type: 'content'
-  delta: string // The incremental content token
-  content: string // Full accumulated content so far
-  role?: 'assistant'
+// ============================================================================
+// AG-UI Event Interfaces
+// ============================================================================
+
+/**
+ * Emitted when a run starts.
+ * This is the first event in any streaming response.
+ *
+ * @ag-ui/core provides: `threadId`, `runId`, `parentRunId?`, `input?`
+ * TanStack AI adds: `model?`
+ */
+export interface RunStartedEvent extends AGUIRunStartedEvent {
+  /** Model identifier for multi-model support */
+  model?: string
 }
 
-export interface ToolCallStreamChunk extends BaseStreamChunk {
-  type: 'tool_call'
-  toolCall: {
-    id: string
-    type: 'function'
-    function: {
-      name: string
-      arguments: string // Incremental JSON arguments
-    }
-  }
-  index: number
-}
-
-export interface ToolResultStreamChunk extends BaseStreamChunk {
-  type: 'tool_result'
-  toolCallId: string
-  content: string
-}
-
-export interface DoneStreamChunk extends BaseStreamChunk {
-  type: 'done'
-  finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+/**
+ * Emitted when a run completes successfully.
+ *
+ * @ag-ui/core provides: `threadId`, `runId`, `result?`
+ * TanStack AI adds: `model?`, `finishReason?`, `usage?`
+ */
+export interface RunFinishedEvent extends AGUIRunFinishedEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+  /** Why the generation stopped */
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  /** Token usage statistics */
   usage?: {
     promptTokens: number
     completionTokens: number
@@ -702,50 +831,325 @@ export interface DoneStreamChunk extends BaseStreamChunk {
   }
 }
 
-export interface ErrorStreamChunk extends BaseStreamChunk {
-  type: 'error'
-  error: {
+/**
+ * Emitted when an error occurs during a run.
+ *
+ * @ag-ui/core provides: `message`, `code?`
+ * TanStack AI adds: `model?`, `error?` (deprecated nested form)
+ */
+export interface RunErrorEvent extends AGUIRunErrorEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+  /**
+   * @deprecated Use top-level `message` and `code` fields instead.
+   * Kept for backward compatibility.
+   */
+  error?: {
     message: string
     code?: string
   }
 }
 
-export interface ApprovalRequestedStreamChunk extends BaseStreamChunk {
-  type: 'approval-requested'
-  toolCallId: string
-  toolName: string
-  input: any
-  approval: {
-    id: string
-    needsApproval: true
-  }
-}
-
-export interface ToolInputAvailableStreamChunk extends BaseStreamChunk {
-  type: 'tool-input-available'
-  toolCallId: string
-  toolName: string
-  input: any
-}
-
-export interface ThinkingStreamChunk extends BaseStreamChunk {
-  type: 'thinking'
-  delta?: string // The incremental thinking token
-  content: string // Full accumulated thinking content so far
+/**
+ * Emitted when a text message starts.
+ *
+ * @ag-ui/core provides: `messageId`, `role?`, `name?`
+ * TanStack AI adds: `model?`
+ */
+export interface TextMessageStartEvent extends AGUITextMessageStartEvent {
+  /** Model identifier for multi-model support */
+  model?: string
 }
 
 /**
- * Chunk returned by the sdk during streaming chat completions.
+ * Emitted when text content is generated (streaming tokens).
+ *
+ * @ag-ui/core provides: `messageId`, `delta`
+ * TanStack AI adds: `model?`, `content?` (accumulated)
  */
-export type StreamChunk =
-  | ContentStreamChunk
-  | ToolCallStreamChunk
-  | ToolResultStreamChunk
-  | DoneStreamChunk
-  | ErrorStreamChunk
-  | ApprovalRequestedStreamChunk
-  | ToolInputAvailableStreamChunk
-  | ThinkingStreamChunk
+export interface TextMessageContentEvent extends AGUITextMessageContentEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+  /** Full accumulated content so far (TanStack AI internal, for debugging) */
+  content?: string
+}
+
+/**
+ * Emitted when a text message completes.
+ *
+ * @ag-ui/core provides: `messageId`
+ * TanStack AI adds: `model?`
+ */
+export interface TextMessageEndEvent extends AGUITextMessageEndEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+/**
+ * Emitted when a tool call starts.
+ *
+ * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
+ * TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `providerMetadata?`
+ */
+export interface ToolCallStartEvent extends AGUIToolCallStartEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+  /**
+   * @deprecated Use `toolCallName` instead (from @ag-ui/core spec).
+   * Kept for backward compatibility.
+   */
+  toolName: string
+  /** Index for parallel tool calls */
+  index?: number
+  /** Provider-specific metadata to carry into the ToolCall */
+  providerMetadata?: Record<string, unknown>
+}
+
+/**
+ * Emitted when tool call arguments are streaming.
+ *
+ * @ag-ui/core provides: `toolCallId`, `delta`
+ * TanStack AI adds: `model?`, `args?` (accumulated)
+ */
+export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+  /** Full accumulated arguments so far (TanStack AI internal) */
+  args?: string
+}
+
+/**
+ * Emitted when a tool call completes.
+ *
+ * @ag-ui/core provides: `toolCallId`
+ * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `result?`
+ */
+export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+  /** Name of the tool that completed */
+  toolCallName?: string
+  /**
+   * @deprecated Use `toolCallName` instead.
+   * Kept for backward compatibility.
+   */
+  toolName?: string
+  /** Final parsed input arguments (TanStack AI internal) */
+  input?: unknown
+  /** Tool execution result (TanStack AI internal) */
+  result?: string
+}
+
+/**
+ * Emitted when a tool call result is available.
+ *
+ * @ag-ui/core provides: `messageId`, `toolCallId`, `content`, `role?`
+ * TanStack AI adds: `model?`
+ */
+export interface ToolCallResultEvent extends AGUIToolCallResultEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+/**
+ * Emitted when a thinking/reasoning step starts.
+ *
+ * @ag-ui/core provides: `stepName`
+ * TanStack AI adds: `model?`, `stepId?` (deprecated alias), `stepType?`
+ */
+export interface StepStartedEvent extends AGUIStepStartedEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+  /**
+   * @deprecated Use `stepName` instead (from @ag-ui/core spec).
+   * Kept for backward compatibility.
+   */
+  stepId?: string
+  /** Type of step (e.g., 'thinking', 'planning') */
+  stepType?: string
+}
+
+/**
+ * Emitted when a thinking/reasoning step finishes.
+ *
+ * @ag-ui/core provides: `stepName`
+ * TanStack AI adds: `model?`, `stepId?` (deprecated alias), `delta?`, `content?`
+ */
+export interface StepFinishedEvent extends AGUIStepFinishedEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+  /**
+   * @deprecated Use `stepName` instead (from @ag-ui/core spec).
+   * Kept for backward compatibility.
+   */
+  stepId?: string
+  /** Incremental thinking content (TanStack AI internal) */
+  delta?: string
+  /** Full accumulated thinking content (TanStack AI internal) */
+  content?: string
+}
+
+/**
+ * Emitted to provide a snapshot of all messages in a conversation.
+ *
+ * Unlike StateSnapshot (which carries arbitrary application state),
+ * MessagesSnapshot specifically delivers the conversation transcript.
+ *
+ * @ag-ui/core provides: `messages` (as @ag-ui/core Message[])
+ * TanStack AI adds: `model?`
+ *
+ * Note: The `messages` field uses the @ag-ui/core Message type.
+ * Use converters to transform to/from TanStack UIMessage format.
+ */
+export interface MessagesSnapshotEvent extends AGUIMessagesSnapshotEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+/**
+ * Emitted to provide a full state snapshot.
+ *
+ * @ag-ui/core provides: `snapshot` (any)
+ * TanStack AI adds: `model?`, `state?` (deprecated alias for snapshot)
+ */
+export interface StateSnapshotEvent extends AGUIStateSnapshotEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+  /**
+   * @deprecated Use `snapshot` instead (from @ag-ui/core spec).
+   * Kept for backward compatibility.
+   */
+  state?: Record<string, unknown>
+}
+
+/**
+ * Emitted to provide an incremental state update.
+ *
+ * @ag-ui/core provides: `delta` (any[] - JSON Patch RFC 6902)
+ * TanStack AI adds: `model?`
+ */
+export interface StateDeltaEvent extends AGUIStateDeltaEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+/**
+ * Custom event for extensibility.
+ *
+ * @ag-ui/core provides: `name`, `value`
+ * TanStack AI adds: `model?`
+ */
+export interface CustomEvent extends AGUICustomEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+// ============================================================================
+// AG-UI Reasoning Event Interfaces
+// ============================================================================
+
+/**
+ * Emitted when reasoning starts for a message.
+ *
+ * @ag-ui/core provides: `messageId`
+ * TanStack AI adds: `model?`
+ */
+export interface ReasoningStartEvent extends AGUIReasoningStartEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+/**
+ * Emitted when a reasoning message starts.
+ *
+ * @ag-ui/core provides: `messageId`, `role` ("reasoning")
+ * TanStack AI adds: `model?`
+ */
+export interface ReasoningMessageStartEvent extends AGUIReasoningMessageStartEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+/**
+ * Emitted when reasoning message content is generated.
+ *
+ * @ag-ui/core provides: `messageId`, `delta`
+ * TanStack AI adds: `model?`
+ */
+export interface ReasoningMessageContentEvent extends AGUIReasoningMessageContentEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+/**
+ * Emitted when a reasoning message ends.
+ *
+ * @ag-ui/core provides: `messageId`
+ * TanStack AI adds: `model?`
+ */
+export interface ReasoningMessageEndEvent extends AGUIReasoningMessageEndEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+/**
+ * Emitted when reasoning ends for a message.
+ *
+ * @ag-ui/core provides: `messageId`
+ * TanStack AI adds: `model?`
+ */
+export interface ReasoningEndEvent extends AGUIReasoningEndEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+/**
+ * Emitted for encrypted reasoning values.
+ *
+ * @ag-ui/core provides: `subtype`, `entityId`, `encryptedValue`
+ * TanStack AI adds: `model?`
+ */
+export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {
+  /** Model identifier for multi-model support */
+  model?: string
+}
+
+// ============================================================================
+// AG-UI Event Union
+// ============================================================================
+
+/**
+ * Union of all AG-UI events.
+ */
+export type AGUIEvent =
+  | RunStartedEvent
+  | RunFinishedEvent
+  | RunErrorEvent
+  | TextMessageStartEvent
+  | TextMessageContentEvent
+  | TextMessageEndEvent
+  | ToolCallStartEvent
+  | ToolCallArgsEvent
+  | ToolCallEndEvent
+  | ToolCallResultEvent
+  | StepStartedEvent
+  | StepFinishedEvent
+  | MessagesSnapshotEvent
+  | StateSnapshotEvent
+  | StateDeltaEvent
+  | CustomEvent
+  | ReasoningStartEvent
+  | ReasoningMessageStartEvent
+  | ReasoningMessageContentEvent
+  | ReasoningMessageEndEvent
+  | ReasoningEndEvent
+  | ReasoningEncryptedValueEvent
+
+/**
+ * Chunk returned by the SDK during streaming chat completions.
+ * Uses the AG-UI protocol event format.
+ */
+export type StreamChunk = AGUIEvent
 
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()
@@ -768,6 +1172,11 @@ export interface SummarizationOptions {
   maxLength?: number
   style?: 'bullet-points' | 'paragraph' | 'concise'
   focus?: Array<string>
+  /**
+   * Internal logger threaded from the summarize() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 export interface SummarizationResult {
@@ -791,6 +1200,7 @@ export interface SummarizationResult {
  */
 export interface ImageGenerationOptions<
   TProviderOptions extends object = object,
+  TSize extends string = string,
 > {
   /** The model to use for image generation */
   model: string
@@ -799,19 +1209,38 @@ export interface ImageGenerationOptions<
   /** Number of images to generate (default: 1) */
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
-  size?: string
+  size?: TSize
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateImage() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
+
+/**
+ * Source of a generated media asset. Exactly one of `url` or `b64Json` is
+ * present; the other is absent. Modeled as a mutually-exclusive union so the
+ * type rejects `{}` and `{ url, b64Json }` together at compile time while
+ * preserving the flat `.url` / `.b64Json` access patterns.
+ */
+export type GeneratedMediaSource =
+  | {
+      /** URL to the generated asset (may be temporary) */
+      url: string
+      b64Json?: never
+    }
+  | {
+      /** Base64-encoded asset data */
+      b64Json: string
+      url?: never
+    }
 
 /**
  * A single generated image
  */
-export interface GeneratedImage {
-  /** Base64-encoded image data */
-  b64Json?: string
-  /** URL to the generated image (may be temporary) */
-  url?: string
+export type GeneratedImage = GeneratedMediaSource & {
   /** Revised prompt used by the model (if applicable) */
   revisedPrompt?: string
 }
@@ -835,6 +1264,61 @@ export interface ImageGenerationResult {
 }
 
 // ============================================================================
+// Audio Generation Types
+// ============================================================================
+
+/**
+ * Options for audio generation (music, sound effects, etc.).
+ * These are the common options supported across providers.
+ */
+export interface AudioGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for audio generation */
+  model: string
+  /** Text description of the desired audio */
+  prompt: string
+  /** Desired duration in seconds */
+  duration?: number
+  /** Model-specific options for audio generation */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateAudio() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+}
+
+/**
+ * A single generated audio output
+ */
+export type GeneratedAudio = GeneratedMediaSource & {
+  /** Content type of the audio (e.g., 'audio/wav', 'audio/mp3') */
+  contentType?: string
+  /** Duration of the generated audio in seconds */
+  duration?: number
+}
+
+/**
+ * Result of audio generation
+ */
+export interface AudioGenerationResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** The generated audio */
+  audio: GeneratedAudio
+  /** Token usage information (if available) */
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+  }
+}
+
+// ============================================================================
 // Video Generation Types (Experimental)
 // ============================================================================
 
@@ -846,17 +1330,23 @@ export interface ImageGenerationResult {
  */
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
+  TSize extends string = string,
 > {
   /** The model to use for video generation */
   model: string
   /** Text description of the desired video */
   prompt: string
-  /** Video size in WIDTHxHEIGHT format (e.g., "1280x720") */
-  size?: string
+  /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
+  size?: TSize
   /** Video duration in seconds */
   duration?: number
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateVideo() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
@@ -922,6 +1412,12 @@ export interface TTSOptions<TProviderOptions extends object = object> {
   speed?: number
   /** Model-specific options for TTS generation */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateSpeech() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**
@@ -965,6 +1461,12 @@ export interface TranscriptionOptions<
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   /** Model-specific options for transcription */
   modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateTranscription() entry point.
+   * Adapters must call logger.request() before the SDK call and logger.errors()
+   * in catch blocks.
+   */
+  logger: InternalLogger
 }
 
 /**

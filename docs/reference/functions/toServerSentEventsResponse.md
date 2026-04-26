@@ -9,20 +9,20 @@ title: toServerSentEventsResponse
 function toServerSentEventsResponse(stream, init?): Response;
 ```
 
-Defined in: [stream-to-response.ts:123](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L123)
+Defined in: [packages/typescript/ai/src/stream-to-response.ts:120](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L120)
 
 Convert a StreamChunk async iterable to a Response in Server-Sent Events format
 
 This creates a Response that emits chunks in SSE format:
 - Each chunk is prefixed with "data: "
 - Each chunk is followed by "\n\n"
-- Stream ends with "data: [DONE]\n\n"
+- Stream ends when the underlying iterable is exhausted (RUN_FINISHED is the terminal event)
 
 ## Parameters
 
 ### stream
 
-`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
 
 AsyncIterable of StreamChunks from chat()
 
@@ -41,6 +41,6 @@ Response in Server-Sent Events format
 ## Example
 
 ```typescript
-const stream = chat({ adapter: openaiText(), model: "gpt-5.2", messages: [...] });
+const stream = chat({ adapter: openaiText(), model: "gpt-4o", messages: [...] });
 return toServerSentEventsResponse(stream, { abortController });
 ```

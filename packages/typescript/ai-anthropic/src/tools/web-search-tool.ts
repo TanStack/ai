@@ -1,10 +1,15 @@
 import type { WebSearchTool20250305 } from '@anthropic-ai/sdk/resources/messages'
 import type { CacheControl } from '../text/text-provider-options'
-import type { Tool } from '@tanstack/ai'
+import type { ProviderTool, Tool } from '@tanstack/ai'
 
-export type WebSearchTool = WebSearchTool20250305
+export type WebSearchToolConfig = WebSearchTool20250305
 
-const validateDomains = (tool: WebSearchTool) => {
+/** @deprecated Renamed to `WebSearchToolConfig`. Will be removed in a future release. */
+export type WebSearchTool = WebSearchToolConfig
+
+export type AnthropicWebSearchTool = ProviderTool<'anthropic', 'web_search'>
+
+const validateDomains = (tool: WebSearchToolConfig) => {
   if (tool.allowed_domains && tool.blocked_domains) {
     throw new Error(
       'allowed_domains and blocked_domains cannot be used together.',
@@ -12,7 +17,7 @@ const validateDomains = (tool: WebSearchTool) => {
   }
 }
 
-const validateUserLocation = (tool: WebSearchTool) => {
+const validateUserLocation = (tool: WebSearchToolConfig) => {
   const userLocation = tool.user_location
   if (userLocation) {
     if (
@@ -45,7 +50,9 @@ const validateUserLocation = (tool: WebSearchTool) => {
   }
 }
 
-export function convertWebSearchToolToAdapterFormat(tool: Tool): WebSearchTool {
+export function convertWebSearchToolToAdapterFormat(
+  tool: Tool,
+): WebSearchToolConfig {
   const metadata = tool.metadata as {
     allowedDomains?: Array<string> | null
     blockedDomains?: Array<string> | null
@@ -70,12 +77,15 @@ export function convertWebSearchToolToAdapterFormat(tool: Tool): WebSearchTool {
   }
 }
 
-export function webSearchTool(config: WebSearchTool): Tool {
+export function webSearchTool(
+  config: WebSearchToolConfig,
+): AnthropicWebSearchTool {
   validateDomains(config)
   validateUserLocation(config)
+  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'web_search',
     description: '',
     metadata: config,
-  }
+  } as unknown as AnthropicWebSearchTool
 }

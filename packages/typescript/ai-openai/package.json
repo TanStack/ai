@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-openai",
-  "version": "0.2.1",
+  "version": "0.8.2",
   "description": "OpenAI adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -16,6 +16,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./tools": {
+      "types": "./dist/esm/tools/index.d.ts",
+      "import": "./dist/esm/tools/index.js"
     }
   },
   "files": [
@@ -44,10 +48,12 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-client": "workspace:^",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7",
     "zod": "^4.2.0"

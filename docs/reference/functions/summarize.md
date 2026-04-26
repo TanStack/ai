@@ -9,7 +9,7 @@ title: summarize
 function summarize<TAdapter, TStream>(options): SummarizeActivityResult<TStream>;
 ```
 
-Defined in: [activities/summarize/index.ts:146](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/index.ts#L146)
+Defined in: [packages/typescript/ai/src/activities/summarize/index.ts:156](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/index.ts#L156)
 
 Summarize activity - generates summaries from text.
 
@@ -42,7 +42,7 @@ import { summarize } from '@tanstack/ai'
 import { openaiSummarize } from '@tanstack/ai-openai'
 
 const result = await summarize({
-  adapter: openaiSummarize('gpt-5-mini'),
+  adapter: openaiSummarize('gpt-4o-mini'),
   text: 'Long article text here...'
 })
 
@@ -51,7 +51,7 @@ console.log(result.summary)
 
 ```ts
 const result = await summarize({
-  adapter: openaiSummarize('gpt-5-mini'),
+  adapter: openaiSummarize('gpt-4o-mini'),
   text: 'Long article text here...',
   style: 'bullet-points',
   maxLength: 100
@@ -60,7 +60,7 @@ const result = await summarize({
 
 ```ts
 const result = await summarize({
-  adapter: openaiSummarize('gpt-5-mini'),
+  adapter: openaiSummarize('gpt-4o-mini'),
   text: 'Long technical document...',
   focus: ['key findings', 'methodology']
 })
@@ -68,7 +68,7 @@ const result = await summarize({
 
 ```ts
 for await (const chunk of summarize({
-  adapter: openaiSummarize('gpt-5-mini'),
+  adapter: openaiSummarize('gpt-4o-mini'),
   text: 'Long article text here...',
   stream: true
 })) {

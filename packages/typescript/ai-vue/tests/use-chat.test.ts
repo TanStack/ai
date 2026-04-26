@@ -1,13 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
+import type { ModelMessage } from '@tanstack/ai'
 import { flushPromises } from '@vue/test-utils'
+import { describe, expect, it, vi } from 'vitest'
+import type { UIMessage } from '../src/types'
 import {
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
   renderUseChat,
 } from './test-utils'
-import type { UIMessage } from '../src/types'
-import type { ModelMessage } from '@tanstack/ai'
 
 describe('useChat', () => {
   describe('initialization', () => {
@@ -18,6 +18,21 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual([])
       expect(result.current.isLoading).toBe(false)
       expect(result.current.error).toBeUndefined()
+      expect(result.current.status).toBe('ready')
+      expect(result.current.isSubscribed).toBe(false)
+      expect(result.current.connectionStatus).toBe('disconnected')
+      expect(result.current.sessionGenerating).toBe(false)
+    })
+
+    it('should subscribe immediately when live is true', async () => {
+      const adapter = createMockConnectionAdapter()
+      const { result } = renderUseChat({ connection: adapter, live: true })
+
+      await flushPromises()
+      expect(result.current.isSubscribed).toBe(true)
+      expect(['connecting', 'connected']).toContain(
+        result.current.connectionStatus,
+      )
     })
 
     it('should initialize with provided messages', () => {
@@ -421,6 +436,7 @@ describe('useChat', () => {
 
       // Should eventually stop loading
       expect(result.current.isLoading).toBe(false)
+      expect(result.current.status).toBe('ready')
     })
 
     it('should be safe to call multiple times', () => {
@@ -433,6 +449,7 @@ describe('useChat', () => {
       result.current.stop()
 
       expect(result.current.isLoading).toBe(false)
+      expect(result.current.status).toBe('ready')
     })
 
     it('should clear loading state when stopped', async () => {
@@ -456,6 +473,32 @@ describe('useChat', () => {
       await flushPromises()
 
       expect(result.current.isLoading).toBe(false)
+      expect(result.current.status).toBe('ready')
+    })
+  })
+
+  describe('status', () => {
+    it('should transition through states during generation', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 50,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      const sendPromise = result.current.sendMessage('Test')
+
+      // Should leave ready state
+      await flushPromises()
+      expect(result.current.status).not.toBe('ready')
+
+      // Should be submitted or streaming
+      expect(['submitted', 'streaming']).toContain(result.current.status)
+
+      // Should return to ready eventually
+      await sendPromise
+      await flushPromises()
+      expect(result.current.status).toBe('ready')
     })
   })
 

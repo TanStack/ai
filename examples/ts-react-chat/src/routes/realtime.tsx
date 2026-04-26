@@ -1,0 +1,621 @@
+import { useEffect, useRef, useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import {
+  Image,
+  Mic,
+  MicOff,
+  Phone,
+  PhoneOff,
+  Send,
+  Volume2,
+  Wrench,
+} from 'lucide-react'
+import { AudioSparkline } from '@/components/AudioSparkline'
+import { useRealtime } from '@/lib/use-realtime'
+
+type Provider = 'openai' | 'elevenlabs' | 'grok'
+type OutputMode = 'audio+text' | 'text-only' | 'audio-only'
+
+const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
+  { value: 'openai', label: 'OpenAI Realtime' },
+  { value: 'elevenlabs', label: 'ElevenLabs' },
+  { value: 'grok', label: 'Grok Voice Agent' },
+]
+
+const GROK_VOICES = ['eve', 'ara', 'rex', 'sal', 'leo'] as const
+type GrokVoice = (typeof GROK_VOICES)[number]
+
+const OUTPUT_MODE_OPTIONS: Array<{ value: OutputMode; label: string }> = [
+  { value: 'audio+text', label: 'Audio + Text' },
+  { value: 'text-only', label: 'Text Only' },
+  { value: 'audio-only', label: 'Audio Only' },
+]
+
+function outputModeToModalities(
+  mode: OutputMode,
+): Array<'audio' | 'text'> | undefined {
+  switch (mode) {
+    case 'text-only':
+      return ['text']
+    case 'audio-only':
+      return ['audio']
+    case 'audio+text':
+      return ['audio', 'text']
+    default:
+      return undefined
+  }
+}
+
+function RealtimePage() {
+  const [provider, setProvider] = useState<Provider>('openai')
+  const [agentId, setAgentId] = useState('')
+  const [grokVoice, setGrokVoice] = useState<GrokVoice>('eve')
+  const [textInput, setTextInput] = useState('')
+  const [outputMode, setOutputMode] = useState<OutputMode>('audio+text')
+  const [temperature, setTemperature] = useState(0.8)
+  const [semanticEagerness, setSemanticEagerness] = useState<
+    'low' | 'medium' | 'high'
+  >('medium')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+
+  const {
+    status,
+    mode,
+    messages,
+    pendingUserTranscript,
+    pendingAssistantTranscript,
+    error,
+    connect,
+    disconnect,
+    interrupt,
+    sendText,
+    sendImage,
+    inputLevel,
+    outputLevel,
+    getInputTimeDomainData,
+    getOutputTimeDomainData,
+  } = useRealtime({
+    provider,
+    agentId,
+    voice: provider === 'grok' ? grokVoice : undefined,
+    outputModalities: outputModeToModalities(outputMode),
+    temperature,
+    semanticEagerness,
+  })
+
+  // Handle image file selection
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // Always reset the input up front so the same file can be selected
+    // again even if we bail below.
+    const resetInput = () => {
+      e.target.value = ''
+    }
+    if (!file) {
+      resetInput()
+      return
+    }
+
+    // Bail if the file has no MIME type — in practice an empty `type` is
+    // a sign of a corrupt file or a browser that couldn't sniff it, and
+    // the OpenAI-compatible realtime API requires an explicit mime.
+    if (!file.type) {
+      // eslint-disable-next-line no-console
+      console.error('[realtime] Cannot send image: file has no MIME type', file)
+      window.alert(
+        'Could not determine the image type. Please try a different file.',
+      )
+      resetInput()
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onerror = () => {
+      // eslint-disable-next-line no-console
+      console.error('[realtime] FileReader failed', reader.error)
+      window.alert(
+        `Failed to read image file: ${reader.error?.message ?? 'Unknown error'}`,
+      )
+      resetInput()
+    }
+    reader.onload = () => {
+      const result = reader.result
+      // `result` is null on abort/error, and is an ArrayBuffer (not a
+      // string) if someone changes the readAs* method later. Guard both.
+      if (result == null || typeof result !== 'string') {
+        // eslint-disable-next-line no-console
+        console.error('[realtime] FileReader result was not a string', result)
+        window.alert('Failed to read image file: unexpected reader output.')
+        resetInput()
+        return
+      }
+      // Extract base64 data (remove data:image/xxx;base64, prefix). A
+      // malformed data URL (no comma, or empty payload after the comma)
+      // means there's nothing sendable — surface it instead of silently
+      // no-op'ing.
+      const parts = result.split(',')
+      const base64 = parts[1]
+      if (!base64) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[realtime] FileReader produced a malformed data URL',
+          result.slice(0, 64),
+        )
+        window.alert('Failed to read image file: malformed image data.')
+        resetInput()
+        return
+      }
+      sendImage(base64, file.type)
+      resetInput()
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, pendingUserTranscript, pendingAssistantTranscript])
+
+  // Get status color
+  const getStatusColor = () => {
+    switch (status) {
+      case 'connected':
+        return 'bg-green-500'
+      case 'connecting':
+      case 'reconnecting':
+        return 'bg-yellow-500'
+      case 'error':
+        return 'bg-red-500'
+      default:
+        return 'bg-gray-500'
+    }
+  }
+
+  // Get mode icon
+  const getModeIndicator = () => {
+    switch (mode) {
+      case 'listening':
+        return (
+          <div className="flex items-center gap-2 text-green-400">
+            <Mic className="w-5 h-5 animate-pulse" />
+            <span>Listening...</span>
+          </div>
+        )
+      case 'thinking':
+        return (
+          <div className="flex items-center gap-2 text-yellow-400">
+            <div className="w-5 h-5 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+            <span>Thinking...</span>
+          </div>
+        )
+      case 'speaking':
+        return (
+          <div className="flex items-center gap-2 text-blue-400">
+            <Volume2 className="w-5 h-5 animate-pulse" />
+            <span>Speaking...</span>
+          </div>
+        )
+      default:
+        return (
+          <div className="flex items-center gap-2 text-gray-400">
+            <MicOff className="w-5 h-5" />
+            <span>Idle</span>
+          </div>
+        )
+    }
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-72px)] bg-gray-900">
+      <div className="w-full flex flex-col">
+        {/* Header */}
+        <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {/* Provider selector */}
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">
+                  Provider
+                </label>
+                <select
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value as Provider)}
+                  disabled={status !== 'idle'}
+                  className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                >
+                  {PROVIDER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ElevenLabs Agent ID (conditional) */}
+              {provider === 'elevenlabs' && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Agent ID
+                  </label>
+                  <input
+                    type="text"
+                    value={agentId}
+                    onChange={(e) => setAgentId(e.target.value)}
+                    placeholder="Your ElevenLabs Agent ID"
+                    disabled={status !== 'idle'}
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50 w-64"
+                  />
+                </div>
+              )}
+
+              {/* Grok voice selector */}
+              {provider === 'grok' && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Voice
+                  </label>
+                  <select
+                    value={grokVoice}
+                    onChange={(e) => setGrokVoice(e.target.value as GrokVoice)}
+                    disabled={status !== 'idle'}
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                  >
+                    {GROK_VOICES.map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Output mode selector (OpenAI-compatible realtime) */}
+              {(provider === 'openai' || provider === 'grok') && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Output
+                  </label>
+                  <select
+                    value={outputMode}
+                    onChange={(e) =>
+                      setOutputMode(e.target.value as OutputMode)
+                    }
+                    disabled={status !== 'idle'}
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                  >
+                    {OUTPUT_MODE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Temperature slider */}
+              {(provider === 'openai' || provider === 'grok') && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Temp: {temperature.toFixed(1)}
+                  </label>
+                  <input
+                    type="range"
+                    min="0.6"
+                    max="1.2"
+                    step="0.1"
+                    value={temperature}
+                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                    disabled={status !== 'idle'}
+                    className="w-24 accent-orange-500 disabled:opacity-50"
+                  />
+                </div>
+              )}
+
+              {/* Semantic eagerness */}
+              {(provider === 'openai' || provider === 'grok') && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Eagerness
+                  </label>
+                  <select
+                    value={semanticEagerness}
+                    onChange={(e) =>
+                      setSemanticEagerness(
+                        e.target.value as 'low' | 'medium' | 'high',
+                      )
+                    }
+                    disabled={status !== 'idle'}
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
+                <span className="text-sm text-gray-300 capitalize">
+                  {status}
+                </span>
+              </div>
+              {getModeIndicator()}
+            </div>
+          </div>
+        </div>
+
+        {/* Tools indicator */}
+        {(provider === 'openai' || provider === 'grok') && (
+          <div className="border-b border-orange-500/10 bg-gray-800/50 px-4 py-2">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <Wrench className="w-3 h-3" />
+              <span>Tools enabled:</span>
+              <span className="text-gray-300">getCurrentTime</span>
+              <span className="text-gray-500">•</span>
+              <span className="text-gray-300">getWeather</span>
+              <span className="text-gray-500">•</span>
+              <span className="text-gray-300">setReminder</span>
+              <span className="text-gray-500">•</span>
+              <span className="text-gray-300">searchKnowledge</span>
+            </div>
+          </div>
+        )}
+
+        {/* Messages area */}
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {messages.length === 0 && status === 'idle' && (
+            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+              <Mic className="w-16 h-16 mb-4" />
+              <p className="text-lg">Voice Chat with Tools & Vision</p>
+              <p className="text-sm">
+                Click "Start Conversation" to begin talking with the AI
+              </p>
+              <p className="text-xs mt-2 text-gray-600">
+                Try asking: "What time is it?" or "What's the weather?" — or
+                send an image!
+              </p>
+            </div>
+          )}
+
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`p-4 rounded-lg mb-2 ${
+                message.role === 'assistant'
+                  ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
+                  : 'bg-transparent'
+              }`}
+            >
+              <div className="flex items-start gap-4">
+                {message.role === 'assistant' ? (
+                  <div className="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white shrink-0">
+                    AI
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0">
+                    U
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  {message.parts.map((part, idx) => {
+                    if (part.type === 'audio') {
+                      return (
+                        <p key={idx} className="text-white">
+                          {part.transcript}
+                        </p>
+                      )
+                    }
+                    if (part.type === 'text') {
+                      return (
+                        <p key={idx} className="text-white">
+                          {part.content}
+                        </p>
+                      )
+                    }
+                    if (part.type === 'image') {
+                      // If `part.data` is already a fully-qualified URL
+                      // (http/https) or a `data:` URI, use it verbatim;
+                      // otherwise treat it as raw base64 and wrap it.
+                      // Without the `data:` guard we'd produce malformed
+                      // `data:...;base64,data:...;base64,...` double wraps.
+                      const src =
+                        part.data.startsWith('http://') ||
+                        part.data.startsWith('https://') ||
+                        part.data.startsWith('data:')
+                          ? part.data
+                          : `data:${part.mimeType};base64,${part.data}`
+                      return (
+                        <img
+                          key={idx}
+                          src={src}
+                          alt="User uploaded"
+                          className="max-w-xs max-h-48 rounded-lg border border-gray-700 mt-1"
+                        />
+                      )
+                    }
+                    return null
+                  })}
+                  {message.interrupted && (
+                    <span className="text-xs text-gray-500 ml-2">
+                      (interrupted)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Pending transcripts */}
+          {pendingUserTranscript && (
+            <div className="p-4 rounded-lg mb-2 bg-transparent opacity-60">
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0">
+                  U
+                </div>
+                <p className="text-white italic">{pendingUserTranscript}...</p>
+              </div>
+            </div>
+          )}
+
+          {pendingAssistantTranscript && (
+            <div className="p-4 rounded-lg mb-2 bg-linear-to-r from-orange-500/5 to-red-600/5 opacity-60">
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white shrink-0">
+                  AI
+                </div>
+                <p className="text-white italic">
+                  {pendingAssistantTranscript}...
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Error display */}
+        {error && (
+          <div className="mx-4 mb-2 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
+            Error: {error.message}
+          </div>
+        )}
+
+        {/* Text input */}
+        {status === 'connected' && (
+          <div className="px-4 pt-3">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                const text = textInput.trim()
+                if (!text) return
+                sendText(text)
+                setTextInput('')
+              }}
+              className="flex items-center gap-2"
+            >
+              <input
+                type="text"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder="Type a message..."
+                className="flex-1 rounded-lg border border-orange-500/20 bg-gray-800 px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+              />
+              {/* Image upload button (OpenAI-compatible realtime) */}
+              {(provider === 'openai' || provider === 'grok') && (
+                <>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    title="Send an image"
+                    className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+                  >
+                    <Image className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+              <button
+                type="submit"
+                disabled={!textInput.trim()}
+                className="flex items-center justify-center w-10 h-10 rounded-lg bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:hover:bg-orange-600 text-white transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Audio visualization & controls */}
+        <div className="border-t border-orange-500/10 bg-gray-900/80 backdrop-blur-sm p-4">
+          {/* Volume meters and waveforms */}
+          {status === 'connected' && (
+            <div className="mb-4 space-y-3">
+              {/* Input (Microphone) */}
+              <div className="flex items-center gap-3">
+                <Mic className="w-4 h-4 text-gray-400" />
+                <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 transition-all duration-75"
+                    style={{ width: `${inputLevel * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs text-gray-500 w-10 text-right">
+                  {Math.round(inputLevel * 100)}%
+                </span>
+                <AudioSparkline
+                  getData={getInputTimeDomainData}
+                  color="#22c55e"
+                  label="Input"
+                />
+              </div>
+              {/* Output (Speaker) */}
+              <div className="flex items-center gap-3">
+                <Volume2 className="w-4 h-4 text-gray-400" />
+                <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 transition-all duration-75"
+                    style={{ width: `${outputLevel * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs text-gray-500 w-10 text-right">
+                  {Math.round(outputLevel * 100)}%
+                </span>
+                <AudioSparkline
+                  getData={getOutputTimeDomainData}
+                  color="#3b82f6"
+                  label="Output"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Controls */}
+          <div className="flex justify-center gap-4">
+            {status === 'idle' ? (
+              <button
+                onClick={connect}
+                className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-full text-sm font-medium transition-colors"
+              >
+                <Phone className="w-5 h-5" />
+                Start Conversation
+              </button>
+            ) : (
+              <>
+                {mode === 'speaking' && (
+                  <button
+                    onClick={interrupt}
+                    className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Interrupt
+                  </button>
+                )}
+                <button
+                  onClick={disconnect}
+                  className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-full text-sm font-medium transition-colors"
+                >
+                  <PhoneOff className="w-5 h-5" />
+                  End Conversation
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export const Route = createFileRoute('/realtime')({
+  component: RealtimePage,
+})

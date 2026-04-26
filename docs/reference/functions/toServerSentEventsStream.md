@@ -9,20 +9,20 @@ title: toServerSentEventsStream
 function toServerSentEventsStream(stream, abortController?): ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: [stream-to-response.ts:49](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L49)
+Defined in: [packages/typescript/ai/src/stream-to-response.ts:50](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L50)
 
 Convert a StreamChunk async iterable to a ReadableStream in Server-Sent Events format
 
 This creates a ReadableStream that emits chunks in SSE format:
 - Each chunk is prefixed with "data: "
 - Each chunk is followed by "\n\n"
-- Stream ends with "data: [DONE]\n\n"
+- Stream ends when the underlying iterable is exhausted (RUN_FINISHED is the terminal event)
 
 ## Parameters
 
 ### stream
 
-`AsyncIterable`\<[`StreamChunk`](../type-aliases/StreamChunk.md)\>
+`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
 
 AsyncIterable of StreamChunks from chat()
 

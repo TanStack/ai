@@ -47,29 +47,51 @@ export class GrokSummarizeAdapter<
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
+    const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
+
+    logger.request(`activity=summarize provider=grok`, {
+      provider: 'grok',
+      model: options.model,
+    })
 
     // Use the text adapter's streaming and collect the result
     let summary = ''
-    let id = ''
+    const id = ''
     let model = options.model
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 
-    for await (const chunk of this.textAdapter.chatStream({
-      model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
-    })) {
-      if (chunk.type === 'content') {
-        summary = chunk.content
-        id = chunk.id
-        model = chunk.model
+    try {
+      for await (const chunk of this.textAdapter.chatStream({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        systemPrompts: [systemPrompt],
+        maxTokens: options.maxLength,
+        temperature: 0.3,
+        logger,
+      })) {
+        // AG-UI TEXT_MESSAGE_CONTENT event
+        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+          if (chunk.content) {
+            summary = chunk.content
+          } else {
+            summary += chunk.delta
+          }
+          model = chunk.model || model
+        }
+        // AG-UI RUN_FINISHED event
+        if (chunk.type === 'RUN_FINISHED') {
+          if (chunk.usage) {
+            usage = chunk.usage
+          }
+        }
       }
-      if (chunk.type === 'done' && chunk.usage) {
-        usage = chunk.usage
-      }
+    } catch (error) {
+      logger.errors('grok.summarize fatal', {
+        error,
+        source: 'grok.summarize',
+      })
+      throw error
     }
 
     return { id, model, summary, usage }
@@ -78,16 +100,32 @@ export class GrokSummarizeAdapter<
   async *summarizeStream(
     options: SummarizationOptions,
   ): AsyncIterable<StreamChunk> {
+    const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    // Delegate directly to the text adapter's streaming
-    yield* this.textAdapter.chatStream({
+    logger.request(`activity=summarize provider=grok`, {
+      provider: 'grok',
       model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
+      stream: true,
     })
+
+    try {
+      // Delegate directly to the text adapter's streaming
+      yield* this.textAdapter.chatStream({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        systemPrompts: [systemPrompt],
+        maxTokens: options.maxLength,
+        temperature: 0.3,
+        logger,
+      })
+    } catch (error) {
+      logger.errors('grok.summarize fatal', {
+        error,
+        source: 'grok.summarize',
+      })
+      throw error
+    }
   }
 
   private buildSummarizationPrompt(options: SummarizationOptions): string {
