@@ -245,9 +245,6 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-react
-      '@tanstack/ai-zai':
-        specifier: workspace:*
-        version: link:../../packages/typescript/ai-zai
       '@tanstack/react-devtools':
         specifier: ^0.9.10
         version: 0.9.10(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)
@@ -369,9 +366,6 @@ importers:
       '@tanstack/ai-react-ui':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-react-ui
-      '@tanstack/ai-zai':
-        specifier: workspace:*
-        version: link:../../packages/typescript/ai-zai
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -693,9 +687,6 @@ importers:
       '@tanstack/ai-solid-ui':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-solid-ui
-      '@tanstack/ai-zai':
-        specifier: workspace:*
-        version: link:../../packages/typescript/ai-zai
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -1623,7 +1614,7 @@ importers:
     dependencies:
       openai:
         specifier: ^6.9.1
-        version: 6.10.0(ws@8.18.3)(zod@4.2.1)
+        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1836,9 +1827,6 @@ importers:
       '@tanstack/ai-react-ui':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-react-ui
-      '@tanstack/ai-zai':
-        specifier: workspace:*
-        version: link:../../packages/typescript/ai-zai
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))

@@ -1,27 +1,37 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { createZAIClient } from '../utils/client'
-import { convertToolsToZAIFormat, mapZAIErrorToStreamChunk } from '../utils/conversion'
-import { ZAI_CHAT_MODELS, ZAI_MODEL_META } from '../model-meta'
+import { convertToolsToZAIFormat } from '../utils/conversion'
+import { ZAI_MODEL_META } from '../model-meta'
+import type {
+  ZAIChatModelProviderOptionsByName,
+  ZAIModelInputModalitiesByName,
+  ZAI_CHAT_MODELS,
+} from '../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
-import type { Modality, ModelMessage, StreamChunk, TextOptions } from '@tanstack/ai'
-import type { ZAIMessageMetadataByModality } from '../message-types'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
-  ZAIModelInputModalitiesByName,
-  ZAIModelMap,
-} from '../model-meta'
+  Modality,
+  ModelMessage,
+  StreamChunk,
+  TextOptions,
+} from '@tanstack/ai'
+import type { ZAIMessageMetadataByModality } from '../message-types'
 import type { ZAITextOptions } from '../text/text-provider-options'
 import type OpenAI from 'openai'
 
-/**
- * Z.AI uses an OpenAI-compatible API surface.
- * This adapter targets the Chat Completions streaming interface.
- */
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
 
 type ResolveProviderOptions<TModel extends string> =
-  TModel extends keyof ZAIModelMap ? ZAIModelMap[TModel] : ZAITextOptions
+  TModel extends keyof ZAIChatModelProviderOptionsByName
+    ? ZAIChatModelProviderOptionsByName[TModel]
+    : ZAITextOptions
 
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof ZAIModelInputModalitiesByName
@@ -29,17 +39,9 @@ type ResolveInputModalities<TModel extends string> =
     : readonly ['text']
 
 export interface ZAITextAdapterConfig {
-  /**
-   * Z.AI Bearer token.
-   * This becomes the Authorization header via the OpenAI SDK.
-   */
   apiKey: string
-
-  /**
-   * Optional override for the Z.AI base URL.
-   * Defaults to https://api.z.ai/api/paas/v4
-   */
   baseURL?: string
+  coding?: boolean
 }
 
 type ZAIChatCompletionParams =
@@ -48,10 +50,10 @@ type ZAIChatCompletionParams =
 /**
  * Z.AI Text Adapter
  *
- * - Streams text deltas as `StreamChunk { type: 'content' }`
- * - Streams tool calls (if any) as `StreamChunk { type: 'tool_call' }`
- * - Ends with `StreamChunk { type: 'done' }` with `finishReason`
- * - On any failure, yields a single `StreamChunk { type: 'error' }` and stops
+ * Streams text deltas using the AG-UI protocol event format:
+ * - RUN_STARTED → TEXT_MESSAGE_START → TEXT_MESSAGE_CONTENT → TEXT_MESSAGE_END → RUN_FINISHED
+ * - Tool calls: TOOL_CALL_START → TOOL_CALL_ARGS → TOOL_CALL_END
+ * - Errors: RUN_ERROR
  */
 export class ZAITextAdapter<
   TModel extends (typeof ZAI_CHAT_MODELS)[number],
@@ -68,70 +70,61 @@ export class ZAITextAdapter<
 
   private client: OpenAI
 
-  /**
-   * Create a new Z.AI text adapter instance.
-   *
-   * @param config OpenAI SDK config with Z.AI baseURL + apiKey
-   * @param model Provider model name (e.g. "glm-4.7")
-   */
   constructor(config: ZAITextAdapterConfig, model: TModel) {
     super({}, model)
 
     this.client = createZAIClient(config.apiKey, {
       baseURL: config.baseURL,
+      coding: config.coding,
     })
   }
 
-  /**
-   * Stream chat completions from Z.AI.
-   *
-   * Important behavior:
-   * - Emits error chunks instead of throwing
-   * - Accumulates text deltas into the `content` field
-   * - Accumulates tool call argument deltas and emits completed tool calls
-   */
   async *chatStream(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<StreamChunk> {
     const requestParams = this.mapTextOptionsToZAI(options)
+    const { logger } = options
 
     const timestamp = Date.now()
-    const fallbackId = this.generateId()
+    const runId = options.runId ?? this.generateId()
+    const threadId = options.threadId ?? this.generateId()
+    const messageId = this.generateId()
 
     try {
-      const stream = await this.client.chat.completions.create(
-        requestParams,
-        {
-          headers: this.getRequestHeaders(options),
-          signal: this.getAbortSignal(options),
-        },
+      logger.request(
+        `activity=chat provider=zai model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'zai', model: this.model },
       )
 
-      yield* this.processZAIStreamChunks(stream, options, fallbackId, timestamp)
+      const stream = await this.client.chat.completions.create(requestParams, {
+        headers: this.getRequestHeaders(options),
+        signal: this.getAbortSignal(options),
+      })
+
+      yield* this.processZAIStreamChunks(
+        stream,
+        options,
+        runId,
+        threadId,
+        messageId,
+        timestamp,
+        logger,
+      )
     } catch (error: unknown) {
-      const chunk = mapZAIErrorToStreamChunk(error) as any
-      chunk.id = fallbackId
-      chunk.model = options.model
-      chunk.timestamp = timestamp
-      yield chunk as StreamChunk
+      logger.errors('zai.chatStream fatal', {
+        error: toRunErrorPayload(error, 'zai.chatStream failed'),
+        source: 'zai.chatStream',
+      })
+      throw error
     }
   }
 
-  /**
-   * Structured output is not implemented for the Z.AI adapter yet.
-   * The Z.AI API is OpenAI-compatible, so this can be added later using
-   * `response_format: { type: 'json_schema', ... }` if supported.
-   */
   structuredOutput(
     _options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
     throw new Error('ZAITextAdapter.structuredOutput is not implemented')
   }
 
-  /**
-   * Convert universal TanStack `TextOptions` into OpenAI-compatible
-   * Chat Completions request params for Z.AI.
-   */
   private mapTextOptionsToZAI(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): ZAIChatCompletionParams {
@@ -163,21 +156,12 @@ export class ZAITextAdapter<
     return request
   }
 
-  /**
-   * Convert TanStack `ModelMessage[]` into OpenAI SDK `messages[]`.
-   *
-   * Notes:
-   * - TanStack `systemPrompts` are applied as a single leading system message
-   * - Assistant tool calls are translated to `tool_calls`
-   * - Tool results are translated to `role: 'tool'` messages
-   */
   private convertMessagesToInput(
     messages: Array<ModelMessage>,
     options: Pick<TextOptions, 'systemPrompts'>,
   ): Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
     const result: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = []
 
-    // Check capabilities based on model name
     const modelMeta = ZAI_MODEL_META[this.model]
     const inputs = modelMeta.supports.input as ReadonlyArray<string>
     const capabilities = {
@@ -243,34 +227,43 @@ export class ZAITextAdapter<
     return result
   }
 
-  /**
-   * Consume Z.AI's streaming Chat Completions response and yield TanStack stream chunks.
-   *
-   * Key details:
-   * - `content` chunks include both the delta and the full accumulated content so far
-   * - `tool_call` chunks are emitted when the provider indicates the tool-call turn is complete
-   * - The final `done` chunk marks the finish reason so the TanStack agent loop can proceed
-   * - Any unexpected exception while iterating yields an `error` chunk and stops
-   */
   private async *processZAIStreamChunks(
     stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
     options: TextOptions,
-    fallbackId: string,
+    runId: string,
+    threadId: string,
+    messageId: string,
     timestamp: number,
+    logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
-    let responseId = fallbackId
     let responseModel = options.model
 
-    const toolCallsInProgress = new Map<
+    const toolCallMetadata = new Map<
       number,
       { id: string; name: string; arguments: string }
     >()
 
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+
     try {
       for await (const chunk of stream) {
-        responseId = chunk.id || responseId
         responseModel = chunk.model || responseModel
+
+        logger.provider(`provider=zai type=chunk`, { chunk })
+
+        // Emit RUN_STARTED on first chunk
+        if (!hasEmittedRunStarted) {
+          hasEmittedRunStarted = true
+          yield asChunk({
+            type: 'RUN_STARTED',
+            runId,
+            threadId,
+            model: responseModel,
+            timestamp,
+          })
+        }
 
         const chunkAny = chunk as any
         const choice = Array.isArray(chunkAny.choices)
@@ -282,71 +275,124 @@ export class ZAITextAdapter<
         const deltaContent = delta.content
         const deltaToolCalls = delta.tool_calls
 
+        // Handle text content deltas
         if (typeof deltaContent === 'string' && deltaContent.length) {
+          if (!hasEmittedTextMessageStart) {
+            hasEmittedTextMessageStart = true
+            yield asChunk({
+              type: 'TEXT_MESSAGE_START',
+              messageId,
+              model: responseModel,
+              timestamp,
+              role: 'assistant',
+            })
+          }
+
           accumulatedContent += deltaContent
-          yield {
-            type: 'content',
-            id: responseId,
+          yield asChunk({
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId,
             model: responseModel,
             timestamp,
             delta: deltaContent,
             content: accumulatedContent,
-            role: 'assistant',
-          }
+          })
         }
 
+        // Handle tool call deltas
         if (deltaToolCalls?.length) {
           for (const toolCallDelta of deltaToolCalls) {
             const index = toolCallDelta.index
 
-            if (!toolCallsInProgress.has(index)) {
-              toolCallsInProgress.set(index, {
-                id: toolCallDelta.id || '',
-                name: toolCallDelta.function?.name || '',
+            if (!toolCallMetadata.has(index)) {
+              const id = toolCallDelta.id || this.generateId()
+              const name = toolCallDelta.function?.name || ''
+
+              toolCallMetadata.set(index, {
+                id,
+                name,
                 arguments: '',
+              })
+
+              // Emit TOOL_CALL_START
+              yield asChunk({
+                type: 'TOOL_CALL_START',
+                toolCallId: id,
+                toolCallName: name,
+                toolName: name,
+                model: responseModel,
+                timestamp,
+                index,
               })
             }
 
-            const current = toolCallsInProgress.get(index)!
+            const current = toolCallMetadata.get(index)!
 
             if (toolCallDelta.id) current.id = toolCallDelta.id
-            if (toolCallDelta.function?.name) current.name = toolCallDelta.function.name
+            if (toolCallDelta.function?.name)
+              current.name = toolCallDelta.function.name
             if (toolCallDelta.function?.arguments) {
               current.arguments += toolCallDelta.function.arguments
+
+              // Emit TOOL_CALL_ARGS with the delta
+              yield asChunk({
+                type: 'TOOL_CALL_ARGS',
+                toolCallId: current.id,
+                model: responseModel,
+                timestamp,
+                delta: toolCallDelta.function.arguments,
+              })
             }
           }
         }
 
+        // Handle finish
         if (choice.finish_reason) {
           const isToolTurn =
-            choice.finish_reason === 'tool_calls' || toolCallsInProgress.size > 0
+            choice.finish_reason === 'tool_calls' || toolCallMetadata.size > 0
 
+          // Emit TOOL_CALL_END for each completed tool call
           if (isToolTurn) {
-            for (const [index, toolCall] of toolCallsInProgress) {
-              yield {
-                type: 'tool_call',
-                id: responseId,
+            for (const [, toolCall] of toolCallMetadata) {
+              let parsedInput: unknown = {}
+              try {
+                const parsed = toolCall.arguments
+                  ? JSON.parse(toolCall.arguments)
+                  : {}
+                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              } catch {
+                parsedInput = {}
+              }
+
+              yield asChunk({
+                type: 'TOOL_CALL_END',
+                toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
+                toolName: toolCall.name,
                 model: responseModel,
                 timestamp,
-                index,
-                toolCall: {
-                  id: toolCall.id,
-                  type: 'function',
-                  function: {
-                    name: toolCall.name,
-                    arguments: toolCall.arguments,
-                  },
-                },
-              }
+                input: parsedInput,
+              })
             }
           }
 
-          yield {
-            type: 'done',
-            id: responseId,
+          // Close text message if we had one
+          if (hasEmittedTextMessageStart) {
+            yield asChunk({
+              type: 'TEXT_MESSAGE_END',
+              messageId,
+              model: responseModel,
+              timestamp,
+            })
+          }
+
+          // Emit RUN_FINISHED
+          yield asChunk({
+            type: 'RUN_FINISHED',
+            runId,
+            threadId,
             model: responseModel,
             timestamp,
-            finishReason: isToolTurn ? 'tool_calls' : 'stop',
             usage: chunk.usage
               ? {
                   promptTokens: chunk.usage.prompt_tokens || 0,
@@ -354,27 +400,32 @@ export class ZAITextAdapter<
                   totalTokens: chunk.usage.total_tokens || 0,
                 }
               : undefined,
-          }
+            finishReason: isToolTurn ? 'tool_calls' : 'stop',
+          })
         }
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
-      yield {
-        type: 'error',
-        id: responseId,
-        model: responseModel,
+      logger.errors('zai stream ended with error', {
+        error,
+        source: 'zai.processZAIStreamChunks',
+      })
+      yield asChunk({
+        type: 'RUN_ERROR',
+        runId,
+        threadId,
+        message: err.message || 'Unknown error occurred',
+        code: err.code,
+        model: options.model,
         timestamp,
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code,
         },
-      }
+      })
     }
   }
 
-  /**
-   * Convert TanStack message content to OpenAI format, preserving supported modalities.
-   */
   private convertContent(
     content: unknown,
     capabilities: { image: boolean; video: boolean },
@@ -383,7 +434,6 @@ export class ZAITextAdapter<
     if (!content) return ''
 
     if (Array.isArray(content)) {
-      // If model doesn't support multimodal, fall back to text-only extraction
       if (!capabilities.image && !capabilities.video) {
         return content
           .filter((p) => p && typeof p === 'object' && p.type === 'text')
@@ -404,8 +454,6 @@ export class ZAITextAdapter<
             image_url: { url: part.source.value },
           })
         } else if (part.type === 'video' && capabilities.video) {
-          // Assuming Z.AI accepts video_url with the same structure as image_url
-          // Using 'any' cast because OpenAI types don't include video_url yet
           parts.push({
             type: 'video_url',
             video_url: { url: part.source.value },
@@ -420,10 +468,6 @@ export class ZAITextAdapter<
     return ''
   }
 
-  /**
-   * Extract headers from the request options.
-   * Handles Request objects, Headers objects, and plain objects.
-   */
   private getRequestHeaders(
     options: TextOptions,
   ): Record<string, string> | undefined {
@@ -446,11 +490,6 @@ export class ZAITextAdapter<
     return userHeaders
   }
 
-  /**
-   * Resolve the abort signal from either:
-   * - `options.abortController` (preferred for TanStack AI callers), or
-   * - `options.request.signal` (when passed through from fetch semantics)
-   */
   private getAbortSignal(options: TextOptions): AbortSignal | undefined {
     if (options.abortController?.signal) return options.abortController.signal
 

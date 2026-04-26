@@ -9,28 +9,18 @@ import type {
 } from '@tanstack/ai'
 import type { ZAITextAdapterConfig } from './text'
 
-/**
- * Configuration for Z.AI summarize adapter
- */
 export interface ZAISummarizeConfig extends ZAITextAdapterConfig {}
 
-/**
- * Z.AI-specific provider options for summarization
- */
 export interface ZAISummarizeProviderOptions {
-  /** Temperature for response generation (0-1) */
   temperature?: number
-  /** Maximum tokens in the response */
   maxTokens?: number
 }
 
-/** Model type for Z.AI summarization */
 export type ZAISummarizeModel = (typeof ZAI_CHAT_MODELS)[number]
 
 /**
  * Z.AI Summarize Adapter
  *
- * A thin wrapper around the text adapter that adds summarization-specific prompting.
  * Delegates all API calls to the ZAITextAdapter.
  */
 export class ZAISummarizeAdapter<
@@ -47,29 +37,50 @@ export class ZAISummarizeAdapter<
   }
 
   async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
+    const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    // Use the text adapter's streaming and collect the result
+    logger.request(`activity=summarize provider=zai`, {
+      provider: 'zai',
+      model: options.model,
+    })
+
     let summary = ''
-    let id = ''
+    const id = ''
     let model = options.model
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 
-    for await (const chunk of this.textAdapter.chatStream({
-      model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
-    })) {
-      if (chunk.type === 'content') {
-        summary = chunk.content
-        id = chunk.id
-        model = chunk.model
+    try {
+      for await (const chunk of this.textAdapter.chatStream({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        systemPrompts: [systemPrompt],
+        maxTokens: options.maxLength,
+        temperature: 0.3,
+        logger,
+      })) {
+        // AG-UI TEXT_MESSAGE_CONTENT event
+        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+          if (chunk.content) {
+            summary = chunk.content
+          } else {
+            summary += chunk.delta
+          }
+          model = chunk.model || model
+        }
+        // AG-UI RUN_FINISHED event
+        if (chunk.type === 'RUN_FINISHED') {
+          if (chunk.usage) {
+            usage = chunk.usage
+          }
+        }
       }
-      if (chunk.type === 'done' && chunk.usage) {
-        usage = chunk.usage
-      }
+    } catch (error) {
+      logger.errors('zai.summarize fatal', {
+        error,
+        source: 'zai.summarize',
+      })
+      throw error
     }
 
     return { id, model, summary, usage }
@@ -78,21 +89,33 @@ export class ZAISummarizeAdapter<
   async *summarizeStream(
     options: SummarizationOptions,
   ): AsyncIterable<StreamChunk> {
+    const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    yield* this.textAdapter.chatStream({
+    logger.request(`activity=summarize provider=zai`, {
+      provider: 'zai',
       model: options.model,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
+      stream: true,
     })
+
+    try {
+      yield* this.textAdapter.chatStream({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        systemPrompts: [systemPrompt],
+        maxTokens: options.maxLength,
+        temperature: 0.3,
+        logger,
+      })
+    } catch (error) {
+      logger.errors('zai.summarize fatal', {
+        error,
+        source: 'zai.summarize',
+      })
+      throw error
+    }
   }
 
-  /**
-   * Constructs a system prompt based on the summarization options.
-   * Handles style, focus points, and length constraints.
-   */
   private buildSummarizationPrompt(options: SummarizationOptions): string {
     let prompt = 'You are a professional summarizer. '
 
@@ -122,14 +145,6 @@ export class ZAISummarizeAdapter<
   }
 }
 
-/**
- * Creates a Z.AI summarize adapter with explicit API key.
- *
- * @param model - The model name (e.g., 'glm-4.7', 'glm-4.6')
- * @param apiKey - Your Z.AI API key
- * @param config - Optional additional configuration
- * @returns Configured Z.AI summarize adapter instance
- */
 export function createZAISummarize<TModel extends ZAISummarizeModel>(
   model: TModel,
   apiKey: string,
@@ -138,15 +153,6 @@ export function createZAISummarize<TModel extends ZAISummarizeModel>(
   return new ZAISummarizeAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * Creates a Z.AI summarize adapter with automatic API key detection from environment variables.
- *
- * Looks for `ZAI_API_KEY` in environment.
- *
- * @param model - The model name (e.g., 'glm-4.7', 'glm-4.6')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Z.AI summarize adapter instance
- */
 export function zaiSummarize<TModel extends ZAISummarizeModel>(
   model: TModel,
   config?: Omit<ZAISummarizeConfig, 'apiKey'>,

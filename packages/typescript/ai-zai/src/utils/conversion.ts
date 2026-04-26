@@ -2,6 +2,11 @@ import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import type OpenAI from 'openai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
+/** Cast an event object to StreamChunk. Adapters construct events with string
+ *  literal types which are structurally compatible with the EventType enum. */
+const asChunk = (chunk: Record<string, unknown>) =>
+  chunk as unknown as StreamChunk
+
 /**
  * Converts TanStack Tools to Z.AI compatible OpenAI format.
  * Handles both function tools and web search tools.
@@ -9,14 +14,16 @@ import type { StreamChunk, Tool } from '@tanstack/ai'
 export function convertToolsToZAIFormat(
   tools: Array<Tool>,
 ): Array<OpenAI.Chat.Completions.ChatCompletionTool> {
-  // We cast to unknown first because ZaiTool (which includes WebSearchTool) 
-  // might strictly not match OpenAI's definition if OpenAI types don't include 'web_search' type.
   return convertToolsToProviderFormat(tools) as unknown as Array<OpenAI.Chat.Completions.ChatCompletionTool>
 }
 
-export function mapZAIErrorToStreamChunk(error: any): StreamChunk {
+export function mapZAIErrorToStreamChunk(
+  error: any,
+  runId: string,
+  threadId: string,
+  model: string,
+): StreamChunk {
   const timestamp = Date.now()
-  const id = `zai-${timestamp}-${Math.random().toString(36).slice(2)}`
 
   let message = 'Unknown error occurred'
   let code: string | undefined
@@ -41,14 +48,17 @@ export function mapZAIErrorToStreamChunk(error: any): StreamChunk {
     message = error
   }
 
-  return {
-    type: 'error',
-    id,
-    model: 'unknown',
+  return asChunk({
+    type: 'RUN_ERROR',
+    runId,
+    threadId,
+    message,
+    code,
+    model,
     timestamp,
     error: {
       message,
       code,
     },
-  }
+  })
 }

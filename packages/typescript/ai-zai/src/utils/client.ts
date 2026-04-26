@@ -1,7 +1,11 @@
 import OpenAI from 'openai'
 
+export const ZAI_GENERAL_BASE_URL = 'https://api.z.ai/api/paas/v4'
+export const ZAI_CODING_BASE_URL = 'https://api.z.ai/api/coding/paas/v4'
+
 export interface ClientConfig {
   baseURL?: string
+  coding?: boolean
 }
 
 export function getZAIHeaders(): Record<string, string> {
@@ -69,7 +73,9 @@ export function createZAIClient(
 
   return new OpenAI({
     apiKey: validatedKey,
-    baseURL: config?.baseURL ?? 'https://api.z.ai/api/paas/v4',
+    baseURL:
+      config?.baseURL ??
+      (config?.coding ? ZAI_CODING_BASE_URL : ZAI_GENERAL_BASE_URL),
     defaultHeaders: getZAIHeaders(),
   })
 }

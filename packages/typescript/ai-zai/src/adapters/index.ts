@@ -2,7 +2,10 @@ import { getZAIApiKeyFromEnv } from '../utils/client'
 import { ZAITextAdapter } from './text'
 import type { ZAI_CHAT_MODELS } from '../model-meta'
 
-export { ZAITextAdapter }
+export {
+  ZAITextAdapter,
+  type ZAITextAdapterConfig,
+} from './text'
 export {
   ZAISummarizeAdapter,
   createZAISummarize,
@@ -11,25 +14,13 @@ export {
   type ZAISummarizeProviderOptions,
 } from './summarize'
 
-/**
- * Union type of all supported Z.AI model names.
- */
 export type ZAIModel = (typeof ZAI_CHAT_MODELS)[number]
 
-/**
- * Configuration options for the Z.AI adapter.
- */
 export interface ZAIAdapterConfig {
-  /**
-   * Optional override for the Z.AI base URL.
-   * Defaults to https://api.z.ai/api/paas/v4
-   */
   baseURL?: string
+  coding?: boolean
 }
 
-/**
- * Create a Z.AI text adapter instance with an explicit API key.
- */
 export function createZAIChat(
   model: ZAIModel,
   apiKey: string,
@@ -43,14 +34,12 @@ export function createZAIChat(
     {
       apiKey,
       baseURL: config?.baseURL,
+      coding: config?.coding,
     },
     model,
   )
 }
 
-/**
- * Create a Z.AI text adapter instance using the ZAI_API_KEY environment variable.
- */
 export function zaiText(
   model: ZAIModel,
   config?: ZAIAdapterConfig,
@@ -60,8 +49,8 @@ export function zaiText(
     {
       apiKey,
       baseURL: config?.baseURL,
+      coding: config?.coding,
     },
     model,
   )
 }
-

@@ -23,11 +23,12 @@ vi.mock('openai', () => {
   return { default: OpenAI }
 })
 
-function createAdapter(overrides?: { apiKey?: string; baseURL?: string }) {
+function createAdapter(overrides?: { apiKey?: string; baseURL?: string; coding?: boolean }) {
   return new ZAITextAdapter(
     {
       apiKey: overrides?.apiKey ?? 'test_api_key',
       baseURL: overrides?.baseURL,
+      coding: overrides?.coding,
     },
     'glm-4.7' as any,
   )
@@ -41,6 +42,28 @@ async function collect<T>(iterable: AsyncIterable<T>): Promise<Array<T>> {
 
 async function* streamOf(chunks: Array<any>) {
   for (const c of chunks) yield c
+}
+
+function createNoopLogger() {
+  return {
+    request: vi.fn(),
+    provider: vi.fn(),
+    output: vi.fn(),
+    middleware: vi.fn(),
+    tools: vi.fn(),
+    agentLoop: vi.fn(),
+    config: vi.fn(),
+    errors: vi.fn(),
+  }
+}
+
+function baseOptions(overrides?: Partial<TextOptions>): TextOptions {
+  return {
+    model: 'glm-4.7',
+    messages: [{ role: 'user', content: 'hi' }],
+    logger: createNoopLogger() as any,
+    ...overrides,
+  }
 }
 
 describe('ZAITextAdapter', () => {
@@ -74,6 +97,16 @@ describe('ZAITextAdapter', () => {
     it('validates API key (rejects whitespace)', () => {
       expect(() => createAdapter({ apiKey: 'abc def' })).toThrowError(/whitespace/i)
     })
+
+    it('uses coding endpoint when coding: true', () => {
+      createAdapter({ coding: true })
+      expect(openAIState.lastOptions.baseURL).toBe('https://api.z.ai/api/coding/paas/v4')
+    })
+
+    it('explicit baseURL overrides coding flag', () => {
+      createAdapter({ coding: true, baseURL: 'https://example.invalid/zai' })
+      expect(openAIState.lastOptions.baseURL).toBe('https://example.invalid/zai')
+    })
   })
 
   describe('Options Mapping', () => {
@@ -83,13 +116,11 @@ describe('ZAITextAdapter', () => {
         opts: TextOptions,
       ) => any
 
-      const options: TextOptions = {
-        model: 'glm-4.7',
-        messages: [{ role: 'user', content: 'hi' }],
+      const options = baseOptions({
         maxTokens: 123,
         temperature: 0.7,
         topP: 0.9,
-      }
+      })
 
       const mapped = map(options)
       expect(mapped.model).toBe('glm-4.7')
@@ -118,11 +149,7 @@ describe('ZAITextAdapter', () => {
         },
       ]
 
-      const mapped = map({
-        model: 'glm-4.7',
-        messages: [{ role: 'user', content: 'hi' }],
-        tools,
-      } satisfies TextOptions)
+      const mapped = map(baseOptions({ tools }))
 
       expect(mapped.tools).toBeTruthy()
       expect(mapped.tools).toHaveLength(1)
@@ -137,11 +164,11 @@ describe('ZAITextAdapter', () => {
         opts: TextOptions,
       ) => any
 
-      const mapped = map({
-        model: 'glm-4.7',
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: { stopSequences: ['END'] } as any,
-      } satisfies TextOptions)
+      const mapped = map(
+        baseOptions({
+          modelOptions: { stopSequences: ['END'] } as any,
+        }),
+      )
 
       expect(mapped.stop).toEqual(['END'])
     })
@@ -205,7 +232,7 @@ describe('ZAITextAdapter', () => {
       ])
     })
 
-    it('converts multi-turn conversation (user → assistant → user)', () => {
+    it('converts multi-turn conversation (user -> assistant -> user)', () => {
       const adapter = createAdapter()
       const convert = (adapter as any).convertMessagesToInput.bind(adapter) as (
         messages: Array<ModelMessage>,
@@ -284,21 +311,13 @@ describe('ZAITextAdapter', () => {
   })
 
   describe('Error Handling', () => {
-    it('yields error chunk on network/client error (does not throw)', async () => {
+    it('throws on network/client error (errors are logged and re-thrown)', async () => {
       const adapter = createAdapter()
       openAIState.create.mockRejectedValueOnce(new Error('network down'))
 
-      const chunks = await collect(
-        adapter.chatStream({
-          model: 'glm-4.7',
-          messages: [{ role: 'user', content: 'hi' }],
-        } satisfies TextOptions) as AsyncIterable<StreamChunk>,
-      )
-
-      expect(chunks).toHaveLength(1)
-      expect(chunks[0]?.type).toBe('error')
-      expect((chunks[0] as any).model).toBe('glm-4.7')
-      expect((chunks[0] as any).error.message).toMatch(/network down/i)
+      await expect(
+        collect(adapter.chatStream(baseOptions())),
+      ).rejects.toThrow(/network down/i)
     })
 
     it('handles empty messages array without crashing', async () => {
@@ -314,36 +333,30 @@ describe('ZAITextAdapter', () => {
         ]),
       )
 
-      const chunks = await collect(
-        adapter.chatStream({
-          model: 'glm-4.7',
-          messages: [],
-        } satisfies TextOptions),
-      )
+      const chunks = await collect(adapter.chatStream(baseOptions({ messages: [] })))
 
       expect(openAIState.create).toHaveBeenCalled()
       const callArgs = openAIState.create.mock.calls[0]
       expect(callArgs[0].messages).toEqual([])
-      expect(chunks.some((c) => c.type === 'done')).toBe(true)
+      expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
     })
 
     it('does not throw on malformed stream chunks', async () => {
       const adapter = createAdapter()
       openAIState.create.mockResolvedValueOnce(streamOf([{ id: 'resp_1', model: 'glm-4.7' }]))
 
-      const chunks = await collect(
-        adapter.chatStream({
-          model: 'glm-4.7',
-          messages: [{ role: 'user', content: 'hi' }],
-        } satisfies TextOptions),
-      )
+      const chunks = await collect(adapter.chatStream(baseOptions()))
 
-      expect(chunks).toEqual([])
+      // Emits RUN_STARTED on first chunk but no text or finish events
+      const types = chunks.map((c) => c.type)
+      expect(types).toContain('RUN_STARTED')
+      expect(types).not.toContain('TEXT_MESSAGE_START')
+      expect(types).not.toContain('RUN_FINISHED')
     })
   })
 
-  describe('Streaming Behavior', () => {
-    it('accumulates content deltas and emits done', async () => {
+  describe('Streaming Behavior (AG-UI Protocol)', () => {
+    it('emits RUN_STARTED, TEXT_MESSAGE_START/CONTENT/END, RUN_FINISHED for text', async () => {
       const adapter = createAdapter()
       openAIState.create.mockResolvedValueOnce(
         streamOf([
@@ -357,28 +370,34 @@ describe('ZAITextAdapter', () => {
         ]),
       )
 
-      const chunks = await collect(
-        adapter.chatStream({
-          model: 'glm-4.7',
-          messages: [{ role: 'user', content: 'hi' }],
-        } satisfies TextOptions),
+      const chunks = await collect(adapter.chatStream(baseOptions()))
+      const types = chunks.map((c) => c.type)
+
+      // AG-UI lifecycle: RUN_STARTED -> TEXT_MESSAGE_START -> TEXT_MESSAGE_CONTENT (x2) -> TEXT_MESSAGE_END -> RUN_FINISHED
+      expect(types).toContain('RUN_STARTED')
+      expect(types).toContain('TEXT_MESSAGE_START')
+      expect(types.filter((t) => t === 'TEXT_MESSAGE_CONTENT')).toHaveLength(2)
+      expect(types).toContain('TEXT_MESSAGE_END')
+      expect(types).toContain('RUN_FINISHED')
+
+      // Verify text content accumulation
+      const contentChunks = chunks.filter(
+        (c): c is Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }> =>
+          c.type === 'TEXT_MESSAGE_CONTENT',
       )
+      expect((contentChunks[0] as any).delta).toBe('He')
+      expect((contentChunks[0] as any).content).toBe('He')
+      expect((contentChunks[1] as any).delta).toBe('llo')
+      expect((contentChunks[1] as any).content).toBe('Hello')
 
-      expect(chunks[0]?.type).toBe('content')
-      expect((chunks[0] as any).delta).toBe('He')
-      expect((chunks[0] as any).content).toBe('He')
-
-      expect(chunks[1]?.type).toBe('content')
-      expect((chunks[1] as any).delta).toBe('llo')
-      expect((chunks[1] as any).content).toBe('Hello')
-
-      const done = chunks.find((c) => c.type === 'done') as any
+      // Verify RUN_FINISHED carries usage and finishReason
+      const done = chunks.find((c) => c.type === 'RUN_FINISHED') as any
       expect(done).toBeTruthy()
       expect(done.finishReason).toBe('stop')
       expect(done.usage).toEqual({ promptTokens: 1, completionTokens: 2, totalTokens: 3 })
     })
 
-    it('accumulates tool call arguments and emits tool_call + done(tool_calls)', async () => {
+    it('emits TOOL_CALL_START, TOOL_CALL_ARGS, TOOL_CALL_END for tool calls', async () => {
       const adapter = createAdapter()
       openAIState.create.mockResolvedValueOnce(
         streamOf([
@@ -392,7 +411,7 @@ describe('ZAITextAdapter', () => {
                     {
                       index: 0,
                       id: 'call_1',
-                      function: { name: 'get_weather', arguments: '{\"q\":' },
+                      function: { name: 'get_weather', arguments: '{"q":' },
                     },
                   ],
                 },
@@ -405,7 +424,7 @@ describe('ZAITextAdapter', () => {
             choices: [
               {
                 delta: {
-                  tool_calls: [{ index: 0, function: { arguments: '\"SF\"}' } }],
+                  tool_calls: [{ index: 0, function: { arguments: '"SF"}' } }],
                 },
                 finish_reason: 'tool_calls',
               },
@@ -415,28 +434,37 @@ describe('ZAITextAdapter', () => {
       )
 
       const chunks = await collect(
-        adapter.chatStream({
-          model: 'glm-4.7',
-          messages: [{ role: 'user', content: 'hi' }],
-          tools: [
-            {
-              name: 'get_weather',
-              description: 'Get weather',
-              inputSchema: { type: 'object', properties: {}, required: [] },
-            },
-          ],
-        } satisfies TextOptions),
+        adapter.chatStream(
+          baseOptions({
+            tools: [
+              {
+                name: 'get_weather',
+                description: 'Get weather',
+                inputSchema: { type: 'object', properties: {}, required: [] },
+              },
+            ],
+          }),
+        ),
       )
 
-      const toolCall = chunks.find((c) => c.type === 'tool_call') as any
-      expect(toolCall).toBeTruthy()
-      expect(toolCall.index).toBe(0)
-      expect(toolCall.toolCall.id).toBe('call_1')
-      expect(toolCall.toolCall.function.name).toBe('get_weather')
-      expect(toolCall.toolCall.function.arguments).toBe('{\"q\":\"SF\"}')
+      const types = chunks.map((c) => c.type)
 
-      const done = chunks.find((c) => c.type === 'done') as any
-      expect(done).toBeTruthy()
+      // AG-UI tool call lifecycle
+      expect(types).toContain('TOOL_CALL_START')
+      expect(types).toContain('TOOL_CALL_ARGS')
+      expect(types).toContain('TOOL_CALL_END')
+      expect(types).toContain('RUN_FINISHED')
+
+      const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
+      expect(toolStart.toolCallId).toBe('call_1')
+      expect(toolStart.toolCallName).toBe('get_weather')
+
+      const toolEnd = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
+      expect(toolEnd.toolCallId).toBe('call_1')
+      expect(toolEnd.toolCallName).toBe('get_weather')
+      expect(toolEnd.input).toEqual({ q: 'SF' })
+
+      const done = chunks.find((c) => c.type === 'RUN_FINISHED') as any
       expect(done.finishReason).toBe('tool_calls')
     })
 
@@ -453,16 +481,34 @@ describe('ZAITextAdapter', () => {
       )
 
       await collect(
-        adapter.chatStream({
-          model: 'glm-4.7',
-          messages: [{ role: 'user', content: 'hi' }],
-          request: { headers: { 'X-Test': '1' } } as any,
-        } satisfies TextOptions),
+        adapter.chatStream(
+          baseOptions({
+            request: { headers: { 'X-Test': '1' } } as any,
+          }),
+        ),
       )
 
       const callArgs = openAIState.create.mock.calls[0]
       expect(callArgs[1].headers).toEqual({ 'X-Test': '1' })
     })
+
+    it('calls logger.request before the SDK call', async () => {
+      const logger = createNoopLogger()
+      const adapter = createAdapter()
+      openAIState.create.mockResolvedValueOnce(
+        streamOf([
+          {
+            id: 'resp_1',
+            model: 'glm-4.7',
+            choices: [{ delta: { content: 'ok' }, finish_reason: 'stop' }],
+          },
+        ]),
+      )
+
+      await collect(adapter.chatStream(baseOptions({ logger: logger as any })))
+
+      expect(logger.request).toHaveBeenCalled()
+      expect(logger.request.mock.calls[0][0]).toContain('provider=zai')
+    })
   })
 })
-

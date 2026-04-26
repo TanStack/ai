@@ -56,6 +56,16 @@ describe('Z.AI provider factories', () => {
       expect(openAIState.lastOptions.defaultHeaders).toBeTruthy()
       expect(openAIState.lastOptions.defaultHeaders['Accept-Language']).toBe('en-US,en')
     })
+
+    it('uses coding endpoint when coding: true', () => {
+      createZAIChat('glm-4.7', 'test_key', { coding: true })
+      expect(openAIState.lastOptions.baseURL).toBe('https://api.z.ai/api/coding/paas/v4')
+    })
+
+    it('explicit baseURL overrides coding flag', () => {
+      createZAIChat('glm-4.7', 'test_key', { coding: true, baseURL: 'https://custom.url' })
+      expect(openAIState.lastOptions.baseURL).toBe('https://custom.url')
+    })
   })
 
   describe('zaiText', () => {
@@ -88,6 +98,18 @@ describe('Z.AI provider factories', () => {
       zaiText('glm-4.7')
       expect(openAIState.lastOptions.defaultHeaders).toBeTruthy()
       expect(openAIState.lastOptions.defaultHeaders['Accept-Language']).toBe('en-US,en')
+    })
+
+    it('uses coding endpoint when coding: true', () => {
+      vi.stubEnv('ZAI_API_KEY', 'env_key')
+      zaiText('glm-4.7', { coding: true })
+      expect(openAIState.lastOptions.baseURL).toBe('https://api.z.ai/api/coding/paas/v4')
+    })
+
+    it('explicit baseURL overrides coding flag', () => {
+      vi.stubEnv('ZAI_API_KEY', 'env_key')
+      zaiText('glm-4.7', { coding: true, baseURL: 'https://custom.url' })
+      expect(openAIState.lastOptions.baseURL).toBe('https://custom.url')
     })
   })
 
