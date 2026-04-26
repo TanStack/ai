@@ -51,18 +51,20 @@ export interface GeminiRealtimeOptions {
   model?: GeminiRealtimeModel
 }
 
-/**
- * Options for the Gemini realtime token adapter
- */
 export interface StrictLiveConnectionConstraints extends Omit<LiveConnectConstraints, 'model'> {
   model?: GeminiRealtimeModel
 }
 
+/**
+ * Options for the Gemini realtime token adapter
+ */
 export interface GeminiRealtimeTokenOptions {
-  /** Model to use (default: 'gemini-live-2.5-flash-native-audio') */
   expiresAt?: number
-  /**
-   * NOTE: Adding liveConnectConstraints will cause the model to ignore any config passed in the WebSocket setup message.
+  uses?: number
+  /** 
+   * Config for LiveConnectConstraints for Auth Token creation.
+   * 
+   * NOTE: Adding liveConnectConstraints will cause the API to ignore any config passed later to WebSocket.
    */
   liveConnectConstraints?: StrictLiveConnectionConstraints
 }

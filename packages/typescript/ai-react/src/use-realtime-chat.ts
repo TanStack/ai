@@ -73,6 +73,7 @@ export function useRealtimeChat(
   const [vadMode, setVADModeState] = useState<'server' | 'semantic' | 'manual'>(
     options.vadMode ?? 'server',
   )
+  const [maxOutputTokens, setMaxOutputTokensState] = useState(options.maxOutputTokens ?? 'inf')
 
   // Refs
   const clientRef = useRef<RealtimeClient | null>(null)
@@ -106,6 +107,12 @@ export function useRealtimeChat(
       onMessage: (message) => {
         setMessages((prev) => [...prev, message])
         optionsRef.current.onMessage?.(message)
+      },
+      onUsage(usage) {
+        optionsRef.current.onUsage?.(usage)
+      },
+      onGoAway(timeLeft) {
+        optionsRef.current.onGoAway?.(timeLeft)
       },
       onError: (err) => {
         setError(err)
@@ -233,7 +240,15 @@ export function useRealtimeChat(
   const setVADMode = useCallback(
     (newMode: 'server' | 'semantic' | 'manual') => {
       setVADModeState(newMode)
-      // TODO: Update session config if connected
+      clientRef.current?.updateSession({ vadMode: newMode })
+    },
+    [],
+  )
+
+  const setMaxOutputTokens = useCallback(
+    (newMaxOutputTokens: number | 'inf') => {
+      setMaxOutputTokensState(newMaxOutputTokens)
+      clientRef.current?.updateSession({ maxOutputTokens: newMaxOutputTokens })
     },
     [],
   )
@@ -270,7 +285,9 @@ export function useRealtimeChat(
     getInputTimeDomainData,
     getOutputTimeDomainData,
 
-    // VAD control
+    // Session control
+    maxOutputTokens,
+    setMaxOutputTokens,
     vadMode,
     setVADMode,
   }

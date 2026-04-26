@@ -4,6 +4,7 @@ import type {
   AudioVisualization,
   RealtimeMessage,
   RealtimeMode,
+  RealtimeSessionConfig,
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
@@ -280,6 +281,35 @@ export class RealtimeClient {
   /** Get audio visualization data */
   get audio(): AudioVisualization | null {
     return this.connection?.getAudioVisualization() ?? null
+  }
+
+  /**
+   * Update the session configuration.
+   * This applies changes to the active connection and persists them for future reconnections.
+   */
+  updateSession(config: Partial<RealtimeSessionConfig>): void {
+    // Update local options so future connections use the updated config
+    const sessionKeys: Array<keyof RealtimeSessionConfig> = [
+      'instructions',
+      'voice',
+      'vadMode',
+      'tools',
+      'outputModalities',
+      'temperature',
+      'maxOutputTokens',
+      'semanticEagerness',
+      'modelOptions',
+    ]
+
+    for (const key of sessionKeys) {
+      if (key in config) {
+        (this.options as any)[key] = (config as any)[key]
+      }
+    }
+
+    if (this.connection) {
+      this.applySessionConfig()
+    }
   }
 
   // ============================================================================

@@ -5,18 +5,19 @@ import type { AnyClientTool, RealtimeSessionConfig, RealtimeToken } from "@tanst
 import type { GeminiRealtimeModel, GeminiRealtimeVoice } from "./types";
 
 interface LiveResponsePayloads {
-  text: string,
-  audio: { audioData: string, transcript: string },
-  setup_complete: string,
-  interrupted: string,
-  turn_complete: string,
-  tool_call: LiveServerToolCall,
-  session_resumption_update: LiveServerSessionResumptionUpdate,
-  go_away: LiveServerGoAway,
-  usage_metadata: UsageMetadata,
-  error: string,
-  input_transcription: { text: string, finished: boolean },
-  output_transcription: { text: string, finished: boolean },
+  text: string
+  thought: string
+  audio: { audioData: string, transcript: string }
+  setup_complete: string
+  interrupted: string
+  turn_complete: string
+  tool_call: LiveServerToolCall
+  session_resumption_update: LiveServerSessionResumptionUpdate
+  go_away: LiveServerGoAway
+  usage_metadata: UsageMetadata
+  error: string
+  input_transcription: { text: string, finished: boolean }
+  output_transcription: { text: string, finished: boolean }
 }
 
 export type MultimodalLiveResponseType = keyof LiveResponsePayloads
@@ -83,8 +84,13 @@ function parseResponseMessages(data: LiveServerMessage) {
             endOfTurn: false
           });
         } else if (part.text) {
-          console.log("💬 TEXT response", part.text);
-          responses.push({ type: "text", data: part.text, endOfTurn: false });
+          if (part.thought) {
+            console.log("💬 THOUGHT response", part.text);
+            responses.push({ type: "thought", data: part.text, endOfTurn: false });
+          } else {
+            console.log("💬 TEXT response", part.text);
+            responses.push({ type: "text", data: part.text, endOfTurn: false });
+          }
         }
       }
     }
@@ -138,8 +144,8 @@ export class GeminiLiveClient {
   private responseModalities: Array<Modality> = [Modality.AUDIO];
   private systemInstructions = "";
   private googleGrounding = false;
-  private voiceName: GeminiRealtimeVoice = "Puck"; // Default voice
-  private temperature = 1.0; // Default temperature
+  private voiceName: GeminiRealtimeVoice = "Puck";
+  private temperature = 1.0;
   private inputAudioTranscription = false;
   private outputAudioTranscription = false;
   private contextWindowCompression: ContextWindowCompressionConfig | undefined = undefined;
@@ -150,7 +156,6 @@ export class GeminiLiveClient {
   private functions: Array<AnyClientTool> = [];
   private functionsMap = new Map<string, AnyClientTool>();
 
-  // Automatic activity detection settings with defaults
   private automaticActivityDetection = {
     disabled: false,
     silence_duration_ms: 2000,
@@ -162,7 +167,6 @@ export class GeminiLiveClient {
   private activityHandling = ActivityHandling.ACTIVITY_HANDLING_UNSPECIFIED;
 
   private webSocket: WebSocket | null = null
-  // Last resumable session update
   private lastResumptionUpdate: LiveServerSessionResumptionUpdate | null = null
   private setupComplete = false
   private connected = false
@@ -269,7 +273,8 @@ export class GeminiLiveClient {
           maxOutputTokens: this.maxOutputTokens,
         },
         sessionResumption: {
-          transparent: true
+          transparent: true,
+          handle: resume ? this.lastResumptionUpdate?.newHandle : undefined
         },
         contextWindowCompression: this.contextWindowCompression,
         proactivity: {
@@ -305,13 +310,6 @@ export class GeminiLiveClient {
         "Google Grounding enabled, removing custom function calls if any."
       );
       sessionSetupMessage.setup!.tools = [{ googleSearch: {} }];
-    }
-
-    if (resume) {
-      sessionSetupMessage.setup!.sessionResumption = {
-        handle: this.lastResumptionUpdate?.newHandle,
-        transparent: true
-      }
     }
 
     console.log("FINAL SETUP JSON:", JSON.stringify(sessionSetupMessage, null, 2));
@@ -399,6 +397,7 @@ export class GeminiLiveClient {
    */
   sendMessage(message: LiveClientMessage) {
     if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+      // TODO: add message buffering
       this.webSocket.send(JSON.stringify(message));
     }
   }
@@ -418,14 +417,8 @@ export class GeminiLiveClient {
       // Parse all response types from this message (audio + transcription can coexist)
       const responses = parseResponseMessages(messageData);
       for (const response of responses) {
-        if (
-          response.type === "session_resumption_update" &&
-          response.data.resumable
-        ) {
-          this.lastResumptionUpdate = response.data
-        }
-        if (response.type === "go_away") {
-          // TODO: refresh token and resume session
+        if (response.type === "session_resumption_update" && response.data.resumable) {
+          this.lastResumptionUpdate = response.data;
         }
         if (response.type === "setup_complete") {
           this.setupComplete = true

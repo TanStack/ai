@@ -74,13 +74,17 @@ async function createWebSocketConnection(
     parts: []
   }
 
+  let pendingAssistantResponse = ''
+
   client.onClose = () => {
     emit('status_change', { status: 'idle' })
+    emit('mode_change', { mode: 'idle' })
   }
 
   client.onError = (error) => {
     emit('error', { error })
     emit('status_change', { status: 'error' })
+    emit('mode_change', { mode: 'idle' })
   }
 
   client.onReceiveResponse = (response: LiveResponse) => {
@@ -119,15 +123,16 @@ async function createWebSocketConnection(
           emit('mode_change', { mode: 'thinking' })
         }
         emit('transcript', {
-          isFinal: response.data.finished,
+          isFinal: true,
           transcript: response.data.text,
           role: 'user',
         })
         break;
       case 'output_transcription':
+        pendingAssistantResponse += response.data.text
         emit('transcript', {
           isFinal: response.data.finished,
-          transcript: response.data.text,
+          transcript: pendingAssistantResponse,
           role: 'assistant',
         })
         break;
@@ -152,8 +157,13 @@ async function createWebSocketConnection(
         currentMessageId = generateMessageId()
         message.id = currentMessageId
         message.timestamp = Date.now()
-
+        message.parts.push({
+          type: "text",
+          content: pendingAssistantResponse
+        })
         emit('message_complete', { message })
+
+        pendingAssistantResponse = ''
         message = {
           id: '',
           role: 'assistant',

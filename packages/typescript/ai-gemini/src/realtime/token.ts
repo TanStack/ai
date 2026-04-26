@@ -43,7 +43,7 @@ export function geminiRealtimeToken(
     async generateToken(): Promise<RealtimeToken> {
       const token = await client.authTokens.create({
         config: {
-          uses: 1, // The default
+          uses: options.uses ?? 1,
           expireTime: new Date(expireTime).toISOString(),
           liveConnectConstraints: options.liveConnectConstraints,
           httpOptions: {

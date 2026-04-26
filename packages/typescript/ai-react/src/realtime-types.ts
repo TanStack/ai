@@ -81,7 +81,7 @@ export interface UseRealtimeChatOptions {
   onModeChange?: (mode: RealtimeMode) => void
   onInterrupted?: () => void
   onUsage?: (usage: UsageInfo) => void
-  onGoAway?: (go_away: { timeLeft?: string }) => void
+  onGoAway?: (timeLeft?: string) => void
   onStatusChange?: (status: RealtimeStatus) => void
 }
 
@@ -139,9 +139,13 @@ export interface UseRealtimeChatReturn {
   /** Get time domain data for output waveform */
   getOutputTimeDomainData: () => Uint8Array
 
-  // VAD control
+  // Session control
   /** Current VAD mode */
   vadMode: 'server' | 'semantic' | 'manual'
   /** Change VAD mode at runtime */
   setVADMode: (mode: 'server' | 'semantic' | 'manual') => void
+  /** Current max output tokens */
+  maxOutputTokens: number | 'inf'
+  /** Change max output tokens at runtime */
+  setMaxOutputTokens: (maxOutputTokens: number | 'inf') => void
 }
