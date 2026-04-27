@@ -11,16 +11,6 @@ export {
   type GeminiTextProviderOptions,
 } from './adapters/text'
 
-// Stateful Interactions API text adapter (experimental — Beta per Google)
-export {
-  GeminiTextInteractionsAdapter,
-  createGeminiTextInteractions,
-  geminiTextInteractions,
-  type GeminiTextInteractionsConfig,
-  type GeminiTextInteractionsProviderOptions,
-} from './adapters/text-interactions'
-export type { ExternalTextInteractionsProviderOptions } from './text-interactions/text-interactions-provider-options'
-
 // Summarize adapter
 export {
   GeminiSummarizeAdapter,

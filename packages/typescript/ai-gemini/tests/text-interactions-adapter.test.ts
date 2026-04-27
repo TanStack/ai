@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
-import { GeminiTextInteractionsAdapter } from '../src/adapters/text-interactions'
-import type { GeminiTextInteractionsProviderOptions } from '../src/adapters/text-interactions'
+import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interactions/adapter'
+import type { GeminiTextInteractionsProviderOptions } from '../src/experimental/text-interactions/adapter'
 
 const mocks = vi.hoisted(() => {
   return {
