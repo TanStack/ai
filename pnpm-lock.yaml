@@ -935,8 +935,8 @@ importers:
   packages/typescript/ai:
     dependencies:
       '@ag-ui/core':
-        specifier: 0.0.49
-        version: 0.0.49
+        specifier: ^0.0.52
+        version: 0.0.52
       '@tanstack/ai-event-client':
         specifier: workspace:*
         version: link:../ai-event-client
@@ -1891,8 +1891,8 @@ packages:
   '@acemir/cssom@0.9.29':
     resolution: {integrity: sha512-G90x0VW+9nW4dFajtjCoT+NM0scAfH9Mb08IcjgFHYbfiL/lU04dTF9JuVOi3/OH+DJCQdcIseSXkdCB9Ky6JA==}
 
-  '@ag-ui/core@0.0.49':
-    resolution: {integrity: sha512-9ywypwjUGtIvTxJ2eKQjhPZgLnSFAfNK7vZUcT7Bz4ur4yAIB+lAFtzvu7VDYe6jsUx/6N/71Dh4R0zX5woNVw==}
+  '@ag-ui/core@0.0.52':
+    resolution: {integrity: sha512-Xo0bUaNV56EqylzcrAuhUkQX7et7+SZIrqZZtEByGwEq/I1EHny6ZMkWHLkKR7UNi0FJZwJyhKYmKJS3B2SEgA==}
 
   '@anthropic-ai/sdk@0.71.2':
     resolution: {integrity: sha512-TGNDEUuEstk/DKu0/TflXAEt+p+p/WhTlFzEnoosvbaDU2LTjm42igSdlL0VijrKpWejtOKxX0b8A7uc+XiSAQ==}
@@ -12009,7 +12009,7 @@ snapshots:
 
   '@acemir/cssom@0.9.29': {}
 
-  '@ag-ui/core@0.0.49':
+  '@ag-ui/core@0.0.52':
     dependencies:
       zod: 3.25.76
 
