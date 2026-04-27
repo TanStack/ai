@@ -25,7 +25,6 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "generate:model-registry": "tsx scripts/analyze-model-types.ts && tsx scripts/generate-registry.ts",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",

@@ -48,25 +48,8 @@ export {
   type FalModelVideoSize,
 } from './model-meta'
 // ============================================================================
-// Model Registry & Utils
+// Utils
 // ============================================================================
-
-export {
-  IMAGE_MODEL_PATTERNS,
-  VIDEO_MODEL_PATTERNS,
-  getImageModelPattern,
-  getVideoModelPattern,
-  type ImageInputPattern,
-  type VideoInputPattern,
-} from './model-registry'
-
-export {
-  convertToAspectRatio,
-  convertToResolutionPreset,
-  convertToNamedPreset,
-  parseWidthHeight,
-  formatDuration,
-} from './utils/size-converters'
 
 export {
   getFalApiKeyFromEnv,
