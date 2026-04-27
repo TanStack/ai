@@ -168,6 +168,12 @@ export type {
   JSONParser,
 } from './activities/chat/stream/index'
 
+// Chat utilities
+export {
+  chatParamsFromRequestBody,
+  mergeAgentTools,
+} from './utilities/chat-params'
+
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'
 export type { ExtendedModelDef } from './extend-adapter'
