@@ -120,8 +120,8 @@ interface MistralRawChunk {
 export class MistralTextAdapter<
   TModel extends (typeof MISTRAL_CHAT_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
-  TInputModalities extends
-    ReadonlyArray<Modality> = ResolveInputModalities<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -569,11 +569,7 @@ export class MistralTextAdapter<
    * array of content chunks.
    */
   private extractDeltaText(
-    content:
-      | string
-      | Array<{ type: string; text?: string }>
-      | null
-      | undefined,
+    content: string | Array<{ type: string; text?: string }> | null | undefined,
   ): string {
     if (!content) return ''
     if (typeof content === 'string') return content
