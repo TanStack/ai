@@ -145,11 +145,7 @@ describe('connection-adapters', () => {
       warnSpy.mockRestore()
     })
 
-    it('should handle malformed JSON gracefully', async () => {
-      const consoleWarnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => {})
-
+    it('should throw on malformed SSE chunks rather than silently dropping them', async () => {
       const mockReader = {
         read: vi
           .fn()
@@ -171,17 +167,13 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchServerSentEvents('/api/chat')
-      const chunks: Array<StreamChunk> = []
-
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
-        chunks.push(chunk)
-      }
-
-      expect(chunks).toHaveLength(0)
-      expect(consoleWarnSpy).toHaveBeenCalled()
-      consoleWarnSpy.mockRestore()
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'Hello' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(SyntaxError)
     })
 
     it('should handle HTTP errors', async () => {
@@ -551,11 +543,7 @@ describe('connection-adapters', () => {
       expect(chunks).toHaveLength(1)
     })
 
-    it('should handle malformed JSON gracefully', async () => {
-      const consoleWarnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => {})
-
+    it('should throw on malformed JSON chunks rather than silently dropping them', async () => {
       const mockReader = {
         read: vi
           .fn()
@@ -577,17 +565,13 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchHttpStream('/api/chat')
-      const chunks: Array<StreamChunk> = []
-
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
-        chunks.push(chunk)
-      }
-
-      expect(chunks).toHaveLength(0)
-      expect(consoleWarnSpy).toHaveBeenCalled()
-      consoleWarnSpy.mockRestore()
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'Hello' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(SyntaxError)
     })
 
     it('should handle HTTP errors', async () => {
@@ -837,6 +821,7 @@ describe('connection-adapters', () => {
       expect(streamFactory).toHaveBeenCalledWith(
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
+        undefined,
       )
     })
 
@@ -1109,6 +1094,7 @@ describe('connection-adapters', () => {
       expect(rpcCall).toHaveBeenCalledWith(
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
+        undefined,
       )
     })
 

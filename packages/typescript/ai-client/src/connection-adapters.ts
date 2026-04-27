@@ -1,4 +1,11 @@
-import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
+import type {
+  ModelMessage,
+  RunErrorEvent,
+  RunFinishedEvent,
+  StreamChunk,
+  UIMessage,
+} from '@tanstack/ai'
 
 /**
  * Merge custom headers into request headers
@@ -22,6 +29,9 @@ function mergeHeaders(
 /**
  * Parse SSE-formatted lines into StreamChunks.
  * Handles both `data: {...}` lines and bare JSON lines, and skips `[DONE]`.
+ *
+ * Malformed JSON throws — a parse failure mid-stream is a protocol error and
+ * should surface as RUN_ERROR rather than silently dropping chunks.
  */
 async function* parseSSEChunks(
   lines: AsyncIterable<string>,
@@ -34,11 +44,7 @@ async function* parseSSEChunks(
       )
       continue
     }
-    try {
-      yield JSON.parse(data) as StreamChunk
-    } catch {
-      console.warn('Failed to parse SSE chunk:', data)
-    }
+    yield JSON.parse(data) as StreamChunk
   }
 }
 
@@ -217,9 +223,17 @@ export function normalizeConnectionAdapter(
     },
     async send(messages, data, abortSignal) {
       let hasTerminalEvent = false
+      let upstreamThreadId: string | undefined
+      let upstreamRunId: string | undefined
       try {
         const stream = connection.connect(messages, data, abortSignal)
         for await (const chunk of stream) {
+          if ('threadId' in chunk && typeof chunk.threadId === 'string') {
+            upstreamThreadId = chunk.threadId
+          }
+          if ('runId' in chunk && typeof chunk.runId === 'string') {
+            upstreamRunId = chunk.runId
+          }
           if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
             hasTerminalEvent = true
           }
@@ -229,28 +243,26 @@ export function normalizeConnectionAdapter(
         // If the connect stream ended cleanly without a terminal event,
         // synthesize RUN_FINISHED so request-scoped consumers can complete.
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          push({
-            type: 'RUN_FINISHED',
-            runId: `run-${Date.now()}`,
+          const synthetic: RunFinishedEvent = {
+            type: EventType.RUN_FINISHED,
+            threadId: upstreamThreadId ?? `thread-${Date.now()}`,
+            runId: upstreamRunId ?? `run-${Date.now()}`,
             model: 'connect-wrapper',
             timestamp: Date.now(),
             finishReason: 'stop',
-          } as unknown as StreamChunk)
+          }
+          push(synthetic)
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          push({
-            type: 'RUN_ERROR',
+          const message =
+            err instanceof Error ? err.message : 'Unknown error in connect()'
+          const synthetic: RunErrorEvent = {
+            type: EventType.RUN_ERROR,
             timestamp: Date.now(),
-            message:
-              err instanceof Error ? err.message : 'Unknown error in connect()',
-            error: {
-              message:
-                err instanceof Error
-                  ? err.message
-                  : 'Unknown error in connect()',
-            },
-          } as unknown as StreamChunk)
+            message,
+          }
+          push(synthetic)
         }
         throw err
       }
@@ -425,12 +437,7 @@ export function fetchHttpStream(
       }
 
       for await (const line of readStreamLines(reader, abortSignal)) {
-        try {
-          const parsed: StreamChunk = JSON.parse(line)
-          yield parsed
-        } catch (parseError) {
-          console.warn('Failed to parse HTTP stream chunk:', line)
-        }
+        yield JSON.parse(line) as StreamChunk
       }
     },
   }
@@ -492,11 +499,12 @@ export function stream(
   streamFactory: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
+    abortSignal?: AbortSignal,
   ) => StreamFactoryResult,
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
-      const result = await streamFactory(messages, data)
+      const result = await streamFactory(messages, data, abortSignal)
       if (result instanceof Response) {
         yield* responseToSSEChunks(result, abortSignal)
       } else {
@@ -528,11 +536,12 @@ export function rpcStream(
   rpcCall: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
+    abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk> | Promise<AsyncIterable<StreamChunk>>,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data) {
-      const iterable = await rpcCall(messages, data)
+    async *connect(messages, data, abortSignal) {
+      const iterable = await rpcCall(messages, data, abortSignal)
       yield* iterable
     },
   }
