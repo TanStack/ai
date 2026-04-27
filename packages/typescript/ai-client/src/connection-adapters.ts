@@ -28,15 +28,27 @@ function mergeHeaders(
 
 /**
  * Parse SSE-formatted lines into StreamChunks.
- * Handles both `data: {...}` lines and bare JSON lines, and skips `[DONE]`.
  *
- * Malformed JSON throws — a parse failure mid-stream is a protocol error and
- * should surface as RUN_ERROR rather than silently dropping chunks.
+ * Accepts either `data: {...}` SSE lines or bare JSON lines (legacy/raw mode).
+ * Skips non-payload SSE fields (comments starting with `:`, and `event:` /
+ * `id:` / `retry:` lines) — proxies and CDNs may inject these as keepalives,
+ * and they are not malformed JSON.
+ *
+ * A JSON parse failure on an actual payload line throws (surfacing as
+ * RUN_ERROR through the connect-wrapper) rather than being silently dropped.
  */
 async function* parseSSEChunks(
   lines: AsyncIterable<string>,
 ): AsyncGenerator<StreamChunk> {
   for await (const line of lines) {
+    if (
+      line.startsWith(':') ||
+      line.startsWith('event:') ||
+      line.startsWith('id:') ||
+      line.startsWith('retry:')
+    ) {
+      continue
+    }
     const data = line.startsWith('data: ') ? line.slice(6) : line
     if (data === '[DONE]') {
       console.warn(
@@ -101,9 +113,14 @@ async function* readStreamLines(
       }
     }
 
-    // Process any remaining data in the buffer
+    // Drop any unterminated trailing buffer. A non-empty buffer at stream end
+    // means the connection was cut mid-line (server crash, dropped TCP), so
+    // the content is by definition partial — yielding it would feed truncated
+    // JSON to downstream parsers and produce a confusing RUN_ERROR.
     if (buffer.trim()) {
-      yield buffer
+      console.warn(
+        '[@tanstack/ai-client] Stream ended with unterminated trailing data; discarding. The connection was likely cut short.',
+      )
     }
   } finally {
     reader.releaseLock()
