@@ -54,12 +54,12 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   {
     provider: 'gemini-interactions',
     model: 'gemini-3.1-pro-preview',
-    label: 'Gemini Interactions - 3.1 Pro Preview',
+    label: 'Gemini Interactions - 3.1 Pro Preview (experimental)',
   },
   {
     provider: 'gemini-interactions',
     model: 'gemini-3.1-flash-lite-preview',
-    label: 'Gemini Interactions - 3.1 Flash Lite Preview',
+    label: 'Gemini Interactions - 3.1 Flash Lite Preview (experimental)',
   },
 
   // Openrouter
