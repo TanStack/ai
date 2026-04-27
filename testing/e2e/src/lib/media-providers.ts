@@ -5,7 +5,11 @@ import {
   createOpenaiVideo,
 } from '@tanstack/ai-openai'
 import { createGeminiImage } from '@tanstack/ai-gemini'
-import { createGrokImage } from '@tanstack/ai-grok'
+import {
+  createGrokImage,
+  createGrokSpeech,
+  createGrokTranscription,
+} from '@tanstack/ai-grok'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -41,7 +45,7 @@ export function createImageAdapter(
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
     grok: () =>
-      createGrokImage('grok-2-image', DUMMY_KEY, {
+      createGrokImage('grok-2-image-1212', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
@@ -63,6 +67,11 @@ export function createTTSAdapter(
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
+    grok: () =>
+      createGrokSpeech('grok-tts', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
   }
   const factory = factories[provider]
   if (!factory) throw new Error(`No TTS adapter for provider: ${provider}`)
@@ -78,6 +87,11 @@ export function createTranscriptionAdapter(
   const factories: Record<string, () => any> = {
     openai: () =>
       createOpenaiTranscription('whisper-1', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    grok: () =>
+      createGrokTranscription('grok-stt', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),

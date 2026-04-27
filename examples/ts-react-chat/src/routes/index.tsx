@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
+  Braces,
   FileAudio,
   FileText,
   Image,
   ImagePlus,
   Mic,
+  Music,
   Send,
   Square,
   Video,
@@ -90,15 +92,38 @@ function Messages({
   }) => Promise<void>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const hasRenderablePart = (message: UIMessage): boolean => {
+    return message.parts.some((part) => {
+      if (part.type === 'thinking') return true
+      if (part.type === 'image') return true
+      if (part.type === 'text' && part.content.trim()) return true
+      if (
+        part.type === 'tool-call' &&
+        part.state === 'approval-requested' &&
+        part.approval
+      ) {
+        return true
+      }
+      if (
+        part.type === 'tool-call' &&
+        part.name === 'recommendGuitar' &&
+        part.output
+      ) {
+        return true
+      }
+      return false
+    })
+  }
+  const visibleMessages = messages.filter(hasRenderablePart)
 
   useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop =
         messagesContainerRef.current.scrollHeight
     }
-  }, [messages])
+  }, [visibleMessages])
 
-  if (!messages.length) {
+  if (!visibleMessages.length) {
     return (
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="max-w-2xl mx-auto space-y-6">
@@ -126,6 +151,13 @@ function Messages({
               <span className="text-sm text-gray-300">Speech</span>
             </Link>
             <Link
+              to="/generations/audio"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Music size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Audio</span>
+            </Link>
+            <Link
               to="/generations/transcription"
               className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
             >
@@ -146,6 +178,13 @@ function Messages({
               <Video size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">Video</span>
             </Link>
+            <Link
+              to="/generations/structured-output"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Braces size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Structured</span>
+            </Link>
           </div>
         </div>
       </div>
@@ -157,7 +196,7 @@ function Messages({
       ref={messagesContainerRef}
       className="flex-1 overflow-y-auto px-4 py-4"
     >
-      {messages.map((message) => {
+      {visibleMessages.map((message) => {
         return (
           <div
             key={message.id}
@@ -474,7 +513,7 @@ function ChatPage() {
               </select>
             </div>
             <Link
-              to="/image-gen"
+              to="/generations/image"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
             >
               <Image className="w-4 h-4" />

@@ -93,6 +93,8 @@ export interface ToolCall {
     name: string
     arguments: string
   }
+  /** Provider-specific metadata to carry through the tool call lifecycle */
+  providerMetadata?: Record<string, unknown>
 }
 
 /**
@@ -501,6 +503,81 @@ export interface TranscriptionUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Audio Events
+// ===========================
+
+/** Emitted when an audio generation request starts. */
+export interface AudioRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  prompt: string
+  duration?: number
+}
+
+/**
+ * Audio asset carried on completion events. Exactly one of `url` or `b64Json`
+ * is present; this mirrors the `GeneratedAudio` contract from `@tanstack/ai`
+ * and prevents consumers from reading both fields as present simultaneously.
+ */
+export type AudioRequestCompletedAudio =
+  | {
+      url: string
+      b64Json?: never
+      contentType?: string
+      duration?: number
+    }
+  | {
+      url?: never
+      b64Json: string
+      contentType?: string
+      duration?: number
+    }
+
+/** Emitted when an audio generation request completes. */
+export interface AudioRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  audio: AudioRequestCompletedAudio
+  duration: number
+}
+
+/** Emitted when an audio generation request fails. */
+export interface AudioRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+}
+
+/** Emitted when a speech generation request fails. */
+export interface SpeechRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+}
+
+/** Emitted when a transcription request fails. */
+export interface TranscriptionRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+}
+
+/** Emitted when audio usage metrics are available. */
+export interface AudioUsageEvent extends BaseEventContext {
+  requestId: string
+  model: string
+  usage: ImageUsage
+}
+
+// ===========================
 // Video Events
 // ===========================
 
@@ -625,12 +702,20 @@ export interface AIDevtoolsEventMap {
   // Speech events
   'speech:request:started': SpeechRequestStartedEvent
   'speech:request:completed': SpeechRequestCompletedEvent
+  'speech:request:error': SpeechRequestErrorEvent
   'speech:usage': SpeechUsageEvent
 
   // Transcription events
   'transcription:request:started': TranscriptionRequestStartedEvent
   'transcription:request:completed': TranscriptionRequestCompletedEvent
+  'transcription:request:error': TranscriptionRequestErrorEvent
   'transcription:usage': TranscriptionUsageEvent
+
+  // Audio events
+  'audio:request:started': AudioRequestStartedEvent
+  'audio:request:completed': AudioRequestCompletedEvent
+  'audio:request:error': AudioRequestErrorEvent
+  'audio:usage': AudioUsageEvent
 
   // Video events
   'video:request:started': VideoRequestStartedEvent

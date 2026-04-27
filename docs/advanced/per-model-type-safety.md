@@ -1,7 +1,16 @@
 ---
 title: Per-Model Type Safety
 id: per-model-type-safety
-order: 4
+order: 5
+description: "TanStack AI narrows modelOptions and content types to the specific model you select, enforcing capabilities at compile time."
+keywords:
+  - tanstack ai
+  - type safety
+  - per-model types
+  - modelOptions
+  - typescript
+  - autocomplete
+  - compile-time
 ---
 
 The AI SDK provides **model-specific type safety** for `modelOptions`. Each model's capabilities determine which model options are allowed, and TypeScript will enforce this at compile time.

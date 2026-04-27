@@ -1,5 +1,5 @@
 import type OpenAI from 'openai'
-import type { Tool } from '@tanstack/ai'
+import type { ProviderTool, Tool } from '@tanstack/ai'
 
 const validateMaxNumResults = (maxNumResults: number | undefined) => {
   if (maxNumResults && (maxNumResults < 1 || maxNumResults > 50)) {
@@ -7,7 +7,12 @@ const validateMaxNumResults = (maxNumResults: number | undefined) => {
   }
 }
 
-export type FileSearchTool = OpenAI.Responses.FileSearchTool
+export type FileSearchToolConfig = OpenAI.Responses.FileSearchTool
+
+/** @deprecated Renamed to `FileSearchToolConfig`. Will be removed in a future release. */
+export type FileSearchTool = FileSearchToolConfig
+
+export type OpenAIFileSearchTool = ProviderTool<'openai', 'file_search'>
 
 /**
  * Converts a standard Tool to OpenAI FileSearchTool format
@@ -30,13 +35,14 @@ export function convertFileSearchToolToAdapterFormat(
  */
 export function fileSearchTool(
   toolData: OpenAI.Responses.FileSearchTool,
-): Tool {
+): OpenAIFileSearchTool {
   validateMaxNumResults(toolData.max_num_results)
+  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'file_search',
     description: 'Search files in vector stores',
     metadata: {
       ...toolData,
     },
-  }
+  } as unknown as OpenAIFileSearchTool
 }

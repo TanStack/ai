@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-svelte",
-  "version": "0.6.14",
+  "version": "0.7.0",
   "description": "Svelte bindings for TanStack AI",
   "author": "",
   "license": "MIT",

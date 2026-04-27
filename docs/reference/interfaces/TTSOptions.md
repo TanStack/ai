@@ -5,7 +5,7 @@ title: TTSOptions
 
 # Interface: TTSOptions\<TProviderOptions\>
 
-Defined in: [types.ts:1142](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1142)
+Defined in: [packages/typescript/ai/src/types.ts:1402](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1402)
 
 Options for text-to-speech generation.
 These are the common options supported across providers.
@@ -24,9 +24,23 @@ These are the common options supported across providers.
 optional format: "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
 ```
 
-Defined in: [types.ts:1150](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1150)
+Defined in: [packages/typescript/ai/src/types.ts:1410](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1410)
 
 The output audio format
+
+***
+
+### logger
+
+```ts
+logger: InternalLogger;
+```
+
+Defined in: [packages/typescript/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1420)
+
+Internal logger threaded from the generateSpeech() entry point. Adapters
+must call logger.request() before the SDK call and logger.errors() in
+catch blocks.
 
 ***
 
@@ -36,7 +50,7 @@ The output audio format
 model: string;
 ```
 
-Defined in: [types.ts:1144](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1144)
+Defined in: [packages/typescript/ai/src/types.ts:1404](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1404)
 
 The model to use for TTS generation
 
@@ -48,7 +62,7 @@ The model to use for TTS generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [types.ts:1154](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1154)
+Defined in: [packages/typescript/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1414)
 
 Model-specific options for TTS generation
 
@@ -60,7 +74,7 @@ Model-specific options for TTS generation
 optional speed: number;
 ```
 
-Defined in: [types.ts:1152](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1152)
+Defined in: [packages/typescript/ai/src/types.ts:1412](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1412)
 
 The speed of the generated audio (0.25 to 4.0)
 
@@ -72,7 +86,7 @@ The speed of the generated audio (0.25 to 4.0)
 text: string;
 ```
 
-Defined in: [types.ts:1146](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1146)
+Defined in: [packages/typescript/ai/src/types.ts:1406](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1406)
 
 The text to convert to speech
 
@@ -84,6 +98,6 @@ The text to convert to speech
 optional voice: string;
 ```
 
-Defined in: [types.ts:1148](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1148)
+Defined in: [packages/typescript/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1408)
 
 The voice to use for generation

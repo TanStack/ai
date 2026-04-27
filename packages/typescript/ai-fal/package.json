@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-fal",
-  "version": "0.6.12",
+  "version": "0.7.0",
   "description": "fal.ai adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -25,6 +25,7 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
+    "generate:model-registry": "tsx scripts/analyze-model-types.ts && tsx scripts/generate-registry.ts",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
     "test:eslint": "eslint ./src",
@@ -38,7 +39,12 @@
     "tanstack",
     "adapter",
     "image-generation",
-    "video-generation"
+    "video-generation",
+    "audio-generation",
+    "text-to-speech",
+    "speech-to-text",
+    "tts",
+    "transcription"
   ],
   "dependencies": {
     "@fal-ai/client": "^1.9.4"

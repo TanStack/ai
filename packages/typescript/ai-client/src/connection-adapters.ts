@@ -28,7 +28,12 @@ async function* parseSSEChunks(
 ): AsyncGenerator<StreamChunk> {
   for await (const line of lines) {
     const data = line.startsWith('data: ') ? line.slice(6) : line
-    if (data === '[DONE]') continue
+    if (data === '[DONE]') {
+      console.warn(
+        '[@tanstack/ai-client] Received [DONE] sentinel. This is deprecated — upgrade your @tanstack/ai server package. RUN_FINISHED is the stream terminator.',
+      )
+      continue
+    }
     try {
       yield JSON.parse(data) as StreamChunk
     } catch {
@@ -230,20 +235,22 @@ export function normalizeConnectionAdapter(
             model: 'connect-wrapper',
             timestamp: Date.now(),
             finishReason: 'stop',
-          })
+          } as unknown as StreamChunk)
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
           push({
             type: 'RUN_ERROR',
             timestamp: Date.now(),
+            message:
+              err instanceof Error ? err.message : 'Unknown error in connect()',
             error: {
               message:
                 err instanceof Error
                   ? err.message
                   : 'Unknown error in connect()',
             },
-          })
+          } as unknown as StreamChunk)
         }
         throw err
       }

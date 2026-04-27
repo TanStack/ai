@@ -1,10 +1,17 @@
 import type { BetaWebFetchTool20250910 } from '@anthropic-ai/sdk/resources/beta'
-import type { Tool } from '@tanstack/ai'
+import type { ProviderTool, Tool } from '@tanstack/ai'
 
-export type WebFetchTool = BetaWebFetchTool20250910
+export type WebFetchToolConfig = BetaWebFetchTool20250910
 
-export function convertWebFetchToolToAdapterFormat(tool: Tool): WebFetchTool {
-  const metadata = tool.metadata as Omit<WebFetchTool, 'type' | 'name'>
+/** @deprecated Renamed to `WebFetchToolConfig`. Will be removed in a future release. */
+export type WebFetchTool = WebFetchToolConfig
+
+export type AnthropicWebFetchTool = ProviderTool<'anthropic', 'web_fetch'>
+
+export function convertWebFetchToolToAdapterFormat(
+  tool: Tool,
+): WebFetchToolConfig {
+  const metadata = tool.metadata as Omit<WebFetchToolConfig, 'type' | 'name'>
   return {
     name: 'web_fetch',
     type: 'web_fetch_20250910',
@@ -13,11 +20,12 @@ export function convertWebFetchToolToAdapterFormat(tool: Tool): WebFetchTool {
 }
 
 export function webFetchTool(
-  config?: Omit<WebFetchTool, 'type' | 'name'>,
-): Tool {
+  config?: Omit<WebFetchToolConfig, 'type' | 'name'>,
+): AnthropicWebFetchTool {
+  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'web_fetch',
     description: '',
     metadata: config,
-  }
+  } as unknown as AnthropicWebFetchTool
 }

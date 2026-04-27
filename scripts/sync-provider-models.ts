@@ -72,7 +72,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     referenceSupportsBody: `    output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs', 'distillation'],
-    tools: ['web_search', 'file_search', 'image_generation', 'code_interpreter', 'mcp'],`,
+    tools: ['web_search', 'web_search_preview', 'file_search', 'image_generation', 'code_interpreter', 'mcp', 'computer_use', 'local_shell', 'shell', 'apply_patch'],`,
     referenceSatisfies:
       'ModelMeta<OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
     referenceProviderOptionsEntry:
@@ -100,7 +100,8 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     referenceSupportsBody: `    extended_thinking: true,
-    priority_tier: true,`,
+    priority_tier: true,
+    tools: ['web_search', 'web_fetch', 'code_execution', 'computer_use', 'bash', 'text_editor', 'memory'],`,
     referenceSatisfies:
       'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
     referenceProviderOptionsEntry:
@@ -119,7 +120,8 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'GeminiModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     referenceSupportsBody: `    output: ['text'],
-    capabilities: ['batch_api', 'caching', 'code_execution', 'file_search', 'function_calling', 'search_grounding', 'structured_output', 'thinking', 'url_context'],`,
+    capabilities: ['batch_api', 'caching', 'function_calling', 'structured_output', 'thinking'],
+    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],`,
     referenceSatisfies:
       'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>',
     referenceProviderOptionsEntry:
@@ -140,7 +142,8 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'GrokModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     referenceSupportsBody: `    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],`,
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [],`,
     referenceSatisfies: 'ModelMeta',
     referenceProviderOptionsEntry: 'GrokProviderOptions',
     hasBothNameAndId: false,

@@ -1,5 +1,77 @@
 # @tanstack/ai-gemini
 
+## 0.10.0
+
+### Minor Changes
+
+- feat(ai-gemini): add Lyria 3 Pro / Clip audio adapter and Gemini 3.1 Flash TTS ([#463](https://github.com/TanStack/ai/pull/463))
+
+  **New adapter:**
+  - `geminiAudio()` for Google Lyria music generation — supports `lyria-3-pro-preview` (full-length songs, MP3/WAV 48 kHz stereo) and `lyria-3-clip-preview` (30-second MP3 clips)
+
+  **Enhanced:**
+  - Added `gemini-3.1-flash-tts-preview` to the TTS model list (70+ languages, 200+ audio tags for expressive control)
+  - Added `multiSpeakerVoiceConfig` to `GeminiTTSProviderOptions` for 2-speaker dialogue generation
+
+### Patch Changes
+
+- Tighten `GeneratedImage` and `GeneratedAudio` to enforce exactly one of `url` or `b64Json` via a mutually-exclusive `GeneratedMediaSource` union. ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Both types previously declared `url?` and `b64Json?` as independently optional, which allowed meaningless `{}` values and objects that set both fields. They now require exactly one:
+
+  ```ts
+  type GeneratedMediaSource =
+    | { url: string; b64Json?: never }
+    | { b64Json: string; url?: never }
+  ```
+
+  Existing read patterns like `img.url || \`data:image/png;base64,${img.b64Json}\``continue to work unchanged. The only runtime-visible change is that the`@tanstack/ai-openrouter`and`@tanstack/ai-fal`image adapters no longer populate`url`with a synthesized`data:image/png;base64,...`URI when the provider returns base64 — they return`{ b64Json }`only. Consumers that want a data URI should build it from`b64Json` at render time.
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+
+## 0.9.1
+
+### Patch Changes
+
+- Wire each adapter's text, summarize, image, speech, transcription, and video paths through the new `InternalLogger` from `@tanstack/ai/adapter-internals`: `logger.request(...)` before each SDK call, `logger.provider(...)` for every chunk received, and `logger.errors(...)` in catch blocks. Migrates all pre-existing ad-hoc `console.*` calls in adapter catch blocks (including the OpenAI and ElevenLabs realtime adapters) onto the structured logger. No adapter factory or config-shape changes. ([#467](https://github.com/TanStack/ai/pull/467))
+
+- Updated dependencies [[`c1fd96f`](https://github.com/TanStack/ai/commit/c1fd96ffbcee1372ab039127903162bdf5543dd9)]:
+  - @tanstack/ai@0.13.0
+
+## 0.9.0
+
+### Minor Changes
+
+- Expose provider-tool factories (`codeExecutionTool`, `fileSearchTool`, `googleSearchTool`, `googleSearchRetrievalTool`, `googleMapsTool`, `urlContextTool`, `computerUseTool`) on a new `/tools` subpath, each returning a branded type gated against the selected model's `supports.tools` list. ([#466](https://github.com/TanStack/ai/pull/466))
+
+  Note: `supports.capabilities` entries that described tools (`code_execution`, `file_search`, `grounding_with_gmaps` → renamed `google_maps`, `search_grounding` → renamed `google_search`, `url_context`) have been relocated to the new `supports.tools` field. The `capabilities` array loses those entries. This is a model-meta shape change but not a runtime break.
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+
+## 0.8.9
+
+### Patch Changes
+
+- Align stream output with `@tanstack/ai`'s AG-UI-compliant event shapes: emit `REASONING_*` events alongside `STEP_*`, thread `threadId`/`runId` through `RUN_STARTED`/`RUN_FINISHED`, and return flat `RunErrorEvent` shape. Cast raw events through an internal `asChunk` helper so they line up with the re-exported `@ag-ui/core` `EventType` enum. No changes to adapter factory signatures or config shapes. ([#474](https://github.com/TanStack/ai/pull/474))
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7)]:
+  - @tanstack/ai@0.11.0
+
+## 0.8.8
+
+### Patch Changes
+
+- fix(ai, ai-openai, ai-gemini, ai-ollama): normalize null tool input to empty object ([#430](https://github.com/TanStack/ai/pull/430))
+
+  When a model produces a `tool_use` block with no input, `JSON.parse('null')` returns `null` which fails Zod schema validation and silently kills the agent loop. Normalize null/non-object parsed tool input to `{}` in `executeToolCalls`, `ToolCallManager.completeToolCall`, `ToolCallManager.executeTools`, and the OpenAI/Gemini/Ollama adapter `TOOL_CALL_END` emissions. The Anthropic adapter already had this fix.
+
+- Updated dependencies [[`c780bc1`](https://github.com/TanStack/ai/commit/c780bc127755ecf7e900343bf0e4d4823ff526ca)]:
+  - @tanstack/ai@0.10.3
+
 ## 0.8.7
 
 ### Patch Changes

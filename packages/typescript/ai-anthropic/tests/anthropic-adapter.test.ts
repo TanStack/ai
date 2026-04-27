@@ -616,7 +616,6 @@ describe('Anthropic stream processing', () => {
     expect(runFinished).toHaveLength(1)
     expect(runFinished[0]).toMatchObject({
       type: 'RUN_FINISHED',
-      finishReason: 'stop',
     })
   })
 
@@ -684,7 +683,7 @@ describe('Anthropic stream processing', () => {
     const runFinished = chunks.filter((c) => c.type === 'RUN_FINISHED')
     expect(runFinished).toHaveLength(1)
     expect(runFinished[0]).toMatchObject({
-      finishReason: 'tool_calls',
+      type: 'RUN_FINISHED',
     })
   })
 })

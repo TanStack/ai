@@ -5,13 +5,22 @@ title: ToolCallStartEvent
 
 # Interface: ToolCallStartEvent
 
-Defined in: [types.ts:844](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L844)
+Defined in: [packages/typescript/ai/src/types.ts:894](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L894)
 
 Emitted when a tool call starts.
 
+@ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
+TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `providerMetadata?`
+
 ## Extends
 
-- [`BaseAGUIEvent`](BaseAGUIEvent.md)
+- `ToolCallStartEvent`
+
+## Indexable
+
+```ts
+[k: string]: unknown
+```
 
 ## Properties
 
@@ -21,7 +30,7 @@ Emitted when a tool call starts.
 optional index: number;
 ```
 
-Defined in: [types.ts:853](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L853)
+Defined in: [packages/typescript/ai/src/types.ts:903](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L903)
 
 Index for parallel tool calls
 
@@ -33,25 +42,9 @@ Index for parallel tool calls
 optional model: string;
 ```
 
-Defined in: [types.ts:756](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L756)
+Defined in: [packages/typescript/ai/src/types.ts:896](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L896)
 
 Model identifier for multi-model support
-
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`model`](BaseAGUIEvent.md#model)
-
-***
-
-### parentMessageId?
-
-```ts
-optional parentMessageId: string;
-```
-
-Defined in: [types.ts:851](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L851)
-
-ID of the parent message that initiated this tool call
 
 ***
 
@@ -61,74 +54,21 @@ ID of the parent message that initiated this tool call
 optional providerMetadata: Record<string, unknown>;
 ```
 
-Defined in: [types.ts:855](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L855)
+Defined in: [packages/typescript/ai/src/types.ts:905](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L905)
 
 Provider-specific metadata to carry into the ToolCall
 
 ***
 
-### rawEvent?
-
-```ts
-optional rawEvent: unknown;
-```
-
-Defined in: [types.ts:758](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L758)
-
-Original provider event for debugging/advanced use cases
-
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`rawEvent`](BaseAGUIEvent.md#rawevent)
-
-***
-
-### timestamp
-
-```ts
-timestamp: number;
-```
-
-Defined in: [types.ts:754](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L754)
-
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`timestamp`](BaseAGUIEvent.md#timestamp)
-
-***
-
-### toolCallId
-
-```ts
-toolCallId: string;
-```
-
-Defined in: [types.ts:847](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L847)
-
-Unique identifier for this tool call
-
-***
-
-### toolName
+### ~~toolName~~
 
 ```ts
 toolName: string;
 ```
 
-Defined in: [types.ts:849](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L849)
+Defined in: [packages/typescript/ai/src/types.ts:901](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L901)
 
-Name of the tool being called
+#### Deprecated
 
-***
-
-### type
-
-```ts
-type: "TOOL_CALL_START";
-```
-
-Defined in: [types.ts:845](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L845)
-
-#### Overrides
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`type`](BaseAGUIEvent.md#type)
+Use `toolCallName` instead (from @ag-ui/core spec).
+Kept for backward compatibility.

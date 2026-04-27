@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
 import {
+  Braces,
   FileAudio,
   FileText,
   Guitar,
@@ -9,6 +10,7 @@ import {
   Image,
   Menu,
   Mic,
+  Music,
   Server,
   Video,
   X,
@@ -101,6 +103,19 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/generations/audio"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Music size={20} />
+            <span className="font-medium">Audio Generation</span>
+          </Link>
+
+          <Link
             to="/generations/transcription"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
@@ -137,6 +152,19 @@ export default function Header() {
           >
             <Video size={20} />
             <span className="font-medium">Video Generation</span>
+          </Link>
+
+          <Link
+            to="/generations/structured-output"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Braces size={20} />
+            <span className="font-medium">Structured Output (OpenRouter)</span>
           </Link>
 
           <hr className="border-gray-700 my-2" />

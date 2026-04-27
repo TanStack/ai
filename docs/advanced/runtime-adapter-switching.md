@@ -1,7 +1,15 @@
 ---
 title: Runtime Adapter Switching
 id: runtime-adapter-switching
-order: 5
+order: 6
+description: "Let users switch between LLM providers at runtime in TanStack AI while keeping full TypeScript type safety for each adapter's model options."
+keywords:
+  - tanstack ai
+  - runtime switching
+  - multi-provider
+  - adapter factory
+  - type safety
+  - dynamic adapter
 ---
 
 # Runtime Adapter Switching with Type Safety

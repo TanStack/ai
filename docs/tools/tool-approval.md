@@ -2,6 +2,15 @@
 title: Tool Approval Flow
 id: tool-approval-flow
 order: 5
+description: "Require user approval before executing sensitive tools in TanStack AI — approval states, deny flows, and batched approvals with needsApproval."
+keywords:
+  - tanstack ai
+  - tool approval
+  - needsApproval
+  - user consent
+  - sensitive tools
+  - approval flow
+  - human-in-the-loop
 ---
 
 The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. Tools go through these states during approval:

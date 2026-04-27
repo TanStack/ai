@@ -1,7 +1,15 @@
 import type OpenAI from 'openai'
-import type { Tool } from '@tanstack/ai'
+import type { ProviderTool, Tool } from '@tanstack/ai'
 
-export type ImageGenerationTool = OpenAI.Responses.Tool.ImageGeneration
+export type ImageGenerationToolConfig = OpenAI.Responses.Tool.ImageGeneration
+
+/** @deprecated Renamed to `ImageGenerationToolConfig`. Will be removed in a future release. */
+export type ImageGenerationTool = ImageGenerationToolConfig
+
+export type OpenAIImageGenerationTool = ProviderTool<
+  'openai',
+  'image_generation'
+>
 
 const validatePartialImages = (value: number | undefined) => {
   if (value !== undefined && (value < 0 || value > 3)) {
@@ -14,8 +22,8 @@ const validatePartialImages = (value: number | undefined) => {
  */
 export function convertImageGenerationToolToAdapterFormat(
   tool: Tool,
-): ImageGenerationTool {
-  const metadata = tool.metadata as Omit<ImageGenerationTool, 'type'>
+): ImageGenerationToolConfig {
+  const metadata = tool.metadata as Omit<ImageGenerationToolConfig, 'type'>
   return {
     type: 'image_generation',
     ...metadata,
@@ -26,14 +34,15 @@ export function convertImageGenerationToolToAdapterFormat(
  * Creates a standard Tool from ImageGenerationTool parameters
  */
 export function imageGenerationTool(
-  toolData: Omit<ImageGenerationTool, 'type'>,
-): Tool {
+  toolData: Omit<ImageGenerationToolConfig, 'type'>,
+): OpenAIImageGenerationTool {
   validatePartialImages(toolData.partial_images)
+  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
   return {
     name: 'image_generation',
     description: 'Generate images based on text descriptions',
     metadata: {
       ...toolData,
     },
-  }
+  } as unknown as OpenAIImageGenerationTool
 }

@@ -49,29 +49,42 @@ export class GrokImageAdapter<
   private client: OpenAI_SDK
 
   constructor(config: GrokImageConfig, model: TModel) {
-    super({}, model)
+    super(model, {})
     this.client = createGrokClient(config)
   }
 
   async generateImages(
     options: ImageGenerationOptions<GrokImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size } = options
+    const { model, prompt, numberOfImages, size, logger } = options
 
-    // Validate inputs
-    validatePrompt({ prompt, model })
-    validateImageSize(model, size)
-    validateNumberOfImages(model, numberOfImages)
-
-    // Build request based on model type
-    const request = this.buildRequest(options)
-
-    const response = await this.client.images.generate({
-      ...request,
-      stream: false,
+    logger.request(`activity=generateImage provider=grok model=${this.model}`, {
+      provider: 'grok',
+      model: this.model,
     })
 
-    return this.transformResponse(model, response)
+    try {
+      // Validate inputs
+      validatePrompt({ prompt, model })
+      validateImageSize(model, size)
+      validateNumberOfImages(model, numberOfImages)
+
+      // Build request based on model type
+      const request = this.buildRequest(options)
+
+      const response = await this.client.images.generate({
+        ...request,
+        stream: false,
+      })
+
+      return this.transformResponse(model, response)
+    } catch (error) {
+      logger.errors('grok.generateImage fatal', {
+        error,
+        source: 'grok.generateImage',
+      })
+      throw error
+    }
   }
 
   private buildRequest(
@@ -79,12 +92,14 @@ export class GrokImageAdapter<
   ): OpenAI_SDK.Images.ImageGenerateParams {
     const { model, prompt, numberOfImages, size, modelOptions } = options
 
+    // Spread modelOptions FIRST so explicit args (model, prompt, n, size) win
+    // and user-supplied modelOptions cannot silently override them.
     return {
+      ...modelOptions,
       model,
       prompt,
       n: numberOfImages ?? 1,
       size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
-      ...modelOptions,
     }
   }
 
@@ -92,11 +107,18 @@ export class GrokImageAdapter<
     model: string,
     response: OpenAI_SDK.Images.ImagesResponse,
   ): ImageGenerationResult {
-    const images: Array<GeneratedImage> = (response.data ?? []).map((item) => ({
-      b64Json: item.b64_json,
-      url: item.url,
-      revisedPrompt: item.revised_prompt,
-    }))
+    const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
+      (item): Array<GeneratedImage> => {
+        const revisedPrompt = item.revised_prompt
+        if (item.b64_json) {
+          return [{ b64Json: item.b64_json, revisedPrompt }]
+        }
+        if (item.url) {
+          return [{ url: item.url, revisedPrompt }]
+        }
+        return []
+      },
+    )
 
     return {
       id: generateId(this.name),

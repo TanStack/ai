@@ -7,10 +7,10 @@ import type { StreamChunk } from '../src/types'
 
 // Helper to create mock async iterable
 async function* createMockStream(
-  chunks: Array<StreamChunk>,
+  chunks: Array<Record<string, unknown>>,
 ): AsyncGenerator<StreamChunk> {
   for (const chunk of chunks) {
-    yield chunk
+    yield chunk as StreamChunk
   }
 }
 
@@ -35,7 +35,7 @@ async function readStream(stream: ReadableStream<Uint8Array>): Promise<string> {
 
 describe('toServerSentEventsStream', () => {
   it('should convert chunks to SSE format', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
@@ -61,11 +61,11 @@ describe('toServerSentEventsStream', () => {
     expect(output).toContain('data: ')
     expect(output).toContain('"type":"TEXT_MESSAGE_CONTENT"')
     expect(output).toContain('\n\n')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should format each chunk with data: prefix', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
@@ -82,34 +82,11 @@ describe('toServerSentEventsStream', () => {
 
     const lines = output.split('\n\n').filter((line) => line.trim())
     expect(lines[0]).toMatch(/^data: /)
-    expect(lines[lines.length - 1]).toBe('data: [DONE]')
-  })
-
-  it('should end with [DONE] marker', async () => {
-    const chunks: Array<StreamChunk> = [
-      {
-        type: 'TEXT_MESSAGE_CONTENT',
-        messageId: 'msg-1',
-        model: 'test',
-        timestamp: Date.now(),
-        delta: 'Test',
-        content: 'Test',
-      },
-    ]
-
-    const stream = createMockStream(chunks)
-    const sseStream = toServerSentEventsStream(stream)
-    const output = await readStream(sseStream)
-
-    // Should end with [DONE] marker followed by newlines
-    expect(output).toContain('data: [DONE]')
-    const doneIndex = output.lastIndexOf('data: [DONE]')
-    const afterDone = output.slice(doneIndex)
-    expect(afterDone).toBe('data: [DONE]\n\n')
+    expect(lines[lines.length - 1]).toMatch(/^data: \{/)
   })
 
   it('should handle tool call events', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'TOOL_CALL_START',
         toolCallId: 'call-1',
@@ -126,11 +103,11 @@ describe('toServerSentEventsStream', () => {
 
     expect(output).toContain('"type":"TOOL_CALL_START"')
     expect(output).toContain('"toolName":"getWeather"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should handle RUN_FINISHED events', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'RUN_FINISHED',
         runId: 'run-1',
@@ -146,11 +123,11 @@ describe('toServerSentEventsStream', () => {
 
     expect(output).toContain('"type":"RUN_FINISHED"')
     expect(output).toContain('"finishReason":"stop"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should handle RUN_ERROR events', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'RUN_ERROR',
         runId: 'run-1',
@@ -165,7 +142,7 @@ describe('toServerSentEventsStream', () => {
     const output = await readStream(sseStream)
 
     expect(output).toContain('"type":"RUN_ERROR"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should handle empty stream', async () => {
@@ -173,12 +150,59 @@ describe('toServerSentEventsStream', () => {
     const sseStream = toServerSentEventsStream(stream)
     const output = await readStream(sseStream)
 
-    expect(output).toBe('data: [DONE]\n\n')
+    expect(output).toBe('')
+  })
+
+  it('should not emit [DONE] sentinel — RUN_FINISHED is the stream terminator', async () => {
+    const chunks: Array<Record<string, unknown>> = [
+      {
+        type: 'RUN_STARTED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'TEXT_MESSAGE_START',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        role: 'assistant',
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+        delta: 'Hello',
+        content: 'Hello',
+      },
+      {
+        type: 'TEXT_MESSAGE_END',
+        messageId: 'msg-1',
+        model: 'test',
+        timestamp: Date.now(),
+      },
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-1',
+        model: 'test',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      },
+    ]
+
+    const stream = createMockStream(chunks)
+    const sseStream = toServerSentEventsStream(stream)
+    const output = await readStream(sseStream)
+
+    expect(output).not.toContain('[DONE]')
+    // Stream should end with the RUN_FINISHED event
+    expect(output).toContain('"type":"RUN_FINISHED"')
   })
 
   it('should abort when abortController signals abort', async () => {
     const abortController = new AbortController()
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
@@ -210,7 +234,7 @@ describe('toServerSentEventsStream', () => {
         timestamp: Date.now(),
         delta: 'Test',
         content: 'Test',
-      }
+      } as unknown as StreamChunk
       throw new Error('Stream error')
     }
 
@@ -224,7 +248,7 @@ describe('toServerSentEventsStream', () => {
   it('should not send error if aborted', async () => {
     const abortController = new AbortController()
 
-    async function* errorStream(): AsyncGenerator<StreamChunk> {
+    async function* errorStream(): AsyncGenerator<any> {
       abortController.abort()
       throw new Error('Stream error')
     }
@@ -240,7 +264,7 @@ describe('toServerSentEventsStream', () => {
     const abortController = new AbortController()
     const abortSpy = vi.spyOn(abortController, 'abort')
 
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
@@ -261,7 +285,7 @@ describe('toServerSentEventsStream', () => {
   })
 
   it('should handle multiple chunks correctly', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
@@ -294,14 +318,14 @@ describe('toServerSentEventsStream', () => {
     const dataLines = output
       .split('\n\n')
       .filter((line) => line.startsWith('data: '))
-    expect(dataLines.length).toBeGreaterThanOrEqual(3) // At least 3 chunks + [DONE]
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(dataLines.length).toBeGreaterThanOrEqual(3) // At least 3 chunks
+    expect(output).not.toContain('[DONE]')
   })
 })
 
 describe('toServerSentEventsResponse', () => {
   it('should create Response with SSE headers', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
@@ -322,7 +346,7 @@ describe('toServerSentEventsResponse', () => {
   })
 
   it('should allow custom headers', async () => {
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     const stream = createMockStream(chunks)
     const response = toServerSentEventsResponse(stream, {
       headers: {
@@ -335,7 +359,7 @@ describe('toServerSentEventsResponse', () => {
   })
 
   it('should merge custom headers with SSE headers', async () => {
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     const stream = createMockStream(chunks)
     const response = toServerSentEventsResponse(stream, {
       headers: {
@@ -351,7 +375,7 @@ describe('toServerSentEventsResponse', () => {
 
   it('should handle abortController in options', async () => {
     const abortController = new AbortController()
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
@@ -379,7 +403,7 @@ describe('toServerSentEventsResponse', () => {
   })
 
   it('should handle status and statusText', async () => {
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     const stream = createMockStream(chunks)
     const response = toServerSentEventsResponse(stream, {
       status: 201,
@@ -391,7 +415,7 @@ describe('toServerSentEventsResponse', () => {
   })
 
   it('should stream chunks correctly through Response', async () => {
-    const chunks: Array<StreamChunk> = [
+    const chunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
@@ -423,11 +447,11 @@ describe('toServerSentEventsResponse', () => {
     expect(output).toContain('"type":"TEXT_MESSAGE_CONTENT"')
     expect(output).toContain('"delta":"Hello"')
     expect(output).toContain('"delta":" world"')
-    expect(output).toContain('data: [DONE]\n\n')
+    expect(output).not.toContain('[DONE]')
   })
 
   it('should handle undefined init parameter', async () => {
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     const stream = createMockStream(chunks)
     const response = toServerSentEventsResponse(stream, undefined)
 
@@ -436,7 +460,7 @@ describe('toServerSentEventsResponse', () => {
   })
 
   it('should handle empty init object', async () => {
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     const stream = createMockStream(chunks)
     const response = toServerSentEventsResponse(stream, {})
 
@@ -457,10 +481,10 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
    */
   async function parseSSEStream(
     sseStream: ReadableStream<Uint8Array>,
-  ): Promise<Array<StreamChunk>> {
+  ): Promise<Array<Record<string, unknown>>> {
     const reader = sseStream.getReader()
     const decoder = new TextDecoder()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<Record<string, unknown>> = []
     let buffer = ''
 
     try {
@@ -492,7 +516,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
   }
 
   it('should preserve TEXT_MESSAGE_CONTENT events', async () => {
-    const originalChunks: Array<StreamChunk> = [
+    const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
@@ -528,7 +552,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
   })
 
   it('should preserve TOOL_CALL_* events', async () => {
-    const originalChunks: Array<StreamChunk> = [
+    const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'TOOL_CALL_START',
         toolCallId: 'tc-1',
@@ -575,7 +599,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
   })
 
   it('should preserve RUN_* events', async () => {
-    const originalChunks: Array<StreamChunk> = [
+    const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'RUN_STARTED',
         runId: 'run-1',
@@ -604,7 +628,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
   })
 
   it('should preserve RUN_ERROR events', async () => {
-    const originalChunks: Array<StreamChunk> = [
+    const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'RUN_ERROR',
         runId: 'run-1',
@@ -626,7 +650,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
   })
 
   it('should preserve STEP_FINISHED events (thinking)', async () => {
-    const originalChunks: Array<StreamChunk> = [
+    const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'STEP_STARTED',
         stepId: 'step-1',
@@ -656,7 +680,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
   })
 
   it('should preserve CUSTOM events', async () => {
-    const originalChunks: Array<StreamChunk> = [
+    const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'CUSTOM',
         model: 'test',
@@ -700,7 +724,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
   })
 
   it('should preserve TEXT_MESSAGE_START/END events', async () => {
-    const originalChunks: Array<StreamChunk> = [
+    const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_START',
         messageId: 'msg-1',
@@ -733,7 +757,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
   })
 
   it('should preserve complex mixed event sequence', async () => {
-    const originalChunks: Array<StreamChunk> = [
+    const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'RUN_STARTED',
         runId: 'run-1',
@@ -826,7 +850,7 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
   })
 
   it('should preserve unicode and special characters', async () => {
-    const originalChunks: Array<StreamChunk> = [
+    const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',

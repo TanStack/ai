@@ -13,13 +13,17 @@ import {
 import { AudioSparkline } from '@/components/AudioSparkline'
 import { useRealtime } from '@/lib/use-realtime'
 
-type Provider = 'openai' | 'elevenlabs'
+type Provider = 'openai' | 'elevenlabs' | 'grok'
 type OutputMode = 'audio+text' | 'text-only' | 'audio-only'
 
 const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
   { value: 'openai', label: 'OpenAI Realtime' },
   { value: 'elevenlabs', label: 'ElevenLabs' },
+  { value: 'grok', label: 'Grok Voice Agent' },
 ]
+
+const GROK_VOICES = ['eve', 'ara', 'rex', 'sal', 'leo'] as const
+type GrokVoice = (typeof GROK_VOICES)[number]
 
 const OUTPUT_MODE_OPTIONS: Array<{ value: OutputMode; label: string }> = [
   { value: 'audio+text', label: 'Audio + Text' },
@@ -45,6 +49,7 @@ function outputModeToModalities(
 function RealtimePage() {
   const [provider, setProvider] = useState<Provider>('openai')
   const [agentId, setAgentId] = useState('')
+  const [grokVoice, setGrokVoice] = useState<GrokVoice>('eve')
   const [textInput, setTextInput] = useState('')
   const [outputMode, setOutputMode] = useState<OutputMode>('audio+text')
   const [temperature, setTemperature] = useState(0.8)
@@ -73,6 +78,7 @@ function RealtimePage() {
   } = useRealtime({
     provider,
     agentId,
+    voice: provider === 'grok' ? grokVoice : undefined,
     outputModalities: outputModeToModalities(outputMode),
     temperature,
     semanticEagerness,
@@ -81,21 +87,69 @@ function RealtimePage() {
   // Handle image file selection
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    // Always reset the input up front so the same file can be selected
+    // again even if we bail below.
+    const resetInput = () => {
+      e.target.value = ''
+    }
+    if (!file) {
+      resetInput()
+      return
+    }
+
+    // Bail if the file has no MIME type — in practice an empty `type` is
+    // a sign of a corrupt file or a browser that couldn't sniff it, and
+    // the OpenAI-compatible realtime API requires an explicit mime.
+    if (!file.type) {
+      // eslint-disable-next-line no-console
+      console.error('[realtime] Cannot send image: file has no MIME type', file)
+      window.alert(
+        'Could not determine the image type. Please try a different file.',
+      )
+      resetInput()
+      return
+    }
 
     const reader = new FileReader()
+    reader.onerror = () => {
+      // eslint-disable-next-line no-console
+      console.error('[realtime] FileReader failed', reader.error)
+      window.alert(
+        `Failed to read image file: ${reader.error?.message ?? 'Unknown error'}`,
+      )
+      resetInput()
+    }
     reader.onload = () => {
-      const result = reader.result as string
-      // Extract base64 data (remove data:image/xxx;base64, prefix)
-      const base64 = result.split(',')[1]
-      if (base64) {
-        sendImage(base64, file.type)
+      const result = reader.result
+      // `result` is null on abort/error, and is an ArrayBuffer (not a
+      // string) if someone changes the readAs* method later. Guard both.
+      if (result == null || typeof result !== 'string') {
+        // eslint-disable-next-line no-console
+        console.error('[realtime] FileReader result was not a string', result)
+        window.alert('Failed to read image file: unexpected reader output.')
+        resetInput()
+        return
       }
+      // Extract base64 data (remove data:image/xxx;base64, prefix). A
+      // malformed data URL (no comma, or empty payload after the comma)
+      // means there's nothing sendable — surface it instead of silently
+      // no-op'ing.
+      const parts = result.split(',')
+      const base64 = parts[1]
+      if (!base64) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[realtime] FileReader produced a malformed data URL',
+          result.slice(0, 64),
+        )
+        window.alert('Failed to read image file: malformed image data.')
+        resetInput()
+        return
+      }
+      sendImage(base64, file.type)
+      resetInput()
     }
     reader.readAsDataURL(file)
-
-    // Reset input so the same file can be selected again
-    e.target.value = ''
   }
 
   // Auto-scroll to bottom when messages change
@@ -195,8 +249,29 @@ function RealtimePage() {
                 </div>
               )}
 
-              {/* Output mode selector (OpenAI only) */}
-              {provider === 'openai' && (
+              {/* Grok voice selector */}
+              {provider === 'grok' && (
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Voice
+                  </label>
+                  <select
+                    value={grokVoice}
+                    onChange={(e) => setGrokVoice(e.target.value as GrokVoice)}
+                    disabled={status !== 'idle'}
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                  >
+                    {GROK_VOICES.map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Output mode selector (OpenAI-compatible realtime) */}
+              {(provider === 'openai' || provider === 'grok') && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
                     Output
@@ -219,7 +294,7 @@ function RealtimePage() {
               )}
 
               {/* Temperature slider */}
-              {provider === 'openai' && (
+              {(provider === 'openai' || provider === 'grok') && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
                     Temp: {temperature.toFixed(1)}
@@ -238,7 +313,7 @@ function RealtimePage() {
               )}
 
               {/* Semantic eagerness */}
-              {provider === 'openai' && (
+              {(provider === 'openai' || provider === 'grok') && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
                     Eagerness
@@ -275,7 +350,7 @@ function RealtimePage() {
         </div>
 
         {/* Tools indicator */}
-        {provider === 'openai' && (
+        {(provider === 'openai' || provider === 'grok') && (
           <div className="border-b border-orange-500/10 bg-gray-800/50 px-4 py-2">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Wrench className="w-3 h-3" />
@@ -343,9 +418,17 @@ function RealtimePage() {
                       )
                     }
                     if (part.type === 'image') {
-                      const src = part.data.startsWith('http')
-                        ? part.data
-                        : `data:${part.mimeType};base64,${part.data}`
+                      // If `part.data` is already a fully-qualified URL
+                      // (http/https) or a `data:` URI, use it verbatim;
+                      // otherwise treat it as raw base64 and wrap it.
+                      // Without the `data:` guard we'd produce malformed
+                      // `data:...;base64,data:...;base64,...` double wraps.
+                      const src =
+                        part.data.startsWith('http://') ||
+                        part.data.startsWith('https://') ||
+                        part.data.startsWith('data:')
+                          ? part.data
+                          : `data:${part.mimeType};base64,${part.data}`
                       return (
                         <img
                           key={idx}
@@ -422,8 +505,8 @@ function RealtimePage() {
                 placeholder="Type a message..."
                 className="flex-1 rounded-lg border border-orange-500/20 bg-gray-800 px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
               />
-              {/* Image upload button (OpenAI only) */}
-              {provider === 'openai' && (
+              {/* Image upload button (OpenAI-compatible realtime) */}
+              {(provider === 'openai' || provider === 'grok') && (
                 <>
                   <input
                     ref={imageInputRef}

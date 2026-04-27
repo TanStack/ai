@@ -7,6 +7,9 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
+import { resolveDebugOption } from '../../logger/resolve'
+import type { InternalLogger } from '../../logger/internal-logger'
+import type { DebugOption } from '../../logger/types'
 import type { ImageAdapter } from './adapter'
 import type { ImageGenerationResult, StreamChunk } from '../../types'
 
@@ -83,6 +86,12 @@ export type ImageActivityOptions<
    * @default false
    */
   stream?: TStream
+  /**
+   * Enable debug logging. Pass `true` to enable all categories, `false` to
+   * silence everything including errors, or a `DebugConfig` object for granular
+   * control and/or a custom `Logger`.
+   */
+  debug?: DebugOption
 } & ({} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
   ? {
       /** Provider-specific options for image generation */ modelOptions?: ImageProviderOptionsForModel<
@@ -188,10 +197,11 @@ async function runGenerateImage<
 >(
   options: ImageActivityOptions<TAdapter, boolean>,
 ): Promise<ImageGenerationResult> {
-  const { adapter, stream: _stream, ...rest } = options
+  const { adapter, stream: _stream, debug: _debug, ...rest } = options
   const model = adapter.model
   const requestId = createId('image')
   const startTime = Date.now()
+  const logger: InternalLogger = resolveDebugOption(options.debug)
 
   aiEventClient.emit('image:request:started', {
     requestId,
@@ -204,7 +214,13 @@ async function runGenerateImage<
     timestamp: startTime,
   })
 
-  return adapter.generateImages({ ...rest, model }).then((result) => {
+  logger.request(`activity=generateImage provider=${adapter.name}`, {
+    provider: adapter.name,
+    model,
+  })
+
+  try {
+    const result = await adapter.generateImages({ ...rest, model, logger })
     const duration = Date.now() - startTime
 
     aiEventClient.emit('image:request:completed', {
@@ -230,8 +246,18 @@ async function runGenerateImage<
       })
     }
 
+    logger.output(`activity=generateImage count=${result.images.length}`, {
+      count: result.images.length,
+    })
+
     return result
-  })
+  } catch (error) {
+    logger.errors('generateImage activity failed', {
+      error,
+      source: 'generateImage',
+    })
+    throw error
+  }
 }
 
 // ===========================

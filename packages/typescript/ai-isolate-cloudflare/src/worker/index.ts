@@ -17,8 +17,11 @@ import { wrapCode } from './wrap-code'
 import type { ExecuteRequest, ExecuteResponse, ToolCallRequest } from '../types'
 
 /**
- * UnsafeEval binding type
- * This is only available in local development with wrangler dev
+ * UnsafeEval binding type.
+ *
+ * Provides dynamic-code execution against the Worker's V8 isolate. Available
+ * locally (via wrangler dev) and in production deployments where the
+ * `unsafe_eval` binding has been enabled on the Cloudflare account.
  */
 interface UnsafeEval {
   eval: (code: string) => unknown
@@ -26,8 +29,7 @@ interface UnsafeEval {
 
 interface Env {
   /**
-   * UnsafeEval binding - provides eval() for local development
-   * Configured in wrangler.toml as an unsafe binding
+   * UnsafeEval binding. Configured in wrangler.toml as an unsafe binding.
    */
   UNSAFE_EVAL?: UnsafeEval
 }
@@ -49,8 +51,10 @@ async function executeCode(
         name: 'UnsafeEvalNotAvailable',
         message:
           'UNSAFE_EVAL binding is not available. ' +
-          'This Worker requires the unsafe_eval binding for local development. ' +
-          'For production, consider using Workers for Platforms.',
+          'This Worker requires the unsafe_eval binding. ' +
+          'Declare it in wrangler.toml under [[unsafe.bindings]] ' +
+          '(works for local development and production where the ' +
+          'account has unsafe_eval enabled).',
       },
     }
   }
@@ -63,8 +67,7 @@ async function executeCode(
     const timeoutId = setTimeout(() => controller.abort(), timeout)
 
     try {
-      // Use UNSAFE_EVAL binding to execute the code
-      // This is only available in local development with wrangler dev
+      // Execute the wrapped code through the UNSAFE_EVAL binding.
       const result = (await env.UNSAFE_EVAL.eval(wrappedCode)) as {
         status: string
         success?: boolean

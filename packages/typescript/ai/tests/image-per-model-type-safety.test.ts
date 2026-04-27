@@ -205,7 +205,7 @@ class MockImageAdapter<TModel extends MockImageModel> extends BaseImageAdapter<
   readonly name = 'mock' as const
 
   constructor(model: TModel) {
-    super({}, model)
+    super(model, {})
   }
 
   /* eslint-disable @typescript-eslint/require-await */
