@@ -12,6 +12,8 @@ Exported from a dedicated `@tanstack/ai-gemini/experimental` subpath so the expe
 import { geminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 ```
 
-Scope: text/chat output with function tools. Built-in Gemini tools (`google_search`, `code_execution`, `url_context`, `file_search`, `computer_use`) and image/audio output via Interactions are not yet supported on this adapter — use `geminiText()` or follow-up adapters for those.
+Scope: text/chat output with function tools, plus the built-in tools `google_search`, `code_execution`, `url_context`, `file_search`, and `computer_use`. Built-in tool activity is surfaced as AG-UI `CUSTOM` events named `gemini.googleSearchCall` / `gemini.googleSearchResult` (and the matching `codeExecutionCall`/`Result`, `urlContextCall`/`Result`, `fileSearchCall`/`Result` variants), carrying the raw Interactions delta payload. Function-tool `TOOL_CALL_*` events are unchanged, and `finishReason` stays `stop` when only built-in tools ran — the core chat loop has nothing to execute.
+
+`google_search_retrieval`, `google_maps`, and `mcp_server` are not supported on this adapter and throw a targeted error explaining the alternative. Image/audio output via Interactions is also not routed through this adapter — use `geminiText()`, `geminiImage`, or `geminiSpeech` for those.
 
 Marked `@experimental` — the underlying Interactions API is Beta and Google explicitly flags possible breaking changes.
