@@ -1,10 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
 import { z } from 'zod'
-import { buildTranscriptionAdapter } from '../lib/server-audio-adapters'
+import {
+  InvalidModelOverrideError,
+  UnknownProviderError,
+  buildTranscriptionAdapter,
+} from '../lib/server-audio-adapters'
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z
-  .enum(['openai', 'fal', 'elevenlabs'])
+  .enum(['openai', 'fal', 'grok', 'elevenlabs'])
   .optional()
 
 const TRANSCRIBE_BODY_SCHEMA = z.object({
@@ -65,6 +69,26 @@ export const Route = createFileRoute('/api/transcribe')({
 
           return toServerSentEventsResponse(stream)
         } catch (err) {
+          if (err instanceof InvalidModelOverrideError) {
+            return jsonError(400, {
+              error: 'invalid_model_override',
+              message: err.message,
+              provider: err.providerId,
+              requestedModel: err.requestedModel,
+              allowedModels: err.allowedModels,
+            })
+          }
+          // Defense-in-depth: the Zod enum schema above should already reject
+          // unknown providers, but surface a typed 400 here in case that
+          // validation drifts or is bypassed.
+          if (err instanceof UnknownProviderError) {
+            return jsonError(400, {
+              error: 'unknown_provider',
+              message: err.message,
+              provider: err.providerId,
+              allowedProviders: err.allowedProviders,
+            })
+          }
           return jsonError(500, {
             error: 'transcription_failed',
             message:

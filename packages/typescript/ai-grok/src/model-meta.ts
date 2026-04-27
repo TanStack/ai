@@ -283,8 +283,62 @@ export const GROK_CHAT_MODELS = [
  */
 export const GROK_IMAGE_MODELS = [GROK_2_IMAGE.name] as const
 
+// xAI's `/v1/tts` endpoint is endpoint-addressed and does not take a `model`
+// parameter. This synthetic identifier satisfies the SDK's `TTSOptions.model`
+// contract and provides a stable value for logging and fixture matching.
+const GROK_TTS = {
+  name: 'grok-tts',
+  supports: {
+    input: ['text'],
+    output: ['audio'],
+  },
+} as const satisfies ModelMeta
+
+// xAI's `/v1/stt` endpoint is endpoint-addressed and does not take a `model`
+// parameter. This synthetic identifier satisfies the SDK's
+// `TranscriptionOptions.model` contract.
+const GROK_STT = {
+  name: 'grok-stt',
+  supports: {
+    input: ['audio'],
+    output: ['text'],
+  },
+} as const satisfies ModelMeta
+
+const GROK_VOICE_FAST_1 = {
+  name: 'grok-voice-fast-1.0',
+  supports: {
+    input: ['audio', 'text'],
+    output: ['audio', 'text'],
+    capabilities: ['tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+const GROK_VOICE_THINK_FAST_1 = {
+  name: 'grok-voice-think-fast-1.0',
+  supports: {
+    input: ['audio', 'text'],
+    output: ['audio', 'text'],
+    capabilities: ['reasoning', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+export const GROK_TTS_MODELS = [GROK_TTS.name] as const
+
+export const GROK_TRANSCRIPTION_MODELS = [GROK_STT.name] as const
+
+export const GROK_REALTIME_MODELS = [
+  GROK_VOICE_FAST_1.name,
+  GROK_VOICE_THINK_FAST_1.name,
+] as const
+
 export type GrokChatModel = (typeof GROK_CHAT_MODELS)[number]
 export type GrokImageModel = (typeof GROK_IMAGE_MODELS)[number]
+export type GrokTTSModel = (typeof GROK_TTS_MODELS)[number]
+export type GrokTranscriptionModel = (typeof GROK_TRANSCRIPTION_MODELS)[number]
+export type GrokRealtimeModel = (typeof GROK_REALTIME_MODELS)[number]
 
 /**
  * Type-only map from Grok chat model name to its supported input modalities.

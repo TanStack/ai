@@ -1,5 +1,34 @@
 # @tanstack/ai-vue
 
+## 0.7.0
+
+### Minor Changes
+
+- feat: add `useGenerateAudio` hook and streaming support for `generateAudio()` ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Closes the parity gap between audio generation and the other media
+  activities (image, speech, video, transcription, summarize):
+  - `generateAudio()` now accepts `stream: true`, returning an
+    `AsyncIterable<StreamChunk>` that can be piped through
+    `toServerSentEventsResponse()`.
+  - `AudioGenerateInput` type added to `@tanstack/ai-client`.
+  - `useGenerateAudio` hook added to `@tanstack/ai-react`,
+    `@tanstack/ai-solid`, and `@tanstack/ai-vue`; matching
+    `createGenerateAudio` added to `@tanstack/ai-svelte`. All follow the same
+    `{ generate, result, isLoading, error, status, stop, reset }` shape as
+    the existing media hooks and support both `connection` (SSE) and
+    `fetcher` transports.
+
+### Patch Changes
+
+- fix(ai-react, ai-preact, ai-vue, ai-solid): propagate `useChat` callback changes ([#465](https://github.com/TanStack/ai/pull/465))
+
+  `onResponse`, `onChunk`, and `onCustomEvent` were captured by reference at client creation time. When a parent component re-rendered with fresh closures, the `ChatClient` kept calling the originals. Every framework now wraps these callbacks so the latest `options.xxx` is read at call time (via `optionsRef.current` in React/Preact, and direct option access in Vue/Solid, matching the pattern already used for `onFinish` / `onError`). Clearing a callback (setting it to `undefined`) now correctly no-ops instead of continuing to invoke the stale handler.
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`008f015`](https://github.com/TanStack/ai/commit/008f0154f852e7e6734d3e3d35cad47780b52b7a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+  - @tanstack/ai-client@0.8.0
+
 ## 0.6.19
 
 ### Patch Changes

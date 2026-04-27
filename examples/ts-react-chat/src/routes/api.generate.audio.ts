@@ -1,7 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateAudio, toServerSentEventsResponse } from '@tanstack/ai'
 import { z } from 'zod'
-import { buildAudioAdapter } from '../lib/server-audio-adapters'
+import {
+  InvalidModelOverrideError,
+  UnknownProviderError,
+  buildAudioAdapter,
+} from '../lib/server-audio-adapters'
 
 const AUDIO_PROVIDER_SCHEMA = z
   .enum([
@@ -72,6 +76,28 @@ export const Route = createFileRoute('/api/generate/audio')({
 
           return toServerSentEventsResponse(stream)
         } catch (err) {
+          if (err instanceof InvalidModelOverrideError) {
+            return jsonError(400, {
+              error: 'invalid_model_override',
+              message: err.message,
+              provider: err.providerId,
+              requestedModel: err.requestedModel,
+              allowedModels: err.allowedModels,
+            })
+          }
+          // Defense-in-depth: the Zod enum schema above should already reject
+          // unknown providers, but surface a typed 400 here in case that
+          // validation drifts or is bypassed.
+          if (err instanceof UnknownProviderError) {
+            return jsonError(400, {
+              error: 'unknown_provider',
+              message: err.message,
+              // Use `provider` consistently with the invalid_model_override
+              // branch and the request body's `provider` field.
+              provider: err.providerId,
+              allowedProviders: err.allowedProviders,
+            })
+          }
           return jsonError(500, {
             error: 'generation_failed',
             message:

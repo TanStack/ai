@@ -5,7 +5,11 @@ import {
   createOpenaiVideo,
 } from '@tanstack/ai-openai'
 import { createGeminiImage } from '@tanstack/ai-gemini'
-import { createGrokImage } from '@tanstack/ai-grok'
+import {
+  createGrokImage,
+  createGrokSpeech,
+  createGrokTranscription,
+} from '@tanstack/ai-grok'
 import {
   createElevenLabsSpeech,
   createElevenLabsTranscription,
@@ -45,7 +49,7 @@ export function createImageAdapter(
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
     grok: () =>
-      createGrokImage('grok-2-image', DUMMY_KEY, {
+      createGrokImage('grok-2-image-1212', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
@@ -64,6 +68,11 @@ export function createTTSAdapter(
   const factories: Record<string, () => any> = {
     openai: () =>
       createOpenaiSpeech('tts-1', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    grok: () =>
+      createGrokSpeech('grok-tts', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
@@ -86,6 +95,11 @@ export function createTranscriptionAdapter(
   const factories: Record<string, () => any> = {
     openai: () =>
       createOpenaiTranscription('whisper-1', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    grok: () =>
+      createGrokTranscription('grok-stt', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
