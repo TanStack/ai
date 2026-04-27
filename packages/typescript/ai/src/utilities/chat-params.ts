@@ -1,4 +1,5 @@
 import { AGUIError, RunAgentInputSchema } from '@ag-ui/core'
+import type { Context as AGUIContext } from '@ag-ui/core'
 import type { JSONSchema, ModelMessage, UIMessage } from '../types'
 
 /**
@@ -21,7 +22,7 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   tools: Array<{ name: string; description: string; parameters: JSONSchema }>
   forwardedProps: Record<string, unknown>
   state: unknown
-  context: Array<{ description: string; value: string }>
+  context: Array<AGUIContext>
 }> {
   const parseResult = RunAgentInputSchema.safeParse(body)
   if (!parseResult.success) {
