@@ -9,18 +9,19 @@
 ## Table of Contents
 
 1. [System Overview](#system-overview)
-2. [Single-Shot Text Response](#single-shot-text-response)
-3. [Single-Shot Tool Call Response](#single-shot-tool-call-response)
-4. [Parallel Tool Calls (Single Shot)](#parallel-tool-calls-single-shot)
-5. [Text-Then-Tool Interleaving (Single Shot)](#text-then-tool-interleaving-single-shot)
-6. [Thinking/Reasoning Content](#thinkingreasoning-content)
-7. [Tool Results and the TOOL_CALL_END Dual Role](#tool-results-and-the-tool_call_end-dual-role)
-8. [Client Tools and Approval Flows](#client-tools-and-approval-flows)
-9. [Multi-Iteration Agent Loop](#multi-iteration-agent-loop)
-10. [Adapter Contract](#adapter-contract)
-11. [StreamProcessor Internal State](#streamprocessor-internal-state)
-12. [UIMessage Part Ordering Invariants](#uimessage-part-ordering-invariants)
-13. [Testing Strategy](#testing-strategy)
+2. [Wire format (HTTP body)](#wire-format-http-body)
+3. [Single-Shot Text Response](#single-shot-text-response)
+4. [Single-Shot Tool Call Response](#single-shot-tool-call-response)
+5. [Parallel Tool Calls (Single Shot)](#parallel-tool-calls-single-shot)
+6. [Text-Then-Tool Interleaving (Single Shot)](#text-then-tool-interleaving-single-shot)
+7. [Thinking/Reasoning Content](#thinkingreasoning-content)
+8. [Tool Results and the TOOL_CALL_END Dual Role](#tool-results-and-the-tool_call_end-dual-role)
+9. [Client Tools and Approval Flows](#client-tools-and-approval-flows)
+10. [Multi-Iteration Agent Loop](#multi-iteration-agent-loop)
+11. [Adapter Contract](#adapter-contract)
+12. [StreamProcessor Internal State](#streamprocessor-internal-state)
+13. [UIMessage Part Ordering Invariants](#uimessage-part-ordering-invariants)
+14. [Testing Strategy](#testing-strategy)
 
 ---
 
@@ -56,6 +57,33 @@ Two components consume the AG-UI event stream:
 - **StreamProcessor** (client, `chat/stream/processor.ts`) -- The single source of truth for `UIMessage[]` state. Consumes AG-UI events and maintains the conversation as an array of `UIMessage` objects with typed parts.
 
 Both trust the adapter to emit events in the correct order. The processor does **not** attempt error recovery for out-of-order events.
+
+---
+
+## Wire format (HTTP body)
+
+The HTTP body posted by `@tanstack/ai-client` to a `chat()` endpoint is the AG-UI `RunAgentInput` shape from `@ag-ui/core`:
+
+```json
+{
+  "threadId": "thread-...",
+  "runId": "run-...",
+  "state": {},
+  "messages": [...],
+  "tools": [...],
+  "context": [],
+  "forwardedProps": {}
+}
+```
+
+Each entry in `messages` is either:
+
+- A **TanStack anchor** — a `UIMessage` with its canonical `parts` array, augmented with AG-UI mirror fields (`content` for system/user/assistant; `toolCalls` for assistant) so AG-UI Zod parsing succeeds.
+- An **AG-UI fan-out duplicate** — a `{role:'tool',...}` or `{role:'reasoning',...}` entry generated from each `ToolResultPart`/`ThinkingPart` on the assistant anchor. Strict AG-UI server consumers walk these role-based messages directly.
+
+On the server, `chatParamsFromRequestBody` validates the body and returns the parsed fields. `convertMessagesToModelMessages` (called inside `chat()`) handles dedup: when an anchor's `parts` already contain a `tool-result`, the matching fan-out tool message is dropped from the `ModelMessage[]` fed to the LLM. `reasoning` and `activity` messages are dropped (no `ModelMessage` equivalent today); `developer` messages collapse to `system`.
+
+For the migration story when upgrading, see `docs/migration/ag-ui-compliance.md`.
 
 ---
 
