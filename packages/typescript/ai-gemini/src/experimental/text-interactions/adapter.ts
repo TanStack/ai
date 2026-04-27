@@ -3,9 +3,9 @@ import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
-} from '../utils'
+} from '../../utils'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { GeminiModels } from '../model-meta'
+import type { GeminiModels } from '../../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -19,9 +19,9 @@ import type {
   Tool,
 } from '@tanstack/ai'
 
-import type { ExternalTextInteractionsProviderOptions } from '../text-interactions/text-interactions-provider-options'
-import type { GeminiMessageMetadataByModality } from '../message-types'
-import type { GeminiClientConfig } from '../utils'
+import type { ExternalTextInteractionsProviderOptions } from './provider-options'
+import type { GeminiMessageMetadataByModality } from '../../message-types'
+import type { GeminiClientConfig } from '../../utils'
 
 type Interaction = Interactions.Interaction
 type InteractionSSEEvent = Interactions.InteractionSSEEvent
