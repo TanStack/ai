@@ -75,7 +75,7 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     label: 'Gemini - 2.0 Flash',
   },
 
-  // Gemini Interactions (stateful — `geminiTextInteractions`)
+  // Gemini Interactions (stateful, experimental — `@tanstack/ai-gemini/experimental`)
   {
     provider: 'gemini-interactions',
     model: 'gemini-3.1-pro-preview',

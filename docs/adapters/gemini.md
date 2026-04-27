@@ -116,13 +116,13 @@ Gemini's [Interactions API](https://ai.google.dev/gemini-api/docs/interactions) 
 
 The `geminiTextInteractions` adapter routes through `client.interactions.create` and surfaces the server-assigned interaction id via an AG-UI `CUSTOM` event (`name: 'gemini.interactionId'`) emitted just before `RUN_FINISHED`, so you can chain turns.
 
-> **⚠️ Experimental.** Google marks the Interactions API as Beta and explicitly flags possible breaking changes until it reaches general availability. Text output, function tools, and the built-in tools `google_search`, `code_execution`, `url_context`, `file_search`, and `computer_use` are supported. `google_search_retrieval`, `google_maps`, and `mcp_server` still throw on this adapter — use `geminiText()` for those or wait for follow-up work.
+> **⚠️ Experimental.** Google marks the Interactions API as Beta and explicitly flags possible breaking changes until it reaches general availability. The adapter is exported from the `@tanstack/ai-gemini/experimental` subpath so the experimental status is load-bearing in your editor and bundle. Text output, function tools, and the built-in tools `google_search`, `code_execution`, `url_context`, `file_search`, and `computer_use` are supported. `google_search_retrieval`, `google_maps`, and `mcp_server` still throw on this adapter — use `geminiText()` for those or wait for follow-up work.
 
 ### Basic Usage
 
 ```typescript
 import { chat } from "@tanstack/ai";
-import { geminiTextInteractions } from "@tanstack/ai-gemini";
+import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
 
 // Turn 1: introduce yourself, capture the interaction id.
 let interactionId: string | undefined;
@@ -163,7 +163,7 @@ for await (const chunk of chat({
 The adapter exposes Interactions-specific options on `modelOptions`:
 
 ```typescript
-import { geminiTextInteractions } from "@tanstack/ai-gemini";
+import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
 
 const stream = chat({
   adapter: geminiTextInteractions("gemini-2.5-flash"),
