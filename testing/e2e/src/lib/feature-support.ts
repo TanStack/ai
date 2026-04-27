@@ -121,6 +121,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
+  // ElevenLabs factories exist in media-providers.ts but aimock doesn't
+  // mock api.elevenlabs.io yet, so we keep it out of the live matrix for
+  // now. Re-add once aimock ships ElevenLabs stubs.
   tts: new Set(['openai', 'grok']),
   transcription: new Set(['openai', 'grok']),
   'video-gen': new Set(['openai']),

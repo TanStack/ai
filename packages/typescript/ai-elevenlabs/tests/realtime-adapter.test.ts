@@ -5,7 +5,7 @@ import type { AnyClientTool, RealtimeMessage } from '@tanstack/ai'
 // Capture the session options passed to Conversation.startSession
 let capturedSessionOptions: Record<string, any> = {}
 
-vi.mock('@11labs/client', () => ({
+vi.mock('@elevenlabs/client', () => ({
   Conversation: {
     startSession: vi.fn(async (options: Record<string, any>) => {
       capturedSessionOptions = options
@@ -146,7 +146,7 @@ describe('elevenlabsRealtime adapter', () => {
   })
 
   describe('clientTools registration', () => {
-    it('should pass client tools as plain functions to @11labs/client', async () => {
+    it('should pass client tools as plain functions to @elevenlabs/client', async () => {
       const mockTool: AnyClientTool = {
         name: 'get_weather',
         description: 'Get current weather',
