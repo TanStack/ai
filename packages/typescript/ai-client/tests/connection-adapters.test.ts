@@ -6,6 +6,7 @@ import {
   rpcStream,
   stream,
 } from '../src/connection-adapters'
+import { EventType } from '@tanstack/ai'
 import type { StreamChunk } from '@tanstack/ai'
 
 /** Cast an event object to StreamChunk for type compatibility with EventType enum. */
@@ -844,7 +845,7 @@ describe('connection-adapters', () => {
       // async iterable directly: `createServerFn().handler(() => chat({...}))`.
       async function* serverStream(): AsyncGenerator<StreamChunk> {
         yield {
-          type: 'TEXT_MESSAGE_CONTENT',
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
@@ -852,7 +853,8 @@ describe('connection-adapters', () => {
           content: 'Hi',
         }
         yield {
-          type: 'RUN_FINISHED',
+          type: EventType.RUN_FINISHED,
+          threadId: 'thread-1',
           runId: 'run-1',
           model: 'test',
           timestamp: Date.now(),
@@ -1113,7 +1115,7 @@ describe('connection-adapters', () => {
     it('should await Promise<AsyncIterable> from RPC call', async () => {
       async function* rpcStreamGen(): AsyncGenerator<StreamChunk> {
         yield {
-          type: 'TEXT_MESSAGE_CONTENT',
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
