@@ -4,7 +4,7 @@
 
 feat(ai-client): support TanStack Start server functions in `stream()` connection adapter
 
-The `stream()` factory now accepts any of three return shapes, so a server function (which is just an async API endpoint) can be wired directly into `useChat`:
+The `stream()` factory now accepts any of three return shapes, so a TanStack Start server function can be wired directly into `useChat`:
 
 - `AsyncIterable<StreamChunk>` — direct in-process stream (existing behavior)
 - `Promise<AsyncIterable<StreamChunk>>` — server function returning the chat stream

@@ -74,7 +74,7 @@ const { messages } = useChat({
 
 ### TanStack Start Server Functions
 
-A server function is just a fancy API endpoint, so `stream()` adapts one into a `useChat` connection. The factory you pass to `stream()` may return either the chat `AsyncIterable` directly, or an SSE `Response` produced by `toServerSentEventsResponse()` — both shapes work because `stream()` awaits the result and unwraps a `Response` if it sees one.
+`stream()` adapts a TanStack Start server function into a `useChat` connection so you get end-to-end type safety from the call site to the handler. The factory you pass to `stream()` may return either the chat `AsyncIterable` directly, or an SSE `Response` produced by `toServerSentEventsResponse()` — `stream()` awaits the result and unwraps a `Response` if it sees one.
 
 #### Returning an SSE Response (recommended)
 

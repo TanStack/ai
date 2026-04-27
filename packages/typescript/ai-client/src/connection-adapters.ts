@@ -453,9 +453,9 @@ export type StreamFactoryResult =
  * 3. A TanStack Start server function whose handler returns an SSE `Response`
  *    via `toServerSentEventsResponse(stream)` (returns `Promise<Response>`).
  *
- * Server functions are just async API endpoints — the third shape is the
- * recommended pattern when you want to keep network bytes small (SSE) and
- * still get end-to-end type safety from the server function call.
+ * The third shape is the recommended pattern when you want to keep network
+ * bytes small (SSE) while preserving end-to-end type safety from the server
+ * function call.
  *
  * @param streamFactory - Function called per request; returns one of the shapes above.
  *
