@@ -302,7 +302,7 @@ describe('connection-adapters', () => {
       expect(authValue).toBe('Bearer token')
     })
 
-    it('should pass data to request body', async () => {
+    it('should pass data to request body forwardedProps', async () => {
       const mockReader = {
         read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         releaseLock: vi.fn(),
@@ -329,7 +329,7 @@ describe('connection-adapters', () => {
       expect(fetchMock).toHaveBeenCalled()
       const call = fetchMock.mock.calls[0]
       const body = JSON.parse(call?.[1]?.body as string)
-      expect(body.data).toEqual({ key: 'value' })
+      expect(body.forwardedProps).toMatchObject({ key: 'value' })
     })
 
     it('should use custom fetchClient when provided', async () => {
@@ -436,7 +436,7 @@ describe('connection-adapters', () => {
       expect(call?.[1]?.headers).toMatchObject({ 'X-Async': 'token' })
     })
 
-    it('should merge options.body into request body', async () => {
+    it('should merge options.body into request body forwardedProps', async () => {
       const mockReader = {
         read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         releaseLock: vi.fn(),
@@ -462,9 +462,11 @@ describe('connection-adapters', () => {
 
       const call = fetchMock.mock.calls[0]
       const body = JSON.parse(call?.[1]?.body as string)
-      expect(body.model).toBe('gpt-4o')
-      expect(body.provider).toBe('openai')
-      expect(body.data).toEqual({ key: 'value' })
+      expect(body.forwardedProps).toMatchObject({
+        model: 'gpt-4o',
+        provider: 'openai',
+        key: 'value',
+      })
     })
 
     it('should handle multiple chunks across multiple reads', async () => {
@@ -688,7 +690,7 @@ describe('connection-adapters', () => {
       })
     })
 
-    it('should pass data to request body', async () => {
+    it('should pass data to request body forwardedProps', async () => {
       const mockReader = {
         read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         releaseLock: vi.fn(),
@@ -712,7 +714,7 @@ describe('connection-adapters', () => {
 
       const call = fetchMock.mock.calls[0]
       const body = JSON.parse(call?.[1]?.body as string)
-      expect(body.data).toEqual({ key: 'value' })
+      expect(body.forwardedProps).toMatchObject({ key: 'value' })
     })
 
     it('should resolve dynamic URL from function', async () => {

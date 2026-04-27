@@ -253,6 +253,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           threadId,
           model: chunk.model,
           timestamp,
+          parentRunId: options.parentRunId,
         })
       }
 

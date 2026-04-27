@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   chat,
+  chatParamsFromRequestBody,
   maxIterations,
   toServerSentEventsResponse,
   toolDefinition,
@@ -51,18 +52,27 @@ export const Route = createFileRoute('/api/middleware-test')({
         if (request.signal?.aborted) return new Response(null, { status: 499 })
         const abortController = new AbortController()
 
+        let params
         try {
-          const body = await request.json()
-          const messages = body.messages
-          const scenario = body.data?.scenario || 'basic-text'
-          const middlewareMode = body.data?.middlewareMode || 'none'
-          const testId: string | undefined =
-            typeof body.data?.testId === 'string' ? body.data.testId : undefined
-          const aimockPort: number | undefined =
-            body.data?.aimockPort != null
-              ? Number(body.data.aimockPort)
-              : undefined
+          params = await chatParamsFromRequestBody(await request.json())
+        } catch (error) {
+          return new Response(
+            error instanceof Error ? error.message : 'Bad request',
+            { status: 400 },
+          )
+        }
 
+        const fp = params.forwardedProps as Record<string, unknown>
+        const scenario =
+          typeof fp.scenario === 'string' ? fp.scenario : 'basic-text'
+        const middlewareMode =
+          typeof fp.middlewareMode === 'string' ? fp.middlewareMode : 'none'
+        const testId: string | undefined =
+          typeof fp.testId === 'string' ? fp.testId : undefined
+        const aimockPort: number | undefined =
+          fp.aimockPort != null ? Number(fp.aimockPort) : undefined
+
+        try {
           const adapterOptions = createTextAdapter(
             'openai',
             undefined,
@@ -81,9 +91,11 @@ export const Route = createFileRoute('/api/middleware-test')({
 
           const stream = chat({
             ...adapterOptions,
-            messages,
+            messages: params.messages,
             tools,
             middleware,
+            threadId: params.threadId,
+            runId: params.runId,
             agentLoopStrategy: maxIterations(10),
             abortController,
           })

@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   chat,
+  chatParamsFromRequestBody,
   createChatOptions,
   maxIterations,
+  mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -12,7 +14,7 @@ import { geminiText } from '@tanstack/ai-gemini'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
-import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
+import type { AnyTextAdapter, ChatMiddleware, Tool } from '@tanstack/ai'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -75,6 +77,22 @@ const addToCartToolServer = addToCartToolDef.server((args, context) => {
   }
 })
 
+const serverToolsList = [
+  getGuitars, // Server tool
+  recommendGuitarToolDef, // No server execute - client will handle
+  addToCartToolServer,
+  addToWishListToolDef,
+  getPersonalGuitarPreferenceToolDef,
+  // Lazy tools - discovered on demand
+  compareGuitars,
+  calculateFinancing,
+  searchGuitars,
+]
+
+const serverTools: Record<string, Tool> = Object.fromEntries(
+  serverToolsList.map((t) => [t.name, t]),
+)
+
 const loggingMiddleware: ChatMiddleware = {
   name: 'logging',
   onConfig(ctx, config) {
@@ -122,13 +140,26 @@ export const Route = createFileRoute('/api/tanchat')({
 
         const abortController = new AbortController()
 
-        const body = await request.json()
-        const { messages, data } = body
+        let params
+        try {
+          params = await chatParamsFromRequestBody(await request.json())
+        } catch (error) {
+          return new Response(
+            error instanceof Error ? error.message : 'Bad request',
+            { status: 400 },
+          )
+        }
 
-        // Extract provider and model from data
-        const provider: Provider = data?.provider || 'openai'
-        const model: string = data?.model || 'gpt-4o'
-        const conversationId: string | undefined = data?.conversationId
+        // Extract provider and model from forwardedProps (sent by the client)
+        const provider: Provider =
+          typeof params.forwardedProps.provider === 'string' &&
+          (params.forwardedProps.provider as Provider)
+            ? (params.forwardedProps.provider as Provider)
+            : 'openai'
+        const model: string =
+          typeof params.forwardedProps.model === 'string'
+            ? params.forwardedProps.model
+            : 'gpt-4o'
 
         // Pre-define typed adapter configurations with full type inference
         // Model is passed to the adapter factory function for type-safe autocomplete
@@ -191,28 +222,18 @@ export const Route = createFileRoute('/api/tanchat')({
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
 
-          // Note: We cast to AsyncIterable<StreamChunk> because all chat adapters
-          // return streams, but TypeScript sees a union of all possible return types
+          const mergedTools = mergeAgentTools(serverTools, params.tools)
+
           const stream = chat({
             ...options,
-
-            tools: [
-              getGuitars, // Server tool
-              recommendGuitarToolDef, // No server execute - client will handle
-              addToCartToolServer,
-              addToWishListToolDef,
-              getPersonalGuitarPreferenceToolDef,
-              // Lazy tools - discovered on demand
-              compareGuitars,
-              calculateFinancing,
-              searchGuitars,
-            ],
+            tools: Object.values(mergedTools),
             middleware: [loggingMiddleware],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
-            messages,
+            messages: params.messages,
+            threadId: params.threadId,
+            runId: params.runId,
             abortController,
-            conversationId,
           })
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {

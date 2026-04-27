@@ -758,6 +758,11 @@ export interface TextOptions<
    * If not provided, a unique ID will be generated.
    */
   runId?: string
+  /**
+   * Parent run ID for AG-UI protocol nested run correlation.
+   * Surfaced for observability/middleware; not consumed by the LLM call.
+   */
+  parentRunId?: string
 }
 
 // ============================================================================

@@ -1,4 +1,9 @@
+import { uiMessagesToWire } from '@tanstack/ai'
 import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
+
+function generateRunId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
 
 /**
  * Merge custom headers into request headers
@@ -62,6 +67,25 @@ async function* readStreamLines(
   }
 }
 
+/**
+ * Per-send context provided by the chat client to the connection adapter.
+ * The adapter combines this with serialized messages to build a full
+ * AG-UI `RunAgentInput` payload.
+ */
+export interface RunAgentInputContext {
+  threadId: string
+  runId: string
+  parentRunId?: string
+  /** Client-declared tools to advertise in the request payload. */
+  clientTools?: Array<{
+    name: string
+    description: string
+    parameters: unknown
+  }>
+  /** Arbitrary user-controlled passthrough data. */
+  forwardedProps?: Record<string, unknown>
+}
+
 export interface ConnectConnectionAdapter {
   /**
    * Connect and return an async iterable of StreamChunks.
@@ -70,6 +94,7 @@ export interface ConnectConnectionAdapter {
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
+    runContext?: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
 }
 
@@ -85,6 +110,7 @@ export interface SubscribeConnectionAdapter {
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
+    runContext?: RunAgentInputContext,
   ) => Promise<void>
 }
 
@@ -173,10 +199,15 @@ export function normalizeConnectionAdapter(
         }
       })()
     },
-    async send(messages, data, abortSignal) {
+    async send(messages, data, abortSignal, runContext) {
       let hasTerminalEvent = false
       try {
-        const stream = connection.connect(messages, data, abortSignal)
+        const stream = connection.connect(
+          messages,
+          data,
+          abortSignal,
+          runContext,
+        )
         for await (const chunk of stream) {
           if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
             hasTerminalEvent = true
@@ -268,7 +299,7 @@ export function fetchServerSentEvents(
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
@@ -279,12 +310,23 @@ export function fetchServerSentEvents(
         ...mergeHeaders(resolvedOptions.headers),
       }
 
-      // Send messages as-is (UIMessages with parts preserved)
-      // Server-side TextEngine handles conversion to ModelMessages
+      // Build AG-UI RunAgentInput payload
+      const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
       const requestBody = {
-        messages,
-        data,
-        ...resolvedOptions.body,
+        threadId: runContext?.threadId ?? generateRunId('thread'),
+        runId: runContext?.runId ?? generateRunId('run'),
+        ...(runContext?.parentRunId !== undefined && {
+          parentRunId: runContext.parentRunId,
+        }),
+        state: {},
+        messages: wireMessages,
+        tools: runContext?.clientTools ?? [],
+        context: [],
+        forwardedProps: {
+          ...(runContext?.forwardedProps ?? {}),
+          ...data,
+          ...resolvedOptions.body,
+        },
       }
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
@@ -372,7 +414,7 @@ export function fetchHttpStream(
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data, abortSignal) {
+    async *connect(messages, data, abortSignal, runContext) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
@@ -383,12 +425,23 @@ export function fetchHttpStream(
         ...mergeHeaders(resolvedOptions.headers),
       }
 
-      // Send messages as-is (UIMessages with parts preserved)
-      // Server-side TextEngine handles conversion to ModelMessages
+      // Build AG-UI RunAgentInput payload
+      const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
       const requestBody = {
-        messages,
-        data,
-        ...resolvedOptions.body,
+        threadId: runContext?.threadId ?? generateRunId('thread'),
+        runId: runContext?.runId ?? generateRunId('run'),
+        ...(runContext?.parentRunId !== undefined && {
+          parentRunId: runContext.parentRunId,
+        }),
+        state: {},
+        messages: wireMessages,
+        tools: runContext?.clientTools ?? [],
+        context: [],
+        forwardedProps: {
+          ...(runContext?.forwardedProps ?? {}),
+          ...data,
+          ...resolvedOptions.body,
+        },
       }
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
@@ -445,7 +498,7 @@ export function stream(
   ) => AsyncIterable<StreamChunk>,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data) {
+    async *connect(messages, data, _abortSignal, _runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
       yield* streamFactory(messages, data)
@@ -476,7 +529,7 @@ export function rpcStream(
   ) => AsyncIterable<StreamChunk>,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data) {
+    async *connect(messages, data, _abortSignal, _runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
       yield* rpcCall(messages, data)

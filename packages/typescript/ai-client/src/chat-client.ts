@@ -30,6 +30,7 @@ export class ChatClient {
   private processor: StreamProcessor
   private connection: SubscribeConnectionAdapter
   private uniqueId: string
+  private threadId: string
   private body: Record<string, any> = {}
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private isLoading = false
@@ -81,6 +82,7 @@ export class ChatClient {
 
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
+    this.threadId = options.threadId || this.generateUniqueId('thread')
     this.body = options.body || {}
     this.connection = normalizeConnectionAdapter(options.connection)
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
@@ -605,11 +607,28 @@ export class ChatClient {
       // Set up promise that resolves when onStreamEnd fires
       const processingComplete = this.waitForProcessing()
 
+      // Build per-send run context for AG-UI compliance
+      // Note: mergedBody already contains the merged this.body + pendingMessageBody
+      // (pendingMessageBody was cleared above, so we use mergedBody as forwardedProps)
+      const runContext = {
+        threadId: this.threadId,
+        runId: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        clientTools: Array.from(this.clientToolsRef.current.values()).map(
+          (t) => ({
+            name: t.name,
+            description: t.description,
+            parameters: t.inputSchema || { type: 'object' },
+          }),
+        ),
+        forwardedProps: { ...mergedBody },
+      }
+
       // Send through normalized connection (pushes chunks to subscription queue)
       await this.connection.send(
         messages,
         mergedBody,
         this.abortController.signal,
+        runContext,
       )
 
       // Wait for subscription loop to finish processing all chunks

@@ -1,5 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequestBody,
+  maxIterations,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import { createTextAdapter } from '@/lib/providers'
 import { featureConfigs } from '@/lib/features'
@@ -14,14 +19,27 @@ export const Route = createFileRoute('/api/chat')({
         }
 
         const abortController = new AbortController()
-        const body = await request.json()
-        const { messages, data } = body
-        const provider: Provider = data?.provider || 'openai'
-        const feature: Feature = data?.feature || 'chat'
-        const testId: string | undefined =
-          typeof data?.testId === 'string' ? data.testId : undefined
-        const aimockPort: number | undefined =
-          data?.aimockPort != null ? Number(data.aimockPort) : undefined
+
+        let params
+        try {
+          params = await chatParamsFromRequestBody(await request.json())
+        } catch (error) {
+          return new Response(
+            error instanceof Error ? error.message : 'Bad request',
+            { status: 400 },
+          )
+        }
+
+        const fp = params.forwardedProps as Record<string, unknown>
+        const provider: Provider = (
+          typeof fp.provider === 'string' ? fp.provider : 'openai'
+        ) as Provider
+        const feature: Feature = (
+          typeof fp.feature === 'string' ? fp.feature : 'chat'
+        ) as Feature
+        const testId = typeof fp.testId === 'string' ? fp.testId : undefined
+        const aimockPort =
+          fp.aimockPort != null ? Number(fp.aimockPort) : undefined
 
         const config = featureConfigs[feature]
         const modelOverride = config.modelOverrides?.[provider]
@@ -39,7 +57,9 @@ export const Route = createFileRoute('/api/chat')({
             modelOptions: config.modelOptions,
             systemPrompts: ['You are a helpful assistant for a guitar store.'],
             agentLoopStrategy: maxIterations(5),
-            messages,
+            messages: params.messages,
+            threadId: params.threadId,
+            runId: params.runId,
             abortController,
           })
 

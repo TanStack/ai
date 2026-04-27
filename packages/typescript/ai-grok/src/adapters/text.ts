@@ -126,6 +126,7 @@ export class GrokTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp,
+          parentRunId: options.parentRunId,
         })
       }
 
@@ -266,6 +267,7 @@ export class GrokTextAdapter<
             threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp,
+            parentRunId: options.parentRunId,
           })
         }
 

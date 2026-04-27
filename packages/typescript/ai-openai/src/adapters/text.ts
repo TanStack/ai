@@ -321,6 +321,7 @@ export class OpenAITextAdapter<
             threadId,
             model: model || options.model,
             timestamp,
+            parentRunId: options.parentRunId,
           })
         }
 

@@ -211,6 +211,10 @@
         {
           "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai"
+        },
+        {
+          "label": "AG-UI Client Compliance",
+          "to": "migration/ag-ui-compliance"
         }
       ]
     },

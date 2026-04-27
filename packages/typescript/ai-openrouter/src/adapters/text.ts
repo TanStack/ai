@@ -162,6 +162,7 @@ export class OpenRouterTextAdapter<
             threadId: aguiState.threadId,
             model: currentModel || options.model,
             timestamp,
+            parentRunId: options.parentRunId,
           })
         }
 
@@ -229,6 +230,7 @@ export class OpenRouterTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp,
+          parentRunId: options.parentRunId,
         })
       }
 

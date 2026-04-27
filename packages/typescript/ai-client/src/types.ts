@@ -205,6 +205,12 @@ export interface ChatClientOptions<
   id?: string
 
   /**
+   * Thread ID to use for this chat session. Persists across sends within
+   * the session. If omitted, a unique thread ID is generated.
+   */
+  threadId?: string
+
+  /**
    * Additional body parameters to send
    */
   body?: Record<string, any>
