@@ -2,6 +2,7 @@ import type {
   AnyClientTool,
   RealtimeMessage,
   RealtimeMode,
+  RealtimeSessionConfig,
   RealtimeStatus,
   RealtimeToken,
   UsageInfo,
@@ -140,12 +141,5 @@ export interface UseRealtimeChatReturn {
   getOutputTimeDomainData: () => Uint8Array
 
   // Session control
-  /** Current VAD mode */
-  vadMode: 'server' | 'semantic' | 'manual'
-  /** Change VAD mode at runtime */
-  setVADMode: (mode: 'server' | 'semantic' | 'manual') => void
-  /** Current max output tokens */
-  maxOutputTokens: number | 'inf'
-  /** Change max output tokens at runtime */
-  setMaxOutputTokens: (maxOutputTokens: number | 'inf') => void
+  updateSession: (config: RealtimeSessionConfig) => void
 }

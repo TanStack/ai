@@ -3,6 +3,7 @@ import { RealtimeClient } from '@tanstack/ai-client'
 import type {
   RealtimeMessage,
   RealtimeMode,
+  RealtimeSessionConfig,
   RealtimeStatus,
 } from '@tanstack/ai'
 import type {
@@ -70,10 +71,6 @@ export function useRealtimeChat(
   const [error, setError] = useState<Error | null>(null)
   const [inputLevel, setInputLevel] = useState(0)
   const [outputLevel, setOutputLevel] = useState(0)
-  const [vadMode, setVADModeState] = useState<'server' | 'semantic' | 'manual'>(
-    options.vadMode ?? 'server',
-  )
-  const [maxOutputTokens, setMaxOutputTokensState] = useState(options.maxOutputTokens ?? 'inf')
 
   // Refs
   const clientRef = useRef<RealtimeClient | null>(null)
@@ -236,21 +233,10 @@ export function useRealtimeChat(
     )
   }, [])
 
-  // VAD mode control
-  const setVADMode = useCallback(
-    (newMode: 'server' | 'semantic' | 'manual') => {
-      setVADModeState(newMode)
-      clientRef.current?.updateSession({ vadMode: newMode })
-    },
-    [],
-  )
-
-  const setMaxOutputTokens = useCallback(
-    (newMaxOutputTokens: number | 'inf') => {
-      setMaxOutputTokensState(newMaxOutputTokens)
-      clientRef.current?.updateSession({ maxOutputTokens: newMaxOutputTokens })
-    },
-    [],
+  const updateSession = useCallback(
+    (config: RealtimeSessionConfig) => {
+      clientRef.current?.updateSession(config)
+    }, []
   )
 
   return {
@@ -286,9 +272,6 @@ export function useRealtimeChat(
     getOutputTimeDomainData,
 
     // Session control
-    maxOutputTokens,
-    setMaxOutputTokens,
-    vadMode,
-    setVADMode,
+    updateSession,
   }
 }

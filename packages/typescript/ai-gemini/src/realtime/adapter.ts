@@ -27,7 +27,9 @@ import type { GeminiRealtimeModel, GeminiRealtimeOptions } from './types'
  * const client = new RealtimeClient({
  *   getToken: () => fetch('/api/realtime-token').then(r => r.json()),
  *   adapter: geminiRealtime(),
+ *   onGoAway: () => client.updateSession({ ... }) // Resume session with new config (available only for Gemini Live adapter)
  * })
+ * 
  * ```
  */
 export function geminiRealtime(

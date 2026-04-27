@@ -1,6 +1,6 @@
 import { convertSchemaToJsonSchema } from "@tanstack/ai";
 import { ActivityHandling, EndSensitivity, Modality, StartSensitivity, TurnCoverage } from "@google/genai";
-import type { ContextWindowCompressionConfig, FunctionDeclaration, FunctionResponse, LiveClientMessage, LiveServerGoAway, LiveServerMessage, LiveServerSessionResumptionUpdate, LiveServerToolCall, UsageMetadata } from "@google/genai";
+import type { ContextWindowCompressionConfig, FunctionDeclaration, FunctionResponse, LiveClientMessage, LiveServerGoAway, LiveServerMessage, LiveServerSessionResumptionUpdate, LiveServerToolCall, ThinkingConfig, UsageMetadata } from "@google/genai";
 import type { AnyClientTool, RealtimeSessionConfig, RealtimeToken } from "@tanstack/ai";
 import type { GeminiRealtimeModel, GeminiRealtimeVoice } from "./types";
 
@@ -148,11 +148,13 @@ export class GeminiLiveClient {
   private temperature = 1.0;
   private inputAudioTranscription = false;
   private outputAudioTranscription = false;
-  private contextWindowCompression: ContextWindowCompressionConfig | undefined = undefined;
+  private contextWindowCompression: ContextWindowCompressionConfig | undefined;
   private proactiveAudio = false;
   private enableAffectiveDialog = false;
+  private thinkingConfig: ThinkingConfig | undefined
+  private speechLanguageCode: string | undefined
 
-  private maxOutputTokens: number | undefined = undefined;
+  private maxOutputTokens: number | undefined;
   private functions: Array<AnyClientTool> = [];
   private functionsMap = new Map<string, AnyClientTool>();
 
@@ -263,6 +265,7 @@ export class GeminiLiveClient {
           responseModalities: this.responseModalities,
           temperature: this.temperature,
           speechConfig: {
+            languageCode: this.speechLanguageCode,
             voiceConfig: {
               prebuiltVoiceConfig: {
                 voiceName: this.voiceName
@@ -271,6 +274,7 @@ export class GeminiLiveClient {
           },
           enableAffectiveDialog: this.enableAffectiveDialog,
           maxOutputTokens: this.maxOutputTokens,
+          thinkingConfig: this.thinkingConfig
         },
         sessionResumption: {
           transparent: true,
@@ -379,6 +383,14 @@ export class GeminiLiveClient {
 
     if (config.modelOptions?.contextWindowCompression) {
       this.contextWindowCompression = config.modelOptions.contextWindowCompression
+    }
+
+    if (config.modelOptions?.thinkingConfig) {
+      this.thinkingConfig = config.modelOptions.thinkingConfig
+    }
+
+    if (config.modelOptions?.languageCode) {
+      this.speechLanguageCode = config.modelOptions.languageCode
     }
 
     const includeTranscription = config.outputModalities?.includes("text") || false
