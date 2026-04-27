@@ -40,9 +40,12 @@ function ServerFnChat() {
       <div className="border-b border-gray-800 bg-gray-900/60 px-4 py-3">
         <h2 className="text-lg font-semibold">Chat via server function</h2>
         <p className="text-xs text-gray-400 mt-1">
-          <code className="text-cyan-400">stream(() =&gt; chatFn(&#123; data &#125;))</code>{' '}
+          <code className="text-cyan-400">
+            stream(() =&gt; chatFn(&#123; data &#125;))
+          </code>{' '}
           — the server function returns an SSE{' '}
-          <code className="text-cyan-400">Response</code>; the adapter parses it.
+          <code className="text-cyan-400">Response</code>; the adapter parses
+          it.
         </p>
       </div>
 
