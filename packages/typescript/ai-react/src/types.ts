@@ -12,24 +12,13 @@ import type {
 export type { ChatRequestBody, MultimodalContent, UIMessage }
 
 /**
- * Options for the useChat hook.
+ * Options for the useChat hook. Pass either `connection` or `fetcher` —
+ * the XOR is enforced at the type level via `ChatTransport`.
  *
- * Pass either `connection` (a ConnectionAdapter — fetchServerSentEvents,
- * fetchHttpStream, rpcStream, or your own) **or** `fetcher` (a direct async
- * function that returns the chat response — typically a TanStack Start server
- * function). The XOR is enforced at runtime by `ChatClient`.
- *
- * Omits the state change callbacks that are managed internally by React state:
- * - `onMessagesChange` - Managed by React state (exposed as `messages`)
- * - `onLoadingChange` - Managed by React state (exposed as `isLoading`)
- * - `onErrorChange` - Managed by React state (exposed as `error`)
- * - `onStatusChange` - Managed by React state (exposed as `status`)
- *
- * All other callbacks (onResponse, onChunk, onFinish, onError) are
- * passed through to the underlying ChatClient and can be used for side effects.
- *
- * Note: Connection/fetcher and body changes will recreate the ChatClient
- * instance. To update these options, remount the component or use a key prop.
+ * State-change callbacks (`onMessagesChange`, `onLoadingChange`,
+ * `onErrorChange`, `onStatusChange`, etc.) are owned by the hook and
+ * exposed as React state. Side-effect callbacks (`onResponse`, `onChunk`,
+ * `onFinish`, `onError`) are passed through.
  */
 export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
   Omit<

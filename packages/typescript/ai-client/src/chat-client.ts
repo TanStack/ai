@@ -34,16 +34,18 @@ function resolveTransport(transport: {
   connection?: ConnectionAdapter
   fetcher?: ChatFetcher
 }): ConnectionAdapter {
-  if (transport.connection && transport.fetcher) {
+  const hasConnection = transport.connection !== undefined
+  const hasFetcher = transport.fetcher !== undefined
+  if (hasConnection && hasFetcher) {
     throw new Error(
       'ChatClient: pass either `connection` or `fetcher`, not both.',
     )
   }
-  if (transport.connection) {
-    return transport.connection
+  if (hasConnection) {
+    return transport.connection!
   }
-  if (transport.fetcher) {
-    return fetcherToConnectionAdapter(transport.fetcher)
+  if (hasFetcher) {
+    return fetcherToConnectionAdapter(transport.fetcher!)
   }
   throw new Error('ChatClient: either `connection` or `fetcher` is required.')
 }

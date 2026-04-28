@@ -8,16 +8,6 @@ export const Route = createFileRoute('/server-fn-chat')({
   component: ServerFnChat,
 })
 
-/**
- * Demonstrates wiring `useChat` to a TanStack Start server function via the
- * `fetcher` option — the chat-side mirror of the `fetcher` option on
- * `useGenerateSpeech`, `useSummarize`, `useTranscription`, etc.
- *
- * The server function (`chatFn` in `lib/server-fns.ts`) returns
- * `toServerSentEventsResponse(chat({ ... }))` — an SSE Response. The chat
- * client awaits the fetcher, sees the Response, and parses SSE chunks
- * straight into the same subscription queue used by `fetchServerSentEvents`.
- */
 function ServerFnChat() {
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     fetcher: ({ messages }, { signal }) =>

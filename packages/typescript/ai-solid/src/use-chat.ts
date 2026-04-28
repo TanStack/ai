@@ -40,8 +40,11 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // in-place mutations propagate. When the user clears a callback (sets it to
   // undefined), `?.` no-ops.
   const client = createMemo(() => {
+    const transport = options.connection
+      ? { connection: options.connection }
+      : { fetcher: options.fetcher! }
     return new ChatClient({
-      connection: options.connection,
+      ...transport,
       id: clientId,
       initialMessages: options.initialMessages,
       body: options.body,

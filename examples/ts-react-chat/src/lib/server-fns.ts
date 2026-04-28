@@ -374,8 +374,7 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
   })
 
 // =============================================================================
-// Chat server function (streams via SSE Response)
-// Used with: useChat({ fetcher: ({ messages }, { signal }) => chatFn({ data: { messages }, signal }) })
+// Chat server function — pairs with useChat({ fetcher })
 // =============================================================================
 
 export const chatFn = createServerFn({ method: 'POST' })

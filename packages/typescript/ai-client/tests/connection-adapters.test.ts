@@ -104,9 +104,7 @@ describe('connection-adapters', () => {
       expect(chunks).toHaveLength(1)
     })
 
-    it('should skip [DONE] markers and warn about deprecation', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-
+    it('should synthesize RUN_FINISHED on [DONE] and stop reading', async () => {
       const mockReader = {
         read: vi
           .fn()
@@ -136,12 +134,8 @@ describe('connection-adapters', () => {
         chunks.push(chunk)
       }
 
-      expect(chunks).toHaveLength(0)
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[DONE] sentinel'),
-      )
-
-      warnSpy.mockRestore()
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]!.type).toBe('RUN_FINISHED')
     })
 
     it('should throw a SyntaxError on malformed JSON', async () => {
@@ -481,7 +475,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              'data: {"type":"RUN_FINISHED","runId":"run-1","finishReason":"stop","timestamp":300}\n\ndata: [DONE]\n\n',
+              'data: {"type":"RUN_FINISHED","runId":"run-1","finishReason":"stop","timestamp":300}\n\n',
             ),
           })
           .mockResolvedValueOnce({ done: true, value: undefined }),

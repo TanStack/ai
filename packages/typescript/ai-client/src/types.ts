@@ -14,35 +14,24 @@ import type {
 import type { ConnectionAdapter } from './connection-adapters'
 
 /**
- * Input passed to a `ChatFetcher`. The chat client calls the fetcher per
- * outgoing send (sendMessage / append / reload / continuation). `messages`
- * is the full UIMessage history; `data` is the merged body.
+ * `messages` is the full UIMessage history (not a delta). `data` is the
+ * merged body — `ChatClientOptions.body` plus any per-call data passed to
+ * `sendMessage(...)`.
  */
 export interface ChatFetcherInput {
   messages: Array<UIMessage>
-  data?: Record<string, any>
+  data?: Record<string, unknown>
 }
 
-/**
- * Per-call options the chat client passes to a `ChatFetcher`.
- */
 export interface ChatFetcherOptions {
-  /** AbortSignal that fires when `stop()` is called or the request is superseded. */
+  /** Fires when `stop()` is called or the request is superseded. */
   signal: AbortSignal
 }
 
 /**
- * Direct async function that performs a chat request.
- *
- * Mirrors `GenerationFetcher` from generation-types.ts. Supports two return
- * shapes:
- *
- * 1. `Promise<Response>` — the fetcher hit a server endpoint (or a TanStack
- *    Start server function returning `toServerSentEventsResponse(...)`) and
- *    returned the SSE Response. The chat client parses the SSE body.
- * 2. `Promise<AsyncIterable<StreamChunk>>` — the fetcher returned a direct
- *    in-process stream (e.g. an RPC call, or a server function whose handler
- *    returns the chat() iterable directly).
+ * Direct async function that performs a chat request. Mirrors
+ * `GenerationFetcher`. Returns either a `Response` (SSE body parsed by the
+ * chat client) or an `AsyncIterable<StreamChunk>` (yielded directly).
  *
  * @example
  * ```ts
@@ -56,6 +45,14 @@ export type ChatFetcher = (
   input: ChatFetcherInput,
   options: ChatFetcherOptions,
 ) => Promise<Response | AsyncIterable<StreamChunk>>
+
+/**
+ * Discriminated union enforcing that exactly one of `connection` or
+ * `fetcher` is provided. Mirrors `GenerationTransport`.
+ */
+export type ChatTransport =
+  | { connection: ConnectionAdapter; fetcher?: never }
+  | { fetcher: ChatFetcher; connection?: never }
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -227,28 +224,13 @@ export interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
   createdAt?: Date
 }
 
-export interface ChatClientOptions<
+/**
+ * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
+ * provided — the type-level XOR is enforced via `ChatTransport`.
+ */
+export type ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
-> {
-  /**
-   * Connection adapter for streaming. Mutually exclusive with `fetcher` —
-   * exactly one must be provided. Validated at construction.
-   *
-   * Supports either request-response via `connect()`, or subscribe/send mode
-   * via `subscribe()` + `send()`.
-   */
-  connection?: ConnectionAdapter
-
-  /**
-   * Direct async function that returns the chat response. Mutually exclusive
-   * with `connection` — exactly one must be provided. Mirrors the `fetcher`
-   * option on `useGenerateSpeech` / `useSummarize` / etc.
-   *
-   * May return a `Response` (SSE body parsed by the chat client) or an
-   * `AsyncIterable<StreamChunk>` (yielded directly).
-   */
-  fetcher?: ChatFetcher
-
+> = {
   /**
    * Initial messages to populate the chat
    */
@@ -355,7 +337,7 @@ export interface ChatClientOptions<
      */
     chunkStrategy?: ChunkStrategy
   }
-}
+} & ChatTransport
 
 export interface ChatRequestBody {
   messages: Array<ModelMessage>

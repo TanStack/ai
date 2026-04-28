@@ -32,8 +32,12 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // in-place mutations propagate. When the user clears a callback (sets it to
   // undefined), `?.` no-ops — unlike `client.updateOptions`, which silently
   // skips undefined and leaves the old callback installed.
+  const transport = options.connection
+    ? { connection: options.connection }
+    : { fetcher: options.fetcher! }
+
   const client = new ChatClient({
-    connection: options.connection,
+    ...transport,
     id: clientId,
     initialMessages: options.initialMessages,
     body: options.body,

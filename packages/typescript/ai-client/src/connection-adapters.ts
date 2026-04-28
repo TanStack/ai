@@ -9,6 +9,20 @@ import type {
 import type { ChatFetcher } from './types'
 
 /**
+ * Thrown when an SSE/HTTP stream ends with a non-empty unterminated buffer.
+ * Indicates the connection was cut mid-line (server crash, dropped TCP, proxy
+ * timeout) so the partial content cannot be safely parsed.
+ */
+export class StreamTruncatedError extends Error {
+  constructor() {
+    super(
+      'Stream ended with unterminated trailing data — connection was likely cut short.',
+    )
+    this.name = 'StreamTruncatedError'
+  }
+}
+
+/**
  * Merge custom headers into request headers
  */
 function mergeHeaders(
@@ -61,14 +75,11 @@ async function* readStreamLines(
       }
     }
 
-    // Drop any unterminated trailing buffer. A non-empty buffer at stream end
-    // means the connection was cut mid-line (server crash, dropped TCP), so
-    // the content is by definition partial — yielding it would feed truncated
-    // JSON to downstream parsers and produce a confusing RUN_ERROR.
+    // A non-empty trailing buffer means the connection was cut mid-line.
+    // Surface this as an error so the chat client transitions to 'error'
+    // state instead of silently presenting a partial stream as success.
     if (buffer.trim()) {
-      console.warn(
-        '[@tanstack/ai-client] Stream ended with unterminated trailing data; discarding. The connection was likely cut short.',
-      )
+      throw new StreamTruncatedError()
     }
   } finally {
     reader.releaseLock()
@@ -78,16 +89,14 @@ async function* readStreamLines(
 /**
  * Yield StreamChunks parsed from an SSE Response body.
  *
- * Used by both `fetchServerSentEvents` (HTTP path) and
- * `fetcherToConnectionAdapter` (when a fetcher returns a Response).
+ * Accepts either `data: {...}` lines or bare JSON lines. Skips comments
+ * starting with `:` (proxies and CDNs inject these as keepalives) and the
+ * `event:` / `id:` / `retry:` SSE control fields. A `[DONE]` sentinel is
+ * treated as a terminal event: a synthesized RUN_FINISHED is yielded using
+ * the most recent upstream `threadId` / `runId`, ensuring the consumer sees
+ * a clean terminal event with real correlation ids.
  *
- * Accepts either `data: {...}` SSE lines or bare JSON lines (legacy/raw mode).
- * Skips non-payload SSE fields (comments starting with `:`, and `event:` /
- * `id:` / `retry:` lines) — proxies and CDNs may inject these as keepalives,
- * and they are not malformed JSON.
- *
- * A JSON parse failure on an actual payload line throws (surfacing as
- * RUN_ERROR through the connect-wrapper) rather than being silently dropped.
+ * A JSON parse failure throws — the consumer surfaces it as an error.
  */
 async function* responseToSSEChunks(
   response: Response,
@@ -102,6 +111,9 @@ async function* responseToSSEChunks(
   if (!reader) {
     throw new Error('Response body is not readable')
   }
+  let lastThreadId: string | undefined
+  let lastRunId: string | undefined
+  let lastModel: string | undefined
   for await (const line of readStreamLines(reader, abortSignal)) {
     if (
       line.startsWith(':') ||
@@ -113,12 +125,28 @@ async function* responseToSSEChunks(
     }
     const data = line.startsWith('data: ') ? line.slice(6) : line
     if (data === '[DONE]') {
-      console.warn(
-        '[@tanstack/ai-client] Received [DONE] sentinel. This is deprecated — upgrade your @tanstack/ai server package. RUN_FINISHED is the stream terminator.',
-      )
-      continue
+      const synthetic: RunFinishedEvent = {
+        type: EventType.RUN_FINISHED,
+        threadId: lastThreadId ?? '',
+        runId: lastRunId ?? '',
+        model: lastModel ?? '',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      }
+      yield synthetic
+      return
     }
-    yield JSON.parse(data) as StreamChunk
+    const chunk = JSON.parse(data) as StreamChunk
+    if ('threadId' in chunk && typeof chunk.threadId === 'string') {
+      lastThreadId = chunk.threadId
+    }
+    if ('runId' in chunk && typeof chunk.runId === 'string') {
+      lastRunId = chunk.runId
+    }
+    if ('model' in chunk && typeof chunk.model === 'string') {
+      lastModel = chunk.model
+    }
+    yield chunk
   }
 }
 
@@ -487,20 +515,9 @@ export function stream(
 
 /**
  * Wrap a `ChatFetcher` as a `ConnectConnectionAdapter` so the chat client can
- * consume it through the same `subscribe`/`send` plumbing it already uses for
- * SSE / HTTP-stream / RPC connections.
- *
- * The fetcher is invoked once per outgoing send (sendMessage / append /
- * reload / continuation). It may return either:
- *
- * - `Response` — the SSE body is parsed by `responseToSSEChunks`. This is the
- *   shape returned by a TanStack Start server function whose handler returns
- *   `toServerSentEventsResponse(chat({ ... }))`.
- * - `AsyncIterable<StreamChunk>` — yielded directly. This covers in-process /
- *   RPC paths.
- *
- * This is the chat-side mirror of `GenerationFetcher` in generation-types.ts
- * (which `useGenerateSpeech` / `useSummarize` etc. consume).
+ * consume it through the same `subscribe`/`send` plumbing used for SSE /
+ * HTTP-stream / RPC connections. May return either a `Response` (parsed as
+ * SSE) or an `AsyncIterable<StreamChunk>` (yielded directly).
  *
  * @internal
  */
@@ -509,18 +526,54 @@ export function fetcherToConnectionAdapter(
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
-      // The chat client always passes UIMessages (processor.getMessages() ->
-      // Array<UIMessage>). Narrow the union from ConnectionAdapter's broader
-      // signature so the fetcher contract is the more useful Array<UIMessage>.
+      if (!abortSignal) {
+        throw new Error(
+          'fetcherToConnectionAdapter requires an AbortSignal — the chat client always supplies one.',
+        )
+      }
       const uiMessages = messages as Array<UIMessage>
-      const signal = abortSignal ?? new AbortController().signal
-      const result = await fetcher({ messages: uiMessages, data }, { signal })
+      const result = await fetcher(
+        { messages: uiMessages, data },
+        { signal: abortSignal },
+      )
       if (result instanceof Response) {
         yield* responseToSSEChunks(result, abortSignal)
       } else {
-        yield* result
+        yield* abortableIterable(result, abortSignal)
       }
     },
+  }
+}
+
+/**
+ * Wrap an AsyncIterable so iteration aborts when `signal` fires. Without
+ * this, a fetcher that returns a generator ignoring its signal would leave
+ * the for-await loop hanging until the iterable naturally ends.
+ */
+async function* abortableIterable<T>(
+  iterable: AsyncIterable<T>,
+  signal: AbortSignal,
+): AsyncGenerator<T> {
+  if (signal.aborted) return
+  const iterator = iterable[Symbol.asyncIterator]()
+  const abortPromise = new Promise<{ done: true; value: undefined }>(
+    (resolve) => {
+      signal.addEventListener(
+        'abort',
+        () => resolve({ done: true, value: undefined }),
+        { once: true },
+      )
+    },
+  )
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    while (true) {
+      const result = await Promise.race([iterator.next(), abortPromise])
+      if (result.done) return
+      yield result.value
+    }
+  } finally {
+    await iterator.return?.()
   }
 }
 
