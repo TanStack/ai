@@ -1,6 +1,5 @@
 ---
 '@tanstack/ai-client': minor
-'@tanstack/ai': minor
 ---
 
 feat(ai-client): support TanStack Start server functions in `stream()` connection adapter
@@ -24,5 +23,3 @@ useChat({ connection: stream((messages) => chatFn({ data: { messages } })) })
 ```
 
 The `stream()` callback's `messages` parameter is now typed as `Array<UIMessage>` (was `Array<UIMessage> | Array<ModelMessage>`) — matching what `useChat`/`ChatClient` actually sends. A runtime assertion guards against misuse. Existing callbacks typed against the union remain assignable (wider declared input satisfies narrower expected input).
-
-`chat()`'s `messages` option now also accepts `Array<UIMessage>` directly, in addition to the existing `Array<ConstrainedModelMessage<…>>`. The runtime already handled both via `convertMessagesToModelMessages`; the public type now matches. This eliminates the `as any` cast previously needed when forwarding `UIMessage[]` from a server-function validator into `chat()`.

@@ -385,8 +385,11 @@ export const chatFn = createServerFn({ method: 'POST' })
   .handler(({ data }) =>
     toServerSentEventsResponse(
       chat({
-        adapter: openaiText('gpt-4o'),
-        messages: data.messages,
+        adapter: openaiText('gpt-5.2'),
+        // chat()'s messages option is typed as ConstrainedModelMessage[], but the
+        // runtime accepts UIMessage[] too (normalised via convertMessagesToModelMessages).
+        // Cast to bridge the gap until the public type is widened in a separate PR.
+        messages: data.messages as any,
         systemPrompts: [
           'You are a helpful assistant. Keep replies short and friendly.',
         ],

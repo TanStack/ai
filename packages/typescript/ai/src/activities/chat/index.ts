@@ -45,7 +45,6 @@ import type {
   ToolCallArgsEvent,
   ToolCallEndEvent,
   ToolCallStartEvent,
-  UIMessage,
 } from '../../types'
 import type {
   ChatMiddleware,
@@ -83,20 +82,12 @@ export interface TextActivityOptions<
 > {
   /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
   adapter: TAdapter
-  /**
-   * Conversation messages.
-   *
-   * Accepts both `UIMessage` (parts-based, the shape used by `useChat` and the
-   * client store) and `ConstrainedModelMessage` (provider-shaped, content-type
-   * constrained by the adapter's input modalities and metadata). The runtime
-   * normalises both via `convertMessagesToModelMessages`.
-   */
+  /** Conversation messages - content types are constrained by the adapter's input modalities and metadata */
   messages?: Array<
-    | UIMessage
-    | ConstrainedModelMessage<{
-        inputModalities: TAdapter['~types']['inputModalities']
-        messageMetadataByModality: TAdapter['~types']['messageMetadataByModality']
-      }>
+    ConstrainedModelMessage<{
+      inputModalities: TAdapter['~types']['inputModalities']
+      messageMetadataByModality: TAdapter['~types']['messageMetadataByModality']
+    }>
   >
   /** System prompts to prepend to the conversation */
   systemPrompts?: TextOptions['systemPrompts']
@@ -329,13 +320,17 @@ class TextEngine<
     // Extract client state (approvals, client tool results) from original messages BEFORE conversion
     // This preserves UIMessage parts data that would be lost during conversion to ModelMessage
     const { approvals, clientToolResults } =
-      this.extractClientStateFromOriginalMessages(config.params.messages)
+      this.extractClientStateFromOriginalMessages(
+        config.params.messages as Array<any>,
+      )
     this.initialApprovals = approvals
     this.initialClientToolResults = clientToolResults
 
     // Convert messages to ModelMessage format (handles both UIMessage and ModelMessage input)
     // This ensures consistent internal format regardless of what the client sends
-    this.messages = convertMessagesToModelMessages(config.params.messages)
+    this.messages = convertMessagesToModelMessages(
+      config.params.messages as Array<any>,
+    )
 
     // Initialize lazy tool manager after messages are converted (needs message history for scanning)
     this.lazyToolManager = new LazyToolManager(
