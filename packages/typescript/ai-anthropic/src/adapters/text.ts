@@ -784,6 +784,7 @@ export class AnthropicTextAdapter<
             if (accumulatedSignature && stepId) {
               yield asChunk({
                 type: 'STEP_FINISHED',
+                stepName: stepId,
                 stepId,
                 model,
                 timestamp,
