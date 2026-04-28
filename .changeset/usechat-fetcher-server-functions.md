@@ -1,10 +1,10 @@
 ---
 '@tanstack/ai-client': minor
 '@tanstack/ai-react': minor
-'@tanstack/ai-preact': minor
-'@tanstack/ai-solid': minor
-'@tanstack/ai-svelte': minor
-'@tanstack/ai-vue': minor
+'@tanstack/ai-preact': patch
+'@tanstack/ai-solid': patch
+'@tanstack/ai-svelte': patch
+'@tanstack/ai-vue': patch
 ---
 
 Add a `fetcher` option to `ChatClient` and the framework chat hooks
