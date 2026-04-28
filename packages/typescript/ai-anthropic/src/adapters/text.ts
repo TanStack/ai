@@ -28,6 +28,7 @@ import type {
   URLPDFSource,
 } from '@anthropic-ai/sdk/resources/messages'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
+import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
   ContentPart,
   Modality,
@@ -137,12 +138,26 @@ export class AnthropicTextAdapter<
     try {
       const requestParams = this.mapCommonOptionsToAnthropic(options)
 
+      // Interleaved thinking is only supported on the beta messages endpoint,
+      // so the `betas` flag is attached here rather than in the shared mapper
+      // (structuredOutput uses the non-beta endpoint which rejects `betas`).
+      const modelOptions = options.modelOptions as
+        | InternalTextProviderOptions
+        | undefined
+      const useInterleavedThinking =
+        modelOptions?.thinking?.type === 'enabled' &&
+        typeof modelOptions.thinking.budget_tokens === 'number' &&
+        modelOptions.thinking.budget_tokens > 0
+      const betas: Array<AnthropicBeta> | undefined = useInterleavedThinking
+        ? ['interleaved-thinking-2025-05-14']
+        : undefined
+
       logger.request(
         `activity=chat provider=anthropic model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'anthropic', model: this.model },
       )
       const stream = await this.client.beta.messages.create(
-        { ...requestParams, stream: true },
+        { ...requestParams, stream: true, ...(betas && { betas }) },
         {
           signal: options.request?.signal,
           headers: options.request?.headers,
@@ -427,6 +442,18 @@ export class AnthropicTextAdapter<
       if (role === 'assistant' && message.toolCalls?.length) {
         const contentBlocks: AnthropicContentBlocks = []
 
+        if (message.thinking?.length) {
+          for (const thinking of message.thinking) {
+            if (thinking.signature) {
+              contentBlocks.push({
+                type: 'thinking',
+                thinking: thinking.content,
+                signature: thinking.signature,
+              } as unknown as AnthropicContentBlock)
+            }
+          }
+        }
+
         if (message.content) {
           const content =
             typeof message.content === 'string' ? message.content : ''
@@ -568,6 +595,7 @@ export class AnthropicTextAdapter<
     const model = options.model
     let accumulatedContent = ''
     let accumulatedThinking = ''
+    let accumulatedSignature = ''
     const timestamp = Date.now()
     const toolCallsMap = new Map<
       number,
@@ -617,6 +645,7 @@ export class AnthropicTextAdapter<
             })
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
+            accumulatedSignature = ''
             // Emit REASONING and STEP_STARTED for thinking
             stepId = genId()
             reasoningMessageId = genId()
@@ -710,6 +739,11 @@ export class AnthropicTextAdapter<
               delta,
               content: accumulatedThinking,
             })
+          } else if (
+            (event.delta as { type: string }).type === 'signature_delta'
+          ) {
+            accumulatedSignature +=
+              (event.delta as { signature: string }).signature || ''
           } else if (event.delta.type === 'input_json_delta') {
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
@@ -740,7 +774,21 @@ export class AnthropicTextAdapter<
             }
           }
         } else if (event.type === 'content_block_stop') {
-          if (currentBlockType === 'tool_use') {
+          if (currentBlockType === 'thinking') {
+            // Emit signature so it can be replayed in multi-turn context
+            if (accumulatedSignature && stepId) {
+              yield asChunk({
+                type: 'STEP_FINISHED',
+                stepName: stepId,
+                stepId,
+                model,
+                timestamp,
+                delta: '',
+                content: accumulatedThinking,
+                signature: accumulatedSignature,
+              })
+            }
+          } else if (currentBlockType === 'tool_use') {
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
               // If tool call wasn't started yet (no args), start it now
