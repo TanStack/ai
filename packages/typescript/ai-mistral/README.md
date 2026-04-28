@@ -75,7 +75,7 @@ See [Mistral model comparison](https://docs.mistral.ai/getting-started/models/co
 - ✅ Streaming chat completions
 - ✅ Structured output (JSON Schema)
 - ✅ Function/tool calling
-- ✅ Reasoning (magistral-_ models — streamed as `REASONING\__` events)
+- ✅ Reasoning (magistral-\_ models — streamed as `REASONING\__` events)
 - ✅ Multimodal input (text + images) — requires a vision-capable model (`pixtral-large-latest`, `pixtral-12b-2409`, `mistral-medium-latest`, or `mistral-small-latest`)
 - ❌ Embeddings (use [@mistralai/mistralai](https://github.com/mistralai/client-ts) directly)
 - ❌ Image generation
