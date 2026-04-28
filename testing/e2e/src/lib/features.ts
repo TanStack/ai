@@ -23,6 +23,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOverrides: {
       openai: 'o3',
       anthropic: 'claude-sonnet-4-5',
+      mistral: 'magistral-medium-latest',
     },
   },
   'multi-turn': {

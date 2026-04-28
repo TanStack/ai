@@ -1,0 +1,59 @@
+{
+  "name": "@tanstack/ai-mistral",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Mistral adapter for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-mistral"
+  },
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./adapters/text": {
+      "types": "./dist/esm/adapters/text.d.ts",
+      "import": "./dist/esm/adapters/text.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "mistral",
+    "tanstack",
+    "adapter"
+  ],
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.7",
+    "zod": "^4.2.0"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "zod": "^4.0.0"
+  },
+  "dependencies": {
+    "@mistralai/mistralai": "^2.2.0"
+  }
+}

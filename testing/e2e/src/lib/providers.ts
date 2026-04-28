@@ -7,6 +7,7 @@ import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import { createMistralText } from '@tanstack/ai-mistral'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -20,6 +21,7 @@ const defaultModels: Record<Provider, string> = {
   groq: 'llama-3.3-70b-versatile',
   grok: 'grok-3',
   openrouter: 'openai/gpt-4o',
+  mistral: 'mistral-large-latest',
 }
 
 export function createTextAdapter(
@@ -90,6 +92,13 @@ export function createTextAdapter(
           serverURL: testId
             ? `${openaiUrl}?testId=${encodeURIComponent(testId)}`
             : openaiUrl,
+        }),
+      }),
+    mistral: () =>
+      createChatOptions({
+        adapter: createMistralText(model as 'mistral-large-latest', DUMMY_KEY, {
+          serverURL: base,
+          defaultHeaders: testHeaders,
         }),
       }),
   }
