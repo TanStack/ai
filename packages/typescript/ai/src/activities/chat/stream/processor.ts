@@ -597,6 +597,23 @@ export class StreamProcessor {
   }
 
   /**
+   * Promote a pending stepId from a STEP_STARTED that fired before the
+   * assistant message existed onto the given message state, so the next
+   * thinking event (STEP_FINISHED or REASONING_MESSAGE_CONTENT) attributes
+   * to the correct step.
+   */
+  private consumePendingThinkingStep(state: MessageStreamState): void {
+    if (!this.pendingThinkingStepId) return
+    const stepId = this.pendingThinkingStepId
+    state.currentThinkingStepId = stepId
+    if (!state.thinkingSteps.has(stepId)) {
+      state.thinkingSteps.set(stepId, '')
+      state.thinkingStepOrder.push(stepId)
+    }
+    this.pendingThinkingStepId = null
+  }
+
+  /**
    * Get the most recent active assistant message ID.
    * Used as fallback for events that don't include a messageId.
    */
@@ -1218,15 +1235,7 @@ export class StreamProcessor {
       this.getActiveAssistantMessageId() ?? undefined,
     )
 
-    // Consume pending stepId from STEP_STARTED that arrived before the message existed
-    if (this.pendingThinkingStepId) {
-      state.currentThinkingStepId = this.pendingThinkingStepId
-      if (!state.thinkingSteps.has(this.pendingThinkingStepId)) {
-        state.thinkingSteps.set(this.pendingThinkingStepId, '')
-        state.thinkingStepOrder.push(this.pendingThinkingStepId)
-      }
-      this.pendingThinkingStepId = null
-    }
+    this.consumePendingThinkingStep(state)
 
     const stepId = state.currentThinkingStepId ?? chunk.stepId ?? chunk.stepName
 
@@ -1304,14 +1313,7 @@ export class StreamProcessor {
     )
 
     state.hasSeenReasoningEvents = true
-    if (this.pendingThinkingStepId) {
-      state.currentThinkingStepId = this.pendingThinkingStepId
-      if (!state.thinkingSteps.has(this.pendingThinkingStepId)) {
-        state.thinkingSteps.set(this.pendingThinkingStepId, '')
-        state.thinkingStepOrder.push(this.pendingThinkingStepId)
-      }
-      this.pendingThinkingStepId = null
-    }
+    this.consumePendingThinkingStep(state)
 
     const stepId = state.currentThinkingStepId ?? chunk.messageId
     if (!state.thinkingSteps.has(stepId)) {
