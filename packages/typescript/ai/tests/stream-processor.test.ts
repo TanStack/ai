@@ -3121,6 +3121,43 @@ describe('StreamProcessor', () => {
       expect(textPart!.content).toBe('Answer')
     })
 
+    it('should attribute reasoning content to pending STEP_STARTED stepId', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(chunk('REASONING_START', { messageId: 'r-1' }))
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_START', {
+          messageId: 'r-1',
+          role: 'reasoning',
+        }),
+      )
+      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(
+        chunk('REASONING_MESSAGE_CONTENT', {
+          messageId: 'r-1',
+          delta: 'Thinking...',
+        }),
+      )
+      processor.processChunk(
+        chunk('STEP_FINISHED', {
+          stepName: 'step-1',
+          stepId: 'step-1',
+          content: 'Thinking...',
+          signature: 'sig-step-1',
+        }),
+      )
+
+      const thinkingParts = processor
+        .getMessages()[0]!
+        .parts.filter((p) => p.type === 'thinking')
+
+      expect(thinkingParts).toHaveLength(1)
+      expect((thinkingParts[0] as any).stepId).toBe('step-1')
+      expect((thinkingParts[0] as any).content).toBe('Thinking...')
+      expect((thinkingParts[0] as any).signature).toBe('sig-step-1')
+    })
+
     it('should handle REASONING events without errors when no matching message', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })

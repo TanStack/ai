@@ -547,7 +547,9 @@ export class StreamProcessor {
         break
 
       case 'STEP_STARTED':
-        this.handleStepStartedEvent(chunk)
+        this.handleStepStartedEvent(
+          chunk as Extract<StreamChunk, { type: 'STEP_STARTED' }>,
+        )
         break
 
       default:
@@ -1283,7 +1285,6 @@ export class StreamProcessor {
    *
    * Accumulates reasoning delta into thinking content and updates the
    * corresponding ThinkingPart in the UIMessage.
-   * in the UIMessage.
    */
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
@@ -1304,7 +1305,7 @@ export class StreamProcessor {
       this.pendingThinkingStepId = null
     }
 
-    const stepId = state.currentThinkingStepId ?? 'reasoning'
+    const stepId = state.currentThinkingStepId ?? chunk.messageId
     if (!state.thinkingSteps.has(stepId)) {
       state.thinkingSteps.set(stepId, '')
       state.thinkingStepOrder.push(stepId)
