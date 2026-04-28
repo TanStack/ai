@@ -14,6 +14,51 @@ import type {
 import type { ConnectionAdapter } from './connection-adapters'
 
 /**
+ * Input passed to a `ChatFetcher`. The chat client calls the fetcher per
+ * outgoing send (sendMessage / append / reload / continuation). `messages`
+ * is the full UIMessage history; `data` is the merged body.
+ */
+export interface ChatFetcherInput {
+  messages: Array<UIMessage>
+  data?: Record<string, any>
+}
+
+/**
+ * Per-call options the chat client passes to a `ChatFetcher`.
+ */
+export interface ChatFetcherOptions {
+  /** AbortSignal that fires when `stop()` is called or the request is superseded. */
+  signal: AbortSignal
+}
+
+/**
+ * Direct async function that performs a chat request.
+ *
+ * Mirrors `GenerationFetcher` from generation-types.ts. Supports two return
+ * shapes:
+ *
+ * 1. `Promise<Response>` — the fetcher hit a server endpoint (or a TanStack
+ *    Start server function returning `toServerSentEventsResponse(...)`) and
+ *    returned the SSE Response. The chat client parses the SSE body.
+ * 2. `Promise<AsyncIterable<StreamChunk>>` — the fetcher returned a direct
+ *    in-process stream (e.g. an RPC call, or a server function whose handler
+ *    returns the chat() iterable directly).
+ *
+ * @example
+ * ```ts
+ * useChat({
+ *   fetcher: ({ messages }, { signal }) =>
+ *     chatFn({ data: { messages }, signal }),
+ * })
+ * ```
+ */
+export type ChatFetcher = (
+  input: ChatFetcherInput,
+  options: ChatFetcherOptions,
+) => Promise<Response | AsyncIterable<StreamChunk>>
+
+
+/**
  * Tool call states - track the lifecycle of a tool call
  */
 export type ToolCallState =
@@ -187,11 +232,23 @@ export interface ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > {
   /**
-   * Connection adapter for streaming.
-   * Supports mutually exclusive modes: request-response via `connect()`, or
-   * subscribe/send mode via `subscribe()` + `send()`.
+   * Connection adapter for streaming. Mutually exclusive with `fetcher` —
+   * exactly one must be provided. Validated at construction.
+   *
+   * Supports either request-response via `connect()`, or subscribe/send mode
+   * via `subscribe()` + `send()`.
    */
-  connection: ConnectionAdapter
+  connection?: ConnectionAdapter
+
+  /**
+   * Direct async function that returns the chat response. Mutually exclusive
+   * with `connection` — exactly one must be provided. Mirrors the `fetcher`
+   * option on `useGenerateSpeech` / `useSummarize` / etc.
+   *
+   * May return a `Response` (SSE body parsed by the chat client) or an
+   * `AsyncIterable<StreamChunk>` (yielded directly).
+   */
+  fetcher?: ChatFetcher
 
   /**
    * Initial messages to populate the chat

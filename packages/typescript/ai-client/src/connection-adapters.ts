@@ -1,4 +1,5 @@
 import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
+import type { ChatFetcher } from './types'
 
 /**
  * Merge custom headers into request headers
@@ -59,6 +60,43 @@ async function* readStreamLines(
     }
   } finally {
     reader.releaseLock()
+  }
+}
+
+/**
+ * Yield StreamChunks parsed from an SSE Response body.
+ *
+ * Used by both `fetchServerSentEvents` (HTTP path) and
+ * `fetcherToConnectionAdapter` (when a fetcher returns a Response).
+ */
+async function* responseToSSEChunks(
+  response: Response,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<StreamChunk> {
+  if (!response.ok) {
+    throw new Error(
+      `HTTP error! status: ${response.status} ${response.statusText}`,
+    )
+  }
+  const reader = response.body?.getReader()
+  if (!reader) {
+    throw new Error('Response body is not readable')
+  }
+  for await (const line of readStreamLines(reader, abortSignal)) {
+    const data = line.startsWith('data: ') ? line.slice(6) : line
+
+    if (data === '[DONE]') {
+      console.warn(
+        '[@tanstack/ai-client] Received [DONE] sentinel. This is deprecated — upgrade your @tanstack/ai server package. RUN_FINISHED is the stream terminator.',
+      )
+      continue
+    }
+
+    try {
+      yield JSON.parse(data) as StreamChunk
+    } catch (parseError) {
+      console.warn('Failed to parse SSE chunk:', data)
+    }
   }
 }
 
@@ -296,37 +334,7 @@ export function fetchServerSentEvents(
         signal: abortSignal || resolvedOptions.signal,
       })
 
-      if (!response.ok) {
-        throw new Error(
-          `HTTP error! status: ${response.status} ${response.statusText}`,
-        )
-      }
-
-      // Parse Server-Sent Events format
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('Response body is not readable')
-      }
-
-      for await (const line of readStreamLines(reader, abortSignal)) {
-        // Handle Server-Sent Events format
-        const data = line.startsWith('data: ') ? line.slice(6) : line
-
-        if (data === '[DONE]') {
-          console.warn(
-            '[@tanstack/ai-client] Received [DONE] sentinel. This is deprecated — upgrade your @tanstack/ai server package. RUN_FINISHED is the stream terminator.',
-          )
-          continue
-        }
-
-        try {
-          const parsed: StreamChunk = JSON.parse(data)
-          yield parsed
-        } catch (parseError) {
-          // Skip non-JSON lines or malformed chunks
-          console.warn('Failed to parse SSE chunk:', data)
-        }
-      }
+      yield* responseToSSEChunks(response, abortSignal)
     },
   }
 }
@@ -449,6 +457,45 @@ export function stream(
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
       yield* streamFactory(messages, data)
+    },
+  }
+}
+
+/**
+ * Wrap a `ChatFetcher` as a `ConnectConnectionAdapter` so the chat client can
+ * consume it through the same `subscribe`/`send` plumbing it already uses for
+ * SSE / HTTP-stream / RPC connections.
+ *
+ * The fetcher is invoked once per outgoing send (sendMessage / append /
+ * reload / continuation). It may return either:
+ *
+ * - `Response` — the SSE body is parsed by `responseToSSEChunks`. This is the
+ *   shape returned by a TanStack Start server function whose handler returns
+ *   `toServerSentEventsResponse(chat({ ... }))`.
+ * - `AsyncIterable<StreamChunk>` — yielded directly. This covers in-process /
+ *   RPC paths.
+ *
+ * This is the chat-side mirror of `GenerationFetcher` in generation-types.ts
+ * (which `useGenerateSpeech` / `useSummarize` etc. consume).
+ *
+ * @internal
+ */
+export function fetcherToConnectionAdapter(
+  fetcher: ChatFetcher,
+): ConnectConnectionAdapter {
+  return {
+    async *connect(messages, data, abortSignal) {
+      // The chat client always passes UIMessages (processor.getMessages() ->
+      // Array<UIMessage>). Narrow the union from ConnectionAdapter's broader
+      // signature so the fetcher contract is the more useful Array<UIMessage>.
+      const uiMessages = messages as Array<UIMessage>
+      const signal = abortSignal ?? new AbortController().signal
+      const result = await fetcher({ messages: uiMessages, data }, { signal })
+      if (result instanceof Response) {
+        yield* responseToSSEChunks(result, abortSignal)
+      } else {
+        yield* result
+      }
     },
   }
 }

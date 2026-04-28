@@ -16,6 +16,10 @@ export type {
   InferChatMessages,
   ChatClientState,
   ConnectionStatus,
+  // Chat fetcher transport types
+  ChatFetcher,
+  ChatFetcherInput,
+  ChatFetcherOptions,
   // Multimodal content input type
   MultimodalContent,
 } from './types'
