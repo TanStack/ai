@@ -50,6 +50,8 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "vite": "^7.2.7"
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.7",
+    "zod": "^4.2.0"
   }
 }
