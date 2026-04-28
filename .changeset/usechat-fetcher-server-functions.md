@@ -15,8 +15,7 @@ enforced by the constructor signature.
 ```ts
 // Server function returns toServerSentEventsResponse(chat({ ... })) — Response
 useChat({
-  fetcher: ({ messages }, { signal }) =>
-    chatFn({ data: { messages }, signal }),
+  fetcher: ({ messages }, { signal }) => chatFn({ data: { messages }, signal }),
 })
 ```
 

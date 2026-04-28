@@ -57,7 +57,6 @@ export type ChatFetcher = (
   options: ChatFetcherOptions,
 ) => Promise<Response | AsyncIterable<StreamChunk>>
 
-
 /**
  * Tool call states - track the lifecycle of a tool call
  */
