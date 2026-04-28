@@ -131,6 +131,34 @@ describe('ChatClient — fetcher transport', () => {
     expect(client.getStatus()).toBe('error')
   })
 
+  it('surfaces a malformed-SSE Response as a ChatClient error', async () => {
+    // A fetcher that returns a Response whose body has a malformed JSON line.
+    // The new behavior is to throw SyntaxError from the SSE parser; the
+    // chat client should surface that as an error rather than silently
+    // dropping the bad chunk.
+    const sseBody = 'data: { not valid json\n\n'
+    const fetcher: ChatFetcher = async () => {
+      return new Response(sseBody, {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    }
+
+    let observedError: Error | undefined
+    const client = new ChatClient({
+      fetcher,
+      onError: (err) => {
+        observedError = err
+      },
+    })
+
+    await client.sendMessage('hi')
+
+    expect(observedError).toBeDefined()
+    expect(observedError!.name).toBe('SyntaxError')
+    expect(client.getStatus()).toBe('error')
+  })
+
   it('passes UIMessages and merged body to the fetcher', async () => {
     const fetcher = vi.fn<ChatFetcher>(async function* () {
       yield {

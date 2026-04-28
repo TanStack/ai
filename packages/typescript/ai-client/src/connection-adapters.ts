@@ -1,4 +1,11 @@
-import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
+import type {
+  ModelMessage,
+  RunErrorEvent,
+  RunFinishedEvent,
+  StreamChunk,
+  UIMessage,
+} from '@tanstack/ai'
 import type { ChatFetcher } from './types'
 
 /**
@@ -54,9 +61,14 @@ async function* readStreamLines(
       }
     }
 
-    // Process any remaining data in the buffer
+    // Drop any unterminated trailing buffer. A non-empty buffer at stream end
+    // means the connection was cut mid-line (server crash, dropped TCP), so
+    // the content is by definition partial — yielding it would feed truncated
+    // JSON to downstream parsers and produce a confusing RUN_ERROR.
     if (buffer.trim()) {
-      yield buffer
+      console.warn(
+        '[@tanstack/ai-client] Stream ended with unterminated trailing data; discarding. The connection was likely cut short.',
+      )
     }
   } finally {
     reader.releaseLock()
@@ -68,6 +80,14 @@ async function* readStreamLines(
  *
  * Used by both `fetchServerSentEvents` (HTTP path) and
  * `fetcherToConnectionAdapter` (when a fetcher returns a Response).
+ *
+ * Accepts either `data: {...}` SSE lines or bare JSON lines (legacy/raw mode).
+ * Skips non-payload SSE fields (comments starting with `:`, and `event:` /
+ * `id:` / `retry:` lines) — proxies and CDNs may inject these as keepalives,
+ * and they are not malformed JSON.
+ *
+ * A JSON parse failure on an actual payload line throws (surfacing as
+ * RUN_ERROR through the connect-wrapper) rather than being silently dropped.
  */
 async function* responseToSSEChunks(
   response: Response,
@@ -83,20 +103,22 @@ async function* responseToSSEChunks(
     throw new Error('Response body is not readable')
   }
   for await (const line of readStreamLines(reader, abortSignal)) {
+    if (
+      line.startsWith(':') ||
+      line.startsWith('event:') ||
+      line.startsWith('id:') ||
+      line.startsWith('retry:')
+    ) {
+      continue
+    }
     const data = line.startsWith('data: ') ? line.slice(6) : line
-
     if (data === '[DONE]') {
       console.warn(
         '[@tanstack/ai-client] Received [DONE] sentinel. This is deprecated — upgrade your @tanstack/ai server package. RUN_FINISHED is the stream terminator.',
       )
       continue
     }
-
-    try {
-      yield JSON.parse(data) as StreamChunk
-    } catch (parseError) {
-      console.warn('Failed to parse SSE chunk:', data)
-    }
+    yield JSON.parse(data) as StreamChunk
   }
 }
 
@@ -213,9 +235,17 @@ export function normalizeConnectionAdapter(
     },
     async send(messages, data, abortSignal) {
       let hasTerminalEvent = false
+      let upstreamThreadId: string | undefined
+      let upstreamRunId: string | undefined
       try {
         const stream = connection.connect(messages, data, abortSignal)
         for await (const chunk of stream) {
+          if ('threadId' in chunk && typeof chunk.threadId === 'string') {
+            upstreamThreadId = chunk.threadId
+          }
+          if ('runId' in chunk && typeof chunk.runId === 'string') {
+            upstreamRunId = chunk.runId
+          }
           if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
             hasTerminalEvent = true
           }
@@ -225,28 +255,26 @@ export function normalizeConnectionAdapter(
         // If the connect stream ended cleanly without a terminal event,
         // synthesize RUN_FINISHED so request-scoped consumers can complete.
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          push({
-            type: 'RUN_FINISHED',
-            runId: `run-${Date.now()}`,
+          const synthetic: RunFinishedEvent = {
+            type: EventType.RUN_FINISHED,
+            threadId: upstreamThreadId ?? `thread-${Date.now()}`,
+            runId: upstreamRunId ?? `run-${Date.now()}`,
             model: 'connect-wrapper',
             timestamp: Date.now(),
             finishReason: 'stop',
-          } as unknown as StreamChunk)
+          }
+          push(synthetic)
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          push({
-            type: 'RUN_ERROR',
+          const message =
+            err instanceof Error ? err.message : 'Unknown error in connect()'
+          const synthetic: RunErrorEvent = {
+            type: EventType.RUN_ERROR,
             timestamp: Date.now(),
-            message:
-              err instanceof Error ? err.message : 'Unknown error in connect()',
-            error: {
-              message:
-                err instanceof Error
-                  ? err.message
-                  : 'Unknown error in connect()',
-            },
-          } as unknown as StreamChunk)
+            message,
+          }
+          push(synthetic)
         }
         throw err
       }
@@ -421,12 +449,7 @@ export function fetchHttpStream(
       }
 
       for await (const line of readStreamLines(reader, abortSignal)) {
-        try {
-          const parsed: StreamChunk = JSON.parse(line)
-          yield parsed
-        } catch (parseError) {
-          console.warn('Failed to parse HTTP stream chunk:', line)
-        }
+        yield JSON.parse(line) as StreamChunk
       }
     },
   }
@@ -450,13 +473,14 @@ export function stream(
   streamFactory: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
+    abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data) {
+    async *connect(messages, data, abortSignal) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* streamFactory(messages, data)
+      yield* streamFactory(messages, data, abortSignal)
     },
   }
 }
@@ -520,13 +544,14 @@ export function rpcStream(
   rpcCall: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
+    abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data) {
+    async *connect(messages, data, abortSignal) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* rpcCall(messages, data)
+      yield* rpcCall(messages, data, abortSignal)
     },
   }
 }
