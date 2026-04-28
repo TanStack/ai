@@ -28,7 +28,7 @@ export const Route = createFileRoute('/_database-demo/database-demo' as any)({
   component: DatabaseDemoPage,
 })
 
-type Provider = 'anthropic' | 'openai' | 'gemini'
+type Provider = 'anthropic' | 'openai' | 'gemini' | 'zai'
 
 interface ModelOption {
   provider: Provider
@@ -48,11 +48,9 @@ const MODEL_OPTIONS: Array<ModelOption> = [
     label: 'Claude Haiku 4',
   },
   { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o' },
-  {
-    provider: 'gemini',
-    model: 'gemini-2.5-flash',
-    label: 'Gemini 2.5 Flash',
-  },
+  { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { provider: 'zai', model: 'glm-4.7', label: 'Z.AI GLM-4.7' },
+  { provider: 'zai', model: 'glm-5-turbo', label: 'Z.AI GLM-5 Turbo' },
 ]
 
 interface SkillWithCode {

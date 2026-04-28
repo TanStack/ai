@@ -11,6 +11,11 @@ import type { InferChatMessages, UIMessage } from '@tanstack/ai-client'
 import type { JSXElement } from 'solid-js'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import { clientTools } from '@/lib/guitar-tools'
+import {
+  DEFAULT_MODEL_OPTION,
+  MODEL_OPTIONS,
+  type ModelOption,
+} from '@/lib/model-selection'
 
 // Create typed chat options for type inference
 const chatOptions = createChatClientOptions({
@@ -307,11 +312,22 @@ function DebugPanel(props: {
 
 function ChatPage() {
   const [chunks, setChunks] = createSignal<Array<any>>([])
+  const [selectedModel, setSelectedModel] = createSignal<ModelOption>(
+    DEFAULT_MODEL_OPTION,
+  )
+
+  const bodyData = () => ({
+    provider: selectedModel().provider,
+    model: selectedModel().model,
+  })
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
       connection: chatOptions.connection,
       tools: clientTools,
+      get body() {
+        return bodyData()
+      },
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
       },
@@ -324,10 +340,37 @@ function ChatPage() {
     <div class="flex h-[calc(100vh-72px)]  bg-gray-900">
       {/* Left side - Chat (1/4 width) */}
       <div class="w-1/2 flex flex-col border-r border-orange-500/20">
-        <div class="p-4 border-b border-orange-500/20">
-          <h1 class="text-2xl font-bold bg-linear-to-r from-orange-500 to-red-600 text-transparent bg-clip-text">
+        <div class="p-4 border-b border-orange-500/20 bg-gray-800">
+          <h1 class="text-2xl font-bold bg-linear-to-r from-orange-500 to-red-600 text-transparent bg-clip-text mb-3">
             TanStack AI on SolidJS
           </h1>
+          <div class="flex items-end gap-3">
+            <div class="flex-1">
+              <label for="model-select" class="text-sm text-gray-400 mb-1 block">
+                Select Model:
+              </label>
+              <select
+                id="model-select"
+                value={MODEL_OPTIONS.findIndex(
+                  (opt) =>
+                    opt.provider === selectedModel().provider &&
+                    opt.model === selectedModel().model,
+                )}
+                  onChange={(e) => {
+                    const option = MODEL_OPTIONS[parseInt(e.currentTarget.value)]
+                    setSelectedModel(option)
+                  }}
+                disabled={isLoading()}
+                class="w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+              >
+                <For each={MODEL_OPTIONS}>
+                  {(option, index) => (
+                    <option value={index()}>{option.label}</option>
+                  )}
+                </For>
+              </select>
+            </div>
+          </div>
         </div>
 
         <Messages

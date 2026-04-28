@@ -7,6 +7,7 @@ import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
+import { zaiText } from '@tanstack/ai-zai'
 import { z } from 'zod'
 
 import type { AnyTextAdapter } from '@tanstack/ai'
@@ -15,7 +16,7 @@ import type { IsolateDriver } from '@tanstack/ai-code-mode'
 import { cityTools } from '@/lib/tools/city-tools'
 import { structuredOutput } from '@/lib/structured-output'
 
-type Provider = 'anthropic' | 'openai' | 'gemini'
+type Provider = 'anthropic' | 'openai' | 'gemini' | 'zai'
 
 const TravelReportSchema = z.object({
   title: z.string().describe('Short title for the report'),
@@ -45,6 +46,8 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
       return openaiText((model || 'gpt-4o') as 'gpt-4o')
     case 'gemini':
       return geminiText((model || 'gemini-2.5-flash') as 'gemini-2.5-flash')
+    case 'zai':
+      return zaiText((model || 'glm-4.7') as 'glm-4.7')
     case 'anthropic':
     default:
       return anthropicText(

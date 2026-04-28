@@ -11,6 +11,7 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
+import { zaiText } from '@tanstack/ai-zai'
 import { groqText } from '@tanstack/ai-groq'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {
@@ -32,6 +33,7 @@ type Provider =
   | 'grok'
   | 'groq'
   | 'openrouter'
+  | 'zai'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -183,6 +185,13 @@ export const Route = createFileRoute('/api/tanchat')({
           openai: () =>
             createChatOptions({
               adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
+              modelOptions: {},
+            }),
+          zai: () =>
+            createChatOptions({
+              adapter: zaiText((model || 'glm-4.7') as 'glm-4.7', {
+                coding: true,
+              }),
               modelOptions: {},
             }),
         }

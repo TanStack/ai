@@ -31,7 +31,7 @@ export const Route = createFileRoute('/_reporting/reporting-agent')({
   component: ReportingAgentPage,
 })
 
-type Provider = 'anthropic' | 'openai' | 'gemini'
+type Provider = 'anthropic' | 'openai' | 'gemini' | 'zai'
 
 interface ModelOption {
   provider: Provider

@@ -12,7 +12,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-groq": "workspace:*",
+    "@tanstack/ai-zai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/query-db-collection": "^1.0.6",
     "@tanstack/react-db": "^0.1.55",

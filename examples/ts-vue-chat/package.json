@@ -18,6 +18,7 @@
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-vue": "workspace:*",
     "@tanstack/ai-vue-ui": "workspace:*",
+    "@tanstack/ai-zai": "workspace:*",
     "marked": "^15.0.6",
     "vue": "^3.5.25",
     "vue-router": "^4.5.0",

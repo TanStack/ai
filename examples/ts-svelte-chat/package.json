@@ -19,6 +19,7 @@
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-svelte": "workspace:*",
+    "@tanstack/ai-zai": "workspace:*",
     "highlight.js": "^11.11.1",
     "lucide-svelte": "^0.468.0",
     "marked": "^15.0.6",

@@ -142,6 +142,9 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-react
+      '@tanstack/ai-zai':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-zai
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -366,6 +369,9 @@ importers:
       '@tanstack/ai-react-ui':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-react-ui
+      '@tanstack/ai-zai':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-zai
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -542,12 +548,12 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/typescript/ai
-      '@tanstack/ai-groq':
-        specifier: workspace:*
-        version: link:../../packages/typescript/ai-groq
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-react
+      '@tanstack/ai-zai':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-zai
       '@tanstack/query-db-collection':
         specifier: ^1.0.6
         version: 1.0.36(@tanstack/query-core@5.90.12)(typescript@5.9.3)
@@ -675,18 +681,30 @@ importers:
       '@tanstack/ai-gemini':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-gemini
+      '@tanstack/ai-grok':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-grok
+      '@tanstack/ai-groq':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-groq
       '@tanstack/ai-ollama':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-ollama
       '@tanstack/ai-openai':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-openai
+      '@tanstack/ai-openrouter':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-openrouter
       '@tanstack/ai-solid':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-solid
       '@tanstack/ai-solid-ui':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-solid-ui
+      '@tanstack/ai-zai':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-zai
       '@tanstack/nitro-v2-vite-plugin':
         specifier: ^1.154.7
         version: 1.154.7(rolldown@1.0.0-rc.17)(vite@7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -796,6 +814,9 @@ importers:
       '@tanstack/ai-svelte':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-svelte
+      '@tanstack/ai-zai':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-zai
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -872,6 +893,9 @@ importers:
       '@tanstack/ai-vue-ui':
         specifier: workspace:*
         version: link:../../packages/typescript/ai-vue-ui
+      '@tanstack/ai-zai':
+        specifier: workspace:*
+        version: link:../../packages/typescript/ai-zai
       marked:
         specifier: ^15.0.6
         version: 15.0.12
@@ -1603,6 +1627,25 @@ importers:
       vue-tsc:
         specifier: ^2.2.10
         version: 2.2.12(typescript@5.9.3)
+
+  packages/typescript/ai-zai:
+    dependencies:
+      openai:
+        specifier: ^6.9.1
+        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.1.4)
+      vite:
+        specifier: ^7.2.7
+        version: 7.2.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
 
   packages/typescript/preact-ai-devtools:
     dependencies:

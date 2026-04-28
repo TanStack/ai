@@ -23,6 +23,7 @@
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
+    "@tanstack/ai-zai": "workspace:*",
     "@tanstack/nitro-v2-vite-plugin": "^1.154.7",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",

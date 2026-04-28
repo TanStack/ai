@@ -164,8 +164,8 @@ export const Route = createFileRoute('/api/chat')({
         const data = body.data || {}
 
         // Extract provider, model, and traceId from data
-        const provider: Provider = data.provider || 'openai'
-        const model: string = data.model || 'gpt-4o'
+        const provider: Provider = data.provider || 'zai'
+        const model: string = data.model || 'glm-4.7'
         const traceId: string | undefined = data.traceId
 
         try {

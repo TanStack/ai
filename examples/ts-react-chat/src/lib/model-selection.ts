@@ -6,6 +6,7 @@ export type Provider =
   | 'grok'
   | 'groq'
   | 'openrouter'
+  | 'zai'
 
 export interface ModelOption {
   provider: Provider
@@ -135,6 +136,15 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     model: 'grok-3-mini',
     label: 'Grok - Grok 3 Mini',
   },
+
+  // Z.AI (GLM)
+  { provider: 'zai', model: 'glm-5.1', label: 'Z.AI - GLM-5.1' },
+  { provider: 'zai', model: 'glm-5-turbo', label: 'Z.AI - GLM-5 Turbo' },
+  { provider: 'zai', model: 'glm-5', label: 'Z.AI - GLM-5' },
+  { provider: 'zai', model: 'glm-5v-turbo', label: 'Z.AI - GLM-5V Turbo' },
+  { provider: 'zai', model: 'glm-4.7', label: 'Z.AI - GLM-4.7' },
+  { provider: 'zai', model: 'glm-4.6v', label: 'Z.AI - GLM-4.6V' },
+  { provider: 'zai', model: 'glm-4.6', label: 'Z.AI - GLM-4.6' },
 ]
 
 export const DEFAULT_MODEL_OPTION = MODEL_OPTIONS[0]
