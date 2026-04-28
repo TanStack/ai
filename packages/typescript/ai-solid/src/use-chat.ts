@@ -8,7 +8,7 @@ import {
 
 import { ChatClient } from '@tanstack/ai-client'
 import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
-import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
   MultimodalContent,
   UIMessage,
@@ -40,25 +40,25 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // in-place mutations propagate. When the user clears a callback (sets it to
   // undefined), `?.` no-ops.
   const client = createMemo(() => {
-    const baseOptions = {
+    const transport = options.connection
+      ? { connection: options.connection }
+      : { fetcher: options.fetcher! }
+    return new ChatClient({
+      ...transport,
       id: clientId,
       initialMessages: options.initialMessages,
       body: options.body,
-      onResponse: (response: Response | undefined) =>
-        options.onResponse?.(response),
-      onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
-      onFinish: (message: UIMessage<TTools>) => {
+      onResponse: (response) => options.onResponse?.(response),
+      onChunk: (chunk) => options.onChunk?.(chunk),
+      onFinish: (message) => {
         options.onFinish?.(message)
       },
-      onError: (err: Error) => {
+      onError: (err) => {
         options.onError?.(err)
       },
       tools: options.tools,
-      onCustomEvent: (
-        eventType: string,
-        data: unknown,
-        context: { toolCallId?: string },
-      ) => options.onCustomEvent?.(eventType, data, context),
+      onCustomEvent: (eventType, data, context) =>
+        options.onCustomEvent?.(eventType, data, context),
       streamProcessor: options.streamProcessor,
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
@@ -81,15 +81,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       onSessionGeneratingChange: (isGenerating: boolean) => {
         setSessionGenerating(isGenerating)
       },
-    }
-
-    if (options.connection) {
-      return new ChatClient({ ...baseOptions, connection: options.connection })
-    }
-    if (options.fetcher) {
-      return new ChatClient({ ...baseOptions, fetcher: options.fetcher })
-    }
-    throw new Error('useChat requires either a connection or fetcher option')
+    })
     // Only recreate when clientId changes
     // Connection and other options are captured at creation time
   }, [clientId])

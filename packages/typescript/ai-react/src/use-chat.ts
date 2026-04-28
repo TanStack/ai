@@ -1,6 +1,6 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { AnyClientTool, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
 
 import type {
@@ -53,33 +53,29 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
 
     isFirstMountRef.current = false
 
-    const opts = optionsRef.current
+    const transport = optionsRef.current.connection
+      ? { connection: optionsRef.current.connection }
+      : { fetcher: optionsRef.current.fetcher! }
 
-    // Common ChatClient options. Transport (connection/fetcher) is added in
-    // the branches below so TypeScript narrows the discriminated union
-    // naturally — no non-null assertions, no spread of a partial transport.
-    const baseOptions = {
+    return new ChatClient({
+      ...transport,
       id: clientId,
       initialMessages: messagesToUse,
-      body: opts.body,
+      body: optionsRef.current.body,
       // Wrap every callback so the latest options are read at call time.
       // Capturing the function reference directly would freeze it to whatever
       // the parent passed on the first render.
-      onResponse: (response: Response | undefined) =>
-        optionsRef.current.onResponse?.(response),
-      onChunk: (chunk: StreamChunk) => optionsRef.current.onChunk?.(chunk),
+      onResponse: (response) => optionsRef.current.onResponse?.(response),
+      onChunk: (chunk) => optionsRef.current.onChunk?.(chunk),
       onFinish: (message: UIMessage<TTools>) => {
         optionsRef.current.onFinish?.(message)
       },
       onError: (error: Error) => {
         optionsRef.current.onError?.(error)
       },
-      tools: opts.tools,
-      onCustomEvent: (
-        eventType: string,
-        data: unknown,
-        context: { toolCallId?: string },
-      ) => optionsRef.current.onCustomEvent?.(eventType, data, context),
+      tools: optionsRef.current.tools,
+      onCustomEvent: (eventType, data, context) =>
+        optionsRef.current.onCustomEvent?.(eventType, data, context),
       streamProcessor: options.streamProcessor,
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
@@ -102,15 +98,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       onSessionGeneratingChange: (isGenerating: boolean) => {
         setSessionGenerating(isGenerating)
       },
-    }
-
-    if (opts.connection) {
-      return new ChatClient({ ...baseOptions, connection: opts.connection })
-    }
-    if (opts.fetcher) {
-      return new ChatClient({ ...baseOptions, fetcher: opts.fetcher })
-    }
-    throw new Error('useChat requires either a connection or fetcher option')
+    })
   }, [clientId])
 
   // Sync body changes to the client

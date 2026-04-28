@@ -60,16 +60,21 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // by reference. Callbacks are therefore frozen to whatever the caller passed
   // at creation — to swap them dynamically, mutate the options object
   // in-place or call `client.updateOptions(...)` imperatively.
-  const baseOptions = {
+  const transport = options.connection
+    ? { connection: options.connection }
+    : { fetcher: options.fetcher! }
+
+  const client = new ChatClient({
+    ...transport,
     id: clientId,
     initialMessages: options.initialMessages,
     body: options.body,
     onResponse: options.onResponse,
     onChunk: options.onChunk,
-    onFinish: (message: UIMessage<TTools>) => {
+    onFinish: (message) => {
       options.onFinish?.(message)
     },
-    onError: (err: Error) => {
+    onError: (err) => {
       options.onError?.(err)
     },
     tools: options.tools,
@@ -96,16 +101,7 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     onSessionGeneratingChange: (isGenerating: boolean) => {
       sessionGenerating = isGenerating
     },
-  }
-
-  let client: ChatClient
-  if (options.connection) {
-    client = new ChatClient({ ...baseOptions, connection: options.connection })
-  } else if (options.fetcher) {
-    client = new ChatClient({ ...baseOptions, fetcher: options.fetcher })
-  } else {
-    throw new Error('createChat requires either a connection or fetcher option')
-  }
+  })
 
   if (options.live) {
     client.subscribe()
