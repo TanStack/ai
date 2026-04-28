@@ -83,9 +83,7 @@ test.describe('Chat E2E Tests - Multi-Step Thinking (Mock API)', () => {
 
     const firstStep = thinkingParts.find((p: any) => p.stepId === 'step-1')
     expect(firstStep).toBeDefined()
-    expect(firstStep.content).toBe(
-      'First, I need to understand the question. ',
-    )
+    expect(firstStep.content).toBe('First, I need to understand the question. ')
     expect(firstStep.signature).toBe('sig-step-1')
 
     const secondStep = thinkingParts.find((p: any) => p.stepId === 'step-2')
