@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
+  chat,
   generateAudio,
   generateImage,
   generateSpeech,
@@ -10,7 +11,12 @@ import {
   summarize,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiImage, openaiSummarize, openaiVideo } from '@tanstack/ai-openai'
+import {
+  openaiImage,
+  openaiSummarize,
+  openaiText,
+  openaiVideo,
+} from '@tanstack/ai-openai'
 import {
   InvalidModelOverrideError,
   UnknownProviderError,
@@ -18,6 +24,7 @@ import {
   buildSpeechAdapter,
   buildTranscriptionAdapter,
 } from './server-audio-adapters'
+import type { UIMessage } from '@tanstack/ai'
 
 /**
  * Server-fn error with a stable `code` property clients can switch on.
@@ -365,3 +372,27 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
       }),
     )
   })
+
+// =============================================================================
+// Chat server function (streams via SSE Response)
+// Used with: stream((messages) => chatFn({ data: { messages } }))
+// =============================================================================
+
+export const chatFn = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (data: { messages: Array<UIMessage>; data?: Record<string, any> }) => data,
+  )
+  .handler(({ data }) =>
+    toServerSentEventsResponse(
+      chat({
+        adapter: openaiText('gpt-5.2'),
+        // chat()'s messages option is typed as ConstrainedModelMessage[], but the
+        // runtime accepts UIMessage[] too (normalised via convertMessagesToModelMessages).
+        // Cast to bridge the gap until the public type is widened in a separate PR.
+        messages: data.messages as any,
+        systemPrompts: [
+          'You are a helpful assistant. Keep replies short and friendly.',
+        ],
+      }),
+    ),
+  )

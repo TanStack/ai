@@ -81,6 +81,62 @@ const { messages } = useChat({
 });
 ```
 
+### TanStack Start Server Functions
+
+`stream()` adapts a TanStack Start server function into a `useChat` connection so you get end-to-end type safety from the call site to the handler. The factory you pass to `stream()` may return either the chat `AsyncIterable` directly, or an SSE `Response` produced by `toServerSentEventsResponse()` — `stream()` awaits the result and unwraps a `Response` if it sees one.
+
+#### Returning an SSE Response (recommended)
+
+Wrap the chat stream in `toServerSentEventsResponse()` so only encoded bytes flow over the wire. The client parses the SSE automatically:
+
+```typescript
+// server-fns.ts
+import { createServerFn } from "@tanstack/react-start";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import type { UIMessage } from "@tanstack/ai";
+
+export const chatFn = createServerFn({ method: "POST" })
+  .inputValidator((data: { messages: Array<UIMessage> }) => data)
+  .handler(({ data }) =>
+    toServerSentEventsResponse(
+      chat({
+        adapter: openaiText("gpt-4o"),
+        messages: data.messages,
+      }),
+    ),
+  );
+```
+
+```tsx
+// client
+import { useChat, stream } from "@tanstack/ai-react";
+import { chatFn } from "./server-fns";
+
+const { messages, sendMessage } = useChat({
+  connection: stream((messages) => chatFn({ data: { messages } })),
+});
+```
+
+#### Returning the AsyncIterable directly
+
+If you don't want to encode an HTTP response, return the chat stream itself. `stream()` awaits the server function and yields chunks straight through:
+
+```typescript
+// server-fns.ts
+export const chatFn = createServerFn({ method: "POST" })
+  .inputValidator((data: { messages: Array<UIMessage> }) => data)
+  .handler(({ data }) =>
+    chat({ adapter: openaiText("gpt-4o"), messages: data.messages }),
+  );
+```
+
+```tsx
+const { messages, sendMessage } = useChat({
+  connection: stream((messages) => chatFn({ data: { messages } })),
+});
+```
+
 ## Custom Adapters
 
 For specialized use cases, you can create custom adapters to meet specific protocols or requirements:

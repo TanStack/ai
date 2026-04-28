@@ -6,11 +6,19 @@ import {
   rpcStream,
   stream,
 } from '../src/connection-adapters'
-import type { StreamChunk } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
+import type { StreamChunk, UIMessage } from '@tanstack/ai'
 
 /** Cast an event object to StreamChunk for type compatibility with EventType enum. */
 const asChunk = (chunk: Record<string, unknown>) =>
   chunk as unknown as StreamChunk
+
+/** Build a minimal user UIMessage for tests that just need a non-empty input. */
+const userUIMessage = (content = 'Hello'): UIMessage => ({
+  id: 'u1',
+  role: 'user',
+  parts: [{ type: 'text', content }],
+})
 
 describe('connection-adapters', () => {
   let originalFetch: typeof fetch
@@ -144,11 +152,7 @@ describe('connection-adapters', () => {
       warnSpy.mockRestore()
     })
 
-    it('should handle malformed JSON gracefully', async () => {
-      const consoleWarnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => {})
-
+    it('should throw on malformed SSE chunks rather than silently dropping them', async () => {
       const mockReader = {
         read: vi
           .fn()
@@ -170,17 +174,13 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchServerSentEvents('/api/chat')
-      const chunks: Array<StreamChunk> = []
-
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
-        chunks.push(chunk)
-      }
-
-      expect(chunks).toHaveLength(0)
-      expect(consoleWarnSpy).toHaveBeenCalled()
-      consoleWarnSpy.mockRestore()
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'Hello' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(SyntaxError)
     })
 
     it('should handle HTTP errors', async () => {
@@ -550,11 +550,7 @@ describe('connection-adapters', () => {
       expect(chunks).toHaveLength(1)
     })
 
-    it('should handle malformed JSON gracefully', async () => {
-      const consoleWarnSpy = vi
-        .spyOn(console, 'warn')
-        .mockImplementation(() => {})
-
+    it('should throw on malformed JSON chunks rather than silently dropping them', async () => {
       const mockReader = {
         read: vi
           .fn()
@@ -576,17 +572,13 @@ describe('connection-adapters', () => {
       fetchMock.mockResolvedValue(mockResponse as any)
 
       const adapter = fetchHttpStream('/api/chat')
-      const chunks: Array<StreamChunk> = []
-
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
-        chunks.push(chunk)
-      }
-
-      expect(chunks).toHaveLength(0)
-      expect(consoleWarnSpy).toHaveBeenCalled()
-      consoleWarnSpy.mockRestore()
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'Hello' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(SyntaxError)
     })
 
     it('should handle HTTP errors', async () => {
@@ -802,9 +794,7 @@ describe('connection-adapters', () => {
       const adapter = stream(streamFactory)
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect([userUIMessage()])) {
         chunks.push(chunk)
       }
 
@@ -826,17 +816,94 @@ describe('connection-adapters', () => {
       const adapter = stream(streamFactory)
       const data = { key: 'value' }
 
-      for await (const _ of adapter.connect(
-        [{ role: 'user', content: 'Hello' }],
-        data,
-      )) {
+      for await (const _ of adapter.connect([userUIMessage()], data)) {
         // Consume
       }
 
       expect(streamFactory).toHaveBeenCalledWith(
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
+        undefined,
       )
+    })
+
+    it('should await Promise<AsyncIterable> from a server function', async () => {
+      // Simulates a TanStack Start server function whose handler returns an
+      // async iterable directly: `createServerFn().handler(() => chat({...}))`.
+      async function* serverStream(): AsyncGenerator<StreamChunk> {
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hi',
+          content: 'Hi',
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          threadId: 'thread-1',
+          runId: 'run-1',
+          model: 'test',
+          timestamp: Date.now(),
+          finishReason: 'stop',
+        }
+      }
+      const serverFn = vi.fn(
+        async (
+          _messages: Parameters<Parameters<typeof stream>[0]>[0],
+          _data?: Parameters<Parameters<typeof stream>[0]>[1],
+        ) => serverStream(),
+      )
+
+      const adapter = stream((messages, data) => serverFn(messages, data))
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect([userUIMessage()])) {
+        chunks.push(chunk)
+      }
+
+      expect(serverFn).toHaveBeenCalled()
+      expect(chunks).toHaveLength(2)
+      expect(chunks[0]?.type).toBe('TEXT_MESSAGE_CONTENT')
+      expect(chunks[1]?.type).toBe('RUN_FINISHED')
+    })
+
+    it('should parse Promise<Response> SSE body from a server function', async () => {
+      // Simulates a server function whose handler returns
+      // `toServerSentEventsResponse(chat({...}))`.
+      const sseBody = [
+        'data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":1,"delta":"Hi","content":"Hi"}\n\n',
+        'data: {"type":"RUN_FINISHED","runId":"run-1","model":"test","timestamp":2,"finishReason":"stop"}\n\n',
+        'data: [DONE]\n\n',
+      ].join('')
+      const serverFn = vi.fn(async () => new Response(sseBody, { status: 200 }))
+
+      const adapter = stream(() => serverFn())
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect([userUIMessage()])) {
+        chunks.push(chunk)
+      }
+
+      expect(serverFn).toHaveBeenCalled()
+      expect(chunks).toHaveLength(2)
+      expect(chunks[0]?.type).toBe('TEXT_MESSAGE_CONTENT')
+      expect(chunks[1]?.type).toBe('RUN_FINISHED')
+    })
+
+    it('should throw when Response from server function is not ok', async () => {
+      const serverFn = vi.fn(
+        async () =>
+          new Response('boom', { status: 500, statusText: 'Server Error' }),
+      )
+
+      const adapter = stream(() => serverFn())
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect([userUIMessage()])) {
+            // Consume
+          }
+        })(),
+      ).rejects.toThrow('HTTP error! status: 500 Server Error')
     })
   })
 
@@ -897,7 +964,7 @@ describe('connection-adapters', () => {
         return received
       })()
 
-      await adapter.send([{ role: 'user', content: 'Hello' }])
+      await adapter.send([userUIMessage()])
       const received = await receivedPromise
 
       expect(received).toHaveLength(2)
@@ -922,9 +989,9 @@ describe('connection-adapters', () => {
         return received
       })()
 
-      await expect(
-        adapter.send([{ role: 'user', content: 'Hello' }]),
-      ).rejects.toThrow('connect exploded')
+      await expect(adapter.send([userUIMessage()])).rejects.toThrow(
+        'connect exploded',
+      )
       const received = await receivedPromise
 
       expect(received).toHaveLength(1)
@@ -956,9 +1023,9 @@ describe('connection-adapters', () => {
         return received
       })()
 
-      await expect(
-        adapter.send([{ role: 'user', content: 'Hello' }]),
-      ).rejects.toThrow('connect exploded')
+      await expect(adapter.send([userUIMessage()])).rejects.toThrow(
+        'connect exploded',
+      )
       const received = await receivedPromise
 
       expect(received).toHaveLength(1)
@@ -1023,7 +1090,39 @@ describe('connection-adapters', () => {
       expect(rpcCall).toHaveBeenCalledWith(
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
+        undefined,
       )
+    })
+
+    it('should await Promise<AsyncIterable> from RPC call', async () => {
+      async function* rpcStreamGen(): AsyncGenerator<StreamChunk> {
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hi',
+          content: 'Hi',
+        }
+      }
+      const rpcCall = vi.fn(
+        async (
+          _messages: Parameters<Parameters<typeof rpcStream>[0]>[0],
+          _data?: Parameters<Parameters<typeof rpcStream>[0]>[1],
+        ) => rpcStreamGen(),
+      )
+
+      const adapter = rpcStream((messages, data) => rpcCall(messages, data))
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect([
+        { role: 'user', content: 'Hello' },
+      ])) {
+        chunks.push(chunk)
+      }
+
+      expect(rpcCall).toHaveBeenCalled()
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]?.type).toBe('TEXT_MESSAGE_CONTENT')
     })
   })
 })
