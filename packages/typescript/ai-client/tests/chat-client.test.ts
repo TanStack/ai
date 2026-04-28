@@ -88,9 +88,9 @@ describe('ChatClient', () => {
       expect(client1MessageId).not.toBe(client2MessageId)
     })
 
-    it('should throw if connection is not provided', () => {
+    it('should throw if neither connection nor fetcher is provided', () => {
       expect(() => new ChatClient({} as any)).toThrow(
-        'Connection adapter is required',
+        'either `connection` or `fetcher` is required',
       )
     })
   })

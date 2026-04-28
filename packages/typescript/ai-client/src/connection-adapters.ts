@@ -1,4 +1,26 @@
-import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
+import type {
+  ModelMessage,
+  RunErrorEvent,
+  RunFinishedEvent,
+  StreamChunk,
+  UIMessage,
+} from '@tanstack/ai'
+import type { ChatFetcher } from './types'
+
+/**
+ * Thrown when an SSE/HTTP stream ends with a non-empty unterminated buffer.
+ * Indicates the connection was cut mid-line (server crash, dropped TCP, proxy
+ * timeout) so the partial content cannot be safely parsed.
+ */
+export class StreamTruncatedError extends Error {
+  constructor() {
+    super(
+      'Stream ended with unterminated trailing data — connection was likely cut short.',
+    )
+    this.name = 'StreamTruncatedError'
+  }
+}
 
 /**
  * Merge custom headers into request headers
@@ -53,12 +75,78 @@ async function* readStreamLines(
       }
     }
 
-    // Process any remaining data in the buffer
+    // A non-empty trailing buffer means the connection was cut mid-line.
+    // Surface this as an error so the chat client transitions to 'error'
+    // state instead of silently presenting a partial stream as success.
     if (buffer.trim()) {
-      yield buffer
+      throw new StreamTruncatedError()
     }
   } finally {
     reader.releaseLock()
+  }
+}
+
+/**
+ * Yield StreamChunks parsed from an SSE Response body.
+ *
+ * Accepts either `data: {...}` lines or bare JSON lines. Skips comments
+ * starting with `:` (proxies and CDNs inject these as keepalives) and the
+ * `event:` / `id:` / `retry:` SSE control fields. A `[DONE]` sentinel is
+ * treated as a terminal event: a synthesized RUN_FINISHED is yielded using
+ * the most recent upstream `threadId` / `runId`, ensuring the consumer sees
+ * a clean terminal event with real correlation ids.
+ *
+ * A JSON parse failure throws — the consumer surfaces it as an error.
+ */
+async function* responseToSSEChunks(
+  response: Response,
+  abortSignal?: AbortSignal,
+): AsyncGenerator<StreamChunk> {
+  if (!response.ok) {
+    throw new Error(
+      `HTTP error! status: ${response.status} ${response.statusText}`,
+    )
+  }
+  const reader = response.body?.getReader()
+  if (!reader) {
+    throw new Error('Response body is not readable')
+  }
+  let lastThreadId: string | undefined
+  let lastRunId: string | undefined
+  let lastModel: string | undefined
+  for await (const line of readStreamLines(reader, abortSignal)) {
+    if (
+      line.startsWith(':') ||
+      line.startsWith('event:') ||
+      line.startsWith('id:') ||
+      line.startsWith('retry:')
+    ) {
+      continue
+    }
+    const data = line.startsWith('data: ') ? line.slice(6) : line
+    if (data === '[DONE]') {
+      const synthetic: RunFinishedEvent = {
+        type: EventType.RUN_FINISHED,
+        threadId: lastThreadId ?? '',
+        runId: lastRunId ?? '',
+        model: lastModel ?? '',
+        timestamp: Date.now(),
+        finishReason: 'stop',
+      }
+      yield synthetic
+      return
+    }
+    const chunk = JSON.parse(data) as StreamChunk
+    if ('threadId' in chunk && typeof chunk.threadId === 'string') {
+      lastThreadId = chunk.threadId
+    }
+    if ('runId' in chunk && typeof chunk.runId === 'string') {
+      lastRunId = chunk.runId
+    }
+    if ('model' in chunk && typeof chunk.model === 'string') {
+      lastModel = chunk.model
+    }
+    yield chunk
   }
 }
 
@@ -175,9 +263,17 @@ export function normalizeConnectionAdapter(
     },
     async send(messages, data, abortSignal) {
       let hasTerminalEvent = false
+      let upstreamThreadId: string | undefined
+      let upstreamRunId: string | undefined
       try {
         const stream = connection.connect(messages, data, abortSignal)
         for await (const chunk of stream) {
+          if ('threadId' in chunk && typeof chunk.threadId === 'string') {
+            upstreamThreadId = chunk.threadId
+          }
+          if ('runId' in chunk && typeof chunk.runId === 'string') {
+            upstreamRunId = chunk.runId
+          }
           if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
             hasTerminalEvent = true
           }
@@ -187,28 +283,26 @@ export function normalizeConnectionAdapter(
         // If the connect stream ended cleanly without a terminal event,
         // synthesize RUN_FINISHED so request-scoped consumers can complete.
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          push({
-            type: 'RUN_FINISHED',
-            runId: `run-${Date.now()}`,
+          const synthetic: RunFinishedEvent = {
+            type: EventType.RUN_FINISHED,
+            threadId: upstreamThreadId ?? `thread-${Date.now()}`,
+            runId: upstreamRunId ?? `run-${Date.now()}`,
             model: 'connect-wrapper',
             timestamp: Date.now(),
             finishReason: 'stop',
-          } as unknown as StreamChunk)
+          }
+          push(synthetic)
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          push({
-            type: 'RUN_ERROR',
+          const message =
+            err instanceof Error ? err.message : 'Unknown error in connect()'
+          const synthetic: RunErrorEvent = {
+            type: EventType.RUN_ERROR,
             timestamp: Date.now(),
-            message:
-              err instanceof Error ? err.message : 'Unknown error in connect()',
-            error: {
-              message:
-                err instanceof Error
-                  ? err.message
-                  : 'Unknown error in connect()',
-            },
-          } as unknown as StreamChunk)
+            message,
+          }
+          push(synthetic)
         }
         throw err
       }
@@ -296,37 +390,7 @@ export function fetchServerSentEvents(
         signal: abortSignal || resolvedOptions.signal,
       })
 
-      if (!response.ok) {
-        throw new Error(
-          `HTTP error! status: ${response.status} ${response.statusText}`,
-        )
-      }
-
-      // Parse Server-Sent Events format
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('Response body is not readable')
-      }
-
-      for await (const line of readStreamLines(reader, abortSignal)) {
-        // Handle Server-Sent Events format
-        const data = line.startsWith('data: ') ? line.slice(6) : line
-
-        if (data === '[DONE]') {
-          console.warn(
-            '[@tanstack/ai-client] Received [DONE] sentinel. This is deprecated — upgrade your @tanstack/ai server package. RUN_FINISHED is the stream terminator.',
-          )
-          continue
-        }
-
-        try {
-          const parsed: StreamChunk = JSON.parse(data)
-          yield parsed
-        } catch (parseError) {
-          // Skip non-JSON lines or malformed chunks
-          console.warn('Failed to parse SSE chunk:', data)
-        }
-      }
+      yield* responseToSSEChunks(response, abortSignal)
     },
   }
 }
@@ -413,12 +477,7 @@ export function fetchHttpStream(
       }
 
       for await (const line of readStreamLines(reader, abortSignal)) {
-        try {
-          const parsed: StreamChunk = JSON.parse(line)
-          yield parsed
-        } catch (parseError) {
-          console.warn('Failed to parse HTTP stream chunk:', line)
-        }
+        yield JSON.parse(line) as StreamChunk
       }
     },
   }
@@ -442,14 +501,79 @@ export function stream(
   streamFactory: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
+    abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data) {
+    async *connect(messages, data, abortSignal) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* streamFactory(messages, data)
+      yield* streamFactory(messages, data, abortSignal)
     },
+  }
+}
+
+/**
+ * Wrap a `ChatFetcher` as a `ConnectConnectionAdapter` so the chat client can
+ * consume it through the same `subscribe`/`send` plumbing used for SSE /
+ * HTTP-stream / RPC connections. May return either a `Response` (parsed as
+ * SSE) or an `AsyncIterable<StreamChunk>` (yielded directly).
+ *
+ * @internal
+ */
+export function fetcherToConnectionAdapter(
+  fetcher: ChatFetcher,
+): ConnectConnectionAdapter {
+  return {
+    async *connect(messages, data, abortSignal) {
+      if (!abortSignal) {
+        throw new Error(
+          'fetcherToConnectionAdapter requires an AbortSignal — the chat client always supplies one.',
+        )
+      }
+      const uiMessages = messages as Array<UIMessage>
+      const result = await fetcher(
+        { messages: uiMessages, data },
+        { signal: abortSignal },
+      )
+      if (result instanceof Response) {
+        yield* responseToSSEChunks(result, abortSignal)
+      } else {
+        yield* abortableIterable(result, abortSignal)
+      }
+    },
+  }
+}
+
+/**
+ * Wrap an AsyncIterable so iteration aborts when `signal` fires. Without
+ * this, a fetcher that returns a generator ignoring its signal would leave
+ * the for-await loop hanging until the iterable naturally ends.
+ */
+async function* abortableIterable<T>(
+  iterable: AsyncIterable<T>,
+  signal: AbortSignal,
+): AsyncGenerator<T> {
+  if (signal.aborted) return
+  const iterator = iterable[Symbol.asyncIterator]()
+  const abortPromise = new Promise<{ done: true; value: undefined }>(
+    (resolve) => {
+      signal.addEventListener(
+        'abort',
+        () => resolve({ done: true, value: undefined }),
+        { once: true },
+      )
+    },
+  )
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    while (true) {
+      const result = await Promise.race([iterator.next(), abortPromise])
+      if (result.done) return
+      yield result.value
+    }
+  } finally {
+    await iterator.return?.()
   }
 }
 
@@ -473,13 +597,14 @@ export function rpcStream(
   rpcCall: (
     messages: Array<UIMessage> | Array<ModelMessage>,
     data?: Record<string, any>,
+    abortSignal?: AbortSignal,
   ) => AsyncIterable<StreamChunk>,
 ): ConnectConnectionAdapter {
   return {
-    async *connect(messages, data) {
+    async *connect(messages, data, abortSignal) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* rpcCall(messages, data)
+      yield* rpcCall(messages, data, abortSignal)
     },
   }
 }

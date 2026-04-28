@@ -16,7 +16,10 @@ export type {
   InferChatMessages,
   ChatClientState,
   ConnectionStatus,
-  // Multimodal content input type
+  ChatFetcher,
+  ChatFetcherInput,
+  ChatFetcherOptions,
+  ChatTransport,
   MultimodalContent,
 } from './types'
 // Generation client types
@@ -57,6 +60,7 @@ export {
   fetchHttpStream,
   stream,
   rpcStream,
+  StreamTruncatedError,
   type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,

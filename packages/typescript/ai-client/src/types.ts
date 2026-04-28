@@ -14,6 +14,47 @@ import type {
 import type { ConnectionAdapter } from './connection-adapters'
 
 /**
+ * `messages` is the full UIMessage history (not a delta). `data` is the
+ * merged body — `ChatClientOptions.body` plus any per-call data passed to
+ * `sendMessage(...)`.
+ */
+export interface ChatFetcherInput {
+  messages: Array<UIMessage>
+  data?: Record<string, unknown>
+}
+
+export interface ChatFetcherOptions {
+  /** Fires when `stop()` is called or the request is superseded. */
+  signal: AbortSignal
+}
+
+/**
+ * Direct async function that performs a chat request. Mirrors
+ * `GenerationFetcher`. Returns either a `Response` (SSE body parsed by the
+ * chat client) or an `AsyncIterable<StreamChunk>` (yielded directly).
+ *
+ * @example
+ * ```ts
+ * useChat({
+ *   fetcher: ({ messages }, { signal }) =>
+ *     chatFn({ data: { messages }, signal }),
+ * })
+ * ```
+ */
+export type ChatFetcher = (
+  input: ChatFetcherInput,
+  options: ChatFetcherOptions,
+) => Promise<Response | AsyncIterable<StreamChunk>>
+
+/**
+ * Discriminated union enforcing that exactly one of `connection` or
+ * `fetcher` is provided. Mirrors `GenerationTransport`.
+ */
+export type ChatTransport =
+  | { connection: ConnectionAdapter; fetcher?: never }
+  | { fetcher: ChatFetcher; connection?: never }
+
+/**
  * Tool call states - track the lifecycle of a tool call
  */
 export type ToolCallState =
@@ -183,16 +224,13 @@ export interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
   createdAt?: Date
 }
 
-export interface ChatClientOptions<
+/**
+ * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
+ * provided — the type-level XOR is enforced via `ChatTransport`.
+ */
+export type ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
-> {
-  /**
-   * Connection adapter for streaming.
-   * Supports mutually exclusive modes: request-response via `connect()`, or
-   * subscribe/send mode via `subscribe()` + `send()`.
-   */
-  connection: ConnectionAdapter
-
+> = {
   /**
    * Initial messages to populate the chat
    */
@@ -299,7 +337,7 @@ export interface ChatClientOptions<
      */
     chunkStrategy?: ChunkStrategy
   }
-}
+} & ChatTransport
 
 export interface ChatRequestBody {
   messages: Array<ModelMessage>

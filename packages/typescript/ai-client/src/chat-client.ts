@@ -4,7 +4,10 @@ import {
   normalizeToUIMessage,
 } from '@tanstack/ai'
 import { DefaultChatClientEventEmitter } from './events'
-import { normalizeConnectionAdapter } from './connection-adapters'
+import {
+  fetcherToConnectionAdapter,
+  normalizeConnectionAdapter,
+} from './connection-adapters'
 import type {
   AnyClientTool,
   ContentPart,
@@ -19,12 +22,33 @@ import type { ChatClientEventEmitter } from './events'
 import type {
   ChatClientOptions,
   ChatClientState,
+  ChatFetcher,
   ConnectionStatus,
   MessagePart,
   MultimodalContent,
   ToolCallPart,
   UIMessage,
 } from './types'
+
+function resolveTransport(transport: {
+  connection?: ConnectionAdapter
+  fetcher?: ChatFetcher
+}): ConnectionAdapter {
+  const hasConnection = transport.connection !== undefined
+  const hasFetcher = transport.fetcher !== undefined
+  if (hasConnection && hasFetcher) {
+    throw new Error(
+      'ChatClient: pass either `connection` or `fetcher`, not both.',
+    )
+  }
+  if (hasConnection) {
+    return transport.connection!
+  }
+  if (hasFetcher) {
+    return fetcherToConnectionAdapter(transport.fetcher!)
+  }
+  throw new Error('ChatClient: either `connection` or `fetcher` is required.')
+}
 
 export class ChatClient {
   private processor: StreamProcessor
@@ -82,7 +106,7 @@ export class ChatClient {
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.body = options.body || {}
-    this.connection = normalizeConnectionAdapter(options.connection)
+    this.connection = normalizeConnectionAdapter(resolveTransport(options))
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
     // Build client tools map
@@ -969,6 +993,7 @@ export class ChatClient {
    */
   updateOptions(options: {
     connection?: ConnectionAdapter
+    fetcher?: ChatFetcher
     body?: Record<string, any>
     tools?: ReadonlyArray<AnyClientTool>
     onResponse?: (response?: Response) => void | Promise<void>
@@ -984,7 +1009,7 @@ export class ChatClient {
       context: { toolCallId?: string },
     ) => void
   }): void {
-    if (options.connection !== undefined) {
+    if (options.connection !== undefined || options.fetcher !== undefined) {
       const wasSubscribed = this.isSubscribed
 
       if (this.isLoading) {
@@ -999,7 +1024,12 @@ export class ChatClient {
       this.resetSessionGenerating()
       this.setIsSubscribed(false)
       this.setConnectionStatus('disconnected')
-      this.connection = normalizeConnectionAdapter(options.connection)
+      this.connection = normalizeConnectionAdapter(
+        resolveTransport({
+          connection: options.connection,
+          fetcher: options.fetcher,
+        }),
+      )
 
       if (wasSubscribed) {
         this.subscribe()
