@@ -867,9 +867,9 @@ describe('StreamProcessor', () => {
 
       // Only step-b should have produced a ThinkingPart with contentB.
       // No phantom step-a part should exist.
-      expect(
-        thinkingParts.some((p) => (p as any).stepId === 'step-a'),
-      ).toBe(false)
+      expect(thinkingParts.some((p) => (p as any).stepId === 'step-a')).toBe(
+        false,
+      )
       expect(thinkingParts).toHaveLength(1)
       expect((thinkingParts[0] as any).stepId).toBe('step-b')
       expect((thinkingParts[0] as any).content).toBe('contentB')
