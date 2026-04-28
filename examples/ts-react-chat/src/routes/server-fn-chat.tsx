@@ -3,7 +3,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { stream, useChat } from '@tanstack/ai-react'
 import { Send, Square } from 'lucide-react'
 import { chatFn } from '@/lib/server-fns'
-import type { UIMessage } from '@tanstack/ai'
 
 export const Route = createFileRoute('/server-fn-chat')({
   component: ServerFnChat,
@@ -22,9 +21,7 @@ export const Route = createFileRoute('/server-fn-chat')({
  */
 function ServerFnChat() {
   const { messages, sendMessage, isLoading, error, stop } = useChat({
-    connection: stream((messages) =>
-      chatFn({ data: { messages: messages as Array<UIMessage> } }),
-    ),
+    connection: stream((messages) => chatFn({ data: { messages } })),
   })
   const [input, setInput] = useState('')
 

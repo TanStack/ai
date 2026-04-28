@@ -7,11 +7,18 @@ import {
   stream,
 } from '../src/connection-adapters'
 import { EventType } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk, UIMessage } from '@tanstack/ai'
 
 /** Cast an event object to StreamChunk for type compatibility with EventType enum. */
 const asChunk = (chunk: Record<string, unknown>) =>
   chunk as unknown as StreamChunk
+
+/** Build a minimal user UIMessage for tests that just need a non-empty input. */
+const userUIMessage = (content = 'Hello'): UIMessage => ({
+  id: 'u1',
+  role: 'user',
+  parts: [{ type: 'text', content }],
+})
 
 describe('connection-adapters', () => {
   let originalFetch: typeof fetch
@@ -787,9 +794,7 @@ describe('connection-adapters', () => {
       const adapter = stream(streamFactory)
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect([userUIMessage()])) {
         chunks.push(chunk)
       }
 
@@ -811,10 +816,7 @@ describe('connection-adapters', () => {
       const adapter = stream(streamFactory)
       const data = { key: 'value' }
 
-      for await (const _ of adapter.connect(
-        [{ role: 'user', content: 'Hello' }],
-        data,
-      )) {
+      for await (const _ of adapter.connect([userUIMessage()], data)) {
         // Consume
       }
 
@@ -855,9 +857,7 @@ describe('connection-adapters', () => {
 
       const adapter = stream((messages, data) => serverFn(messages, data))
       const chunks: Array<StreamChunk> = []
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect([userUIMessage()])) {
         chunks.push(chunk)
       }
 
@@ -879,9 +879,7 @@ describe('connection-adapters', () => {
 
       const adapter = stream(() => serverFn())
       const chunks: Array<StreamChunk> = []
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect([userUIMessage()])) {
         chunks.push(chunk)
       }
 
@@ -901,9 +899,7 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect([userUIMessage()])) {
             // Consume
           }
         })(),
@@ -968,7 +964,7 @@ describe('connection-adapters', () => {
         return received
       })()
 
-      await adapter.send([{ role: 'user', content: 'Hello' }])
+      await adapter.send([userUIMessage()])
       const received = await receivedPromise
 
       expect(received).toHaveLength(2)
@@ -993,9 +989,9 @@ describe('connection-adapters', () => {
         return received
       })()
 
-      await expect(
-        adapter.send([{ role: 'user', content: 'Hello' }]),
-      ).rejects.toThrow('connect exploded')
+      await expect(adapter.send([userUIMessage()])).rejects.toThrow(
+        'connect exploded',
+      )
       const received = await receivedPromise
 
       expect(received).toHaveLength(1)
@@ -1027,9 +1023,9 @@ describe('connection-adapters', () => {
         return received
       })()
 
-      await expect(
-        adapter.send([{ role: 'user', content: 'Hello' }]),
-      ).rejects.toThrow('connect exploded')
+      await expect(adapter.send([userUIMessage()])).rejects.toThrow(
+        'connect exploded',
+      )
       const received = await receivedPromise
 
       expect(received).toHaveLength(1)

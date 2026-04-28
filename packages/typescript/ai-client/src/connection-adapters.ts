@@ -474,9 +474,32 @@ export type StreamFactoryResult =
   | Promise<AsyncIterable<StreamChunk> | Response>
 
 /**
+ * Runtime invariant: `ChatClient` always passes `Array<UIMessage>` to the
+ * connection adapter (see `chat-client.ts` — `processor.getMessages()` returns
+ * `Array<UIMessage>`). We assert this so `stream()`'s callback can be typed
+ * with the narrower, more useful `Array<UIMessage>` signature without an `as`
+ * cast — the asserts function narrows the union for the type checker.
+ */
+function assertUIMessages(
+  messages: Array<UIMessage> | Array<ModelMessage>,
+): asserts messages is Array<UIMessage> {
+  const first = messages[0]
+  if (first === undefined) return
+  // UIMessage exposes `parts`; ModelMessage exposes `content`.
+  if (!('parts' in first)) {
+    throw new TypeError(
+      'stream() expects UIMessage[]. Convert ModelMessage[] to UIMessage[] ' +
+        'first (e.g. with modelMessagesToUIMessages from @tanstack/ai), or ' +
+        'use rpcStream() for ModelMessage-shaped streams.',
+    )
+  }
+}
+
+/**
  * Create a direct stream connection adapter.
  *
- * Accepts any of:
+ * The factory callback receives `Array<UIMessage>` — the message shape used by
+ * `useChat` and the chat client. Accepts any of:
  *
  * 1. An in-process async iterable factory (returns `AsyncIterable<StreamChunk>`).
  * 2. A TanStack Start server function whose handler returns the chat stream
@@ -514,13 +537,14 @@ export type StreamFactoryResult =
  */
 export function stream(
   streamFactory: (
-    messages: Array<UIMessage> | Array<ModelMessage>,
+    messages: Array<UIMessage>,
     data?: Record<string, any>,
     abortSignal?: AbortSignal,
   ) => StreamFactoryResult,
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
+      assertUIMessages(messages)
       const result = await streamFactory(messages, data, abortSignal)
       if (result instanceof Response) {
         yield* responseToSSEChunks(result, abortSignal)

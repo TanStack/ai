@@ -386,9 +386,7 @@ export const chatFn = createServerFn({ method: 'POST' })
     toServerSentEventsResponse(
       chat({
         adapter: openaiText('gpt-4o'),
-        // chat() converts UIMessage[] to ModelMessage[] internally, but the
-        // exported type signature only accepts ModelMessage[] — cast to any.
-        messages: data.messages as any,
+        messages: data.messages,
         systemPrompts: [
           'You are a helpful assistant. Keep replies short and friendly.',
         ],
