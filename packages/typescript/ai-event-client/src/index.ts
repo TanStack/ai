@@ -86,15 +86,17 @@ export type MessagePart =
   | ToolResultPart
   | ThinkingPart
 
-export interface ToolCall {
+export interface ToolCall<TMetadata = unknown> {
   id: string
   type: 'function'
   function: {
     name: string
     arguments: string
   }
-  /** Provider-specific metadata to carry through the tool call lifecycle */
-  providerMetadata?: Record<string, unknown>
+  /** Provider-specific metadata to carry through the tool call lifecycle.
+   * Typed per-adapter via `TToolCallMetadata` (e.g. Gemini's
+   * `{ thoughtSignature?: string }`). */
+  metadata?: TMetadata
 }
 
 /**

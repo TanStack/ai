@@ -33,7 +33,10 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
-import type { GeminiMessageMetadataByModality } from '../message-types'
+import type {
+  GeminiMessageMetadataByModality,
+  GeminiToolCallMetadata,
+} from '../message-types'
 import type { GeminiClientConfig } from '../utils'
 
 /** Cast an event object to StreamChunk. Adapters construct events with string
@@ -104,7 +107,8 @@ export class GeminiTextAdapter<
   TProviderOptions,
   TInputModalities,
   GeminiMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  GeminiToolCallMetadata
 > {
   readonly kind = 'text' as const
   readonly name = 'gemini' as const
@@ -435,9 +439,9 @@ export class GeminiTextAdapter<
                 timestamp,
                 index: toolCallData.index,
                 ...(toolCallData.thoughtSignature && {
-                  providerMetadata: {
+                  metadata: {
                     thoughtSignature: toolCallData.thoughtSignature,
-                  },
+                  } satisfies GeminiToolCallMetadata,
                 }),
               })
             }
@@ -714,8 +718,9 @@ export class GeminiTextAdapter<
             >
           }
 
-          const thoughtSignature = toolCall.providerMetadata
-            ?.thoughtSignature as string | undefined
+          const thoughtSignature = (
+            toolCall.metadata as GeminiToolCallMetadata | undefined
+          )?.thoughtSignature
           // Gemini requires thoughtSignature at the Part level (sibling of
           // functionCall), not nested inside functionCall. Nesting it causes
           // the API to reject the next turn with

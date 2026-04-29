@@ -55,6 +55,7 @@ export function updateToolCallPart(
     name: string
     arguments: string
     state: ToolCallState
+    metadata?: Record<string, unknown>
   },
 ): Array<UIMessage> {
   return messages.map((msg) => {
@@ -67,6 +68,12 @@ export function updateToolCallPart(
       (p): p is ToolCallPart => p.type === 'tool-call' && p.id === toolCall.id,
     )
 
+    // Carry forward metadata from either the new toolCall or the existing
+    // part. Once the adapter has emitted metadata for a tool call (e.g.
+    // Gemini's thoughtSignature on TOOL_CALL_START) we must not lose it on
+    // subsequent updates that don't re-supply it.
+    const metadata = toolCall.metadata ?? existing?.metadata
+
     const toolCallPart: ToolCallPart = {
       type: 'tool-call',
       id: toolCall.id,
@@ -76,6 +83,7 @@ export function updateToolCallPart(
       // Carry forward approval and output from the existing part
       ...(existing?.approval && { approval: { ...existing.approval } }),
       ...(existing?.output !== undefined && { output: existing.output }),
+      ...(metadata !== undefined && { metadata }),
     }
 
     if (existing) {

@@ -899,6 +899,11 @@ export class StreamProcessor {
 
       const toolName = chunk.toolCallName
 
+      // Capture provider metadata that arrived on TOOL_CALL_START so it
+      // round-trips back through the assistant message on the next turn
+      // (e.g. Gemini's thoughtSignature).
+      const chunkMetadata = chunk.metadata
+
       const newToolCall: InternalToolCallState = {
         id: chunk.toolCallId,
         name: toolName,
@@ -906,6 +911,7 @@ export class StreamProcessor {
         state: initialState,
         parsedArguments: undefined,
         index: chunk.index ?? state.toolCalls.size,
+        ...(chunkMetadata !== undefined && { metadata: chunkMetadata }),
       }
 
       state.toolCalls.set(toolCallId, newToolCall)
@@ -920,6 +926,7 @@ export class StreamProcessor {
         name: toolName,
         arguments: '',
         state: initialState,
+        ...(chunkMetadata !== undefined && { metadata: chunkMetadata }),
       })
       this.emitMessagesChange()
 
@@ -1386,6 +1393,7 @@ export class StreamProcessor {
       name: toolCall.name,
       arguments: toolCall.arguments,
       state: 'input-complete',
+      ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
     })
     this.emitMessagesChange()
 
