@@ -3,6 +3,7 @@ import { createChatOptions } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createGeminiChat } from '@tanstack/ai-gemini'
+import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
@@ -11,7 +12,7 @@ import {
   createOpenRouterText,
 } from '@tanstack/ai-openrouter'
 import { HTTPClient } from '@openrouter/sdk'
-import type { Provider } from '@/lib/types'
+import type { Feature, Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
@@ -36,6 +37,7 @@ export function createTextAdapter(
   modelOverride?: string,
   aimockPort?: number,
   testId?: string,
+  feature?: Feature,
 ): { adapter: AnyTextAdapter } {
   const model = modelOverride ?? defaultModels[provider]
 
@@ -46,6 +48,24 @@ export function createTextAdapter(
 
   // X-Test-Id header for per-test sequenceIndex isolation in aimock
   const testHeaders = testId ? { 'X-Test-Id': testId } : undefined
+
+  // The Gemini Interactions API lives at a different endpoint
+  // (POST /v1beta/interactions) and uses a different adapter than the
+  // standard Gemini chat path.
+  if (provider === 'gemini' && feature === 'stateful-interactions') {
+    return createChatOptions({
+      adapter: createGeminiTextInteractions(
+        model as 'gemini-2.0-flash',
+        DUMMY_KEY,
+        {
+          httpOptions: {
+            baseUrl: base,
+            headers: testHeaders,
+          },
+        },
+      ),
+    })
+  }
 
   const factories: Record<Provider, () => { adapter: AnyTextAdapter }> = {
     openai: () =>

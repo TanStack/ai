@@ -43,6 +43,10 @@ export const Route = createFileRoute('/api/chat')({
         const testId = typeof fp.testId === 'string' ? fp.testId : undefined
         const aimockPort =
           fp.aimockPort != null ? Number(fp.aimockPort) : undefined
+        const previousInteractionId: string | undefined =
+          typeof fp.previousInteractionId === 'string'
+            ? fp.previousInteractionId
+            : undefined
 
         const config = featureConfigs[feature]
         const modelOverride = config.modelOverrides?.[provider]
@@ -51,7 +55,15 @@ export const Route = createFileRoute('/api/chat')({
           modelOverride,
           aimockPort,
           testId,
+          feature,
         )
+
+        const modelOptions = previousInteractionId
+          ? {
+              ...config.modelOptions,
+              previous_interaction_id: previousInteractionId,
+            }
+          : config.modelOptions
 
         try {
           const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT
@@ -84,7 +96,7 @@ export const Route = createFileRoute('/api/chat')({
             feature === 'structured-output-stream'
               ? chat({
                   ...adapterOptions,
-                  modelOptions: config.modelOptions,
+                  modelOptions,
                   systemPrompts,
                   messages: params.messages,
                   threadId: params.threadId,
@@ -96,7 +108,7 @@ export const Route = createFileRoute('/api/chat')({
               : feature === 'multi-turn-structured'
                 ? chat({
                     ...adapterOptions,
-                    modelOptions: config.modelOptions,
+                    modelOptions,
                     systemPrompts,
                     messages: params.messages,
                     threadId: params.threadId,
@@ -108,7 +120,7 @@ export const Route = createFileRoute('/api/chat')({
                 : chat({
                     ...adapterOptions,
                     tools: config.tools,
-                    modelOptions: config.modelOptions,
+                    modelOptions,
                     systemPrompts,
                     agentLoopStrategy: maxIterations(5),
                     messages: params.messages,
