@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
@@ -137,49 +138,78 @@ function ChatFeature({
 
   const { testId, aimockPort } = Route.useSearch()
 
+  // Track the last interactionId surfaced by the gemini.interactionId CUSTOM
+  // event so callers (and the e2e spec) can chain turns via
+  // modelOptions.previous_interaction_id on the next request.
+  const [interactionId, setInteractionId] = useState<string | undefined>(
+    undefined,
+  )
+
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
       connection: fetchServerSentEvents('/api/chat'),
       tools,
-      body: { provider, feature, testId, aimockPort },
+      body: {
+        provider,
+        feature,
+        testId,
+        aimockPort,
+        previousInteractionId: interactionId,
+      },
+      onCustomEvent: (eventType, data) => {
+        if (
+          eventType === 'gemini.interactionId' &&
+          data &&
+          typeof (data as any).interactionId === 'string'
+        ) {
+          setInteractionId((data as any).interactionId)
+        }
+      },
     })
 
   return (
-    <ChatUI
-      messages={messages}
-      isLoading={isLoading}
-      onSendMessage={(text) => {
-        sendMessage(text)
-      }}
-      onSendMessageWithImage={
-        showImageInput
-          ? (text, file) => {
-              const reader = new FileReader()
-              reader.onload = () => {
-                const base64 = (reader.result as string).split(',')[1]
-                sendMessage({
-                  content: [
-                    { type: 'text', content: text },
-                    {
-                      type: 'image',
-                      source: {
-                        type: 'data',
-                        value: base64,
-                        mimeType: file.type,
+    <>
+      {interactionId && (
+        <div data-testid="gemini-interaction-id" hidden>
+          {interactionId}
+        </div>
+      )}
+      <ChatUI
+        messages={messages}
+        isLoading={isLoading}
+        onSendMessage={(text) => {
+          sendMessage(text)
+        }}
+        onSendMessageWithImage={
+          showImageInput
+            ? (text, file) => {
+                const reader = new FileReader()
+                reader.onload = () => {
+                  const base64 = (reader.result as string).split(',')[1]
+                  sendMessage({
+                    content: [
+                      { type: 'text', content: text },
+                      {
+                        type: 'image',
+                        source: {
+                          type: 'data',
+                          value: base64,
+                          mimeType: file.type,
+                        },
                       },
-                    },
-                  ],
-                })
+                    ],
+                  })
+                }
+                reader.readAsDataURL(file)
               }
-              reader.readAsDataURL(file)
-            }
-          : undefined
-      }
-      addToolApprovalResponse={
-        needsApproval ? addToolApprovalResponse : undefined
-      }
-      showImageInput={showImageInput}
-      onStop={stop}
-    />
+            : undefined
+        }
+        addToolApprovalResponse={
+          needsApproval ? addToolApprovalResponse : undefined
+        }
+        showImageInput={showImageInput}
+        onStop={stop}
+      />
+    </>
   )
 }
