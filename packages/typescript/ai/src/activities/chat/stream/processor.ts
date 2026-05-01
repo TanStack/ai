@@ -1509,6 +1509,10 @@ export class StreamProcessor {
               name: tc.name,
               arguments: tc.arguments,
             },
+            // Preserve provider metadata (e.g. Gemini thoughtSignature) on
+            // ProcessorResult.toolCalls so callers using process()/getResult()
+            // get the same round-trip support as the streaming UI path.
+            ...(tc.metadata !== undefined && { metadata: tc.metadata }),
           })
         }
       }

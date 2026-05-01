@@ -49,7 +49,7 @@ export interface DocumentPart {
   metadata?: unknown
 }
 
-export interface ToolCallPart {
+export interface ToolCallPart<TMetadata = unknown> {
   type: 'tool-call'
   id: string
   name: string
@@ -61,6 +61,9 @@ export interface ToolCallPart {
     approved?: boolean
   }
   output?: any
+  /** Provider-specific metadata that round-trips with the tool call.
+   * Mirrors `ToolCallPart.metadata` in `@tanstack/ai`. */
+  metadata?: TMetadata
 }
 
 export interface ToolResultPart {
