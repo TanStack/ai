@@ -101,9 +101,7 @@ export class ToolCallManager {
         name,
         arguments: '',
       },
-      ...(event.providerMetadata && {
-        providerMetadata: event.providerMetadata,
-      }),
+      ...(event.metadata !== undefined && { metadata: event.metadata }),
     })
   }
 

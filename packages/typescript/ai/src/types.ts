@@ -111,15 +111,17 @@ export type SchemaInput = StandardJSONSchemaV1<any, any> | JSONSchema
 export type InferSchemaType<T> =
   T extends StandardJSONSchemaV1<infer TInput, unknown> ? TInput : unknown
 
-export interface ToolCall {
+export interface ToolCall<TMetadata = unknown> {
   id: string
   type: 'function'
   function: {
     name: string
     arguments: string // JSON string
   }
-  /** Provider-specific metadata to carry through the tool call lifecycle */
-  providerMetadata?: Record<string, unknown>
+  /** Provider-specific metadata to carry through the tool call lifecycle.
+   * Typed per-adapter via `TToolCallMetadata`. For example,
+   * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
+  metadata?: TMetadata
 }
 
 // ============================================================================
@@ -308,7 +310,7 @@ export interface TextPart<TMetadata = unknown> {
   metadata?: TMetadata
 }
 
-export interface ToolCallPart {
+export interface ToolCallPart<TMetadata = unknown> {
   type: 'tool-call'
   id: string
   name: string
@@ -322,6 +324,9 @@ export interface ToolCallPart {
   }
   /** Tool execution output (for client tools or after approval) */
   output?: any
+  /** Provider-specific metadata that round-trips with the tool call.
+   * Typed per-adapter via `TToolCallMetadata`. */
+  metadata?: TMetadata
 }
 
 export interface ToolResultPart {
@@ -889,7 +894,7 @@ export interface TextMessageEndEvent extends AGUITextMessageEndEvent {
  * Emitted when a tool call starts.
  *
  * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
- * TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `providerMetadata?`
+ * TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
  */
 export interface ToolCallStartEvent extends AGUIToolCallStartEvent {
   /** Model identifier for multi-model support */
@@ -901,8 +906,11 @@ export interface ToolCallStartEvent extends AGUIToolCallStartEvent {
   toolName: string
   /** Index for parallel tool calls */
   index?: number
-  /** Provider-specific metadata to carry into the ToolCall */
-  providerMetadata?: Record<string, unknown>
+  /** Provider-specific metadata to carry into the ToolCall.
+   * Untyped at the event layer because events flow through a discriminated
+   * union that does not survive generics; adapters cast it to their typed
+   * `TToolCallMetadata` shape when emitting. */
+  metadata?: Record<string, unknown>
 }
 
 /**
