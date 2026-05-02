@@ -265,14 +265,14 @@ export function fetchServerSentEvents(
   url: string | (() => string),
   options:
     | FetchConnectionOptions
-    | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
+    | ((messages:Array<UIMessage> | Array<ModelMessage>) => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
-        typeof options === 'function' ? await options() : options
+        typeof options === 'function' ? await options(messages) : options
 
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
