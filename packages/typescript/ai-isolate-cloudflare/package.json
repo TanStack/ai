@@ -35,7 +35,7 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "dev:worker": "node dev-server.mjs",
+    "dev:worker": "wrangler dev",
     "deploy:worker": "wrangler deploy",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",

@@ -1,41 +1,88 @@
 /**
  * Cloudflare Worker for Code Mode execution
  *
- * This Worker executes JavaScript code in a V8 isolate on Cloudflare's edge network.
- * Tool calls are handled via a request/response loop with the driver.
+ * Executes JavaScript code in a fresh V8 isolate on Cloudflare's edge network
+ * using the `worker_loader` (Dynamic Workers) binding. Tool calls round-trip
+ * to the driver via the same request/response protocol as before.
  *
  * Flow:
  * 1. Receive code + tool schemas
- * 2. Execute code, collecting any tool calls
- * 3. If tool calls are needed, return them to the driver
- * 4. Driver executes tools locally, sends results back
- * 5. Re-execute with tool results injected
- * 6. Return final result
+ * 2. Wrap user code in an ES module exporting a `fetch` handler that returns
+ *    the IIFE result as JSON
+ * 3. Load the module into a child Worker via `env.LOADER.load(...)` and
+ *    invoke its entrypoint
+ * 4. If tool calls are needed, return them to the driver
+ * 5. Driver executes tools locally, sends results back
+ * 6. Re-execute with tool results injected
+ * 7. Return final result
+ *
+ * `worker_loader` replaces the previous `unsafe_eval` binding, which is gated
+ * by Cloudflare for all customer accounts and unusable in production. See
+ * https://developers.cloudflare.com/dynamic-workers/ for the supported API.
  */
 
 import { wrapCode } from './wrap-code'
 import type { ExecuteRequest, ExecuteResponse, ToolCallRequest } from '../types'
 
 /**
- * UnsafeEval binding type.
- *
- * Provides dynamic-code execution against the Worker's V8 isolate. Available
- * locally (via wrangler dev) and in production deployments where the
- * `unsafe_eval` binding has been enabled on the Cloudflare account.
+ * Compatibility date for the loaded child Worker. Pinned at this layer so
+ * sandbox semantics don't drift with the parent Worker's compat date.
  */
-interface UnsafeEval {
-  eval: (code: string) => unknown
+const SANDBOX_COMPAT_DATE = '2026-05-01'
+
+/**
+ * Worker Loader binding type.
+ *
+ * Provides dynamic-code execution by loading a module into a fresh V8
+ * isolate. Configure in wrangler.toml under `[[worker_loaders]]`. Requires a
+ * Workers Paid plan; see https://developers.cloudflare.com/dynamic-workers/.
+ */
+interface WorkerLoaderEntrypoint {
+  fetch: (request: Request) => Promise<Response>
+}
+
+interface LoadedWorker {
+  getEntrypoint: (name?: string) => WorkerLoaderEntrypoint
+}
+
+interface WorkerLoader {
+  load: (options: {
+    compatibilityDate: string
+    mainModule: string
+    modules: Record<string, string>
+    globalOutbound?: unknown
+    env?: Record<string, unknown>
+  }) => LoadedWorker
 }
 
 interface Env {
   /**
-   * UnsafeEval binding. Configured in wrangler.toml as an unsafe binding.
+   * worker_loader (Dynamic Workers) binding. Configured in wrangler.toml
+   * under `[[worker_loaders]] binding = "LOADER"`.
    */
-  UNSAFE_EVAL?: UnsafeEval
+  LOADER?: WorkerLoader
 }
 
 /**
- * Execute code in the Worker's V8 isolate
+ * Wrap the existing IIFE-returning string in an ES module that exposes a
+ * `fetch` handler. The child Worker's entrypoint runs the IIFE on each
+ * invocation and returns the structured result as JSON.
+ */
+function wrapAsSandboxModule(wrappedCode: string): string {
+  return `
+export default {
+  async fetch() {
+    const __result = await ${wrappedCode};
+    return new Response(JSON.stringify(__result), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+};
+`
+}
+
+/**
+ * Execute code in a freshly loaded child Worker isolate.
  */
 async function executeCode(
   request: ExecuteRequest,
@@ -43,41 +90,55 @@ async function executeCode(
 ): Promise<ExecuteResponse> {
   const { code, tools, toolResults, timeout = 30000 } = request
 
-  // Check if UNSAFE_EVAL binding is available
-  if (!env.UNSAFE_EVAL) {
+  if (!env.LOADER) {
     return {
       status: 'error',
       error: {
-        name: 'UnsafeEvalNotAvailable',
+        name: 'WorkerLoaderNotAvailable',
         message:
-          'UNSAFE_EVAL binding is not available. ' +
-          'This Worker requires the unsafe_eval binding. ' +
-          'Declare it in wrangler.toml under [[unsafe.bindings]] ' +
-          '(works for local development and production where the ' +
-          'account has unsafe_eval enabled).',
+          'LOADER binding is not available. ' +
+          'This Worker requires the worker_loader (Dynamic Workers) binding. ' +
+          'Declare it in wrangler.toml under [[worker_loaders]] with ' +
+          'binding = "LOADER" (Workers Paid plan required).',
       },
     }
   }
 
   try {
     const wrappedCode = wrapCode(code, tools, toolResults)
+    const moduleSource = wrapAsSandboxModule(wrappedCode)
 
-    // Execute with timeout
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const TIMEOUT_SENTINEL = '__SANDBOX_TIMEOUT__'
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(TIMEOUT_SENTINEL))
+      }, timeout)
+    })
 
     try {
-      // Execute the wrapped code through the UNSAFE_EVAL binding.
-      const result = (await env.UNSAFE_EVAL.eval(wrappedCode)) as {
+      const loaded = env.LOADER.load({
+        compatibilityDate: SANDBOX_COMPAT_DATE,
+        mainModule: 'main.js',
+        modules: { 'main.js': moduleSource },
+        globalOutbound: null,
+        env: {},
+      })
+      const entrypoint = loaded.getEntrypoint()
+      const fetchPromise = entrypoint.fetch(
+        new Request('https://sandbox.invalid/'),
+      )
+      const response = await Promise.race([fetchPromise, timeoutPromise])
+      if (timeoutId) clearTimeout(timeoutId)
+
+      const result: {
         status: string
         success?: boolean
         value?: unknown
         error?: { name: string; message: string; stack?: string }
         logs: Array<string>
         toolCalls?: Array<ToolCallRequest>
-      }
-
-      clearTimeout(timeoutId)
+      } = await response.json()
 
       if (result.status === 'need_tools') {
         return {
@@ -96,9 +157,10 @@ async function executeCode(
         logs: result.logs,
       }
     } catch (evalError: unknown) {
-      clearTimeout(timeoutId)
+      if (timeoutId) clearTimeout(timeoutId)
+      const error = evalError as Error
 
-      if (controller.signal.aborted) {
+      if (error.message === TIMEOUT_SENTINEL) {
         return {
           status: 'error',
           error: {
@@ -108,7 +170,6 @@ async function executeCode(
         }
       }
 
-      const error = evalError as Error
       return {
         status: 'done',
         success: false,

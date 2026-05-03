@@ -6,7 +6,21 @@ import workerModule from '../src/worker/index'
 const worker = workerModule as {
   fetch: (
     request: Request,
-    env: { UNSAFE_EVAL?: { eval: (code: string) => unknown } },
+    env: {
+      LOADER?: {
+        load: (options: {
+          compatibilityDate: string
+          mainModule: string
+          modules: Record<string, string>
+          globalOutbound?: unknown
+          env?: Record<string, unknown>
+        }) => {
+          getEntrypoint: (name?: string) => {
+            fetch: (request: Request) => Promise<Response>
+          }
+        }
+      }
+    },
     ctx: ExecutionContext,
   ) => Promise<Response>
 }
@@ -174,7 +188,7 @@ describe('Worker fetch handler', () => {
     expect(json).toHaveProperty('error', 'Code is required')
   })
 
-  it('returns 200 with UnsafeEvalNotAvailable when env has no UNSAFE_EVAL', async () => {
+  it('returns 200 with WorkerLoaderNotAvailable when env has no LOADER', async () => {
     const request = new Request('https://worker.test/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -188,11 +202,10 @@ describe('Worker fetch handler', () => {
     expect(response.status).toBe(200)
     const json = await response.json()
     expect(json.status).toBe('error')
-    expect(json.error.name).toBe('UnsafeEvalNotAvailable')
-    expect(json.error.message).toContain('UNSAFE_EVAL')
+    expect(json.error.name).toBe('WorkerLoaderNotAvailable')
+    expect(json.error.message).toContain('LOADER')
+    expect(json.error.message).toContain('worker_loaders')
     expect(json.error.message).toContain('wrangler.toml')
-    // No longer steers users to Workers for Platforms
-    expect(json.error.message).not.toContain('Workers for Platforms')
   })
 
   it('returns 500 with RequestError when body is invalid JSON', async () => {
