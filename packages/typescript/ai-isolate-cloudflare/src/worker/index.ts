@@ -108,10 +108,16 @@ async function executeCode(
     const wrappedCode = wrapCode(code, tools, toolResults)
     const moduleSource = wrapAsSandboxModule(wrappedCode)
 
+    // AbortController propagates into the loaded Worker via Request.signal so
+    // a timeout actually cancels the in-flight fetch instead of leaking the
+    // child isolate. The Promise.race remains as a belt-and-suspenders guard
+    // for runtimes that ignore the signal.
+    const controller = new AbortController()
     let timeoutId: ReturnType<typeof setTimeout> | undefined
     const TIMEOUT_SENTINEL = '__SANDBOX_TIMEOUT__'
     const timeoutPromise = new Promise<never>((_resolve, reject) => {
       timeoutId = setTimeout(() => {
+        controller.abort()
         reject(new Error(TIMEOUT_SENTINEL))
       }, timeout)
     })
@@ -126,7 +132,7 @@ async function executeCode(
       })
       const entrypoint = loaded.getEntrypoint()
       const fetchPromise = entrypoint.fetch(
-        new Request('https://sandbox.invalid/'),
+        new Request('https://sandbox.invalid/', { signal: controller.signal }),
       )
       const response = await Promise.race([fetchPromise, timeoutPromise])
       if (timeoutId) clearTimeout(timeoutId)

@@ -208,6 +208,133 @@ describe('Worker fetch handler', () => {
     expect(json.error.message).toContain('wrangler.toml')
   })
 
+  it('exercises the LOADER.load → getEntrypoint → fetch chain on the happy path', async () => {
+    let loadCalled = false
+    let receivedSignal: AbortSignal | null = null
+    const env = {
+      LOADER: {
+        load: (options: {
+          compatibilityDate: string
+          mainModule: string
+          modules: Record<string, string>
+          globalOutbound?: unknown
+          env?: Record<string, unknown>
+        }) => {
+          loadCalled = true
+          // Sanity-check the load() arguments the worker passes.
+          expect(options.mainModule).toBe('main.js')
+          expect(options.modules).toHaveProperty('main.js')
+          expect(options.modules['main.js']).toContain('export default')
+          expect(options.globalOutbound).toBeNull()
+          return {
+            getEntrypoint: () => ({
+              fetch: async (req: Request) => {
+                receivedSignal = req.signal
+                return new Response(
+                  JSON.stringify({
+                    status: 'done',
+                    success: true,
+                    value: 42,
+                    logs: ['hello from sandbox'],
+                  }),
+                  { headers: { 'Content-Type': 'application/json' } },
+                )
+              },
+            }),
+          }
+        },
+      },
+    }
+
+    const request = new Request('https://worker.test/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'return 42', tools: [], timeout: 5000 }),
+    })
+    const response = await worker.fetch(request, env, mockExecutionContext)
+
+    expect(loadCalled).toBe(true)
+    expect(receivedSignal).not.toBeNull()
+    expect(response.status).toBe(200)
+    const json = await response.json()
+    expect(json.status).toBe('done')
+    expect(json.success).toBe(true)
+    expect(json.value).toBe(42)
+    expect(json.logs).toEqual(['hello from sandbox'])
+  })
+
+  it('forwards need_tools status from the loaded Worker back to the driver', async () => {
+    const env = {
+      LOADER: {
+        load: () => ({
+          getEntrypoint: () => ({
+            fetch: async () =>
+              new Response(
+                JSON.stringify({
+                  status: 'need_tools',
+                  toolCalls: [{ id: 'tc_0', name: 'fetchData', args: {} }],
+                  logs: [],
+                }),
+                { headers: { 'Content-Type': 'application/json' } },
+              ),
+          }),
+        }),
+      },
+    }
+
+    const request = new Request('https://worker.test/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: 'return await fetchData({})',
+        tools: [{ name: 'fetchData', description: 'd', inputSchema: {} }],
+      }),
+    })
+    const response = await worker.fetch(request, env, mockExecutionContext)
+
+    expect(response.status).toBe(200)
+    const json = await response.json()
+    expect(json.status).toBe('need_tools')
+    expect(json.toolCalls).toHaveLength(1)
+    expect(json.toolCalls[0].name).toBe('fetchData')
+    expect(typeof json.continuationId).toBe('string')
+  })
+
+  it('returns TimeoutError when entrypoint.fetch exceeds timeout', async () => {
+    const env = {
+      LOADER: {
+        load: () => ({
+          getEntrypoint: () => ({
+            fetch: (req: Request) =>
+              new Promise<Response>((_resolve, reject) => {
+                req.signal.addEventListener('abort', () => {
+                  reject(new Error('aborted'))
+                })
+                // Never resolves on its own; relies on AbortSignal.
+              }),
+          }),
+        }),
+      },
+    }
+
+    const request = new Request('https://worker.test/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: 'while(true){}',
+        tools: [],
+        timeout: 50,
+      }),
+    })
+    const response = await worker.fetch(request, env, mockExecutionContext)
+
+    expect(response.status).toBe(200)
+    const json = await response.json()
+    expect(json.status).toBe('error')
+    expect(json.error.name).toBe('TimeoutError')
+    expect(json.error.message).toContain('50ms')
+  })
+
   it('returns 500 with RequestError when body is invalid JSON', async () => {
     const request = new Request('https://worker.test/', {
       method: 'POST',
