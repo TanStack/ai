@@ -22,6 +22,10 @@ export const Route = createFileRoute('/api/chat')({
           typeof data?.testId === 'string' ? data.testId : undefined
         const aimockPort: number | undefined =
           data?.aimockPort != null ? Number(data.aimockPort) : undefined
+        const previousInteractionId: string | undefined =
+          typeof data?.previousInteractionId === 'string'
+            ? data.previousInteractionId
+            : undefined
 
         const config = featureConfigs[feature]
         const modelOverride = config.modelOverrides?.[provider]
@@ -30,13 +34,21 @@ export const Route = createFileRoute('/api/chat')({
           modelOverride,
           aimockPort,
           testId,
+          feature,
         )
+
+        const modelOptions = previousInteractionId
+          ? {
+              ...config.modelOptions,
+              previous_interaction_id: previousInteractionId,
+            }
+          : config.modelOptions
 
         try {
           const stream = chat({
             ...adapterOptions,
             tools: config.tools,
-            modelOptions: config.modelOptions,
+            modelOptions,
             systemPrompts: ['You are a helpful assistant for a guitar store.'],
             agentLoopStrategy: maxIterations(5),
             messages,
