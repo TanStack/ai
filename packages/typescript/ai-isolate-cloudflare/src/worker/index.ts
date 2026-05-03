@@ -166,7 +166,10 @@ async function executeCode(
       if (timeoutId) clearTimeout(timeoutId)
       const error = evalError as Error
 
-      if (error.message === TIMEOUT_SENTINEL) {
+      // Either branch of the Promise.race may win on timeout: timeoutPromise
+      // rejects with TIMEOUT_SENTINEL, while the AbortController.abort() call
+      // can race-reject the in-flight fetch first. Treat both as a timeout.
+      if (error.message === TIMEOUT_SENTINEL || controller.signal.aborted) {
         return {
           status: 'error',
           error: {

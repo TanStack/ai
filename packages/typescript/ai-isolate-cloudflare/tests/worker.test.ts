@@ -209,37 +209,37 @@ describe('Worker fetch handler', () => {
   })
 
   it('exercises the LOADER.load → getEntrypoint → fetch chain on the happy path', async () => {
+    // Capture mock state for post-fetch assertions. Asserting inside the
+    // synchronous `load()` mock would be swallowed by the outer worker's
+    // try/catch and surface as a generic 500, masking the real failure.
     let loadCalled = false
-    let receivedSignal: AbortSignal | null = null
+    type LoadOptions = {
+      compatibilityDate: string
+      mainModule: string
+      modules: Record<string, string>
+      globalOutbound?: unknown
+      env?: Record<string, unknown>
+    }
+    let capturedOptions: LoadOptions | null = null
     const env = {
       LOADER: {
-        load: (options: {
-          compatibilityDate: string
-          mainModule: string
-          modules: Record<string, string>
-          globalOutbound?: unknown
-          env?: Record<string, unknown>
-        }) => {
+        load: (options: LoadOptions) => {
           loadCalled = true
-          // Sanity-check the load() arguments the worker passes.
-          expect(options.mainModule).toBe('main.js')
-          expect(options.modules).toHaveProperty('main.js')
-          expect(options.modules['main.js']).toContain('export default')
-          expect(options.globalOutbound).toBeNull()
+          capturedOptions = options
           return {
             getEntrypoint: () => ({
-              fetch: async (req: Request) => {
-                receivedSignal = req.signal
-                return new Response(
-                  JSON.stringify({
-                    status: 'done',
-                    success: true,
-                    value: 42,
-                    logs: ['hello from sandbox'],
-                  }),
-                  { headers: { 'Content-Type': 'application/json' } },
-                )
-              },
+              fetch: (_req: Request) =>
+                Promise.resolve(
+                  new Response(
+                    JSON.stringify({
+                      status: 'done',
+                      success: true,
+                      value: 42,
+                      logs: ['hello from sandbox'],
+                    }),
+                    { headers: { 'Content-Type': 'application/json' } },
+                  ),
+                ),
             }),
           }
         },
@@ -254,7 +254,11 @@ describe('Worker fetch handler', () => {
     const response = await worker.fetch(request, env, mockExecutionContext)
 
     expect(loadCalled).toBe(true)
-    expect(receivedSignal).not.toBeNull()
+    expect(capturedOptions).not.toBeNull()
+    expect(capturedOptions!.mainModule).toBe('main.js')
+    expect(capturedOptions!.modules).toHaveProperty('main.js')
+    expect(capturedOptions!.modules['main.js']).toContain('export default')
+    expect(capturedOptions!.globalOutbound).toBeNull()
     expect(response.status).toBe(200)
     const json = await response.json()
     expect(json.status).toBe('done')
@@ -301,12 +305,18 @@ describe('Worker fetch handler', () => {
   })
 
   it('returns TimeoutError when entrypoint.fetch exceeds timeout', async () => {
+    // Capture the AbortSignal seen by the loaded Worker so we can assert that
+    // the outer worker's AbortController actually fires `abort` on timeout.
+    // (Request.signal is always non-null per spec, so `not.toBeNull()` would
+    // be trivially true and prove nothing.)
+    let receivedSignal: AbortSignal | null = null
     const env = {
       LOADER: {
         load: () => ({
           getEntrypoint: () => ({
             fetch: (req: Request) =>
               new Promise<Response>((_resolve, reject) => {
+                receivedSignal = req.signal
                 req.signal.addEventListener('abort', () => {
                   reject(new Error('aborted'))
                 })
@@ -327,6 +337,8 @@ describe('Worker fetch handler', () => {
       }),
     })
     const response = await worker.fetch(request, env, mockExecutionContext)
+    expect(receivedSignal).not.toBeNull()
+    expect(receivedSignal!.aborted).toBe(true)
 
     expect(response.status).toBe(200)
     const json = await response.json()
