@@ -424,8 +424,8 @@ describe('createCloudflareIsolateDriver', () => {
           ({
             status: 'error',
             error: {
-              name: 'UnsafeEvalNotAvailable',
-              message: 'UNSAFE_EVAL binding is not available',
+              name: 'WorkerLoaderNotAvailable',
+              message: 'LOADER binding is not available',
             },
           }) as ExecuteResponse,
       })
@@ -436,8 +436,8 @@ describe('createCloudflareIsolateDriver', () => {
       const result = await context.execute('return 1')
 
       expect(result.success).toBe(false)
-      expect(result.error?.name).toBe('UnsafeEvalNotAvailable')
-      expect(result.error?.message).toContain('UNSAFE_EVAL')
+      expect(result.error?.name).toBe('WorkerLoaderNotAvailable')
+      expect(result.error?.message).toContain('LOADER')
     })
 
     it('returns error when Worker returns status: done with success: false', async () => {
