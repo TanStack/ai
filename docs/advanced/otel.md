@@ -64,7 +64,7 @@ Iteration spans are numbered (`#0`, `#1`, ...) so distinct iterations of the sam
 | Level | Attribute | Value |
 | --- | --- | --- |
 | root / iteration | `gen_ai.system` | `openai`, `anthropic`, ... |
-| root / iteration | `gen_ai.operation.name` | `chat` |
+| iteration | `gen_ai.operation.name` | `chat` |
 | root / iteration | `gen_ai.request.model` | requested model |
 | iteration | `gen_ai.response.model` | actual model |
 | iteration | `gen_ai.request.temperature` | from config |

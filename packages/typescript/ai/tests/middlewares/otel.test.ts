@@ -46,7 +46,9 @@ describe('otelMiddleware — root span lifecycle', () => {
     expect(spans[0]!.ended).toBe(false)
     expect(spans[0]!.kind).toBe(SpanKind.INTERNAL)
     expect(spans[0]!.attributes['gen_ai.system']).toBe('openai')
-    expect(spans[0]!.attributes['gen_ai.operation.name']).toBe('chat')
+    // `gen_ai.operation.name` is intentionally NOT set on the root span —
+    // see the matching comment in otel.ts. Only iteration spans carry it.
+    expect(spans[0]!.attributes['gen_ai.operation.name']).toBeUndefined()
     expect(spans[0]!.attributes['gen_ai.request.model']).toBe('gpt-4o')
 
     await mw.onFinish?.(ctx, {

@@ -275,8 +275,13 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           kind: SpanKind.INTERNAL,
           attributes: {
             'gen_ai.system': ctx.provider,
-            'gen_ai.operation.name': 'chat',
             'gen_ai.request.model': ctx.model,
+            // NOTE: `gen_ai.operation.name` is deliberately NOT set on the
+            // root span. The root represents a `chat()` invocation that may
+            // span multiple model calls; only iteration spans correspond to
+            // a single chat operation. Backends that map `operation.name=chat`
+            // to a "generation" event (e.g. PostHog LLM Analytics) would
+            // otherwise emit a duplicate generation for the wrapper span.
           },
         }
         const spanOptions =
@@ -367,6 +372,8 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         state.assistantTextBufferTruncated = false
 
         if (captureContent) {
+          // Span events follow the original GenAI semconv (one event per
+          // message). Backends that read events get content this way.
           for (const sys of config.systemPrompts) {
             iterSpan.addEvent('gen_ai.system.message', {
               content: redactContent(sys),
@@ -378,6 +385,31 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
             iterSpan.addEvent(messageEventName(m.role), {
               content: redactContent(body),
             })
+          }
+
+          // Also emit the current GenAI-semconv attribute form
+          // (`gen_ai.input.messages`) — backends like PostHog read prompt
+          // content from this attribute, not from span events.
+          const inputMessages: Array<{ role: string; content: string }> = []
+          for (const sys of config.systemPrompts) {
+            inputMessages.push({
+              role: 'system',
+              content: redactContent(sys),
+            })
+          }
+          for (const m of config.messages) {
+            const body = serializeContent(m.content)
+            if (body.length === 0) continue
+            inputMessages.push({
+              role: m.role,
+              content: redactContent(body),
+            })
+          }
+          if (inputMessages.length > 0) {
+            iterSpan.setAttribute(
+              'gen_ai.input.messages',
+              JSON.stringify(inputMessages),
+            )
           }
         }
 
@@ -419,9 +451,15 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         }
 
         if (captureContent && state.assistantTextBuffer.length > 0) {
-          span.addEvent('gen_ai.choice', {
-            content: redactContent(state.assistantTextBuffer),
-          })
+          const completion = redactContent(state.assistantTextBuffer)
+          // Event form (older semconv) — kept for backends that consume it.
+          span.addEvent('gen_ai.choice', { content: completion })
+          // Attribute form (current semconv) — required by backends like
+          // PostHog that read completion content from `gen_ai.output.messages`.
+          span.setAttribute(
+            'gen_ai.output.messages',
+            JSON.stringify([{ role: 'assistant', content: completion }]),
+          )
           state.assistantTextBuffer = ''
           state.assistantTextBufferTruncated = false
         }
@@ -508,6 +546,23 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         )
         if (enriched) toolSpan.setAttributes(enriched)
 
+        // Stamp the tool args onto the tool span so backends that render an
+        // input panel per span (e.g. PostHog) have something to show.
+        if (captureContent) {
+          const argsBody =
+            typeof hookCtx.args === 'string'
+              ? hookCtx.args
+              : (safeCall('otel.serializeToolArgs', () =>
+                  JSON.stringify(hookCtx.args ?? null),
+                ) ?? '[unserializable_tool_args]')
+          toolSpan.setAttribute(
+            'gen_ai.input.messages',
+            JSON.stringify([
+              { role: 'tool', content: redactContent(argsBody) },
+            ]),
+          )
+        }
+
         state.toolSpans.set(hookCtx.toolCallId, {
           span: toolSpan,
           toolName: hookCtx.toolName,
@@ -535,7 +590,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           })
         }
 
-        if (captureContent && state.currentIterationSpan) {
+        if (captureContent) {
           // Serialization can throw on circular refs or `BigInt` values. If it
           // does, fall back to a sentinel so the rest of this handler (span
           // end, onSpanEnd, toolSpans cleanup) still runs — otherwise the tool
@@ -546,10 +601,19 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
               : (safeCall('otel.serializeToolResult', () =>
                   JSON.stringify(info.result ?? null),
                 ) ?? '[unserializable_tool_result]')
-          state.currentIterationSpan.addEvent('gen_ai.tool.message', {
-            content: redactContent(body),
-            tool_call_id: info.toolCallId,
-          })
+          const redactedBody = redactContent(body)
+          if (state.currentIterationSpan) {
+            state.currentIterationSpan.addEvent('gen_ai.tool.message', {
+              content: redactedBody,
+              tool_call_id: info.toolCallId,
+            })
+          }
+          // Output panel of the tool span itself — `gen_ai.output.messages` is
+          // what current GenAI semconv consumers (e.g. PostHog) read.
+          toolSpan.setAttribute(
+            'gen_ai.output.messages',
+            JSON.stringify([{ role: 'tool', content: redactedBody }]),
+          )
         }
 
         safeCall('otel.onSpanEnd', () =>
@@ -577,7 +641,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         const errType = errorTypeName(info.error)
         const message = errorMessage(info.error)
         const exception = info.error as Exception
-
+        
         if (state.currentIterationSpan) {
           state.currentIterationSpan.recordException(exception)
           state.currentIterationSpan.setStatus({
