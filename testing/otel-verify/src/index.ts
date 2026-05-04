@@ -14,7 +14,10 @@
  */
 
 import { trace, metrics } from '@opentelemetry/api'
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
+// Proto-encoded OTLP over HTTP. Some backends (e.g. Phoenix) reject
+// application/json with HTTP 415; protobuf is the canonical OTLP encoding and
+// is accepted by every backend preset in backends.ts.
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
 import { Resource } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import {
