@@ -114,7 +114,7 @@ export const BACKENDS: Record<string, BackendPreset> = {
     notes:
       'For US region set LANGFUSE_HOST or LANGFUSE_BASE_URL to ' +
       'https://us.cloud.langfuse.com. A 401 "Invalid credentials. Confirm ' +
-      "that you've configured the correct host\" usually means region " +
+      'that you\'ve configured the correct host" usually means region ' +
       'mismatch between your keys and the host.',
   },
 

@@ -722,7 +722,6 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           })
         }
 
-
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan),
         )
@@ -788,7 +787,6 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           })
         }
 
-
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan),
         )
@@ -851,7 +849,6 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           'tanstack.ai.iterations',
           state.iterationCount,
         )
-
 
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan),
