@@ -1810,7 +1810,7 @@ importers:
         specifier: ^24.10.1
         version: 24.10.3
       tsx:
-        specifier: ^4.20.6
+        specifier: ^4.21.0
         version: 4.21.0
       typescript:
         specifier: 5.9.3
