@@ -46,13 +46,12 @@ export const BACKENDS: Record<string, BackendPreset> = {
   'langfuse-self': {
     name: 'Langfuse (self-hosted)',
     endpoint: () => 'http://localhost:3000/api/public/otel/v1/traces',
-    headers: () =>
-      ({
-        Authorization: basicAuth(
-          envOrThrow('LANGFUSE_PUBLIC_KEY'),
-          envOrThrow('LANGFUSE_SECRET_KEY'),
-        ),
-      }),
+    headers: () => ({
+      Authorization: basicAuth(
+        envOrThrow('LANGFUSE_PUBLIC_KEY'),
+        envOrThrow('LANGFUSE_SECRET_KEY'),
+      ),
+    }),
     notes:
       'OSS LLM-observability backend. Basic auth using the public+secret key ' +
       'pair from /api/public/projects.',
@@ -74,7 +73,8 @@ export const BACKENDS: Record<string, BackendPreset> = {
     headers: () => ({
       Authorization: `Bearer ${envOrThrow('HELICONE_API_KEY')}`,
     }),
-    notes: 'Proxy-based; OTel ingestion is best-effort. Lower-priority backend.',
+    notes:
+      'Proxy-based; OTel ingestion is best-effort. Lower-priority backend.',
   },
 
   // ---------------------------------------------------------------------- SaaS
@@ -96,15 +96,13 @@ export const BACKENDS: Record<string, BackendPreset> = {
     name: 'Langfuse (Cloud EU)',
     endpoint: () =>
       `${process.env.LANGFUSE_HOST?.replace(/\/$/, '') ?? 'https://cloud.langfuse.com'}/api/public/otel/v1/traces`,
-    headers: () =>
-      ({
-        Authorization: basicAuth(
-          envOrThrow('LANGFUSE_PUBLIC_KEY'),
-          envOrThrow('LANGFUSE_SECRET_KEY'),
-        ),
-      }),
-    notes:
-      'For US region set LANGFUSE_HOST=https://us.cloud.langfuse.com.',
+    headers: () => ({
+      Authorization: basicAuth(
+        envOrThrow('LANGFUSE_PUBLIC_KEY'),
+        envOrThrow('LANGFUSE_SECRET_KEY'),
+      ),
+    }),
+    notes: 'For US region set LANGFUSE_HOST=https://us.cloud.langfuse.com.',
   },
 
   sentry: {

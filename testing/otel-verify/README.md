@@ -29,18 +29,18 @@ OTEL_BACKEND=jaeger pnpm --filter @tanstack/ai-otel-verify verify
 
 ## Backends
 
-| `OTEL_BACKEND` | Mode | Required env |
-| --- | --- | --- |
-| `jaeger` | self-host | none |
-| `phoenix` | self-host | none |
-| `langfuse-self` | self-host | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` |
-| `helicone` | self-host | `HELICONE_API_KEY` |
-| `langfuse-cloud` | SaaS | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, optional `LANGFUSE_HOST` |
-| `posthog` | SaaS | `POSTHOG_API_KEY`, optional `POSTHOG_HOST` |
-| `sentry` | SaaS | `SENTRY_DSN` |
-| `logfire` | SaaS | `LOGFIRE_TOKEN` |
-| `traceloop` | SaaS | `TRACELOOP_API_KEY` |
-| `datadog` | SaaS | `DD_API_KEY`, optional `DD_SITE` |
+| `OTEL_BACKEND`   | Mode      | Required env                                                           |
+| ---------------- | --------- | ---------------------------------------------------------------------- |
+| `jaeger`         | self-host | none                                                                   |
+| `phoenix`        | self-host | none                                                                   |
+| `langfuse-self`  | self-host | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`                           |
+| `helicone`       | self-host | `HELICONE_API_KEY`                                                     |
+| `langfuse-cloud` | SaaS      | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, optional `LANGFUSE_HOST` |
+| `posthog`        | SaaS      | `POSTHOG_API_KEY`, optional `POSTHOG_HOST`                             |
+| `sentry`         | SaaS      | `SENTRY_DSN`                                                           |
+| `logfire`        | SaaS      | `LOGFIRE_TOKEN`                                                        |
+| `traceloop`      | SaaS      | `TRACELOOP_API_KEY`                                                    |
+| `datadog`        | SaaS      | `DD_API_KEY`, optional `DD_SITE`                                       |
 
 Any required env var that's missing surfaces a clear error before the SDK starts. See [`src/backends.ts`](src/backends.ts) for the exact endpoint each preset hits.
 
@@ -48,11 +48,11 @@ Any required env var that's missing surfaces a clear error before the SDK starts
 
 Each run sends three traces unless filtered with `SCENARIO=…`:
 
-| ID | What it exercises | Expected span tree |
-| --- | --- | --- |
-| `basic-text` | Single-iteration chat with prompt + completion content capture | `chat → iter#0` |
-| `with-tool` | Two-iteration chat with one tool call | `chat → iter#0 → execute_tool get_weather` then `iter#1` |
-| `error` | Forced mid-stream throw via a sibling middleware | `chat → iter#0` with `status=ERROR` and exception event |
+| ID           | What it exercises                                              | Expected span tree                                       |
+| ------------ | -------------------------------------------------------------- | -------------------------------------------------------- |
+| `basic-text` | Single-iteration chat with prompt + completion content capture | `chat → iter#0`                                          |
+| `with-tool`  | Two-iteration chat with one tool call                          | `chat → iter#0 → execute_tool get_weather` then `iter#1` |
+| `error`      | Forced mid-stream throw via a sibling middleware               | `chat → iter#0` with `status=ERROR` and exception event  |
 
 Filter examples:
 
@@ -81,4 +81,4 @@ For each backend, screenshot all three scenarios and check:
 
 ## Why this isn't an automated test
 
-Most of what we're verifying — "does Langfuse's UI display the tool call card?" — is a render question that needs human eyes. The wire format is already locked down by `packages/typescript/ai/tests/middlewares/otel.test.ts` and the in-process E2E specs in `testing/e2e/tests/middleware.spec.ts`. This harness exists to verify that our wire format is *understood* by real backends — a one-shot verification, not something CI should run.
+Most of what we're verifying — "does Langfuse's UI display the tool call card?" — is a render question that needs human eyes. The wire format is already locked down by `packages/typescript/ai/tests/middlewares/otel.test.ts` and the in-process E2E specs in `testing/e2e/tests/middleware.spec.ts`. This harness exists to verify that our wire format is _understood_ by real backends — a one-shot verification, not something CI should run.

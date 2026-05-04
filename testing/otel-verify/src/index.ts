@@ -45,9 +45,9 @@ function pickScenarios() {
 async function main(): Promise<void> {
   const backendName = process.env.OTEL_BACKEND
   if (!backendName) {
-    const known = Object.keys(
-      (await import('./backends.js')).BACKENDS,
-    ).join(', ')
+    const known = Object.keys((await import('./backends.js')).BACKENDS).join(
+      ', ',
+    )
     throw new Error(
       `OTEL_BACKEND env var is required. Known backends: ${known}`,
     )

@@ -104,10 +104,7 @@ export async function runBasicText(
   await drain(stream)
 }
 
-export async function runWithTool(
-  tracer: Tracer,
-  meter: Meter,
-): Promise<void> {
+export async function runWithTool(tracer: Tracer, meter: Meter): Promise<void> {
   const stream = chat({
     adapter: makeAdapter(),
     messages: [{ role: 'user', content: '[with-tool] run test' }],
