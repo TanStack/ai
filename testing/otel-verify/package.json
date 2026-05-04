@@ -1,0 +1,26 @@
+{
+  "name": "@tanstack/ai-otel-verify",
+  "private": true,
+  "type": "module",
+  "description": "Manual smoke harness for verifying TanStack AI's otelMiddleware against real OTLP backends.",
+  "scripts": {
+    "verify": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@copilotkit/aimock": "latest",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
+    "@opentelemetry/resources": "^1.30.0",
+    "@opentelemetry/sdk-node": "^0.57.0",
+    "@opentelemetry/sdk-trace-base": "^1.30.0",
+    "@opentelemetry/semantic-conventions": "^1.30.0",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6",
+    "typescript": "5.9.3"
+  }
+}

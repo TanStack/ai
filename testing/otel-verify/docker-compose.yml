@@ -1,0 +1,84 @@
+# Self-hostable OTel backends used by the verification harness.
+#
+# Each service is independent — start one at a time:
+#
+#   docker compose -f testing/otel-verify/docker-compose.yml up jaeger
+#   docker compose -f testing/otel-verify/docker-compose.yml up phoenix
+#   docker compose -f testing/otel-verify/docker-compose.yml up langfuse
+#   docker compose -f testing/otel-verify/docker-compose.yml up helicone
+#
+# Versions are pinned to specific tags; bump intentionally when you re-run
+# the verification matrix so the screenshots in the docs match the version
+# users will actually deploy.
+
+services:
+  # ---------------------------------------------------------------- Jaeger
+  # Generic OTel sink. UI: http://localhost:16686
+  # OTLP/HTTP traces in: http://localhost:4318/v1/traces
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    container_name: tanstack-ai-otel-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'
+    ports:
+      - '16686:16686' # UI
+      - '4318:4318' # OTLP HTTP
+      - '4317:4317' # OTLP gRPC (unused by harness, exposed for parity)
+
+  # ---------------------------------------------------------------- Phoenix
+  # Arize Phoenix. UI: http://localhost:6006
+  # OTLP/HTTP traces in: http://localhost:6006/v1/traces
+  phoenix:
+    image: arizephoenix/phoenix:version-15.2.0
+    container_name: tanstack-ai-otel-phoenix
+    ports:
+      - '6006:6006'
+    environment:
+      PHOENIX_WORKING_DIR: /tmp/phoenix
+
+  # --------------------------------------------------------------- Langfuse
+  # Self-hosted Langfuse + Postgres. UI: http://localhost:3000
+  # OTLP/HTTP traces in: http://localhost:3000/api/public/otel/v1/traces
+  #
+  # First-run setup: open the UI, sign up locally, create a project, copy
+  # the Public + Secret keys into LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY.
+  langfuse-db:
+    image: postgres:16-alpine
+    container_name: tanstack-ai-otel-langfuse-db
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse-db:/var/lib/postgresql/data
+    profiles: [langfuse]
+
+  langfuse:
+    image: langfuse/langfuse:3
+    container_name: tanstack-ai-otel-langfuse
+    depends_on:
+      - langfuse-db
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      NEXTAUTH_SECRET: dev-only-not-secure
+      SALT: dev-only-not-secure
+      NEXTAUTH_URL: http://localhost:3000
+      TELEMETRY_ENABLED: 'false'
+      LANGFUSE_INIT_ORG_ID: verify-org
+      LANGFUSE_INIT_PROJECT_ID: verify-project
+    profiles: [langfuse]
+
+  # ---------------------------------------------------------------- Helicone
+  # Helicone OSS. Lower priority — only spin up if specifically testing.
+  # OTLP/HTTP traces in: http://localhost:8585/v1/traces (varies by version)
+  helicone:
+    image: helicone/helicone:latest
+    container_name: tanstack-ai-otel-helicone
+    ports:
+      - '8585:8585'
+    profiles: [helicone]
+
+volumes:
+  langfuse-db:
