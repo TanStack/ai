@@ -641,7 +641,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         const errType = errorTypeName(info.error)
         const message = errorMessage(info.error)
         const exception = info.error as Exception
-        
+
         if (state.currentIterationSpan) {
           state.currentIterationSpan.recordException(exception)
           state.currentIterationSpan.setStatus({
