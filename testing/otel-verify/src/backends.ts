@@ -94,15 +94,28 @@ export const BACKENDS: Record<string, BackendPreset> = {
 
   'langfuse-cloud': {
     name: 'Langfuse (Cloud EU)',
-    endpoint: () =>
-      `${process.env.LANGFUSE_HOST?.replace(/\/$/, '') ?? 'https://cloud.langfuse.com'}/api/public/otel/v1/traces`,
+    endpoint: () => {
+      // Accept either env var: LANGFUSE_HOST (this harness's original name) or
+      // LANGFUSE_BASE_URL (used by the Langfuse JS SDK). If neither is set,
+      // default to EU. Mismatched region is the most common cause of 401
+      // "Invalid credentials. Confirm that you've configured the correct host."
+      const host =
+        process.env.LANGFUSE_HOST ??
+        process.env.LANGFUSE_BASE_URL ??
+        'https://cloud.langfuse.com'
+      return `${host.replace(/\/$/, '')}/api/public/otel/v1/traces`
+    },
     headers: () => ({
       Authorization: basicAuth(
         envOrThrow('LANGFUSE_PUBLIC_KEY'),
         envOrThrow('LANGFUSE_SECRET_KEY'),
       ),
     }),
-    notes: 'For US region set LANGFUSE_HOST=https://us.cloud.langfuse.com.',
+    notes:
+      'For US region set LANGFUSE_HOST or LANGFUSE_BASE_URL to ' +
+      'https://us.cloud.langfuse.com. A 401 "Invalid credentials. Confirm ' +
+      "that you've configured the correct host\" usually means region " +
+      'mismatch between your keys and the host.',
   },
 
   sentry: {

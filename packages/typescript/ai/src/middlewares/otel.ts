@@ -406,10 +406,28 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
             })
           }
           if (inputMessages.length > 0) {
-            iterSpan.setAttribute(
-              'gen_ai.input.messages',
-              JSON.stringify(inputMessages),
-            )
+            const inputJson = JSON.stringify(inputMessages)
+            // Current OTel GenAI semconv — Sentry / PostHog / Datadog read
+            // prompt content from this attribute.
+            iterSpan.setAttribute('gen_ai.input.messages', inputJson)
+            // Langfuse-native attribute. Highest priority in Langfuse's OTLP
+            // ingestion (checked before events and gen_ai.input.messages) so
+            // the Input panel populates reliably. Harmless to other backends —
+            // the attribute is namespaced and unrecognised keys are ignored.
+            iterSpan.setAttribute('langfuse.observation.input', inputJson)
+
+            // Mirror the first iteration's input onto the root span and at
+            // trace level so Langfuse fills Input on the trace card and the
+            // chat-level observation. Later iterations append tool-call /
+            // assistant messages that are useful per-iteration but noise at
+            // the chat / trace level.
+            if (state.iterationCount === 0) {
+              state.rootSpan.setAttribute(
+                'langfuse.observation.input',
+                inputJson,
+              )
+              state.rootSpan.setAttribute('langfuse.trace.input', inputJson)
+            }
           }
         }
 
@@ -452,14 +470,21 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
 
         if (captureContent && state.assistantTextBuffer.length > 0) {
           const completion = redactContent(state.assistantTextBuffer)
+          const outputJson = JSON.stringify([
+            { role: 'assistant', content: completion },
+          ])
           // Event form (older semconv) — kept for backends that consume it.
           span.addEvent('gen_ai.choice', { content: completion })
           // Attribute form (current semconv) — required by backends like
           // PostHog that read completion content from `gen_ai.output.messages`.
-          span.setAttribute(
-            'gen_ai.output.messages',
-            JSON.stringify([{ role: 'assistant', content: completion }]),
-          )
+          span.setAttribute('gen_ai.output.messages', outputJson)
+          // Langfuse-native attribute (highest priority in Langfuse mapping).
+          span.setAttribute('langfuse.observation.output', outputJson)
+          // Mirror to the root span and trace card. Each iteration overwrites,
+          // so the final iteration's completion lands on the root — which is
+          // the final answer the user saw, not an intermediate tool-call turn.
+          state.rootSpan.setAttribute('langfuse.observation.output', outputJson)
+          state.rootSpan.setAttribute('langfuse.trace.output', outputJson)
           state.assistantTextBuffer = ''
           state.assistantTextBufferTruncated = false
         }
@@ -555,12 +580,13 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
               : (safeCall('otel.serializeToolArgs', () =>
                   JSON.stringify(hookCtx.args ?? null),
                 ) ?? '[unserializable_tool_args]')
-          toolSpan.setAttribute(
-            'gen_ai.input.messages',
-            JSON.stringify([
-              { role: 'tool', content: redactContent(argsBody) },
-            ]),
-          )
+          const redactedArgs = redactContent(argsBody)
+          const toolInputJson = JSON.stringify([
+            { role: 'tool', content: redactedArgs },
+          ])
+          toolSpan.setAttribute('gen_ai.input.messages', toolInputJson)
+          // Langfuse-native (highest priority in Langfuse mapping).
+          toolSpan.setAttribute('langfuse.observation.input', toolInputJson)
         }
 
         state.toolSpans.set(hookCtx.toolCallId, {
@@ -610,10 +636,12 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           }
           // Output panel of the tool span itself — `gen_ai.output.messages` is
           // what current GenAI semconv consumers (e.g. PostHog) read.
-          toolSpan.setAttribute(
-            'gen_ai.output.messages',
-            JSON.stringify([{ role: 'tool', content: redactedBody }]),
-          )
+          const toolOutputJson = JSON.stringify([
+            { role: 'tool', content: redactedBody },
+          ])
+          toolSpan.setAttribute('gen_ai.output.messages', toolOutputJson)
+          // Langfuse-native (highest priority in Langfuse mapping).
+          toolSpan.setAttribute('langfuse.observation.output', toolOutputJson)
         }
 
         safeCall('otel.onSpanEnd', () =>
@@ -694,6 +722,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           })
         }
 
+
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan),
         )
@@ -759,6 +788,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           })
         }
 
+
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan),
         )
@@ -821,6 +851,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           'tanstack.ai.iterations',
           state.iterationCount,
         )
+
 
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx }, state.rootSpan),
