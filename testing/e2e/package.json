@@ -11,11 +11,12 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
-    "@copilotkit/aimock": "latest",
+    "@copilotkit/aimock": "^1.18.0",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-elevenlabs": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-groq": "workspace:*",
