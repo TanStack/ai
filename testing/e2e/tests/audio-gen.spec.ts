@@ -20,7 +20,10 @@ for (const provider of PROVIDERS) {
       await page.goto(
         featureUrl(provider, 'audio-gen', testId, aimockPort, 'fetcher'),
       )
-      await fillPrompt(page, '[music] an upbeat lo-fi beat for the guitar store')
+      await fillPrompt(
+        page,
+        '[music] an upbeat lo-fi beat for the guitar store',
+      )
       await clickGenerate(page)
       await waitForGenerationComplete(page)
       const audio = page.getByTestId('generated-audio')
@@ -35,7 +38,10 @@ for (const provider of PROVIDERS) {
       await page.goto(
         featureUrl(provider, 'audio-gen', testId, aimockPort, 'sse'),
       )
-      await fillPrompt(page, '[music] an upbeat lo-fi beat for the guitar store')
+      await fillPrompt(
+        page,
+        '[music] an upbeat lo-fi beat for the guitar store',
+      )
       await clickGenerate(page)
       await waitForGenerationComplete(page)
       const audio = page.getByTestId('generated-audio')
