@@ -1,0 +1,5 @@
+---
+'@tanstack/ai-anthropic': patch
+---
+
+
