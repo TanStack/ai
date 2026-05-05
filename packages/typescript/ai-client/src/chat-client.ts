@@ -399,7 +399,14 @@ export class ChatClient {
       // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
       // (redundant if onStreamEnd already resolved it, harmless)
       if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-        const runId = chunk.type === 'RUN_FINISHED' ? chunk.runId : undefined
+        // RUN_FINISHED has runId in its schema; RUN_ERROR carries it via the
+        // AG-UI passthrough so adapters can correlate per-run errors. Extract
+        // both so a RUN_ERROR with a runId only clears that run, not every
+        // active run in the session.
+        const runId =
+          chunk.type === 'RUN_FINISHED'
+            ? chunk.runId
+            : (chunk as { runId?: string }).runId
         if (runId) {
           this.activeRunIds.delete(runId)
         } else if (chunk.type === 'RUN_ERROR') {

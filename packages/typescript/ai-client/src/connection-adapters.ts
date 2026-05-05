@@ -217,10 +217,12 @@ export function normalizeConnectionAdapter(
 
         // If the connect stream ended cleanly without a terminal event,
         // synthesize RUN_FINISHED so request-scoped consumers can complete.
+        // Reuse the caller's threadId/runId so client-side activeRunIds tracking matches.
         if (!abortSignal?.aborted && !hasTerminalEvent) {
           push({
             type: 'RUN_FINISHED',
-            runId: `run-${Date.now()}`,
+            threadId: runContext?.threadId,
+            runId: runContext?.runId ?? `run-${Date.now()}`,
             model: 'connect-wrapper',
             timestamp: Date.now(),
             finishReason: 'stop',
@@ -230,6 +232,8 @@ export function normalizeConnectionAdapter(
         if (!abortSignal?.aborted && !hasTerminalEvent) {
           push({
             type: 'RUN_ERROR',
+            threadId: runContext?.threadId,
+            runId: runContext?.runId,
             timestamp: Date.now(),
             message:
               err instanceof Error ? err.message : 'Unknown error in connect()',
@@ -323,9 +327,9 @@ export function fetchServerSentEvents(
         tools: runContext?.clientTools ?? [],
         context: [],
         forwardedProps: {
+          ...resolvedOptions.body,
           ...(runContext?.forwardedProps ?? {}),
           ...data,
-          ...resolvedOptions.body,
         },
       }
 
@@ -438,9 +442,9 @@ export function fetchHttpStream(
         tools: runContext?.clientTools ?? [],
         context: [],
         forwardedProps: {
+          ...resolvedOptions.body,
           ...(runContext?.forwardedProps ?? {}),
           ...data,
-          ...resolvedOptions.body,
         },
       }
 

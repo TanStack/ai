@@ -150,11 +150,12 @@ export const Route = createFileRoute('/api/tanchat')({
           )
         }
 
-        // Extract provider and model from forwardedProps (sent by the client)
-        const provider: Provider =
-          typeof params.forwardedProps.provider === 'string' &&
-          (params.forwardedProps.provider as Provider)
-            ? (params.forwardedProps.provider as Provider)
+        // Extract provider and model from forwardedProps (sent by the client).
+        // Provider must be allowlisted against adapterConfig (validated below)
+        // to avoid SSRF/runtime crashes from arbitrary client-supplied strings.
+        const requestedProvider =
+          typeof params.forwardedProps.provider === 'string'
+            ? params.forwardedProps.provider
             : 'openai'
         const model: string =
           typeof params.forwardedProps.model === 'string'
@@ -175,7 +176,9 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           openrouter: () =>
             createChatOptions({
-              adapter: openRouterText('openai/gpt-5.1'),
+              adapter: openRouterText(
+                (model || 'openai/gpt-5.1') as 'openai/gpt-5.1',
+              ),
               modelOptions: {
                 reasoning: {
                   effort: 'medium',
@@ -219,6 +222,11 @@ export const Route = createFileRoute('/api/tanchat')({
         }
 
         try {
+          // Allowlist provider against adapterConfig keys; fall back to openai.
+          const provider: Provider =
+            requestedProvider in adapterConfig
+              ? (requestedProvider as Provider)
+              : 'openai'
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
 
