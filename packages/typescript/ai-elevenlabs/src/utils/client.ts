@@ -14,6 +14,8 @@ export interface ElevenLabsClientConfig {
   timeoutInSeconds?: number
   /** Override the number of SDK-level retries. */
   maxRetries?: number
+  /** Extra headers attached to every request (e.g. test multiplexing). */
+  headers?: Record<string, string>
 }
 
 interface EnvObject {
@@ -74,6 +76,7 @@ export function createElevenLabsClient(
       ? { timeoutInSeconds: config.timeoutInSeconds }
       : {}),
     ...(config?.maxRetries != null ? { maxRetries: config.maxRetries } : {}),
+    ...(config?.headers ? { headers: config.headers } : {}),
   })
 }
 

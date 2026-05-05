@@ -9,7 +9,8 @@
   "type": "module",
   "pnpm": {
     "overrides": {
-      "abbrev": "^3.0.0"
+      "abbrev": "^3.0.0",
+      "@copilotkit/aimock": "link:../../CopilotKit/aimock"
     },
     "ignoredBuiltDependencies": [
       "isolated-vm"
