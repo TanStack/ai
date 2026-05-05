@@ -210,7 +210,7 @@ const anthropic = createAnthropicChat("claude-sonnet-4-5", {
   binding: env.AI.gateway("my-gateway-id"),
 });
 
-const grok = createGrokChat("grok-4", {
+const grok = createGrokChat("grok-4.3", {
   binding: env.AI.gateway("my-gateway-id"),
 });
 

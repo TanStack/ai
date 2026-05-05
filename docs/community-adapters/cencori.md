@@ -119,7 +119,7 @@ const anthropic = cencori("claude-3-5-sonnet");
 const google = cencori("gemini-2.5-flash");
 
 // xAI
-const grok = cencori("grok-3");
+const grok = cencori("grok-4.3");
 
 // DeepSeek
 const deepseek = cencori("deepseek-v3.2");
@@ -134,7 +134,7 @@ All responses use the same unified format regardless of provider.
 | OpenAI | `gpt-5`, `gpt-4o`, `gpt-4o-mini`, `o3`, `o1` |
 | Anthropic | `claude-opus-4`, `claude-sonnet-4`, `claude-3-5-sonnet` |
 | Google | `gemini-3-pro`, `gemini-2.5-flash`, `gemini-2.0-flash` |
-| xAI | `grok-4`, `grok-3` |
+| xAI | `grok-4.3`, `grok-4.2` |
 | Mistral | `mistral-large`, `codestral`, `devstral` |
 | DeepSeek | `deepseek-v3.2`, `deepseek-reasoner` |
 | + More | Groq, Cohere, Perplexity, Together, Qwen, OpenRouter |

@@ -246,7 +246,7 @@ Code Mode asks the model to write valid TypeScript that calls your tools through
 
 | Rank | Model | Stars | Acc | Comp | TS | CME | Latency | Tokens |
 |------|-------|:-----:|:---:|:----:|:--:|:---:|--------:|-------:|
-| 1 | `grok:grok-4-1-fast-non-reasoning` | ★★★ | 10 | 9 | 6 | 10 | 7.0s | — |
+| 1 | `grok:grok-4-2-non-reasoning` | ★★★ | 10 | 9 | 6 | 10 | 7.0s | — |
 | 2 | `ollama:gpt-oss:20b` | ★★★ | 10 | 8 | 6 | 5 | 45.1s | 23.6k |
 | 3 | `anthropic:claude-haiku-4-5` | ★★★ | 10 | 10 | 7 | 10 | 9.4s | 8.5k |
 | 4 | `gemini:gemini-2.5-flash` | ★★★ | 10 | 7 | 5 | 9 | 7.3s | 6.9k |

@@ -24,7 +24,7 @@ const PROVIDERS: Array<StructuredProvider> = [
   { id: 'openai', name: 'OpenAI (GPT-4o)' },
   { id: 'anthropic', name: 'Anthropic (Claude Sonnet)' },
   { id: 'gemini', name: 'Gemini (2.0 Flash)' },
-  { id: 'grok', name: 'Grok (Grok 3 Mini)' },
+  { id: 'grok', name: 'Grok (Grok 4.3)' },
   { id: 'ollama', name: 'Ollama (Mistral 7B)' },
   { id: 'openrouter', name: 'OpenRouter (GPT-4o)' },
 ]

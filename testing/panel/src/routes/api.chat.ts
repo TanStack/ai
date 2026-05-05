@@ -182,7 +182,7 @@ export const Route = createFileRoute('/api/chat')({
               }),
             grok: () =>
               createChatOptions({
-                adapter: grokText((model || 'grok-3') as any),
+                adapter: grokText((model || 'grok-4.3') as any),
               }),
             ollama: () =>
               createChatOptions({

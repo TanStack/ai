@@ -181,7 +181,7 @@ The table below is transcribed from canonical `models-eval/results.json` (sessio
 | Anthropic | `claude-haiku-4-5`            | cloud    | ★★★   | 10       | 10                | 6          | 7         | 3          | 2          | 5              |
 | OpenAI    | `gpt-4o-mini`                 | cloud    | ★★★   | 10       | 8                 | 7          | 9         | 3          | 1          | 5              |
 | Gemini    | `gemini-2.5-flash`            | cloud    | ★★★   | 10       | 8                 | 7          | 10        | 4          | 2          | 5              |
-| xAI       | `grok-4-1-fast-non-reasoning` | cloud    | ★★★   | 10       | 8                 | 6          | 10        | 4          | 5          | 5              |
+| xAI       | `grok-4-2-non-reasoning`      | cloud    | ★★★   | 10       | 8                 | 6          | 10        | 4          | 5          | 5              |
 | Groq      | `llama-3.3-70b-versatile`     | cloud    | ★★★   | 10       | 7                 | 6          | 9         | 5          | 3          | 4              |
 | Groq      | `qwen/qwen3-32b`              | cloud    | ★★☆   | 10       | 8                 | 5          | 4         | 1          | 2          | 5              |
 

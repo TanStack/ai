@@ -2,23 +2,24 @@ import { makeGrokStructuredOutputCompatible } from '../utils/schema-converter'
 import type { JSONSchema, Tool } from '@tanstack/ai'
 import type OpenAI from 'openai'
 
-// Use Chat Completions API tool format (not Responses API)
-export type FunctionTool = OpenAI.Chat.Completions.ChatCompletionTool
+/**
+ * Responses-API function tool shape (flat, no nested `function` object).
+ * The Grok text adapter targets `/v1/responses`, which uses this format.
+ */
+export type FunctionTool = OpenAI.Responses.FunctionTool
 
 /**
- * Converts a standard Tool to Grok ChatCompletionTool format.
+ * Converts a standard Tool to a Grok Responses-API function tool.
  *
- * Tool schemas are already converted to JSON Schema in the ai layer.
+ * Tool schemas arrive as JSON Schema (already converted in the ai layer).
  * We apply Grok-specific transformations for strict mode:
- * - All properties in required array
- * - Optional fields made nullable
- * - additionalProperties: false
+ * - All properties moved into the `required` array
+ * - Optional fields become nullable
+ * - `additionalProperties: false`
  *
- * This enables strict mode for all tools automatically.
+ * Strict mode is always on so the model returns clean, validated arguments.
  */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
-  // Tool schemas are already converted to JSON Schema in the ai layer
-  // Apply Grok-specific transformations for strict mode
   const inputSchema = (tool.inputSchema ?? {
     type: 'object',
     properties: {},
@@ -30,16 +31,13 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
     inputSchema.required || [],
   )
 
-  // Ensure additionalProperties is false for strict mode
   jsonSchema.additionalProperties = false
 
   return {
     type: 'function',
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: jsonSchema,
-      strict: true, // Always use strict mode since our schema converter handles the requirements
-    },
+    name: tool.name,
+    description: tool.description,
+    parameters: jsonSchema,
+    strict: true,
   } satisfies FunctionTool
 }

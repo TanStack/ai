@@ -45,7 +45,7 @@ export function createImageAdapter(
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
     grok: () =>
-      createGrokImage('grok-2-image-1212', DUMMY_KEY, {
+      createGrokImage('grok-imagine-image', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),

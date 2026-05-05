@@ -28,11 +28,10 @@ export XAI_API_KEY="xai-..."
 import { grokText } from '@tanstack/ai-grok'
 import { generate } from '@tanstack/ai'
 
-const adapter = grokText()
+const adapter = grokText('grok-4.3')
 
 const result = await generate({
   adapter,
-  model: 'grok-3',
   messages: [
     { role: 'user', content: 'Explain quantum computing in simple terms' },
   ],
@@ -47,11 +46,10 @@ console.log(result.text)
 import { grokSummarize } from '@tanstack/ai-grok'
 import { summarize } from '@tanstack/ai'
 
-const adapter = grokSummarize()
+const adapter = grokSummarize('grok-4.3')
 
 const result = await summarize({
   adapter,
-  model: 'grok-3',
   text: 'Long article text...',
   style: 'bullet-points',
 })
@@ -65,11 +63,10 @@ console.log(result.summary)
 import { grokImage } from '@tanstack/ai-grok'
 import { generateImages } from '@tanstack/ai'
 
-const adapter = grokImage()
+const adapter = grokImage('grok-imagine-image')
 
 const result = await generateImages({
   adapter,
-  model: 'grok-2-image-1212',
   prompt: 'A beautiful sunset over mountains',
   numberOfImages: 1,
   size: '1024x1024',
@@ -83,33 +80,61 @@ console.log(result.images[0].url)
 ```typescript
 import { createGrokText } from '@tanstack/ai-grok'
 
-const adapter = createGrokText('xai-your-api-key-here')
+const adapter = createGrokText('grok-4.3', 'xai-your-api-key-here')
 ```
 
 ## Supported Models
 
 ### Chat Models
 
-- `grok-4` - Latest flagship model
-- `grok-3` - Previous generation model
-- `grok-3-mini` - Smaller, faster model
-- `grok-4-fast` - Fast inference model
-- `grok-4.1-fast` - Production-focused fast model
-- `grok-2-vision-1212` - Vision-capable model (text + image input)
+- `grok-4.3` - Latest flagship reasoning model
+- `grok-4.2` - Previous flagship reasoning model
+- `grok-4-2-non-reasoning` - Non-reasoning model
 
 ### Image Models
 
-- `grok-2-image-1212` - Image generation model
+- `grok-imagine-image` - Image generation
 
 ## Features
 
-- ✅ Streaming chat completions
-- ✅ Structured output (JSON Schema)
-- ✅ Function/tool calling
+- ✅ xAI **Responses API** (`/v1/responses`)
+- ✅ Streaming chat with reasoning (`REASONING_*` AG-UI events)
+- ✅ Requests encrypted reasoning content by default (`store: false` + `include: ['reasoning.encrypted_content']`) for stateless Responses-API workflows
+- ✅ Structured output (JSON Schema via `text.format`)
+- ✅ Function/tool calling (Responses-API flat function tools, `strict: true`)
 - ✅ Multimodal input (text + images for vision models)
 - ✅ Image generation
 - ✅ Text summarization
 - ❌ Embeddings (not supported by xAI)
+
+## Provider options
+
+Common knobs (`temperature`, `topP`, `maxTokens`, `metadata`) live on the top-level `chat()` / `generate()` call. Pass anything Responses-API-specific in `modelOptions`:
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { grokText } from '@tanstack/ai-grok'
+
+await chat({
+  adapter: grokText('grok-4.3'),
+  messages: [{ role: 'user', content: 'Walk me through your reasoning.' }],
+  temperature: 0.7,
+  maxTokens: 1024,
+  modelOptions: {
+    // Not every xAI model accepts every reasoning sub-option. For example,
+    // grok-4.3 and grok-4.2 reject reasoning.effort and should rely on default reasoning.
+    parallel_tool_calls: true,
+    // store and include are set to encrypted-reasoning defaults automatically.
+    // Override here if you want server-side response storage instead:
+    // store: true,
+    // include: [],
+  },
+})
+```
+
+### Encrypted reasoning defaults
+
+By default the adapter sends `store: false` and `include: ['reasoning.encrypted_content']`. This makes the response stateless and asks xAI to return an encrypted blob alongside each reasoning item when the model emits reasoning. The adapter does not yet replay those reasoning items automatically on the next turn; this default currently guarantees retrieval, not full round-trip continuity. To opt back into server-side response storage, pass `modelOptions: { store: true, include: [] }`.
 
 ## Tree-Shakeable Adapters
 

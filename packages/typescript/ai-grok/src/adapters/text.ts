@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/ai/adapters'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type OpenAI_SDK from 'openai'
+import type { Responses } from 'openai/resources'
 import type {
   ContentPart,
   Modality,
@@ -27,10 +28,7 @@ import type {
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type {
-  ExternalTextProviderOptions as GrokTextProviderOptions,
-  InternalTextProviderOptions,
-} from '../text/text-provider-options'
+import type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../text/text-provider-options'
 import type {
   GrokImageMetadata,
   GrokMessageMetadataByModality,
@@ -58,10 +56,25 @@ export interface GrokTextConfig extends GrokClientConfig {}
 export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../text/text-provider-options'
 
 /**
+ * Defaults applied to every Responses-API request unless the caller overrides
+ * them via `modelOptions`. They request encrypted reasoning content by default
+ * in stateless workflows (zero-data-retention friendly).
+ *
+ * Note: this adapter currently guarantees retrieval of encrypted reasoning
+ * blobs, not automatic replay on subsequent turns.
+ */
+const DEFAULT_INCLUDE: Array<OpenAI_SDK.Responses.ResponseIncludable> = [
+  'reasoning.encrypted_content',
+]
+const DEFAULT_STORE = false
+
+/**
  * Grok Text (Chat) Adapter
  *
- * Tree-shakeable adapter for Grok chat/text completion functionality.
- * Uses OpenAI-compatible Chat Completions API (not Responses API).
+ * Targets xAI's Responses API (`POST /v1/responses`) — the same protocol
+ * shape as OpenAI's Responses API. Encrypted reasoning content is requested
+ * by default so multi-turn reasoning works without server-side conversation
+ * storage.
  */
 export class GrokTextAdapter<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
@@ -88,13 +101,12 @@ export class GrokTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<GrokTextProviderOptions>,
+    options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const requestParams = this.mapTextOptionsToGrok(options)
     const timestamp = Date.now()
     const { logger } = options
 
-    // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
       runId: options.runId ?? generateId(this.name),
       threadId: options.threadId ?? generateId(this.name),
@@ -108,16 +120,21 @@ export class GrokTextAdapter<
         `activity=chat provider=grok model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'grok', model: this.model },
       )
-      const stream = await this.client.chat.completions.create({
-        ...requestParams,
-        stream: true,
-      })
+      const stream = await this.client.responses.create(
+        {
+          ...requestParams,
+          stream: true,
+        },
+        {
+          headers: options.request?.headers,
+          signal: options.request?.signal,
+        },
+      )
 
-      yield* this.processGrokStreamChunks(stream, options, aguiState, logger)
+      yield* this.processGrokResponsesStream(stream, options, aguiState, logger)
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
 
-      // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
         yield asChunk({
@@ -129,7 +146,6 @@ export class GrokTextAdapter<
         })
       }
 
-      // Emit AG-UI RUN_ERROR
       yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
@@ -151,25 +167,22 @@ export class GrokTextAdapter<
   }
 
   /**
-   * Generate structured output using Grok's JSON Schema response format.
-   * Uses stream: false to get the complete response in one call.
+   * Generate structured output using xAI's Responses-API JSON Schema config.
    *
-   * Grok has strict requirements for structured output (via OpenAI-compatible API):
+   * Grok inherits OpenAI's strict-mode requirements:
    * - All properties must be in the `required` array
    * - Optional fields should have null added to their type union
    * - additionalProperties must be false for all objects
    *
    * The outputSchema is already JSON Schema (converted in the ai layer).
-   * We apply Grok-specific transformations for structured output compatibility.
    */
   async structuredOutput(
-    options: StructuredOutputOptions<GrokTextProviderOptions>,
+    options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapTextOptionsToGrok(chatOptions)
     const { logger } = chatOptions
 
-    // Apply Grok-specific transformations for structured output compatibility
     const jsonSchema = makeGrokStructuredOutputCompatible(
       outputSchema,
       outputSchema.required || [],
@@ -180,23 +193,27 @@ export class GrokTextAdapter<
         `activity=chat provider=grok model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
         { provider: 'grok', model: this.model },
       )
-      const response = await this.client.chat.completions.create({
-        ...requestParams,
-        stream: false,
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'structured_output',
-            schema: jsonSchema,
-            strict: true,
+      const response = await this.client.responses.create(
+        {
+          ...requestParams,
+          stream: false,
+          text: {
+            format: {
+              type: 'json_schema',
+              name: 'structured_output',
+              schema: jsonSchema,
+              strict: true,
+            },
           },
         },
-      })
+        {
+          headers: chatOptions.request?.headers,
+          signal: chatOptions.request?.signal,
+        },
+      )
 
-      // Extract text content from the response
-      const rawText = response.choices[0]?.message.content || ''
+      const rawText = this.extractTextFromResponse(response)
 
-      // Parse the JSON response
       let parsed: unknown
       try {
         parsed = JSON.parse(rawText)
@@ -206,8 +223,8 @@ export class GrokTextAdapter<
         )
       }
 
-      // Transform null values to undefined to match original Zod schema expectations
-      // Grok returns null for optional fields we made nullable in the schema
+      // Grok returns null for fields we made nullable in the schema; convert
+      // them back to undefined so the original Zod expectations line up.
       const transformed = transformNullsToUndefined(parsed)
 
       return {
@@ -223,8 +240,30 @@ export class GrokTextAdapter<
     }
   }
 
-  private async *processGrokStreamChunks(
-    stream: AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>,
+  /**
+   * Walk a non-streaming Responses-API response and concatenate every
+   * `output_text` content part.
+   */
+  private extractTextFromResponse(
+    response: OpenAI_SDK.Responses.Response,
+  ): string {
+    let textContent = ''
+
+    for (const item of response.output) {
+      if (item.type === 'message') {
+        for (const part of item.content) {
+          if (part.type === 'output_text') {
+            textContent += part.text
+          }
+        }
+      }
+    }
+
+    return textContent
+  }
+
+  private async *processGrokResponsesStream(
+    stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
     options: TextOptions,
     aguiState: {
       runId: string
@@ -235,188 +274,508 @@ export class GrokTextAdapter<
     },
     logger: InternalLogger,
   ): AsyncIterable<StreamChunk> {
-    let accumulatedContent = ''
-    const timestamp = aguiState.timestamp
-    let hasEmittedTextMessageStart = false
+    const { runId, threadId, messageId, timestamp } = aguiState
+    let chunkCount = 0
+    let model: string = options.model
 
-    // Track tool calls being streamed (arguments come in chunks)
-    const toolCallsInProgress = new Map<
-      number,
-      {
-        id: string
-        name: string
-        arguments: string
-        started: boolean // Track if TOOL_CALL_START has been emitted
-      }
+    let accumulatedContent = ''
+    let accumulatedReasoning = ''
+    let hasStreamedContentDeltas = false
+    let hasStreamedReasoningDeltas = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedStepStarted = false
+    let stepId: string | null = null
+    let reasoningMessageId: string | null = null
+    let hasClosedReasoning = false
+
+    // tool call metadata captured from response.output_item.added so we can
+    // attach the function name when arguments deltas arrive.
+    const toolCallMetadata = new Map<
+      string,
+      { index: number; name: string; started: boolean }
     >()
+
+    const genId = () => generateId(this.name)
+
+    const emitRunStarted = (currentModel: string): StreamChunk | null => {
+      if (aguiState.hasEmittedRunStarted) return null
+      aguiState.hasEmittedRunStarted = true
+      return asChunk({
+        type: 'RUN_STARTED',
+        runId,
+        threadId,
+        model: currentModel,
+        timestamp,
+      })
+    }
 
     try {
       for await (const chunk of stream) {
-        logger.provider(`provider=grok`, { chunk })
-        const choice = chunk.choices[0]
+        chunkCount++
+        logger.provider(`provider=grok type=${chunk.type}`, { chunk })
 
-        if (!choice) continue
+        const started = emitRunStarted(model || options.model)
+        if (started) yield started
 
-        // Emit RUN_STARTED on first chunk
-        if (!aguiState.hasEmittedRunStarted) {
-          aguiState.hasEmittedRunStarted = true
-          yield asChunk({
-            type: 'RUN_STARTED',
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model: chunk.model || options.model,
-            timestamp,
-          })
-        }
-
-        const delta = choice.delta
-        const deltaContent = delta.content
-        const deltaToolCalls = delta.tool_calls
-
-        // Handle content delta
-        if (deltaContent) {
-          // Emit TEXT_MESSAGE_START on first text content
-          if (!hasEmittedTextMessageStart) {
-            hasEmittedTextMessageStart = true
-            yield asChunk({
-              type: 'TEXT_MESSAGE_START',
-              messageId: aguiState.messageId,
-              model: chunk.model || options.model,
+        const handleContentPart = (
+          contentPart:
+            | OpenAI_SDK.Responses.ResponseOutputText
+            | OpenAI_SDK.Responses.ResponseOutputRefusal
+            | OpenAI_SDK.Responses.ResponseContentPartAddedEvent.ReasoningText,
+        ): StreamChunk => {
+          if (contentPart.type === 'output_text') {
+            accumulatedContent += contentPart.text
+            return asChunk({
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId,
+              model: model || options.model,
               timestamp,
-              role: 'assistant',
+              delta: contentPart.text,
+              content: accumulatedContent,
             })
           }
 
-          accumulatedContent += deltaContent
+          if (contentPart.type === 'reasoning_text') {
+            accumulatedReasoning += contentPart.text
+            const currentStepId = stepId || genId()
+            return asChunk({
+              type: 'STEP_FINISHED',
+              stepName: currentStepId,
+              stepId: currentStepId,
+              model: model || options.model,
+              timestamp,
+              delta: contentPart.text,
+              content: accumulatedReasoning,
+            })
+          }
 
-          // Emit AG-UI TEXT_MESSAGE_CONTENT
-          yield asChunk({
-            type: 'TEXT_MESSAGE_CONTENT',
-            messageId: aguiState.messageId,
-            model: chunk.model || options.model,
+          return asChunk({
+            type: 'RUN_ERROR',
+            runId,
+            message: contentPart.refusal,
+            model: model || options.model,
             timestamp,
-            delta: deltaContent,
-            content: accumulatedContent,
+            error: { message: contentPart.refusal },
           })
         }
 
-        // Handle tool calls - they come in as deltas
-        if (deltaToolCalls) {
-          for (const toolCallDelta of deltaToolCalls) {
-            const index = toolCallDelta.index
+        if (
+          chunk.type === 'response.created' ||
+          chunk.type === 'response.incomplete' ||
+          chunk.type === 'response.failed'
+        ) {
+          model = chunk.response.model
+          // Reset per-response streaming flags. xAI may emit multiple
+          // response.* lifecycles in a single SSE stream during retries.
+          hasStreamedContentDeltas = false
+          hasStreamedReasoningDeltas = false
+          hasEmittedTextMessageStart = false
+          hasEmittedStepStarted = false
+          reasoningMessageId = null
+          hasClosedReasoning = false
+          accumulatedContent = ''
+          accumulatedReasoning = ''
 
-            // Initialize or update the tool call in progress
-            if (!toolCallsInProgress.has(index)) {
-              toolCallsInProgress.set(index, {
-                id: toolCallDelta.id || '',
-                name: toolCallDelta.function?.name || '',
-                arguments: '',
+          if (chunk.response.error) {
+            yield asChunk({
+              type: 'RUN_ERROR',
+              runId,
+              message: chunk.response.error.message,
+              code: chunk.response.error.code,
+              model: chunk.response.model,
+              timestamp,
+              error: chunk.response.error,
+            })
+          }
+          if (chunk.response.incomplete_details) {
+            const incompleteMessage =
+              chunk.response.incomplete_details.reason ?? ''
+            yield asChunk({
+              type: 'RUN_ERROR',
+              runId,
+              message: incompleteMessage,
+              model: chunk.response.model,
+              timestamp,
+              error: { message: incompleteMessage },
+            })
+          }
+        }
+
+        if (chunk.type === 'response.output_text.delta' && chunk.delta) {
+          const textDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+
+          if (textDelta) {
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield asChunk({
+                type: 'REASONING_MESSAGE_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+            }
+
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield asChunk({
+                type: 'TEXT_MESSAGE_START',
+                messageId,
+                model: model || options.model,
+                timestamp,
+                role: 'assistant',
+              })
+            }
+
+            accumulatedContent += textDelta
+            hasStreamedContentDeltas = true
+            yield asChunk({
+              type: 'TEXT_MESSAGE_CONTENT',
+              messageId,
+              model: model || options.model,
+              timestamp,
+              delta: textDelta,
+              content: accumulatedContent,
+            })
+          }
+        }
+
+        if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
+          const reasoningDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+
+          if (reasoningDelta) {
+            if (!hasEmittedStepStarted) {
+              hasEmittedStepStarted = true
+              stepId = genId()
+              reasoningMessageId = genId()
+
+              yield asChunk({
+                type: 'REASONING_START',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_MESSAGE_START',
+                messageId: reasoningMessageId,
+                role: 'reasoning' as const,
+                model: model || options.model,
+                timestamp,
+              })
+
+              // Legacy STEP events (kept for compatibility during transition)
+              yield asChunk({
+                type: 'STEP_STARTED',
+                stepName: stepId,
+                stepId,
+                model: model || options.model,
+                timestamp,
+                stepType: 'thinking',
+              })
+            }
+
+            accumulatedReasoning += reasoningDelta
+            hasStreamedReasoningDeltas = true
+
+            yield asChunk({
+              type: 'REASONING_MESSAGE_CONTENT',
+              messageId: reasoningMessageId!,
+              delta: reasoningDelta,
+              model: model || options.model,
+              timestamp,
+            })
+
+            const resolvedStepId1 = stepId || genId()
+            yield asChunk({
+              type: 'STEP_FINISHED',
+              stepName: resolvedStepId1,
+              stepId: resolvedStepId1,
+              model: model || options.model,
+              timestamp,
+              delta: reasoningDelta,
+              content: accumulatedReasoning,
+            })
+          }
+        }
+
+        if (
+          chunk.type === 'response.reasoning_summary_text.delta' &&
+          chunk.delta
+        ) {
+          const summaryDelta =
+            typeof chunk.delta === 'string' ? chunk.delta : ''
+
+          if (summaryDelta) {
+            if (!hasEmittedStepStarted) {
+              hasEmittedStepStarted = true
+              stepId = genId()
+              reasoningMessageId = genId()
+
+              yield asChunk({
+                type: 'REASONING_START',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_MESSAGE_START',
+                messageId: reasoningMessageId,
+                role: 'reasoning' as const,
+                model: model || options.model,
+                timestamp,
+              })
+
+              yield asChunk({
+                type: 'STEP_STARTED',
+                stepName: stepId,
+                stepId,
+                model: model || options.model,
+                timestamp,
+                stepType: 'thinking',
+              })
+            }
+
+            accumulatedReasoning += summaryDelta
+            hasStreamedReasoningDeltas = true
+
+            yield asChunk({
+              type: 'REASONING_MESSAGE_CONTENT',
+              messageId: reasoningMessageId!,
+              delta: summaryDelta,
+              model: model || options.model,
+              timestamp,
+            })
+
+            const resolvedStepId2 = stepId || genId()
+            yield asChunk({
+              type: 'STEP_FINISHED',
+              stepName: resolvedStepId2,
+              stepId: resolvedStepId2,
+              model: model || options.model,
+              timestamp,
+              delta: summaryDelta,
+              content: accumulatedReasoning,
+            })
+          }
+        }
+
+        if (chunk.type === 'response.content_part.added') {
+          const contentPart = chunk.part
+
+          if (contentPart.type === 'output_text') {
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield asChunk({
+                type: 'REASONING_MESSAGE_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+              yield asChunk({
+                type: 'REASONING_END',
+                messageId: reasoningMessageId,
+                model: model || options.model,
+                timestamp,
+              })
+            }
+
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield asChunk({
+                type: 'TEXT_MESSAGE_START',
+                messageId,
+                model: model || options.model,
+                timestamp,
+                role: 'assistant',
+              })
+            }
+          }
+
+          if (contentPart.type === 'reasoning_text' && !hasEmittedStepStarted) {
+            hasEmittedStepStarted = true
+            stepId = genId()
+            reasoningMessageId = genId()
+
+            yield asChunk({
+              type: 'REASONING_START',
+              messageId: reasoningMessageId,
+              model: model || options.model,
+              timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_MESSAGE_START',
+              messageId: reasoningMessageId,
+              role: 'reasoning' as const,
+              model: model || options.model,
+              timestamp,
+            })
+
+            yield asChunk({
+              type: 'STEP_STARTED',
+              stepName: stepId,
+              stepId,
+              model: model || options.model,
+              timestamp,
+              stepType: 'thinking',
+            })
+          }
+
+          yield handleContentPart(contentPart)
+        }
+
+        if (chunk.type === 'response.content_part.done') {
+          const contentPart = chunk.part
+
+          // Skip if we've already streamed this content via deltas — the done
+          // event is just the closing marker.
+          if (contentPart.type === 'output_text' && hasStreamedContentDeltas) {
+            continue
+          }
+          if (
+            contentPart.type === 'reasoning_text' &&
+            hasStreamedReasoningDeltas
+          ) {
+            continue
+          }
+
+          yield handleContentPart(contentPart)
+        }
+
+        if (chunk.type === 'response.output_item.added') {
+          const item = chunk.item
+          if (item.type === 'function_call' && item.id) {
+            if (!toolCallMetadata.has(item.id)) {
+              toolCallMetadata.set(item.id, {
+                index: chunk.output_index,
+                name: item.name || '',
                 started: false,
               })
             }
-
-            const toolCall = toolCallsInProgress.get(index)!
-
-            // Update with any new data from the delta
-            if (toolCallDelta.id) {
-              toolCall.id = toolCallDelta.id
-            }
-            if (toolCallDelta.function?.name) {
-              toolCall.name = toolCallDelta.function.name
-            }
-            if (toolCallDelta.function?.arguments) {
-              toolCall.arguments += toolCallDelta.function.arguments
-            }
-
-            // Emit TOOL_CALL_START when we have id and name
-            if (toolCall.id && toolCall.name && !toolCall.started) {
-              toolCall.started = true
-              yield asChunk({
-                type: 'TOOL_CALL_START',
-                toolCallId: toolCall.id,
-                toolCallName: toolCall.name,
-                toolName: toolCall.name,
-                model: chunk.model || options.model,
-                timestamp,
-                index,
-              })
-            }
-
-            // Emit TOOL_CALL_ARGS for argument deltas
-            if (toolCallDelta.function?.arguments && toolCall.started) {
-              yield asChunk({
-                type: 'TOOL_CALL_ARGS',
-                toolCallId: toolCall.id,
-                model: chunk.model || options.model,
-                timestamp,
-                delta: toolCallDelta.function.arguments,
-              })
-            }
+            yield asChunk({
+              type: 'TOOL_CALL_START',
+              toolCallId: item.id,
+              toolCallName: item.name || '',
+              toolName: item.name || '',
+              model: model || options.model,
+              timestamp,
+              index: chunk.output_index,
+            })
+            toolCallMetadata.get(item.id)!.started = true
           }
         }
 
-        // Handle finish reason
-        if (choice.finish_reason) {
-          // Emit all completed tool calls
-          if (
-            choice.finish_reason === 'tool_calls' ||
-            toolCallsInProgress.size > 0
-          ) {
-            for (const [, toolCall] of toolCallsInProgress) {
-              // Parse arguments for TOOL_CALL_END
-              let parsedInput: unknown = {}
-              try {
-                parsedInput = toolCall.arguments
-                  ? JSON.parse(toolCall.arguments)
-                  : {}
-              } catch {
-                parsedInput = {}
-              }
+        if (
+          chunk.type === 'response.function_call_arguments.delta' &&
+          chunk.delta
+        ) {
+          yield asChunk({
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: chunk.item_id,
+            model: model || options.model,
+            timestamp,
+            delta: chunk.delta,
+          })
+        }
 
-              // Emit AG-UI TOOL_CALL_END
-              yield asChunk({
-                type: 'TOOL_CALL_END',
-                toolCallId: toolCall.id,
-                toolCallName: toolCall.name,
-                toolName: toolCall.name,
-                model: chunk.model || options.model,
-                timestamp,
-                input: parsedInput,
-              })
-            }
+        if (chunk.type === 'response.function_call_arguments.done') {
+          const { item_id } = chunk
+          const metadata = toolCallMetadata.get(item_id)
+          const name = metadata?.name || ''
+
+          let parsedInput: unknown = {}
+          try {
+            const parsed = chunk.arguments ? JSON.parse(chunk.arguments) : {}
+            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+          } catch (parseError) {
+            logger.errors(
+              `grok: malformed function_call arguments for ${name}, defaulting to {}`,
+              { error: parseError, rawArguments: chunk.arguments },
+            )
+            parsedInput = {}
           }
 
-          const computedFinishReason =
-            choice.finish_reason === 'tool_calls' ||
-            toolCallsInProgress.size > 0
-              ? 'tool_calls'
-              : 'stop'
+          yield asChunk({
+            type: 'TOOL_CALL_END',
+            toolCallId: item_id,
+            toolCallName: name,
+            toolName: name,
+            model: model || options.model,
+            timestamp,
+            input: parsedInput,
+          })
+        }
 
-          // Emit TEXT_MESSAGE_END if we had text content
-          if (hasEmittedTextMessageStart) {
+        if (chunk.type === 'response.completed') {
+          if (reasoningMessageId && !hasClosedReasoning) {
+            hasClosedReasoning = true
             yield asChunk({
-              type: 'TEXT_MESSAGE_END',
-              messageId: aguiState.messageId,
-              model: chunk.model || options.model,
+              type: 'REASONING_MESSAGE_END',
+              messageId: reasoningMessageId,
+              model: model || options.model,
+              timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_END',
+              messageId: reasoningMessageId,
+              model: model || options.model,
               timestamp,
             })
           }
 
-          // Emit AG-UI RUN_FINISHED
+          if (hasEmittedTextMessageStart) {
+            yield asChunk({
+              type: 'TEXT_MESSAGE_END',
+              messageId,
+              model: model || options.model,
+              timestamp,
+            })
+          }
+
+          const hasFunctionCalls = chunk.response.output.some(
+            (item: unknown) =>
+              (item as { type: string }).type === 'function_call',
+          )
+
           yield asChunk({
             type: 'RUN_FINISHED',
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model: chunk.model || options.model,
+            runId,
+            threadId,
+            model: model || options.model,
             timestamp,
-            usage: chunk.usage
-              ? {
-                  promptTokens: chunk.usage.prompt_tokens || 0,
-                  completionTokens: chunk.usage.completion_tokens || 0,
-                  totalTokens: chunk.usage.total_tokens || 0,
-                }
-              : undefined,
-            finishReason: computedFinishReason,
+            usage: {
+              promptTokens: chunk.response.usage?.input_tokens || 0,
+              completionTokens: chunk.response.usage?.output_tokens || 0,
+              totalTokens: chunk.response.usage?.total_tokens || 0,
+            },
+            finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
+          })
+        }
+
+        if (chunk.type === 'error') {
+          yield asChunk({
+            type: 'RUN_ERROR',
+            runId,
+            message: chunk.message,
+            code: chunk.code ?? undefined,
+            model: model || options.model,
+            timestamp,
+            error: {
+              message: chunk.message,
+              code: chunk.code ?? undefined,
+            },
           })
         }
       }
@@ -424,13 +783,13 @@ export class GrokTextAdapter<
       const err = error as Error & { code?: string }
       logger.errors('grok stream ended with error', {
         error,
-        source: 'grok.processGrokStreamChunks',
+        source: 'grok.processGrokResponsesStream',
+        totalChunks: chunkCount,
       })
 
-      // Emit AG-UI RUN_ERROR
       yield asChunk({
         type: 'RUN_ERROR',
-        runId: aguiState.runId,
+        runId,
         model: options.model,
         timestamp,
         message: err.message || 'Unknown error occurred',
@@ -444,21 +803,23 @@ export class GrokTextAdapter<
   }
 
   /**
-   * Maps common options to Grok-specific Chat Completions format
+   * Build the Responses-API request body. Applies the encrypted-reasoning
+   * defaults (`store: false`, `include: ['reasoning.encrypted_content']`)
+   * unless the caller explicitly overrides them via `modelOptions`.
    */
   private mapTextOptionsToGrok(
     options: TextOptions,
-  ): OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming {
+  ): Omit<OpenAI_SDK.Responses.ResponseCreateParams, 'stream'> {
     const modelOptions = options.modelOptions as
-      | Omit<
-          InternalTextProviderOptions,
-          'max_tokens' | 'tools' | 'temperature' | 'input' | 'top_p'
-        >
+      | GrokTextProviderOptions
       | undefined
+
+    const input = this.convertMessagesToInput(options.messages)
 
     if (modelOptions) {
       validateTextProviderOptions({
         ...modelOptions,
+        input,
         model: options.model,
       })
     }
@@ -467,110 +828,125 @@ export class GrokTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    // Build messages array with system prompts
-    const messages: Array<OpenAI_SDK.Chat.Completions.ChatCompletionMessageParam> =
-      []
+    // Caller wins: spread `modelOptions` last for explicit overrides, but
+    // preserve the encrypted-reasoning defaults if they didn't pass values.
+    const callerInclude = modelOptions?.include
+    const include =
+      callerInclude === undefined ? DEFAULT_INCLUDE : callerInclude
+    const store =
+      modelOptions?.store === undefined ? DEFAULT_STORE : modelOptions.store
 
-    // Add system prompts first
-    if (options.systemPrompts && options.systemPrompts.length > 0) {
-      messages.push({
-        role: 'system',
-        content: options.systemPrompts.join('\n'),
+    const requestParams: Omit<
+      OpenAI_SDK.Responses.ResponseCreateParams,
+      'stream'
+    > = {
+      model: options.model,
+      temperature: options.temperature,
+      max_output_tokens: options.maxTokens,
+      top_p: options.topP,
+      metadata: options.metadata,
+      instructions: options.systemPrompts?.join('\n'),
+      ...modelOptions,
+      include,
+      store,
+      input,
+      tools: tools as Array<OpenAI_SDK.Responses.Tool> | undefined,
+    }
+
+    return requestParams
+  }
+
+  private convertMessagesToInput(
+    messages: Array<ModelMessage>,
+  ): Responses.ResponseInput {
+    const result: Responses.ResponseInput = []
+
+    for (const message of messages) {
+      if (message.role === 'tool') {
+        result.push({
+          type: 'function_call_output',
+          call_id: message.toolCallId || '',
+          output:
+            typeof message.content === 'string'
+              ? message.content
+              : JSON.stringify(message.content),
+        })
+        continue
+      }
+
+      if (message.role === 'assistant') {
+        if (message.toolCalls && message.toolCalls.length > 0) {
+          for (const toolCall of message.toolCalls) {
+            const argumentsString =
+              typeof toolCall.function.arguments === 'string'
+                ? toolCall.function.arguments
+                : JSON.stringify(toolCall.function.arguments)
+
+            result.push({
+              type: 'function_call',
+              call_id: toolCall.id,
+              name: toolCall.function.name,
+              arguments: argumentsString,
+            })
+          }
+        }
+
+        if (message.content) {
+          const contentStr = this.extractTextContent(message.content)
+          if (contentStr) {
+            result.push({
+              type: 'message',
+              role: 'assistant',
+              content: contentStr,
+            })
+          }
+        }
+
+        continue
+      }
+
+      const contentParts = this.normalizeContent(message.content)
+      const grokContent: Array<Responses.ResponseInputContent> = []
+
+      for (const part of contentParts) {
+        if (part.type === 'text') {
+          grokContent.push({ type: 'input_text', text: part.content })
+        } else if (part.type === 'image') {
+          const imageMetadata = part.metadata as GrokImageMetadata | undefined
+          if (part.source.type === 'url') {
+            grokContent.push({
+              type: 'input_image',
+              image_url: part.source.value,
+              detail: imageMetadata?.detail || 'auto',
+            })
+          } else {
+            const imageValue = part.source.value
+            const imageUrl = imageValue.startsWith('data:')
+              ? imageValue
+              : `data:${part.source.mimeType};base64,${imageValue}`
+            grokContent.push({
+              type: 'input_image',
+              image_url: imageUrl,
+              detail: imageMetadata?.detail || 'auto',
+            })
+          }
+        }
+        // audio / video / document parts are silently dropped; xAI's
+        // /v1/responses endpoint does not accept them for chat models.
+      }
+
+      if (grokContent.length === 0) {
+        grokContent.push({ type: 'input_text', text: '' })
+      }
+
+      result.push({
+        type: 'message',
+        role: 'user',
+        content: grokContent,
       })
     }
 
-    // Convert messages
-    for (const message of options.messages) {
-      messages.push(this.convertMessageToGrok(message))
-    }
-
-    return {
-      model: options.model,
-      messages,
-      temperature: options.temperature,
-      max_tokens: options.maxTokens,
-      top_p: options.topP,
-      tools: tools as Array<OpenAI_SDK.Chat.Completions.ChatCompletionTool>,
-      stream: true,
-      stream_options: { include_usage: true },
-    }
-  }
-
-  private convertMessageToGrok(
-    message: ModelMessage,
-  ): OpenAI_SDK.Chat.Completions.ChatCompletionMessageParam {
-    // Handle tool messages
-    if (message.role === 'tool') {
-      return {
-        role: 'tool',
-        tool_call_id: message.toolCallId || '',
-        content:
-          typeof message.content === 'string'
-            ? message.content
-            : JSON.stringify(message.content),
-      }
-    }
-
-    // Handle assistant messages
-    if (message.role === 'assistant') {
-      const toolCalls = message.toolCalls?.map((tc) => ({
-        id: tc.id,
-        type: 'function' as const,
-        function: {
-          name: tc.function.name,
-          arguments:
-            typeof tc.function.arguments === 'string'
-              ? tc.function.arguments
-              : JSON.stringify(tc.function.arguments),
-        },
-      }))
-
-      return {
-        role: 'assistant',
-        content: this.extractTextContent(message.content),
-        ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
-      }
-    }
-
-    // Handle user messages - support multimodal content
-    const contentParts = this.normalizeContent(message.content)
-
-    // If only text, use simple string format
-    if (contentParts.length === 1 && contentParts[0]?.type === 'text') {
-      return {
-        role: 'user',
-        content: contentParts[0].content,
-      }
-    }
-
-    // Otherwise, use array format for multimodal
-    const parts: Array<OpenAI_SDK.Chat.Completions.ChatCompletionContentPart> =
-      []
-    for (const part of contentParts) {
-      if (part.type === 'text') {
-        parts.push({ type: 'text', text: part.content })
-      } else if (part.type === 'image') {
-        const imageMetadata = part.metadata as GrokImageMetadata | undefined
-        // For base64 data, construct a data URI using the mimeType from source
-        const imageValue = part.source.value
-        const imageUrl =
-          part.source.type === 'data' && !imageValue.startsWith('data:')
-            ? `data:${part.source.mimeType};base64,${imageValue}`
-            : imageValue
-        parts.push({
-          type: 'image_url',
-          image_url: {
-            url: imageUrl,
-            detail: imageMetadata?.detail || 'auto',
-          },
-        })
-      }
-    }
-
-    return {
-      role: 'user',
-      content: parts.length > 0 ? parts : '',
-    }
+    return result
   }
 
   /**
@@ -601,7 +977,6 @@ export class GrokTextAdapter<
     if (typeof content === 'string') {
       return content
     }
-    // It's an array of ContentPart
     return content
       .filter((p) => p.type === 'text')
       .map((p) => p.content)
@@ -611,17 +986,14 @@ export class GrokTextAdapter<
 
 /**
  * Creates a Grok text adapter with explicit API key.
- * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'grok-3', 'grok-4')
+ * @param model - The model name (e.g., 'grok-4.3', 'grok-4.2')
  * @param apiKey - Your xAI API key
  * @param config - Optional additional configuration
- * @returns Configured Grok text adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createGrokText('grok-3', "xai-...");
- * // adapter has type-safe providerOptions for grok-3
+ * const adapter = createGrokText('grok-4.3', "xai-...");
  * ```
  */
 export function createGrokText<
@@ -635,22 +1007,14 @@ export function createGrokText<
 }
 
 /**
- * Creates a Grok text adapter with automatic API key detection from environment variables.
- * Type resolution happens here at the call site.
+ * Creates a Grok text adapter with automatic API key detection from
+ * `XAI_API_KEY` in `process.env` (Node) or `window.env` (Browser).
  *
- * Looks for `XAI_API_KEY` in:
- * - `process.env` (Node.js)
- * - `window.env` (Browser with injected env)
- *
- * @param model - The model name (e.g., 'grok-3', 'grok-4')
- * @param config - Optional configuration (excluding apiKey which is auto-detected)
- * @returns Configured Grok text adapter instance with resolved types
  * @throws Error if XAI_API_KEY is not found in environment
  *
  * @example
  * ```typescript
- * // Automatically uses XAI_API_KEY from environment
- * const adapter = grokText('grok-3');
+ * const adapter = grokText('grok-4.3');
  *
  * const stream = chat({
  *   adapter,

@@ -79,7 +79,7 @@ export const PROVIDERS: ProviderConfig[] = [
     id: 'grok',
     name: 'Grok',
     envKey: 'XAI_API_KEY',
-    defaultModel: 'grok-3-mini',
+    defaultModel: 'grok-4.3',
     supportsBasicInference: true,
     supportsTools: true,
     supportsSummarization: true,

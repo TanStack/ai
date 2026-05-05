@@ -189,7 +189,7 @@ function stripPrefix(prefix: string, modelId: string): string {
 
 /**
  * Convert a model ID (after prefix stripping) to a TypeScript constant name.
- * E.g. 'gpt-6' -> 'GPT_6', 'grok-4.20-multi-agent' -> 'GROK_4_20_MULTI_AGENT'
+ * E.g. 'gpt-6' -> 'GPT_6', 'grok-4.3' -> 'GROK_4_3'
  */
 function toConstName(prefix: string, modelId: string): string {
   const stripped = stripPrefix(prefix, modelId)

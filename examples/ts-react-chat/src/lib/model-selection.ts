@@ -117,23 +117,18 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Grok
   {
     provider: 'grok',
-    model: 'grok-4',
-    label: 'Grok - Grok 4',
+    model: 'grok-4.3',
+    label: 'Grok - Grok 4.3',
   },
   {
     provider: 'grok',
-    model: 'grok-4-fast-non-reasoning',
-    label: 'Grok - Grok 4 Fast',
+    model: 'grok-4.2',
+    label: 'Grok - Grok 4.2',
   },
   {
     provider: 'grok',
-    model: 'grok-3',
-    label: 'Grok - Grok 3',
-  },
-  {
-    provider: 'grok',
-    model: 'grok-3-mini',
-    label: 'Grok - Grok 3 Mini',
+    model: 'grok-4-2-non-reasoning',
+    label: 'Grok - Grok 4.2 Non-Reasoning',
   },
 ]
 

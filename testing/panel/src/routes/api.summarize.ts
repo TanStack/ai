@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { summarize, createSummarizeOptions } from '@tanstack/ai'
+import { summarize } from '@tanstack/ai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
 import { geminiSummarize } from '@tanstack/ai-gemini'
 import { grokSummarize } from '@tanstack/ai-grok'
@@ -36,7 +36,7 @@ export const Route = createFileRoute('/api/summarize')({
           const defaultModels: Record<Provider, string> = {
             anthropic: 'claude-sonnet-4-5',
             gemini: 'gemini-2.0-flash',
-            grok: 'grok-3-mini',
+            grok: 'grok-4.3',
             ollama: 'mistral:7b',
             openai: 'gpt-4o-mini',
             openrouter: 'openai/gpt-4o-mini',
@@ -45,37 +45,16 @@ export const Route = createFileRoute('/api/summarize')({
           // Determine the actual model being used
           const actualModel = model || defaultModels[provider]
 
-          // Pre-define typed adapter configurations with full type inference
-          // Model is passed to the adapter factory function for type-safe autocomplete
           const adapterConfig = {
-            anthropic: () =>
-              createSummarizeOptions({
-                adapter: anthropicSummarize(actualModel as any),
-              }),
-            gemini: () =>
-              createSummarizeOptions({
-                adapter: geminiSummarize(actualModel as any),
-              }),
-            grok: () =>
-              createSummarizeOptions({
-                adapter: grokSummarize(actualModel as any),
-              }),
-            ollama: () =>
-              createSummarizeOptions({
-                adapter: ollamaSummarize(actualModel),
-              }),
-            openai: () =>
-              createSummarizeOptions({
-                adapter: openaiSummarize(actualModel as any),
-              }),
-            openrouter: () =>
-              createSummarizeOptions({
-                adapter: openRouterSummarize(actualModel as any),
-              }),
+            anthropic: () => anthropicSummarize(actualModel as any),
+            gemini: () => geminiSummarize(actualModel as any),
+            grok: () => grokSummarize(actualModel as any),
+            ollama: () => ollamaSummarize(actualModel),
+            openai: () => openaiSummarize(actualModel as any),
+            openrouter: () => openRouterSummarize(actualModel as any),
           }
 
-          // Get typed adapter options using createSummarizeOptions pattern
-          const options = adapterConfig[provider]()
+          const adapter = adapterConfig[provider]()
 
           console.log(
             `>> summarize with model: ${actualModel} on provider: ${provider} (stream: ${stream})`,
@@ -88,7 +67,7 @@ export const Route = createFileRoute('/api/summarize')({
               async start(controller) {
                 try {
                   const streamResult = summarize({
-                    ...options,
+                    adapter,
                     text,
                     maxLength,
                     style,
@@ -131,7 +110,7 @@ export const Route = createFileRoute('/api/summarize')({
 
           // Non-streaming mode
           const result = await summarize({
-            ...options,
+            adapter,
             text,
             maxLength,
             style,

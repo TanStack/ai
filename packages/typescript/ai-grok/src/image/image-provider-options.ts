@@ -2,11 +2,11 @@
  * Grok Image Generation Provider Options
  *
  * These are provider-specific options for Grok image generation.
- * Grok uses the grok-2-image-1212 model for image generation.
+ * Grok uses grok-imagine-image for image generation.
  */
 
 /**
- * Supported sizes for grok-2-image-1212 model
+ * Supported sizes for Grok image models
  */
 export type GrokImageSize = '1024x1024' | '1536x1024' | '1024x1536'
 
@@ -22,7 +22,7 @@ export interface GrokImageBaseProviderOptions {
 }
 
 /**
- * Provider options for grok-2-image-1212 model
+ * Provider options for Grok image models
  */
 export interface GrokImageProviderOptions extends GrokImageBaseProviderOptions {
   /**
@@ -43,14 +43,14 @@ export interface GrokImageProviderOptions extends GrokImageBaseProviderOptions {
  * Type-only map from model name to its specific provider options.
  */
 export type GrokImageModelProviderOptionsByName = {
-  'grok-2-image-1212': GrokImageProviderOptions
+  'grok-imagine-image': GrokImageProviderOptions
 }
 
 /**
  * Type-only map from model name to its supported sizes.
  */
 export type GrokImageModelSizeByName = {
-  'grok-2-image-1212': GrokImageSize
+  'grok-imagine-image': GrokImageSize
 }
 
 /**
@@ -72,7 +72,7 @@ export function validateImageSize(
   if (!size) return
 
   const validSizes: Record<string, Array<string>> = {
-    'grok-2-image-1212': ['1024x1024', '1536x1024', '1024x1536'],
+    'grok-imagine-image': ['1024x1024', '1536x1024', '1024x1536'],
   }
 
   const modelSizes = validSizes[model]
@@ -97,7 +97,7 @@ export function validateNumberOfImages(
 ): void {
   if (numberOfImages === undefined) return
 
-  // grok-2-image-1212 supports 1-10 images per request
+  // Grok image endpoints support 1-10 images per request
   if (numberOfImages < 1 || numberOfImages > 10) {
     throw new Error(
       `Number of images must be between 1 and 10. Requested: ${numberOfImages}`,
@@ -112,7 +112,7 @@ export const validatePrompt = (options: ImageValidationOptions) => {
   // Grok image model supports up to 4000 characters
   if (options.prompt.length > 4000) {
     throw new Error(
-      'For grok-2-image-1212, prompt length must be less than or equal to 4000 characters.',
+      'For Grok image models, prompt length must be less than or equal to 4000 characters.',
     )
   }
 }

@@ -84,7 +84,7 @@ import { ollamaText } from '@tanstack/ai-ollama'
 const adapter = openaiText('gpt-5.2')
 const adapter2 = anthropicText('claude-sonnet-4-6')
 const adapter3 = geminiText('gemini-2.5-pro')
-const adapter4 = grokText('grok-4')
+const adapter4 = grokText('grok-4.3')
 const adapter5 = groqText('llama-3.3-70b-versatile')
 const adapter6 = openRouterText('anthropic/claude-sonnet-4')
 const adapter7 = ollamaText('llama3.3')

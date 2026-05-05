@@ -25,7 +25,7 @@ function createSummarizeAdapter(provider: Provider) {
       }),
     ollama: () => createOllamaSummarize('mistral', LLMOCK_BASE),
     grok: () =>
-      createGrokSummarize('grok-3', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
+      createGrokSummarize('grok-4.3', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
     openrouter: () =>
       createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
   }

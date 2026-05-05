@@ -161,14 +161,14 @@ export class GrokSummarizeAdapter<
  * Creates a Grok summarize adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'grok-3', 'grok-4')
+ * @param model - The model name (e.g., 'grok-4.3', 'grok-4.2')
  * @param apiKey - Your xAI API key
  * @param config - Optional additional configuration
  * @returns Configured Grok summarize adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createGrokSummarize('grok-3', "xai-...");
+ * const adapter = createGrokSummarize('grok-4.3', "xai-...");
  * ```
  */
 export function createGrokSummarize<TModel extends GrokSummarizeModel>(
@@ -187,7 +187,7 @@ export function createGrokSummarize<TModel extends GrokSummarizeModel>(
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
- * @param model - The model name (e.g., 'grok-3', 'grok-4')
+ * @param model - The model name (e.g., 'grok-4.3', 'grok-4.2')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured Grok summarize adapter instance with resolved types
  * @throws Error if XAI_API_KEY is not found in environment
@@ -195,7 +195,7 @@ export function createGrokSummarize<TModel extends GrokSummarizeModel>(
  * @example
  * ```typescript
  * // Automatically uses XAI_API_KEY from environment
- * const adapter = grokSummarize('grok-3');
+ * const adapter = grokSummarize('grok-4.3');
  *
  * await summarize({
  *   adapter,

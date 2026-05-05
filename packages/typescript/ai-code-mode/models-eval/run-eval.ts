@@ -204,7 +204,7 @@ function getTextAdapter(
     case 'gemini':
       return geminiText(modelId as 'gemini-2.5-flash')
     case 'grok':
-      return grokText(modelId as 'grok-3-mini')
+      return grokText(modelId as 'grok-4-2-non-reasoning')
     case 'groq':
       return groqText(modelId as 'llama-3.3-70b-versatile')
   }

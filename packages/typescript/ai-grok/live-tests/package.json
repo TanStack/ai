@@ -1,0 +1,24 @@
+{
+  "name": "ai-grok-live-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx streaming.ts",
+    "test:tools": "tsx tool-test.ts",
+    "test:tools-optional": "tsx tool-test-optional.ts",
+    "test:tools-empty": "tsx tool-test-empty-object.ts",
+    "test:structured": "tsx structured-output.ts",
+    "test:reasoning": "tsx reasoning.ts",
+    "test:multi-turn": "tsx multi-turn.ts",
+    "test:builtin-tools": "tsx builtin-tools.ts",
+    "test:server-tools": "tsx server-tools.ts",
+    "test:all": "tsx streaming.ts && tsx tool-test.ts && tsx tool-test-optional.ts && tsx tool-test-empty-object.ts && tsx structured-output.ts && tsx reasoning.ts && tsx multi-turn.ts && tsx builtin-tools.ts && tsx server-tools.ts"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

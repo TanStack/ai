@@ -18,7 +18,7 @@ const defaultModels: Record<Provider, string> = {
   gemini: 'gemini-2.0-flash',
   ollama: 'mistral',
   groq: 'llama-3.3-70b-versatile',
-  grok: 'grok-3',
+  grok: 'grok-4.3',
   openrouter: 'openai/gpt-4o',
 }
 
@@ -78,7 +78,7 @@ export function createTextAdapter(
       }),
     grok: () =>
       createChatOptions({
-        adapter: createGrokText(model as 'grok-3', DUMMY_KEY, {
+        adapter: createGrokText(model as 'grok-4.3', DUMMY_KEY, {
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),
