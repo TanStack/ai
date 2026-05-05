@@ -121,15 +121,17 @@ export const matrix: Record<Feature, Set<Provider>> = {
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
-  // ElevenLabs factories exist in media-providers.ts but aimock doesn't
-  // mock api.elevenlabs.io yet, so we keep it out of the live matrix for
-  // now. Re-add once aimock ships ElevenLabs stubs.
-  tts: new Set(['openai', 'grok']),
-  transcription: new Set(['openai', 'grok']),
+  // ElevenLabs TTS (/v1/text-to-speech/{voice_id}) and STT (/v1/speech-to-text)
+  // are mocked via local mounts in global-setup.ts (aimock 1.17 covers
+  // /v1/sound-generation + /v1/music/* but not these two routes yet).
+  tts: new Set(['openai', 'grok', 'elevenlabs']),
+  transcription: new Set(['openai', 'grok', 'elevenlabs']),
   'video-gen': new Set(['openai']),
-  // Gemini Lyria (generateContent with AUDIO modality), ElevenLabs music
+  // Music generation: Gemini Lyria (generateContent with AUDIO modality)
+  // and ElevenLabs music_v1 (/v1/music/*) — both natively mocked by aimock
+  // 1.17+.
   'audio-gen': new Set(['gemini', 'elevenlabs']),
-  // ElevenLabs sound-generation
+  // ElevenLabs sound-generation (/v1/sound-generation), aimock 1.17+.
   'sound-effects': new Set(['elevenlabs']),
 }
 

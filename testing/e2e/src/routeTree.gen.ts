@@ -27,6 +27,7 @@ import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
+import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
@@ -118,13 +119,18 @@ const ApiImageStreamRoute = ApiImageStreamRouteImport.update({
   path: '/stream',
   getParentRoute: () => ApiImageRoute,
 } as any)
+const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
+  id: '/stream',
+  path: '/stream',
+  getParentRoute: () => ApiAudioRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
-  '/api/audio': typeof ApiAudioRoute
+  '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider/': typeof ProviderIndexRoute
+  '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -144,7 +151,7 @@ export interface FileRoutesByTo {
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
-  '/api/audio': typeof ApiAudioRoute
+  '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -154,6 +161,7 @@ export interface FileRoutesByTo {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider': typeof ProviderIndexRoute
+  '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -165,7 +173,7 @@ export interface FileRoutesById {
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
-  '/api/audio': typeof ApiAudioRoute
+  '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/api/tts': typeof ApiTtsRouteWithChildren
   '/api/video': typeof ApiVideoRouteWithChildren
   '/$provider/': typeof ProviderIndexRoute
+  '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/$provider/'
+    | '/api/audio/stream'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/$provider'
+    | '/api/audio/stream'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/api/video'
     | '/$provider/'
+    | '/api/audio/stream'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -248,7 +260,7 @@ export interface RootRouteChildren {
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
-  ApiAudioRoute: typeof ApiAudioRoute
+  ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
@@ -388,8 +400,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageStreamRouteImport
       parentRoute: typeof ApiImageRoute
     }
+    '/api/audio/stream': {
+      id: '/api/audio/stream'
+      path: '/stream'
+      fullPath: '/api/audio/stream'
+      preLoaderRoute: typeof ApiAudioStreamRouteImport
+      parentRoute: typeof ApiAudioRoute
+    }
   }
 }
+
+interface ApiAudioRouteChildren {
+  ApiAudioStreamRoute: typeof ApiAudioStreamRoute
+}
+
+const ApiAudioRouteChildren: ApiAudioRouteChildren = {
+  ApiAudioStreamRoute: ApiAudioStreamRoute,
+}
+
+const ApiAudioRouteWithChildren = ApiAudioRoute._addFileChildren(
+  ApiAudioRouteChildren,
+)
 
 interface ApiImageRouteChildren {
   ApiImageStreamRoute: typeof ApiImageStreamRoute
@@ -442,7 +473,7 @@ const rootRouteChildren: RootRouteChildren = {
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
-  ApiAudioRoute: ApiAudioRoute,
+  ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,

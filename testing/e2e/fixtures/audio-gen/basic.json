@@ -1,0 +1,16 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[music] an upbeat lo-fi beat for the guitar store",
+        "endpoint": "audio-gen"
+      },
+      "response": {
+        "audio": {
+          "b64Json": "SGVsbG8gbXVzaWM=",
+          "contentType": "audio/mpeg"
+        }
+      }
+    }
+  ]
+}

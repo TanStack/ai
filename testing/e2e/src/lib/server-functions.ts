@@ -126,7 +126,7 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
     return generateAudio({
       adapter,
       prompt: data.prompt,
-      duration: data.duration,
+      ...(data.duration != null ? { duration: data.duration } : {}),
     })
   })
 
