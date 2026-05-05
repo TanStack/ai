@@ -54,6 +54,102 @@ describe('Anthropic adapter option mapping', () => {
     vi.clearAllMocks()
   })
 
+  it('passes systemPrompts as TextBlockParam[] for prompt caching support', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'Hello' },
+      }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 3 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      systemPrompts: ['You are a helpful assistant.', 'Be concise.'],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+
+    // system should be an array of TextBlockParam, not a joined string
+    expect(payload.system).toEqual([
+      { type: 'text', text: 'You are a helpful assistant.' },
+      { type: 'text', text: 'Be concise.' },
+    ])
+  })
+
+  it('allows modelOptions.system to override systemPrompts with cache_control', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'Hello' },
+      }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 3 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      systemPrompts: ['This should be overridden'],
+      modelOptions: {
+        system: [
+          {
+            type: 'text',
+            text: 'You are a helpful assistant.',
+            cache_control: { type: 'ephemeral' },
+          },
+        ],
+      },
+    })) {
+      chunks.push(chunk)
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+
+    // modelOptions.system should take precedence over systemPrompts
+    expect(payload.system).toEqual([
+      {
+        type: 'text',
+        text: 'You are a helpful assistant.',
+        cache_control: { type: 'ephemeral' },
+      },
+    ])
+  })
+
   it('maps normalized options and Anthropic provider settings', async () => {
     // Mock the streaming response
     const mockStream = (async function* () {
