@@ -57,6 +57,7 @@ export interface MessageStreamState {
   currentSegmentText: string
   lastEmittedText: string
   thinkingContent: string
+  hasSeenReasoningEvents: boolean
   toolCalls: Map<string, InternalToolCallState>
   toolCallOrder: Array<string>
   hasToolCallsSinceTextStart: boolean

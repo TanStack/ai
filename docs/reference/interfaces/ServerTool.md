@@ -5,7 +5,7 @@ title: ServerTool
 
 # Interface: ServerTool\<TInput, TOutput, TName\>
 
-Defined in: [activities/chat/tools/tool-definition.ts:13](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L13)
+Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:13](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L13)
 
 Marker type for server-side tools
 
@@ -35,7 +35,7 @@ Marker type for server-side tools
 __toolSide: "server";
 ```
 
-Defined in: [activities/chat/tools/tool-definition.ts:18](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L18)
+Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:18](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L18)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [activities/chat/tools/tool-definition.ts:18](https://github.com/Tan
 description: string;
 ```
 
-Defined in: [types.ts:411](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L411)
+Defined in: [packages/typescript/ai/src/types.ts:440](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L440)
 
 Clear description of what the tool does.
 
@@ -70,7 +70,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute: (args, context?) => any;
 ```
 
-Defined in: [types.ts:491](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L491)
+Defined in: [packages/typescript/ai/src/types.ts:520](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L520)
 
 Optional function to execute when the model calls this tool.
 
@@ -118,7 +118,7 @@ execute: async (args) => {
 optional inputSchema: TInput;
 ```
 
-Defined in: [types.ts:451](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L451)
+Defined in: [packages/typescript/ai/src/types.ts:480](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L480)
 
 Schema describing the tool's input parameters.
 
@@ -170,13 +170,29 @@ type({
 
 ***
 
+### lazy?
+
+```ts
+optional lazy: boolean;
+```
+
+Defined in: [packages/typescript/ai/src/types.ts:526](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L526)
+
+If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat().
+
+#### Inherited from
+
+[`Tool`](Tool.md).[`lazy`](Tool.md#lazy)
+
+***
+
 ### metadata?
 
 ```ts
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [types.ts:497](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L497)
+Defined in: [packages/typescript/ai/src/types.ts:529](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L529)
 
 Additional metadata for adapters or custom extensions
 
@@ -192,7 +208,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [types.ts:401](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L401)
+Defined in: [packages/typescript/ai/src/types.ts:430](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L430)
 
 Unique name of the tool (used by the model to call it).
 
@@ -217,7 +233,7 @@ Must be unique within the tools array.
 optional needsApproval: boolean;
 ```
 
-Defined in: [types.ts:494](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L494)
+Defined in: [packages/typescript/ai/src/types.ts:523](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L523)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -233,7 +249,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema: TOutput;
 ```
 
-Defined in: [types.ts:472](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L472)
+Defined in: [packages/typescript/ai/src/types.ts:501](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L501)
 
 Optional schema for validating tool output.
 

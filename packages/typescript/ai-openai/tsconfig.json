@@ -1,9 +1,12 @@
 {
   "extends": "../../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "src"
+    "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": [
+    "vite.config.ts",
+    "./src",
+    "tests/tools-per-model-type-safety.test.ts"
+  ],
   "exclude": ["node_modules", "dist", "**/*.config.ts"]
 }

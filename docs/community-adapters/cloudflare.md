@@ -2,6 +2,16 @@
 title: Cloudflare
 id: cloudflare-adapter
 order: 3
+description: "Use Cloudflare Workers AI and AI Gateway with TanStack AI for edge inference, caching, rate limiting, and unified billing across providers."
+keywords:
+  - tanstack ai
+  - cloudflare
+  - workers ai
+  - ai gateway
+  - edge inference
+  - caching
+  - rate limiting
+  - community adapter
 ---
 
 The Cloudflare adapter provides access to [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) models and [AI Gateway](https://developers.cloudflare.com/ai-gateway/) for routing requests to OpenAI, Anthropic, Gemini, Grok, and OpenRouter with caching, rate limiting, and unified billing.
@@ -294,5 +304,5 @@ When using the `env.AI` binding inside a Worker, no environment variables are ne
 - [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) — Workers AI documentation
 - [Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/) — AI Gateway documentation
 - [GitHub Repository](https://github.com/cloudflare/ai) — Source code and issues
-- [Streaming Guide](../guides/streaming) — Learn about streaming responses
-- [Tools Guide](../guides/tools) — Learn about tool calling
+- [Streaming Guide](../chat/streaming) — Learn about streaming responses
+- [Tools Guide](../tools/tools) — Learn about tool calling

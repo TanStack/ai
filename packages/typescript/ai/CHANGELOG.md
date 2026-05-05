@@ -1,5 +1,190 @@
 # @tanstack/ai
 
+## 0.14.0
+
+### Minor Changes
+
+- feat: add generateAudio activity for music and sound-effect generation ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Adds a new `audio` activity kind alongside the existing `tts` and `transcription` activities:
+  - `generateAudio()` / `createAudioOptions()` functions
+  - `AudioAdapter` interface and `BaseAudioAdapter` base class
+  - `AudioGenerationOptions` / `AudioGenerationResult` / `GeneratedAudio` types
+  - `audio:request:started`, `audio:request:completed`, and `audio:usage` devtools events
+
+- feat: add `useGenerateAudio` hook and streaming support for `generateAudio()` ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Closes the parity gap between audio generation and the other media
+  activities (image, speech, video, transcription, summarize):
+  - `generateAudio()` now accepts `stream: true`, returning an
+    `AsyncIterable<StreamChunk>` that can be piped through
+    `toServerSentEventsResponse()`.
+  - `AudioGenerateInput` type added to `@tanstack/ai-client`.
+  - `useGenerateAudio` hook added to `@tanstack/ai-react`,
+    `@tanstack/ai-solid`, and `@tanstack/ai-vue`; matching
+    `createGenerateAudio` added to `@tanstack/ai-svelte`. All follow the same
+    `{ generate, result, isLoading, error, status, stop, reset }` shape as
+    the existing media hooks and support both `connection` (SSE) and
+    `fetcher` transports.
+
+- Tighten `GeneratedImage` and `GeneratedAudio` to enforce exactly one of `url` or `b64Json` via a mutually-exclusive `GeneratedMediaSource` union. ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Both types previously declared `url?` and `b64Json?` as independently optional, which allowed meaningless `{}` values and objects that set both fields. They now require exactly one:
+
+  ```ts
+  type GeneratedMediaSource =
+    | { url: string; b64Json?: never }
+    | { b64Json: string; url?: never }
+  ```
+
+  Existing read patterns like `img.url || \`data:image/png;base64,${img.b64Json}\``continue to work unchanged. The only runtime-visible change is that the`@tanstack/ai-openrouter`and`@tanstack/ai-fal`image adapters no longer populate`url`with a synthesized`data:image/png;base64,...`URI when the provider returns base64 — they return`{ b64Json }`only. Consumers that want a data URI should build it from`b64Json` at render time.
+
+### Patch Changes
+
+- refactor(ai, ai-openai): narrow error handling before logging ([#465](https://github.com/TanStack/ai/pull/465))
+
+  `catch (error: any)` sites in `stream-to-response.ts`, `activities/stream-generation-result.ts`, and `activities/generateVideo/index.ts` are now narrowed to `unknown` and funnel through a shared `toRunErrorPayload(error, fallback)` helper that extracts `message` / `code` without leaking the original error object (which can carry request state from an SDK).
+
+  Replaced four `console.error` calls in the OpenAI text adapter's `chatStream` catch block that dumped the full error object to stdout. SDK errors can carry the original request including auth headers, so the library now logs only the narrowed `{ message, code }` payload via the internal logger — any user-supplied logger receives the sanitized shape, not the raw SDK error.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.8
+
+## 0.13.0
+
+### Minor Changes
+
+- **Pluggable debug logging across every activity.** `chat`, `summarize`, `generateImage`, `generateVideo`, `generateSpeech`, and `generateTranscription` now accept a `debug?: DebugOption` that turns on structured per-category logs (`request`, `provider`, `output`, `middleware`, `tools`, `agentLoop`, `config`, `errors`). ([#467](https://github.com/TanStack/ai/pull/467))
+
+  ```ts
+  chat({ adapter, messages, debug: true }) // all categories on
+  chat({ adapter, messages, debug: false }) // silent (incl. errors)
+  chat({ adapter, messages, debug: { middleware: false } }) // all except middleware
+  chat({ adapter, messages, debug: { logger: pino } }) // route to a custom logger
+  ```
+
+  Additions:
+  - New `Logger` interface (`debug` / `info` / `warn` / `error`) and default `ConsoleLogger` that routes to matching `console.*` methods and prints nested `meta` via `console.dir(meta, { depth: null, colors: true })` so streamed provider payloads render in full.
+  - New `DebugCategories` / `DebugConfig` / `DebugOption` public types.
+  - New internal `@tanstack/ai/adapter-internals` subpath export exposing `InternalLogger` + `resolveDebugOption` so provider adapters can thread logging without leaking internals on the public surface.
+  - Each log line is prefixed with an emoji + `[tanstack-ai:<category>]` tag so categories are visually distinguishable in dense streams. Errors log unconditionally unless explicitly silenced.
+  - `TextEngine`, `MiddlewareRunner`, and every activity entry point thread a resolved `InternalLogger` through the pipeline — no globals, concurrent calls stay independent.
+  - Exceptions thrown by a user-supplied `Logger` implementation are swallowed so they never mask the real error that triggered the log call.
+  - New `ai-core/debug-logging` skill shipped under `packages/typescript/ai/skills/` so agents can discover how to toggle, narrow, and redirect debug output.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.7
+
+## 0.12.0
+
+### Minor Changes
+
+- Add `ProviderTool<TProvider, TKind>` phantom-branded tool subtype and a `toolCapabilities` channel on `TextAdapter['~types']`. `TextActivityOptions['tools']` is now typed so that adapter-exported provider tools are gated against the selected model's `supports.tools` list. User tools from `toolDefinition()` remain unaffected. ([#466](https://github.com/TanStack/ai/pull/466))
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.6
+
+## 0.11.1
+
+### Patch Changes
+
+- fix(ai): make optional nested objects and arrays nullable under `forStructuredOutput`. Previously `makeStructuredOutputCompatible` recursed into optional composites and skipped the `'null'`-wrap, but still added them to `required[]`, producing a schema that OpenAI-style strict `json_schema` providers reject. Any schema with an optional `z.object({...}).optional()` or `z.array(...).optional()` field now serializes as `type: ['object','null']` / `['array','null']` and passes strict validation. ([#484](https://github.com/TanStack/ai/pull/484))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.5
+
+## 0.11.0
+
+### Minor Changes
+
+- **AG-UI core interop — spec-compliant event types.** `StreamChunk` now re-uses `@ag-ui/core`'s `EventType` enum and event shapes directly. Practical changes: ([#474](https://github.com/TanStack/ai/pull/474))
+  - `RunErrorEvent` is flat (`{ message, code }` at the top level) instead of nested under `error: {...}`.
+  - `TOOL_CALL_START` / `TOOL_CALL_END` events expose `toolCallName` (the deprecated `toolName` alias is retained as a passthrough for now).
+  - Adapters now emit `REASONING_*` events (`REASONING_START`, `REASONING_MESSAGE_START`, `REASONING_MESSAGE_CONTENT`, `REASONING_MESSAGE_END`, `REASONING_END`) alongside the legacy `STEP_*` events; consumers rendering thinking content should migrate to the `REASONING_*` channel.
+  - `TOOL_CALL_RESULT` events are emitted after tool execution in the agent loop.
+  - New `stripToSpecMiddleware` (always injected last) removes non-spec fields (`model`, `content`, `args`, `finishReason`, `usage`, `toolName`, `stepId`, …) from events before they reach consumers. Internal state management sees the full un-stripped chunks.
+  - `ChatOptions` gained optional `threadId` and `runId` for AG-UI run correlation; they flow through to `RUN_STARTED` / `RUN_FINISHED`.
+  - `StateDeltaEvent.delta` is now a JSON Patch `any[]` per the AG-UI spec.
+
+### Patch Changes
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7)]:
+  - @tanstack/ai-event-client@0.2.4
+
+## 0.10.3
+
+### Patch Changes
+
+- fix(ai, ai-openai, ai-gemini, ai-ollama): normalize null tool input to empty object ([#430](https://github.com/TanStack/ai/pull/430))
+
+  When a model produces a `tool_use` block with no input, `JSON.parse('null')` returns `null` which fails Zod schema validation and silently kills the agent loop. Normalize null/non-object parsed tool input to `{}` in `executeToolCalls`, `ToolCallManager.completeToolCall`, `ToolCallManager.executeTools`, and the OpenAI/Gemini/Ollama adapter `TOOL_CALL_END` emissions. The Anthropic adapter already had this fix.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.3
+
+## 0.10.2
+
+### Patch Changes
+
+- Emit TOOL_CALL_START and TOOL_CALL_ARGS for pending tool calls during continuation re-executions ([#372](https://github.com/TanStack/ai/pull/372))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.2
+
+## 0.10.1
+
+### Patch Changes
+
+- Add @tanstack/intent agent skills for AI coding assistants ([#432](https://github.com/TanStack/ai/pull/432))
+
+  Adds 10 skill files covering chat-experience, tool-calling, media-generation,
+  code-mode, structured-outputs, adapter-configuration, ag-ui-protocol,
+  middleware, and custom-backend-integration. Skills guide AI agents to generate
+  correct TanStack AI code patterns and avoid common mistakes.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.1
+
+## 0.10.0
+
+### Minor Changes
+
+- Add code mode and isolate packages for secure AI code execution ([#362](https://github.com/TanStack/ai/pull/362))
+
+  Also includes fixes for Ollama tool call argument streaming and usage
+  reporting, OpenAI realtime adapter handling of missing call_id/item_id,
+  realtime client guards for missing toolCallId, and new DevtoolsChatMiddleware
+  type export from ai-event-client.
+
+### Patch Changes
+
+- Updated dependencies [[`54abae0`](https://github.com/TanStack/ai/commit/54abae063c91b8b04b91ecb2c6785f5ff9168a7c)]:
+  - @tanstack/ai-event-client@0.2.0
+
+## 0.9.2
+
+### Patch Changes
+
+- fix: handle errors from fal result fetch on completed jobs ([#396](https://github.com/TanStack/ai/pull/396))
+
+  fal.ai does not return a FAILED queue status — invalid jobs report COMPLETED, and the real error (e.g. 422 validation) only surfaces when fetching results. `getVideoUrl()` now catches these errors and extracts detailed validation messages. `getVideoJobStatus()` returns `status: 'failed'` when the result fetch throws on a "completed" job.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.4
+
+## 0.9.1
+
+### Patch Changes
+
+- Fix Gemini adapter tool call handling: preserve thoughtSignature for Gemini 3+ thinking models through the tool call lifecycle, use correct function name (instead of call ID) in functionResponse parts, and include the call ID in both functionCall and functionResponse for proper correlation. ([#401](https://github.com/TanStack/ai/pull/401))
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.1.3
+
 ## 0.9.0
 
 ### Minor Changes

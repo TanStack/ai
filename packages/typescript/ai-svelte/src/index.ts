@@ -19,6 +19,12 @@ export type {
   CreateGenerateImageReturn,
 } from './create-generate-image.svelte'
 
+export { createGenerateAudio } from './create-generate-audio.svelte'
+export type {
+  CreateGenerateAudioOptions,
+  CreateGenerateAudioReturn,
+} from './create-generate-audio.svelte'
+
 export { createGenerateSpeech } from './create-generate-speech.svelte'
 export type {
   CreateGenerateSpeechOptions,
@@ -55,6 +61,7 @@ export {
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,
+  type AudioGenerateInput,
   type SpeechGenerateInput,
   type TranscriptionGenerateInput,
   type SummarizeGenerateInput,

@@ -72,7 +72,7 @@ export abstract class BaseTTSAdapter<
 
   protected config: TTSAdapterConfig
 
-  constructor(config: TTSAdapterConfig = {}, model: TModel) {
+  constructor(model: TModel, config: TTSAdapterConfig = {}) {
     this.config = config
     this.model = model
   }

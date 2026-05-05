@@ -1,5 +1,133 @@
 # @tanstack/ai-client
 
+## 0.8.0
+
+### Minor Changes
+
+- feat: add `useGenerateAudio` hook and streaming support for `generateAudio()` ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Closes the parity gap between audio generation and the other media
+  activities (image, speech, video, transcription, summarize):
+  - `generateAudio()` now accepts `stream: true`, returning an
+    `AsyncIterable<StreamChunk>` that can be piped through
+    `toServerSentEventsResponse()`.
+  - `AudioGenerateInput` type added to `@tanstack/ai-client`.
+  - `useGenerateAudio` hook added to `@tanstack/ai-react`,
+    `@tanstack/ai-solid`, and `@tanstack/ai-vue`; matching
+    `createGenerateAudio` added to `@tanstack/ai-svelte`. All follow the same
+    `{ generate, result, isLoading, error, status, stop, reset }` shape as
+    the existing media hooks and support both `connection` (SSE) and
+    `fetcher` transports.
+
+### Patch Changes
+
+- fix(ai-client): prevent drainPostStreamActions re-entrancy stealing queued actions ([#429](https://github.com/TanStack/ai/pull/429))
+
+  When multiple client tools complete in the same round, nested `drainPostStreamActions()` calls from `streamResponse()`'s `finally` block could steal queued actions, permanently stalling the conversation. Added a re-entrancy guard and a `shouldAutoSend()` check requiring tool-call parts before triggering continuation.
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+  - @tanstack/ai-event-client@0.2.8
+
+## 0.7.14
+
+### Patch Changes
+
+- Updated dependencies [[`c1fd96f`](https://github.com/TanStack/ai/commit/c1fd96ffbcee1372ab039127903162bdf5543dd9)]:
+  - @tanstack/ai@0.13.0
+  - @tanstack/ai-event-client@0.2.7
+
+## 0.7.13
+
+### Patch Changes
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+  - @tanstack/ai-event-client@0.2.6
+
+## 0.7.12
+
+### Patch Changes
+
+- Updated dependencies [[`633a3d9`](https://github.com/TanStack/ai/commit/633a3d93fff27e3de7c10ce0059b2d5d87f33245)]:
+  - @tanstack/ai@0.11.1
+  - @tanstack/ai-event-client@0.2.5
+
+## 0.7.11
+
+### Patch Changes
+
+- Thread `@tanstack/ai`'s AG-UI-compliant event shapes through the headless chat client: handle flat `RUN_ERROR` payloads, consume `REASONING_*` events, and warn when receiving the deprecated `[DONE]` sentinel. ([#474](https://github.com/TanStack/ai/pull/474))
+
+- fix(ai-client): add `@standard-schema/spec` to devDependencies so the type references `@tanstack/ai` forwards through `InferToolInput` / `InferToolOutput` resolve at build time. Types-only dep with no runtime cost; prevents tool-definition input/output inference from silently collapsing to `unknown` for consumers of `useChat` / `ChatClient`. ([#428](https://github.com/TanStack/ai/pull/428))
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7), [`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7)]:
+  - @tanstack/ai@0.11.0
+  - @tanstack/ai-event-client@0.2.4
+
+## 0.7.10
+
+### Patch Changes
+
+- Updated dependencies [[`c780bc1`](https://github.com/TanStack/ai/commit/c780bc127755ecf7e900343bf0e4d4823ff526ca)]:
+  - @tanstack/ai@0.10.3
+  - @tanstack/ai-event-client@0.2.3
+
+## 0.7.9
+
+### Patch Changes
+
+- Updated dependencies [[`4445410`](https://github.com/TanStack/ai/commit/44454100e5825f948bab0ce52c57c80d70c0ebe7)]:
+  - @tanstack/ai@0.10.2
+  - @tanstack/ai-event-client@0.2.2
+
+## 0.7.8
+
+### Patch Changes
+
+- Updated dependencies [[`1d1c58f`](https://github.com/TanStack/ai/commit/1d1c58f33188ff98893edb626efd66ac73b8eadb)]:
+  - @tanstack/ai@0.10.1
+  - @tanstack/ai-event-client@0.2.1
+
+## 0.7.7
+
+### Patch Changes
+
+- Add code mode and isolate packages for secure AI code execution ([#362](https://github.com/TanStack/ai/pull/362))
+
+  Also includes fixes for Ollama tool call argument streaming and usage
+  reporting, OpenAI realtime adapter handling of missing call_id/item_id,
+  realtime client guards for missing toolCallId, and new DevtoolsChatMiddleware
+  type export from ai-event-client.
+
+- Updated dependencies [[`54abae0`](https://github.com/TanStack/ai/commit/54abae063c91b8b04b91ecb2c6785f5ff9168a7c)]:
+  - @tanstack/ai@0.10.0
+  - @tanstack/ai-event-client@0.2.0
+
+## 0.7.6
+
+### Patch Changes
+
+- fix: prevent infinite tool call loop when server tool finishes with stop ([#412](https://github.com/TanStack/ai/pull/412))
+
+  When the server-side agent loop executes a tool and the model finishes with `finishReason: 'stop'`, the client no longer auto-sends another request. Previously this caused infinite loops with non-OpenAI providers that respond minimally after tool execution.
+
+## 0.7.5
+
+### Patch Changes
+
+- Updated dependencies [[`26d8243`](https://github.com/TanStack/ai/commit/26d8243bab564a547fed8adb5e129d981ba228ea)]:
+  - @tanstack/ai@0.9.2
+  - @tanstack/ai-event-client@0.1.4
+
+## 0.7.4
+
+### Patch Changes
+
+- Updated dependencies [[`b8cc69e`](https://github.com/TanStack/ai/commit/b8cc69e15eda49ce68cc48848284b0d74a55a97c)]:
+  - @tanstack/ai@0.9.1
+  - @tanstack/ai-event-client@0.1.3
+
 ## 0.7.3
 
 ### Patch Changes

@@ -14,6 +14,7 @@
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-elevenlabs": "workspace:*",
+    "@tanstack/ai-fal": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-groq": "workspace:*",

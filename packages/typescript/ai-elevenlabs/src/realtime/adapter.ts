@@ -1,4 +1,5 @@
 import { Conversation } from '@11labs/client'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -10,6 +11,7 @@ import type {
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { RealtimeAdapter, RealtimeConnection } from '@tanstack/ai-client'
 import type { ElevenLabsRealtimeOptions } from './types'
 
@@ -35,6 +37,8 @@ import type { ElevenLabsRealtimeOptions } from './types'
 export function elevenlabsRealtime(
   options: ElevenLabsRealtimeOptions = {},
 ): RealtimeAdapter {
+  const logger = resolveDebugOption(options.debug)
+
   return {
     provider: 'elevenlabs',
 
@@ -42,7 +46,10 @@ export function elevenlabsRealtime(
       token: RealtimeToken,
       clientToolDefs?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
-      return createElevenLabsConnection(token, options, clientToolDefs)
+      logger.request(`activity=realtime provider=elevenlabs`, {
+        provider: 'elevenlabs',
+      })
+      return createElevenLabsConnection(token, options, logger, clientToolDefs)
     },
   }
 }
@@ -53,6 +60,7 @@ export function elevenlabsRealtime(
 async function createElevenLabsConnection(
   token: RealtimeToken,
   _options: ElevenLabsRealtimeOptions,
+  logger: InternalLogger,
   clientToolDefs?: ReadonlyArray<AnyClientTool>,
 ): Promise<RealtimeConnection> {
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
@@ -82,32 +90,23 @@ async function createElevenLabsConnection(
     return `el-msg-${Date.now()}-${++messageIdCounter}`
   }
 
-  // Convert TanStack tool definitions to ElevenLabs clientTools format
+  // Convert TanStack tool definitions to ElevenLabs clientTools format.
+  // @11labs/client@0.2.0 expects plain async functions, not objects.
   const elevenLabsClientTools: Record<
     string,
-    {
-      handler: (params: unknown) => Promise<string>
-      description: string
-      parameters: Record<string, unknown>
-    }
+    (params: unknown) => Promise<string>
   > = {}
 
   if (clientToolDefs) {
     for (const tool of clientToolDefs) {
-      elevenLabsClientTools[tool.name] = {
-        handler: async (params: unknown) => {
-          if (tool.execute) {
-            const result = await tool.execute(params)
-            return typeof result === 'string' ? result : JSON.stringify(result)
-          }
-          return JSON.stringify({
-            error: `No execute function for tool ${tool.name}`,
-          })
-        },
-        description: tool.description,
-        parameters: tool.inputSchema
-          ? (tool.inputSchema as Record<string, unknown>)
-          : { type: 'object', properties: {} },
+      elevenLabsClientTools[tool.name] = async (params: unknown) => {
+        if (tool.execute) {
+          const result = await tool.execute(params)
+          return typeof result === 'string' ? result : JSON.stringify(result)
+        }
+        return JSON.stringify({
+          error: `No execute function for tool ${tool.name}`,
+        })
       }
     }
   }
@@ -117,42 +116,62 @@ async function createElevenLabsConnection(
     signedUrl: token.token,
 
     onConnect: () => {
+      logger.provider(`provider=elevenlabs direction=in type=connect`, {
+        frame: { type: 'connect' },
+      })
       emit('status_change', { status: 'connected' as RealtimeStatus })
       emit('mode_change', { mode: 'listening' })
     },
 
     onDisconnect: () => {
+      logger.provider(`provider=elevenlabs direction=in type=disconnect`, {
+        frame: { type: 'disconnect' },
+      })
       emit('status_change', { status: 'idle' as RealtimeStatus })
       emit('mode_change', { mode: 'idle' })
     },
 
     onModeChange: ({ mode }: { mode: string }) => {
+      logger.provider(`provider=elevenlabs direction=in type=mode_change`, {
+        frame: { type: 'mode_change', mode },
+      })
       const mappedMode: RealtimeMode =
         mode === 'speaking' ? 'speaking' : 'listening'
       emit('mode_change', { mode: mappedMode })
     },
 
     onMessage: ({ message, source }: { message: string; source: string }) => {
+      logger.provider(`provider=elevenlabs direction=in type=message`, {
+        frame: { type: 'message', source, message },
+      })
       const role = source === 'user' ? 'user' : 'assistant'
 
-      // Emit transcript update
-      emit('transcript', {
-        role,
-        transcript: message,
-        isFinal: true,
-      })
-
-      // Create and emit message
-      const realtimeMessage: RealtimeMessage = {
-        id: generateMessageId(),
-        role,
-        timestamp: Date.now(),
-        parts: [{ type: 'audio', transcript: message }],
+      if (role === 'user') {
+        // User transcripts: only emit transcript — the RealtimeClient
+        // creates the user message when it receives a final transcript
+        emit('transcript', {
+          role,
+          transcript: message,
+          isFinal: true,
+        })
+      } else {
+        // Assistant messages: only emit message_complete — the canonical
+        // event for finalized assistant messages
+        const realtimeMessage: RealtimeMessage = {
+          id: generateMessageId(),
+          role,
+          timestamp: Date.now(),
+          parts: [{ type: 'audio', transcript: message }],
+        }
+        emit('message_complete', { message: realtimeMessage })
       }
-      emit('message_complete', { message: realtimeMessage })
     },
 
     onError: (error: string | Error) => {
+      logger.errors('elevenlabs.realtime fatal', {
+        error,
+        source: 'elevenlabs.realtime',
+      })
       emit('error', {
         error: new Error(
           typeof error === 'string' ? error : error.message || 'Unknown error',
@@ -167,9 +186,17 @@ async function createElevenLabsConnection(
   }
 
   // Start the conversation session
-  conversation = await Conversation.startSession(
-    sessionOptions as Parameters<typeof Conversation.startSession>[0],
-  )
+  try {
+    conversation = await Conversation.startSession(
+      sessionOptions as Parameters<typeof Conversation.startSession>[0],
+    )
+  } catch (error) {
+    logger.errors('elevenlabs.realtime fatal', {
+      error,
+      source: 'elevenlabs.realtime',
+    })
+    throw error
+  }
 
   // Connection implementation
   const connection: RealtimeConnection = {
@@ -194,14 +221,17 @@ async function createElevenLabsConnection(
 
     sendText(text: string) {
       if (!conversation) return
+      logger.provider(`provider=elevenlabs direction=out type=user_message`, {
+        frame: { type: 'user_message', text },
+      })
       conversation.sendUserMessage(text)
     },
 
     sendImage(_imageData: string, _mimeType: string) {
       // ElevenLabs does not support direct image input in the conversation API
-      console.warn(
-        'ElevenLabs realtime does not support sending images directly.',
-      )
+      logger.errors('elevenlabs.realtime sendImage not supported', {
+        source: 'elevenlabs.realtime',
+      })
     },
 
     sendToolResult(_callId: string, _result: string) {
@@ -211,9 +241,9 @@ async function createElevenLabsConnection(
 
     updateSession(_config: Partial<RealtimeSessionConfig>) {
       // ElevenLabs session config is set at creation time
-      console.warn(
-        'ElevenLabs does not support runtime session updates. Configure at connection time.',
-      )
+      logger.errors('elevenlabs.realtime updateSession not supported', {
+        source: 'elevenlabs.realtime',
+      })
     },
 
     interrupt() {

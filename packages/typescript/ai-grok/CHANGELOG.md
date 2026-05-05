@@ -1,5 +1,75 @@
 # @tanstack/ai-grok
 
+## 0.7.0
+
+### Minor Changes
+
+- feat(ai-grok): add audio and speech adapters for xAI ([#506](https://github.com/TanStack/ai/pull/506))
+
+  Add three new tree-shakeable adapters that wrap xAI's audio APIs:
+  - `grokSpeech` / `createGrokSpeech` — text-to-speech via `POST /v1/tts`. Supports the 5 xAI voices (`eve`, `ara`, `rex`, `sal`, `leo`), MP3/WAV/PCM/μ-law/A-law codecs, and the `language`, `sample_rate`, `bit_rate`, `optimize_streaming_latency`, `text_normalization` provider options.
+  - `grokTranscription` / `createGrokTranscription` — speech-to-text via `POST /v1/stt`. Passes through `language`, `diarize`, `multichannel`, `channels`, `audio_format`, and `sample_rate`; maps xAI's word-level timestamps to `TranscriptionResult.words`.
+  - `grokRealtime` / `grokRealtimeToken` — Voice Agent (realtime) adapter for `wss://api.x.ai/v1/realtime` with ephemeral tokens via `/v1/realtime/client_secrets`. Supports the `grok-voice-fast-1.0` and `grok-voice-think-fast-1.0` models.
+
+  New model identifier exports: `GROK_TTS_MODELS`, `GROK_TRANSCRIPTION_MODELS`, `GROK_REALTIME_MODELS` and their corresponding types.
+
+### Patch Changes
+
+- Tighten `GeneratedImage` and `GeneratedAudio` to enforce exactly one of `url` or `b64Json` via a mutually-exclusive `GeneratedMediaSource` union. ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Both types previously declared `url?` and `b64Json?` as independently optional, which allowed meaningless `{}` values and objects that set both fields. They now require exactly one:
+
+  ```ts
+  type GeneratedMediaSource =
+    | { url: string; b64Json?: never }
+    | { b64Json: string; url?: never }
+  ```
+
+  Existing read patterns like `img.url || \`data:image/png;base64,${img.b64Json}\``continue to work unchanged. The only runtime-visible change is that the`@tanstack/ai-openrouter`and`@tanstack/ai-fal`image adapters no longer populate`url`with a synthesized`data:image/png;base64,...`URI when the provider returns base64 — they return`{ b64Json }`only. Consumers that want a data URI should build it from`b64Json` at render time.
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+
+## 0.6.8
+
+### Patch Changes
+
+- Wire each adapter's text, summarize, image, speech, transcription, and video paths through the new `InternalLogger` from `@tanstack/ai/adapter-internals`: `logger.request(...)` before each SDK call, `logger.provider(...)` for every chunk received, and `logger.errors(...)` in catch blocks. Migrates all pre-existing ad-hoc `console.*` calls in adapter catch blocks (including the OpenAI and ElevenLabs realtime adapters) onto the structured logger. No adapter factory or config-shape changes. ([#467](https://github.com/TanStack/ai/pull/467))
+
+- Updated dependencies [[`c1fd96f`](https://github.com/TanStack/ai/commit/c1fd96ffbcee1372ab039127903162bdf5543dd9)]:
+  - @tanstack/ai@0.13.0
+
+## 0.6.7
+
+### Patch Changes
+
+- Expose the `/tools` subpath and add an empty `supports.tools: []` channel per model so Grok adapters participate in the core tool-capability type gating. No provider-specific tool factories are exposed yet — define your own tools with `toolDefinition()` from `@tanstack/ai`. ([#466](https://github.com/TanStack/ai/pull/466))
+
+- Updated dependencies [[`e32583e`](https://github.com/TanStack/ai/commit/e32583e7612cede932baee6a79355e96e7124d90)]:
+  - @tanstack/ai@0.12.0
+
+## 0.6.6
+
+### Patch Changes
+
+- Align stream output with `@tanstack/ai`'s AG-UI-compliant event shapes: emit `REASONING_*` events alongside `STEP_*`, thread `threadId`/`runId` through `RUN_STARTED`/`RUN_FINISHED`, and return flat `RunErrorEvent` shape. Cast raw events through an internal `asChunk` helper so they line up with the re-exported `@ag-ui/core` `EventType` enum. No changes to adapter factory signatures or config shapes. ([#474](https://github.com/TanStack/ai/pull/474))
+
+- Updated dependencies [[`12d43e5`](https://github.com/TanStack/ai/commit/12d43e55073351a6a2b5b21861b8e28c657b92b7)]:
+  - @tanstack/ai@0.11.0
+
+## 0.6.5
+
+### Patch Changes
+
+- Update model metadata from OpenRouter API ([#433](https://github.com/TanStack/ai/pull/433))
+
+## 0.6.4
+
+### Patch Changes
+
+- Updated dependencies [[`54abae0`](https://github.com/TanStack/ai/commit/54abae063c91b8b04b91ecb2c6785f5ff9168a7c)]:
+  - @tanstack/ai@0.10.0
+
 ## 0.6.3
 
 ### Patch Changes

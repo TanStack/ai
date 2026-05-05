@@ -1,0 +1,32 @@
+#:schema node_modules/wrangler/config-schema.json
+
+# Cloudflare Worker configuration for Code Mode execution
+# Run locally: pnpm dev:worker (or wrangler dev)
+# Deploy: pnpm deploy:worker (or wrangler deploy)
+
+name = "tanstack-ai-code-mode"
+main = "src/worker/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# UnsafeEval binding - enables dynamic code execution inside the Worker's V8 isolate.
+# Works in both local dev (wrangler dev) and production deployments where the
+# Cloudflare account has the unsafe_eval binding enabled. Because this lets the
+# Worker evaluate arbitrary JavaScript, protect the Worker's public endpoint
+# with authentication and rate limiting before deploying.
+[[unsafe.bindings]]
+name = "UNSAFE_EVAL"
+type = "unsafe_eval"
+
+# Local development settings
+[dev]
+port = 8787
+local_protocol = "http"
+
+# Production settings (uncomment and configure for deployment)
+# [vars]
+# ALLOWED_ORIGINS = "https://your-app.com"
+
+# Optional: Add authentication via Cloudflare Access
+# [env.production]
+# name = "tanstack-ai-code-mode-prod"

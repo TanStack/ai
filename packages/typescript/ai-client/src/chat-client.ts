@@ -54,6 +54,7 @@ export class ChatClient {
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
+  private draining = false
   private sessionGenerating = false
   private activeRunIds = new Set<string>()
 
@@ -396,8 +397,9 @@ export class ChatClient {
       // RUN_FINISHED / RUN_ERROR signal run completion — resolve processing
       // (redundant if onStreamEnd already resolved it, harmless)
       if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
-        if (chunk.runId) {
-          this.activeRunIds.delete(chunk.runId)
+        const runId = chunk.type === 'RUN_FINISHED' ? chunk.runId : undefined
+        if (runId) {
+          this.activeRunIds.delete(runId)
         } else if (chunk.type === 'RUN_ERROR') {
           // RUN_ERROR without runId is a session-level error; clear all runs
           this.activeRunIds.clear()
@@ -657,11 +659,18 @@ export class ChatClient {
         await this.drainPostStreamActions()
 
         // Continue conversation if the stream ended with a tool result (server tool completed)
+        // but ONLY if the model indicated it wants to continue (finishReason !== 'stop').
+        // When finishReason is 'stop', the model is done — don't re-send.
         if (streamCompletedSuccessfully) {
           const messages = this.processor.getMessages()
           const lastPart = messages.at(-1)?.parts.at(-1)
+          const { finishReason } = this.processor.getState()
 
-          if (lastPart?.type === 'tool-result' && this.shouldAutoSend()) {
+          if (
+            lastPart?.type === 'tool-result' &&
+            finishReason !== 'stop' &&
+            this.shouldAutoSend()
+          ) {
             try {
               await this.checkForContinuation()
             } catch (error) {
@@ -839,9 +848,15 @@ export class ChatClient {
    * Drain and execute all queued post-stream actions
    */
   private async drainPostStreamActions(): Promise<void> {
-    while (this.postStreamActions.length > 0) {
-      const action = this.postStreamActions.shift()!
-      await action()
+    if (this.draining) return
+    this.draining = true
+    try {
+      while (this.postStreamActions.length > 0) {
+        const action = this.postStreamActions.shift()!
+        await action()
+      }
+    } finally {
+      this.draining = false
     }
   }
 
@@ -877,9 +892,16 @@ export class ChatClient {
   }
 
   /**
-   * Check if all tool calls are complete and we should auto-send
+   * Check if all tool calls are complete and we should auto-send.
+   * Requires that there is at least one tool call in the last assistant message;
+   * a text-only response has nothing to auto-send.
    */
   private shouldAutoSend(): boolean {
+    const messages = this.processor.getMessages()
+    const lastAssistant = messages.findLast((m) => m.role === 'assistant')
+    if (!lastAssistant) return false
+    const hasToolCalls = lastAssistant.parts.some((p) => p.type === 'tool-call')
+    if (!hasToolCalls) return false
     return this.processor.areAllToolsComplete()
   }
 

@@ -1,0 +1,79 @@
+{
+  "name": "@tanstack/ai-code-mode-skills",
+  "version": "0.1.8",
+  "description": "Persistent skill library for TanStack AI Code Mode - LLM-created reusable code snippets",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-code-mode-skills"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./storage": {
+      "types": "./dist/esm/storage/index.d.ts",
+      "import": "./dist/esm/storage/index.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:cli": "tsx test-cli/cli.ts",
+    "test:cli:run": "tsx test-cli/cli.ts run",
+    "test:cli:run:all": "tsx test-cli/cli.ts run --adapters openai,anthropic,gemini",
+    "test:cli:list": "tsx test-cli/cli.ts list",
+    "test:cli:simulated": "tsx test-cli/cli.ts simulated",
+    "test:cli:registry": "tsx test-cli/cli.ts registry",
+    "test:cli:live": "tsx test-cli/cli.ts live",
+    "test:cli:structured": "tsx test-cli/cli.ts structured"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "code-mode",
+    "skills",
+    "llm",
+    "sandbox"
+  ],
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-code-mode": "workspace:*"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-code-mode": "workspace:*",
+    "zod": "^3.0.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-gemini": "workspace:*",
+    "@tanstack/ai-isolate-node": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "commander": "^13.1.0",
+    "dotenv": "^17.2.3",
+    "tsx": "^4.21.0",
+    "zod": "^4.2.0"
+  }
+}

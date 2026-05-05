@@ -11,7 +11,7 @@ type ContentPartSource =
   | ContentPartUrlSource;
 ```
 
-Defined in: [types.ts:155](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L155)
+Defined in: [packages/typescript/ai/src/types.ts:184](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L184)
 
 Source specification for multimodal content.
 Discriminated union supporting both inline data (base64) and URL-based content.

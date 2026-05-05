@@ -3,7 +3,6 @@
   "compilerOptions": {
     "outDir": "dist",
     "paths": {
-      "@tanstack/ai": ["../ai/src/index.ts"],
       "@tanstack/ai-event-client": ["./src/index.ts"]
     }
   },

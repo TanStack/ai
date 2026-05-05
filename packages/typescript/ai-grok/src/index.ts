@@ -33,19 +33,54 @@ export type {
   GrokImageModelProviderOptionsByName,
 } from './image/image-provider-options'
 
+// Speech (TTS) adapter - for text-to-speech
+export {
+  GrokSpeechAdapter,
+  createGrokSpeech,
+  grokSpeech,
+  type GrokSpeechConfig,
+} from './adapters/tts'
+export type {
+  GrokTTSProviderOptions,
+  GrokTTSVoice,
+  GrokTTSCodec,
+} from './audio/tts-provider-options'
+
+// Transcription adapter - for speech-to-text
+export {
+  GrokTranscriptionAdapter,
+  createGrokTranscription,
+  grokTranscription,
+  type GrokTranscriptionConfig,
+} from './adapters/transcription'
+export type {
+  GrokTranscriptionProviderOptions,
+  GrokSTTAudioFormat,
+} from './audio/transcription-provider-options'
+
 // ============================================================================
 // Type Exports
 // ============================================================================
 
 export type {
   GrokChatModelProviderOptionsByName,
+  GrokChatModelToolCapabilitiesByName,
   GrokModelInputModalitiesByName,
   ResolveProviderOptions,
   ResolveInputModalities,
   GrokChatModel,
   GrokImageModel,
+  GrokTTSModel,
+  GrokTranscriptionModel,
+  GrokRealtimeModel,
 } from './model-meta'
-export { GROK_CHAT_MODELS, GROK_IMAGE_MODELS } from './model-meta'
+export {
+  GROK_CHAT_MODELS,
+  GROK_IMAGE_MODELS,
+  GROK_TTS_MODELS,
+  GROK_TRANSCRIPTION_MODELS,
+  GROK_REALTIME_MODELS,
+} from './model-meta'
 export type {
   GrokTextMetadata,
   GrokImageMetadata,
@@ -54,3 +89,18 @@ export type {
   GrokDocumentMetadata,
   GrokMessageMetadataByModality,
 } from './message-types'
+
+// ============================================================================
+// Realtime (Voice Agent) Adapters
+// ============================================================================
+
+export { grokRealtimeToken, grokRealtime } from './realtime/index'
+
+export type {
+  GrokRealtimeVoice,
+  GrokRealtimeTokenOptions,
+  GrokRealtimeOptions,
+  GrokTurnDetection,
+  GrokSemanticVADConfig,
+  GrokServerVADConfig,
+} from './realtime/index'

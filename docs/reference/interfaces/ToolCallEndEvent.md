@@ -5,13 +5,22 @@ title: ToolCallEndEvent
 
 # Interface: ToolCallEndEvent
 
-Defined in: [types.ts:867](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L867)
+Defined in: [packages/typescript/ai/src/types.ts:927](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L927)
 
 Emitted when a tool call completes.
 
+@ag-ui/core provides: `toolCallId`
+TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `result?`
+
 ## Extends
 
-- [`BaseAGUIEvent`](BaseAGUIEvent.md)
+- `ToolCallEndEvent`
+
+## Indexable
+
+```ts
+[k: string]: unknown
+```
 
 ## Properties
 
@@ -21,9 +30,9 @@ Emitted when a tool call completes.
 optional input: unknown;
 ```
 
-Defined in: [types.ts:874](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L874)
+Defined in: [packages/typescript/ai/src/types.ts:938](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L938)
 
-Final parsed input arguments
+Final parsed input arguments (TanStack AI internal)
 
 ***
 
@@ -33,29 +42,9 @@ Final parsed input arguments
 optional model: string;
 ```
 
-Defined in: [types.ts:751](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L751)
+Defined in: [packages/typescript/ai/src/types.ts:929](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L929)
 
 Model identifier for multi-model support
-
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`model`](BaseAGUIEvent.md#model)
-
-***
-
-### rawEvent?
-
-```ts
-optional rawEvent: unknown;
-```
-
-Defined in: [types.ts:753](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L753)
-
-Original provider event for debugging/advanced use cases
-
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`rawEvent`](BaseAGUIEvent.md#rawevent)
 
 ***
 
@@ -65,58 +54,33 @@ Original provider event for debugging/advanced use cases
 optional result: string;
 ```
 
-Defined in: [types.ts:876](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L876)
+Defined in: [packages/typescript/ai/src/types.ts:940](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L940)
 
-Tool execution result (if executed)
-
-***
-
-### timestamp
-
-```ts
-timestamp: number;
-```
-
-Defined in: [types.ts:749](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L749)
-
-#### Inherited from
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`timestamp`](BaseAGUIEvent.md#timestamp)
+Tool execution result (TanStack AI internal)
 
 ***
 
-### toolCallId
+### toolCallName?
 
 ```ts
-toolCallId: string;
+optional toolCallName: string;
 ```
 
-Defined in: [types.ts:870](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L870)
+Defined in: [packages/typescript/ai/src/types.ts:931](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L931)
 
-Tool call identifier
+Name of the tool that completed
 
 ***
 
-### toolName
+### ~~toolName?~~
 
 ```ts
-toolName: string;
+optional toolName: string;
 ```
 
-Defined in: [types.ts:872](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L872)
+Defined in: [packages/typescript/ai/src/types.ts:936](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L936)
 
-Name of the tool
+#### Deprecated
 
-***
-
-### type
-
-```ts
-type: "TOOL_CALL_END";
-```
-
-Defined in: [types.ts:868](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L868)
-
-#### Overrides
-
-[`BaseAGUIEvent`](BaseAGUIEvent.md).[`type`](BaseAGUIEvent.md#type)
+Use `toolCallName` instead.
+Kept for backward compatibility.

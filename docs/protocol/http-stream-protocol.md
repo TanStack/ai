@@ -1,6 +1,14 @@
 ---
 title: HTTP Stream Protocol
 id: http-stream-protocol
+description: "TanStack AI's HTTP streaming protocol spec using newline-delimited JSON (NDJSON) — an alternative to SSE for simpler line-based transport."
+keywords:
+  - tanstack ai
+  - http stream
+  - ndjson
+  - newline-delimited json
+  - streaming protocol
+  - protocol spec
 ---
 
 HTTP streaming with newline-delimited JSON (NDJSON) is a simpler protocol than SSE that sends one JSON object per line. It's useful when:
@@ -424,6 +432,6 @@ This makes streams compatible with standard NDJSON tools and libraries.
 
 - [Chunk Definitions](./chunk-definitions) - StreamChunk type reference
 - [SSE Protocol](./sse-protocol) - Recommended protocol (with auto-reconnect)
-- [Connection Adapters Guide](../guides/connection-adapters) - Client implementation
+- [Connection Adapters Guide](../chat/connection-adapters) - Client implementation
 - [JSON Lines Specification](http://jsonlines.org/)
 - [NDJSON Specification](http://ndjson.org/)
