@@ -1,4 +1,5 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { createOpenAICompatibleClient } from '../utils/client'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
@@ -117,7 +118,12 @@ export class OpenAICompatibleResponsesTextAdapter<
         aguiState,
       )
     } catch (error: unknown) {
-      const err = error as Error & { code?: string }
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      const errorPayload = toRunErrorPayload(
+        error,
+        `${this.name}.chatStream failed`,
+      )
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -136,18 +142,13 @@ export class OpenAICompatibleResponsesTextAdapter<
         runId: aguiState.runId,
         model: options.model,
         timestamp,
-        error: {
-          message: err.message || 'Unknown error',
-          code: err.code,
-        },
+        error: errorPayload,
       })
 
-      console.error(
-        `>>> [${this.name}] chatStream: Fatal error during response creation <<<`,
-      )
-      console.error('>>> Error message:', err.message)
-      console.error('>>> Error stack:', err.stack)
-      console.error('>>> Full error:', err)
+      options.logger.errors(`${this.name}.chatStream fatal`, {
+        error: errorPayload,
+        source: `${this.name}.chatStream`,
+      })
     }
   }
 
@@ -220,11 +221,12 @@ export class OpenAICompatibleResponsesTextAdapter<
         rawText,
       }
     } catch (error: unknown) {
-      const err = error as Error
-      console.error(
-        `>>> [${this.name}] structuredOutput: Error during response creation <<<`,
-      )
-      console.error('>>> Error message:', err.message)
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.structuredOutput failed`),
+        source: `${this.name}.structuredOutput`,
+      })
       throw error
     }
   }
@@ -676,17 +678,22 @@ export class OpenAICompatibleResponsesTextAdapter<
         }
       }
     } catch (error: unknown) {
-      const err = error as Error & { code?: string }
-      console.error(`[${this.name}] Stream ended with error:`, err.message)
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      const errorPayload = toRunErrorPayload(
+        error,
+        `${this.name}.processStreamChunks failed`,
+      )
+      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
+        error: errorPayload,
+        source: `${this.name}.processStreamChunks`,
+      })
       yield asChunk({
         type: 'RUN_ERROR',
         runId: aguiState.runId,
         model: options.model,
         timestamp,
-        error: {
-          message: err.message || 'Unknown error occurred',
-          code: err.code,
-        },
+        error: errorPayload,
       })
     }
   }

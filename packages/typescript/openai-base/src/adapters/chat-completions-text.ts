@@ -1,4 +1,5 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { createOpenAICompatibleClient } from '../utils/client'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
@@ -96,7 +97,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
 
       yield* this.processStreamChunks(stream, options, aguiState)
     } catch (error: unknown) {
-      const err = error as Error & { code?: string }
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      const errorPayload = toRunErrorPayload(
+        error,
+        `${this.name}.chatStream failed`,
+      )
 
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
@@ -115,18 +121,13 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         runId: aguiState.runId,
         model: options.model,
         timestamp,
-        error: {
-          message: err.message || 'Unknown error',
-          code: err.code,
-        },
+        error: errorPayload,
       })
 
-      console.error(
-        `>>> [${this.name}] chatStream: Fatal error during response creation <<<`,
-      )
-      console.error('>>> Error message:', err.message)
-      console.error('>>> Error stack:', err.stack)
-      console.error('>>> Full error:', err)
+      options.logger.errors(`${this.name}.chatStream fatal`, {
+        error: errorPayload,
+        source: `${this.name}.chatStream`,
+      })
     }
   }
 
@@ -203,11 +204,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         rawText,
       }
     } catch (error: unknown) {
-      const err = error as Error
-      console.error(
-        `>>> [${this.name}] structuredOutput: Error during response creation <<<`,
-      )
-      console.error('>>> Error message:', err.message)
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.structuredOutput failed`),
+        source: `${this.name}.structuredOutput`,
+      })
       throw error
     }
   }
@@ -240,6 +242,16 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
     let accumulatedContent = ''
     const timestamp = aguiState.timestamp
     let hasEmittedTextMessageStart = false
+    // Track usage from any chunk that carries it. With
+    // `stream_options: { include_usage: true }` OpenAI emits a terminal chunk
+    // whose `choices` is `[]` and only the `usage` field is populated; the
+    // earlier `finish_reason` chunk does not include token counts. We capture
+    // usage here so RUN_FINISHED can be emitted with accurate numbers
+    // regardless of which chunk delivered them.
+    let lastUsage:
+      | OpenAI_SDK.Chat.Completions.ChatCompletionChunk['usage']
+      | undefined
+    let runFinishedEmitted = false
 
     // Track tool calls being streamed (arguments come in chunks)
     const toolCallsInProgress = new Map<
@@ -254,6 +266,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
 
     try {
       for await (const chunk of stream) {
+        // Capture usage from any chunk (including the terminal usage-only
+        // chunk emitted when `stream_options.include_usage` is on).
+        if (chunk.usage) {
+          lastUsage = chunk.usage
+        }
+
         const choice = chunk.choices[0]
 
         if (!choice) continue
@@ -402,26 +420,69 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
             })
           }
 
+          // Capture usage from this chunk if present. The terminal usage-only
+          // chunk (when stream_options.include_usage is on) typically arrives
+          // AFTER this finish_reason chunk, so prefer the later one when both
+          // are available; here we just merge what we have so far.
+          const usage = chunk.usage ?? lastUsage
+
           // Emit AG-UI RUN_FINISHED
           yield asChunk({
             type: 'RUN_FINISHED',
             runId: aguiState.runId,
             model: chunk.model || options.model,
             timestamp,
-            usage: chunk.usage
+            usage: usage
               ? {
-                  promptTokens: chunk.usage.prompt_tokens || 0,
-                  completionTokens: chunk.usage.completion_tokens || 0,
-                  totalTokens: chunk.usage.total_tokens || 0,
+                  promptTokens: usage.prompt_tokens || 0,
+                  completionTokens: usage.completion_tokens || 0,
+                  totalTokens: usage.total_tokens || 0,
                 }
               : undefined,
             finishReason: computedFinishReason,
           })
+          runFinishedEmitted = true
         }
       }
+
+      // If the stream ended without a `finish_reason` chunk (e.g. an aborted
+      // stream that still managed to deliver the terminal usage chunk), emit
+      // a synthetic RUN_FINISHED so callers always see a terminal event.
+      if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
+        if (hasEmittedTextMessageStart) {
+          yield asChunk({
+            type: 'TEXT_MESSAGE_END',
+            messageId: aguiState.messageId,
+            model: options.model,
+            timestamp,
+          })
+        }
+        yield asChunk({
+          type: 'RUN_FINISHED',
+          runId: aguiState.runId,
+          model: options.model,
+          timestamp,
+          usage: lastUsage
+            ? {
+                promptTokens: lastUsage.prompt_tokens || 0,
+                completionTokens: lastUsage.completion_tokens || 0,
+                totalTokens: lastUsage.total_tokens || 0,
+              }
+            : undefined,
+          finishReason: toolCallsInProgress.size > 0 ? 'tool_calls' : 'stop',
+        })
+      }
     } catch (error: unknown) {
-      const err = error as Error & { code?: string }
-      console.error(`[${this.name}] Stream ended with error:`, err.message)
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      const errorPayload = toRunErrorPayload(
+        error,
+        `${this.name}.processStreamChunks failed`,
+      )
+      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
+        error: errorPayload,
+        source: `${this.name}.processStreamChunks`,
+      })
 
       // Emit AG-UI RUN_ERROR
       yield asChunk({
@@ -429,10 +490,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         runId: aguiState.runId,
         model: options.model,
         timestamp,
-        error: {
-          message: err.message || 'Unknown error occurred',
-          code: err.code,
-        },
+        error: errorPayload,
       })
     }
   }
@@ -533,14 +591,22 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
       }
     }
 
-    // Otherwise, use array format for multimodal
+    // Otherwise, use array format for multimodal. Fail fast on unsupported
+    // content parts rather than silently dropping them — a message of all
+    // unsupported parts would otherwise turn into an empty user prompt and
+    // mask a real capability mismatch.
     const parts: Array<OpenAI_SDK.Chat.Completions.ChatCompletionContentPart> =
       []
     for (const part of contentParts) {
       const converted = this.convertContentPart(part)
-      if (converted) {
-        parts.push(converted)
+      if (!converted) {
+        throw new Error(
+          `Unsupported content part type for ${this.name}: ${part.type}. ` +
+            `Override convertContentPart() in a subclass to handle this type, ` +
+            `or remove it from the message.`,
+        )
       }
+      parts.push(converted)
     }
 
     return {

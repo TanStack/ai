@@ -60,6 +60,67 @@ function removeEmptyRequired(schema: Record<string, any>): Record<string, any> {
 }
 
 /**
+ * Recursively normalise object schemas so any `{ type: 'object' }` node
+ * without `properties` gets an empty `properties: {}` object. The
+ * openai-base transformer only descends into objects that already have
+ * `properties` set, so a Zod `z.object({})` nested inside `properties`,
+ * `items`, `additionalProperties`, or a combinator branch would otherwise
+ * skip the strict-mode rewrite and fail Groq validation.
+ */
+function normalizeObjectSchemas(
+  schema: Record<string, any>,
+): Record<string, any> {
+  const result: Record<string, any> =
+    schema.type === 'object' && !schema.properties
+      ? { ...schema, properties: {} }
+      : { ...schema }
+
+  if (result.properties && typeof result.properties === 'object') {
+    result.properties = Object.fromEntries(
+      Object.entries(result.properties as Record<string, any>).map(
+        ([key, value]) => [
+          key,
+          typeof value === 'object' && value !== null && !Array.isArray(value)
+            ? normalizeObjectSchemas(value)
+            : value,
+        ],
+      ),
+    )
+  }
+
+  if (
+    result.items &&
+    typeof result.items === 'object' &&
+    !Array.isArray(result.items)
+  ) {
+    result.items = normalizeObjectSchemas(result.items)
+  }
+
+  for (const keyword of ['anyOf', 'oneOf', 'allOf'] as const) {
+    const branch = result[keyword]
+    if (Array.isArray(branch)) {
+      result[keyword] = branch.map((entry) =>
+        typeof entry === 'object' && entry !== null
+          ? normalizeObjectSchemas(entry as Record<string, any>)
+          : entry,
+      )
+    }
+  }
+
+  if (
+    result.additionalProperties &&
+    typeof result.additionalProperties === 'object' &&
+    !Array.isArray(result.additionalProperties)
+  ) {
+    result.additionalProperties = normalizeObjectSchemas(
+      result.additionalProperties as Record<string, any>,
+    )
+  }
+
+  return result
+}
+
+/**
  * Transform a JSON schema to be compatible with Groq's structured output requirements.
  *
  * Groq requires:
@@ -79,13 +140,9 @@ export function makeGroqStructuredOutputCompatible(
   schema: Record<string, any>,
   originalRequired: Array<string> = [],
 ): Record<string, any> {
-  // Ensure object schemas always have properties (e.g. z.object({}) may produce
-  // { type: 'object' } without properties). openai-base's transformer skips
-  // objects without properties, so we normalise first.
-  const normalised =
-    schema.type === 'object' && !schema.properties
-      ? { ...schema, properties: {} }
-      : schema
+  // Recursively patch every `{ type: 'object' }` node so the openai-base
+  // transformer descends into nested empty objects too.
+  const normalised = normalizeObjectSchemas(schema)
 
   const result = makeStructuredOutputCompatible(normalised, originalRequired)
 

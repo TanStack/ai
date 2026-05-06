@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAICompatibleResponsesTextAdapter } from '../src/adapters/responses-text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+
+const testLogger = resolveDebugOption(false)
 
 // Declare mockCreate at module level
 let mockResponsesCreate: ReturnType<typeof vi.fn>
@@ -142,6 +145,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })) {
@@ -193,6 +197,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })) {
@@ -255,6 +260,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })) {
@@ -325,6 +331,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })) {
@@ -392,6 +399,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Say hello' }],
       })) {
@@ -465,6 +473,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'What is the meaning of life?' }],
       })) {
@@ -548,6 +557,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Explain' }],
       })) {
@@ -634,6 +644,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Weather in Berlin?' }],
         tools: [weatherTool],
@@ -759,6 +770,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [
           {
@@ -847,6 +859,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Weather in Tokyo?' }],
         tools: [weatherTool],
@@ -920,6 +933,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Weather?' }],
       })) {
@@ -985,6 +999,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })) {
@@ -1040,6 +1055,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })) {
@@ -1066,6 +1082,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })) {
@@ -1105,6 +1122,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'bad content' }],
       })) {
@@ -1141,6 +1159,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Write a long story' }],
       })) {
@@ -1181,6 +1200,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
       })) {
@@ -1223,6 +1243,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       const result = await adapter.structuredOutput({
         chatOptions: {
+          logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Give me a person object' }],
         },
@@ -1279,6 +1300,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       const result = await adapter.structuredOutput({
         chatOptions: {
+          logger: testLogger,
           model: 'test-model',
           messages: [{ role: 'user', content: 'Give me a person object' }],
         },
@@ -1321,7 +1343,9 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       await expect(
         adapter.structuredOutput({
+          logger: testLogger,
           chatOptions: {
+            logger: testLogger,
             model: 'test-model',
             messages: [{ role: 'user', content: 'Give me a person object' }],
           },
@@ -1372,6 +1396,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello' }],
         temperature: 0.5,
@@ -1442,6 +1467,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [{ role: 'user', content: 'Hello world' }],
       })) {
@@ -1492,6 +1518,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
+        logger: testLogger,
         model: 'test-model',
         messages: [
           {
