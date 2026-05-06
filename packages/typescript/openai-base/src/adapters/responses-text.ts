@@ -373,9 +373,16 @@ export class OpenAICompatibleResponsesTextAdapter<
 
           if (contentPart.type === 'reasoning_text') {
             accumulatedReasoning += contentPart.text || ''
+            // Cache the fallback stepId rather than generating a fresh one
+            // on every call — otherwise multiple reasoning chunks arriving
+            // before STEP_STARTED was emitted (e.g. via response.content_part.done
+            // alone) would each get a different stepId and break correlation.
+            if (!stepId) {
+              stepId = generateId(this.name)
+            }
             return asChunk({
               type: 'STEP_FINISHED',
-              stepId: stepId || generateId(this.name),
+              stepId,
               model: model || options.model,
               timestamp,
               delta: contentPart.text || '',
@@ -453,24 +460,25 @@ export class OpenAICompatibleResponsesTextAdapter<
           const errorCode =
             chunk.response.error?.code ||
             (chunk.response.incomplete_details ? 'incomplete' : undefined)
-          if (
-            chunk.response.error ||
-            chunk.response.incomplete_details ||
-            chunk.type === 'response.failed'
-          ) {
-            yield asChunk({
-              type: 'RUN_ERROR',
-              runId: aguiState.runId,
-              model: chunk.response.model,
-              timestamp,
-              error: {
-                message: errorMessage,
-                ...(errorCode !== undefined && { code: errorCode }),
-              },
-            })
-            // RUN_ERROR is the terminal event for this run.
-            runFinishedEmitted = true
-          }
+          // Always emit RUN_ERROR for terminal failure events, even when the
+          // upstream omitted both `error` and `incomplete_details`. Skipping
+          // emission on a `response.incomplete` with no detail would let the
+          // post-loop synthetic block silently coerce the run to a clean
+          // `RUN_FINISHED { finishReason: 'stop' }` — masking the failure.
+          yield asChunk({
+            type: 'RUN_ERROR',
+            runId: aguiState.runId,
+            model: chunk.response.model,
+            timestamp,
+            error: {
+              message: errorMessage,
+              ...(errorCode !== undefined && { code: errorCode }),
+            },
+          })
+          // RUN_ERROR is the terminal event for this run; stop processing
+          // any further chunks the iterator might still deliver.
+          runFinishedEmitted = true
+          return
         }
 
         // Handle output text deltas (token-by-token streaming)
@@ -611,7 +619,25 @@ export class OpenAICompatibleResponsesTextAdapter<
               stepType: 'thinking',
             })
           }
-          yield handleContentPart(contentPart)
+          // Mark whichever stream we just emitted into so a subsequent
+          // `content_part.done` doesn't duplicate the same text. Without
+          // this flag, an `added` event carrying the full text followed by
+          // a matching `done` event would emit TEXT_MESSAGE_CONTENT twice.
+          if (contentPart.type === 'output_text') {
+            hasStreamedContentDeltas = true
+          } else if (contentPart.type === 'reasoning_text') {
+            hasStreamedReasoningDeltas = true
+          }
+          const partChunk = handleContentPart(contentPart)
+          yield partChunk
+          // handleContentPart returns RUN_ERROR for refusals / unknown
+          // content_part types — those are terminal events. Don't keep
+          // processing more chunks (and don't let the post-loop synthetic
+          // block emit a second terminal event).
+          if (partChunk.type === 'RUN_ERROR') {
+            runFinishedEmitted = true
+            return
+          }
         }
 
         if (chunk.type === 'response.content_part.done') {
@@ -632,49 +658,61 @@ export class OpenAICompatibleResponsesTextAdapter<
           }
 
           // Only emit if we haven't been streaming deltas (e.g., for non-streaming responses)
-          yield handleContentPart(contentPart)
+          const doneChunk = handleContentPart(contentPart)
+          yield doneChunk
+          if (doneChunk.type === 'RUN_ERROR') {
+            runFinishedEmitted = true
+            return
+          }
         }
 
         // handle output_item.added to capture function call metadata (name)
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
           if (item.type === 'function_call' && item.id) {
-            // Store the function name for later use, keyed by the item id that
-            // subsequent delta/done events reference via `item_id`.
-            if (!toolCallMetadata.has(item.id)) {
-              toolCallMetadata.set(item.id, {
+            const existing = toolCallMetadata.get(item.id)
+            // Only emit TOOL_CALL_START on the FIRST output_item.added for
+            // an item id. A duplicate emission (which can happen on retried
+            // streams or replay) would violate AG-UI's start-once contract.
+            if (!existing?.started) {
+              if (!existing) {
+                toolCallMetadata.set(item.id, {
+                  index: chunk.output_index,
+                  name: item.name || '',
+                  started: false,
+                })
+              }
+              yield asChunk({
+                type: 'TOOL_CALL_START',
+                toolCallId: item.id,
+                toolCallName: item.name || '',
+                toolName: item.name || '',
+                model: model || options.model,
+                timestamp,
                 index: chunk.output_index,
-                name: item.name || '',
-                started: false,
               })
+              toolCallMetadata.get(item.id)!.started = true
             }
-            // Emit TOOL_CALL_START
-            yield asChunk({
-              type: 'TOOL_CALL_START',
-              toolCallId: item.id,
-              toolCallName: item.name || '',
-              toolName: item.name || '',
-              model: model || options.model,
-              timestamp,
-              index: chunk.output_index,
-            })
-            toolCallMetadata.get(item.id)!.started = true
           }
         }
 
-        // Handle function call arguments delta (streaming)
+        // Handle function call arguments delta (streaming). Drop the
+        // previously-emitted `args` field — it had inverted polarity
+        // (populated only when metadata was MISSING, i.e. when the
+        // matching TOOL_CALL_START hadn't fired) and the chat-completions
+        // adapter never emitted it, so it leaked partial deltas as
+        // pseudo-args only on the orphan path. Consumers should accumulate
+        // `delta` themselves.
         if (
           chunk.type === 'response.function_call_arguments.delta' &&
           chunk.delta
         ) {
-          const metadata = toolCallMetadata.get(chunk.item_id)
           yield asChunk({
             type: 'TOOL_CALL_ARGS',
             toolCallId: chunk.item_id,
             model: model || options.model,
             timestamp,
             delta: chunk.delta,
-            args: metadata ? undefined : chunk.delta,
           })
         }
 
@@ -683,7 +721,22 @@ export class OpenAICompatibleResponsesTextAdapter<
 
           // Get the function name from metadata (captured in output_item.added)
           const metadata = toolCallMetadata.get(item_id)
-          const name = metadata?.name || ''
+          // Skip TOOL_CALL_END for items whose start was never emitted (no
+          // matching `output_item.added`). Emitting END without START would
+          // produce an unbalanced AG-UI lifecycle event downstream consumers
+          // can't pair.
+          if (!metadata?.started) {
+            options.logger.errors(
+              `${this.name}.processStreamChunks orphan function_call_arguments.done`,
+              {
+                source: `${this.name}.processStreamChunks`,
+                toolCallId: item_id,
+                rawArguments: chunk.arguments,
+              },
+            )
+            continue
+          }
+          const name = metadata.name || ''
 
           // Parse arguments. Surface parse failures via the logger so a
           // model emitting malformed JSON is debuggable instead of silently
@@ -988,11 +1041,15 @@ export class OpenAICompatibleResponsesTextAdapter<
             detail: imageMetadata?.detail || 'auto',
           }
         }
-        // For base64 data, construct a data URI using the mimeType from source
+        // For base64 data, construct a data URI using the mimeType from
+        // source. Default to a generic octet-stream MIME if the source
+        // didn't supply one — letting `undefined` interpolate would produce
+        // an invalid URI like "data:undefined;base64,...".
         const imageValue = part.source.value
+        const imageMime = part.source.mimeType || 'application/octet-stream'
         const imageUrl = imageValue.startsWith('data:')
           ? imageValue
-          : `data:${part.source.mimeType};base64,${imageValue}`
+          : `data:${imageMime};base64,${imageValue}`
         return {
           type: 'input_image',
           image_url: imageUrl,
@@ -1008,10 +1065,12 @@ export class OpenAICompatibleResponsesTextAdapter<
         }
         // Wrap raw base64 in a data URL — `input_file` rejects bare base64
         // payloads (matches the image branch above which already does this).
+        // Default the MIME if missing so we never interpolate `undefined`.
         const audioValue = part.source.value
+        const audioMime = part.source.mimeType || 'application/octet-stream'
         const audioFileData = audioValue.startsWith('data:')
           ? audioValue
-          : `data:${part.source.mimeType};base64,${audioValue}`
+          : `data:${audioMime};base64,${audioValue}`
         return {
           type: 'input_file',
           file_data: audioFileData,

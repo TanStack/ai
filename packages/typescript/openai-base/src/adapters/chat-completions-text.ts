@@ -278,11 +278,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
           lastModel = chunk.model
         }
 
-        const choice = chunk.choices[0]
-
-        if (!choice) continue
-
-        // Emit RUN_STARTED on first chunk
+        // Emit RUN_STARTED on the first chunk of any kind so callers see a
+        // run lifecycle even on streams that arrive entirely as usage-only
+        // (no choices). Without this, a usage-first stream would skip
+        // RUN_STARTED via `if (!choice) continue` below and the post-loop
+        // synthetic block would also skip RUN_FINISHED (it gates on
+        // `hasEmittedRunStarted`).
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
           yield asChunk({
@@ -292,6 +293,10 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
             timestamp,
           })
         }
+
+        const choice = chunk.choices[0]
+
+        if (!choice) continue
 
         const delta = choice.delta
         const deltaContent = delta.content
@@ -386,19 +391,34 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         // we can capture the trailing usage chunk that arrives AFTER this
         // chunk when stream_options.include_usage is on.
         if (choice.finish_reason) {
-          // Emit all completed tool calls
+          // Track whether ANY tool call actually got a start event so we can
+          // distinguish "tool-using run" from "stream had partial deltas but
+          // never completed a tool call" — the latter must NOT report
+          // tool_calls and must NOT emit TOOL_CALL_END for unstarted entries.
+          let emittedAnyToolCallEnd = false
           if (
             choice.finish_reason === 'tool_calls' ||
             toolCallsInProgress.size > 0
           ) {
             for (const [, toolCall] of toolCallsInProgress) {
+              // Skip tool calls that never emitted TOOL_CALL_START — emitting
+              // a stray TOOL_CALL_END here would violate AG-UI lifecycle
+              // (END without matching START) for partial deltas where the
+              // upstream never sent both id and name.
+              if (!toolCall.started) continue
+
               // Parse arguments for TOOL_CALL_END. Surface parse failures via
               // the logger so a model emitting malformed JSON for tool args
               // is debuggable instead of silently invoking the tool with {}.
+              // Non-object JSON (e.g. a bare string or number) is also coerced
+              // to {} so downstream tool execution doesn't receive a primitive
+              // input, mirroring the Responses adapter's guard.
               let parsedInput: unknown = {}
               if (toolCall.arguments) {
                 try {
-                  parsedInput = JSON.parse(toolCall.arguments)
+                  const parsed: unknown = JSON.parse(toolCall.arguments)
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
                 } catch (parseError) {
                   options.logger.errors(
                     `${this.name}.processStreamChunks tool-args JSON parse failed`,
@@ -427,8 +447,14 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
                 timestamp,
                 input: parsedInput,
               })
+              emittedAnyToolCallEnd = true
             }
+            // Clear tool-call state after emission so a subsequent
+            // `finish_reason: 'stop'` chunk (or the post-loop synthetic
+            // block) doesn't see lingering entries and misreport the finish.
+            toolCallsInProgress.clear()
           }
+          void emittedAnyToolCallEnd
 
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
@@ -453,6 +479,35 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
       // guaranteed terminal event even when the upstream cuts off mid-stream
       // (no finish_reason chunk ever arrives).
       if (aguiState.hasEmittedRunStarted) {
+        // Close any started tool calls that never got finish_reason. A
+        // truncated stream that emitted TOOL_CALL_START but never reached
+        // finish_reason would otherwise leave consumers with an unbalanced
+        // start. Skip non-started entries (no matching START to close).
+        let pendingToolCount = 0
+        for (const [, toolCall] of toolCallsInProgress) {
+          if (!toolCall.started) continue
+          let parsedInput: unknown = {}
+          if (toolCall.arguments) {
+            try {
+              const parsed: unknown = JSON.parse(toolCall.arguments)
+              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+            } catch {
+              parsedInput = {}
+            }
+          }
+          yield asChunk({
+            type: 'TOOL_CALL_END',
+            toolCallId: toolCall.id,
+            toolCallName: toolCall.name,
+            toolName: toolCall.name,
+            model: lastModel || options.model,
+            timestamp,
+            input: parsedInput,
+          })
+          pendingToolCount += 1
+        }
+        toolCallsInProgress.clear()
+
         // Make sure the text message lifecycle is closed even on early
         // termination paths where finish_reason never arrives.
         if (hasEmittedTextMessageStart) {
@@ -467,9 +522,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         // Map upstream finish_reason to AG-UI's narrower vocabulary while
         // preserving the upstream value when it falls outside the AG-UI set.
         // Collapsing length / content_filter to 'stop' would hide why the
-        // run terminated — surface it instead.
+        // run terminated — surface it instead. Use `tool_calls` only when
+        // the upstream actually said so OR when we just closed pending tool
+        // calls (truncated stream); a clean `stop` with no started tool
+        // calls must NOT be remapped to `tool_calls`.
         const finishReason: string =
-          pendingFinishReason === 'tool_calls' || toolCallsInProgress.size > 0
+          pendingFinishReason === 'tool_calls' || pendingToolCount > 0
             ? 'tool_calls'
             : (pendingFinishReason ?? 'stop')
 
@@ -602,11 +660,17 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
               : JSON.stringify(tc.function.arguments),
         },
       }))
+      const hasToolCalls = !!toolCalls && toolCalls.length > 0
+      const textContent = this.extractTextContent(message.content)
 
+      // Per the OpenAI Chat Completions contract, an assistant message that
+      // only carries tool_calls should have `content: null` (or omit content)
+      // rather than `content: ''`. Empty-string content interacts oddly with
+      // tokenization on some backends; null is the documented shape.
       return {
         role: 'assistant',
-        content: this.extractTextContent(message.content),
-        ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+        content: hasToolCalls && !textContent ? null : textContent,
+        ...(hasToolCalls ? { tool_calls: toolCalls } : {}),
       }
     }
 
@@ -615,9 +679,20 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
 
     // If only text, use simple string format
     if (contentParts.length === 1 && contentParts[0]?.type === 'text') {
+      const text = contentParts[0].content
+      if (text.length === 0) {
+        // Single empty text part is the same fail-loud condition as below —
+        // an empty paid request mask a real intent (caller passed `null`/'',
+        // or an upstream step normalised everything to an empty string).
+        throw new Error(
+          `User message for ${this.name} has empty text content. ` +
+            `Empty user messages would produce a paid request with no input; ` +
+            `provide non-empty content or omit the message.`,
+        )
+      }
       return {
         role: 'user',
-        content: contentParts[0].content,
+        content: text,
       }
     }
 
@@ -672,11 +747,15 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         | { detail?: 'auto' | 'low' | 'high' }
         | undefined
 
-      // For base64 data, construct a data URI using the mimeType from source
+      // For base64 data, construct a data URI using the mimeType from source.
+      // Default to a generic octet-stream MIME if the source didn't provide
+      // one — interpolating `undefined` into the URI ("data:undefined;base64,
+      // ...") would produce an invalid URI the API rejects.
       const imageValue = part.source.value
+      const imageMime = part.source.mimeType || 'application/octet-stream'
       const imageUrl =
         part.source.type === 'data' && !imageValue.startsWith('data:')
-          ? `data:${part.source.mimeType};base64,${imageValue}`
+          ? `data:${imageMime};base64,${imageValue}`
           : imageValue
 
       return {

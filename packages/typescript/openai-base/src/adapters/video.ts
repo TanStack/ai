@@ -158,6 +158,10 @@ export class OpenAICompatibleVideoAdapter<
         }
       }
 
+      // The remaining SDK fall-throughs all return a binary payload
+      // (Blob/Response/ArrayBuffer-shaped), NOT an `{ url, expires_at }`
+      // object the way the bottom return assumed. Convert to a data URL
+      // here so the caller actually receives a usable URL.
       let response: any
       if (typeof client.videos?.content === 'function') {
         response = await client.videos.content(jobId)
@@ -207,12 +211,34 @@ export class OpenAICompatibleVideoAdapter<
         }
       }
 
+      // The fall-through SDK methods produce a Blob-ish or fetch-`Response`-ish
+      // object. Read it as bytes and wrap in a data URL so callers see an
+      // actual playable URL instead of the API endpoint URL (which is what
+      // `response.url` would be on a fetch Response).
+      const fallthroughBlob =
+        typeof response?.blob === 'function'
+          ? await response.blob()
+          : response instanceof Blob
+            ? response
+            : null
+      if (!fallthroughBlob) {
+        throw new Error(
+          `Video content download via SDK fall-through returned an unexpected shape (no blob()). ` +
+            `Override getVideoUrl() in your subclass to handle this provider.`,
+        )
+      }
+      const fallthroughBuffer = await fallthroughBlob.arrayBuffer()
+      const fallthroughBase64 = arrayBufferToBase64(fallthroughBuffer)
+      const fallthroughMime =
+        (typeof response?.headers?.get === 'function'
+          ? response.headers.get('content-type')
+          : undefined) ||
+        fallthroughBlob.type ||
+        'video/mp4'
       return {
         jobId,
-        url: response.url,
-        expiresAt: response.expires_at
-          ? new Date(response.expires_at)
-          : undefined,
+        url: `data:${fallthroughMime};base64,${fallthroughBase64}`,
+        expiresAt: undefined,
       }
     } catch (error: any) {
       if (error.status === 404) {

@@ -43,9 +43,12 @@ export function convertFunctionToolToResponsesFormat(
     required: [],
   }) as JSONSchema
 
-  const jsonSchema = schemaConverter(inputSchema, inputSchema.required || [])
-
-  // Ensure additionalProperties is false for strict mode
+  // Shallow-copy the converter's result before mutating — a subclass-supplied
+  // schemaConverter has no contract requirement to return a fresh object;
+  // mutating in place could corrupt the caller's tool definition.
+  const jsonSchema = {
+    ...schemaConverter(inputSchema, inputSchema.required || []),
+  }
   jsonSchema.additionalProperties = false
 
   return {
