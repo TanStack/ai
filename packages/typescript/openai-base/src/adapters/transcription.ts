@@ -1,4 +1,5 @@
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { createOpenAICompatibleClient } from '../utils/client'
 import type {
@@ -63,42 +64,55 @@ export class OpenAICompatibleTranscriptionAdapter<
       responseFormat === 'verbose_json' ||
       (!responseFormat && this.shouldDefaultToVerbose(model))
 
-    if (useVerbose) {
-      const response = await this.client.audio.transcriptions.create({
-        ...request,
-        response_format: 'verbose_json',
+    try {
+      if (useVerbose) {
+        const response = await this.client.audio.transcriptions.create({
+          ...request,
+          response_format: 'verbose_json',
+        })
+
+        return {
+          id: generateId(this.name),
+          model,
+          text: response.text,
+          language: response.language,
+          duration: response.duration,
+          segments: response.segments?.map(
+            (seg): TranscriptionSegment => ({
+              id: seg.id,
+              start: seg.start,
+              end: seg.end,
+              text: seg.text,
+              // The OpenAI SDK types `avg_logprob` as `number`, so call Math.exp
+              // directly. Previously this was guarded with `seg.avg_logprob ?`
+              // which treated `0` (perfect-confidence) as missing.
+              confidence: Math.exp(seg.avg_logprob),
+            }),
+          ),
+          words: response.words?.map((w) => ({
+            word: w.word,
+            start: w.start,
+            end: w.end,
+          })),
+        }
+      } else {
+        const response = await this.client.audio.transcriptions.create(request)
+
+        return {
+          id: generateId(this.name),
+          model,
+          text: typeof response === 'string' ? response : response.text,
+          language,
+        }
+      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      options.logger.errors(`${this.name}.transcribe fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.transcribe failed`),
+        source: `${this.name}.transcribe`,
       })
-
-      return {
-        id: generateId(this.name),
-        model,
-        text: response.text,
-        language: response.language,
-        duration: response.duration,
-        segments: response.segments?.map(
-          (seg): TranscriptionSegment => ({
-            id: seg.id,
-            start: seg.start,
-            end: seg.end,
-            text: seg.text,
-            confidence: seg.avg_logprob ? Math.exp(seg.avg_logprob) : undefined,
-          }),
-        ),
-        words: response.words?.map((w) => ({
-          word: w.word,
-          start: w.start,
-          end: w.end,
-        })),
-      }
-    } else {
-      const response = await this.client.audio.transcriptions.create(request)
-
-      return {
-        id: generateId(this.name),
-        model,
-        text: typeof response === 'string' ? response : response.text,
-        language,
-      }
+      throw error
     }
   }
 

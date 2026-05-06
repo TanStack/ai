@@ -7,6 +7,12 @@ export {
   convertComputerUseToolToAdapterFormat,
 } from '@tanstack/openai-base'
 
+// The brand discriminator (`computer_use`) intentionally differs from the
+// runtime tool name (`computer_use_preview`). The brand matches the model-meta
+// tool-capability union (`tools: ['computer_use', ...]`) used to gate which
+// models can construct this tool at compile time, while the runtime name
+// matches the OpenAI SDK's literal `'computer_use_preview'` that the
+// special-tool dispatcher in `convertToolsToProviderFormat` switches on.
 export type OpenAIComputerUseTool = ProviderTool<'openai', 'computer_use'>
 
 /**

@@ -1,4 +1,5 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
+import { generateId } from '@tanstack/ai-utils'
 import type {
   StreamChunk,
   SummarizationOptions,
@@ -49,7 +50,7 @@ export class OpenAICompatibleSummarizeAdapter<
     const systemPrompt = this.buildSummarizationPrompt(options)
 
     let summary = ''
-    const id = ''
+    const id = generateId(this.name)
     let model = options.model
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 
@@ -73,6 +74,24 @@ export class OpenAICompatibleSummarizeAdapter<
         if (chunk.usage) {
           usage = chunk.usage
         }
+      }
+      // Surface failures: the underlying chatStream emits RUN_ERROR instead of
+      // throwing, so without this branch summarize() would return an empty
+      // summary and pretend a failed run succeeded.
+      if (chunk.type === 'RUN_ERROR') {
+        const message =
+          (chunk.error && typeof chunk.error.message === 'string'
+            ? chunk.error.message
+            : null) ?? 'Summarization failed'
+        const code =
+          chunk.error && typeof chunk.error.code === 'string'
+            ? chunk.error.code
+            : undefined
+        const err = new Error(message)
+        if (code) {
+          ;(err as Error & { code?: string }).code = code
+        }
+        throw err
       }
     }
 

@@ -1,4 +1,5 @@
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { createOpenAICompatibleClient } from '../utils/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
@@ -55,22 +56,32 @@ export class OpenAICompatibleTTSAdapter<
       ...modelOptions,
     }
 
-    // Call API
-    const response = await this.client.audio.speech.create(request)
+    try {
+      const response = await this.client.audio.speech.create(request)
 
-    // Convert response to base64
-    const arrayBuffer = await response.arrayBuffer()
-    const base64 = Buffer.from(arrayBuffer).toString('base64')
+      // Convert response to base64. Buffer is Node-only; use atob fallback in
+      // browser/edge runtimes where the SDK can run.
+      const arrayBuffer = await response.arrayBuffer()
+      const base64 = arrayBufferToBase64(arrayBuffer)
 
-    const outputFormat = (request.response_format as string) || 'mp3'
-    const contentType = this.getContentType(outputFormat)
+      const outputFormat = (request.response_format as string) || 'mp3'
+      const contentType = this.getContentType(outputFormat)
 
-    return {
-      id: generateId(this.name),
-      model,
-      audio: base64,
-      format: outputFormat,
-      contentType,
+      return {
+        id: generateId(this.name),
+        model,
+        audio: base64,
+        format: outputFormat,
+        contentType,
+      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      options.logger.errors(`${this.name}.generateSpeech fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.generateSpeech failed`),
+        source: `${this.name}.generateSpeech`,
+      })
+      throw error
     }
   }
 
@@ -106,4 +117,21 @@ export class OpenAICompatibleTTSAdapter<
     }
     return contentTypes[format] || 'audio/mpeg'
   }
+}
+
+/**
+ * Cross-runtime ArrayBuffer → base64 helper. Prefers Node's `Buffer` when
+ * available; otherwise walks the byte array via `atob`/`btoa` for browser /
+ * edge runtimes that ship a fetch/`Response` but no Buffer global.
+ */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
+    return Buffer.from(buffer).toString('base64')
+  }
+  const view = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < view.byteLength; i += 1) {
+    binary += String.fromCharCode(view[i]!)
+  }
+  return btoa(binary)
 }

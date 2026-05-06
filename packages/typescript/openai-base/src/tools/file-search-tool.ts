@@ -2,7 +2,10 @@ import type OpenAI from 'openai'
 import type { Tool } from '@tanstack/ai'
 
 const validateMaxNumResults = (maxNumResults: number | undefined) => {
-  if (maxNumResults && (maxNumResults < 1 || maxNumResults > 50)) {
+  if (
+    maxNumResults !== undefined &&
+    (maxNumResults < 1 || maxNumResults > 50)
+  ) {
     throw new Error('max_num_results must be between 1 and 50.')
   }
 }

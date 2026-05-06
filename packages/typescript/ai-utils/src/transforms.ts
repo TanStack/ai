@@ -1,8 +1,22 @@
 /**
- * Recursively converts null values to undefined in an object.
- * Used after receiving structured output from OpenAI-compatible providers,
- * which return null for optional fields that were made nullable in the
- * JSON Schema strict mode transformation.
+ * Recursively strip `null` values from a JSON-shaped value so optional fields
+ * present as `null` in OpenAI-compatible structured output round-trip cleanly
+ * through Zod schemas that expect `undefined` (or absence) instead of `null`.
+ *
+ * Behaviour:
+ * - Top-level `null` becomes `undefined`.
+ * - Object properties whose value is `null` are removed entirely (so
+ *   `'key' in result` is `false`). Zod's `.optional()` treats absent keys
+ *   the same as `undefined`, which is the round-trip we want; setting the
+ *   key to `undefined` would still register the property in `Object.keys`
+ *   and break some `.strict()`/`Object.keys`-based callers.
+ * - Arrays recurse element-wise; `null` array elements stay `null` (an
+ *   array element is positional and removing it would shift indices).
+ *
+ * Scope: designed for `JSON.parse` output (plain objects, arrays, strings,
+ * numbers, booleans, null). Class instances, `Date`, `Map`, `Set`, etc. are
+ * NOT preserved — they are returned as fresh empty objects because the
+ * function recurses via `Object.entries`. Don't pass non-JSON values.
  */
 export function transformNullsToUndefined<T>(obj: T): T {
   if (obj === null) {

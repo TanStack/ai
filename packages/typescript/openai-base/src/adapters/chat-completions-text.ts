@@ -242,16 +242,19 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
     let accumulatedContent = ''
     const timestamp = aguiState.timestamp
     let hasEmittedTextMessageStart = false
+    let lastModel: string | undefined
     // Track usage from any chunk that carries it. With
     // `stream_options: { include_usage: true }` OpenAI emits a terminal chunk
     // whose `choices` is `[]` and only the `usage` field is populated; the
-    // earlier `finish_reason` chunk does not include token counts. We capture
-    // usage here so RUN_FINISHED can be emitted with accurate numbers
-    // regardless of which chunk delivered them.
+    // earlier `finish_reason` chunk does NOT include token counts. We must
+    // therefore defer RUN_FINISHED until the iterator is exhausted so we can
+    // pick up usage from the trailing chunk regardless of arrival order.
     let lastUsage:
       | OpenAI_SDK.Chat.Completions.ChatCompletionChunk['usage']
       | undefined
-    let runFinishedEmitted = false
+    let pendingFinishReason:
+      | OpenAI_SDK.Chat.Completions.ChatCompletionChunk.Choice['finish_reason']
+      | undefined
 
     // Track tool calls being streamed (arguments come in chunks)
     const toolCallsInProgress = new Map<
@@ -270,6 +273,9 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         // chunk emitted when `stream_options.include_usage` is on).
         if (chunk.usage) {
           lastUsage = chunk.usage
+        }
+        if (chunk.model) {
+          lastModel = chunk.model
         }
 
         const choice = chunk.choices[0]
@@ -373,7 +379,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
           }
         }
 
-        // Handle finish reason
+        // Handle finish reason. We DO emit TOOL_CALL_END and TEXT_MESSAGE_END
+        // here because the corresponding _START events have already fired,
+        // and tool execution downstream wants to begin as soon as possible.
+        // RUN_FINISHED is deferred until the iterator is fully exhausted so
+        // we can capture the trailing usage chunk that arrives AFTER this
+        // chunk when stream_options.include_usage is on.
         if (choice.finish_reason) {
           // Emit all completed tool calls
           if (
@@ -381,14 +392,29 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
             toolCallsInProgress.size > 0
           ) {
             for (const [, toolCall] of toolCallsInProgress) {
-              // Parse arguments for TOOL_CALL_END
+              // Parse arguments for TOOL_CALL_END. Surface parse failures via
+              // the logger so a model emitting malformed JSON for tool args
+              // is debuggable instead of silently invoking the tool with {}.
               let parsedInput: unknown = {}
-              try {
-                parsedInput = toolCall.arguments
-                  ? JSON.parse(toolCall.arguments)
-                  : {}
-              } catch {
-                parsedInput = {}
+              if (toolCall.arguments) {
+                try {
+                  parsedInput = JSON.parse(toolCall.arguments)
+                } catch (parseError) {
+                  options.logger.errors(
+                    `${this.name}.processStreamChunks tool-args JSON parse failed`,
+                    {
+                      error: toRunErrorPayload(
+                        parseError,
+                        `tool ${toolCall.name} (${toolCall.id}) returned malformed JSON arguments`,
+                      ),
+                      source: `${this.name}.processStreamChunks`,
+                      toolCallId: toolCall.id,
+                      toolName: toolCall.name,
+                      rawArguments: toolCall.arguments,
+                    },
+                  )
+                  parsedInput = {}
+                }
               }
 
               // Emit AG-UI TOOL_CALL_END
@@ -404,12 +430,6 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
             }
           }
 
-          const computedFinishReason =
-            choice.finish_reason === 'tool_calls' ||
-            toolCallsInProgress.size > 0
-              ? 'tool_calls'
-              : 'stop'
-
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
             yield asChunk({
@@ -418,49 +438,45 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
               model: chunk.model || options.model,
               timestamp,
             })
+            hasEmittedTextMessageStart = false
           }
 
-          // Capture usage from this chunk if present. The terminal usage-only
-          // chunk (when stream_options.include_usage is on) typically arrives
-          // AFTER this finish_reason chunk, so prefer the later one when both
-          // are available; here we just merge what we have so far.
-          const usage = chunk.usage ?? lastUsage
-
-          // Emit AG-UI RUN_FINISHED
-          yield asChunk({
-            type: 'RUN_FINISHED',
-            runId: aguiState.runId,
-            model: chunk.model || options.model,
-            timestamp,
-            usage: usage
-              ? {
-                  promptTokens: usage.prompt_tokens || 0,
-                  completionTokens: usage.completion_tokens || 0,
-                  totalTokens: usage.total_tokens || 0,
-                }
-              : undefined,
-            finishReason: computedFinishReason,
-          })
-          runFinishedEmitted = true
+          // Remember the upstream finish_reason; RUN_FINISHED is emitted at
+          // end-of-stream so we pick up the trailing usage-only chunk too.
+          pendingFinishReason = choice.finish_reason
         }
       }
 
-      // If the stream ended without a `finish_reason` chunk (e.g. an aborted
-      // stream that still managed to deliver the terminal usage chunk), emit
-      // a synthetic RUN_FINISHED so callers always see a terminal event.
-      if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
+      // Emit a single terminal RUN_FINISHED after the iterator is exhausted.
+      // This both delivers accurate token counts (the trailing usage chunk
+      // may arrive AFTER the finish_reason chunk) and gives consumers a
+      // guaranteed terminal event even when the upstream cuts off mid-stream
+      // (no finish_reason chunk ever arrives).
+      if (aguiState.hasEmittedRunStarted) {
+        // Make sure the text message lifecycle is closed even on early
+        // termination paths where finish_reason never arrives.
         if (hasEmittedTextMessageStart) {
           yield asChunk({
             type: 'TEXT_MESSAGE_END',
             messageId: aguiState.messageId,
-            model: options.model,
+            model: lastModel || options.model,
             timestamp,
           })
         }
+
+        // Map upstream finish_reason to AG-UI's narrower vocabulary while
+        // preserving the upstream value when it falls outside the AG-UI set.
+        // Collapsing length / content_filter to 'stop' would hide why the
+        // run terminated — surface it instead.
+        const finishReason: string =
+          pendingFinishReason === 'tool_calls' || toolCallsInProgress.size > 0
+            ? 'tool_calls'
+            : (pendingFinishReason ?? 'stop')
+
         yield asChunk({
           type: 'RUN_FINISHED',
           runId: aguiState.runId,
-          model: options.model,
+          model: lastModel || options.model,
           timestamp,
           usage: lastUsage
             ? {
@@ -469,7 +485,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
                 totalTokens: lastUsage.total_tokens || 0,
               }
             : undefined,
-          finishReason: toolCallsInProgress.size > 0 ? 'tool_calls' : 'stop',
+          finishReason,
         })
       }
     } catch (error: unknown) {
@@ -528,13 +544,22 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
 
     const modelOptions = options.modelOptions
 
+    // Build the request so explicit top-level options win over modelOptions
+    // when set, but `undefined` top-level options do NOT clobber values the
+    // caller put in modelOptions. Keeping the merge nullish-aware fixes the
+    // silent regression where a `modelOptions: { temperature: 0.7 }` setting
+    // was overwritten with `temperature: undefined`.
     return {
       ...modelOptions,
       model: options.model,
       messages,
-      temperature: options.temperature,
-      max_tokens: options.maxTokens,
-      top_p: options.topP,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.maxTokens !== undefined && {
+        max_tokens: options.maxTokens,
+      }),
+      ...(options.topP !== undefined && { top_p: options.topP }),
       tools: tools as Array<OpenAI_SDK.Chat.Completions.ChatCompletionTool>,
       stream: true,
     }
@@ -609,9 +634,20 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
       parts.push(converted)
     }
 
+    if (parts.length === 0) {
+      // The original message had no content parts at all (e.g. content was
+      // explicitly null or []). Sending an empty user message to OpenAI
+      // produces a paid request with no signal — fail loud instead.
+      throw new Error(
+        `User message for ${this.name} has no content parts. ` +
+          `Empty user messages would produce a paid request with no input; ` +
+          `provide at least one text/image/audio part or omit the message.`,
+      )
+    }
+
     return {
       role: 'user',
-      content: parts.length > 0 ? parts : '',
+      content: parts,
     }
   }
 

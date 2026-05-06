@@ -1,3 +1,4 @@
+import { validateMaxNumResults } from '@tanstack/openai-base'
 import type { ProviderTool } from '@tanstack/ai'
 import type { FileSearchToolConfig } from '@tanstack/openai-base'
 
@@ -6,12 +7,6 @@ export {
   type FileSearchTool,
   convertFileSearchToolToAdapterFormat,
 } from '@tanstack/openai-base'
-
-const validateMaxNumResults = (maxNumResults: number | undefined) => {
-  if (maxNumResults && (maxNumResults < 1 || maxNumResults > 50)) {
-    throw new Error('max_num_results must be between 1 and 50.')
-  }
-}
 
 export type OpenAIFileSearchTool = ProviderTool<'openai', 'file_search'>
 

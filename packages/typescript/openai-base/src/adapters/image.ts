@@ -1,4 +1,5 @@
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { createOpenAICompatibleClient } from '../utils/client'
 import type {
@@ -61,12 +62,22 @@ export class OpenAICompatibleImageAdapter<
     // Build request based on model type
     const request = this.buildRequest(options)
 
-    const response = await this.client.images.generate({
-      ...request,
-      stream: false,
-    })
+    try {
+      const response = await this.client.images.generate({
+        ...request,
+        stream: false,
+      })
 
-    return this.transformResponse(model, response)
+      return this.transformResponse(model, response)
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      options.logger.errors(`${this.name}.generateImages fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.generateImages failed`),
+        source: `${this.name}.generateImages`,
+      })
+      throw error
+    }
   }
 
   protected buildRequest(

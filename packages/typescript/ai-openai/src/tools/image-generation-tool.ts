@@ -1,3 +1,4 @@
+import { validatePartialImages } from '@tanstack/openai-base'
 import type { ProviderTool } from '@tanstack/ai'
 import type { ImageGenerationToolConfig } from '@tanstack/openai-base'
 
@@ -11,12 +12,6 @@ export type OpenAIImageGenerationTool = ProviderTool<
   'openai',
   'image_generation'
 >
-
-const validatePartialImages = (value: number | undefined) => {
-  if (value !== undefined && (value < 0 || value > 3)) {
-    throw new Error('partial_images must be between 0 and 3')
-  }
-}
 
 /**
  * Creates a standard Tool from ImageGenerationTool parameters, branded as an

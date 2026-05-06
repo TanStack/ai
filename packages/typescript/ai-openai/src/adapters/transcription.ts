@@ -35,7 +35,10 @@ export class OpenAITranscriptionAdapter<
   }
 
   protected override shouldDefaultToVerbose(model: string): boolean {
-    return model !== 'whisper-1'
+    // Only Whisper supports `verbose_json`. The gpt-4o-* transcribe models
+    // accept only `json` and `text` and reject `verbose_json` with HTTP 400,
+    // so they must NOT default to verbose. The previous logic was inverted.
+    return model === 'whisper-1'
   }
 }
 

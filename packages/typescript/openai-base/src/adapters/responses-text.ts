@@ -250,15 +250,30 @@ export class OpenAICompatibleResponsesTextAdapter<
     response: OpenAI_SDK.Responses.Response,
   ): string {
     let textContent = ''
+    let refusal: string | undefined
 
     for (const item of response.output) {
       if (item.type === 'message') {
         for (const part of item.content) {
           if (part.type === 'output_text') {
             textContent += part.text
+          } else {
+            // The Responses SDK currently models message content as
+            // `output_text | refusal`, so the only non-text branch is a
+            // refusal. Capture it so we can surface a distinct error below.
+            refusal = part.refusal || refusal || 'Refused without explanation'
           }
         }
       }
+    }
+
+    // Surface refusals as an explicit error so callers don't see a generic
+    // "Failed to parse structured output as JSON. Content: " when the model
+    // refused for safety / content-policy reasons.
+    if (!textContent && refusal !== undefined) {
+      const err = new Error(`Model refused to respond: ${refusal}`)
+      ;(err as Error & { code?: string }).code = 'refusal'
+      throw err
     }
 
     return textContent
@@ -296,7 +311,6 @@ export class OpenAICompatibleResponsesTextAdapter<
     let accumulatedContent = ''
     let accumulatedReasoning = ''
     const timestamp = aguiState.timestamp
-    let chunkCount = 0
 
     // Track if we've been streaming deltas to avoid duplicating content from done events
     let hasStreamedContentDeltas = false
@@ -309,11 +323,13 @@ export class OpenAICompatibleResponsesTextAdapter<
     let stepId: string | null = null
     let hasEmittedTextMessageStart = false
     let hasEmittedStepStarted = false
+    // Track whether we've emitted a terminal RUN_FINISHED so the
+    // end-of-stream fallback below knows to synthesise one when the upstream
+    // cuts off without a response.completed event.
+    let runFinishedEmitted = false
 
     try {
       for await (const chunk of stream) {
-        chunkCount++
-
         // Emit RUN_STARTED on first chunk
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
@@ -353,31 +369,63 @@ export class OpenAICompatibleResponsesTextAdapter<
               content: accumulatedReasoning,
             })
           }
+          // Either a real refusal or an unknown content_part type. Surface
+          // the part type in the error so unknown parts are debuggable
+          // instead of being misreported as "Unknown refusal".
+          const isRefusal = contentPart.type === 'refusal'
+          const message = isRefusal
+            ? contentPart.refusal || 'Refused without explanation'
+            : `Unsupported response content_part type: ${contentPart.type}`
           return asChunk({
             type: 'RUN_ERROR',
             runId: aguiState.runId,
             model: model || options.model,
             timestamp,
             error: {
-              message: contentPart.refusal || 'Unknown refusal',
+              message,
+              code: isRefusal ? 'refusal' : contentPart.type,
             },
           })
         }
 
-        // handle general response events
+        // Capture model metadata from any of these events (created starts
+        // the run; failed/incomplete signal terminal failure).
         if (
           chunk.type === 'response.created' ||
           chunk.type === 'response.incomplete' ||
           chunk.type === 'response.failed'
         ) {
           model = chunk.response.model
-          // Reset streaming flags for new response
+        }
+
+        // response.created marks the start of a fresh run — safe to reset
+        // the per-run accumulators here.
+        if (chunk.type === 'response.created') {
           hasStreamedContentDeltas = false
           hasStreamedReasoningDeltas = false
           hasEmittedTextMessageStart = false
           hasEmittedStepStarted = false
           accumulatedContent = ''
           accumulatedReasoning = ''
+        }
+
+        // response.failed and response.incomplete are TERMINAL events for
+        // the current response. Close any open AG-UI message lifecycle FIRST
+        // so consumers tracking start/end pairs don't see an unbalanced
+        // TEXT_MESSAGE_START. Then surface the error.
+        if (
+          chunk.type === 'response.failed' ||
+          chunk.type === 'response.incomplete'
+        ) {
+          if (hasEmittedTextMessageStart) {
+            yield asChunk({
+              type: 'TEXT_MESSAGE_END',
+              messageId: aguiState.messageId,
+              model: chunk.response.model,
+              timestamp,
+            })
+            hasEmittedTextMessageStart = false
+          }
           if (chunk.response.error) {
             yield asChunk({
               type: 'RUN_ERROR',
@@ -612,13 +660,30 @@ export class OpenAICompatibleResponsesTextAdapter<
           const metadata = toolCallMetadata.get(item_id)
           const name = metadata?.name || ''
 
-          // Parse arguments
+          // Parse arguments. Surface parse failures via the logger so a
+          // model emitting malformed JSON is debuggable instead of silently
+          // invoking the tool with {}.
           let parsedInput: unknown = {}
-          try {
-            const parsed = chunk.arguments ? JSON.parse(chunk.arguments) : {}
-            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-          } catch {
-            parsedInput = {}
+          if (chunk.arguments) {
+            try {
+              const parsed = JSON.parse(chunk.arguments)
+              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+            } catch (parseError) {
+              options.logger.errors(
+                `${this.name}.processStreamChunks tool-args JSON parse failed`,
+                {
+                  error: toRunErrorPayload(
+                    parseError,
+                    `tool ${name} (${item_id}) returned malformed JSON arguments`,
+                  ),
+                  source: `${this.name}.processStreamChunks`,
+                  toolCallId: item_id,
+                  toolName: name,
+                  rawArguments: chunk.arguments,
+                },
+              )
+              parsedInput = {}
+            }
           }
 
           yield asChunk({
@@ -641,6 +706,7 @@ export class OpenAICompatibleResponsesTextAdapter<
               model: model || options.model,
               timestamp,
             })
+            hasEmittedTextMessageStart = false
           }
 
           // Determine finish reason based on output
@@ -662,6 +728,7 @@ export class OpenAICompatibleResponsesTextAdapter<
             },
             finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
           })
+          runFinishedEmitted = true
         }
 
         if (chunk.type === 'error') {
@@ -676,6 +743,29 @@ export class OpenAICompatibleResponsesTextAdapter<
             },
           })
         }
+      }
+
+      // Synthetic terminal RUN_FINISHED if the stream ended without a
+      // response.completed event (e.g. truncated upstream connection). This
+      // mirrors the chat-completions adapter's behavior so consumers always
+      // see a terminal event for every started run.
+      if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
+        if (hasEmittedTextMessageStart) {
+          yield asChunk({
+            type: 'TEXT_MESSAGE_END',
+            messageId: aguiState.messageId,
+            model: model || options.model,
+            timestamp,
+          })
+        }
+        yield asChunk({
+          type: 'RUN_FINISHED',
+          runId: aguiState.runId,
+          model: model || options.model,
+          timestamp,
+          usage: undefined,
+          finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
+        })
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
@@ -716,14 +806,28 @@ export class OpenAICompatibleResponsesTextAdapter<
 
     const modelOptions = options.modelOptions
 
+    // Spread modelOptions first, then explicit top-level options when set.
+    // Mirrors the chat-completions base adapter's precedence so callers
+    // tuning either backend get identical behaviour. Leaving `modelOptions`
+    // last (its previous behavior) silently shadowed the canonical
+    // `options.temperature`/`maxTokens` fields, while spreading first
+    // without nullish-aware merge would clobber `modelOptions.temperature`
+    // with `undefined` whenever the caller didn't set the top-level option.
     return {
-      model: options.model,
-      temperature: options.temperature,
-      max_output_tokens: options.maxTokens,
-      top_p: options.topP,
-      metadata: options.metadata,
-      instructions: options.systemPrompts?.join('\n'),
       ...modelOptions,
+      model: options.model,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.maxTokens !== undefined && {
+        max_output_tokens: options.maxTokens,
+      }),
+      ...(options.topP !== undefined && { top_p: options.topP }),
+      ...(options.metadata !== undefined && { metadata: options.metadata }),
+      ...(options.systemPrompts &&
+        options.systemPrompts.length > 0 && {
+          instructions: options.systemPrompts.join('\n'),
+        }),
       input,
       tools,
     }
