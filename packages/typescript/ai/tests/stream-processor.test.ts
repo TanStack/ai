@@ -789,19 +789,27 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.stepStarted('step-1'))
-      processor.processChunk(ev.stepFinished('First thought', 'step-1'))
+      processor.processChunk({
+        ...ev.stepFinished('First thought', 'step-1'),
+        signature: 'sig-step-1',
+      } as StreamChunk)
       processor.processChunk(ev.stepFinished(' continued', 'step-1'))
 
       processor.processChunk(ev.stepStarted('step-2'))
-      processor.processChunk(ev.stepFinished('Second thought', 'step-2'))
+      processor.processChunk({
+        ...ev.stepFinished('Second thought', 'step-2'),
+        signature: 'sig-step-2',
+      } as StreamChunk)
 
       const parts = processor.getMessages()[0]!.parts
       const thinkingParts = parts.filter((p) => p.type === 'thinking')
       expect(thinkingParts).toHaveLength(2)
       expect((thinkingParts[0] as any).content).toBe('First thought continued')
       expect((thinkingParts[0] as any).stepId).toBe('step-1')
+      expect((thinkingParts[0] as any).signature).toBe('sig-step-1')
       expect((thinkingParts[1] as any).content).toBe('Second thought')
       expect((thinkingParts[1] as any).stepId).toBe('step-2')
+      expect((thinkingParts[1] as any).signature).toBe('sig-step-2')
     })
 
     it('should handle STEP_FINISHED without prior STEP_STARTED (backward compat)', () => {
@@ -3070,11 +3078,13 @@ describe('StreamProcessor', () => {
       expect(events.onThinkingUpdate).toHaveBeenNthCalledWith(
         1,
         expect.any(String),
+        'r-1',
         'Let me think',
       )
       expect(events.onThinkingUpdate).toHaveBeenNthCalledWith(
         2,
         expect.any(String),
+        'r-1',
         'Let me think about this...',
       )
     })

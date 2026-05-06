@@ -447,17 +447,7 @@ export class AnthropicTextAdapter<
       if (role === 'assistant' && message.toolCalls?.length) {
         const contentBlocks: AnthropicContentBlocks = []
 
-        if (message.thinking?.length) {
-          for (const thinking of message.thinking) {
-            if (thinking.signature) {
-              contentBlocks.push({
-                type: 'thinking',
-                thinking: thinking.content,
-                signature: thinking.signature,
-              } as unknown as AnthropicContentBlock)
-            }
-          }
-        }
+        this.appendThinkingBlocks(contentBlocks, message.thinking)
 
         if (message.content) {
           const content =
@@ -497,6 +487,28 @@ export class AnthropicTextAdapter<
         continue
       }
 
+      if (role === 'assistant') {
+        const contentBlocks: AnthropicContentBlocks = []
+        this.appendThinkingBlocks(contentBlocks, message.thinking)
+
+        if (Array.isArray(message.content)) {
+          for (const part of message.content) {
+            contentBlocks.push(this.convertContentPartToAnthropic(part))
+          }
+        } else if (message.content) {
+          contentBlocks.push({
+            type: 'text',
+            text: message.content,
+          })
+        }
+
+        formattedMessages.push({
+          role: 'assistant',
+          content: contentBlocks.length > 0 ? contentBlocks : '',
+        })
+        continue
+      }
+
       if (role === 'user' && Array.isArray(message.content)) {
         const contentBlocks = message.content.map((part) =>
           this.convertContentPartToAnthropic(part),
@@ -509,7 +521,7 @@ export class AnthropicTextAdapter<
       }
 
       formattedMessages.push({
-        role: role === 'assistant' ? 'assistant' : 'user',
+        role: 'user',
         content:
           typeof message.content === 'string'
             ? message.content
@@ -525,6 +537,22 @@ export class AnthropicTextAdapter<
     // Tool results are sent as role:'user' messages, which can create consecutive
     // user messages when followed by a new user message. Merge them.
     return this.mergeConsecutiveSameRoleMessages(formattedMessages)
+  }
+
+  private appendThinkingBlocks(
+    contentBlocks: AnthropicContentBlocks,
+    thinkingParts: ModelMessage['thinking'],
+  ): void {
+    if (!thinkingParts?.length) return
+
+    for (const thinking of thinkingParts) {
+      if (!thinking.signature) continue
+      contentBlocks.push({
+        type: 'thinking',
+        thinking: thinking.content,
+        signature: thinking.signature,
+      } as unknown as AnthropicContentBlock)
+    }
   }
 
   /**

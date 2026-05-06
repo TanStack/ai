@@ -93,7 +93,7 @@ export class ToolCallManager {
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
     const index = event.index ?? this.toolCallsMap.size
-    const name = event.toolCallName
+    const name = event.toolCallName ?? event.toolName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',

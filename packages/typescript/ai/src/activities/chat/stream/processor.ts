@@ -1196,14 +1196,15 @@ export class StreamProcessor {
   private handleStepStartedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_STARTED' }>,
   ): void {
+    const stepId = chunk.stepId ?? generateMessageId()
     const activeId = this.getActiveAssistantMessageId()
     if (activeId) {
       const state = this.getMessageState(activeId)
       if (state) {
-        state.currentThinkingStepId = chunk.stepId
-        if (!state.thinkingSteps.has(chunk.stepId)) {
-          state.thinkingSteps.set(chunk.stepId, '')
-          state.thinkingStepOrder.push(chunk.stepId)
+        state.currentThinkingStepId = stepId
+        if (!state.thinkingSteps.has(stepId)) {
+          state.thinkingSteps.set(stepId, '')
+          state.thinkingStepOrder.push(stepId)
         }
         // Clear any pending stepId from a prior STEP_STARTED that fired
         // before the assistant message existed. Now that we're tracking
@@ -1216,7 +1217,7 @@ export class StreamProcessor {
     }
 
     // No active message yet — defer until ensureAssistantMessage in STEP_FINISHED
-    this.pendingThinkingStepId = chunk.stepId
+    this.pendingThinkingStepId = stepId
   }
 
   /**
@@ -1239,12 +1240,29 @@ export class StreamProcessor {
     // REASONING_MESSAGE_CONTENT events for this message, skip the duplicate
     // thinking content from STEP_FINISHED to avoid doubled content.
     if (state.hasSeenReasoningEvents) {
+      if (chunk.signature) {
+        const stepId = state.currentThinkingStepId ?? chunk.stepId
+        if (!stepId) return
+        const thinking = state.thinkingSteps.get(stepId)
+        if (thinking !== undefined) {
+          state.thinkingStepSignatures.set(stepId, chunk.signature)
+          this.messages = updateThinkingPart(
+            this.messages,
+            messageId,
+            stepId,
+            thinking,
+            chunk.signature,
+          )
+          this.emitMessagesChange()
+        }
+      }
       return
     }
 
     this.consumePendingThinkingStep(state)
 
-    const stepId = state.currentThinkingStepId ?? chunk.stepId
+    const stepId =
+      state.currentThinkingStepId ?? chunk.stepId ?? generateMessageId()
 
     // Auto-initialize if no prior STEP_STARTED (backward compat)
     if (!state.thinkingSteps.has(stepId)) {

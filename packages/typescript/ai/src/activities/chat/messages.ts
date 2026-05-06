@@ -317,6 +317,17 @@ export function modelMessageToUIMessage(
 ): UIMessage {
   const parts: Array<MessagePart> = []
 
+  if (modelMessage.role === 'assistant' && modelMessage.thinking?.length) {
+    for (const thinking of modelMessage.thinking) {
+      if (!thinking.content) continue
+      parts.push({
+        type: 'thinking',
+        content: thinking.content,
+        ...(thinking.signature && { signature: thinking.signature }),
+      })
+    }
+  }
+
   // Handle tool results (when role is "tool") - only produce tool-result part,
   // not a text part (the content IS the tool result, not display text)
   if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
