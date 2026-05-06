@@ -148,7 +148,7 @@ export class OpenAICompatibleVideoAdapter<
         const contentResponse = await client.videos.downloadContent(jobId)
         const videoBlob = await contentResponse.blob()
         const buffer = await videoBlob.arrayBuffer()
-        const base64 = Buffer.from(buffer).toString('base64')
+        const base64 = arrayBufferToBase64(buffer)
         const mimeType =
           contentResponse.headers.get('content-type') || 'video/mp4'
         return {
@@ -196,7 +196,7 @@ export class OpenAICompatibleVideoAdapter<
 
         const videoBlob = await contentResponse.blob()
         const buffer = await videoBlob.arrayBuffer()
-        const base64 = Buffer.from(buffer).toString('base64')
+        const base64 = arrayBufferToBase64(buffer)
         const mimeType =
           contentResponse.headers.get('content-type') || 'video/mp4'
 
@@ -283,4 +283,21 @@ export class OpenAICompatibleVideoAdapter<
         return 'processing'
     }
   }
+}
+
+/**
+ * Cross-runtime ArrayBuffer → base64 helper. Prefers Node's `Buffer` when
+ * available; otherwise walks the byte array via `btoa` for browser / edge
+ * runtimes that ship `fetch`/`Response` but no `Buffer` global.
+ */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
+    return Buffer.from(buffer).toString('base64')
+  }
+  const view = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < view.byteLength; i += 1) {
+    binary += String.fromCharCode(view[i]!)
+  }
+  return btoa(binary)
 }

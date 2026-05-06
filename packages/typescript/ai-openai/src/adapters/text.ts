@@ -125,19 +125,31 @@ export class OpenAITextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
+    // Mirror the base adapter's precedence: spread `modelOptions` first, then
+    // conditionally add explicit top-level options only when defined. The
+    // previous override spread `...modelOptions` LAST and wrote
+    // `temperature: options.temperature` unconditionally — re-introducing the
+    // exact regression the base class's nullish-aware merge fixes.
     const requestParams: Omit<
       OpenAI_SDK.Responses.ResponseCreateParams,
       'stream'
     > = {
-      model: options.model,
-      temperature: options.temperature,
-      max_output_tokens: options.maxTokens,
-      top_p: options.topP,
-      metadata: options.metadata,
-      instructions: options.systemPrompts?.join('\n'),
       ...modelOptions,
+      model: options.model,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.maxTokens !== undefined && {
+        max_output_tokens: options.maxTokens,
+      }),
+      ...(options.topP !== undefined && { top_p: options.topP }),
+      ...(options.metadata !== undefined && { metadata: options.metadata }),
+      ...(options.systemPrompts &&
+        options.systemPrompts.length > 0 && {
+          instructions: options.systemPrompts.join('\n'),
+        }),
       input,
-      tools,
+      ...(tools && tools.length > 0 && { tools }),
     }
 
     return requestParams

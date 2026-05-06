@@ -723,7 +723,6 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
 
       await expect(
         adapter.structuredOutput({
-          logger: testLogger,
           chatOptions: {
             logger: testLogger,
             model: 'test-model',

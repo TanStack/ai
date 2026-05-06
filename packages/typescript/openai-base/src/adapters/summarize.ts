@@ -65,7 +65,9 @@ export class OpenAICompatibleSummarizeAdapter<
       if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
         if (chunk.content) {
           summary = chunk.content
-        } else {
+        } else if (chunk.delta) {
+          // Append delta only when present — a content-less chunk with no
+          // delta would otherwise concat literal `'undefined'`.
           summary += chunk.delta
         }
         model = chunk.model || model

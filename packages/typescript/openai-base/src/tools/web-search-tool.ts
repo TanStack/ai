@@ -7,13 +7,20 @@ export type WebSearchToolConfig = OpenAI.Responses.WebSearchTool
 export type WebSearchTool = WebSearchToolConfig
 
 /**
- * Converts a standard Tool to OpenAI WebSearchTool format
+ * Converts a standard Tool to OpenAI WebSearchTool format. Spread `metadata`
+ * first, then force `type: 'web_search'` last to keep the runtime `type`
+ * matching the discriminator the dispatcher routed by — otherwise a tool
+ * authored by hand with a different `metadata.type` would emit a malformed
+ * payload.
  */
 export function convertWebSearchToolToAdapterFormat(
   tool: Tool,
 ): WebSearchToolConfig {
-  const metadata = tool.metadata as WebSearchToolConfig
-  return metadata
+  const metadata = tool.metadata as Omit<WebSearchToolConfig, 'type'>
+  return {
+    ...metadata,
+    type: 'web_search',
+  }
 }
 
 /**

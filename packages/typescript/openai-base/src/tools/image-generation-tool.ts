@@ -13,15 +13,19 @@ const validatePartialImages = (value: number | undefined) => {
 }
 
 /**
- * Converts a standard Tool to OpenAI ImageGenerationTool format
+ * Converts a standard Tool to OpenAI ImageGenerationTool format. Spread
+ * `metadata` first, then force `type: 'image_generation'` last — otherwise a
+ * `metadata.type` snuck in by a hand-built tool would shadow the literal and
+ * the dispatcher (which routed by `tool.name`) would emit a tool whose
+ * runtime `type` doesn't match `image_generation`.
  */
 export function convertImageGenerationToolToAdapterFormat(
   tool: Tool,
 ): ImageGenerationToolConfig {
   const metadata = tool.metadata as Omit<ImageGenerationToolConfig, 'type'>
   return {
-    type: 'image_generation',
     ...metadata,
+    type: 'image_generation',
   }
 }
 

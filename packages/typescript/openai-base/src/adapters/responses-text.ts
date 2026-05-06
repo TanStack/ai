@@ -177,9 +177,22 @@ export class OpenAICompatibleResponsesTextAdapter<
     )
 
     try {
+      // Strip streaming-only fields a subclass override of mapOptionsToRequest
+      // might have returned (parallel to chat-completions's structuredOutput
+      // cleanup) — sending stream_options to a non-streaming call is a 4xx.
+      const {
+        stream: _stream,
+        stream_options: _streamOptions,
+        ...cleanParams
+      } = requestParams as Record<string, unknown>
+      void _stream
+      void _streamOptions
       const response = await this.client.responses.create(
         {
-          ...requestParams,
+          ...(cleanParams as Omit<
+            OpenAI_SDK.Responses.ResponseCreateParams,
+            'stream'
+          >),
           stream: false,
           // Configure structured output via text.format
           text: {
@@ -412,7 +425,9 @@ export class OpenAICompatibleResponsesTextAdapter<
         // response.failed and response.incomplete are TERMINAL events for
         // the current response. Close any open AG-UI message lifecycle FIRST
         // so consumers tracking start/end pairs don't see an unbalanced
-        // TEXT_MESSAGE_START. Then surface the error.
+        // TEXT_MESSAGE_START. Then surface the error and mark the run as
+        // finished so the post-loop synthetic terminal block doesn't emit
+        // a duplicate RUN_FINISHED on top of RUN_ERROR.
         if (
           chunk.type === 'response.failed' ||
           chunk.type === 'response.incomplete'
@@ -426,25 +441,35 @@ export class OpenAICompatibleResponsesTextAdapter<
             })
             hasEmittedTextMessageStart = false
           }
-          if (chunk.response.error) {
-            yield asChunk({
-              type: 'RUN_ERROR',
-              runId: aguiState.runId,
-              model: chunk.response.model,
-              timestamp,
-              error: chunk.response.error,
-            })
-          }
-          if (chunk.response.incomplete_details) {
+          // Coalesce error + incomplete_details into a single RUN_ERROR
+          // payload — emitting two distinct events for one terminal upstream
+          // event would force consumers to handle a non-existent ordering.
+          const errorMessage =
+            chunk.response.error?.message ||
+            chunk.response.incomplete_details?.reason ||
+            (chunk.type === 'response.failed'
+              ? 'Response failed'
+              : 'Response ended incomplete')
+          const errorCode =
+            chunk.response.error?.code ||
+            (chunk.response.incomplete_details ? 'incomplete' : undefined)
+          if (
+            chunk.response.error ||
+            chunk.response.incomplete_details ||
+            chunk.type === 'response.failed'
+          ) {
             yield asChunk({
               type: 'RUN_ERROR',
               runId: aguiState.runId,
               model: chunk.response.model,
               timestamp,
               error: {
-                message: chunk.response.incomplete_details.reason ?? '',
+                message: errorMessage,
+                ...(errorCode !== undefined && { code: errorCode }),
               },
             })
+            // RUN_ERROR is the terminal event for this run.
+            runFinishedEmitted = true
           }
         }
 
@@ -709,12 +734,17 @@ export class OpenAICompatibleResponsesTextAdapter<
             hasEmittedTextMessageStart = false
           }
 
-          // Determine finish reason based on output
-          // If there are function_call items in the output, it's a tool_calls finish
+          // Determine finish reason. Function-call output → tool_calls.
+          // Otherwise surface incomplete_details.reason when present so
+          // callers can distinguish length-limit / content-filter cutoffs
+          // from a clean stop, mirroring the chat-completions adapter.
           const hasFunctionCalls = chunk.response.output.some(
             (item: unknown) =>
               (item as { type: string }).type === 'function_call',
           )
+          const finishReason: string = hasFunctionCalls
+            ? 'tool_calls'
+            : (chunk.response.incomplete_details?.reason ?? 'stop')
 
           yield asChunk({
             type: 'RUN_FINISHED',
@@ -726,7 +756,7 @@ export class OpenAICompatibleResponsesTextAdapter<
               completionTokens: chunk.response.usage?.output_tokens || 0,
               totalTokens: chunk.response.usage?.total_tokens || 0,
             },
-            finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
+            finishReason,
           })
           runFinishedEmitted = true
         }
@@ -742,6 +772,9 @@ export class OpenAICompatibleResponsesTextAdapter<
               code: chunk.code ?? undefined,
             },
           })
+          // RUN_ERROR is terminal — don't let the synthetic RUN_FINISHED
+          // block fire after a top-level stream error event.
+          runFinishedEmitted = true
         }
       }
 
@@ -829,7 +862,9 @@ export class OpenAICompatibleResponsesTextAdapter<
           instructions: options.systemPrompts.join('\n'),
         }),
       input,
-      tools,
+      // Conditional spread: `tools: undefined` would clobber any
+      // modelOptions.tools the caller set above.
+      ...(tools && tools.length > 0 && { tools }),
     }
   }
 
@@ -906,9 +941,16 @@ export class OpenAICompatibleResponsesTextAdapter<
         inputContent.push(this.convertContentPartToInput(part))
       }
 
-      // If no content parts, add empty text
       if (inputContent.length === 0) {
-        inputContent.push({ type: 'input_text', text: '' })
+        // Fail loud rather than silently sending an empty user message —
+        // mirrors the chat-completions adapter, where a paid-but-empty
+        // request would mask the real intent (caller passed `null` content
+        // or a normalize step dropped everything).
+        throw new Error(
+          `User message for ${this.name} has no content parts. ` +
+            `Empty user messages would produce a paid request with no input; ` +
+            `provide at least one text/image/audio part or omit the message.`,
+        )
       }
 
       result.push({
@@ -964,9 +1006,15 @@ export class OpenAICompatibleResponsesTextAdapter<
             file_url: part.source.value,
           }
         }
+        // Wrap raw base64 in a data URL — `input_file` rejects bare base64
+        // payloads (matches the image branch above which already does this).
+        const audioValue = part.source.value
+        const audioFileData = audioValue.startsWith('data:')
+          ? audioValue
+          : `data:${part.source.mimeType};base64,${audioValue}`
         return {
           type: 'input_file',
-          file_data: part.source.value,
+          file_data: audioFileData,
         }
       }
 

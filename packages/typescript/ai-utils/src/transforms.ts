@@ -10,13 +10,17 @@
  *   the same as `undefined`, which is the round-trip we want; setting the
  *   key to `undefined` would still register the property in `Object.keys`
  *   and break some `.strict()`/`Object.keys`-based callers.
- * - Arrays recurse element-wise; `null` array elements stay `null` (an
- *   array element is positional and removing it would shift indices).
+ * - Array elements recurse via this same function; a `null` element therefore
+ *   becomes `undefined` (top-level rule), preserving array length so
+ *   positional indices stay stable. Don't rely on element-`null` round-trip.
  *
  * Scope: designed for `JSON.parse` output (plain objects, arrays, strings,
  * numbers, booleans, null). Class instances, `Date`, `Map`, `Set`, etc. are
- * NOT preserved — they are returned as fresh empty objects because the
- * function recurses via `Object.entries`. Don't pass non-JSON values.
+ * NOT preserved — they're walked via `Object.entries`, which sees only own
+ * enumerable string-keyed properties. Native built-ins like `Date`/`Map`/`Set`
+ * therefore become `{}`; arbitrary class instances become a plain-object
+ * snapshot of just their own enumerable string properties. Don't pass
+ * non-JSON values.
  */
 export function transformNullsToUndefined<T>(obj: T): T {
   if (obj === null) {

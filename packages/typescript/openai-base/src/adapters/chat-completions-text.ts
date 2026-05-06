@@ -560,7 +560,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         max_tokens: options.maxTokens,
       }),
       ...(options.topP !== undefined && { top_p: options.topP }),
-      tools: tools as Array<OpenAI_SDK.Chat.Completions.ChatCompletionTool>,
+      // Conditional spread: `tools: undefined` would clobber any
+      // modelOptions.tools the caller set above.
+      ...(tools &&
+        tools.length > 0 && {
+          tools,
+        }),
       stream: true,
     }
   }
