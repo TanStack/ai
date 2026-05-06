@@ -1,12 +1,14 @@
 ---
-'@tanstack/ai': patch
+'@tanstack/ai': minor
 '@tanstack/ai-anthropic': patch
-'@tanstack/ai-client': patch
+'@tanstack/ai-client': minor
 ---
 
 **Fix thinking blocks getting merged across steps and lost on turn 2+ of Anthropic tool loops.**
 
 Each thinking step emitted by the adapter now produces its own `ThinkingPart` on the `UIMessage` instead of being merged into a single part, and thinking content + Anthropic signatures are preserved in server-side message history so multi-turn tool flows with extended thinking work correctly.
+
+This includes a public callback signature change: `StreamProcessorEvents.onThinkingUpdate` now receives `(messageId, stepId, content)` instead of `(messageId, content)`. `ChatClient` has been updated to handle the new `stepId` argument internally, but consumers implementing `StreamProcessorEvents` directly need to add the new parameter.
 
 `@tanstack/ai`:
 
