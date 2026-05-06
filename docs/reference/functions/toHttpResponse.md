@@ -9,7 +9,7 @@ title: toHttpResponse
 function toHttpResponse(stream, init?): Response;
 ```
 
-Defined in: [packages/typescript/ai/src/stream-to-response.ts:245](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L245)
+Defined in: [packages/typescript/ai/src/stream-to-response.ts:240](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/stream-to-response.ts#L240)
 
 Convert a StreamChunk async iterable to a Response in HTTP stream format (newline-delimited JSON)
 

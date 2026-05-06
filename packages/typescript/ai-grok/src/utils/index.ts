@@ -1,3 +1,4 @@
+export { generateId } from '@tanstack/ai-utils'
 export {
   getGrokApiKeyFromEnv,
   toCompatibleConfig,
@@ -7,3 +8,4 @@ export {
   makeGrokStructuredOutputCompatible,
   transformNullsToUndefined,
 } from './schema-converter'
+export { toAudioFile, arrayBufferToBase64 } from './audio'

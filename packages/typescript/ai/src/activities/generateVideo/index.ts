@@ -8,6 +8,7 @@
  */
 
 import { aiEventClient } from '@tanstack/ai-event-client'
+import { toRunErrorPayload } from '../error-payload'
 import { resolveDebugOption } from '../../logger/resolve'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
@@ -399,21 +400,20 @@ async function* runStreamingVideoGeneration<
     }
 
     throw new Error('Video generation timed out')
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const payload = toRunErrorPayload(error, 'Video generation failed')
     logger.errors('generateVideo activity failed', {
-      error,
+      message: payload.message,
+      code: payload.code,
       source: 'generateVideo',
     })
     yield {
       type: 'RUN_ERROR',
       runId,
       threadId,
-      message: error.message || 'Video generation failed',
-      code: error.code,
-      error: {
-        message: error.message || 'Video generation failed',
-        code: error.code,
-      },
+      message: payload.message,
+      code: payload.code,
+      error: payload,
       timestamp: Date.now(),
     } as StreamChunk
   }

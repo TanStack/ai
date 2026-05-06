@@ -1,5 +1,35 @@
 # @tanstack/ai-grok
 
+## 0.7.0
+
+### Minor Changes
+
+- feat(ai-grok): add audio and speech adapters for xAI ([#506](https://github.com/TanStack/ai/pull/506))
+
+  Add three new tree-shakeable adapters that wrap xAI's audio APIs:
+  - `grokSpeech` / `createGrokSpeech` — text-to-speech via `POST /v1/tts`. Supports the 5 xAI voices (`eve`, `ara`, `rex`, `sal`, `leo`), MP3/WAV/PCM/μ-law/A-law codecs, and the `language`, `sample_rate`, `bit_rate`, `optimize_streaming_latency`, `text_normalization` provider options.
+  - `grokTranscription` / `createGrokTranscription` — speech-to-text via `POST /v1/stt`. Passes through `language`, `diarize`, `multichannel`, `channels`, `audio_format`, and `sample_rate`; maps xAI's word-level timestamps to `TranscriptionResult.words`.
+  - `grokRealtime` / `grokRealtimeToken` — Voice Agent (realtime) adapter for `wss://api.x.ai/v1/realtime` with ephemeral tokens via `/v1/realtime/client_secrets`. Supports the `grok-voice-fast-1.0` and `grok-voice-think-fast-1.0` models.
+
+  New model identifier exports: `GROK_TTS_MODELS`, `GROK_TRANSCRIPTION_MODELS`, `GROK_REALTIME_MODELS` and their corresponding types.
+
+### Patch Changes
+
+- Tighten `GeneratedImage` and `GeneratedAudio` to enforce exactly one of `url` or `b64Json` via a mutually-exclusive `GeneratedMediaSource` union. ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Both types previously declared `url?` and `b64Json?` as independently optional, which allowed meaningless `{}` values and objects that set both fields. They now require exactly one:
+
+  ```ts
+  type GeneratedMediaSource =
+    | { url: string; b64Json?: never }
+    | { b64Json: string; url?: never }
+  ```
+
+  Existing read patterns like `img.url || \`data:image/png;base64,${img.b64Json}\``continue to work unchanged. The only runtime-visible change is that the`@tanstack/ai-openrouter`and`@tanstack/ai-fal`image adapters no longer populate`url`with a synthesized`data:image/png;base64,...`URI when the provider returns base64 — they return`{ b64Json }`only. Consumers that want a data URI should build it from`b64Json` at render time.
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+
 ## 0.6.8
 
 ### Patch Changes

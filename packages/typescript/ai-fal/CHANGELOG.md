@@ -1,5 +1,33 @@
 # @tanstack/ai-fal
 
+## 0.7.0
+
+### Minor Changes
+
+- feat: add audio, speech, and transcription adapters to @tanstack/ai-fal ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Adds three new tree-shakeable adapters alongside the existing `falImage()` and `falVideo()`:
+  - `falSpeech()` — text-to-speech via models like Google `fal-ai/gemini-3.1-flash-tts`, `fal-ai/elevenlabs/tts/eleven-v3`, `fal-ai/minimax/speech-2.6-hd`, `fal-ai/kokoro/*`
+  - `falTranscription()` — speech-to-text via `fal-ai/whisper`, `fal-ai/wizper`, `fal-ai/speech-to-text/turbo`, `fal-ai/elevenlabs/speech-to-text`
+  - `falAudio()` — music and sound-effect generation via `fal-ai/minimax-music/v2.6`, `fal-ai/diffrhythm`, `fal-ai/lyria2`, `fal-ai/stable-audio-25/text-to-audio`, `fal-ai/elevenlabs/sound-effects/v2`
+
+### Patch Changes
+
+- Tighten `GeneratedImage` and `GeneratedAudio` to enforce exactly one of `url` or `b64Json` via a mutually-exclusive `GeneratedMediaSource` union. ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Both types previously declared `url?` and `b64Json?` as independently optional, which allowed meaningless `{}` values and objects that set both fields. They now require exactly one:
+
+  ```ts
+  type GeneratedMediaSource =
+    | { url: string; b64Json?: never }
+    | { b64Json: string; url?: never }
+  ```
+
+  Existing read patterns like `img.url || \`data:image/png;base64,${img.b64Json}\``continue to work unchanged. The only runtime-visible change is that the`@tanstack/ai-openrouter`and`@tanstack/ai-fal`image adapters no longer populate`url`with a synthesized`data:image/png;base64,...`URI when the provider returns base64 — they return`{ b64Json }`only. Consumers that want a data URI should build it from`b64Json` at render time.
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+
 ## 0.6.17
 
 ### Patch Changes

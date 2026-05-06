@@ -37,6 +37,7 @@
     "build:all": "nx run-many --targets=build --exclude=examples/**",
     "watch": "pnpm run build:all && env NX_DAEMON=true nx watch --all -- pnpm run build:all",
     "dev": "pnpm run watch",
+    "dev:chat": "pnpm --filter ts-react-chat dev",
     "format": "prettier --experimental-cli --ignore-unknown '**/*' --write",
     "generate-docs": "node scripts/generate-docs.ts && pnpm run copy:readme",
     "generate:models": "pnpm generate:models:fetch && pnpm regenerate:models && tsx scripts/sync-provider-models.ts && pnpm format",

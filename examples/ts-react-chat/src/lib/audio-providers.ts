@@ -6,7 +6,12 @@
  * and audio generation flows.
  */
 
-export type SpeechProviderId = 'openai' | 'gemini' | 'fal'
+export type SpeechProviderId =
+  | 'openai'
+  | 'gemini'
+  | 'fal'
+  | 'grok'
+  | 'elevenlabs'
 
 export interface SpeechProviderConfig {
   id: SpeechProviderId
@@ -55,9 +60,34 @@ export const SPEECH_PROVIDERS: ReadonlyArray<SpeechProviderConfig> = [
     ],
     placeholder: 'Enter text to synthesize with Fal Kokoro…',
   },
+  {
+    id: 'grok',
+    label: 'Grok TTS',
+    model: 'grok-tts',
+    voices: [
+      { id: 'eve', label: 'Eve' },
+      { id: 'ara', label: 'Ara' },
+      { id: 'rex', label: 'Rex' },
+      { id: 'sal', label: 'Sal' },
+      { id: 'leo', label: 'Leo' },
+    ],
+    placeholder: 'Enter text for Grok speech…',
+  },
+  {
+    id: 'elevenlabs',
+    label: 'ElevenLabs',
+    model: 'eleven_multilingual_v2',
+    voices: [
+      { id: '21m00Tcm4TlvDq8ikWAM', label: 'Rachel' },
+      { id: 'AZnzlk1XvdvUeBnXmlld', label: 'Domi' },
+      { id: 'EXAVITQu4vr4xnSDxMaL', label: 'Bella' },
+      { id: 'pNInz6obpgDQGcFmaJgB', label: 'Adam' },
+    ],
+    placeholder: 'Enter text to synthesize with ElevenLabs…',
+  },
 ]
 
-export type TranscriptionProviderId = 'openai' | 'fal'
+export type TranscriptionProviderId = 'openai' | 'fal' | 'grok' | 'elevenlabs'
 
 export interface TranscriptionProviderConfig {
   id: TranscriptionProviderId
@@ -80,9 +110,27 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
       model: 'fal-ai/whisper',
       description: 'Fal-hosted Whisper with word-level timestamps.',
     },
+    {
+      id: 'grok',
+      label: 'Grok STT',
+      model: 'grok-stt',
+      description: 'xAI speech-to-text with word-level timestamps.',
+    },
+    {
+      id: 'elevenlabs',
+      label: 'ElevenLabs Scribe',
+      model: 'scribe_v1',
+      description:
+        'ElevenLabs Scribe with diarization, keyterm biasing, and PII redaction.',
+    },
   ]
 
-export type AudioProviderId = 'gemini-lyria' | 'fal-audio' | 'fal-sfx'
+export type AudioProviderId =
+  | 'gemini-lyria'
+  | 'fal-audio'
+  | 'fal-sfx'
+  | 'elevenlabs-music'
+  | 'elevenlabs-sfx'
 
 export interface AudioProviderConfig {
   id: AudioProviderId
@@ -222,6 +270,72 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
         label: 'Cartoon banana slip',
         prompt:
           'Classic cartoon banana slip: quick slide, comedic boing, and a distant crash.',
+      },
+    ],
+  },
+  {
+    id: 'elevenlabs-music',
+    label: 'ElevenLabs Music',
+    model: 'music_v1',
+    models: [{ id: 'music_v1', label: 'Music v1' }],
+    description:
+      'ElevenLabs Music — free-form prompts or structured composition plans.',
+    placeholder: 'An upbeat synthwave track with driving drums and arpeggios',
+    defaultDuration: 15,
+    samplePrompts: [
+      {
+        label: 'Synthwave drive',
+        prompt:
+          'An upbeat synthwave track with driving drums, warm analog pads, and glittering arpeggios.',
+      },
+      {
+        label: 'Cinematic reveal',
+        prompt:
+          'A cinematic reveal score with soaring strings, low brass stabs, and a sudden timpani hit.',
+      },
+      {
+        label: 'Acoustic campfire',
+        prompt:
+          'A gentle acoustic campfire tune: fingerpicked guitar, soft harmonica, and distant crickets.',
+      },
+      {
+        label: 'Angry kazoo orchestra',
+        prompt:
+          'A furious kazoo orchestra performing an operatic aria about overdue library books.',
+      },
+    ],
+  },
+  {
+    id: 'elevenlabs-sfx',
+    label: 'ElevenLabs SFX',
+    model: 'eleven_text_to_sound_v2',
+    models: [
+      { id: 'eleven_text_to_sound_v2', label: 'Text-to-Sound v2' },
+      { id: 'eleven_text_to_sound_v1', label: 'Text-to-Sound v1' },
+    ],
+    description:
+      'ElevenLabs text-to-sound for short effects, 0.5–30 seconds per clip.',
+    placeholder: 'A whoosh followed by a deep bass impact',
+    defaultDuration: 5,
+    samplePrompts: [
+      {
+        label: 'Trailer whoosh',
+        prompt: 'A cinematic whoosh followed by a deep sub-bass impact.',
+      },
+      {
+        label: 'Sword unsheathe',
+        prompt:
+          'The crisp metallic ring of a sword being drawn from a leather scabbard.',
+      },
+      {
+        label: 'UI confirmation',
+        prompt:
+          'A short, satisfying UI confirmation tone with a subtle sparkle tail.',
+      },
+      {
+        label: 'Anxious toaster',
+        prompt:
+          'A small kitchen toaster having an anxiety attack: frantic clicks, steam, and a plaintive ding.',
       },
     ],
   },
