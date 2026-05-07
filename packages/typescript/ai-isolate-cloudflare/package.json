@@ -61,6 +61,6 @@
     "@vitest/coverage-v8": "4.0.14",
     "esbuild": "^0.25.12",
     "miniflare": "^4.20260305.0",
-    "wrangler": "^4.19.1"
+    "wrangler": "^4.88.0"
   }
 }
