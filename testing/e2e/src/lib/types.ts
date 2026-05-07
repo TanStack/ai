@@ -8,11 +8,13 @@ export type Provider =
   | 'grok'
   | 'groq'
   | 'openrouter'
+  | 'elevenlabs'
 
 export type Feature =
   | 'chat'
   | 'one-shot-text'
   | 'reasoning'
+  | 'multi-turn-reasoning'
   | 'multi-turn'
   | 'tool-calling'
   | 'parallel-tool-calls'
@@ -28,6 +30,8 @@ export type Feature =
   | 'tts'
   | 'transcription'
   | 'video-gen'
+  | 'audio-gen'
+  | 'sound-effects'
 
 export const ALL_PROVIDERS: Provider[] = [
   'openai',
@@ -37,12 +41,14 @@ export const ALL_PROVIDERS: Provider[] = [
   'grok',
   'groq',
   'openrouter',
+  'elevenlabs',
 ]
 
 export const ALL_FEATURES: Feature[] = [
   'chat',
   'one-shot-text',
   'reasoning',
+  'multi-turn-reasoning',
   'multi-turn',
   'tool-calling',
   'parallel-tool-calls',
@@ -58,4 +64,6 @@ export const ALL_FEATURES: Feature[] = [
   'tts',
   'transcription',
   'video-gen',
+  'audio-gen',
+  'sound-effects',
 ]

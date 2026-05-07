@@ -54,6 +54,7 @@ export class ChatClient {
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
+  private draining = false
   private sessionGenerating = false
   private activeRunIds = new Set<string>()
 
@@ -153,7 +154,11 @@ export class ChatClient {
             this.events.textUpdated(this.currentStreamId, messageId, content)
           }
         },
-        onThinkingUpdate: (messageId: string, content: string) => {
+        onThinkingUpdate: (
+          messageId: string,
+          _stepId: string,
+          content: string,
+        ) => {
           // Emit thinking update to devtools
           if (this.currentStreamId) {
             this.events.thinkingUpdated(
@@ -847,9 +852,15 @@ export class ChatClient {
    * Drain and execute all queued post-stream actions
    */
   private async drainPostStreamActions(): Promise<void> {
-    while (this.postStreamActions.length > 0) {
-      const action = this.postStreamActions.shift()!
-      await action()
+    if (this.draining) return
+    this.draining = true
+    try {
+      while (this.postStreamActions.length > 0) {
+        const action = this.postStreamActions.shift()!
+        await action()
+      }
+    } finally {
+      this.draining = false
     }
   }
 
@@ -885,9 +896,16 @@ export class ChatClient {
   }
 
   /**
-   * Check if all tool calls are complete and we should auto-send
+   * Check if all tool calls are complete and we should auto-send.
+   * Requires that there is at least one tool call in the last assistant message;
+   * a text-only response has nothing to auto-send.
    */
   private shouldAutoSend(): boolean {
+    const messages = this.processor.getMessages()
+    const lastAssistant = messages.findLast((m) => m.role === 'assistant')
+    if (!lastAssistant) return false
+    const hasToolCalls = lastAssistant.parts.some((p) => p.type === 'tool-call')
+    if (!hasToolCalls) return false
     return this.processor.areAllToolsComplete()
   }
 

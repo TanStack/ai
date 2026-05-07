@@ -184,7 +184,7 @@ describe('Message Converters', () => {
       expect(contentParts[3]?.type).toBe('text')
     })
 
-    it('should skip thinking parts in conversion', () => {
+    it('should preserve thinking parts in conversion', () => {
       const uiMessage: UIMessage = {
         id: 'msg-1',
         role: 'assistant',
@@ -198,6 +198,7 @@ describe('Message Converters', () => {
 
       expect(result.length).toBe(1)
       expect(result[0]?.content).toBe('Here is my answer')
+      expect(result[0]?.thinking).toEqual([{ content: 'Let me think...' }])
     })
 
     it('should skip system messages', () => {
@@ -581,6 +582,37 @@ describe('Message Converters', () => {
           arguments: '{"city": "NYC"}',
           state: 'input-complete',
         },
+      ])
+    })
+
+    it('should convert assistant thinking into UIMessage parts', () => {
+      const modelMessage: ModelMessage = {
+        role: 'assistant',
+        content: 'Here is my answer.',
+        thinking: [
+          {
+            content: 'Signed thought.',
+            signature: 'sig-1',
+          },
+          {
+            content: 'Unsigned thought.',
+          },
+        ],
+      }
+
+      const result = modelMessageToUIMessage(modelMessage)
+
+      expect(result.parts).toEqual([
+        {
+          type: 'thinking',
+          content: 'Signed thought.',
+          signature: 'sig-1',
+        },
+        {
+          type: 'thinking',
+          content: 'Unsigned thought.',
+        },
+        { type: 'text', content: 'Here is my answer.' },
       ])
     })
 

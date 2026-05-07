@@ -1,4 +1,4 @@
-import { Conversation } from '@11labs/client'
+import { Conversation } from '@elevenlabs/client'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type {
   AnyClientTool,
@@ -18,7 +18,7 @@ import type { ElevenLabsRealtimeOptions } from './types'
 /**
  * Creates an ElevenLabs realtime adapter for client-side use.
  *
- * Wraps the @11labs/client SDK for voice conversations.
+ * Wraps the @elevenlabs/client SDK for voice conversations.
  *
  * @param options - Optional configuration
  * @returns A RealtimeAdapter for use with RealtimeClient
@@ -91,7 +91,7 @@ async function createElevenLabsConnection(
   }
 
   // Convert TanStack tool definitions to ElevenLabs clientTools format.
-  // @11labs/client@0.2.0 expects plain async functions, not objects.
+  // @elevenlabs/client expects plain async functions, not objects.
   const elevenLabsClientTools: Record<
     string,
     (params: unknown) => Promise<string>

@@ -799,6 +799,32 @@ describe('useChat', () => {
         expect(result.current.messages.length).toBeGreaterThan(0)
       })
     })
+
+    it('should use the latest onChunk after the parent rerenders with a new callback', async () => {
+      const first = vi.fn()
+      const second = vi.fn()
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Hello'),
+      })
+
+      const { result, rerender } = renderHook(
+        (opts: UseChatOptions) => useChat(opts),
+        {
+          initialProps: { connection: adapter, onChunk: first },
+        },
+      )
+
+      // Swap in a new callback before the next sendMessage
+      rerender({ connection: adapter, onChunk: second })
+
+      await result.current.sendMessage('Test')
+
+      // Only the newer callback should have seen this stream
+      await waitFor(() => {
+        expect(second).toHaveBeenCalled()
+      })
+      expect(first).not.toHaveBeenCalled()
+    })
   })
 
   describe('edge cases and error handling', () => {

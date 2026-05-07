@@ -1,6 +1,7 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
+import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import type { OllamaClientConfig } from '../utils/client'
 
 import type {
@@ -486,25 +487,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   private convertToolsToOllamaFormat(
     tools?: Array<Tool>,
   ): Array<OllamaTool> | undefined {
-    if (!tools || tools.length === 0) {
-      return undefined
-    }
-
-    // Tool schemas are already converted to JSON Schema in the ai layer.
-    // We use a type assertion because our JSONSchema type is more flexible
-    // than ollama's expected schema type (e.g., type can be string | string[]).
-    return tools.map((tool) => ({
-      type: 'function',
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: (tool.inputSchema ?? {
-          type: 'object',
-          properties: {},
-          required: [],
-        }) as OllamaTool['function']['parameters'],
-      },
-    }))
+    return convertToolsToProviderFormat(tools)
   }
 
   private formatMessages(messages: TextOptions['messages']): Array<Message> {

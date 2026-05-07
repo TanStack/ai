@@ -1,4 +1,5 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import {
@@ -160,8 +161,10 @@ export class OpenAITextAdapter<
         logger,
       )
     } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
       logger.errors('openai.chatStream fatal', {
-        error,
+        error: toRunErrorPayload(error, 'openai.chatStream failed'),
         source: 'openai.chatStream',
       })
       throw error

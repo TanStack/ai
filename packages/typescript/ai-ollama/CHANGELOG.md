@@ -1,5 +1,16 @@
 # @tanstack/ai-ollama
 
+## 0.6.10
+
+### Patch Changes
+
+- refactor(ai-ollama): extract tool conversion into `src/tools/` matching peer adapters ([#465](https://github.com/TanStack/ai/pull/465))
+
+  Tool handling lived inline inside the text adapter with raw type casts. It is now split into a dedicated `tool-converter.ts` / `function-tool.ts` pair (mirroring the structure used by `ai-openai`, `ai-anthropic`, `ai-grok`, and `ai-groq`) and re-exported from the package index as `convertFunctionToolToAdapterFormat` and `convertToolsToProviderFormat`. Runtime behavior is unchanged.
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+
 ## 0.6.9
 
 ### Patch Changes

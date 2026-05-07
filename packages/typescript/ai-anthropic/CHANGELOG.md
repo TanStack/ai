@@ -1,5 +1,18 @@
 # @tanstack/ai-anthropic
 
+## 0.8.3
+
+### Patch Changes
+
+- ([#528](https://github.com/TanStack/ai/pull/528))
+
+## 0.8.2
+
+### Patch Changes
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+
 ## 0.8.1
 
 ### Patch Changes
