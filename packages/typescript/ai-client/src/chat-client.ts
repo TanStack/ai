@@ -614,11 +614,7 @@ export class ChatClient {
       const processingComplete = this.waitForProcessing()
 
       // Send through normalized connection (pushes chunks to subscription queue)
-      await this.connection.send(
-        messages,
-        mergedBody,
-        signal,
-      )
+      await this.connection.send(messages, mergedBody, signal)
 
       // Wait for subscription loop to finish processing all chunks
       await processingComplete
