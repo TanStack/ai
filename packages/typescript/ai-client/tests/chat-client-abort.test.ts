@@ -318,13 +318,13 @@ describe('ChatClient - Abort Signal Handling', () => {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
         signalPassedToConnect = abortSignal
-        yield {
+        yield asChunk({
           type: 'RUN_FINISHED',
           runId: 'run-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        }
+        })
       },
     }
 
@@ -351,9 +351,9 @@ describe('ChatClient - Abort Signal Handling', () => {
     expect(signalPassedToConnect).toBeInstanceOf(AbortSignal)
   })
 
-  it('should pass the original signal to connect() even if sendMessage() reassigns abortController during onResponse', async () => {
+  it('should pass the original signal to send() even if reload() reassigns abortController during onResponse', async () => {
     const signalsPassedToConnect: Array<AbortSignal> = []
-    let secondAppendPromise: Promise<unknown> | undefined
+    let reloadPromise: Promise<unknown> | undefined
 
     const adapter: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
@@ -361,13 +361,13 @@ describe('ChatClient - Abort Signal Handling', () => {
         if (abortSignal) {
           signalsPassedToConnect.push(abortSignal)
         }
-        yield {
+        yield asChunk({
           type: 'RUN_FINISHED',
           runId: 'run-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        }
+        })
       },
     }
 
@@ -377,16 +377,12 @@ describe('ChatClient - Abort Signal Handling', () => {
       onResponse: () => {
         if (firstCall) {
           firstCall = false
-          // Trigger a second message during onResponse callback.
-          // This queues a new streamResponse that would create a new
-          // AbortController, potentially overwriting this.abortController
-          // before the first connect() call reads the signal.
-          secondAppendPromise = client.append({
-            id: 'user-2',
-            role: 'user',
-            parts: [{ type: 'text', content: 'Second message' }],
-            createdAt: new Date(),
-          })
+          // reload() synchronously aborts and nulls this.abortController via
+          // cancelInFlightStream(), then starts a fresh streamResponse that
+          // assigns a new AbortController. Without the fix, the first stream
+          // would re-read this.abortController.signal after this await and
+          // receive the *second* stream's signal instead of its own.
+          reloadPromise = client.reload()
         }
       },
     })
@@ -398,13 +394,19 @@ describe('ChatClient - Abort Signal Handling', () => {
       createdAt: new Date(),
     })
 
-    // Deterministically wait for the queued second stream
-    await secondAppendPromise
+    await reloadPromise
 
-    // Both calls should have received valid, distinct AbortSignal instances
+    // Both calls must have received distinct AbortSignal instances.
+    // Pre-fix, both would receive the second stream's signal because the
+    // first stream re-read this.abortController.signal after reload().
     expect(signalsPassedToConnect.length).toBe(2)
     expect(signalsPassedToConnect[0]).toBeInstanceOf(AbortSignal)
     expect(signalsPassedToConnect[1]).toBeInstanceOf(AbortSignal)
     expect(signalsPassedToConnect[0]).not.toBe(signalsPassedToConnect[1])
+    // Exactly one of the two should be aborted (the first stream's signal,
+    // aborted by cancelInFlightStream()); the other is fresh. Order-agnostic
+    // because microtask scheduling determines which connect() runs first.
+    const abortedCount = signalsPassedToConnect.filter((s) => s.aborted).length
+    expect(abortedCount).toBe(1)
   })
 })
