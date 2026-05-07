@@ -34,14 +34,6 @@ for (const provider of providersFor('tool-approval')) {
       testId,
       aimockPort,
     }) => {
-      // Openrouter's chatStream fails with this scenario for reasons unrelated
-      // to the issue #532 fix (which is in core @tanstack/ai). The unit tests
-      // in packages/typescript/ai cover the fix provider-agnostically.
-      test.skip(
-        provider === 'openrouter',
-        'openrouter adapter has a separate failure mode in this multi-turn flow',
-      )
-
       await page.goto(featureUrl(provider, 'tool-approval', testId, aimockPort))
 
       await sendMessage(page, '[approval] add the stratocaster to my cart')

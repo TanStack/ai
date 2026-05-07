@@ -1675,6 +1675,9 @@ importers:
       '@copilotkit/aimock':
         specifier: ^1.18.0
         version: 1.18.0(vitest@4.1.4(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
+      '@openrouter/sdk':
+        specifier: 0.12.14
+        version: 0.12.14
       '@tailwindcss/vite':
         specifier: ^4.1.18
         version: 4.1.18(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
