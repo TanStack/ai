@@ -1250,6 +1250,7 @@ class TextEngine<
           timestamp: Date.now(),
           model: finishEvent.model,
           toolCallId: result.toolCallId,
+          toolCallName: result.toolName,
           toolName: result.toolName,
         } as StreamChunk)
 
@@ -1285,14 +1286,39 @@ class TextEngine<
         role: 'tool',
       } as StreamChunk)
 
-      this.messages = [
-        ...this.messages,
-        {
-          role: 'tool',
-          content,
-          toolCallId: result.toolCallId,
-        },
-      ]
+      // If a placeholder tool message exists for this toolCallId (created by
+      // uiMessageToModelMessages for an approval-responded part with no
+      // output yet), replace it with the real result. Otherwise the LLM sees
+      // both messages — and since the Anthropic adapter dedupes tool_result
+      // blocks by tool_use_id keeping the first match, the placeholder wins
+      // and the real result is dropped (see issue #532).
+      const placeholderIdx = this.messages.findIndex((m) => {
+        if (m.role !== 'tool' || m.toolCallId !== result.toolCallId) {
+          return false
+        }
+        if (typeof m.content !== 'string') return false
+        try {
+          return JSON.parse(m.content)?.pendingExecution === true
+        } catch {
+          return false
+        }
+      })
+
+      const newToolMessage: ModelMessage = {
+        role: 'tool',
+        content,
+        toolCallId: result.toolCallId,
+      }
+
+      if (placeholderIdx >= 0) {
+        this.messages = [
+          ...this.messages.slice(0, placeholderIdx),
+          newToolMessage,
+          ...this.messages.slice(placeholderIdx + 1),
+        ]
+      } else {
+        this.messages = [...this.messages, newToolMessage]
+      }
     }
 
     return chunks
