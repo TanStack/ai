@@ -8,7 +8,7 @@ import {
 } from '../lib/server-audio-adapters'
 
 const SPEECH_PROVIDER_SCHEMA = z
-  .enum(['openai', 'gemini', 'fal', 'grok'])
+  .enum(['openai', 'gemini', 'fal', 'grok', 'elevenlabs'])
   .optional()
 
 const SPEECH_BODY_SCHEMA = z.object({
