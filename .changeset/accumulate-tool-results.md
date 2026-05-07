@@ -1,5 +1,5 @@
 ---
-"@tanstack/ai-isolate-cloudflare": patch
+'@tanstack/ai-isolate-cloudflare': patch
 ---
 
 fix(ai-isolate-cloudflare): accumulate `toolResults` across rounds in the driver round-trip
