@@ -311,13 +311,14 @@ describe('ChatClient - Abort Signal Handling', () => {
     expect(abortSignals[0]).not.toBe(abortSignals[1])
   })
 
-  it('should pass the original signal to connect() even if stop() is called during onResponse', async () => {
-    let signalPassedToConnect: AbortSignal | undefined
+  it('should resolve cleanly when stop() is called during onResponse', async () => {
+    let connectCalled = false
+    const errorSpy = vi.fn()
 
     const adapter: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
-      async *connect(_messages, _data, abortSignal) {
-        signalPassedToConnect = abortSignal
+      async *connect(_messages, _data, _abortSignal) {
+        connectCalled = true
         yield asChunk({
           type: 'RUN_FINISHED',
           runId: 'run-1',
@@ -330,11 +331,12 @@ describe('ChatClient - Abort Signal Handling', () => {
 
     const client = new ChatClient({
       connection: adapter,
+      onError: errorSpy,
       onResponse: () => {
-        // Simulate a concurrent stop() during the onResponse callback,
-        // which sets this.abortController to null. Without the fix,
-        // the code would dereference this.abortController.signal after
-        // this point and crash with a null reference.
+        // stop() during the onResponse await aborts the captured signal and
+        // nulls this.abortController. Pre-fix this dereferenced null and
+        // threw a TypeError; with the captured-signal fix and the post-await
+        // signal.aborted check, streamResponse short-circuits cleanly.
         client.stop()
       },
     })
@@ -346,14 +348,18 @@ describe('ChatClient - Abort Signal Handling', () => {
       createdAt: new Date(),
     })
 
-    // The signal should still be a valid AbortSignal instance
-    // (captured before the await), not undefined/null
-    expect(signalPassedToConnect).toBeInstanceOf(AbortSignal)
+    // Cancelled streams must not invoke the connection (no wasted request),
+    // surface no error to user code, and not deadlock the append() promise.
+    expect(connectCalled).toBe(false)
+    expect(errorSpy).not.toHaveBeenCalled()
+    expect(client.getError()).toBeUndefined()
+    expect(client.getIsLoading()).toBe(false)
   })
 
-  it('should pass the original signal to send() even if reload() reassigns abortController during onResponse', async () => {
+  it('should resolve cleanly when reload() supersedes the stream during onResponse', async () => {
     const signalsPassedToConnect: Array<AbortSignal> = []
     let reloadPromise: Promise<unknown> | undefined
+    const errorSpy = vi.fn()
 
     const adapter: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
@@ -374,14 +380,16 @@ describe('ChatClient - Abort Signal Handling', () => {
     let firstCall = true
     const client = new ChatClient({
       connection: adapter,
+      onError: errorSpy,
       onResponse: () => {
         if (firstCall) {
           firstCall = false
-          // reload() synchronously aborts and nulls this.abortController via
-          // cancelInFlightStream(), then starts a fresh streamResponse that
-          // assigns a new AbortController. Without the fix, the first stream
-          // would re-read this.abortController.signal after this await and
-          // receive the *second* stream's signal instead of its own.
+          // reload() aborts the in-flight stream's signal and starts a fresh
+          // streamResponse that assigns a new AbortController. Pre-fix, the
+          // first stream re-read this.abortController.signal after this
+          // await and would either crash or pass the second stream's signal
+          // to its own connect() call. With the fix, the first stream
+          // short-circuits because its captured signal was aborted.
           reloadPromise = client.reload()
         }
       },
@@ -396,17 +404,13 @@ describe('ChatClient - Abort Signal Handling', () => {
 
     await reloadPromise
 
-    // Both calls must have received distinct AbortSignal instances.
-    // Pre-fix, both would receive the second stream's signal because the
-    // first stream re-read this.abortController.signal after reload().
-    expect(signalsPassedToConnect.length).toBe(2)
+    // Only the surviving (reload) stream invokes connect(); the cancelled
+    // first stream short-circuits before reaching the connection layer.
+    // Its signal must be fresh (not the aborted one from the cancelled stream).
+    expect(signalsPassedToConnect.length).toBe(1)
     expect(signalsPassedToConnect[0]).toBeInstanceOf(AbortSignal)
-    expect(signalsPassedToConnect[1]).toBeInstanceOf(AbortSignal)
-    expect(signalsPassedToConnect[0]).not.toBe(signalsPassedToConnect[1])
-    // Exactly one of the two should be aborted (the first stream's signal,
-    // aborted by cancelInFlightStream()); the other is fresh. Order-agnostic
-    // because microtask scheduling determines which connect() runs first.
-    const abortedCount = signalsPassedToConnect.filter((s) => s.aborted).length
-    expect(abortedCount).toBe(1)
+    expect(signalsPassedToConnect[0]?.aborted).toBe(false)
+    expect(errorSpy).not.toHaveBeenCalled()
+    expect(client.getError()).toBeUndefined()
   })
 })
