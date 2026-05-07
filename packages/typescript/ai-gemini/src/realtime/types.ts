@@ -40,7 +40,6 @@ export type GeminiRealtimeVoice =
  */
 export type GeminiRealtimeModel = 
   | 'gemini-3.1-flash-live-preview'
-  | 'gemini-2.5-flash-native-audio-preview-12-2025'
 
 /**
  * Options for the Gemini realtime client adapter
