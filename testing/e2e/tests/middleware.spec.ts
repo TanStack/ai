@@ -117,7 +117,9 @@ test.describe('Middleware Lifecycle', () => {
     expect(chatSpans).toHaveLength(1)
     const chatSpan = chatSpans[0]
     expect(chatSpan.ended).toBe(true)
-    expect(chatSpan.attributes['gen_ai.operation.name']).toBe('chat')
+    // `gen_ai.operation.name` is intentionally NOT set on the root span —
+    // only iteration spans carry it (see otel.ts).
+    expect(chatSpan.attributes['gen_ai.operation.name']).toBeUndefined()
 
     const iterationSpans = capture.spans.filter(
       (s: any) => s.kind === SpanKind.CLIENT,
@@ -125,6 +127,7 @@ test.describe('Middleware Lifecycle', () => {
     expect(iterationSpans.length).toBeGreaterThanOrEqual(1)
     for (const iter of iterationSpans) {
       expect(iter.ended).toBe(true)
+      expect(iter.attributes['gen_ai.operation.name']).toBe('chat')
     }
 
     // Token histogram records show up with correct unit and low-cardinality attrs.
