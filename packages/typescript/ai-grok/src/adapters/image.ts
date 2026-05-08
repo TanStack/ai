@@ -1,5 +1,5 @@
 import { OpenAICompatibleImageAdapter } from '@tanstack/openai-base'
-import { getGrokApiKeyFromEnv, toCompatibleConfig } from '../utils/client'
+import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
   validateImageSize,
   validateNumberOfImages,
@@ -41,7 +41,7 @@ export class GrokImageAdapter<
   readonly name = 'grok' as const
 
   constructor(config: GrokImageConfig, model: TModel) {
-    super(toCompatibleConfig(config), model, 'grok')
+    super(withGrokDefaults(config), model, 'grok')
   }
 
   protected override validatePrompt(options: {

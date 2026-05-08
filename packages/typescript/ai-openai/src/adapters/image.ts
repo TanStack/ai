@@ -1,5 +1,5 @@
 import { OpenAICompatibleImageAdapter } from '@tanstack/openai-base'
-import { getOpenAIApiKeyFromEnv, toCompatibleConfig } from '../utils/client'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   validateImageSize,
   validateNumberOfImages,
@@ -41,7 +41,7 @@ export class OpenAIImageAdapter<
   readonly name = 'openai' as const
 
   constructor(config: OpenAIImageConfig, model: TModel) {
-    super(toCompatibleConfig(config), model, 'openai')
+    super(config, model, 'openai')
   }
 
   protected override validatePrompt(options: {

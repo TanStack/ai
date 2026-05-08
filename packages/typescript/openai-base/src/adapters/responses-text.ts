@@ -2,6 +2,7 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { createOpenAICompatibleClient } from '../utils/client'
+import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import type {
@@ -100,15 +101,16 @@ export class OpenAICompatibleResponsesTextAdapter<
     }
 
     try {
+      options.logger.request(
+        `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: this.name, model: this.model },
+      )
       const response = await this.client.responses.create(
         {
           ...requestParams,
           stream: true,
         },
-        {
-          headers: options.request?.headers,
-          signal: options.request?.signal,
-        },
+        extractRequestOptions(options.request),
       )
 
       yield* this.processStreamChunks(
@@ -173,7 +175,7 @@ export class OpenAICompatibleResponsesTextAdapter<
     // Apply provider-specific transformations for structured output compatibility
     const jsonSchema = this.makeStructuredOutputCompatible(
       outputSchema,
-      outputSchema.required || [],
+      outputSchema.required,
     )
 
     try {
@@ -187,6 +189,10 @@ export class OpenAICompatibleResponsesTextAdapter<
       } = requestParams as Record<string, unknown>
       void _stream
       void _streamOptions
+      chatOptions.logger.request(
+        `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model },
+      )
       const response = await this.client.responses.create(
         {
           ...(cleanParams as Omit<
@@ -204,15 +210,15 @@ export class OpenAICompatibleResponsesTextAdapter<
             },
           },
         },
-        {
-          headers: chatOptions.request?.headers,
-          signal: chatOptions.request?.signal,
-        },
+        extractRequestOptions(chatOptions.request),
       )
 
-      // Extract text content from the response
+      // Extract text content from the response. `stream: false` narrows the
+      // SDK return type to `Response`, but the explicit annotation makes
+      // that contract local rather than relying on inference through the
+      // overloaded `client.responses.create` signature.
       const rawText = this.extractTextFromResponse(
-        response as OpenAI_SDK.Responses.Response,
+        response satisfies OpenAI_SDK.Responses.Response,
       )
 
       // Parse the JSON response
@@ -250,7 +256,7 @@ export class OpenAICompatibleResponsesTextAdapter<
    */
   protected makeStructuredOutputCompatible(
     schema: Record<string, any>,
-    originalRequired: Array<string>,
+    originalRequired?: Array<string>,
   ): Record<string, any> {
     return makeStructuredOutputCompatible(schema, originalRequired)
   }
@@ -313,7 +319,7 @@ export class OpenAICompatibleResponsesTextAdapter<
       string,
       { index: number; name: string; started: boolean }
     >,
-    options: TextOptions,
+    options: TextOptions<TProviderOptions>,
     aguiState: {
       runId: string
       messageId: string
@@ -343,6 +349,11 @@ export class OpenAICompatibleResponsesTextAdapter<
 
     try {
       for await (const chunk of stream) {
+        options.logger.provider(`provider=${this.name} type=${chunk.type}`, {
+          provider: this.name,
+          type: chunk.type,
+        })
+
         // Emit RUN_STARTED on first chunk
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
@@ -703,10 +714,27 @@ export class OpenAICompatibleResponsesTextAdapter<
         // adapter never emitted it, so it leaked partial deltas as
         // pseudo-args only on the orphan path. Consumers should accumulate
         // `delta` themselves.
+        //
+        // Guard with `metadata?.started`: the matching TOOL_CALL_START fires
+        // from `output_item.added`, and emitting TOOL_CALL_ARGS before that
+        // would violate the AG-UI lifecycle (ARGS without START). The .done
+        // handler below applies the same guard.
         if (
           chunk.type === 'response.function_call_arguments.delta' &&
           chunk.delta
         ) {
+          const metadata = toolCallMetadata.get(chunk.item_id)
+          if (!metadata?.started) {
+            options.logger.errors(
+              `${this.name}.processStreamChunks orphan function_call_arguments.delta`,
+              {
+                source: `${this.name}.processStreamChunks`,
+                toolCallId: chunk.item_id,
+                rawDelta: chunk.delta,
+              },
+            )
+            continue
+          }
           yield asChunk({
             type: 'TOOL_CALL_ARGS',
             toolCallId: chunk.item_id,
@@ -879,7 +907,7 @@ export class OpenAICompatibleResponsesTextAdapter<
    * Override this in subclasses to add provider-specific options.
    */
   protected mapOptionsToRequest(
-    options: TextOptions,
+    options: TextOptions<TProviderOptions>,
   ): Omit<OpenAI_SDK.Responses.ResponseCreateParams, 'stream'> {
     const input = this.convertMessagesToInput(options.messages)
 

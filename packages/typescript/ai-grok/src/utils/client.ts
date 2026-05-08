@@ -1,10 +1,7 @@
 import { getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { OpenAICompatibleClientConfig } from '@tanstack/openai-base'
-import type { ClientOptions } from 'openai'
 
-export interface GrokClientConfig extends ClientOptions {
-  apiKey: string
-}
+export interface GrokClientConfig extends OpenAICompatibleClientConfig {}
 
 /**
  * Gets Grok API key from environment variables
@@ -21,14 +18,14 @@ export function getGrokApiKeyFromEnv(): string {
 }
 
 /**
- * Converts a GrokClientConfig to OpenAICompatibleClientConfig.
- * Sets the default xAI base URL if not already set.
+ * Returns a Grok client config with the default xAI base URL applied
+ * when not already set.
  */
-export function toCompatibleConfig(
+export function withGrokDefaults(
   config: GrokClientConfig,
 ): OpenAICompatibleClientConfig {
   return {
     ...config,
     baseURL: config.baseURL || 'https://api.x.ai/v1',
-  } as unknown as OpenAICompatibleClientConfig
+  }
 }

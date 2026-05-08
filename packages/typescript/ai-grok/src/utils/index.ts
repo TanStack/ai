@@ -1,7 +1,7 @@
 export { generateId } from '@tanstack/ai-utils'
 export {
   getGrokApiKeyFromEnv,
-  toCompatibleConfig,
+  withGrokDefaults,
   type GrokClientConfig,
 } from './client'
 export {

@@ -1,5 +1,5 @@
 import { OpenAICompatibleVideoAdapter } from '@tanstack/openai-base'
-import { getOpenAIApiKeyFromEnv, toCompatibleConfig } from '../utils/client'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   toApiSeconds,
   validateVideoSeconds,
@@ -48,7 +48,7 @@ export class OpenAIVideoAdapter<
   readonly name = 'openai' as const
 
   constructor(config: OpenAIVideoConfig, model: TModel) {
-    super(toCompatibleConfig(config), model, 'openai')
+    super(config, model, 'openai')
   }
 
   protected override validateVideoSize(model: string, size?: string): void {

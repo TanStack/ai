@@ -1,5 +1,5 @@
 import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/openai-base'
-import { getGrokApiKeyFromEnv, toCompatibleConfig } from '../utils/client'
+import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import type {
   GROK_CHAT_MODELS,
   GrokChatModelToolCapabilitiesByName,
@@ -56,7 +56,7 @@ export class GrokTextAdapter<
   readonly name = 'grok' as const
 
   constructor(config: GrokTextConfig, model: TModel) {
-    super(toCompatibleConfig(config), model, 'grok')
+    super(withGrokDefaults(config), model, 'grok')
   }
 }
 

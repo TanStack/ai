@@ -1,3 +1,4 @@
+import { webSearchPreviewTool as baseWebSearchPreviewTool } from '@tanstack/openai-base'
 import type { ProviderTool } from '@tanstack/ai'
 import type { WebSearchPreviewToolConfig } from '@tanstack/openai-base'
 
@@ -19,10 +20,5 @@ export type OpenAIWebSearchPreviewTool = ProviderTool<
 export function webSearchPreviewTool(
   toolData: WebSearchPreviewToolConfig,
 ): OpenAIWebSearchPreviewTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
-    name: 'web_search_preview',
-    description: 'Search the web (preview version)',
-    metadata: toolData,
-  } as unknown as OpenAIWebSearchPreviewTool
+  return baseWebSearchPreviewTool(toolData) as OpenAIWebSearchPreviewTool
 }

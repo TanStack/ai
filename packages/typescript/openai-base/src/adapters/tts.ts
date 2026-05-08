@@ -1,6 +1,6 @@
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { generateId } from '@tanstack/ai-utils'
+import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
 import { createOpenAICompatibleClient } from '../utils/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
@@ -57,6 +57,10 @@ export class OpenAICompatibleTTSAdapter<
     }
 
     try {
+      options.logger.request(
+        `activity=tts provider=${this.name} model=${model} format=${request.response_format ?? 'default'} voice=${request.voice}`,
+        { provider: this.name, model },
+      )
       const response = await this.client.audio.speech.create(request)
 
       // Convert response to base64. Buffer is Node-only; use atob fallback in
@@ -117,21 +121,4 @@ export class OpenAICompatibleTTSAdapter<
     }
     return contentTypes[format] || 'audio/mpeg'
   }
-}
-
-/**
- * Cross-runtime ArrayBuffer → base64 helper. Prefers Node's `Buffer` when
- * available; otherwise walks the byte array via `atob`/`btoa` for browser /
- * edge runtimes that ship a fetch/`Response` but no Buffer global.
- */
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
-    return Buffer.from(buffer).toString('base64')
-  }
-  const view = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < view.byteLength; i += 1) {
-    binary += String.fromCharCode(view[i]!)
-  }
-  return btoa(binary)
 }

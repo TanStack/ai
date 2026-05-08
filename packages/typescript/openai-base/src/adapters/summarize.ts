@@ -1,4 +1,5 @@
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import type {
   StreamChunk,
@@ -54,47 +55,62 @@ export class OpenAICompatibleSummarizeAdapter<
     let model = options.model
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 
-    for await (const chunk of this.textAdapter.chatStream({
-      model: options.model as TModel,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
-      logger: options.logger,
-    } as TextOptions<TProviderOptions>)) {
-      if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-        if (chunk.content) {
-          summary = chunk.content
-        } else if (chunk.delta) {
-          // Append delta only when present — a content-less chunk with no
-          // delta would otherwise concat literal `'undefined'`.
-          summary += chunk.delta
+    options.logger.request(
+      `activity=summarize provider=${this.name} model=${options.model} text-length=${options.text.length} maxLength=${options.maxLength ?? 'unset'}`,
+      { provider: this.name, model: options.model },
+    )
+
+    try {
+      for await (const chunk of this.textAdapter.chatStream({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        systemPrompts: [systemPrompt],
+        maxTokens: options.maxLength,
+        temperature: 0.3,
+        logger: options.logger,
+      } satisfies TextOptions<TProviderOptions>)) {
+        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+          if (chunk.content) {
+            summary = chunk.content
+          } else if (chunk.delta) {
+            // Append delta only when present — a content-less chunk with no
+            // delta would otherwise concat literal `'undefined'`.
+            summary += chunk.delta
+          }
+          model = chunk.model || model
         }
-        model = chunk.model || model
-      }
-      if (chunk.type === 'RUN_FINISHED') {
-        if (chunk.usage) {
-          usage = chunk.usage
+        if (chunk.type === 'RUN_FINISHED') {
+          if (chunk.usage) {
+            usage = chunk.usage
+          }
+        }
+        // Surface failures: the underlying chatStream emits RUN_ERROR instead
+        // of throwing, so without this branch summarize() would return an
+        // empty summary and pretend a failed run succeeded.
+        if (chunk.type === 'RUN_ERROR') {
+          const message =
+            (chunk.error && typeof chunk.error.message === 'string'
+              ? chunk.error.message
+              : null) ?? 'Summarization failed'
+          const code =
+            chunk.error && typeof chunk.error.code === 'string'
+              ? chunk.error.code
+              : undefined
+          const err = new Error(message)
+          if (code) {
+            ;(err as Error & { code?: string }).code = code
+          }
+          throw err
         }
       }
-      // Surface failures: the underlying chatStream emits RUN_ERROR instead of
-      // throwing, so without this branch summarize() would return an empty
-      // summary and pretend a failed run succeeded.
-      if (chunk.type === 'RUN_ERROR') {
-        const message =
-          (chunk.error && typeof chunk.error.message === 'string'
-            ? chunk.error.message
-            : null) ?? 'Summarization failed'
-        const code =
-          chunk.error && typeof chunk.error.code === 'string'
-            ? chunk.error.code
-            : undefined
-        const err = new Error(message)
-        if (code) {
-          ;(err as Error & { code?: string }).code = code
-        }
-        throw err
-      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      options.logger.errors(`${this.name}.summarize fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.summarize failed`),
+        source: `${this.name}.summarize`,
+      })
+      throw error
     }
 
     return { id, model, summary, usage }
@@ -105,14 +121,27 @@ export class OpenAICompatibleSummarizeAdapter<
   ): AsyncIterable<StreamChunk> {
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    yield* this.textAdapter.chatStream({
-      model: options.model as TModel,
-      messages: [{ role: 'user', content: options.text }],
-      systemPrompts: [systemPrompt],
-      maxTokens: options.maxLength,
-      temperature: 0.3,
-      logger: options.logger,
-    } as TextOptions<TProviderOptions>)
+    options.logger.request(
+      `activity=summarizeStream provider=${this.name} model=${options.model} text-length=${options.text.length} maxLength=${options.maxLength ?? 'unset'}`,
+      { provider: this.name, model: options.model },
+    )
+
+    try {
+      yield* this.textAdapter.chatStream({
+        model: options.model,
+        messages: [{ role: 'user', content: options.text }],
+        systemPrompts: [systemPrompt],
+        maxTokens: options.maxLength,
+        temperature: 0.3,
+        logger: options.logger,
+      } satisfies TextOptions<TProviderOptions>)
+    } catch (error: unknown) {
+      options.logger.errors(`${this.name}.summarizeStream fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.summarizeStream failed`),
+        source: `${this.name}.summarizeStream`,
+      })
+      throw error
+    }
   }
 
   protected buildSummarizationPrompt(options: SummarizationOptions): string {

@@ -1,3 +1,4 @@
+import { computerUseTool as baseComputerUseTool } from '@tanstack/openai-base'
 import type { ProviderTool } from '@tanstack/ai'
 import type { ComputerUseToolConfig } from '@tanstack/openai-base'
 
@@ -22,12 +23,5 @@ export type OpenAIComputerUseTool = ProviderTool<'openai', 'computer_use'>
 export function computerUseTool(
   toolData: ComputerUseToolConfig,
 ): OpenAIComputerUseTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
-    name: 'computer_use_preview',
-    description: 'Control a virtual computer',
-    metadata: {
-      ...toolData,
-    },
-  } as unknown as OpenAIComputerUseTool
+  return baseComputerUseTool(toolData) as OpenAIComputerUseTool
 }

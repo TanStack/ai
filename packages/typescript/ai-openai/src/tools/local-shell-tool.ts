@@ -1,3 +1,4 @@
+import { localShellTool as baseLocalShellTool } from '@tanstack/openai-base'
 import type { ProviderTool } from '@tanstack/ai'
 
 export {
@@ -13,10 +14,5 @@ export type OpenAILocalShellTool = ProviderTool<'openai', 'local_shell'>
  * OpenAI provider tool.
  */
 export function localShellTool(): OpenAILocalShellTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
-    name: 'local_shell',
-    description: 'Execute local shell commands',
-    metadata: {},
-  } as unknown as OpenAILocalShellTool
+  return baseLocalShellTool() as OpenAILocalShellTool
 }

@@ -1,5 +1,5 @@
 import { OpenAICompatibleTTSAdapter } from '@tanstack/openai-base'
-import { getOpenAIApiKeyFromEnv, toCompatibleConfig } from '../utils/client'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   validateAudioInput,
   validateInstructions,
@@ -31,7 +31,7 @@ export class OpenAITTSAdapter<
   readonly name = 'openai' as const
 
   constructor(config: OpenAITTSConfig, model: TModel) {
-    super(toCompatibleConfig(config), model, 'openai')
+    super(config, model, 'openai')
   }
 
   protected override validateAudioInput(text: string): void {

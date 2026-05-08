@@ -1,5 +1,5 @@
 import { OpenAICompatibleTranscriptionAdapter } from '@tanstack/openai-base'
-import { getOpenAIApiKeyFromEnv, toCompatibleConfig } from '../utils/client'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import type { OpenAITranscriptionModel } from '../model-meta'
 import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
@@ -31,7 +31,7 @@ export class OpenAITranscriptionAdapter<
   readonly name = 'openai' as const
 
   constructor(config: OpenAITranscriptionConfig, model: TModel) {
-    super(toCompatibleConfig(config), model, 'openai')
+    super(config, model, 'openai')
   }
 
   protected override shouldDefaultToVerbose(model: string): boolean {

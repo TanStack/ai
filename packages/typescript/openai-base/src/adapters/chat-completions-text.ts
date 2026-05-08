@@ -2,6 +2,7 @@ import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { createOpenAICompatibleClient } from '../utils/client'
+import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type {
@@ -81,18 +82,17 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
     }
 
     try {
+      options.logger.request(
+        `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: this.name, model: this.model },
+      )
       const stream = await this.client.chat.completions.create(
         {
           ...requestParams,
           stream: true,
           stream_options: { include_usage: true },
         },
-        {
-          headers: (options.request as RequestInit | undefined)?.headers as
-            | Record<string, string>
-            | undefined,
-          signal: (options.request as RequestInit | undefined)?.signal,
-        },
+        extractRequestOptions(options.request),
       )
 
       yield* this.processStreamChunks(stream, options, aguiState)
@@ -151,7 +151,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
 
     const jsonSchema = this.makeStructuredOutputCompatible(
       outputSchema,
-      outputSchema.required || [],
+      outputSchema.required,
     )
 
     try {
@@ -161,6 +161,10 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         stream: __,
         ...cleanParams
       } = requestParams as any
+      chatOptions.logger.request(
+        `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model },
+      )
       const response = await this.client.chat.completions.create(
         {
           ...cleanParams,
@@ -174,12 +178,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
             },
           },
         },
-        {
-          headers: (chatOptions.request as RequestInit | undefined)?.headers as
-            | Record<string, string>
-            | undefined,
-          signal: (chatOptions.request as RequestInit | undefined)?.signal,
-        },
+        extractRequestOptions(chatOptions.request),
       )
 
       // Extract text content from the response
@@ -220,7 +219,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
    */
   protected makeStructuredOutputCompatible(
     schema: Record<string, any>,
-    originalRequired: Array<string>,
+    originalRequired?: Array<string>,
   ): Record<string, any> {
     return makeStructuredOutputCompatible(schema, originalRequired)
   }
@@ -266,9 +265,22 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         started: boolean // Track if TOOL_CALL_START has been emitted
       }
     >()
+    // Track whether ANY tool call lifecycle was actually completed across the
+    // entire stream. Lets us downgrade a `tool_calls` finish_reason to `stop`
+    // when the upstream signalled tool calls but never produced a complete
+    // start/end pair — emitting RUN_FINISHED { finishReason: 'tool_calls' }
+    // with no matching TOOL_CALL_END would leave consumers waiting for tool
+    // results that never arrive.
+    let emittedAnyToolCallEnd = false
 
     try {
       for await (const chunk of stream) {
+        const choiceForLog = chunk.choices[0]
+        options.logger.provider(
+          `provider=${this.name} finish_reason=${choiceForLog?.finish_reason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasToolCalls=${!!choiceForLog?.delta.tool_calls} hasUsage=${!!chunk.usage}`,
+          { provider: this.name, model: chunk.model },
+        )
+
         // Capture usage from any chunk (including the terminal usage-only
         // chunk emitted when `stream_options.include_usage` is on).
         if (chunk.usage) {
@@ -391,11 +403,6 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         // we can capture the trailing usage chunk that arrives AFTER this
         // chunk when stream_options.include_usage is on.
         if (choice.finish_reason) {
-          // Track whether ANY tool call actually got a start event so we can
-          // distinguish "tool-using run" from "stream had partial deltas but
-          // never completed a tool call" — the latter must NOT report
-          // tool_calls and must NOT emit TOOL_CALL_END for unstarted entries.
-          let emittedAnyToolCallEnd = false
           if (
             choice.finish_reason === 'tool_calls' ||
             toolCallsInProgress.size > 0
@@ -454,7 +461,6 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
             // block) doesn't see lingering entries and misreport the finish.
             toolCallsInProgress.clear()
           }
-          void emittedAnyToolCallEnd
 
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
@@ -505,6 +511,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
             input: parsedInput,
           })
           pendingToolCount += 1
+          emittedAnyToolCallEnd = true
         }
         toolCallsInProgress.clear()
 
@@ -523,12 +530,14 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         // preserving the upstream value when it falls outside the AG-UI set.
         // Collapsing length / content_filter to 'stop' would hide why the
         // run terminated — surface it instead. Use `tool_calls` only when
-        // the upstream actually said so OR when we just closed pending tool
-        // calls (truncated stream); a clean `stop` with no started tool
-        // calls must NOT be remapped to `tool_calls`.
-        const finishReason: string =
-          pendingFinishReason === 'tool_calls' || pendingToolCount > 0
-            ? 'tool_calls'
+        // a TOOL_CALL_END was actually emitted: an upstream that signalled
+        // `tool_calls` but never produced a started/ended pair must NOT
+        // surface `tool_calls` here, since downstream consumers wait for
+        // tool results that would never arrive.
+        const finishReason: string = emittedAnyToolCallEnd
+          ? 'tool_calls'
+          : pendingFinishReason === 'tool_calls'
+            ? 'stop'
             : (pendingFinishReason ?? 'stop')
 
         yield asChunk({

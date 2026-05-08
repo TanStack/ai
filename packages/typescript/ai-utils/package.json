@@ -38,6 +38,7 @@
     "tanstack"
   ],
   "devDependencies": {
+    "@types/node": "^24.10.1",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7"
   }

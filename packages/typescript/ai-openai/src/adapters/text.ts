@@ -1,7 +1,7 @@
 import { OpenAICompatibleResponsesTextAdapter } from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
-import { getOpenAIApiKeyFromEnv, toCompatibleConfig } from '../utils/client'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import type {
   OPENAI_CHAT_MODELS,
   OpenAIChatModel,
@@ -89,7 +89,7 @@ export class OpenAITextAdapter<
   readonly name = 'openai' as const
 
   constructor(config: OpenAITextConfig, model: TModel) {
-    super(toCompatibleConfig(config), model, 'openai')
+    super(config, model, 'openai')
   }
 
   /**
@@ -99,18 +99,13 @@ export class OpenAITextAdapter<
    * and to apply OpenAI-specific provider option validation.
    */
   protected override mapOptionsToRequest(
-    options: TextOptions,
+    options: TextOptions<TProviderOptions>,
   ): Omit<OpenAI_SDK.Responses.ResponseCreateParams, 'stream'> {
+    // The structural type the validator expects is broader than what
+    // `TProviderOptions` is bound to per-model, so narrow via the internal
+    // shape rather than re-exposing it on the public override signature.
     const modelOptions = options.modelOptions as
-      | Omit<
-          InternalTextProviderOptions,
-          | 'max_output_tokens'
-          | 'tools'
-          | 'metadata'
-          | 'temperature'
-          | 'input'
-          | 'top_p'
-        >
+      | InternalTextProviderOptions
       | undefined
     const input = this.convertMessagesToInput(options.messages)
     if (modelOptions) {

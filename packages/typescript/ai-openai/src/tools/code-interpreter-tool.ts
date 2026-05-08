@@ -1,3 +1,4 @@
+import { codeInterpreterTool as baseCodeInterpreterTool } from '@tanstack/openai-base'
 import type { ProviderTool } from '@tanstack/ai'
 import type { CodeInterpreterToolConfig } from '@tanstack/openai-base'
 
@@ -14,18 +15,11 @@ export type OpenAICodeInterpreterTool = ProviderTool<
 
 /**
  * Creates a standard Tool from CodeInterpreterTool parameters, branded as an
- * OpenAI provider tool.
+ * OpenAI provider tool. Delegates construction to the base factory and brands
+ * the result via a phantom-typed `ProviderTool` cast.
  */
 export function codeInterpreterTool(
   container: CodeInterpreterToolConfig,
 ): OpenAICodeInterpreterTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
-    name: 'code_interpreter',
-    description: 'Execute code in a sandboxed environment',
-    metadata: {
-      type: 'code_interpreter',
-      container,
-    },
-  } as unknown as OpenAICodeInterpreterTool
+  return baseCodeInterpreterTool(container) as OpenAICodeInterpreterTool
 }

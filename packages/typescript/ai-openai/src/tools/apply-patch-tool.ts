@@ -1,3 +1,4 @@
+import { applyPatchTool as baseApplyPatchTool } from '@tanstack/openai-base'
 import type { ProviderTool } from '@tanstack/ai'
 
 export {
@@ -13,10 +14,5 @@ export type OpenAIApplyPatchTool = ProviderTool<'openai', 'apply_patch'>
  * OpenAI provider tool.
  */
 export function applyPatchTool(): OpenAIApplyPatchTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
-    name: 'apply_patch',
-    description: 'Apply a patch to modify files',
-    metadata: {},
-  } as unknown as OpenAIApplyPatchTool
+  return baseApplyPatchTool() as OpenAIApplyPatchTool
 }

@@ -63,6 +63,10 @@ export class OpenAICompatibleImageAdapter<
     const request = this.buildRequest(options)
 
     try {
+      options.logger.request(
+        `activity=image provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'}`,
+        { provider: this.name, model },
+      )
       const response = await this.client.images.generate({
         ...request,
         stream: false,
@@ -141,9 +145,13 @@ export class OpenAICompatibleImageAdapter<
   ): void {
     if (numberOfImages === undefined) return
 
-    if (numberOfImages < 1 || numberOfImages > 10) {
+    // The base adapter only enforces "must be at least 1". Per-provider /
+    // per-model upper bounds vary widely (some support 4, some 10, some
+    // unlimited), so concrete adapter subclasses are expected to override
+    // this method with a model-specific cap.
+    if (numberOfImages < 1) {
       throw new Error(
-        `Number of images must be between 1 and 10. Requested: ${numberOfImages}`,
+        `Number of images must be at least 1. Requested: ${numberOfImages}`,
       )
     }
   }

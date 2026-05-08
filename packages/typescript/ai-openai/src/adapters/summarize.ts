@@ -1,7 +1,6 @@
 import { OpenAICompatibleSummarizeAdapter } from '@tanstack/openai-base'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import { OpenAITextAdapter } from './text'
-import type { ChatStreamCapable } from '@tanstack/openai-base'
 import type { OpenAIChatModel } from '../model-meta'
 import type { OpenAIClientConfig } from '../utils/client'
 
@@ -36,16 +35,7 @@ export class OpenAISummarizeAdapter<
   readonly name = 'openai' as const
 
   constructor(config: OpenAISummarizeConfig, model: TModel) {
-    // The text adapter accepts richer provider options than the summarize adapter needs,
-    // but we only pass basic options (model, messages, systemPrompts, etc.) at call time.
-    super(
-      new OpenAITextAdapter(
-        config,
-        model,
-      ) as unknown as ChatStreamCapable<OpenAISummarizeProviderOptions>,
-      model,
-      'openai',
-    )
+    super(new OpenAITextAdapter(config, model), model, 'openai')
   }
 }
 

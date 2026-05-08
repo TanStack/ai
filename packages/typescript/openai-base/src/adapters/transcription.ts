@@ -1,6 +1,6 @@
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { generateId } from '@tanstack/ai-utils'
+import { base64ToArrayBuffer, generateId } from '@tanstack/ai-utils'
 import { createOpenAICompatibleClient } from '../utils/client'
 import type {
   TranscriptionOptions,
@@ -65,6 +65,10 @@ export class OpenAICompatibleTranscriptionAdapter<
       (!responseFormat && this.shouldDefaultToVerbose(model))
 
     try {
+      options.logger.request(
+        `activity=transcription provider=${this.name} model=${model} verbose=${useVerbose}`,
+        { provider: this.name, model },
+      )
       if (useVerbose) {
         const response = await this.client.audio.transcriptions.create({
           ...request,
@@ -147,13 +151,13 @@ export class OpenAICompatibleTranscriptionAdapter<
         const base64Data = parts[1] || ''
         const mimeMatch = header?.match(/data:([^;]+)/)
         const mimeType = mimeMatch?.[1] || 'audio/mpeg'
-        const bytes = this.decodeBase64(base64Data)
+        const bytes = base64ToArrayBuffer(base64Data)
         const extension = mimeType.split('/')[1] || 'mp3'
         return new File([bytes], `audio.${extension}`, { type: mimeType })
       }
 
       // Assume raw base64
-      const bytes = this.decodeBase64(audio)
+      const bytes = base64ToArrayBuffer(audio)
       return new File([bytes], 'audio.mp3', { type: 'audio/mpeg' })
     }
 
@@ -171,32 +175,6 @@ export class OpenAICompatibleTranscriptionAdapter<
           'Use Node.js 20 or newer, or pass a File object directly.',
       )
     }
-  }
-
-  /**
-   * Decodes a base64 string to an ArrayBuffer.
-   * Uses `atob` when available, falling back to `Buffer.from` in Node.js.
-   */
-  private decodeBase64(base64: string): ArrayBuffer {
-    if (typeof atob === 'function') {
-      const binaryStr = atob(base64)
-      const bytes = new Uint8Array(binaryStr.length)
-      for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i)
-      }
-      return bytes.buffer
-    }
-
-    // Node.js fallback
-    if (typeof Buffer !== 'undefined') {
-      const buf = Buffer.from(base64, 'base64')
-      return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
-    }
-
-    throw new Error(
-      'Neither `atob` nor `Buffer` is available in this environment. ' +
-        'Use a File, Blob, or ArrayBuffer input instead.',
-    )
   }
 
   /**
