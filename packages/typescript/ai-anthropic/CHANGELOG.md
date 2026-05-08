@@ -1,5 +1,11 @@
 # @tanstack/ai-anthropic
 
+## 0.8.3
+
+### Patch Changes
+
+- ([#528](https://github.com/TanStack/ai/pull/528))
+
 ## 0.8.2
 
 ### Patch Changes

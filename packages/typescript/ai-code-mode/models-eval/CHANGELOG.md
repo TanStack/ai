@@ -1,5 +1,12 @@
 # @tanstack/ai-code-mode-models-eval
 
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies [[`6b3128b`](https://github.com/TanStack/ai/commit/6b3128b7426a599c8d555db21a3cc88faf70e768)]:
+  - @tanstack/ai-anthropic@0.8.3
+
 ## 0.0.11
 
 ### Patch Changes

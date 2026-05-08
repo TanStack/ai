@@ -8,6 +8,11 @@
 import { openaiSpeech, openaiTranscription } from '@tanstack/ai-openai'
 import { geminiAudio, geminiSpeech } from '@tanstack/ai-gemini'
 import { falAudio, falSpeech, falTranscription } from '@tanstack/ai-fal'
+import {
+  elevenlabsAudio,
+  elevenlabsSpeech,
+  elevenlabsTranscription,
+} from '@tanstack/ai-elevenlabs'
 import { grokSpeech, grokTranscription } from '@tanstack/ai-grok'
 import type {
   AnyAudioAdapter,
@@ -48,6 +53,8 @@ export function buildSpeechAdapter(provider: SpeechProviderId): AnyTTSAdapter {
       return falSpeech(config.model)
     case 'grok':
       return grokSpeech(config.model as 'grok-tts')
+    case 'elevenlabs':
+      return elevenlabsSpeech(config.model)
   }
 }
 
@@ -62,6 +69,8 @@ export function buildTranscriptionAdapter(
       return falTranscription(config.model)
     case 'grok':
       return grokTranscription(config.model as 'grok-stt')
+    case 'elevenlabs':
+      return elevenlabsTranscription(config.model)
   }
 }
 
@@ -79,6 +88,9 @@ export function buildAudioAdapter(
     case 'fal-audio':
     case 'fal-sfx':
       return falAudio(model)
+    case 'elevenlabs-music':
+    case 'elevenlabs-sfx':
+      return elevenlabsAudio(model)
   }
 }
 

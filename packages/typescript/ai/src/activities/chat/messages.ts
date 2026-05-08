@@ -165,6 +165,7 @@ function isToolCallIncluded(part: ToolCallPart): boolean {
 function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   const messageList: Array<ModelMessage> = []
   let current = createSegment()
+  let pendingThinking: Array<{ content: string; signature?: string }> = []
 
   // Track emitted tool result IDs to avoid duplicates.
   // A tool call can have BOTH an explicit tool-result part AND an output
@@ -181,7 +182,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         role: 'assistant',
         content,
         ...(hasToolCalls && { toolCalls: current.toolCalls }),
+        ...(pendingThinking.length > 0 && { thinking: pendingThinking }),
       })
+      pendingThinking = []
     }
     current = createSegment()
   }
@@ -227,7 +230,15 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         }
         break
 
-      // thinking parts are skipped - they're UI-only
+      case 'thinking':
+        if (part.content) {
+          pendingThinking.push({
+            content: part.content,
+            ...(part.signature && { signature: part.signature }),
+          })
+        }
+        break
+
       default:
         break
     }
@@ -305,6 +316,17 @@ export function modelMessageToUIMessage(
   id?: string,
 ): UIMessage {
   const parts: Array<MessagePart> = []
+
+  if (modelMessage.role === 'assistant' && modelMessage.thinking?.length) {
+    for (const thinking of modelMessage.thinking) {
+      if (!thinking.content) continue
+      parts.push({
+        type: 'thinking',
+        content: thinking.content,
+        ...(thinking.signature && { signature: thinking.signature }),
+      })
+    }
+  }
 
   // Handle tool results (when role is "tool") - only produce tool-result part,
   // not a text part (the content IS the tool result, not display text)
