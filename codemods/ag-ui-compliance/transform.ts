@@ -139,6 +139,25 @@ function renameProperty(
     return 'conflict'
   }
   if (oldProp.key.type === 'Identifier') {
+    // For shorthand `{ body }`, the AST stores `key === value === Identifier('body')`
+    // (or two equal-named Identifier nodes plus `shorthand: true`). Mutating
+    // only the key would leave the printer emitting `{ forwardedProps }`,
+    // which silently references an undefined identifier in the user's
+    // scope. Expand to long form so the original `body` reference survives:
+    // `{ body }` → `{ forwardedProps: body }`.
+    const propAsAny = oldProp as unknown as {
+      shorthand?: boolean
+      value?: { type?: string; name?: string }
+    }
+    if (
+      propAsAny.shorthand &&
+      propAsAny.value?.type === 'Identifier' &&
+      propAsAny.value.name === oldName
+    ) {
+      // Leave value pointing at the original identifier; only flip
+      // `shorthand` off and rename the key.
+      propAsAny.shorthand = false
+    }
     oldProp.key.name = newName
     return 'renamed'
   }

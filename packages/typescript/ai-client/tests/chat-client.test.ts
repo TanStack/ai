@@ -1712,6 +1712,53 @@ describe('ChatClient', () => {
       expect(capturedData?.model).toBe('gpt-4o')
     })
 
+    it('updateOptions({ forwardedProps }) leaves a previously-set body intact', async () => {
+      const chunks = createTextChunks('Response')
+      const captures: Array<Record<string, any> | undefined> = []
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          captures.push(data)
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        body: { provider: 'openai' },
+        forwardedProps: { model: 'gpt-4' },
+      })
+
+      // Replace only `forwardedProps` — `body` must survive.
+      client.updateOptions({ forwardedProps: { model: 'gpt-4o' } })
+
+      await client.sendMessage('Hi')
+      expect(captures[0]?.provider).toBe('openai')
+      expect(captures[0]?.model).toBe('gpt-4o')
+    })
+
+    it('updateOptions({ body }) leaves a previously-set forwardedProps intact', async () => {
+      const chunks = createTextChunks('Response')
+      const captures: Array<Record<string, any> | undefined> = []
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          captures.push(data)
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        body: { provider: 'openai' },
+        forwardedProps: { model: 'gpt-4' },
+      })
+
+      client.updateOptions({ body: { provider: 'anthropic' } })
+
+      await client.sendMessage('Hi')
+      expect(captures[0]?.provider).toBe('anthropic')
+      expect(captures[0]?.model).toBe('gpt-4')
+    })
+
     it('should merge body and forwardedProps with forwardedProps winning', async () => {
       const chunks = createTextChunks('Response')
       let capturedData: Record<string, any> | undefined

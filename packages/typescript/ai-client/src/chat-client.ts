@@ -31,7 +31,12 @@ export class ChatClient {
   private connection: SubscribeConnectionAdapter
   private uniqueId: string
   private threadId: string
-  private body: Record<string, any> = {}
+  // Track the legacy `body` option and the canonical `forwardedProps`
+  // option as separate slots so that `updateOptions({ forwardedProps })`
+  // doesn't wipe a previously-set `body` (and vice versa). They are
+  // merged on every send, with `forwardedProps` winning on key collision.
+  private bodyOption: Record<string, any> = {}
+  private forwardedPropsOption: Record<string, any> = {}
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private isLoading = false
   private isSubscribed = false
@@ -83,11 +88,13 @@ export class ChatClient {
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
-    // Merge legacy `body` with new `forwardedProps`. Both populate the
-    // AG-UI `RunAgentInput.forwardedProps` wire field. `forwardedProps`
-    // wins on key collision so users migrating individual fields are
-    // not surprised by stale `body` values shadowing their new ones.
-    this.body = { ...(options.body || {}), ...(options.forwardedProps || {}) }
+    // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
+    // `RunAgentInput.forwardedProps` wire field. They are stored
+    // separately so `updateOptions` can replace one without touching the
+    // other; the merge happens at send time, with `forwardedProps`
+    // winning on key collision.
+    this.bodyOption = options.body || {}
+    this.forwardedPropsOption = options.forwardedProps || {}
     this.connection = normalizeConnectionAdapter(options.connection)
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
@@ -592,14 +599,18 @@ export class ChatClient {
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
 
-      // Merge body: base body + per-message body (per-message takes priority).
+      // Merge sources for the wire `forwardedProps` field, in priority
+      // order (later spreads win):
+      //   1. Legacy `body` option (deprecated).
+      //   2. Canonical `forwardedProps` option (wins over `body`).
+      //   3. Per-message `body` arg passed to `sendMessage` (highest).
       // The AG-UI standard `threadId` is sent at the wire's top level for
       // run/conversation correlation, so we no longer auto-emit a separate
       // `conversationId` here — `chat({ threadId })` server-side covers the
-      // same role for devtools/observability. User-set values still pass
-      // through `forwardedProps` unchanged.
+      // same role for devtools/observability.
       const mergedBody = {
-        ...this.body,
+        ...this.bodyOption,
+        ...this.forwardedPropsOption,
         ...this.pendingMessageBody,
       }
 
@@ -1040,13 +1051,14 @@ export class ChatClient {
         this.subscribe()
       }
     }
-    if (options.body !== undefined || options.forwardedProps !== undefined) {
-      // Merge the same way the constructor does; either side may be
-      // omitted, in which case it contributes nothing.
-      this.body = {
-        ...(options.body ?? {}),
-        ...(options.forwardedProps ?? {}),
-      }
+    // Replace each slot independently so callers can update one without
+    // wiping the other. (Passing `undefined` for either field is a "leave
+    // unchanged" signal — to clear a slot, pass an empty object `{}`.)
+    if (options.body !== undefined) {
+      this.bodyOption = options.body
+    }
+    if (options.forwardedProps !== undefined) {
+      this.forwardedPropsOption = options.forwardedProps
     }
     if (options.tools !== undefined) {
       this.clientToolsRef.current = new Map()
