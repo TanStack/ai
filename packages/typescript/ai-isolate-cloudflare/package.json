@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-isolate-cloudflare",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "description": "Cloudflare Workers driver for TanStack AI Code Mode - execute code on the edge",
   "author": "",
   "license": "MIT",
@@ -35,7 +35,7 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "dev:worker": "node dev-server.mjs",
+    "dev:worker": "wrangler dev",
     "deploy:worker": "wrangler deploy",
     "lint:fix": "eslint ./src --fix",
     "test:build": "publint --strict",
@@ -59,8 +59,6 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241230.0",
     "@vitest/coverage-v8": "4.0.14",
-    "esbuild": "^0.25.12",
-    "miniflare": "^4.20260305.0",
-    "wrangler": "^4.19.1"
+    "wrangler": "^4.88.0"
   }
 }

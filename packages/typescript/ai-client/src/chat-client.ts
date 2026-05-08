@@ -167,7 +167,11 @@ export class ChatClient {
             this.events.textUpdated(this.currentStreamId, messageId, content)
           }
         },
-        onThinkingUpdate: (messageId: string, content: string) => {
+        onThinkingUpdate: (
+          messageId: string,
+          _stepId: string,
+          content: string,
+        ) => {
           // Emit thinking update to devtools
           if (this.currentStreamId) {
             this.events.thinkingUpdated(
@@ -588,6 +592,10 @@ export class ChatClient {
     this.setError(undefined)
     this.errorReportedGeneration = null
     this.abortController = new AbortController()
+    // Capture the signal immediately so that a concurrent stop() or
+    // sendMessage() that reassigns this.abortController cannot cause
+    // connect() to receive a stale or null signal.
+    const signal = this.abortController.signal
     // Reset pending tool executions for the new stream
     this.pendingToolExecutions.clear()
     let streamCompletedSuccessfully = false
@@ -598,6 +606,15 @@ export class ChatClient {
 
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
+
+      // If the stream was cancelled during the onResponse await (e.g. stop()
+      // from a callback or unmount, or reload() superseding this stream),
+      // bail out before allocating waitForProcessing() — otherwise the
+      // resolveProcessing() that ran during cancellation is a no-op and the
+      // await processingComplete below would deadlock.
+      if (signal.aborted) {
+        return false
+      }
 
       // Merge sources for the wire `forwardedProps` field, in priority
       // order (later spreads win):
@@ -649,12 +666,7 @@ export class ChatClient {
       }
 
       // Send through normalized connection (pushes chunks to subscription queue)
-      await this.connection.send(
-        messages,
-        mergedBody,
-        this.abortController.signal,
-        runContext,
-      )
+      await this.connection.send(messages, mergedBody, signal, runContext)
 
       // Wait for subscription loop to finish processing all chunks
       await processingComplete
