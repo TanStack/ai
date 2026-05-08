@@ -59,10 +59,7 @@ interface ImportFacts {
   hasChat: boolean
 }
 
-function collectImportFacts(
-  j: JSCodeshift,
-  root: Collection,
-): ImportFacts {
+function collectImportFacts(j: JSCodeshift, root: Collection): ImportFacts {
   const facts: ImportFacts = {
     hasUseChat: false,
     hasChatClient: false,
@@ -82,7 +79,10 @@ function collectImportFacts(
       }
     }
 
-    if (FRAMEWORK_USE_CHAT_PACKAGES.has(source) && importedNames.has('useChat')) {
+    if (
+      FRAMEWORK_USE_CHAT_PACKAGES.has(source) &&
+      importedNames.has('useChat')
+    ) {
       facts.hasUseChat = true
     }
     if (source === CLIENT_PACKAGE && importedNames.has('ChatClient')) {
@@ -107,10 +107,7 @@ function collectImportFacts(
  * Find a Property by its (Identifier) key name on an ObjectExpression.
  * Skips spread elements, computed keys, and non-Identifier shorthand keys.
  */
-function findKey(
-  obj: ObjectExpression,
-  name: string,
-): Property | undefined {
+function findKey(obj: ObjectExpression, name: string): Property | undefined {
   for (const prop of obj.properties) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue
     if (prop.computed) continue

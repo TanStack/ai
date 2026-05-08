@@ -6,8 +6,8 @@ Each codemod lives in its own subdirectory and is named after the migration it c
 
 ## Available codemods
 
-| Codemod | Migrates |
-|---|---|
+| Codemod                                  | Migrates                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`ag-ui-compliance`](./ag-ui-compliance) | Client-side renames introduced by the AG-UI client/server compliance release: `body` → `forwardedProps` on `useChat` / `ChatClient` / `updateOptions`, Svelte's `updateBody` → `updateForwardedProps`, and `chat({ conversationId })` → `chat({ threadId })`. |
 
 ## Running a codemod

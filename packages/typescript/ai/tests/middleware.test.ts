@@ -1239,9 +1239,13 @@ describe('chat() middleware', () => {
   // threadId / conversationId propagation
   // ==========================================================================
   describe('threadId / conversationId', () => {
-    const runChatWithMiddleware = async (
-      params: { threadId?: string; conversationId?: string },
-    ): Promise<{ ctxThreadId: string | undefined; ctxConvId: string | undefined }> => {
+    const runChatWithMiddleware = async (params: {
+      threadId?: string
+      conversationId?: string
+    }): Promise<{
+      ctxThreadId: string | undefined
+      ctxConvId: string | undefined
+    }> => {
       let ctxThreadId: string | undefined
       let ctxConvId: string | undefined
       const { adapter } = createMockAdapter({

@@ -6,13 +6,13 @@ Migrates client-side TanStack AI code from the legacy field names to the AG-UI�
 
 ## What it does
 
-| Before | After |
-|---|---|
-| `useChat({ body: {...} })` | `useChat({ forwardedProps: {...} })` |
-| `new ChatClient({ body: {...} })` | `new ChatClient({ forwardedProps: {...} })` |
+| Before                                  | After                                             |
+| --------------------------------------- | ------------------------------------------------- |
+| `useChat({ body: {...} })`              | `useChat({ forwardedProps: {...} })`              |
+| `new ChatClient({ body: {...} })`       | `new ChatClient({ forwardedProps: {...} })`       |
 | `client.updateOptions({ body: {...} })` | `client.updateOptions({ forwardedProps: {...} })` |
-| `chat.updateBody(x)` *(Svelte)* | `chat.updateForwardedProps(x)` |
-| `chat({ conversationId: x })` | `chat({ threadId: x })` |
+| `chat.updateBody(x)` _(Svelte)_         | `chat.updateForwardedProps(x)`                    |
+| `chat({ conversationId: x })`           | `chat({ threadId: x })`                           |
 
 Each rename is gated by an **import-source check** — the codemod only rewrites a call site if the relevant identifier (`useChat`, `ChatClient`, etc.) is imported from a known TanStack AI package in the same file. Files that just happen to use a `body` key on unrelated object literals are left untouched.
 
@@ -20,7 +20,7 @@ Each rename is gated by an **import-source check** — the codemod only rewrites
 
 - **Server-side `body.data.X` rewrites.** Detecting which `body.data.foo` reads belong to a TanStack AI route handler vs. unrelated code requires more context than a syntactic codemod can reliably provide. Migrate these by hand using the recipes in [`docs/migration/ag-ui-compliance.md`](../../docs/migration/ag-ui-compliance.md).
 - **Re-exports and aliases.** If you re-export `useChat` from a barrel file (`export { useChat } from '@tanstack/ai-react'`), call sites that import the re-export won't be matched. Update the import to come directly from the framework package, or run the codemod against the barrel file too.
-- **`chat({ conversationId: <expr> })` value-source rewrites.** The codemod renames the property *key* `conversationId` → `threadId` but does NOT rewrite the value expression. If your server reads from a now-stale source (commonly `body.forwardedProps?.conversationId`, which the upgraded client no longer auto-emits), audit the value after the codemod runs and migrate to `body.threadId` (the AG-UI top-level wire field), `params.threadId` from `chatParamsFromRequest`, or omit `threadId` entirely so the runtime auto-generates one.
+- **`chat({ conversationId: <expr> })` value-source rewrites.** The codemod renames the property _key_ `conversationId` → `threadId` but does NOT rewrite the value expression. If your server reads from a now-stale source (commonly `body.forwardedProps?.conversationId`, which the upgraded client no longer auto-emits), audit the value after the codemod runs and migrate to `body.threadId` (the AG-UI top-level wire field), `params.threadId` from `chatParamsFromRequest`, or omit `threadId` entirely so the runtime auto-generates one.
 
 ## Running it
 
