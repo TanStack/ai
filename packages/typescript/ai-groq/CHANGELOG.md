@@ -1,5 +1,12 @@
 # @tanstack/ai-groq
 
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [[`a4e2c55`](https://github.com/TanStack/ai/commit/a4e2c55a79490c2245ff2de2d3e1803a533c867b), [`82078bd`](https://github.com/TanStack/ai/commit/82078bdabe28d7d4a15a2847d667f363bf0a9cbe), [`b2d3cc1`](https://github.com/TanStack/ai/commit/b2d3cc131a31c54bd1e5841f958fbe333514e508)]:
+  - @tanstack/ai@0.15.0
+
 ## 0.1.8
 
 ### Patch Changes
