@@ -156,7 +156,9 @@ function ChatFeature({
   // `mode=json` exercises the toJSONResponse → fetchJSON roundtrip used by
   // non-streaming runtimes (Expo, certain edge proxies). Default stays SSE.
   const connection =
-    mode === 'json' ? fetchJSON('/api/chat-json') : fetchServerSentEvents('/api/chat')
+    mode === 'json'
+      ? fetchJSON('/api/chat-json')
+      : fetchServerSentEvents('/api/chat')
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
