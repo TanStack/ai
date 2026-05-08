@@ -589,7 +589,7 @@ importers:
         version: 0.561.0(react@19.2.3)
       nitro:
         specifier: latest
-        version: 3.0.260415-beta(chokidar@5.0.0)(dotenv@17.2.3)(giget@2.0.0)(jiti@2.6.1)(miniflare@4.20260504.0)(rollup@4.60.1)(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+        version: 3.0.260429-beta(chokidar@5.0.0)(dotenv@17.2.3)(giget@2.0.0)(jiti@2.6.1)(miniflare@4.20260504.0)(rollup@4.60.1)(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       radix-ui:
         specifier: ^1.4.3
         version: 1.4.3(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1672,6 +1672,9 @@ importers:
       '@copilotkit/aimock':
         specifier: ^1.18.0
         version: 1.18.0(vitest@4.1.4(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jsdom@27.3.0(postcss@8.5.9))(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)))
+      '@openrouter/sdk':
+        specifier: 0.12.14
+        version: 0.12.14
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.1
@@ -9513,16 +9516,16 @@ packages:
       xml2js:
         optional: true
 
-  nitro@3.0.260415-beta:
-    resolution: {integrity: sha512-J0ntJERWtIdvweZdmkCiF8eOFvP9fIAJR2gpeIDrHbAlYavK41WQfADo/YoZ/LF7RMTZBiPaH/pt2s/nPru9Iw==}
+  nitro@3.0.260429-beta:
+    resolution: {integrity: sha512-KweLVCUN5X9v9g+4yxAyRcz3FcOlnjmt9FyrAIWDxJETJmNT7I0JV0clgsONjo2nI0U5gwedXYA3RaNtF5XWzg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
-      '@vercel/queue': ^0.1.4
+      '@vercel/queue': ^0.1.6
       dotenv: '*'
       giget: '*'
       jiti: ^2.6.1
-      rollup: ^4.60.1
+      rollup: ^4.60.2
       vite: ^7 || ^8
       xml2js: ^0.6.2
       zephyr-agent: ^0.2.0
@@ -20737,7 +20740,7 @@ snapshots:
       - sqlite3
       - uploadthing
 
-  nitro@3.0.260415-beta(chokidar@5.0.0)(dotenv@17.2.3)(giget@2.0.0)(jiti@2.6.1)(miniflare@4.20260504.0)(rollup@4.60.1)(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)):
+  nitro@3.0.260429-beta(chokidar@5.0.0)(dotenv@17.2.3)(giget@2.0.0)(jiti@2.6.1)(miniflare@4.20260504.0)(rollup@4.60.1)(vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
       consola: 3.4.2
       crossws: 0.4.5(srvx@0.11.15)

@@ -7,6 +7,7 @@ import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -87,15 +88,28 @@ export function createTextAdapter(
           defaultHeaders: testHeaders,
         }),
       }),
-    openrouter: () =>
-      createChatOptions({
+    openrouter: () => {
+      // OpenRouter SDK exposes an HTTPClient with beforeRequest hooks. Use
+      // that to inject X-Test-Id, since `defaultHeaders` isn't supported and
+      // the SDK strips query params off `serverURL` when building per-request
+      // URLs (it does `new URL(path, baseURL)` which drops the search), so
+      // the previous `?testId=...` trick never actually reached aimock and
+      // multiple openrouter tests collided on the `__default__` test bucket.
+      const httpClient = new HTTPClient()
+      if (testId) {
+        httpClient.addHook('beforeRequest', (req) => {
+          const next = new Request(req)
+          next.headers.set('X-Test-Id', testId)
+          return next
+        })
+      }
+      return createChatOptions({
         adapter: createOpenRouterText(model as 'openai/gpt-4o', DUMMY_KEY, {
-          // OpenRouter SDK doesn't support defaultHeaders, so pass testId via query param
-          serverURL: testId
-            ? `${openaiUrl}?testId=${encodeURIComponent(testId)}`
-            : openaiUrl,
+          serverURL: openaiUrl,
+          httpClient,
         }),
-      }),
+      })
+    },
     elevenlabs: () => {
       throw new Error(
         'ElevenLabs has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',

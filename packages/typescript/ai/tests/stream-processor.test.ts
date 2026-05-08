@@ -1526,6 +1526,32 @@ describe('StreamProcessor', () => {
   // Edge cases
   // ==========================================================================
   describe('edge cases', () => {
+    it('TOOL_CALL_START with only the deprecated `toolName` field should still produce a named tool-call part (issue #532)', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      // Some chunk producers (notably the agent loop's continuation re-emit
+      // before the fix) only set the deprecated alias `toolName`. The
+      // processor must fall back to it so the resulting tool-call part has
+      // a defined `name` — otherwise the next outbound request fails with
+      // `tool_use.name: String should have at least 1 character` at Anthropic.
+      processor.processChunk({
+        type: 'TOOL_CALL_START',
+        timestamp: Date.now(),
+        toolCallId: 'tc-1',
+        toolName: 'legacyTool',
+        // toolCallName intentionally omitted
+      } as any)
+
+      const state = processor.getState()
+      expect(state.toolCalls.get('tc-1')?.name).toBe('legacyTool')
+
+      const toolPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-call')
+      expect(toolPart && (toolPart as any).name).toBe('legacyTool')
+    })
+
     it('duplicate TOOL_CALL_START with same toolCallId should be a no-op', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()

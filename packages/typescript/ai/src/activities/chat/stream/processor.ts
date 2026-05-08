@@ -928,7 +928,13 @@ export class StreamProcessor {
       // New tool call starting
       const initialState: ToolCallState = 'awaiting-input'
 
-      const toolName = chunk.toolCallName
+      // `toolName` is a deprecated alias for `toolCallName` (see ToolCallStartEvent
+      // in types.ts). Accept either so chunks from older code paths or any
+      // adapter that only sets the deprecated field still produce a named part.
+      // The type marks both as required strings, but in practice some emitters
+      // only set one — fall back via the runtime value rather than the type.
+      const toolName =
+        (chunk as { toolCallName?: string }).toolCallName ?? chunk.toolName
 
       const newToolCall: InternalToolCallState = {
         id: chunk.toolCallId,
