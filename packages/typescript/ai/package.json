@@ -57,7 +57,8 @@
         "types": "./dist/cjs/adapter-internals.d.cts",
         "default": "./dist/cjs/adapter-internals.cjs"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "sideEffects": false,
   "engines": {

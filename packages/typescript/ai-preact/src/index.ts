@@ -9,6 +9,7 @@ export type {
 export {
   fetchServerSentEvents,
   fetchHttpStream,
+  fetchJSON,
   stream,
   createChatClientOptions,
   type ConnectionAdapter,

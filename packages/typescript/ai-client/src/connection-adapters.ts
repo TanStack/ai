@@ -481,18 +481,45 @@ export function fetchJSON(
       })
 
       if (!response.ok) {
+        // Surface the response body so upstream diagnostic info (e.g. an
+        // OpenAI/Anthropic rate-limit JSON, a gateway HTML error page) isn't
+        // hidden behind a generic "status 500" message.
+        let bodySnippet = ''
+        try {
+          const text = await response.text()
+          bodySnippet = text.length > 500 ? `${text.slice(0, 500)}…` : text
+        } catch {
+          // body unreadable, fall through with status only
+        }
         throw new Error(
-          `HTTP error! status: ${response.status} ${response.statusText}`,
+          `HTTP error! status: ${response.status} ${response.statusText}${
+            bodySnippet ? ` — ${bodySnippet}` : ''
+          }`,
         )
       }
 
-      const payload = (await response.json()) as unknown
+      // Wrap JSON parsing so a non-JSON body (e.g. HTML gateway error page)
+      // produces an actionable error instead of "Unexpected token < in JSON".
+      let payload: unknown
+      try {
+        payload = await response.json()
+      } catch (err) {
+        const cause = err instanceof Error ? err.message : String(err)
+        throw new Error(
+          `fetchJSON: failed to parse response body as JSON from ${resolvedUrl} (status ${response.status}): ${cause}`,
+          { cause: err },
+        )
+      }
       if (!Array.isArray(payload)) {
         throw new Error(
           'fetchJSON: expected response body to be a JSON array of StreamChunks. Did you forget to use `toJSONResponse(stream)` on the server?',
         )
       }
       for (const chunk of payload) {
+        // Honor late aborts: the payload is fully buffered, so the consumer
+        // may have torn down before we drained — bail rather than push more
+        // chunks into an abandoned pipeline.
+        if (abortSignal?.aborted) return
         yield chunk as StreamChunk
       }
     },

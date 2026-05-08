@@ -20,6 +20,7 @@ import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
+import { Route as ApiChatJsonRouteImport } from './routes/api.chat-json'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
@@ -84,6 +85,11 @@ const ApiImageRoute = ApiImageRouteImport.update({
   path: '/api/image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatJsonRoute = ApiChatJsonRouteImport.update({
+  id: '/api/chat-json',
+  path: '/api/chat-json',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-json': typeof ApiChatJsonRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-json': typeof ApiChatJsonRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-json': typeof ApiChatJsonRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -198,6 +207,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/audio'
     | '/api/chat'
+    | '/api/chat-json'
     | '/api/image'
     | '/api/middleware-test'
     | '/api/summarize'
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/audio'
     | '/api/chat'
+    | '/api/chat-json'
     | '/api/image'
     | '/api/middleware-test'
     | '/api/summarize'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/$provider/$feature'
     | '/api/audio'
     | '/api/chat'
+    | '/api/chat-json'
     | '/api/image'
     | '/api/middleware-test'
     | '/api/summarize'
@@ -262,6 +274,7 @@ export interface RootRouteChildren {
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
+  ApiChatJsonRoute: typeof ApiChatJsonRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -349,6 +362,13 @@ declare module '@tanstack/react-router' {
       path: '/api/image'
       fullPath: '/api/image'
       preLoaderRoute: typeof ApiImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat-json': {
+      id: '/api/chat-json'
+      path: '/api/chat-json'
+      fullPath: '/api/chat-json'
+      preLoaderRoute: typeof ApiChatJsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -475,6 +495,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
+  ApiChatJsonRoute: ApiChatJsonRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { clientTools } from '@tanstack/ai-client'
+import { clientTools, fetchJSON } from '@tanstack/ai-client'
 import type { Feature, Mode, Provider } from '@/lib/types'
 import { ALL_PROVIDERS } from '@/lib/types'
 import { isSupported } from '@/lib/feature-support'
@@ -67,7 +67,7 @@ function FeaturePage() {
     )
   }
 
-  return <ChatFeature provider={provider} feature={feature} />
+  return <ChatFeature provider={provider} feature={feature} mode={mode} />
 }
 
 function MediaFeature({
@@ -139,9 +139,11 @@ function MediaFeature({
 function ChatFeature({
   provider,
   feature,
+  mode,
 }: {
   provider: Provider
   feature: Feature
+  mode?: Mode
 }) {
   const needsApproval = feature === 'tool-approval'
   const showImageInput =
@@ -151,9 +153,14 @@ function ChatFeature({
 
   const { testId, aimockPort } = Route.useSearch()
 
+  // `mode=json` exercises the toJSONResponse → fetchJSON roundtrip used by
+  // non-streaming runtimes (Expo, certain edge proxies). Default stays SSE.
+  const connection =
+    mode === 'json' ? fetchJSON('/api/chat-json') : fetchServerSentEvents('/api/chat')
+
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: fetchServerSentEvents('/api/chat'),
+      connection,
       tools,
       body: { provider, feature, testId, aimockPort },
     })

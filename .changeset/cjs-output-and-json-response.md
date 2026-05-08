@@ -2,6 +2,11 @@
 '@tanstack/ai': minor
 '@tanstack/ai-client': minor
 '@tanstack/ai-event-client': patch
+'@tanstack/ai-react': patch
+'@tanstack/ai-preact': patch
+'@tanstack/ai-solid': patch
+'@tanstack/ai-vue': patch
+'@tanstack/ai-svelte': patch
 ---
 
 **Dual ESM + CJS output.** `@tanstack/ai`, `@tanstack/ai-client`, and `@tanstack/ai-event-client` now ship both ESM and CJS builds with type-aware dual `exports` maps (`import` → `./dist/esm/*.js`, `require` → `./dist/cjs/*.cjs`), plus a `main` field pointing at CJS. Fixes Metro / Expo / CJS-only resolvers that previously couldn't find `@tanstack/ai/adapters` or `@tanstack/ai-client` because the packages were ESM-only (#308).

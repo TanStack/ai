@@ -924,6 +924,32 @@ describe('toJSONResponse', () => {
     )
   })
 
+  it('does not abort the supplied controller when the stream drains successfully', async () => {
+    const abortController = new AbortController()
+    const abortSpy = vi.spyOn(abortController, 'abort')
+
+    const chunks: Array<Record<string, unknown>> = [
+      { type: 'RUN_STARTED', runId: 'r1', model: 'test', timestamp: 1 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'm1',
+        model: 'test',
+        timestamp: 2,
+        delta: 'ok',
+        content: 'ok',
+      },
+      { type: 'RUN_FINISHED', runId: 'r1', model: 'test', timestamp: 3 },
+    ]
+
+    const response = await toJSONResponse(createMockStream(chunks), {
+      abortController,
+    })
+
+    expect(await response.json()).toEqual(chunks)
+    expect(abortSpy).not.toHaveBeenCalled()
+    expect(abortController.signal.aborted).toBe(false)
+  })
+
   it('aborts the supplied controller and rethrows if the upstream errors', async () => {
     const abortController = new AbortController()
     const abortSpy = vi.spyOn(abortController, 'abort')
