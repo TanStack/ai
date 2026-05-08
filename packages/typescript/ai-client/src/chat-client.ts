@@ -1,5 +1,6 @@
 import {
   StreamProcessor,
+  convertSchemaToJsonSchema,
   generateMessageId,
   normalizeToUIMessage,
 } from '@tanstack/ai'
@@ -167,11 +168,7 @@ export class ChatClient {
             this.events.textUpdated(this.currentStreamId, messageId, content)
           }
         },
-        onThinkingUpdate: (
-          messageId: string,
-          _stepId: string,
-          content: string,
-        ) => {
+        onThinkingUpdate: (messageId: string, content: string) => {
           // Emit thinking update to devtools
           if (this.currentStreamId) {
             this.events.thinkingUpdated(
@@ -652,6 +649,11 @@ export class ChatClient {
       // Build per-send run context for AG-UI compliance
       // Note: mergedBody already contains the merged this.body + pendingMessageBody
       // (pendingMessageBody was cleared above, so we use mergedBody as forwardedProps)
+      // Convert each client tool's `inputSchema` (a Standard Schema:
+      // Zod, ArkType, Valibot, etc.) to JSON Schema for the wire. Foreign
+      // AG-UI servers consuming `RunAgentInput.tools[].parameters` expect
+      // JSON Schema; sending a Standard Schema instance directly would
+      // serialize to an unusable shape.
       const runContext = {
         threadId: this.threadId,
         runId: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -659,7 +661,9 @@ export class ChatClient {
           (t) => ({
             name: t.name,
             description: t.description,
-            parameters: t.inputSchema || { type: 'object' },
+            parameters: t.inputSchema
+              ? convertSchemaToJsonSchema(t.inputSchema)
+              : { type: 'object' },
           }),
         ),
         forwardedProps: { ...mergedBody },

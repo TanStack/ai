@@ -53,8 +53,8 @@ interface ImportFacts {
   hasUseChat: boolean
   /** Whether `ChatClient` is imported from `@tanstack/ai-client`. */
   hasChatClient: boolean
-  /** Whether anything is imported from `@tanstack/ai-svelte`. */
-  hasSvelte: boolean
+  /** Whether `createChat` is imported from `@tanstack/ai-svelte`. */
+  hasCreateChat: boolean
   /** Whether `chat` is imported from `@tanstack/ai`. */
   hasChat: boolean
 }
@@ -66,7 +66,7 @@ function collectImportFacts(
   const facts: ImportFacts = {
     hasUseChat: false,
     hasChatClient: false,
-    hasSvelte: false,
+    hasCreateChat: false,
     hasChat: false,
   }
 
@@ -88,8 +88,12 @@ function collectImportFacts(
     if (source === CLIENT_PACKAGE && importedNames.has('ChatClient')) {
       facts.hasChatClient = true
     }
-    if (source === SVELTE_PACKAGE) {
-      facts.hasSvelte = true
+    // Gate the Svelte `updateBody` rename on the specific `createChat`
+    // import name, not "any import from the package" — otherwise an
+    // unrelated `.updateBody(...)` call elsewhere in the same file
+    // (a form helper, custom store, etc.) would be silently rewritten.
+    if (source === SVELTE_PACKAGE && importedNames.has('createChat')) {
+      facts.hasCreateChat = true
     }
     if (source === CORE_PACKAGE && importedNames.has('chat')) {
       facts.hasChat = true
@@ -219,7 +223,7 @@ export default function transform(
   if (
     !facts.hasUseChat &&
     !facts.hasChatClient &&
-    !facts.hasSvelte &&
+    !facts.hasCreateChat &&
     !facts.hasChat
   ) {
     return file.source
@@ -293,7 +297,7 @@ export default function transform(
   }
 
   // 4. chat.updateBody(x) → chat.updateForwardedProps(x)
-  if (facts.hasSvelte) {
+  if (facts.hasCreateChat) {
     root.find(j.MemberExpression).forEach((path) => {
       if (path.node.computed) return
       if (path.node.property.type !== 'Identifier') return

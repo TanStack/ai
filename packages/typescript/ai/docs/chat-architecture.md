@@ -83,7 +83,7 @@ Each entry in `messages` is either:
 
 On the server, `chatParamsFromRequestBody` validates the body and returns the parsed fields. `convertMessagesToModelMessages` (called inside `chat()`) handles dedup: when an anchor's `parts` already contain a `tool-result`, the matching fan-out tool message is dropped from the `ModelMessage[]` fed to the LLM. `reasoning` and `activity` messages are dropped (no `ModelMessage` equivalent today); `developer` messages collapse to `system`.
 
-For the migration story when upgrading, see `docs/migration/ag-ui-compliance.md`.
+For the migration story when upgrading, see [`docs/migration/ag-ui-compliance.md`](../../../../docs/migration/ag-ui-compliance.md).
 
 ---
 

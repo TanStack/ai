@@ -20,6 +20,7 @@ Each rename is gated by an **import-source check** — the codemod only rewrites
 
 - **Server-side `body.data.X` rewrites.** Detecting which `body.data.foo` reads belong to a TanStack AI route handler vs. unrelated code requires more context than a syntactic codemod can reliably provide. Migrate these by hand using the recipes in [`docs/migration/ag-ui-compliance.md`](../../docs/migration/ag-ui-compliance.md).
 - **Re-exports and aliases.** If you re-export `useChat` from a barrel file (`export { useChat } from '@tanstack/ai-react'`), call sites that import the re-export won't be matched. Update the import to come directly from the framework package, or run the codemod against the barrel file too.
+- **`chat({ conversationId: <expr> })` value-source rewrites.** The codemod renames the property *key* `conversationId` → `threadId` but does NOT rewrite the value expression. If your server reads from a now-stale source (commonly `body.forwardedProps?.conversationId`, which the upgraded client no longer auto-emits), audit the value after the codemod runs and migrate to `body.threadId` (the AG-UI top-level wire field), `params.threadId` from `chatParamsFromRequest`, or omit `threadId` entirely so the runtime auto-generates one.
 
 ## Running it
 
@@ -51,7 +52,7 @@ pnpm codemod:ag-ui-compliance "examples/**/*.{ts,tsx}"
 
 If an object literal already declares **both** the legacy and the canonical key — for example, `useChat({ body: {...}, forwardedProps: {...} })` — the codemod leaves it alone and prints a warning of the form:
 
-```
+```text
 [ag-ui-compliance] path/to/file.tsx:42 — useChat({ body }): both legacy
   and canonical keys are already present; left alone. Merge by hand.
 ```

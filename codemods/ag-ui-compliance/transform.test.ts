@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import jscodeshift from 'jscodeshift'
+import { describe, expect, it } from 'vitest'
 import transform from './transform'
 
 const __filename = fileURLToPath(import.meta.url)

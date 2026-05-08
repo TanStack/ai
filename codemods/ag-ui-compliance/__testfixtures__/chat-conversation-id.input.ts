@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   const stream = chat({
     adapter: openaiText('gpt-4o'),
     messages: body.messages,
-    conversationId: body.forwardedProps?.conversationId,
+    conversationId: body.threadId,
   })
   return toServerSentEventsResponse(stream)
 }

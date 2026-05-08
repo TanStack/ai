@@ -10,7 +10,7 @@
     "ag-ui-compliance": "node ./run.mjs ag-ui-compliance"
   },
   "devDependencies": {
-    "@types/jscodeshift": "^0.12.0",
+    "@types/jscodeshift": "^17.1.1",
     "@types/node": "^24.10.1",
     "jscodeshift": "^17.1.1",
     "typescript": "5.9.3",
