@@ -5,7 +5,7 @@ title: ToolCallStartEvent
 
 # Interface: ToolCallStartEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:894](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L894)
+Defined in: [packages/typescript/ai/src/types.ts:897](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L897)
 
 Emitted when a tool call starts.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `providerMe
 optional index: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:903](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L903)
+Defined in: [packages/typescript/ai/src/types.ts:906](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L906)
 
 Index for parallel tool calls
 
@@ -42,7 +42,7 @@ Index for parallel tool calls
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:896](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L896)
+Defined in: [packages/typescript/ai/src/types.ts:899](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L899)
 
 Model identifier for multi-model support
 
@@ -54,7 +54,7 @@ Model identifier for multi-model support
 optional providerMetadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:905](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L905)
+Defined in: [packages/typescript/ai/src/types.ts:908](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L908)
 
 Provider-specific metadata to carry into the ToolCall
 
@@ -66,7 +66,7 @@ Provider-specific metadata to carry into the ToolCall
 toolName: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:901](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L901)
+Defined in: [packages/typescript/ai/src/types.ts:904](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L904)
 
 #### Deprecated
 

@@ -5,7 +5,7 @@ title: CustomEvent
 
 # Interface: CustomEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1042](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1042)
+Defined in: [packages/typescript/ai/src/types.ts:1047](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1047)
 
 Custom event for extensibility.
 
@@ -30,6 +30,6 @@ TanStack AI adds: `model?`
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1044](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1044)
+Defined in: [packages/typescript/ai/src/types.ts:1049](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1049)
 
 Model identifier for multi-model support

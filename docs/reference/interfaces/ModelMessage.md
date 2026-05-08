@@ -45,6 +45,28 @@ Defined in: [packages/typescript/ai/src/types.ts:295](https://github.com/TanStac
 
 ***
 
+### thinking?
+
+```ts
+optional thinking: object[];
+```
+
+Defined in: [packages/typescript/ai/src/types.ts:300](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L300)
+
+#### content
+
+```ts
+content: string;
+```
+
+#### signature?
+
+```ts
+optional signature: string;
+```
+
+***
+
 ### toolCallId?
 
 ```ts
