@@ -6,6 +6,7 @@ const MIDDLEWARE_MODES = [
   { id: 'none', label: 'No Middleware' },
   { id: 'chunk-transform', label: 'Chunk Transform (prefix text)' },
   { id: 'tool-skip', label: 'Tool Skip (skip with custom result)' },
+  { id: 'otel', label: 'OpenTelemetry (capture spans/metrics)' },
 ] as const
 
 export const Route = createFileRoute('/middleware-test')({

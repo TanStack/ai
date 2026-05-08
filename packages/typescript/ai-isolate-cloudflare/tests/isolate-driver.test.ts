@@ -233,6 +233,70 @@ describe('createCloudflareIsolateDriver', () => {
       expect(body2.toolResults!['add_1']).toEqual({ success: true, value: 5 })
     })
 
+    it('accumulates toolResults across rounds for sequential tool calls', async () => {
+      // Reproduces a real bug: when user code calls two tools sequentially
+      // (e.g. `await A(); await B();`), wrap-code re-runs from the start each
+      // round and re-derives sequential `tc_<idx>` ids. If the driver wipes
+      // toolResults between rounds, round 3 misses tc_0, the wrapper re-throws,
+      // and the loop ping-pongs between {tc_0} and {tc_1} until MaxRoundsExceeded.
+      const a = makeBinding('A', async () => 'a')
+      const b = makeBinding('B', async () => 'b')
+
+      // Round 1: code re-runs, throws on tc_0
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () =>
+          ({
+            status: 'need_tools',
+            toolCalls: [{ id: 'tc_0', name: 'A', args: {} }],
+            logs: [],
+            continuationId: 'c1',
+          }) as ExecuteResponse,
+      })
+
+      // Round 2: tc_0 cached, code re-runs, throws on tc_1
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () =>
+          ({
+            status: 'need_tools',
+            toolCalls: [{ id: 'tc_1', name: 'B', args: {} }],
+            logs: [],
+            continuationId: 'c2',
+          }) as ExecuteResponse,
+      })
+
+      // Round 3: tc_0 + tc_1 BOTH must be present, code completes
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () =>
+          ({
+            status: 'done',
+            success: true,
+            value: 'ab',
+            logs: [],
+          }) as ExecuteResponse,
+      })
+
+      const driver = createCloudflareIsolateDriver({ workerUrl: WORKER_URL })
+      const context = await driver.createContext({
+        bindings: { A: a, B: b },
+      })
+
+      const result = await context.execute(
+        'const x = await A({}); const y = await B({}); return x + y',
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.value).toBe('ab')
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+
+      // Round 3 body MUST include both tc_0 and tc_1 (regression guard)
+      const body3: ExecuteRequest = JSON.parse(fetchMock.mock.calls[2][1].body)
+      expect(body3.toolResults!['tc_0']).toEqual({ success: true, value: 'a' })
+      expect(body3.toolResults!['tc_1']).toEqual({ success: true, value: 'b' })
+    })
+
     it('handles multiple tool calls in one round', async () => {
       const getA = makeBinding('getA', async () => 'A')
       const getB = makeBinding('getB', async () => 'B')
@@ -424,8 +488,8 @@ describe('createCloudflareIsolateDriver', () => {
           ({
             status: 'error',
             error: {
-              name: 'UnsafeEvalNotAvailable',
-              message: 'UNSAFE_EVAL binding is not available',
+              name: 'WorkerLoaderNotAvailable',
+              message: 'LOADER binding is not available',
             },
           }) as ExecuteResponse,
       })
@@ -436,8 +500,8 @@ describe('createCloudflareIsolateDriver', () => {
       const result = await context.execute('return 1')
 
       expect(result.success).toBe(false)
-      expect(result.error?.name).toBe('UnsafeEvalNotAvailable')
-      expect(result.error?.message).toContain('UNSAFE_EVAL')
+      expect(result.error?.name).toBe('WorkerLoaderNotAvailable')
+      expect(result.error?.message).toContain('LOADER')
     })
 
     it('returns error when Worker returns status: done with success: false', async () => {

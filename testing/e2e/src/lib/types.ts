@@ -14,6 +14,7 @@ export type Feature =
   | 'chat'
   | 'one-shot-text'
   | 'reasoning'
+  | 'multi-turn-reasoning'
   | 'multi-turn'
   | 'tool-calling'
   | 'parallel-tool-calls'
@@ -47,6 +48,7 @@ export const ALL_FEATURES: Feature[] = [
   'chat',
   'one-shot-text',
   'reasoning',
+  'multi-turn-reasoning',
   'multi-turn',
   'tool-calling',
   'parallel-tool-calls',

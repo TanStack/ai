@@ -49,6 +49,28 @@ const weatherTool: Tool = {
   }),
 }
 
+function createTextStream(text: string) {
+  return (async function* () {
+    yield {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'text', text: '' },
+    }
+    yield {
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'text_delta', text },
+    }
+    yield { type: 'content_block_stop', index: 0 }
+    yield {
+      type: 'message_delta',
+      delta: { stop_reason: 'end_turn' },
+      usage: { output_tokens: 5 },
+    }
+    yield { type: 'message_stop' }
+  })()
+}
+
 describe('Anthropic adapter option mapping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -375,6 +397,108 @@ describe('Anthropic adapter option mapping', () => {
     for (let i = 1; i < roles.length; i++) {
       expect(roles[i]).not.toBe(roles[i - 1])
     }
+  })
+
+  it('replays signed thinking blocks before tool use in multi-turn history', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream('Follow-up answer'),
+    )
+
+    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'What is the weather in Berlin?' },
+        {
+          role: 'assistant',
+          content: null,
+          thinking: [
+            {
+              content: 'Need to fetch weather before answering.',
+              signature: 'signed-thinking-1',
+            },
+          ],
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'lookup_weather', arguments: toolArguments },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '{"temp":72}' },
+        { role: 'user', content: 'What should I wear?' },
+      ],
+      tools: [weatherTool],
+      modelOptions: {
+        thinking: { type: 'enabled', budget_tokens: 1024 },
+      } as AnthropicTextProviderOptions,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+
+    expect(payload.betas).toEqual(['interleaved-thinking-2025-05-14'])
+    expect(payload.messages[1].content).toEqual([
+      {
+        type: 'thinking',
+        thinking: 'Need to fetch weather before answering.',
+        signature: 'signed-thinking-1',
+      },
+      {
+        type: 'tool_use',
+        id: 'call_1',
+        name: 'lookup_weather',
+        input: { location: 'Berlin' },
+      },
+    ])
+  })
+
+  it('replays signed thinking blocks for assistant messages without tool calls', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream('Next answer'),
+    )
+
+    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [
+        { role: 'user', content: 'Think then answer.' },
+        {
+          role: 'assistant',
+          content: 'Prior answer.',
+          thinking: [
+            {
+              content: 'Prior signed thinking.',
+              signature: 'signed-thinking-text-only',
+            },
+          ],
+        },
+        { role: 'user', content: 'Continue.' },
+      ],
+      modelOptions: {
+        thinking: { type: 'enabled', budget_tokens: 1024 },
+      } as AnthropicTextProviderOptions,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+
+    expect(payload.messages[1].content).toEqual([
+      {
+        type: 'thinking',
+        thinking: 'Prior signed thinking.',
+        signature: 'signed-thinking-text-only',
+      },
+      { type: 'text', text: 'Prior answer.' },
+    ])
   })
 
   it('merges multiple consecutive tool result messages into one user message', async () => {
