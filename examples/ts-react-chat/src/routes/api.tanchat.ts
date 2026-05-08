@@ -88,7 +88,6 @@ const serverTools = [
   calculateFinancing,
   searchGuitars,
 ]
- 
 
 const loggingMiddleware: ChatMiddleware = {
   name: 'logging',
