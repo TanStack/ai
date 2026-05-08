@@ -65,6 +65,7 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     id: clientId,
     initialMessages: options.initialMessages,
     body: options.body,
+    forwardedProps: options.forwardedProps,
     onResponse: options.onResponse,
     onChunk: options.onChunk,
     onFinish: (message) => {
@@ -150,8 +151,16 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     await client.addToolApprovalResponse(response)
   }
 
+  /**
+   * @deprecated Use `updateForwardedProps` instead.
+   * Both populate the same wire payload.
+   */
   const updateBody = (newBody: Record<string, any>) => {
     client.updateOptions({ body: newBody })
+  }
+
+  const updateForwardedProps = (newForwardedProps: Record<string, any>) => {
+    client.updateOptions({ forwardedProps: newForwardedProps })
   }
 
   // Return the chat interface with reactive getters
@@ -187,5 +196,6 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     addToolResult,
     addToolApprovalResponse,
     updateBody,
+    updateForwardedProps,
   }
 }

@@ -211,7 +211,22 @@ export interface ChatClientOptions<
   threadId?: string
 
   /**
-   * Additional body parameters to send
+   * Arbitrary client-controlled JSON forwarded to the server in the
+   * AG-UI `RunAgentInput.forwardedProps` field. Use this for per-session
+   * options like provider/model selection or feature flags that the
+   * server endpoint should read.
+   *
+   * Replaces the legacy `body` option. If both are provided,
+   * `forwardedProps` wins on key collision.
+   */
+  forwardedProps?: Record<string, any>
+
+  /**
+   * @deprecated Use `forwardedProps` instead. `body` continues to work
+   * unchanged — its values are merged into the AG-UI
+   * `RunAgentInput.forwardedProps` field on the wire and are also
+   * mirrored under the legacy `data` field for servers that have not
+   * migrated yet. Will be removed in a future major release.
    */
   body?: Record<string, any>
 

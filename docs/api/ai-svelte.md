@@ -61,7 +61,9 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `tools?` - Array of client tool implementations (with `.client()` method)
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
-- `body?` - Additional body parameters to send
+- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
+- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
 - `live?` - Enable live subscription mode (subscribes on creation)
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
@@ -100,7 +102,9 @@ interface CreateChatReturn {
   readonly sessionGenerating: boolean;
   setMessages: (messages: UIMessage[]) => void;
   clear: () => void;
+  /** @deprecated Use `updateForwardedProps` instead. */
   updateBody: (body: Record<string, any>) => void;
+  updateForwardedProps: (forwardedProps: Record<string, any>) => void;
 }
 ```
 
@@ -109,7 +113,7 @@ interface CreateChatReturn {
 - **`create*` naming** -- factory functions, not hooks. Call outside of any lifecycle.
 - **Reactive getters** -- state properties (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) are Svelte 5 `$state` via getters. Access directly (e.g., `chat.messages`, not `chat.messages.value`).
 - **No automatic cleanup** -- unlike React/Vue/Solid, `createChat` does not auto-dispose. Call `chat.stop()` manually when the component unmounts (e.g., in `onDestroy` or an `$effect` return).
-- **`updateBody()`** -- update request body parameters dynamically (e.g., for model selection). In Vue, body changes are synced via `watch`; in Svelte, call this method explicitly.
+- **`updateForwardedProps()`** -- update AG-UI `forwardedProps` dynamically (e.g., for model selection). In Vue, changes to the `forwardedProps` option are synced via `watch`; in Svelte, call this method explicitly. The legacy `updateBody()` is still available but deprecated.
 - **`.svelte.ts` files** -- source files use the `.svelte.ts` extension for Svelte 5 rune support.
 
 ## Connection Adapters

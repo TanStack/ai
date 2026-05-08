@@ -358,7 +358,13 @@ class TextEngine<
       ? { signal: config.params.abortController.signal }
       : undefined
     this.effectiveSignal = config.params.abortController?.signal
-    this.threadId = config.params.threadId || this.createId('thread')
+    // `conversationId` is the legacy alias of `threadId` — accept it
+    // as a fallback so `chat({ conversationId })` keeps working, with
+    // explicit `threadId` winning when both are set.
+    this.threadId =
+      config.params.threadId ||
+      config.params.conversationId ||
+      this.createId('thread')
     this.runIdOverride = config.params.runId
     this.parentRunIdOverride = config.params.parentRunId
 
@@ -376,7 +382,10 @@ class TextEngine<
     this.middlewareCtx = {
       requestId: this.requestId,
       streamId: this.streamId,
-      conversationId: config.params.conversationId,
+      threadId: this.threadId,
+      // Legacy alias kept on the ctx so middleware that reads
+      // `ctx.conversationId` keeps working. Always equals `threadId`.
+      conversationId: this.threadId,
       phase: 'init' as ChatMiddlewarePhase,
       iteration: 0,
       chunkIndex: 0,
@@ -424,7 +433,7 @@ class TextEngine<
   async *run(): AsyncGenerator<StreamChunk> {
     this.beforeRun()
     this.logger.agentLoop('run started', {
-      conversationId: this.middlewareCtx.conversationId,
+      threadId: this.middlewareCtx.threadId,
     })
 
     try {
@@ -503,7 +512,7 @@ class TextEngine<
           // Genuine error — call onError
           this.logger.errors('chat run failed', {
             error,
-            conversationId: this.middlewareCtx.conversationId,
+            threadId: this.middlewareCtx.threadId,
           })
           await this.middlewareRunner.runOnError(this.middlewareCtx, {
             error,

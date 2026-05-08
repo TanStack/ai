@@ -83,7 +83,11 @@ export class ChatClient {
   constructor(options: ChatClientOptions) {
     this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
-    this.body = options.body || {}
+    // Merge legacy `body` with new `forwardedProps`. Both populate the
+    // AG-UI `RunAgentInput.forwardedProps` wire field. `forwardedProps`
+    // wins on key collision so users migrating individual fields are
+    // not surprised by stale `body` values shadowing their new ones.
+    this.body = { ...(options.body || {}), ...(options.forwardedProps || {}) }
     this.connection = normalizeConnectionAdapter(options.connection)
     this.events = new DefaultChatClientEventEmitter(this.uniqueId)
 
@@ -588,12 +592,15 @@ export class ChatClient {
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
 
-      // Merge body: base body + per-message body (per-message takes priority)
-      // Include conversationId for server-side event correlation
+      // Merge body: base body + per-message body (per-message takes priority).
+      // The AG-UI standard `threadId` is sent at the wire's top level for
+      // run/conversation correlation, so we no longer auto-emit a separate
+      // `conversationId` here — `chat({ threadId })` server-side covers the
+      // same role for devtools/observability. User-set values still pass
+      // through `forwardedProps` unchanged.
       const mergedBody = {
         ...this.body,
         ...this.pendingMessageBody,
-        conversationId: this.uniqueId,
       }
 
       // Clear the pending message body after use
@@ -995,7 +1002,9 @@ export class ChatClient {
    */
   updateOptions(options: {
     connection?: ConnectionAdapter
+    /** @deprecated Use `forwardedProps` instead. */
     body?: Record<string, any>
+    forwardedProps?: Record<string, any>
     tools?: ReadonlyArray<AnyClientTool>
     onResponse?: (response?: Response) => void | Promise<void>
     onChunk?: (chunk: StreamChunk) => void
@@ -1031,8 +1040,13 @@ export class ChatClient {
         this.subscribe()
       }
     }
-    if (options.body !== undefined) {
-      this.body = options.body
+    if (options.body !== undefined || options.forwardedProps !== undefined) {
+      // Merge the same way the constructor does; either side may be
+      // omitted, in which case it contributes nothing.
+      this.body = {
+        ...(options.body ?? {}),
+        ...(options.forwardedProps ?? {}),
+      }
     }
     if (options.tools !== undefined) {
       this.clientToolsRef.current = new Map()

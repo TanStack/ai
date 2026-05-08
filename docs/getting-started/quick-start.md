@@ -58,14 +58,14 @@ export const Route = createFileRoute("/api/chat")({
           );
         }
 
-        const { messages, conversationId } = await request.json();
+        const body = await request.json();
 
         try {
-          // Create a streaming chat response
+          // Create a streaming chat response. `chat()` reads the AG-UI
+          // `threadId` for devtools correlation when available.
           const stream = chat({
             adapter: openaiText("gpt-5.2"),
-            messages,
-            conversationId,
+            messages: body.messages,
           });
 
           // Convert stream to HTTP response
@@ -108,14 +108,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const { messages, conversationId } = await request.json();
+  const body = await request.json();
 
   try {
-    // Create a streaming chat response
+    // Create a streaming chat response. `chat()` reads the AG-UI
+    // `threadId` for devtools correlation when available.
     const stream = chat({
       adapter: openaiText("gpt-5.2"),
-      messages,
-      conversationId
+      messages: body.messages,
     });
 
     // Convert stream to HTTP response

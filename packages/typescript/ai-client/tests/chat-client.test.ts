@@ -1691,7 +1691,54 @@ describe('ChatClient', () => {
       expect(capturedData?.maxTokens).toBe(100) // From per-message body
     })
 
-    it('should include conversationId in merged body', async () => {
+    it('should accept forwardedProps option and merge into request body', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        forwardedProps: { provider: 'openai', model: 'gpt-4o' },
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(capturedData?.provider).toBe('openai')
+      expect(capturedData?.model).toBe('gpt-4o')
+    })
+
+    it('should merge body and forwardedProps with forwardedProps winning', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        // Legacy `body` and new `forwardedProps` declared together —
+        // simulates a mid-migration codebase.
+        body: { model: 'gpt-4', temperature: 0.7 },
+        forwardedProps: { model: 'gpt-4o' },
+      })
+
+      await client.sendMessage('Hello')
+
+      // forwardedProps wins on key collision so partial migrations are sane.
+      expect(capturedData?.model).toBe('gpt-4o')
+      // Non-conflicting keys from `body` are still forwarded.
+      expect(capturedData?.temperature).toBe(0.7)
+    })
+
+    it('should not auto-emit `conversationId` in merged body (replaced by AG-UI threadId)', async () => {
       const chunks = createTextChunks('Response')
       let capturedData: Record<string, any> | undefined
       const adapter = createMockConnectionAdapter({
@@ -1708,7 +1755,33 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Hello')
 
-      expect(capturedData?.conversationId).toBe('my-conversation')
+      // `conversationId` was the pre-AG-UI auto-emitted field. The client
+      // now emits `threadId` at the wire's top level instead; the legacy
+      // auto-emit was dropped to avoid duplicating the same identifier.
+      // User-set `forwardedProps.conversationId` would still pass through.
+      expect(capturedData?.conversationId).toBeUndefined()
+    })
+
+    it('should pass through user-set conversationId via forwardedProps', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        forwardedProps: { conversationId: 'user-supplied' },
+      })
+
+      await client.sendMessage('Hello')
+
+      // Backward compat: a user explicitly setting `conversationId` (e.g.
+      // because their server still reads it) still works unchanged.
+      expect(capturedData?.conversationId).toBe('user-supplied')
     })
 
     it('should clear per-message body after request', async () => {

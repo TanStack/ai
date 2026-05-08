@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  chatParamsFromRequest,
   chatParamsFromRequestBody,
   mergeAgentTools,
 } from '../src/utilities/chat-params'
@@ -63,6 +64,64 @@ describe('chatParamsFromRequestBody', () => {
     await expect(chatParamsFromRequestBody(oldBody)).rejects.toThrow(
       /AG-UI|RunAgentInput|migration/i,
     )
+  })
+})
+
+describe('chatParamsFromRequest', () => {
+  const validBody = {
+    threadId: 'thread-1',
+    runId: 'run-1',
+    state: {},
+    messages: [
+      {
+        id: 'm1',
+        role: 'user',
+        content: 'hello',
+        parts: [{ type: 'text', content: 'hello' }],
+      },
+    ],
+    tools: [],
+    context: [],
+    forwardedProps: {},
+  }
+
+  const makeRequest = (body: unknown): Request =>
+    new Request('https://example.test/api/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    })
+
+  it('returns parsed params on a valid body', async () => {
+    const params = await chatParamsFromRequest(makeRequest(validBody))
+    expect(params.threadId).toBe('thread-1')
+    expect(params.runId).toBe('run-1')
+    expect(params.messages).toHaveLength(1)
+  })
+
+  it('throws a 400 Response when JSON is malformed', async () => {
+    const req = makeRequest('{not-json')
+    await expect(chatParamsFromRequest(req)).rejects.toBeInstanceOf(Response)
+    try {
+      await chatParamsFromRequest(req)
+    } catch (thrown) {
+      expect(thrown).toBeInstanceOf(Response)
+      expect((thrown as Response).status).toBe(400)
+    }
+  })
+
+  it('throws a 400 Response with a migration-pointing message on invalid AG-UI shape', async () => {
+    const req = makeRequest({ messages: [], data: {} })
+    try {
+      await chatParamsFromRequest(req)
+      throw new Error('should have thrown')
+    } catch (thrown) {
+      expect(thrown).toBeInstanceOf(Response)
+      const res = thrown as Response
+      expect(res.status).toBe(400)
+      const body = await res.text()
+      expect(body).toMatch(/AG-UI|RunAgentInput|migration/i)
+    }
   })
 })
 

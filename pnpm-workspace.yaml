@@ -7,3 +7,4 @@ packages:
   - 'packages/typescript/ai-code-mode/models-eval'
   - 'examples/*'
   - 'testing/*'
+  - 'codemods'

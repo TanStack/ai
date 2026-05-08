@@ -41,12 +41,15 @@ const stream = chat({
 ### Parameters
 
 - `adapter` - An AI adapter instance with model (e.g., `openaiText('gpt-5.2')`, `anthropicText('claude-sonnet-4-5')`)
-- `messages` - Array of chat messages
+- `messages` - Array of chat messages. Accepts mixed `UIMessage | ModelMessage` arrays — internal conversion handles AG-UI fan-out dedup, drops `reasoning`/`activity`, and collapses `developer` → `system`
 - `tools?` - Array of tools for function calling
 - `systemPrompts?` - System prompts to prepend to messages
 - `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`)
 - `abortController?` - AbortController for cancellation
 - `modelOptions?` - Model-specific options (renamed from `providerOptions`)
+- `threadId?` - AG-UI thread identifier propagated into `RUN_STARTED` events for run correlation
+- `runId?` - AG-UI run identifier (auto-generated if omitted)
+- `parentRunId?` - AG-UI parent run identifier for nested runs
 
 ### Returns
 
@@ -190,6 +193,73 @@ return toServerSentEventsResponse(stream);
 ### Returns
 
 A `Response` object suitable for HTTP endpoints with SSE headers (`Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`).
+
+## `chatParamsFromRequest(req)`
+
+Reads an HTTP `Request`, parses its JSON body, and validates it against AG-UI `RunAgentInputSchema`. Returns parsed chat parameters ready to spread into `chat()`. On a malformed body, **throws a 400 `Response`** that frameworks like TanStack Start, SolidStart, Remix, and React Router 7 return to the client automatically.
+
+```typescript
+import { chat, chatParamsFromRequest, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(req: Request) {
+  const params = await chatParamsFromRequest(req);
+  const stream = chat({
+    adapter: openaiText("gpt-4o"),
+    messages: params.messages,
+    tools: serverTools,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+### Parameters
+
+- `req` - An incoming `Request` whose JSON body conforms to AG-UI `RunAgentInput`
+
+### Returns
+
+A promise resolving to `{ messages, threadId, runId, parentRunId?, tools, forwardedProps, state, context }`.
+
+> **Framework note.** Next.js Route Handlers, SvelteKit, Hono, and raw Node do not auto-handle thrown `Response` objects. In those, wrap with try/catch or use `chatParamsFromRequestBody(await req.json())` directly.
+
+## `chatParamsFromRequestBody(body)`
+
+Lower-level variant of `chatParamsFromRequest` that validates an already-parsed body. Rejects with an `AGUIError` on malformed input. Use this when you need explicit error handling control.
+
+```typescript
+const body = await req.json();
+try {
+  const params = await chatParamsFromRequestBody(body);
+  // ...
+} catch (error) {
+  return new Response(error.message, { status: 400 });
+}
+```
+
+## `mergeAgentTools(serverTools, clientTools)`
+
+Merges a server-side tool registry with the AG-UI client-declared tools received in the request payload. Server tools win on name collision; client-only tools become no-execute stubs that the runtime dispatches via `ClientToolRequest` events.
+
+```typescript
+import { chat, chatParamsFromRequest, mergeAgentTools } from "@tanstack/ai";
+
+const params = await chatParamsFromRequest(req);
+const stream = chat({
+  adapter: openaiText("gpt-4o"),
+  messages: params.messages,
+  tools: mergeAgentTools(serverTools, params.tools),
+});
+```
+
+### Parameters
+
+- `serverTools` - The server's `toolDefinition().server(...)` registry, keyed by tool name
+- `clientTools` - The `tools` array from `chatParamsFromRequest`'s return value
+
+### Returns
+
+A merged tool record suitable for `chat({ tools })`.
 
 ## `maxIterations(count)`
 

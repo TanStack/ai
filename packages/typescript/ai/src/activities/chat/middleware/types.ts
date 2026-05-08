@@ -28,7 +28,18 @@ export interface ChatMiddlewareContext {
   requestId: string
   /** Unique identifier for this stream */
   streamId: string
-  /** Conversation identifier, if provided by the caller */
+  /**
+   * AG-UI thread identifier — a stable per-conversation ID used to
+   * correlate client and server devtools events. Resolves to the
+   * caller-provided `threadId` (or legacy `conversationId`), or an
+   * auto-generated value when neither is supplied.
+   */
+  threadId: string
+  /**
+   * @deprecated Use `threadId` instead. Retained as an alias of
+   * `threadId` so middleware written before the AG-UI rename keeps
+   * working unchanged. Will be removed in a future major release.
+   */
   conversationId?: string
   /** Current lifecycle phase */
   phase: ChatMiddlewarePhase

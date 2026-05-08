@@ -170,6 +170,7 @@ export type {
 
 // Chat utilities
 export {
+  chatParamsFromRequest,
   chatParamsFromRequestBody,
   mergeAgentTools,
 } from './utilities/chat-params'

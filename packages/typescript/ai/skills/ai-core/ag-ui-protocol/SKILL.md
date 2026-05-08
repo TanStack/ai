@@ -66,8 +66,6 @@ export async function POST(req: Request) {
     adapter: openaiText('gpt-4o'),
     messages: params.messages,
     tools: mergeAgentTools(serverTools, params.tools),
-    threadId: params.threadId,
-    runId: params.runId,
   })
 
   return toServerSentEventsResponse(stream)

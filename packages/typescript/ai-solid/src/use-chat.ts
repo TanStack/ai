@@ -45,6 +45,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       id: clientId,
       initialMessages: options.initialMessages,
       body: options.body,
+      forwardedProps: options.forwardedProps,
       onResponse: (response) => options.onResponse?.(response),
       onChunk: (chunk) => options.onChunk?.(chunk),
       onFinish: (message) => {
@@ -83,11 +84,14 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     // Connection and other options are captured at creation time
   }, [clientId])
 
-  // Sync body changes to the client
-  // This allows dynamic body values (like model selection) to be updated without recreating the client
+  // Sync body / forwardedProps changes to the client.
+  // Both populate the same wire payload; `forwardedProps` is preferred
+  // and `body` is deprecated but still supported.
   createEffect(() => {
-    const currentBody = options.body
-    client().updateOptions({ body: currentBody })
+    client().updateOptions({
+      body: options.body,
+      forwardedProps: options.forwardedProps,
+    })
   })
 
   // Sync initial messages on mount only

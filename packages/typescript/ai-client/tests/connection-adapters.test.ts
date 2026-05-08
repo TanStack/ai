@@ -332,6 +332,35 @@ describe('connection-adapters', () => {
       expect(body.forwardedProps).toMatchObject({ key: 'value' })
     })
 
+    it('should mirror forwardedProps under legacy `data` field for backward-compat', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { provider: 'openai', model: 'gpt-4o' },
+      )) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call?.[1]?.body as string)
+      // Legacy server code reads `body.data.X`; new server code reads
+      // `body.forwardedProps.X`. Both must contain the same content
+      // until the legacy `body` client option is removed.
+      expect(body.data).toEqual(body.forwardedProps)
+      expect(body.data).toMatchObject({ provider: 'openai', model: 'gpt-4o' })
+    })
+
     it('should use custom fetchClient when provided', async () => {
       const customFetch = vi.fn()
       const mockReader = {

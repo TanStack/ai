@@ -314,8 +314,19 @@ export function fetchServerSentEvents(
         ...mergeHeaders(resolvedOptions.headers),
       }
 
-      // Build AG-UI RunAgentInput payload
+      // Build AG-UI RunAgentInput payload.
+      //
+      // Precedence (later spreads win): static adapter `body` is the base,
+      // overridden by `runContext.forwardedProps` (constructor body /
+      // forwardedProps options), overridden by per-message `data` passed
+      // to `connection.send`. Runtime values win over static config —
+      // this matches the documented "forwardedProps wins" semantic.
       const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
+      const forwardedProps = {
+        ...resolvedOptions.body,
+        ...(runContext?.forwardedProps ?? {}),
+        ...data,
+      }
       const requestBody = {
         threadId: runContext?.threadId ?? generateRunId('thread'),
         runId: runContext?.runId ?? generateRunId('run'),
@@ -326,11 +337,17 @@ export function fetchServerSentEvents(
         messages: wireMessages,
         tools: runContext?.clientTools ?? [],
         context: [],
-        forwardedProps: {
-          ...resolvedOptions.body,
-          ...(runContext?.forwardedProps ?? {}),
-          ...data,
-        },
+        forwardedProps,
+        // Backward-compat mirror of `forwardedProps` under the legacy
+        // field name `data`. Server endpoints that have not migrated
+        // off the pre-AG-UI shape (`{ messages, data }`) keep working.
+        // AG-UI strict consumers strip this via `RunAgentInputSchema`
+        // (see `chatParamsFromRequestBody`). Will be removed when the
+        // legacy `body` client option is dropped.
+        // Shallow-cloned so that downstream mutation of `data` (e.g.
+        // by a logging interceptor or fetch wrapper) cannot corrupt
+        // `forwardedProps` and vice versa.
+        data: { ...forwardedProps },
       }
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
@@ -429,8 +446,19 @@ export function fetchHttpStream(
         ...mergeHeaders(resolvedOptions.headers),
       }
 
-      // Build AG-UI RunAgentInput payload
+      // Build AG-UI RunAgentInput payload.
+      //
+      // Precedence (later spreads win): static adapter `body` is the base,
+      // overridden by `runContext.forwardedProps` (constructor body /
+      // forwardedProps options), overridden by per-message `data` passed
+      // to `connection.send`. Runtime values win over static config —
+      // this matches the documented "forwardedProps wins" semantic.
       const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
+      const forwardedProps = {
+        ...resolvedOptions.body,
+        ...(runContext?.forwardedProps ?? {}),
+        ...data,
+      }
       const requestBody = {
         threadId: runContext?.threadId ?? generateRunId('thread'),
         runId: runContext?.runId ?? generateRunId('run'),
@@ -441,11 +469,17 @@ export function fetchHttpStream(
         messages: wireMessages,
         tools: runContext?.clientTools ?? [],
         context: [],
-        forwardedProps: {
-          ...resolvedOptions.body,
-          ...(runContext?.forwardedProps ?? {}),
-          ...data,
-        },
+        forwardedProps,
+        // Backward-compat mirror of `forwardedProps` under the legacy
+        // field name `data`. Server endpoints that have not migrated
+        // off the pre-AG-UI shape (`{ messages, data }`) keep working.
+        // AG-UI strict consumers strip this via `RunAgentInputSchema`
+        // (see `chatParamsFromRequestBody`). Will be removed when the
+        // legacy `body` client option is dropped.
+        // Shallow-cloned so that downstream mutation of `data` (e.g.
+        // by a logging interceptor or fetch wrapper) cannot corrupt
+        // `forwardedProps` and vice versa.
+        data: { ...forwardedProps },
       }
 
       const fetchClient = resolvedOptions.fetchClient ?? fetch
