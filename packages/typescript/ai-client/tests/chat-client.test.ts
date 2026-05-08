@@ -8,7 +8,10 @@ import {
   createApprovalToolCallChunks,
   createCustomEventChunks,
 } from './test-utils'
-import type { ConnectionAdapter } from '../src/connection-adapters'
+import type {
+  ConnectionAdapter,
+  ConnectConnectionAdapter,
+} from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '../src/types'
 
@@ -1236,6 +1239,70 @@ describe('ChatClient', () => {
           expect(updatedToolCall.output).toEqual({ result: 'success' })
         }
       }
+    })
+  })
+
+  describe('drain re-entrancy guard (fix #302)', () => {
+    it('should continue after multiple client tools complete in the same round', async () => {
+      // Round 1: two simultaneous tool calls (triggers the re-entrancy bug)
+      const round1Chunks = createToolCallChunks([
+        { id: 'tc-1', name: 'tool_one', arguments: '{}' },
+        { id: 'tc-2', name: 'tool_two', arguments: '{}' },
+      ])
+      // Round 2: final text response
+      const round2Chunks = createTextChunks('Done!', 'msg-2')
+
+      let callIndex = 0
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, abortSignal) {
+          callIndex++
+          const chunks = callIndex === 1 ? round1Chunks : round2Chunks
+          for (const chunk of chunks) {
+            if (abortSignal?.aborted) return
+            yield chunk
+          }
+        },
+      }
+
+      // Both tools execute immediately (synchronously resolve)
+      const client = new ChatClient({
+        connection: adapter,
+        tools: [
+          {
+            __toolSide: 'client' as const,
+            name: 'tool_one',
+            description: 'Tool one',
+            execute: async () => ({ result: 'one' }),
+          },
+          {
+            __toolSide: 'client' as const,
+            name: 'tool_two',
+            description: 'Tool two',
+            execute: async () => ({ result: 'two' }),
+          },
+        ],
+      })
+
+      // Send initial message — triggers round 1 (two tool calls, both auto-executed)
+      await client.sendMessage('Run both tools')
+
+      // Wait for loading to stop and the continuation (round 2) to complete
+      await vi.waitFor(
+        () => {
+          expect(client.getIsLoading()).toBe(false)
+          // Ensure round 2 actually fired
+          expect(callIndex).toBeGreaterThanOrEqual(2)
+        },
+        { timeout: 2000 },
+      )
+
+      // The final response "Done!" should appear in messages
+      const messages = client.getMessages()
+      const lastAssistant = [...messages]
+        .reverse()
+        .find((m) => m.role === 'assistant')
+      const textPart = lastAssistant?.parts.find((p) => p.type === 'text')
+      expect(textPart?.content).toBe('Done!')
     })
   })
 

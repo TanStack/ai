@@ -1,5 +1,55 @@
 # @tanstack/ai
 
+## 0.14.0
+
+### Minor Changes
+
+- feat: add generateAudio activity for music and sound-effect generation ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Adds a new `audio` activity kind alongside the existing `tts` and `transcription` activities:
+  - `generateAudio()` / `createAudioOptions()` functions
+  - `AudioAdapter` interface and `BaseAudioAdapter` base class
+  - `AudioGenerationOptions` / `AudioGenerationResult` / `GeneratedAudio` types
+  - `audio:request:started`, `audio:request:completed`, and `audio:usage` devtools events
+
+- feat: add `useGenerateAudio` hook and streaming support for `generateAudio()` ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Closes the parity gap between audio generation and the other media
+  activities (image, speech, video, transcription, summarize):
+  - `generateAudio()` now accepts `stream: true`, returning an
+    `AsyncIterable<StreamChunk>` that can be piped through
+    `toServerSentEventsResponse()`.
+  - `AudioGenerateInput` type added to `@tanstack/ai-client`.
+  - `useGenerateAudio` hook added to `@tanstack/ai-react`,
+    `@tanstack/ai-solid`, and `@tanstack/ai-vue`; matching
+    `createGenerateAudio` added to `@tanstack/ai-svelte`. All follow the same
+    `{ generate, result, isLoading, error, status, stop, reset }` shape as
+    the existing media hooks and support both `connection` (SSE) and
+    `fetcher` transports.
+
+- Tighten `GeneratedImage` and `GeneratedAudio` to enforce exactly one of `url` or `b64Json` via a mutually-exclusive `GeneratedMediaSource` union. ([#463](https://github.com/TanStack/ai/pull/463))
+
+  Both types previously declared `url?` and `b64Json?` as independently optional, which allowed meaningless `{}` values and objects that set both fields. They now require exactly one:
+
+  ```ts
+  type GeneratedMediaSource =
+    | { url: string; b64Json?: never }
+    | { b64Json: string; url?: never }
+  ```
+
+  Existing read patterns like `img.url || \`data:image/png;base64,${img.b64Json}\``continue to work unchanged. The only runtime-visible change is that the`@tanstack/ai-openrouter`and`@tanstack/ai-fal`image adapters no longer populate`url`with a synthesized`data:image/png;base64,...`URI when the provider returns base64 — they return`{ b64Json }`only. Consumers that want a data URI should build it from`b64Json` at render time.
+
+### Patch Changes
+
+- refactor(ai, ai-openai): narrow error handling before logging ([#465](https://github.com/TanStack/ai/pull/465))
+
+  `catch (error: any)` sites in `stream-to-response.ts`, `activities/stream-generation-result.ts`, and `activities/generateVideo/index.ts` are now narrowed to `unknown` and funnel through a shared `toRunErrorPayload(error, fallback)` helper that extracts `message` / `code` without leaking the original error object (which can carry request state from an SDK).
+
+  Replaced four `console.error` calls in the OpenAI text adapter's `chatStream` catch block that dumped the full error object to stdout. SDK errors can carry the original request including auth headers, so the library now logs only the narrowed `{ message, code }` payload via the internal logger — any user-supplied logger receives the sanitized shape, not the raw SDK error.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.2.8
+
 ## 0.13.0
 
 ### Minor Changes

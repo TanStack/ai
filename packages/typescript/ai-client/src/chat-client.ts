@@ -54,6 +54,7 @@ export class ChatClient {
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
+  private draining = false
   private sessionGenerating = false
   private activeRunIds = new Set<string>()
 
@@ -153,7 +154,11 @@ export class ChatClient {
             this.events.textUpdated(this.currentStreamId, messageId, content)
           }
         },
-        onThinkingUpdate: (messageId: string, content: string) => {
+        onThinkingUpdate: (
+          messageId: string,
+          _stepId: string,
+          content: string,
+        ) => {
           // Emit thinking update to devtools
           if (this.currentStreamId) {
             this.events.thinkingUpdated(
@@ -567,6 +572,10 @@ export class ChatClient {
     this.setError(undefined)
     this.errorReportedGeneration = null
     this.abortController = new AbortController()
+    // Capture the signal immediately so that a concurrent stop() or
+    // sendMessage() that reassigns this.abortController cannot cause
+    // connect() to receive a stale or null signal.
+    const signal = this.abortController.signal
     // Reset pending tool executions for the new stream
     this.pendingToolExecutions.clear()
     let streamCompletedSuccessfully = false
@@ -577,6 +586,15 @@ export class ChatClient {
 
       // Call onResponse callback
       await this.callbacksRef.current.onResponse()
+
+      // If the stream was cancelled during the onResponse await (e.g. stop()
+      // from a callback or unmount, or reload() superseding this stream),
+      // bail out before allocating waitForProcessing() — otherwise the
+      // resolveProcessing() that ran during cancellation is a no-op and the
+      // await processingComplete below would deadlock.
+      if (signal.aborted) {
+        return false
+      }
 
       // Merge body: base body + per-message body (per-message takes priority)
       // Include conversationId for server-side event correlation
@@ -605,11 +623,7 @@ export class ChatClient {
       const processingComplete = this.waitForProcessing()
 
       // Send through normalized connection (pushes chunks to subscription queue)
-      await this.connection.send(
-        messages,
-        mergedBody,
-        this.abortController.signal,
-      )
+      await this.connection.send(messages, mergedBody, signal)
 
       // Wait for subscription loop to finish processing all chunks
       await processingComplete
@@ -847,9 +861,15 @@ export class ChatClient {
    * Drain and execute all queued post-stream actions
    */
   private async drainPostStreamActions(): Promise<void> {
-    while (this.postStreamActions.length > 0) {
-      const action = this.postStreamActions.shift()!
-      await action()
+    if (this.draining) return
+    this.draining = true
+    try {
+      while (this.postStreamActions.length > 0) {
+        const action = this.postStreamActions.shift()!
+        await action()
+      }
+    } finally {
+      this.draining = false
     }
   }
 
@@ -885,9 +905,16 @@ export class ChatClient {
   }
 
   /**
-   * Check if all tool calls are complete and we should auto-send
+   * Check if all tool calls are complete and we should auto-send.
+   * Requires that there is at least one tool call in the last assistant message;
+   * a text-only response has nothing to auto-send.
    */
   private shouldAutoSend(): boolean {
+    const messages = this.processor.getMessages()
+    const lastAssistant = messages.findLast((m) => m.role === 'assistant')
+    if (!lastAssistant) return false
+    const hasToolCalls = lastAssistant.parts.some((p) => p.type === 'tool-call')
+    if (!hasToolCalls) return false
     return this.processor.areAllToolsComplete()
   }
 

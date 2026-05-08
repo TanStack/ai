@@ -180,6 +180,10 @@
           "to": "advanced/debug-logging"
         },
         {
+          "label": "OpenTelemetry",
+          "to": "advanced/otel"
+        },
+        {
           "label": "Observability",
           "to": "advanced/observability"
         },

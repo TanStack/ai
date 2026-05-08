@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Core TanStack AI library - Open source AI SDK",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -43,6 +43,10 @@
         "types": "./dist/cjs/middlewares/index.d.cts",
         "default": "./dist/cjs/middlewares/index.cjs"
       }
+    },
+    "./middlewares/otel": {
+      "types": "./dist/esm/middlewares/otel.d.ts",
+      "import": "./dist/esm/middlewares/otel.js"
     },
     "./adapter-internals": {
       "import": {
@@ -90,7 +94,16 @@
     "@tanstack/ai-event-client": "workspace:*",
     "partial-json": "^0.1.7"
   },
+  "peerDependencies": {
+    "@opentelemetry/api": ">=1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.0",
     "@standard-schema/spec": "^1.1.0",
     "@vitest/coverage-v8": "4.0.14",
     "zod": "^4.2.0"

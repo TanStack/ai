@@ -10,13 +10,13 @@ This package runs generated JavaScript in a Worker and keeps `external_*` tool e
 pnpm add @tanstack/ai-isolate-cloudflare
 ```
 
-## Environment Guidance (Conservative)
+## Environment Guidance
 
-- **Local development:** supported with the package's Miniflare dev server (`pnpm dev:worker`)
-- **Remote dev:** supported with `wrangler dev --remote`
-- **Production:** evaluate carefully before rollout; dynamic code execution with `unsafe_eval` has platform/security constraints and is often treated as an advanced or enterprise setup
+- **Local development:** supported with `wrangler dev` (the `worker_loader` binding works in local workerd on the Workers Free plan).
+- **Remote dev:** supported with `wrangler dev --remote` on a Workers Paid plan.
+- **Production:** supported on Cloudflare accounts on the Workers Paid plan ($5/mo). The Free plan rejects `worker_loader` deploys at the API level. Before rollout, put the Worker behind authentication (e.g. Cloudflare Access or the `authorization` driver option), rate limiting, and CORS restrictions — running LLM-authored code is a high-trust operation.
 
-If you need a fully local setup without Cloudflare constraints, prefer `@tanstack/ai-isolate-node` or `@tanstack/ai-isolate-quickjs`.
+If you want a self-contained host without Cloudflare infrastructure, prefer `@tanstack/ai-isolate-node` or `@tanstack/ai-isolate-quickjs`.
 
 ## Quick Start
 
@@ -60,15 +60,15 @@ const result = await chat({
 
 ## Worker Setup
 
-### Option 1: Local Miniflare server
+### Option 1: Local dev with `wrangler dev`
 
 From this package directory:
 
 ```bash
-pnpm dev:worker
+wrangler dev
 ```
 
-This starts a local Worker endpoint (default `http://localhost:8787`) with `UNSAFE_EVAL` configured for local testing.
+This starts a local Worker endpoint (default `http://localhost:8787`) with the `worker_loader` binding from `wrangler.toml`. Local workerd accepts the binding on the Workers Free plan, so no upgrade is needed for inner-loop iteration.
 
 ### Option 2: Wrangler remote dev
 
@@ -76,7 +76,15 @@ This starts a local Worker endpoint (default `http://localhost:8787`) with `UNSA
 wrangler dev --remote
 ```
 
-This runs through Cloudflare's network and can be useful when validating behavior against the hosted runtime.
+Runs through Cloudflare's network for validation against the hosted runtime. Requires a Workers Paid plan because `worker_loader` is gated to Paid for any edge usage.
+
+### Option 3: Production deployment
+
+```bash
+wrangler deploy
+```
+
+Requires a Workers Paid plan. The Free plan rejects deploys with `worker_loader` (`code: 10195` — "In order to use Dynamic Workers, you must switch to a paid plan."). Without the binding, the Worker returns a `WorkerLoaderNotAvailable` error. Because this Worker executes LLM-generated code, only deploy it behind authentication, rate limiting, and an allow-listed origin.
 
 ## API
 

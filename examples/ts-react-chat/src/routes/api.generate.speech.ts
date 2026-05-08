@@ -1,9 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateSpeech, toServerSentEventsResponse } from '@tanstack/ai'
 import { z } from 'zod'
-import { buildSpeechAdapter } from '../lib/server-audio-adapters'
+import {
+  InvalidModelOverrideError,
+  UnknownProviderError,
+  buildSpeechAdapter,
+} from '../lib/server-audio-adapters'
 
-const SPEECH_PROVIDER_SCHEMA = z.enum(['openai', 'gemini', 'fal']).optional()
+const SPEECH_PROVIDER_SCHEMA = z
+  .enum(['openai', 'gemini', 'fal', 'grok', 'elevenlabs'])
+  .optional()
 
 const SPEECH_BODY_SCHEMA = z.object({
   text: z.string().min(1),
@@ -65,6 +71,26 @@ export const Route = createFileRoute('/api/generate/speech')({
 
           return toServerSentEventsResponse(stream)
         } catch (err) {
+          if (err instanceof InvalidModelOverrideError) {
+            return jsonError(400, {
+              error: 'invalid_model_override',
+              message: err.message,
+              provider: err.providerId,
+              requestedModel: err.requestedModel,
+              allowedModels: err.allowedModels,
+            })
+          }
+          // Defense-in-depth: the Zod enum schema above should already reject
+          // unknown providers, but surface a typed 400 here in case that
+          // validation drifts or is bypassed.
+          if (err instanceof UnknownProviderError) {
+            return jsonError(400, {
+              error: 'unknown_provider',
+              message: err.message,
+              provider: err.providerId,
+              allowedProviders: err.allowedProviders,
+            })
+          }
           return jsonError(500, {
             error: 'generation_failed',
             message:

@@ -25,14 +25,20 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
   const sessionGenerating = shallowRef(false)
 
-  // Create ChatClient instance with callbacks to sync state
+  // Create ChatClient instance with callbacks to sync state.
+  // Every user-provided callback is wrapped so the LATEST `options.xxx` value
+  // is read at call time. Direct assignment would freeze the callback to the
+  // reference we saw at setup time; the wrapper lets reactive `options` or
+  // in-place mutations propagate. When the user clears a callback (sets it to
+  // undefined), `?.` no-ops — unlike `client.updateOptions`, which silently
+  // skips undefined and leaves the old callback installed.
   const client = new ChatClient({
     connection: options.connection,
     id: clientId,
     initialMessages: options.initialMessages,
     body: options.body,
-    onResponse: options.onResponse,
-    onChunk: options.onChunk,
+    onResponse: (response) => options.onResponse?.(response),
+    onChunk: (chunk) => options.onChunk?.(chunk),
     onFinish: (message) => {
       options.onFinish?.(message)
     },
@@ -40,7 +46,8 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       options.onError?.(err)
     },
     tools: options.tools,
-    onCustomEvent: options.onCustomEvent,
+    onCustomEvent: (eventType, data, context) =>
+      options.onCustomEvent?.(eventType, data, context),
     streamProcessor: options.streamProcessor,
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages.value = newMessages
@@ -96,9 +103,8 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     }
   })
 
-  // Note: Callback options (onResponse, onChunk, onFinish, onError, onToolCall)
-  // are captured at client creation time. Changes to these callbacks require
-  // remounting the component or changing the connection to recreate the client.
+  // Callback options are read through `options.xxx` at call time, so reactive
+  // or mutated options propagate without recreating the client.
 
   const sendMessage = async (content: string | MultimodalContent) => {
     await client.sendMessage(content)

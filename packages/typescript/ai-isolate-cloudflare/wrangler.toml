@@ -1,21 +1,24 @@
 #:schema node_modules/wrangler/config-schema.json
 
 # Cloudflare Worker configuration for Code Mode execution
-# Run locally: pnpm dev:worker (or wrangler dev)
-# Deploy: pnpm deploy:worker (or wrangler deploy)
+# Run locally: wrangler dev  (Dynamic Workers binding works in local workerd
+#                             on the Free plan; deploy/--remote require Paid)
+# Deploy:      wrangler deploy
 
 name = "tanstack-ai-code-mode"
 main = "src/worker/index.ts"
-compatibility_date = "2024-12-01"
+compatibility_date = "2026-05-01"
 compatibility_flags = ["nodejs_compat"]
 
-# UnsafeEval binding - provides eval() for local development
-# NOTE: This only works locally with wrangler dev.
-# For production deployment, you need Workers for Platforms (enterprise)
-# or a different execution strategy.
-[[unsafe.bindings]]
-name = "UNSAFE_EVAL"
-type = "unsafe_eval"
+# worker_loader (Dynamic Workers) binding — loads LLM-generated code into a
+# fresh V8 isolate via env.LOADER.load(...). Replaces the previous
+# `unsafe_eval` binding, which Cloudflare gates for all customer prod
+# deploys. Workers Paid plan required to deploy or run --remote; local
+# wrangler dev works on the Free plan. Because this Worker evaluates
+# arbitrary JavaScript, protect the public endpoint with authentication and
+# rate limiting before deploying.
+[[worker_loaders]]
+binding = "LOADER"
 
 # Local development settings
 [dev]

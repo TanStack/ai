@@ -20,6 +20,10 @@ const defaultModels: Record<Provider, string> = {
   groq: 'llama-3.3-70b-versatile',
   grok: 'grok-3',
   openrouter: 'openai/gpt-4o',
+  // ElevenLabs has no chat/text model — the support matrix already filters
+  // it out of text features, but we still need an entry to satisfy the
+  // Record<Provider, …> constraint.
+  elevenlabs: '',
 }
 
 export function createTextAdapter(
@@ -92,6 +96,11 @@ export function createTextAdapter(
             : openaiUrl,
         }),
       }),
+    elevenlabs: () => {
+      throw new Error(
+        'ElevenLabs has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',
+      )
+    },
   }
 
   return factories[provider]()

@@ -5,6 +5,7 @@
  */
 
 import { EventType } from '@ag-ui/core'
+import { toRunErrorPayload } from './error-payload'
 import type { StreamChunk } from '../types'
 
 function createId(prefix: string): string {
@@ -52,18 +53,16 @@ export async function* streamGenerationResult<TResult>(
       finishReason: 'stop',
       timestamp: Date.now(),
     } as StreamChunk
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const payload = toRunErrorPayload(error, 'Generation failed')
     yield {
       type: EventType.RUN_ERROR,
       runId,
       threadId,
-      message: error.message || 'Generation failed',
-      code: error.code,
+      message: payload.message,
+      code: payload.code,
       // Deprecated nested form for backward compatibility
-      error: {
-        message: error.message || 'Generation failed',
-        code: error.code,
-      },
+      error: payload,
       timestamp: Date.now(),
     } as StreamChunk
   }

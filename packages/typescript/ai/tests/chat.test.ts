@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { chat, createChatOptions } from '../src/activities/chat/index'
 import type { StreamChunk, Tool } from '../src/types'
 import {
+  chunk,
   ev,
   createMockAdapter,
   collectChunks,
@@ -1233,6 +1234,92 @@ describe('chat()', () => {
       expect(tool1Spy).toHaveBeenCalledTimes(1)
       expect(tool2Spy).toHaveBeenCalledTimes(1)
       expect(calls).toHaveLength(3)
+    })
+
+    it('should preserve signed thinking in continuation message history after a tool call', async () => {
+      const toolSpy = vi.fn().mockReturnValue({ result: 'inventory' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.stepStarted('think-1'),
+            {
+              ...ev.stepFinished('Need inventory.', 'think-1'),
+              signature: 'sig-think-1',
+            } as StreamChunk,
+            ev.toolStart('call_1', 'getInventory'),
+            ev.toolArgs('call_1', '{}'),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Inventory loaded.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Check inventory' }],
+        tools: [serverTool('getInventory', toolSpy)],
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(toolSpy).toHaveBeenCalledTimes(1)
+      expect(calls).toHaveLength(2)
+
+      const continuationMessages = calls[1]!.messages as Array<any>
+      const assistantToolMessage = continuationMessages.find(
+        (message) =>
+          message.role === 'assistant' &&
+          message.toolCalls?.[0]?.id === 'call_1',
+      )
+
+      expect(assistantToolMessage?.thinking).toEqual([
+        { content: 'Need inventory.', signature: 'sig-think-1' },
+      ])
+    })
+
+    it('should execute tool calls that only provide the deprecated toolName field', async () => {
+      const toolSpy = vi.fn().mockReturnValue({ result: 'inventory' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            chunk('TOOL_CALL_START', {
+              toolCallId: 'call_1',
+              toolName: 'getInventory',
+            }),
+            ev.toolArgs('call_1', '{}'),
+            ev.toolEnd('call_1', 'getInventory'),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Inventory loaded.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Check inventory' }],
+        tools: [serverTool('getInventory', toolSpy)],
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(toolSpy).toHaveBeenCalledTimes(1)
+      expect(calls).toHaveLength(2)
     })
   })
 

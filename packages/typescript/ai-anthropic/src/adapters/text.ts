@@ -28,6 +28,7 @@ import type {
   URLPDFSource,
 } from '@anthropic-ai/sdk/resources/messages'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
+import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
   ContentPart,
   Modality,
@@ -141,8 +142,23 @@ export class AnthropicTextAdapter<
         `activity=chat provider=anthropic model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'anthropic', model: this.model },
       )
+
+      // Interleaved thinking is only supported on the beta messages endpoint,
+      // so the `betas` flag is attached here rather than in the shared mapper
+      // (structuredOutput uses the non-beta endpoint which rejects `betas`).
+      const modelOptions = options.modelOptions as
+        | InternalTextProviderOptions
+        | undefined
+      const useInterleavedThinking =
+        modelOptions?.thinking?.type === 'enabled' &&
+        typeof modelOptions.thinking.budget_tokens === 'number' &&
+        modelOptions.thinking.budget_tokens > 0
+      const betas: Array<AnthropicBeta> | undefined = useInterleavedThinking
+        ? ['interleaved-thinking-2025-05-14']
+        : undefined
+
       const stream = await this.client.beta.messages.create(
-        { ...requestParams, stream: true },
+        { ...requestParams, stream: true, ...(betas && { betas }) },
         {
           signal: options.request?.signal,
           headers: options.request?.headers,
@@ -324,7 +340,11 @@ export class AnthropicTextAdapter<
       temperature: options.temperature,
       top_p: options.topP,
       messages: formattedMessages,
-      system: options.systemPrompts?.join('\n'),
+      system: options.systemPrompts?.length
+        ? options.systemPrompts.map(
+            (text): TextBlockParam => ({ type: 'text', text }),
+          )
+        : undefined,
       tools: tools,
       ...validProviderOptions,
     }
@@ -427,6 +447,8 @@ export class AnthropicTextAdapter<
       if (role === 'assistant' && message.toolCalls?.length) {
         const contentBlocks: AnthropicContentBlocks = []
 
+        this.appendThinkingBlocks(contentBlocks, message.thinking)
+
         if (message.content) {
           const content =
             typeof message.content === 'string' ? message.content : ''
@@ -465,6 +487,28 @@ export class AnthropicTextAdapter<
         continue
       }
 
+      if (role === 'assistant') {
+        const contentBlocks: AnthropicContentBlocks = []
+        this.appendThinkingBlocks(contentBlocks, message.thinking)
+
+        if (Array.isArray(message.content)) {
+          for (const part of message.content) {
+            contentBlocks.push(this.convertContentPartToAnthropic(part))
+          }
+        } else if (message.content) {
+          contentBlocks.push({
+            type: 'text',
+            text: message.content,
+          })
+        }
+
+        formattedMessages.push({
+          role: 'assistant',
+          content: contentBlocks.length > 0 ? contentBlocks : '',
+        })
+        continue
+      }
+
       if (role === 'user' && Array.isArray(message.content)) {
         const contentBlocks = message.content.map((part) =>
           this.convertContentPartToAnthropic(part),
@@ -477,7 +521,7 @@ export class AnthropicTextAdapter<
       }
 
       formattedMessages.push({
-        role: role === 'assistant' ? 'assistant' : 'user',
+        role: 'user',
         content:
           typeof message.content === 'string'
             ? message.content
@@ -493,6 +537,22 @@ export class AnthropicTextAdapter<
     // Tool results are sent as role:'user' messages, which can create consecutive
     // user messages when followed by a new user message. Merge them.
     return this.mergeConsecutiveSameRoleMessages(formattedMessages)
+  }
+
+  private appendThinkingBlocks(
+    contentBlocks: AnthropicContentBlocks,
+    thinkingParts: ModelMessage['thinking'],
+  ): void {
+    if (!thinkingParts?.length) return
+
+    for (const thinking of thinkingParts) {
+      if (!thinking.signature) continue
+      contentBlocks.push({
+        type: 'thinking',
+        thinking: thinking.content,
+        signature: thinking.signature,
+      } as unknown as AnthropicContentBlock)
+    }
   }
 
   /**
@@ -568,6 +628,7 @@ export class AnthropicTextAdapter<
     const model = options.model
     let accumulatedContent = ''
     let accumulatedThinking = ''
+    let accumulatedSignature = ''
     const timestamp = Date.now()
     const toolCallsMap = new Map<
       number,
@@ -617,6 +678,7 @@ export class AnthropicTextAdapter<
             })
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
+            accumulatedSignature = ''
             // Emit REASONING and STEP_STARTED for thinking
             stepId = genId()
             reasoningMessageId = genId()
@@ -710,6 +772,11 @@ export class AnthropicTextAdapter<
               delta,
               content: accumulatedThinking,
             })
+          } else if (
+            (event.delta as { type: string }).type === 'signature_delta'
+          ) {
+            accumulatedSignature +=
+              (event.delta as { signature: string }).signature || ''
           } else if (event.delta.type === 'input_json_delta') {
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
@@ -740,7 +807,21 @@ export class AnthropicTextAdapter<
             }
           }
         } else if (event.type === 'content_block_stop') {
-          if (currentBlockType === 'tool_use') {
+          if (currentBlockType === 'thinking') {
+            // Emit signature so it can be replayed in multi-turn context
+            if (accumulatedSignature && stepId) {
+              yield asChunk({
+                type: 'STEP_FINISHED',
+                stepName: stepId,
+                stepId,
+                model,
+                timestamp,
+                delta: '',
+                content: accumulatedThinking,
+                signature: accumulatedSignature,
+              })
+            }
+          } else if (currentBlockType === 'tool_use') {
             const existing = toolCallsMap.get(currentToolIndex)
             if (existing) {
               // If tool call wasn't started yet (no args), start it now

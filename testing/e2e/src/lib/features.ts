@@ -25,6 +25,15 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
       anthropic: 'claude-sonnet-4-5',
     },
   },
+  'multi-turn-reasoning': {
+    tools: [getGuitars],
+    modelOptions: {
+      thinking: { type: 'enabled', budget_tokens: 1024 },
+    },
+    modelOverrides: {
+      anthropic: 'claude-sonnet-4-5',
+    },
+  },
   'multi-turn': {
     tools: [],
     modelOptions: {},
@@ -82,6 +91,14 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
   },
   'video-gen': {
+    tools: [],
+    modelOptions: {},
+  },
+  'audio-gen': {
+    tools: [],
+    modelOptions: {},
+  },
+  'sound-effects': {
     tools: [],
     modelOptions: {},
   },

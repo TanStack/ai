@@ -1,5 +1,26 @@
 # @tanstack/ai-elevenlabs
 
+## 0.2.0
+
+### Minor Changes
+
+- feat: add REST adapters to @tanstack/ai-elevenlabs and migrate realtime to the renamed SDK ([#504](https://github.com/TanStack/ai/pull/504))
+
+  Extends `@tanstack/ai-elevenlabs` (previously realtime-only) with three tree-shakeable REST adapters built on the official `@elevenlabs/elevenlabs-js` SDK (v2.44+):
+  - `elevenlabsSpeech()` — text-to-speech on `eleven_v3`, `eleven_multilingual_v2`, `eleven_flash_*`, `eleven_turbo_*`
+  - `elevenlabsAudio()` — music (`music_v1`, with structured composition plans) and sound effects (`eleven_text_to_sound_v2`/`v1`) via a single adapter that dispatches by model
+  - `elevenlabsTranscription()` — Scribe v1/v2 speech-to-text with diarization, keyterm biasing, PII redaction, and word-level timestamps
+
+  Also migrates the existing realtime adapter off the deprecated `@11labs/client` onto the renamed `@elevenlabs/client` package.
+
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies [[`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a), [`af9eb7b`](https://github.com/TanStack/ai/commit/af9eb7bbb875b23b7e99b2e6b743636daad402d1), [`008f015`](https://github.com/TanStack/ai/commit/008f0154f852e7e6734d3e3d35cad47780b52b7a), [`54523f5`](https://github.com/TanStack/ai/commit/54523f5e9a9b4d4ea6c49e4551936bc2cc25593a)]:
+  - @tanstack/ai@0.14.0
+  - @tanstack/ai-client@0.8.0
+
 ## 0.1.7
 
 ### Patch Changes
