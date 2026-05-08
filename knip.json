@@ -22,6 +22,9 @@
     "packages/react-ai": {
       "ignore": []
     },
+    "packages/typescript/ai": {
+      "ignoreDependencies": ["@opentelemetry/api"]
+    },
     "packages/typescript/ai-anthropic": {
       "ignore": ["src/tools/**"]
     },

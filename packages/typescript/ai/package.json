@@ -25,6 +25,10 @@
       "types": "./dist/esm/middlewares/index.d.ts",
       "import": "./dist/esm/middlewares/index.js"
     },
+    "./middlewares/otel": {
+      "types": "./dist/esm/middlewares/otel.d.ts",
+      "import": "./dist/esm/middlewares/otel.js"
+    },
     "./adapter-internals": {
       "types": "./dist/esm/adapter-internals.d.ts",
       "import": "./dist/esm/adapter-internals.js"
@@ -65,7 +69,16 @@
     "@tanstack/ai-event-client": "workspace:*",
     "partial-json": "^0.1.7"
   },
+  "peerDependencies": {
+    "@opentelemetry/api": ">=1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.0",
     "@standard-schema/spec": "^1.1.0",
     "@vitest/coverage-v8": "4.0.14",
     "zod": "^4.2.0"
