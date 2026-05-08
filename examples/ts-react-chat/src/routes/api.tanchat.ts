@@ -14,7 +14,7 @@ import { geminiText } from '@tanstack/ai-gemini'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
-import type { AnyTextAdapter, ChatMiddleware, Tool } from '@tanstack/ai'
+import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -77,7 +77,7 @@ const addToCartToolServer = addToCartToolDef.server((args, context) => {
   }
 })
 
-const serverToolsList = [
+const serverTools = [
   getGuitars, // Server tool
   recommendGuitarToolDef, // No server execute - client will handle
   addToCartToolServer,
@@ -88,10 +88,7 @@ const serverToolsList = [
   calculateFinancing,
   searchGuitars,
 ]
-
-const serverTools: Record<string, Tool> = Object.fromEntries(
-  serverToolsList.map((t) => [t.name, t]),
-)
+ 
 
 const loggingMiddleware: ChatMiddleware = {
   name: 'logging',
