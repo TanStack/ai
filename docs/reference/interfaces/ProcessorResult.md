@@ -5,7 +5,7 @@ title: ProcessorResult
 
 # Interface: ProcessorResult
 
-Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L70)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L73)
 
 Result from processing a stream
 
@@ -17,7 +17,7 @@ Result from processing a stream
 content: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:71](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L71)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:74](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L74)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:71](http
 optional finishReason: string | null;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:74](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L74)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L77)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:74](http
 optional thinking: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:72](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L72)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:75](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L75)
 
 ***
 
@@ -47,4 +47,4 @@ Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:72](http
 optional toolCalls: ToolCall[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L73)
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:76](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L76)

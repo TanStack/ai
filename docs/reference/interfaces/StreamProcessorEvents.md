@@ -176,7 +176,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/stream/processor.ts:86](
 ### onThinkingUpdate()?
 
 ```ts
-optional onThinkingUpdate: (messageId, content) => void;
+optional onThinkingUpdate: (messageId, stepId, content) => void;
 ```
 
 Defined in: [packages/typescript/ai/src/activities/chat/stream/processor.ts:93](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/processor.ts#L93)
@@ -184,6 +184,10 @@ Defined in: [packages/typescript/ai/src/activities/chat/stream/processor.ts:93](
 #### Parameters
 
 ##### messageId
+
+`string`
+
+##### stepId
 
 `string`
 

@@ -5,7 +5,7 @@ title: VideoStatusResult
 
 # Interface: VideoStatusResult
 
-Defined in: [packages/typescript/ai/src/types.ts:1369](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1369)
+Defined in: [packages/typescript/ai/src/types.ts:1374](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1374)
 
 **`Experimental`**
 
@@ -21,7 +21,7 @@ Status of a video generation job.
 optional error: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1377](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1377)
+Defined in: [packages/typescript/ai/src/types.ts:1382](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1382)
 
 **`Experimental`**
 
@@ -35,7 +35,7 @@ Error message if status is 'failed'
 jobId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1371](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1371)
+Defined in: [packages/typescript/ai/src/types.ts:1376](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1376)
 
 **`Experimental`**
 
@@ -49,7 +49,7 @@ Job identifier
 optional progress: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1375](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1375)
+Defined in: [packages/typescript/ai/src/types.ts:1380](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1380)
 
 **`Experimental`**
 
@@ -63,7 +63,7 @@ Progress percentage (0-100), if available
 status: "pending" | "processing" | "completed" | "failed";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1373](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1373)
+Defined in: [packages/typescript/ai/src/types.ts:1378](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1378)
 
 **`Experimental`**
 
