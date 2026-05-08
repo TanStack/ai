@@ -23,6 +23,8 @@ TypeError: Cannot read properties of undefined (reading 'statusText')
 
 …and Metro refuses to resolve `@tanstack/ai/adapters` at all. By the end of this guide, you'll have a working chat flow on Expo/React Native using a JSON-array fallback path. The same approach works for any deployment target that can't stream `ReadableStream` responses (some edge proxies, legacy serverless runtimes, etc.).
 
+> **Want to see it working before you swap your own app?** The [ts-react-chat example](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat) ships a `/tanchat-json` route that uses this exact pair (`toJSONResponse` on the server, `fetchJSON` on the client). Run `pnpm dev` from `examples/ts-react-chat` and open `/tanchat-json` to compare it against the streaming `/` route side-by-side.
+
 ## What's actually going wrong
 
 Two separate problems show up on React Native / Expo:
@@ -82,6 +84,28 @@ export function ChatScreen() {
 The one thing you give up: the UI won't update character-by-character. The request hangs until the server finishes the whole run, then the full message — including tool calls, results, and the final assistant turn — appears at once.
 
 If this becomes a problem, the answer is to move to a runtime that supports streaming responses (Hono on Node, Next.js, TanStack Start, a real SSE endpoint proxied through a CDN that doesn't buffer) rather than to work around the limitation further. The JSON-array path is a pragmatic escape hatch, not the intended happy path.
+
+## Troubleshooting
+
+`fetchJSON` surfaces upstream failures with enough context to skip a debugger trip — match the error string against the cases below.
+
+**`fetchJSON: failed to parse response body as JSON from /api/chat (status 502): …`**
+
+The server returned a non-JSON body — usually an HTML gateway error page from a proxy in front of your handler (Cloudflare, a Vercel edge buffer, an API gateway that intercepted before your route ran). The cause is upstream of TanStack AI; check the proxy logs or hit the URL directly with `curl` to see what's actually being returned.
+
+**`HTTP error! status: 429 Too Many Requests — {"error":{"type":"rate_limit_error",…}}`**
+
+The body snippet (truncated to 500 chars) is the raw response from your server route. For provider-relayed errors like this rate-limit JSON, the snippet preserves the upstream `type` / `message` fields — surface them in your UI rather than showing a generic "request failed".
+
+**`fetchJSON: expected response body to be a JSON array of StreamChunks. Did you forget to use \`toJSONResponse(stream)\` on the server?`**
+
+The route returned valid JSON, but not an array. Almost always a server-side mistake: returning `Response.json({ messages: [...] })` or similar instead of `toJSONResponse(stream)`. Check the API route matches the [Step 1 example](#step-1-return-a-json-array-response-on-the-server).
+
+**The request hangs forever and `isLoading` stays `true`.**
+
+The server is buffering the response and never flushing. If the runtime supports streaming at all, switch to `toServerSentEventsResponse` — it'll fail loudly instead of silently buffering. If buffering is unavoidable (Expo, sandboxed previews), confirm the server route is actually reaching `toJSONResponse` and not crashing earlier; check server logs.
+
+If you abort the request from the client (e.g. the user navigates away), `fetchJSON` honours the abort signal and stops yielding chunks even after the response has been received. No extra cleanup is needed in `useChat` consumers.
 
 ## Going back to streaming when you can
 

@@ -94,7 +94,7 @@ const { messages } = useChat({
 });
 ```
 
-The server drains the whole chat stream before responding, and this adapter replays each chunk into the normal `ChatClient` pipeline. Trade-off: no incremental rendering — the UI sees every chunk at once when the request resolves. See [React Native & Expo](./non-streaming-runtimes) for the full walkthrough.
+The server drains the whole chat stream before responding, and this adapter replays each chunk into the normal `ChatClient` pipeline. Trade-off: no incremental rendering — the UI sees every chunk at once when the request resolves. See [React Native & Expo](./non-streaming-runtimes) for the full walkthrough, or run the [`/tanchat-json` route](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat) in the React example to see it side-by-side with the streaming path.
 
 ## Custom Adapters
 
