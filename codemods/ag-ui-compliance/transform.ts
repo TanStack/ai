@@ -120,38 +120,51 @@ function findKey(
 
 /**
  * Rename a property `oldName` → `newName` on the given object expression
- * iff `oldName` is present and `newName` is not. Returns true if a
- * rename happened.
+ * iff `oldName` is present and `newName` is not. Returns
+ * - `'renamed'` when the rename was applied,
+ * - `'conflict'` when both keys were already present and the rename was
+ *   skipped (caller should surface this to the user — silently leaving
+ *   it alone hides intentional decisions that still need a human merge),
+ * - `'skipped'` otherwise (no `oldName` key found, or the key was not
+ *   an Identifier we can safely rewrite).
  */
 function renameProperty(
   obj: ObjectExpression,
   oldName: string,
   newName: string,
-): boolean {
+): 'renamed' | 'conflict' | 'skipped' {
   const oldProp = findKey(obj, oldName)
-  if (!oldProp) return false
+  if (!oldProp) return 'skipped'
   if (findKey(obj, newName)) {
-    // Both keys present — author has set them deliberately. Leaving
-    // alone is safer than producing a duplicate-key object literal.
-    return false
+    return 'conflict'
   }
   if (oldProp.key.type === 'Identifier') {
     oldProp.key.name = newName
-    return true
+    return 'renamed'
   }
-  return false
+  return 'skipped'
+}
+
+interface RenameStats {
+  renamed: number
+  conflicts: Array<{ filePath: string; line?: number; site: string }>
 }
 
 /**
- * Rename the `body` key to `forwardedProps` on the first object-literal
- * argument of every call site whose callee matches `predicate`.
+ * Rename `oldKey` → `newKey` on the first object-literal argument of every
+ * call site whose callee matches `predicate`. Conflicts (both keys already
+ * present) are recorded so the caller can surface them via `api.report`.
  */
-function renameBodyOnCalls(
+function renameKeyOnCalls(
   j: JSCodeshift,
   root: Collection,
+  filePath: string,
   predicate: (path: ASTPath<any>) => boolean,
-): number {
-  let count = 0
+  oldKey: string,
+  newKey: string,
+  siteLabel: string,
+  stats: RenameStats,
+): void {
   root
     .find(j.CallExpression)
     .filter(predicate)
@@ -160,11 +173,18 @@ function renameBodyOnCalls(
       const objArg = args.find(
         (a): a is ObjectExpression => a.type === 'ObjectExpression',
       )
-      if (objArg && renameProperty(objArg, 'body', 'forwardedProps')) {
-        count++
+      if (!objArg) return
+      const outcome = renameProperty(objArg, oldKey, newKey)
+      if (outcome === 'renamed') {
+        stats.renamed++
+      } else if (outcome === 'conflict') {
+        stats.conflicts.push({
+          filePath,
+          line: path.node.loc?.start.line,
+          site: siteLabel,
+        })
       }
     })
-  return count
 }
 
 export default function transform(
@@ -186,14 +206,23 @@ export default function transform(
     return file.source
   }
 
-  let changed = 0
+  const stats: RenameStats = { renamed: 0, conflicts: [] }
 
   // 1. useChat({ body }) → useChat({ forwardedProps })
   if (facts.hasUseChat) {
-    changed += renameBodyOnCalls(j, root, (path) => {
-      const callee = path.node.callee
-      return callee.type === 'Identifier' && callee.name === 'useChat'
-    })
+    renameKeyOnCalls(
+      j,
+      root,
+      file.path,
+      (path) => {
+        const callee = path.node.callee
+        return callee.type === 'Identifier' && callee.name === 'useChat'
+      },
+      'body',
+      'forwardedProps',
+      'useChat({ body })',
+      stats,
+    )
   }
 
   // 2. new ChatClient({ body }) → new ChatClient({ forwardedProps })
@@ -204,8 +233,16 @@ export default function transform(
       const objArg = path.node.arguments.find(
         (a): a is ObjectExpression => a.type === 'ObjectExpression',
       )
-      if (objArg && renameProperty(objArg, 'body', 'forwardedProps')) {
-        changed++
+      if (!objArg) return
+      const outcome = renameProperty(objArg, 'body', 'forwardedProps')
+      if (outcome === 'renamed') {
+        stats.renamed++
+      } else if (outcome === 'conflict') {
+        stats.conflicts.push({
+          filePath: file.path,
+          line: path.node.loc?.start.line,
+          site: 'new ChatClient({ body })',
+        })
       }
     })
 
@@ -216,15 +253,24 @@ export default function transform(
     // ChatClient (already checked) and pattern-match on the method
     // name. `updateOptions` is distinctive enough that false matches
     // are unlikely in a TanStack AI codebase.
-    changed += renameBodyOnCalls(j, root, (path) => {
-      const callee = path.node.callee
-      return (
-        callee.type === 'MemberExpression' &&
-        !callee.computed &&
-        callee.property.type === 'Identifier' &&
-        callee.property.name === 'updateOptions'
-      )
-    })
+    renameKeyOnCalls(
+      j,
+      root,
+      file.path,
+      (path) => {
+        const callee = path.node.callee
+        return (
+          callee.type === 'MemberExpression' &&
+          !callee.computed &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'updateOptions'
+        )
+      },
+      'body',
+      'forwardedProps',
+      'updateOptions({ body })',
+      stats,
+    )
   }
 
   // 4. chat.updateBody(x) → chat.updateForwardedProps(x)
@@ -234,25 +280,42 @@ export default function transform(
       if (path.node.property.type !== 'Identifier') return
       if (path.node.property.name !== 'updateBody') return
       path.node.property.name = 'updateForwardedProps'
-      changed++
+      stats.renamed++
     })
   }
 
   // 5. chat({ conversationId }) → chat({ threadId })
   if (facts.hasChat) {
-    root.find(j.CallExpression).forEach((path) => {
-      const callee = path.node.callee
-      if (callee.type !== 'Identifier' || callee.name !== 'chat') return
-      const objArg = path.node.arguments.find(
-        (a): a is ObjectExpression => a.type === 'ObjectExpression',
-      )
-      if (objArg && renameProperty(objArg, 'conversationId', 'threadId')) {
-        changed++
-      }
-    })
+    renameKeyOnCalls(
+      j,
+      root,
+      file.path,
+      (path) => {
+        const callee = path.node.callee
+        return callee.type === 'Identifier' && callee.name === 'chat'
+      },
+      'conversationId',
+      'threadId',
+      'chat({ conversationId })',
+      stats,
+    )
   }
 
-  return changed > 0 ? root.toSource() : file.source
+  // Surface conflicts so users can resolve them by hand. The codemod
+  // intentionally leaves `{ body, forwardedProps }` (or other dual-key)
+  // objects alone — silently swallowing them would either drop one
+  // value or produce a duplicate-key object literal.
+  for (const conflict of stats.conflicts) {
+    const where =
+      conflict.line !== undefined
+        ? `${conflict.filePath}:${conflict.line}`
+        : conflict.filePath
+    api.report(
+      `[ag-ui-compliance] ${where} — ${conflict.site}: both legacy and canonical keys are already present; left alone. Merge by hand.`,
+    )
+  }
+
+  return stats.renamed > 0 ? root.toSource() : file.source
 }
 
 // jscodeshift inspects `.parser` on the default export to choose its

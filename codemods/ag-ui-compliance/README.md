@@ -49,7 +49,14 @@ pnpm codemod:ag-ui-compliance "examples/**/*.{ts,tsx}"
 
 ## Conflict handling
 
-If an object literal already declares **both** the legacy and the canonical key — for example, `useChat({ body: {...}, forwardedProps: {...} })` — the codemod leaves it alone. Renaming would produce a duplicate-key object literal and silently drop one of the two values; resolving the merge is a judgment call only the author can make. After the codemod runs, look for any places where you intentionally set both and merge them by hand.
+If an object literal already declares **both** the legacy and the canonical key — for example, `useChat({ body: {...}, forwardedProps: {...} })` — the codemod leaves it alone and prints a warning of the form:
+
+```
+[ag-ui-compliance] path/to/file.tsx:42 — useChat({ body }): both legacy
+  and canonical keys are already present; left alone. Merge by hand.
+```
+
+Renaming would produce a duplicate-key object literal and silently drop one of the two values; resolving the merge is a judgment call only the author can make. Search the codemod's output for `[ag-ui-compliance]` lines and merge each call site manually.
 
 ## Limits and verification
 

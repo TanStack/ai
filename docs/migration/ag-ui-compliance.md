@@ -73,10 +73,12 @@ Add `--dry --print` to preview changes first. The codemod is import-source–gat
 
 **What this means for server code:**
 
-- **Most callers don't need to do anything.** When you don't pass `conversationId` to `chat()`, the runtime auto-generates a `threadId` and uses it for devtools event correlation automatically. Existing code keeps working.
-- **`chat({ conversationId: 'foo' })` still works** — it's now treated as `chat({ threadId: 'foo' })` internally. No code change required.
+- **Server code that doesn't reference `conversationId` is unaffected.** When `chat({ conversationId })` is omitted, the runtime auto-generates a stable `threadId` per request and uses it for devtools event correlation.
+- **`chat({ conversationId: 'foo' })` still works** — `conversationId` is now a deprecated alias for `threadId`, resolved internally. No code change required.
 - **`chat({ threadId: 'foo' })` is the canonical form** — prefer it in new code. If both are passed, `threadId` wins.
 - **`TextOptions.conversationId` is `@deprecated`** in JSDoc and will be removed in a future major release.
+
+> **One real behavior change to verify.** If your server reads `body.forwardedProps?.conversationId` (or the legacy `body.data?.conversationId`) and threads it into `chat({ conversationId })`, the value will now be `undefined` for any client running the upgraded `@tanstack/ai-client`, because the client no longer auto-emits `conversationId`. The fall-back to an auto-generated `threadId` keeps devtools correlation working *within* a single request, but **threadId stability across requests now depends on the client sending its own `threadId`** (which `ChatClient` does — see the AG-UI top-level `threadId` field surfaced via `params.threadId`). To restore the prior cross-request stable identifier, switch the server to read `params.threadId` and pass it to `chat({ threadId: params.threadId })`, or rely on the auto-fallback if cross-request stability is not required.
 
 **Custom middleware:** `ChatMiddlewareContext` now exposes both `ctx.threadId` (canonical) and `ctx.conversationId` (deprecated alias, always equal to `ctx.threadId`). New middleware should read `ctx.threadId`; existing middleware reading `ctx.conversationId` keeps working.
 

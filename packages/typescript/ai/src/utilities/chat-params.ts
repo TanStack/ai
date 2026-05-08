@@ -124,21 +124,34 @@ export async function chatParamsFromRequest(
   let body: unknown
   try {
     body = await req.json()
-  } catch {
-    throw new Response('Invalid JSON body', { status: 400 })
+  } catch (cause) {
+    // Preserve the underlying error on the thrown Response for
+    // server-side observability without leaking it to the client.
+    const res = new Response(
+      'Invalid AG-UI request body. See docs/migration/ag-ui-compliance.md.',
+      { status: 400 },
+    )
+    ;(res as unknown as { cause?: unknown }).cause = cause
+    throw res
   }
   try {
     return await chatParamsFromRequestBody(body)
-  } catch (error) {
-    throw new Response(
-      error instanceof Error ? error.message : 'Bad request',
+  } catch (cause) {
+    // Generic public message — avoid echoing Zod paths (which can contain
+    // user payload fragments) or internal validator strings to the client.
+    // The original AGUIError is attached as `cause` so server logs can
+    // surface it without exposing it to remote callers.
+    const res = new Response(
+      'Invalid AG-UI request body. See docs/migration/ag-ui-compliance.md.',
       { status: 400 },
     )
+    ;(res as unknown as { cause?: unknown }).cause = cause
+    throw res
   }
 }
 
 /**
- * Merge a server-side tool registry with the AG-UI client-declared tools
+ * Merge a server-side tool array with the AG-UI client-declared tools
  * received in the request body.
  *
  * Rules:
@@ -152,33 +165,35 @@ export async function chatParamsFromRequest(
  *   them — server emits a tool-call request, client executes via its
  *   registered handler, client posts back the result.
  *
- * @param serverTools - The server's `toolDefinition().server(...)` registry,
- *   keyed by tool name.
+ * @param serverTools - The server's tool array (e.g. from
+ *   `[myToolDef.server(...)]`). Pass directly to `chat({ tools })`.
  * @param clientTools - The `tools` array received from
- *   `chatParamsFromRequestBody(...)`.
- * @returns A merged record suitable for `chat({ tools })`.
+ *   `chatParamsFromRequest(...)` / `chatParamsFromRequestBody(...)`.
+ * @returns A merged array suitable for `chat({ tools })`.
  */
 export function mergeAgentTools(
-  serverTools: Record<string, Tool>,
-  clientTools: Array<{
+  serverTools: ReadonlyArray<Tool>,
+  clientTools: ReadonlyArray<{
     name: string
     description: string
     parameters: JSONSchema
   }>,
-): Record<string, Tool> {
-  const merged: Record<string, Tool> = { ...serverTools }
+): Array<Tool> {
+  const seen = new Set(serverTools.map((t) => t.name))
+  const merged: Array<Tool> = [...serverTools]
   for (const ct of clientTools) {
-    if (ct.name in merged) {
-      // Server wins
+    if (seen.has(ct.name)) {
+      // Server wins on name collision.
       continue
     }
-    merged[ct.name] = {
+    seen.add(ct.name)
+    merged.push({
       name: ct.name,
       description: ct.description,
       inputSchema: ct.parameters,
       // No `execute` — runtime treats this as a client-side tool and
       // emits ClientToolRequest events.
-    } as Tool
+    } as Tool)
   }
   return merged
 }

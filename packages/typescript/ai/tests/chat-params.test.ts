@@ -100,13 +100,24 @@ describe('chatParamsFromRequest', () => {
   })
 
   it('throws a 400 Response when JSON is malformed', async () => {
-    const req = makeRequest('{not-json')
-    await expect(chatParamsFromRequest(req)).rejects.toBeInstanceOf(Response)
+    // `Request.json()` consumes the body — every call needs a fresh
+    // Request so the second invocation actually exercises the parse-failure
+    // path rather than the "body already read" branch.
+    await expect(
+      chatParamsFromRequest(makeRequest('{not-json')),
+    ).rejects.toBeInstanceOf(Response)
+
     try {
-      await chatParamsFromRequest(req)
+      await chatParamsFromRequest(makeRequest('{not-json'))
     } catch (thrown) {
       expect(thrown).toBeInstanceOf(Response)
-      expect((thrown as Response).status).toBe(400)
+      const res = thrown as Response
+      expect(res.status).toBe(400)
+      const body = await res.text()
+      // Public message must NOT echo Zod / parser internals.
+      expect(body).toMatch(/AG-UI|migration/i)
+      // Underlying error is preserved as `cause` for server-side logs.
+      expect((res as unknown as { cause?: unknown }).cause).toBeDefined()
     }
   })
 
@@ -120,7 +131,9 @@ describe('chatParamsFromRequest', () => {
       const res = thrown as Response
       expect(res.status).toBe(400)
       const body = await res.text()
-      expect(body).toMatch(/AG-UI|RunAgentInput|migration/i)
+      expect(body).toMatch(/AG-UI|migration/i)
+      // Original AGUIError is attached as `cause`.
+      expect((res as unknown as { cause?: unknown }).cause).toBeDefined()
     }
   })
 })
@@ -134,14 +147,15 @@ describe('mergeAgentTools', () => {
   })
 
   it('returns server tools unchanged when client list is empty', () => {
-    const server = { greet: fakeServerTool('greet') }
+    const server = [fakeServerTool('greet')]
     const result = mergeAgentTools(server, [])
-    expect(Object.keys(result)).toEqual(['greet'])
-    expect(result['greet']!.execute).toBeDefined()
+    expect(result).toHaveLength(1)
+    expect(result[0]!.name).toBe('greet')
+    expect(result[0]!.execute).toBeDefined()
   })
 
   it('adds client-only tools as no-execute stubs', () => {
-    const server = {}
+    const server: Array<ReturnType<typeof fakeServerTool>> = []
     const client = [
       {
         name: 'showToast',
@@ -150,17 +164,15 @@ describe('mergeAgentTools', () => {
       },
     ]
     const result = mergeAgentTools(server, client)
-    expect(Object.keys(result)).toEqual(['showToast'])
-    expect(result['showToast']!.execute).toBeUndefined()
-    expect(result['showToast']!.inputSchema).toEqual({
-      type: 'object',
-      properties: {},
-    })
-    expect(result['showToast']!.description).toBe('render a toast')
+    expect(result).toHaveLength(1)
+    expect(result[0]!.name).toBe('showToast')
+    expect(result[0]!.execute).toBeUndefined()
+    expect(result[0]!.inputSchema).toEqual({ type: 'object', properties: {} })
+    expect(result[0]!.description).toBe('render a toast')
   })
 
   it('server wins on name collision (client declaration ignored)', () => {
-    const server = { greet: fakeServerTool('greet') }
+    const server = [fakeServerTool('greet')]
     const client = [
       {
         name: 'greet',
@@ -169,11 +181,30 @@ describe('mergeAgentTools', () => {
       },
     ]
     const result = mergeAgentTools(server, client)
-    expect(result['greet']!.description).toBe('server greet')
-    expect(result['greet']!.execute).toBeDefined()
+    expect(result).toHaveLength(1)
+    expect(result[0]!.description).toBe('server greet')
+    expect(result[0]!.execute).toBeDefined()
+  })
+
+  it('preserves the order: server tools first, then unique client tools', () => {
+    const server = [fakeServerTool('alpha'), fakeServerTool('beta')]
+    const client = [
+      {
+        name: 'beta', // collides — should NOT be added again
+        description: 'overridden',
+        parameters: { type: 'object', properties: {} },
+      },
+      {
+        name: 'gamma',
+        description: 'a client-only tool',
+        parameters: { type: 'object', properties: {} },
+      },
+    ]
+    const result = mergeAgentTools(server, client)
+    expect(result.map((t) => t.name)).toEqual(['alpha', 'beta', 'gamma'])
   })
 
   it('handles empty server and empty client', () => {
-    expect(mergeAgentTools({}, [])).toEqual({})
+    expect(mergeAgentTools([], [])).toEqual([])
   })
 })
