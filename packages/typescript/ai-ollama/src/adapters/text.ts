@@ -560,16 +560,9 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       | OllamaTextProviderOptions
       | undefined
 
-    const ollamaOptions = {
-      temperature: options.temperature,
-      top_p: options.topP,
-      num_predict: options.maxTokens,
-      ...modelOptions,
-    }
-
     return {
       model,
-      options: ollamaOptions,
+      options: modelOptions,
       messages: this.formatMessages(options.messages),
       tools: this.convertToolsToOllamaFormat(options.tools),
       ...(options.systemPrompts?.length

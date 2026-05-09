@@ -306,10 +306,13 @@ export class AnthropicTextAdapter<
         'service_tier',
         'stop_sequences',
         'system',
+        'temperature',
         'thinking',
         'tool_choice',
         'top_k',
+        'top_p',
       ]
+
       for (const key of validKeys) {
         if (key in modelOptions) {
           const value = modelOptions[key]
@@ -328,7 +331,7 @@ export class AnthropicTextAdapter<
       validProviderOptions.thinking?.type === 'enabled'
         ? validProviderOptions.thinking.budget_tokens
         : undefined
-    const defaultMaxTokens = options.maxTokens || 1024
+    const defaultMaxTokens = modelOptions?.max_tokens || 1024
     const maxTokens =
       thinkingBudget && thinkingBudget >= defaultMaxTokens
         ? thinkingBudget + 1
@@ -337,8 +340,6 @@ export class AnthropicTextAdapter<
     const requestParams: InternalTextProviderOptions = {
       model: options.model,
       max_tokens: maxTokens,
-      temperature: options.temperature,
-      top_p: options.topP,
       messages: formattedMessages,
       system: options.systemPrompts?.length
         ? options.systemPrompts.map(

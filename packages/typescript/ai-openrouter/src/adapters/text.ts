@@ -671,22 +671,12 @@ export class OpenRouterTextAdapter<
       })
     }
 
-    // Spread modelOptions first, then conditionally override with explicit
-    // top-level options so undefined values don't clobber modelOptions. Fixes
-    // #310, where the reverse order silently dropped user-set values.
+    const { variant, ...restModelOptions } = modelOptions ?? {}
+
     const request: ChatRequest = {
-      ...modelOptions,
-      model:
-        options.model +
-        (modelOptions?.variant ? `:${modelOptions.variant}` : ''),
+      ...restModelOptions,
+      model: options.model + (variant ? `:${variant}` : ''),
       messages,
-      ...(options.temperature !== undefined && {
-        temperature: options.temperature,
-      }),
-      ...(options.maxTokens !== undefined && {
-        maxCompletionTokens: options.maxTokens,
-      }),
-      ...(options.topP !== undefined && { topP: options.topP }),
       tools: options.tools
         ? convertToolsToProviderFormat(options.tools)
         : undefined,
