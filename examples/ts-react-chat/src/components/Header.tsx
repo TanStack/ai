@@ -5,12 +5,14 @@ import {
   Braces,
   FileAudio,
   FileText,
+  GitBranch,
   Guitar,
   Home,
   Image,
   Menu,
   Mic,
   Music,
+  Network,
   Video,
   X,
 } from 'lucide-react'
@@ -188,14 +190,46 @@ export default function Header() {
           <Link
             to="/realtime"
             onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Mic size={20} />
+            <span className="font-medium">Voice Chat (Realtime)</span>
+          </Link>
+
+          <hr className="border-gray-700 my-2" />
+
+          <p className="text-xs text-gray-500 uppercase tracking-wider px-3 pt-2 pb-1">
+            Orchestration
+          </p>
+
+          <Link
+            to="/workflow"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <GitBranch size={20} />
+            <span className="font-medium">Article Workflow</span>
+          </Link>
+
+          <Link
+            to="/orchestration"
+            onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
             activeProps={{
               className:
                 'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
             }}
           >
-            <Mic size={20} />
-            <span className="font-medium">Voice Chat (Realtime)</span>
+            <Network size={20} />
+            <span className="font-medium">Feature Orchestrator</span>
           </Link>
         </nav>
       </aside>
