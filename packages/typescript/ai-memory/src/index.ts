@@ -1,5 +1,11 @@
 export { inMemoryMemoryAdapter } from './adapters/in-memory'
 
+export {
+  redisMemoryAdapter,
+  type RedisMemoryAdapterOptions,
+  type RedisLike,
+} from './adapters/redis'
+
 export type {
   MemoryAdapter,
   MemoryRecord,
