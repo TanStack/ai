@@ -1,10 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  inMemoryRunStore,
-  resumeWorkflow,
-  runWorkflow,
-  toWorkflowSSEResponse,
-} from '@tanstack/ai-orchestration'
+import { inMemoryRunStore, runWorkflow } from '@tanstack/ai-orchestration'
+import { toServerSentEventsResponse } from '@tanstack/ai'
 import { featureOrchestrator } from '@/lib/workflows/orchestrator'
 
 const runStore = inMemoryRunStore({ ttl: 60 * 60 * 1000 })
@@ -20,8 +16,9 @@ export const Route = createFileRoute('/api/orchestration')({
         }
 
         if (body.approval && body.runId) {
-          return toWorkflowSSEResponse(
-            resumeWorkflow({
+          return toServerSentEventsResponse(
+            runWorkflow({
+              workflow: featureOrchestrator,
               runId: body.runId,
               runStore,
               approval: body.approval,
@@ -33,9 +30,9 @@ export const Route = createFileRoute('/api/orchestration')({
           return new Response('input required', { status: 400 })
         }
 
-        return toWorkflowSSEResponse(
+        return toServerSentEventsResponse(
           runWorkflow({
-            workflow: featureOrchestrator as any,
+            workflow: featureOrchestrator,
             input: body.input,
             runStore,
           }),

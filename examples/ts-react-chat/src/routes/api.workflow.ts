@@ -1,10 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  inMemoryRunStore,
-  resumeWorkflow,
-  runWorkflow,
-  toWorkflowSSEResponse,
-} from '@tanstack/ai-orchestration'
+import { inMemoryRunStore, runWorkflow } from '@tanstack/ai-orchestration'
+import { toServerSentEventsResponse } from '@tanstack/ai'
 import { articleWorkflow } from '@/lib/workflows/article-workflow'
 
 // Process-local store. Survives across requests; lost on restart.
@@ -27,8 +23,9 @@ export const Route = createFileRoute('/api/workflow')({
         }
 
         if (body.approval && body.runId) {
-          return toWorkflowSSEResponse(
-            resumeWorkflow({
+          return toServerSentEventsResponse(
+            runWorkflow({
+              workflow: articleWorkflow,
               runId: body.runId,
               runStore,
               approval: {
@@ -43,9 +40,9 @@ export const Route = createFileRoute('/api/workflow')({
           return new Response('input required', { status: 400 })
         }
 
-        return toWorkflowSSEResponse(
+        return toServerSentEventsResponse(
           runWorkflow({
-            workflow: articleWorkflow as any,
+            workflow: articleWorkflow,
             input: body.input,
             runStore,
           }),
