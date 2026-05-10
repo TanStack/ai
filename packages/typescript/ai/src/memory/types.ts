@@ -485,6 +485,12 @@ export interface MemoryMiddlewareOptions {
    * committed, so the deferred persist promise rejects — but `memory:error`
    * still fires exactly once with `phase: 'extract'` (NOT a second time
    * with `phase: 'persist'`).
+   *
+   * **Scope is enforced.** Records returned by this callback have their
+   * `scope` field overridden with the resolved scope before being persisted,
+   * regardless of what scope the callback set. This is a defence-in-depth
+   * guarantee — callers cannot accidentally (or maliciously) write into
+   * another tenant's scope by returning a record with a different `scope`.
    */
   extractMemories?: (args: {
     userText: string
@@ -505,6 +511,12 @@ export interface MemoryMiddlewareOptions {
    * The middleware defers the resulting work via `ctx.defer` so it does not
    * block the chat stream. Same return-shape conventions as `extractMemories`
    * — `MemoryOp[]`, `MemoryRecord[]` shorthand, or `undefined`.
+   *
+   * **Scope is enforced.** Records returned by this callback have their
+   * `scope` field overridden with the resolved scope before being persisted,
+   * regardless of what scope the callback set. This is a defence-in-depth
+   * guarantee — callers cannot accidentally (or maliciously) write into
+   * another tenant's scope by returning a record with a different `scope`.
    */
   onToolResult?: (args: {
     toolName: string

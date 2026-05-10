@@ -6,13 +6,20 @@ const DEFAULT_HALF_LIFE_MS = 1000 * 60 * 60 * 24 * 30 // 30 days
  * Decide whether a record's scope satisfies a query scope.
  *
  * **Strict-by-default empty-scope semantics.** When `queryScope` has no
- * defined keys (every key is `undefined`/null, or the object is `{}`), this
- * returns `false` — i.e. an empty query scope matches NOTHING. This is a
- * deliberate cross-tenant safety guard: callers like `clear({})` or
- * `search({ scope: {}, ... })` would otherwise wipe / leak every tenant's
- * records. Adapters that want to operate on a specific scope key (e.g. all
- * records for a tenant regardless of user) must pass that key explicitly,
- * e.g. `{ tenantId: 't1' }`.
+ * defined keys (every key is `undefined`/null, the empty string, or the
+ * object is `{}`), this returns `false` — i.e. an empty query scope matches
+ * NOTHING. This is a deliberate cross-tenant safety guard: callers like
+ * `clear({})` or `search({ scope: {}, ... })` would otherwise wipe / leak
+ * every tenant's records. Adapters that want to operate on a specific scope
+ * key (e.g. all records for a tenant regardless of user) must pass that key
+ * explicitly, e.g. `{ tenantId: 't1' }`.
+ *
+ * **Empty-string scope values are treated as undefined.** Scope values MUST
+ * be non-empty strings to be meaningful. A query of `{ tenantId: '' }` is
+ * equivalent to `{}` and matches nothing — this prevents callers from
+ * accidentally producing a degenerate "blank-tenant" bucket that would be
+ * unreachable from any normal query and indistinguishable from records whose
+ * scope key was simply unset.
  */
 export function scopeMatches(
   recordScope: MemoryScope,
@@ -22,6 +29,10 @@ export function scopeMatches(
   for (const key of Object.keys(queryScope) as Array<keyof MemoryScope>) {
     const value = queryScope[key]
     if (value == null) continue
+    // Empty strings are treated as undefined — they cannot be a defined
+    // scope value. Mirrored in adapters' `hasAnyScopeKey` guards so the same
+    // rule applies at every isolation boundary.
+    if (typeof value === 'string' && value.length === 0) continue
     definedKeys++
     if (recordScope[key] !== value) return false
   }

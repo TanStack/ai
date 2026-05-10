@@ -296,6 +296,13 @@ function normalizeOps(
  * against an empty store before the add committed. Strict in-order dispatch
  * is correct at the cost of per-op round-trips. For high-throughput callers,
  * `afterPersist` is the right place to do bulk fan-out.
+ *
+ * **Scope is enforced on add.** The resolved scope overrides whatever scope
+ * the user-supplied record carried. A buggy or hostile `extractMemories` /
+ * `onToolResult` callback cannot write into another tenant's bucket — the
+ * record's scope is silently corrected to the resolved scope before
+ * `adapter.add`. Update and delete already take `scope` as an explicit
+ * parameter, so they're isolated by the adapter's own `scopeMatches` check.
  */
 async function applyOps(
   options: MemoryMiddlewareOptions,
@@ -305,8 +312,15 @@ async function applyOps(
   const newRecords: Array<MemoryRecord> = []
   for (const op of ops) {
     if (op.op === 'add') {
-      await options.adapter.add(op.record)
-      newRecords.push(op.record)
+      // Force the resolved scope onto user-supplied records to prevent a
+      // buggy extractMemories / onToolResult callback from writing into
+      // another tenant. This is defence-in-depth: the contract docs already
+      // promise tenant isolation, but enforcing it here means a single
+      // mistaken `scope: { tenantId: 'wrong' }` in a callback cannot breach
+      // the boundary.
+      const record: MemoryRecord = { ...op.record, scope }
+      await options.adapter.add(record)
+      newRecords.push(record)
     } else if (op.op === 'update') {
       await options.adapter.update(op.id, scope, op.patch)
     } else {

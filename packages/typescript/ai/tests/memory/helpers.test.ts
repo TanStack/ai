@@ -33,6 +33,39 @@ describe('scopeMatches', () => {
   it('rejects when any provided key differs', () => {
     expect(scopeMatches({ tenantId: 'a' }, { tenantId: 'b' })).toBe(false)
   })
+
+  describe('empty-string scope values', () => {
+    // Empty-string values are treated as undefined per the JSDoc on
+    // `scopeMatches` — a degenerate "blank-tenant" bucket would otherwise be
+    // unreachable from any normal query and indistinguishable from records
+    // whose scope key was simply unset. Mirrored in adapters' `hasAnyScopeKey`
+    // so the same rule applies at every isolation boundary.
+    it('treats empty-string scope values as undefined in the query', () => {
+      // A query with all empty-string values is equivalent to {} — matches nothing.
+      expect(scopeMatches({ tenantId: 't1' }, { tenantId: '' })).toBe(false)
+      expect(
+        scopeMatches({ tenantId: 't1' }, { tenantId: '', userId: '' }),
+      ).toBe(false)
+    })
+
+    it('a record with an empty-string scope value is unreachable via that key', () => {
+      // Defensive check: callers should not write empty-string scopes, but if
+      // they slip through (e.g. via a buggy callback), an empty-string query
+      // STILL matches nothing rather than colliding with the record.
+      expect(scopeMatches({ tenantId: '' }, { tenantId: '' })).toBe(false)
+    })
+
+    it('skips empty-string keys but still honours other defined keys', () => {
+      // `{ tenantId: 't1', userId: '' }` is equivalent to `{ tenantId: 't1' }`
+      // — the empty userId is ignored and tenant matching proceeds normally.
+      expect(
+        scopeMatches({ tenantId: 't1', userId: 'u1' }, { tenantId: 't1', userId: '' }),
+      ).toBe(true)
+      expect(
+        scopeMatches({ tenantId: 't2', userId: 'u1' }, { tenantId: 't1', userId: '' }),
+      ).toBe(false)
+    })
+  })
 })
 
 describe('cosine', () => {

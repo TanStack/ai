@@ -349,6 +349,96 @@ export function runMemoryAdapterContract(
         expect(out.hits.find((h) => h.record.id === 'real')).toBeUndefined()
         expect(out.hits.find((h) => h.record.id === 'other')).toBeUndefined()
       })
+
+      // EXACT-MATCH counterpart to the SCAN MATCH glob-escape test above. The
+      // redis adapter's `scopeKey` joins scope values with `:`. Without
+      // escaping, `{ tenantId: 'a:b' }` and `{ tenantId: 'a', userId: 'b' }`
+      // would both serialize to `a:b:_:_:_:_` and silently merge two
+      // different tenants' index buckets. The in-memory adapter is unaffected
+      // because it does not serialize scope to strings — it uses
+      // `scopeMatches` against the raw scope object — but the test still
+      // pins the same isolation guarantee.
+      //
+      // We assert ONLY the isolation property (no cross-leak), not the
+      // own-record retrieval, because ioredis-mock does not implement the
+      // SCAN MATCH backslash-escape mechanism Redis uses. In a real Redis
+      // deployment the escaped pattern correctly matches the literal key;
+      // here we verify the security-critical half — that buckets do not
+      // merge — and rely on the in-memory contract run for the
+      // own-record-reachability half.
+      it('does not cross-leak scope values that contain the segment delimiter', async () => {
+        const colonTenant: MemoryScope = { tenantId: 'a:b' }
+        const splitScope: MemoryScope = { tenantId: 'a', userId: 'b' }
+        await adapter.add(
+          rec({ id: 'colon', scope: colonTenant, text: 'colon data' }),
+        )
+        await adapter.add(
+          rec({ id: 'split', scope: splitScope, text: 'split data' }),
+        )
+        // Querying the split scope must NOT surface the colon-scope record —
+        // the previously-colliding bucket layout is now isolated.
+        const splitOut = await adapter.search({
+          scope: splitScope,
+          text: 'data',
+        })
+        expect(splitOut.hits.find((h) => h.record.id === 'colon')).toBeUndefined()
+        expect(splitOut.hits.find((h) => h.record.id === 'split')).toBeDefined()
+        // get() uses an id+scope check via scopeMatches against the raw
+        // scope object, so the own-record reachability half is also testable
+        // here without relying on SCAN MATCH escape semantics.
+        expect(await adapter.get('colon', colonTenant)).toBeDefined()
+        expect(await adapter.get('split', splitScope)).toBeDefined()
+        // And the cross-scope get must not leak either way.
+        expect(await adapter.get('colon', splitScope)).toBeUndefined()
+        expect(await adapter.get('split', colonTenant)).toBeUndefined()
+      })
+
+      it('does not cross-leak scope values that contain the escape character', async () => {
+        // Backslash is the escape character used by both `escapeScopeValue`
+        // (for `:`/`\`) and `escapeGlob` (for glob metacharacters). A naive
+        // escape that didn't escape `\` itself would let
+        // `tenantId: 'a\\backslash'` collide with another scope after
+        // unescaping. Same isolation-only assertion shape as the colon test.
+        const backslashTenant: MemoryScope = { tenantId: 'has\\backslash' }
+        const otherTenant: MemoryScope = { tenantId: 'has' }
+        await adapter.add(
+          rec({ id: 'bs', scope: backslashTenant, text: 'bs data' }),
+        )
+        await adapter.add(
+          rec({ id: 'plain', scope: otherTenant, text: 'plain data' }),
+        )
+        const out = await adapter.search({
+          scope: otherTenant,
+          text: 'data',
+        })
+        expect(out.hits.find((h) => h.record.id === 'plain')).toBeDefined()
+        expect(out.hits.find((h) => h.record.id === 'bs')).toBeUndefined()
+        // Own-record reachability via id+scope is testable without SCAN.
+        expect(await adapter.get('bs', backslashTenant)).toBeDefined()
+        expect(await adapter.get('plain', otherTenant)).toBeDefined()
+      })
+
+      it('treats empty-string scope values as undefined (not as a distinct bucket)', async () => {
+        // A scope value of `''` is equivalent to the key being unset — see
+        // `scopeMatches` JSDoc. A record written with `{ tenantId: '' }`
+        // would otherwise produce a degenerate "blank-tenant" bucket that
+        // no normal query could reach. The empty-scope safety guard kicks
+        // in for `{ tenantId: '' }` (since the only defined key is empty)
+        // and turns clear/search/list into no-ops.
+        await adapter.add(rec({ id: 'a', scope: scopeA, text: 'apples' }))
+        await adapter.add(rec({ id: 'b', scope: scopeB, text: 'apples' }))
+        const out = await adapter.search({
+          scope: { tenantId: '' },
+          text: 'apples',
+        })
+        expect(out.hits.length).toBe(0)
+        const listed = await adapter.list({ tenantId: '' })
+        expect(listed.items.length).toBe(0)
+        // `clear({ tenantId: '' })` must NOT wipe real tenants.
+        await adapter.clear({ tenantId: '' })
+        expect(await adapter.get('a', scopeA)).toBeDefined()
+        expect(await adapter.get('b', scopeB)).toBeDefined()
+      })
     })
 
     describe('semantic vs lexical ranking', () => {

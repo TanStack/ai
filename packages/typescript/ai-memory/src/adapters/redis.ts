@@ -136,6 +136,23 @@ function escapeGlob(value: string): string {
   return value.replace(/[\\*?[\]]/g, '\\$&')
 }
 
+/**
+ * Escape the `:` segment delimiter (and the `\` escape character itself) in a
+ * scope value before composing the colon-joined `scopeKey` tuple. Without this,
+ * a scope value containing `:` would shift the segment positions and a single-
+ * key scope `{ tenantId: 'a:b' }` would collide with a multi-key scope
+ * `{ tenantId: 'a', userId: 'b' }` — both would otherwise serialize to
+ * `a:b:_:_:_:_` and silently merge two different tenants' index buckets.
+ *
+ * This is the EXACT-MATCH counterpart to `escapeGlob`'s SCAN MATCH defence:
+ * together they close both sides of the cross-tenant leak through the documented
+ * isolation boundary.
+ */
+function escapeScopeValue(value: string): string {
+  // Escape : (our delimiter) and \ (the escape character itself).
+  return value.replace(/[\\:]/g, '\\$&')
+}
+
 const SCOPE_KEYS = [
   'tenantId',
   'userId',
@@ -144,9 +161,18 @@ const SCOPE_KEYS = [
   'namespace',
 ] as const
 
+/**
+ * Empty-string scope values are treated as undefined (mirrors `scopeMatches`).
+ * A scope value MUST be a non-empty string to be meaningful — otherwise it
+ * would be written as a literal empty segment (e.g. `:_:_:_:_`) that no
+ * partial-scope query could ever reach.
+ */
 function hasAnyScopeKey(scope: MemoryScope): boolean {
   for (const key of SCOPE_KEYS) {
-    if (scope[key] != null) return true
+    const v = scope[key]
+    if (v == null) continue
+    if (typeof v === 'string' && v.length === 0) continue
+    return true
   }
   return false
 }
@@ -171,7 +197,19 @@ export function redisMemoryAdapter(
   const redis = options.redis
 
   function scopeKey(scope: MemoryScope): string {
-    return SCOPE_KEYS.map((k) => scope[k] ?? '_').join(':')
+    // Escape `:` and `\` in scope values so a value containing the delimiter
+    // (e.g. `{ tenantId: 'a:b' }`) cannot collide with a multi-key scope
+    // (e.g. `{ tenantId: 'a', userId: 'b' }`) that would otherwise serialize
+    // to the same `a:b:_:_:_:_` tuple. Empty-string scope values are
+    // normalised to the `_` placeholder per the same rule applied in
+    // `scopeMatches` and `hasAnyScopeKey`.
+    return SCOPE_KEYS.map((k) => {
+      const v = scope[k]
+      if (v == null) return '_'
+      const str = String(v)
+      if (str.length === 0) return '_'
+      return escapeScopeValue(str)
+    }).join(':')
   }
   function indexKey(scope: MemoryScope): string {
     return `${prefix}:index:${scopeKey(scope)}`
@@ -207,11 +245,24 @@ export function redisMemoryAdapter(
    * empty-scope semantics in `scopeMatches`, an empty scope matches
    * nothing and so resolves to zero buckets.
    *
-   * Glob metacharacters are escaped before being passed to SCAN MATCH so
-   * that scope values containing `*`, `?`, `[`, `]`, or `\` cannot
-   * cross-match other tenants' index buckets. Only literal scope values
-   * are escaped — the `*` we substitute for unset scope keys is left
-   * unescaped because it is the wildcard we actually want.
+   * Two escape passes are applied to literal scope values, IN ORDER:
+   *   1. `escapeScopeValue` — escape `:` (the segment delimiter) so a scope
+   *      value containing a colon does not shift segment positions in the
+   *      SCAN pattern. This must run FIRST so the segment grid stays aligned
+   *      with the EXACT-MATCH `scopeKey` form.
+   *   2. `escapeGlob` — escape `*`, `?`, `[`, `]`, and `\` so a scope value
+   *      cannot glob-match other tenants' index buckets.
+   *
+   * Order matters: if `escapeGlob` ran first it would emit `\*` for a literal
+   * `*`, and `escapeScopeValue` would then re-escape that backslash as
+   * `\\\*`, producing a stray escape pair that does not match what `scopeKey`
+   * wrote. Running `escapeScopeValue` first leaves the glob characters
+   * untouched, then `escapeGlob` escapes them along with the backslashes
+   * `escapeScopeValue` introduced — yielding a pattern whose literal segments
+   * exactly match the `scopeKey` form.
+   *
+   * The `*` we substitute for unset scope keys is left unescaped because it
+   * is the SCAN wildcard we actually want.
    */
   async function findIndexKeysForScope(
     scope: MemoryScope,
@@ -219,7 +270,16 @@ export function redisMemoryAdapter(
     if (!hasAnyScopeKey(scope)) return []
     const pattern = `${prefix}:index:${SCOPE_KEYS.map((k) => {
       const v = scope[k]
-      return v != null ? escapeGlob(String(v)) : '*'
+      if (v == null) return '*'
+      const str = String(v)
+      // Empty-string values are not "defined" per `hasAnyScopeKey`; if all
+      // were empty we'd have returned above. A single empty value among
+      // others should still glob ('*') so a partial-scope query that mixes
+      // a meaningful key with an empty-string fallback is interpreted the
+      // same as omitting the empty one entirely.
+      if (str.length === 0) return '*'
+      // Escape : FIRST (segment delimiter), THEN glob metacharacters.
+      return escapeGlob(escapeScopeValue(str))
     }).join(':')}`
     const seen = new Set<string>()
     let cursor = '0'

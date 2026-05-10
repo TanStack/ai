@@ -435,6 +435,92 @@ describe('memoryMiddleware — persistence', () => {
     expect(memory.store.get('X')?.text).toBe('patched')
   })
 
+  it('forces the resolved scope onto records returned by extractMemories', async () => {
+    // Defence-in-depth: a buggy or hostile `extractMemories` callback that
+    // returns a record with a DIFFERENT scope than the resolved one must NOT
+    // be able to write into another tenant's bucket. The middleware silently
+    // overrides the record's scope with the resolved scope before persisting.
+    const memory = fakeAdapter()
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')],
+      ],
+    })
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'U' }],
+      middleware: [
+        memoryMiddleware({
+          adapter: memory,
+          scope: baseScope,
+          extractMemories: () => [
+            // Buggy callback returning a record under a DIFFERENT scope —
+            // middleware must override to baseScope before persisting.
+            rec({
+              scope: { tenantId: 'wrong-tenant' } as MemoryScope,
+              text: 'leaked',
+              kind: 'fact',
+            }),
+          ],
+        }),
+      ],
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+    // Allow deferred persist to settle.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    const leaked = [...memory.store.values()].find((r) => r.text === 'leaked')
+    expect(leaked).toBeDefined()
+    // The wrong scope was overridden to baseScope — defence-in-depth holds.
+    expect(leaked?.scope).toEqual(baseScope)
+  })
+
+  it('forces the resolved scope onto records returned by onToolResult', async () => {
+    // Same defence-in-depth guarantee as `extractMemories`, but on the
+    // tool-result path which dispatches via `runObservedPersist` from
+    // `onAfterToolCall` rather than from `persistTurn`.
+    const memory = fakeAdapter()
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.toolStart('c1', 'echo'),
+          ev.toolArgs('c1', '{}'),
+          ev.toolEnd('c1', 'echo'),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
+      ],
+    })
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'U' }],
+      tools: [
+        { name: 'echo', description: 'noop', execute: async () => ({ ok: 1 }) },
+      ],
+      middleware: [
+        memoryMiddleware({
+          adapter: memory,
+          scope: baseScope,
+          onToolResult: () => [
+            rec({
+              scope: { tenantId: 'wrong-tenant' } as MemoryScope,
+              text: 'tool-leaked',
+              kind: 'tool-result',
+              role: 'tool',
+            }),
+          ],
+        }),
+      ],
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    const leaked = [...memory.store.values()].find(
+      (r) => r.text === 'tool-leaked',
+    )
+    expect(leaked).toBeDefined()
+    expect(leaked?.scope).toEqual(baseScope)
+  })
+
   it('afterPersist receives newly-added records (not updates/deletes)', async () => {
     const memory = fakeAdapter()
     const { adapter } = createMockAdapter({
