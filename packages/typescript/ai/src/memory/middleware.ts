@@ -333,6 +333,11 @@ async function persistTurn(args: {
   retrievedMemoryIds: Array<string>
 }): Promise<void> {
   const { options, scope } = args
+  // Hoisted out of the try block so the outer catch can read them when
+  // deciding whether the thrown value is the strict-mode extract re-throw
+  // (already-emitted, must not double-emit).
+  let extractError: unknown
+  let extractFailed = false
   // OUTERMOST try/catch so any throw — extract, persist, afterPersist —
   // routes through the same error plumbing and (in strict mode) rejects the
   // deferred promise via the engine's `Promise.allSettled` collector.
@@ -386,6 +391,18 @@ async function persistTurn(args: {
       record,
     }))
 
+    // Strict-mode `extractMemories` failure semantics:
+    //   1. The error is emitted exactly ONCE via `memory:error`/`onError`
+    //      with `phase: 'extract'` — the outer persist catch is suppressed
+    //      below so it does not re-emit with `phase: 'persist'`.
+    //   2. Base user/assistant records still land. We commit `applyOps` for
+    //      the records already accumulated before re-throwing so an extract
+    //      failure does not silently lose the conversation turn.
+    //   3. In strict mode the original extract error is re-thrown AFTER
+    //      `applyOps` commits, so the deferred persist promise rejects and
+    //      the engine surfaces the failure through `Promise.allSettled`.
+    //   4. In non-strict mode the error is swallowed after the single emit
+    //      and persistence continues with the base records.
     if (options.extractMemories) {
       try {
         const extras = await options.extractMemories({
@@ -396,6 +413,8 @@ async function persistTurn(args: {
         })
         if (extras) ops = ops.concat(normalizeOps(extras))
       } catch (error) {
+        extractFailed = true
+        extractError = error
         safeEmit('memory:error', {
           scope,
           phase: 'extract',
@@ -403,7 +422,8 @@ async function persistTurn(args: {
           timestamp: Date.now(),
         })
         await emitError(options, scope, 'extract', error)
-        if (options.strict) throw error
+        // Intentionally NOT re-throwing here — see note (2)/(3) above. The
+        // re-throw happens after `applyOps` so base records still persist.
       }
     }
 
@@ -443,14 +463,27 @@ async function persistTurn(args: {
         adapter: options.adapter,
       })
     }
+
+    // Strict-mode extract failure: base records have now been committed via
+    // `applyOps`. Re-throw the original extract error so the deferred persist
+    // promise rejects. The outer catch below recognises this case and does
+    // NOT re-emit `memory:error` (it would otherwise fire a second event
+    // with phase: 'persist' for the same failure).
+    if (extractFailed && options.strict) throw extractError
   } catch (error) {
-    safeEmit('memory:error', {
-      scope,
-      phase: 'persist',
-      error: errorInfo(error),
-      timestamp: Date.now(),
-    })
-    await emitError(options, scope, 'persist', error)
+    // Skip re-emit/re-callback when the error is the strict-mode extract
+    // re-throw we just performed — `memory:error` (phase: 'extract') already
+    // fired in the inner catch above. Emitting again here would produce a
+    // duplicate event with the wrong phase ('persist') for one failure.
+    if (!(extractFailed && error === extractError)) {
+      safeEmit('memory:error', {
+        scope,
+        phase: 'persist',
+        error: errorInfo(error),
+        timestamp: Date.now(),
+      })
+      await emitError(options, scope, 'persist', error)
+    }
     if (options.strict) throw error
   }
 }
@@ -518,15 +551,16 @@ function getMessageText(message?: ModelMessage): string {
   if (!message) return ''
   if (typeof message.content === 'string') return message.content
   if (Array.isArray(message.content)) {
+    // Per `TextPart` in ../types.ts the text payload lives on `content`, not
+    // `text`. Bare strings are still tolerated because a handful of adapters
+    // pass them through in the content array. All other ContentPart kinds
+    // (tool-call, tool-result, image, audio, …) yield '' so they don't
+    // pollute the retrieval query or persisted record text.
     return message.content
       .map((part) => {
         if (typeof part === 'string') return part
-        if (
-          typeof part === 'object' &&
-          'text' in part &&
-          typeof part.text === 'string'
-        ) {
-          return part.text
+        if (part.type === 'text' && typeof part.content === 'string') {
+          return part.content
         }
         return ''
       })

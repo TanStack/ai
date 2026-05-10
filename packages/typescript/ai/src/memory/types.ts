@@ -117,6 +117,12 @@ export type MemoryRecord = {
    * Importance hint in the range `0..1` (higher = more important). This is a
    * soft signal a re-ranker, eviction policy, or summariser may consult — it
    * is not enforced by the adapter contract.
+   *
+   * The reference `defaultScoreHit` ranker treats unset importance as `0`
+   * (no contribution to the score) — it deliberately does NOT fall back to
+   * a mid-range default. Set this explicitly (e.g. `0.4` for raw turns, `1`
+   * for pinned facts) to bias retrieval; otherwise the record competes on
+   * semantic, lexical, and recency signals alone.
    */
   importance?: number
   /**
@@ -285,6 +291,11 @@ export interface MemoryAdapter {
    * Pagination is via the opaque `query.cursor` / `result.nextCursor` pair —
    * the cursor format is adapter-internal and MUST NOT be parsed by callers.
    * Expired records are filtered out.
+   *
+   * An empty `query.scope` (`{}`) matches NOTHING — adapters MUST return an
+   * empty hit set rather than treating it as a wildcard. This is the
+   * symmetric counterpart of the empty-scope safety guard on `clear` and
+   * the reference `scopeMatches` helper.
    */
   search: (query: MemoryQuery) => Promise<MemorySearchResult>
 
@@ -294,6 +305,10 @@ export interface MemoryAdapter {
    * This is the non-relevance counterpart to `search`, intended for inspector
    * UIs, admin tooling, and bulk export. Ordering is controlled by
    * `options.order`. Expired records are filtered out.
+   *
+   * An empty `scope` (`{}`) matches NOTHING — adapters MUST return an empty
+   * item set rather than treating it as a wildcard. Same cross-tenant
+   * safety rationale as `search` and `clear`.
    */
   list: (
     scope: MemoryScope,
@@ -314,11 +329,16 @@ export interface MemoryAdapter {
    *
    * Scope matching uses the same isolation semantics as every other method:
    * only records whose scope matches the supplied scope are removed. An empty
-   * scope (`{}`) matches everything by definition, but adapters MUST NOT treat
-   * `clear({})` as a casual "wipe the database" operation. Implementations
-   * SHOULD either reject empty-scope `clear` outright or guard it behind an
-   * explicit safety check; treating it as a silent global wipe is considered
-   * misuse.
+   * scope (`{}`) matches NOTHING — adapters MUST treat empty-scope
+   * `clear({})` as a no-op rather than a global wipe. The reference
+   * `scopeMatches` helper rejects empty query scopes precisely so this is
+   * the default for any adapter built on top of it. Implementations that
+   * bypass `scopeMatches` (e.g. index-driven optimisations like the Redis
+   * adapter) MUST add an equivalent empty-scope check before deleting.
+   *
+   * Callers who actually intend to wipe an entire scope dimension must pass
+   * the relevant scope key explicitly (e.g. `{ tenantId: 't1' }` to clear
+   * every record for tenant `t1`).
    */
   clear: (scope: MemoryScope) => Promise<void>
 }
@@ -454,6 +474,17 @@ export interface MemoryMiddlewareOptions {
    * single batch, or — as shorthand — a plain `MemoryRecord[]`, which the
    * middleware treats as all-add (`[{ op: 'add', record }, ...]`). Returning
    * `undefined` is a no-op.
+   *
+   * **Failure semantics.** If this callback throws, the middleware emits a
+   * single `memory:error` event with `phase: 'extract'` and calls
+   * `events.onError({ phase: 'extract' })`. Base user/assistant records are
+   * still committed to the adapter regardless — an extract failure must not
+   * silently drop the raw turn. In non-strict mode (the default) the error
+   * is then swallowed and chat continues. In strict mode (`strict: true`)
+   * the original extract error is re-thrown AFTER the base records have
+   * committed, so the deferred persist promise rejects — but `memory:error`
+   * still fires exactly once with `phase: 'extract'` (NOT a second time
+   * with `phase: 'persist'`).
    */
   extractMemories?: (args: {
     userText: string

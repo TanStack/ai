@@ -56,11 +56,21 @@ export function lexicalOverlap(query: string, text: string): number {
   return overlap / queryTokens.size
 }
 
+/**
+ * Exponential decay score over record age.
+ *
+ * @param createdAt  Record creation timestamp (epoch ms).
+ * @param halfLifeMs Time (ms) at which the score reaches 0.5. Defaults to 30 days.
+ * @param now        Reference "current" time (epoch ms). Defaults to `Date.now()`.
+ *                   Callers MAY pass an explicit `now` to make scoring deterministic
+ *                   (e.g. in tests or batch re-scoring jobs).
+ */
 export function recencyScore(
   createdAt: number,
   halfLifeMs: number = DEFAULT_HALF_LIFE_MS,
+  now: number = Date.now(),
 ): number {
-  const age = Math.max(0, Date.now() - createdAt)
+  const age = Math.max(0, now - createdAt)
   return Math.pow(0.5, age / halfLifeMs)
 }
 
@@ -71,16 +81,38 @@ export function isExpired(
   return record.expiresAt !== undefined && record.expiresAt < now
 }
 
+/**
+ * Reference ranking function used by adapters that want a sensible default.
+ *
+ * Weighted sum of four signals, each in `[0, 1]`:
+ *   - semantic similarity (cosine) — 0.55
+ *   - lexical overlap              — 0.20
+ *   - recency (exp decay)          — 0.15
+ *   - importance                   — 0.10
+ *
+ * Importance is read from `record.importance`. **If unset, importance
+ * contributes 0** — the function deliberately does NOT fall back to a
+ * mid-range default. With the `MemoryMiddlewareOptions.minScore` floor at
+ * `0.15`, a non-zero importance default would push every recent record over
+ * the floor regardless of relevance. Callers who want recent records to
+ * float MUST set `importance` on the record explicitly.
+ *
+ * @param args.now Optional reference "current" time (epoch ms) threaded
+ *                 through to `recencyScore` so callers can score
+ *                 deterministically. Defaults to `Date.now()`.
+ */
 export function defaultScoreHit(args: {
   record: MemoryRecord
   query: MemoryQuery
   now?: number
 }): number {
-  const { record, query } = args
+  const { record, query, now } = args
   const semantic = cosine(query.embedding, record.embedding)
   const lexical = lexicalOverlap(query.text, record.text)
-  const recency = recencyScore(record.createdAt)
-  const importance = record.importance ?? 0.5
+  const recency = recencyScore(record.createdAt, undefined, now)
+  // No default fallback for importance — unset means "no importance signal",
+  // which contributes 0 to the score. See JSDoc above for rationale.
+  const importance = record.importance ?? 0
   return semantic * 0.55 + lexical * 0.2 + recency * 0.15 + importance * 0.1
 }
 

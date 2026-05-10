@@ -121,4 +121,62 @@ describe('defaultScoreHit', () => {
     expect(score).toBeGreaterThan(0)
     expect(score).toBeLessThanOrEqual(1)
   })
+
+  it('threads `now` through to recencyScore for deterministic scoring', () => {
+    // Fixed-timestamps regression test: passing `now` MUST make the score
+    // independent of wall-clock time. Two calls with the same `now` must
+    // return exactly the same score even if `Date.now()` has advanced
+    // between them.
+    const record: MemoryRecord = {
+      id: 'r',
+      scope: {},
+      kind: 'fact',
+      text: 'foo bar',
+      createdAt: 1000,
+      embedding: [1, 0],
+      importance: 1,
+    }
+    const query = { scope: {}, text: 'foo bar', embedding: [1, 0] }
+    const a = defaultScoreHit({ record, query, now: 2000 })
+    const b = defaultScoreHit({ record, query, now: 2000 })
+    expect(a).toBe(b)
+    // And a different `now` must produce a (lower) recency contribution —
+    // the older effective age means recencyScore drops, so the total drops.
+    const c = defaultScoreHit({
+      record,
+      query,
+      now: 2000 + 1000 * 60 * 60 * 24 * 30, // +1 half-life
+    })
+    expect(c).toBeLessThan(a)
+  })
+
+  it('unset importance contributes 0 (record with no relevance scores below default minScore)', () => {
+    // Default ranking floor regression test. With the previous default of
+    // `importance ?? 0.5`, a recent record with zero semantic + zero lexical
+    // match scored ~0.20 — over the default minScore floor of 0.15, so
+    // every recent irrelevant record leaked into retrieval. The new default
+    // (no fallback) keeps the score below the floor.
+    //
+    // We use `now` slightly ahead of `createdAt` so recency decays a hair
+    // below 1.0; the score is then strictly < 0.15 (the default minScore).
+    const createdAt = 1000
+    const now = createdAt + 1000 * 60 * 60 * 24 // one day later
+    const score = defaultScoreHit({
+      record: {
+        id: 'r',
+        scope: {},
+        kind: 'fact',
+        text: 'completely unrelated content', // no overlap with query
+        createdAt,
+        // no embedding, no importance
+      },
+      query: { scope: {}, text: 'foo bar' },
+      now,
+    })
+    expect(score).toBeLessThan(0.15)
+
+    // Sanity-check the converse: the OLD default of importance=0.5 would
+    // have pushed the same record above the 0.15 floor.
+    expect(score + 0.5 * 0.1).toBeGreaterThan(0.15)
+  })
 })

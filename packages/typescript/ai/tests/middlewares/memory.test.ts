@@ -214,6 +214,36 @@ describe('memoryMiddleware — retrieval', () => {
     expect(promptText.indexOf('B')).toBeLessThan(promptText.indexOf('A'))
   })
 
+  it('handles structured content (ContentPart[]) on the user message', async () => {
+    // Regression: `getMessageText` previously read `part.text`, but the
+    // actual TextPart shape (see ../../src/types.ts) carries the string on
+    // `part.content`. With the bug, a structured user message yielded
+    // lastUserText === '', which silently disabled retrieval AND skipped
+    // the user-side persist record. Verify retrieval IS attempted with the
+    // structured text and the user record IS persisted with that text.
+    const memory = fakeAdapter([rec({ text: 'X' })])
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+      ],
+    })
+    const stream = chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'text', content: 'hello structured' }],
+        },
+      ],
+      middleware: [memoryMiddleware({ adapter: memory, scope: baseScope })],
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+    expect(memory.searchCalls.length).toBeGreaterThan(0)
+    expect(memory.searchCalls[0]?.text).toBe('hello structured')
+    const userRecord = [...memory.store.values()].find((r) => r.role === 'user')
+    expect(userRecord?.text).toBe('hello structured')
+  })
+
   it('resolves function-form scope once and caches it', async () => {
     const memory = fakeAdapter([rec({ text: 'X' })])
     const { adapter } = createMockAdapter({
@@ -511,6 +541,57 @@ describe('memoryMiddleware — failure handling', () => {
     await expect(
       collectChunks(stream as AsyncIterable<StreamChunk>),
     ).rejects.toThrow('boom')
+  })
+
+  it('strict: extractMemories failure persists base records and emits exactly one memory:error (phase: extract)', async () => {
+    // Regression: previously the inner try/catch rethrew on strict, then
+    // the outer persist catch caught the rethrow and emitted a SECOND
+    // memory:error with phase: 'persist'. The double-emit also bypassed
+    // applyOps, so base user/assistant records never landed. New behaviour:
+    //   - memory:error fires exactly ONCE with phase: 'extract'
+    //   - base user + assistant records DO persist
+    const memory = fakeAdapter()
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [ev.runStarted(), ev.textContent('Pong.'), ev.runFinished('stop')],
+      ],
+    })
+    const errorEvents: Array<{ phase: string }> = []
+    const opts = { withEventTarget: true } as const
+    const off = aiEventClient.on(
+      'memory:error',
+      (e) => errorEvents.push({ phase: e.payload.phase }),
+      opts,
+    )
+    try {
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Ping' }],
+        middleware: [
+          memoryMiddleware({
+            adapter: memory,
+            scope: baseScope,
+            strict: true,
+            extractMemories: () => {
+              throw new Error('extract-boom')
+            },
+          }),
+        ],
+      })
+      // Stream itself succeeds — the deferred persist promise is the one
+      // that rejects in strict mode. Drain chunks normally.
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+      // Give the deferred persist promise a tick to settle before
+      // asserting on side-effects (event emissions, store state).
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    } finally {
+      off()
+    }
+    // Exactly one error event, with the correct phase.
+    expect(errorEvents).toEqual([{ phase: 'extract' }])
+    // Base records still landed despite the strict extract failure.
+    const texts = [...memory.store.values()].map((r) => r.text).sort()
+    expect(texts).toEqual(['Ping', 'Pong.'])
   })
 })
 
