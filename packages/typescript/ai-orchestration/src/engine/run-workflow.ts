@@ -92,7 +92,7 @@ export async function* runWorkflow(
   options: RunWorkflowOptions,
 ): AsyncIterable<StreamChunk> {
   if (options.runId && options.approval) {
-    yield* resumeRun(options.runId, options.runStore, options.approval)
+    yield* resumeRun(options)
     return
   }
   if (options.input === undefined) {
@@ -122,7 +122,7 @@ async function* startRun(
     initialState as Record<string, unknown>,
   )
 
-  let runState: RunState = {
+  const runState: RunState = {
     runId,
     status: 'running',
     workflowName: options.workflow.name,
@@ -161,11 +161,78 @@ async function* startRun(
 
   const generator = options.workflow.run(args as any)
   live.generator = generator
-
   options.runStore.setLive(runId, live)
 
+  yield* driveLoop({
+    live,
+    runId,
+    state,
+    runStore: options.runStore,
+    threadId: options.threadId,
+    outputSink: options.outputSink,
+    abortController,
+    seedValue: undefined,
+  })
+}
+
+async function* resumeRun(
+  options: RunWorkflowOptions,
+): AsyncIterable<StreamChunk> {
+  const runId = options.runId!
+  const approval = options.approval!
+  const live = options.runStore.getLive(runId)
+  if (!live) {
+    yield runErrorEvent({
+      runId,
+      message: `Run ${runId} not found (expired or never existed)`,
+      code: 'run_lost',
+    })
+    return
+  }
+
+  live.runState = { ...live.runState, status: 'running', updatedAt: Date.now() }
+  await options.runStore.set(runId, live.runState)
+
+  yield runStartedEvent({ runId, threadId: options.threadId })
+
+  yield* driveLoop({
+    live,
+    runId,
+    state: live.runState.state as Record<string, unknown>,
+    runStore: options.runStore,
+    threadId: options.threadId,
+    outputSink: options.outputSink,
+    abortController: live.abortController,
+    seedValue: approval,
+  })
+}
+
+interface DriveLoopArgs {
+  live: LiveRun
+  runId: string
+  /** Same reference the user generator's `args.state` holds. */
+  state: Record<string, unknown>
+  runStore: InMemoryRunStore
+  threadId?: string
+  outputSink?: (output: unknown) => void
+  abortController: AbortController
+  /** First value sent into `generator.next(...)`. `undefined` for start, `ApprovalResult` for resume. */
+  seedValue: unknown
+}
+
+/**
+ * Shared dispatch loop for both start and resume paths. Drives the generator,
+ * dispatches descriptor kinds, emits state deltas, and finalizes the run on
+ * done / error / abort / pause.
+ */
+async function* driveLoop(
+  args: DriveLoopArgs,
+): AsyncIterable<StreamChunk> {
+  const { live, runId, state, runStore, threadId, outputSink, abortController } =
+    args
+
   let prevState = snapshotState(state)
-  let nextValue: unknown = undefined
+  let nextValue: unknown = args.seedValue
   let finalOutput: unknown = undefined
 
   try {
@@ -173,7 +240,7 @@ async function* startRun(
       // Drain any custom events queued by emit() before advancing the generator.
       while (live.pendingEvents.length > 0) yield live.pendingEvents.shift()!
 
-      const result = await generator.next(nextValue as StepDescriptor)
+      const result = await live.generator.next(nextValue as StepDescriptor)
 
       // Diff state that may have mutated during the user's generator step.
       const delta = diffState(prevState, state)
@@ -201,7 +268,14 @@ async function* startRun(
         const { stream, output } = invokeAgent(
           descriptor.agent,
           descriptor.input,
-          args.emit,
+          (name, value) => {
+            live.pendingEvents.push({
+              type: 'CUSTOM',
+              timestamp: Date.now(),
+              name,
+              value,
+            } as StreamChunk)
+          },
           abortController.signal,
         )
 
@@ -217,7 +291,7 @@ async function* startRun(
             content: { error: serializeError(err) },
           })
           nextValue = undefined
-          const thrown = await generator.throw(err)
+          const thrown = await live.generator.throw(err)
           if (thrown.done) {
             finalOutput = thrown.value
             break
@@ -246,7 +320,7 @@ async function* startRun(
         const nestedIter = runWorkflow({
           workflow: descriptor.workflow,
           input: descriptor.input,
-          runStore: options.runStore,
+          runStore,
           signal: abortController.signal,
           outputSink: (o) => {
             nestedOutput = o
@@ -254,7 +328,6 @@ async function* startRun(
         })
 
         for await (const chunk of nestedIter) {
-          // Filter inner run boundaries so the outer run owns them.
           if (chunk.type === 'RUN_STARTED' || chunk.type === 'RUN_FINISHED') {
             continue
           }
@@ -288,8 +361,8 @@ async function* startRun(
           description: approvalDescriptor.description,
         })
 
-        runState = {
-          ...runState,
+        live.runState = {
+          ...live.runState,
           status: 'paused',
           state,
           pendingApproval: {
@@ -299,28 +372,27 @@ async function* startRun(
           },
           updatedAt: Date.now(),
         }
-        live.runState = runState
-        await options.runStore.set(runId, runState)
+        await runStore.set(runId, live.runState)
 
-        // SSE stream ends here; resumeWorkflow continues after client posts approval.
+        // SSE stream ends here; runWorkflow continues after client posts approval.
         return
       }
     }
 
     // Notify the parent before we delete our store entry so the output is
     // accessible across the store-delete boundary.
-    options.outputSink?.(finalOutput)
+    outputSink?.(finalOutput)
 
-    runState = {
-      ...runState,
+    live.runState = {
+      ...live.runState,
       status: 'finished',
       state,
       output: finalOutput,
       updatedAt: Date.now(),
     }
-    await options.runStore.set(runId, runState)
-    yield runFinishedEvent({ runId, threadId: options.threadId })
-    await options.runStore.delete(runId, 'finished')
+    await runStore.set(runId, live.runState)
+    yield runFinishedEvent({ runId, threadId })
+    await runStore.delete(runId, 'finished')
   } catch (err) {
     if (abortController.signal.aborted) {
       yield runErrorEvent({
@@ -328,76 +400,9 @@ async function* startRun(
         message: 'Workflow aborted',
         code: 'aborted',
       })
-      await options.runStore.delete(runId, 'aborted')
+      await runStore.delete(runId, 'aborted')
       return
     }
-    yield runErrorEvent({
-      runId,
-      message: errorMessage(err),
-      code: 'error',
-    })
-    await options.runStore.delete(runId, 'error')
-  }
-}
-
-async function* resumeRun(
-  runId: string,
-  runStore: InMemoryRunStore,
-  approval: ApprovalResult,
-): AsyncIterable<StreamChunk> {
-  const live = runStore.getLive(runId)
-  if (!live) {
-    yield runErrorEvent({
-      runId,
-      message: `Run ${runId} not found (expired or never existed)`,
-      code: 'run_lost',
-    })
-    return
-  }
-
-  live.runState = { ...live.runState, status: 'running', updatedAt: Date.now() }
-  await runStore.set(runId, live.runState)
-
-  yield runStartedEvent({ runId })
-
-  const nextValue: unknown = approval
-  let prevState = snapshotState(live.runState.state)
-  let finalOutput: unknown = undefined
-
-  try {
-    for (;;) {
-      // Drain any custom events queued by emit() before advancing the generator.
-      while (live.pendingEvents.length > 0) yield live.pendingEvents.shift()!
-
-      const result = await live.generator.next(nextValue as StepDescriptor)
-
-      const delta = diffState(prevState, live.runState.state)
-      if (delta.length > 0) {
-        yield stateDeltaEvent({ delta })
-        prevState = snapshotState(live.runState.state)
-      }
-
-      if (result.done) {
-        finalOutput = result.value
-        break
-      }
-
-      throw new Error(
-        'Resume after approval supports straight-line continuation in v1; ' +
-          'extract dispatch loop into a class to handle nested yields after resume.',
-      )
-    }
-
-    live.runState = {
-      ...live.runState,
-      status: 'finished',
-      output: finalOutput,
-      updatedAt: Date.now(),
-    }
-    await runStore.set(runId, live.runState)
-    yield runFinishedEvent({ runId })
-    await runStore.delete(runId, 'finished')
-  } catch (err) {
     yield runErrorEvent({
       runId,
       message: errorMessage(err),
