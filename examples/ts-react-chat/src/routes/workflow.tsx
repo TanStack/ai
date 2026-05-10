@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { useWorkflow } from '@tanstack/ai-react'
+import { fetchWorkflowEvents, useWorkflow } from '@tanstack/ai-react'
 import { StateInspector } from '@/components/StateInspector'
 import { WorkflowTimeline } from '@/components/WorkflowTimeline'
 
@@ -12,7 +12,7 @@ function WorkflowPage() {
   const [topic, setTopic] = useState('the cultural history of pufferfish')
 
   const wf = useWorkflow<{ topic: string }, unknown, unknown>({
-    endpoint: '/api/workflow',
+    connection: fetchWorkflowEvents('/api/workflow'),
   })
 
   return (

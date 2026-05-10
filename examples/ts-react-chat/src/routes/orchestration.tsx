@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { useOrchestration } from '@tanstack/ai-react'
+import { fetchWorkflowEvents, useOrchestration } from '@tanstack/ai-react'
 import { StateInspector } from '@/components/StateInspector'
 import { WorkflowTimeline } from '@/components/WorkflowTimeline'
 
@@ -14,7 +14,7 @@ function OrchestrationPage() {
   )
 
   const orch = useOrchestration<{ userMessage: string }, unknown, unknown>({
-    endpoint: '/api/orchestration',
+    connection: fetchWorkflowEvents('/api/orchestration'),
   })
 
   return (
