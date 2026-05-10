@@ -12,59 +12,7 @@ function WorkflowPage() {
   const [topic, setTopic] = useState('the cultural history of pufferfish')
 
   const wf = useWorkflow<{ topic: string }, unknown, unknown>({
-    connection: {
-      connect: async function* (body: unknown) {
-        const response = await fetch('/api/workflow', {
-          body: JSON.stringify(body),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST',
-        })
-        if (!response.ok) {
-          throw new Error(
-            `HTTP error! status: ${response.status} ${response.statusText}`,
-          )
-        }
-        const reader = response.body?.getReader()
-        if (!reader) throw new Error('Response body is not readable')
-        const decoder = new TextDecoder()
-        let buffer = ''
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() ?? ''
-            for (const line of lines) {
-              const trimmed = line.trim()
-              if (!trimmed) continue
-              const data = trimmed.startsWith('data: ')
-                ? trimmed.slice(6)
-                : trimmed
-              if (data === '[DONE]') continue
-              try {
-                yield JSON.parse(data)
-              } catch {
-                // skip malformed chunks
-              }
-            }
-          }
-          if (buffer.trim()) {
-            const data = buffer.trim().startsWith('data: ')
-              ? buffer.trim().slice(6)
-              : buffer.trim()
-            try {
-              yield JSON.parse(data)
-            } catch {
-              // skip
-            }
-          }
-        } finally {
-          reader.releaseLock()
-        }
-      },
-    } as any,
+    endpoint: '/api/workflow',
   })
 
   return (
