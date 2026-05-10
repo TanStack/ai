@@ -1,2 +1,2 @@
-export { handleWorkflowRequest } from './handle-request'
-export type { HandleWorkflowRequestOptions } from './handle-request'
+export { parseWorkflowRequest } from './parse-request'
+export type { WorkflowRequestParams } from './parse-request'

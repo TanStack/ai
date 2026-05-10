@@ -21,8 +21,8 @@ export { fail, succeed } from './result'
 // ===== Server-side run =====
 export { runWorkflow } from './engine/run-workflow'
 export type { RunWorkflowOptions } from './engine/run-workflow'
-export { handleWorkflowRequest } from './server'
-export type { HandleWorkflowRequestOptions } from './server'
+export { parseWorkflowRequest } from './server'
+export type { WorkflowRequestParams } from './server'
 
 // ===== Run store =====
 export { inMemoryRunStore } from './run-store/in-memory'
