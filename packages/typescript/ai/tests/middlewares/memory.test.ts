@@ -163,6 +163,11 @@ describe('memoryMiddleware — retrieval', () => {
       (calls[0] as { systemPrompts?: string[] }).systemPrompts?.length ?? 0
     const iter2 =
       (calls[1] as { systemPrompts?: string[] }).systemPrompts?.length ?? 0
+    // Guard against the degenerate case where injection is fully broken in
+    // BOTH iterations: `iter1 === iter2 === 0` would still satisfy the
+    // equality below but defeat the regression's intent (memory was actually
+    // injected on iteration 1 and not re-injected on iteration 2).
+    expect(iter1).toBeGreaterThan(0)
     expect(iter1).toBe(iter2)
   })
 

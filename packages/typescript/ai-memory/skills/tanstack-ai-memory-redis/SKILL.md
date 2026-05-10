@@ -62,7 +62,7 @@ The adapter accepts any client implementing the `RedisLike` shape: `get`, `set`,
 
 ## Storage model
 
-```
+```text
 {prefix}:record:{memoryId}  → JSON-stringified MemoryRecord
 {prefix}:index:{tenantId}:{userId}:{sessionId}:{threadId}:{namespace} → Set<memoryId>
 ```

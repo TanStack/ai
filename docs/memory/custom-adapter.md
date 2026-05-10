@@ -187,11 +187,11 @@ async search(query: MemoryQuery): Promise<MemorySearchResult> {
                  ELSE 0
             END AS score
        FROM ${table}
-      WHERE (tenant_id IS NOT DISTINCT FROM $2)
-        AND (user_id IS NOT DISTINCT FROM $3)
-        AND (session_id IS NOT DISTINCT FROM $4)
-        AND (thread_id IS NOT DISTINCT FROM $5)
-        AND (namespace IS NOT DISTINCT FROM $6)
+      WHERE ($2::text IS NULL OR tenant_id = $2)
+        AND ($3::text IS NULL OR user_id = $3)
+        AND ($4::text IS NULL OR session_id = $4)
+        AND ($5::text IS NULL OR thread_id = $5)
+        AND ($6::text IS NULL OR namespace = $6)
         AND (expires_at IS NULL OR expires_at > $7)
         AND ($8::text[] IS NULL OR kind = ANY($8))
       ORDER BY score DESC
@@ -239,7 +239,7 @@ runMemoryAdapterContract('pgvectorMemoryAdapter', async () => {
 })
 ```
 
-The suite covers `add` (single, batch, upsert), `get`, `update`, `search` (topK, minScore, kinds filter, cursor pagination, lexical-vs-semantic ranking), `list`, `delete`, `clear`, scope isolation across every method, expiry filtering, partial-scope cascades, glob metacharacter safety, colon and underscore safety, and the resolved-scope override for records returned by `extractMemories`. If your adapter passes, every contract guarantee is met.
+The suite covers `add` (single, batch, upsert), `get`, `update`, `search` (topK, minScore, kinds filter, cursor pagination, lexical-vs-semantic ranking), `list`, `delete`, `clear`, scope isolation across every method, expiry filtering, partial-scope cascades, glob metacharacter safety, and colon and underscore safety. If your adapter passes, every adapter-level contract guarantee is met.
 
 The contract module isn't re-exported from `@tanstack/ai-memory`'s public entry yet — import directly from `@tanstack/ai-memory/tests/contract` until that lands.
 

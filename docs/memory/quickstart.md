@@ -29,7 +29,7 @@ pnpm add @tanstack/ai-memory
 ## Step 2 — Pick an adapter
 
 > **In-memory** — `inMemoryMemoryAdapter()` is zero-dependency and stores records in a `Map`. Use it for local development, Vitest / Playwright tests, and single-process demos. Records vanish on process restart.
-
+>
 > **Redis** — `redisMemoryAdapter({ redis })` persists across restarts and shares state across processes. Use it for production. Bring your own Redis client (`ioredis`, `redis`, Upstash, ...) — the adapter is BYO-client.
 
 Custom adapters implement the `MemoryAdapter` interface from `@tanstack/ai/memory`. See [Custom Adapter](./custom-adapter) for the full authoring journey.
@@ -72,7 +72,7 @@ const memory = redisMemoryAdapter({ redis })
 memoryMiddleware({ adapter: memory, scope })
 ```
 
-> **Using `redis` (node-redis v4+) instead of `ioredis`?** node-redis exposes a camelCase API by default (`sAdd`, `mGet`, …) which does not match the adapter's lowercase `RedisLike` contract. Wrap the client with `nodeRedisAsRedisLike` from `@tanstack/ai-memory` before passing it in. See the [Redis adapter skill](https://github.com/TanStack/ai) for the full example.
+> **Using `redis` (node-redis v4+) instead of `ioredis`?** node-redis exposes a camelCase API by default (`sAdd`, `mGet`, …) which does not match the adapter's lowercase `RedisLike` contract. Wrap the client with `nodeRedisAsRedisLike` from `@tanstack/ai-memory` before passing it in. See the [Custom Adapter](./custom-adapter) guide and the [`tanstack-ai-memory-redis` skill](https://github.com/TanStack/ai/blob/main/packages/typescript/ai-memory/skills/tanstack-ai-memory-redis/SKILL.md) for the full example.
 
 ## Step 4 — Add an embedder (optional)
 

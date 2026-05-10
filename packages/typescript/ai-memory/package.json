@@ -16,6 +16,14 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./adapters/in-memory": {
+      "types": "./dist/esm/adapters/in-memory.d.ts",
+      "import": "./dist/esm/adapters/in-memory.js"
+    },
+    "./adapters/redis": {
+      "types": "./dist/esm/adapters/redis.d.ts",
+      "import": "./dist/esm/adapters/redis.js"
     }
   },
   "sideEffects": false,
