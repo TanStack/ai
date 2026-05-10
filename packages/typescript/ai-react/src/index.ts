@@ -60,12 +60,14 @@ export type {
 
 // Re-export from ai-client for convenience
 export {
-  fetchServerSentEvents,
   fetchHttpStream,
+  fetchServerSentEvents,
+  fetchWorkflowEvents,
   stream,
   createChatClientOptions,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type FetchWorkflowEventsOptions,
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,
