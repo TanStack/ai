@@ -53,13 +53,15 @@ export type {
   RealtimeStateChangeCallback,
 } from './realtime-types'
 export {
-  fetchServerSentEvents,
   fetchHttpStream,
-  stream,
+  fetchServerSentEvents,
+  fetchWorkflowEvents,
   rpcStream,
+  stream,
   type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type FetchWorkflowEventsOptions,
   type SubscribeConnectionAdapter,
 } from './connection-adapters'
 
