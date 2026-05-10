@@ -1,5 +1,6 @@
 // packages/typescript/ai/tests/middlewares/memory.test.ts
 import { describe, expect, it, vi } from 'vitest'
+import { aiEventClient } from '@tanstack/ai-event-client'
 import { chat } from '../../src/activities/chat/index'
 import { memoryMiddleware } from '../../src/memory'
 import type {
@@ -342,5 +343,34 @@ describe('memoryMiddleware — failure handling', () => {
       middleware: [memoryMiddleware({ adapter: memory, scope: baseScope, strict: true })],
     })
     await expect(collectChunks(stream as AsyncIterable<StreamChunk>)).rejects.toThrow('boom')
+  })
+})
+
+describe('memoryMiddleware — devtools events', () => {
+  it('emits retrieve and persist events in order', async () => {
+    const memory = fakeAdapter([rec({ text: 'X' })])
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')]],
+    })
+    const seen: string[] = []
+    const opts = { withEventTarget: true } as const
+    const off1 = aiEventClient.on('memory:retrieve:started', () => seen.push('retrieve:started'), opts)
+    const off2 = aiEventClient.on('memory:retrieve:completed', () => seen.push('retrieve:completed'), opts)
+    const off3 = aiEventClient.on('memory:persist:started', () => seen.push('persist:started'), opts)
+    const off4 = aiEventClient.on('memory:persist:completed', () => seen.push('persist:completed'), opts)
+    try {
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'U' }],
+        middleware: [memoryMiddleware({ adapter: memory, scope: baseScope })],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+      expect(seen).toEqual([
+        'retrieve:started', 'retrieve:completed',
+        'persist:started', 'persist:completed',
+      ])
+    } finally {
+      off1(); off2(); off3(); off4()
+    }
   })
 })

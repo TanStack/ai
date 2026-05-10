@@ -1,3 +1,4 @@
+import { aiEventClient } from '@tanstack/ai-event-client'
 import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
@@ -58,7 +59,16 @@ export function memoryMiddleware(
         if (!ok) return
       }
 
+      const startedAt = Date.now()
       try {
+        safeEmit('memory:retrieve:started', {
+          scope,
+          query: lastUserText,
+          topK: options.topK ?? 6,
+          minScore: options.minScore ?? 0.15,
+          embedderUsed: !!options.embedder,
+          timestamp: startedAt,
+        })
         await options.events?.onRetrieveStart?.({
           scope,
           query: lastUserText,
@@ -83,8 +93,28 @@ export function memoryMiddleware(
           })
         }
 
+        safeEmit('memory:retrieve:completed', {
+          scope,
+          hits: retrievedHits.map((h) => ({
+            id: h.record.id,
+            kind: h.record.kind,
+            score: h.score,
+            preview: preview(h.record.text),
+          })),
+          durationMs: Date.now() - startedAt,
+          timestamp: Date.now(),
+        })
         await options.events?.onRetrieveEnd?.({ scope, hits: retrievedHits })
       } catch (error) {
+        safeEmit('memory:error', {
+          scope,
+          phase: 'retrieve',
+          error: {
+            name: (error as Error)?.name ?? 'Error',
+            message: String((error as Error)?.message ?? error),
+          },
+          timestamp: Date.now(),
+        })
         await emitError(options, scope, 'retrieve', error)
         if (options.strict) throw error
         return
@@ -219,6 +249,7 @@ async function persistTurn(args: {
 }): Promise<void> {
   const { options, scope } = args
   const now = Date.now()
+  const startedAt = now
   const baseRecords: MemoryRecord[] = []
 
   if (args.userText) {
@@ -278,12 +309,36 @@ async function persistTurn(args: {
       })
       if (extras) ops = ops.concat(normalizeOps(extras))
     } catch (error) {
+      safeEmit('memory:error', {
+        scope,
+        phase: 'extract',
+        error: {
+          name: (error as Error)?.name ?? 'Error',
+          message: String((error as Error)?.message ?? error),
+        },
+        timestamp: Date.now(),
+      })
       await emitError(options, scope, 'extract', error)
       if (options.strict) throw error
     }
   }
 
   try {
+    safeEmit('memory:persist:started', {
+      scope,
+      records: ops
+        .filter((o) => o.op === 'add')
+        .map((o) => {
+          const r = (o as Extract<MemoryOp, { op: 'add' }>).record
+          return {
+            id: r.id,
+            kind: r.kind,
+            role: r.role,
+            preview: preview(r.text),
+          }
+        }),
+      timestamp: Date.now(),
+    })
     await options.events?.onPersistStart?.({
       scope,
       records: ops
@@ -291,6 +346,12 @@ async function persistTurn(args: {
         .map((o) => (o as Extract<MemoryOp, { op: 'add' }>).record),
     })
     const newRecords = await applyOps(options, scope, ops)
+    safeEmit('memory:persist:completed', {
+      scope,
+      recordIds: newRecords.map((r) => r.id),
+      durationMs: Date.now() - startedAt,
+      timestamp: Date.now(),
+    })
     await options.events?.onPersistEnd?.({ scope, records: newRecords })
     if (options.afterPersist) {
       await options.afterPersist({
@@ -300,6 +361,15 @@ async function persistTurn(args: {
       })
     }
   } catch (error) {
+    safeEmit('memory:error', {
+      scope,
+      phase: 'persist',
+      error: {
+        name: (error as Error)?.name ?? 'Error',
+        message: String((error as Error)?.message ?? error),
+      },
+      timestamp: Date.now(),
+    })
     await emitError(options, scope, 'persist', error)
     if (options.strict) throw error
   }
@@ -322,6 +392,23 @@ function findLastUserMessage(
     if (message && message.role === 'user') return message
   }
   return undefined
+}
+
+function preview(text: string, max = 200): string {
+  return text.length > max ? text.slice(0, max) + '…' : text
+}
+
+/**
+ * Defensive devtools emit. Devtools events should be fire-and-forget — if the
+ * event client throws synchronously (misconfigured global, broken transport),
+ * we swallow it so middleware behaviour never depends on devtools health.
+ */
+const safeEmit: typeof aiEventClient.emit = (...args) => {
+  try {
+    return aiEventClient.emit(...args)
+  } catch {
+    // ignored — telemetry failures must not affect chat behaviour
+  }
 }
 
 function getMessageText(message?: ModelMessage): string {
