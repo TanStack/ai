@@ -311,7 +311,10 @@ describe('memoryMiddleware — persistence', () => {
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
     const texts = [...memory.store.values()].map((r) => r.text).sort()
-    expect(texts).toEqual(['a meaningful user message', 'long enough response text'])
+    expect(texts).toEqual([
+      'a meaningful user message',
+      'long enough response text',
+    ])
   })
 
   it('extractMemories returning records adds them as kind: fact', async () => {
@@ -389,7 +392,10 @@ describe('memoryMiddleware — persistence', () => {
           adapter: memory,
           scope: baseScope,
           extractMemories: () => [
-            { op: 'add', record: rec({ id: 'X', text: 'initial', kind: 'fact' }) },
+            {
+              op: 'add',
+              record: rec({ id: 'X', text: 'initial', kind: 'fact' }),
+            },
             { op: 'update', id: 'X', patch: { text: 'patched' } },
           ],
         }),

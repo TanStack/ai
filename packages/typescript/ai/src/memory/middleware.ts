@@ -254,7 +254,9 @@ async function searchAllPages(
   return all.slice(0, topK)
 }
 
-function normalizeOps(input: Array<MemoryOp> | Array<MemoryRecord>): Array<MemoryOp> {
+function normalizeOps(
+  input: Array<MemoryOp> | Array<MemoryRecord>,
+): Array<MemoryOp> {
   if (input.length === 0) return []
   const first = input[0]
   if (first && 'op' in first) return input as Array<MemoryOp>
@@ -410,7 +412,7 @@ async function persistTurn(args: {
       records: ops
         .filter((o) => o.op === 'add')
         .map((o) => {
-          const r = (o).record
+          const r = o.record
           return {
             id: r.id,
             kind: r.kind,
@@ -422,9 +424,7 @@ async function persistTurn(args: {
     })
     await options.events?.onPersistStart?.({
       scope,
-      records: ops
-        .filter((o) => o.op === 'add')
-        .map((o) => (o).record),
+      records: ops.filter((o) => o.op === 'add').map((o) => o.record),
     })
 
     const newRecords = await applyOps(options, scope, ops)

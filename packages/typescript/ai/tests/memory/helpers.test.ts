@@ -19,7 +19,10 @@ describe('scopeMatches', () => {
   })
   it('rejects query scope with only nullish values', () => {
     expect(
-      scopeMatches({ tenantId: 'a' }, { tenantId: undefined, userId: undefined }),
+      scopeMatches(
+        { tenantId: 'a' },
+        { tenantId: undefined, userId: undefined },
+      ),
     ).toBe(false)
   })
   it('matches when all query keys are equal', () => {
