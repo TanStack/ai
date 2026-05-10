@@ -47,7 +47,7 @@ describe('nodeRedisAsRedisLike', () => {
         return []
       },
       scan: async (
-        cursor: number,
+        cursor: number | string,
         opts?: { MATCH?: string; COUNT?: number },
       ) => {
         calls.push({ method: 'scan', args: [cursor, opts] })
@@ -70,6 +70,16 @@ describe('nodeRedisAsRedisLike', () => {
     )
     await wrapped.del('d1', 'd2')
 
+    // Cursor passthrough — node-redis v5 uses string cursors and v4 uses
+    // number cursors. The wrapper must thread either through unchanged so
+    // a string cursor past Number.MAX_SAFE_INTEGER round-trips losslessly.
+    await wrapped.scan('0', 'MATCH', 'p:*')
+    await wrapped.scan(0, 'MATCH', 'p:*')
+    const bigCursor = '90071992547409930' // > Number.MAX_SAFE_INTEGER
+    await wrapped.scan(bigCursor, 'MATCH', 'p:*')
+    // COUNT <= 0 must be silently dropped — Redis rejects COUNT 0.
+    await wrapped.scan(0, 'MATCH', 'p:*', 'COUNT', '0')
+
     expect(calls.find((c) => c.method === 'set')).toMatchObject({
       args: ['k', 'v'],
     })
@@ -87,9 +97,20 @@ describe('nodeRedisAsRedisLike', () => {
     expect(calls.find((c) => c.method === 'mGet')).toMatchObject({
       args: [['k1', 'k2']],
     })
-    expect(calls.find((c) => c.method === 'scan')).toMatchObject({
-      args: [0, { MATCH: 'pattern:*', COUNT: 50 }],
+    const scanCalls = calls.filter((c) => c.method === 'scan')
+    // First scan: numeric COUNT translated correctly; cursor '0' threaded as-is
+    // (no Number() coercion).
+    expect(scanCalls[0]).toMatchObject({
+      args: ['0', { MATCH: 'pattern:*', COUNT: 50 }],
     })
+    // String cursor passed through as a string (v5 shape).
+    expect(scanCalls[1]?.args[0]).toBe('0')
+    // Number cursor passed through as a number (v4 shape).
+    expect(scanCalls[2]?.args[0]).toBe(0)
+    // Big string cursor past Number.MAX_SAFE_INTEGER round-trips losslessly.
+    expect(scanCalls[3]?.args[0]).toBe('90071992547409930')
+    // COUNT 0 is silently dropped (Redis rejects COUNT <= 0).
+    expect(scanCalls[4]?.args[1]).toEqual({ MATCH: 'p:*' })
     expect(calls.find((c) => c.method === 'del')).toMatchObject({
       args: [['d1', 'd2']],
     })

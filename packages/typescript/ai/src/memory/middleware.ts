@@ -173,12 +173,13 @@ export function memoryMiddleware(
           adapter: options.adapter,
         })
         if (!out) return
-        // Wrap the deferred write so adapter.add/update/delete failures emit
-        // memory:error, fire events.onError, and (in strict mode) reject the
-        // deferred promise — instead of being silently swallowed.
-        ctx.defer(
-          deferredApplyOps(options, scope, normalizeOps(out)).then(() => {}),
-        )
+        // Deferred tool-result persistence flows through the SAME observability
+        // pipeline as finish-turn persist: emits memory:persist:started /
+        // completed, fires events.onPersistStart / onPersistEnd, and calls
+        // afterPersist with the newly-added records. `runObservedPersist`
+        // also wraps adapter failures in memory:error + events.onError and
+        // (in strict mode) rejects the deferred promise.
+        ctx.defer(runObservedPersist(options, scope, normalizeOps(out)))
       } catch (error) {
         // Errors from `onToolResult` itself (synchronous extraction failure)
         // — the persist phase is wrapped separately above.
@@ -296,21 +297,56 @@ async function applyOps(
 }
 
 /**
- * Wrap `applyOps` so a deferred write surfaces failures via the same
- * devtools/events/strict-mode plumbing as the synchronous paths.
+ * Run a persist batch with the full observability pipeline:
+ *   1. Emit `memory:persist:started` (skipped when there are no `add` ops, to
+ *      avoid noise on update-only / delete-only batches).
+ *   2. Fire `events.onPersistStart` with the to-be-added records.
+ *   3. Apply ops via `applyOps`.
+ *   4. Emit `memory:persist:completed`.
+ *   5. Fire `events.onPersistEnd` with the actually-added records.
+ *   6. Call `options.afterPersist` with the newly-added records.
  *
- * Without this wrapper, a rejecting `ctx.defer(applyOps(...))` is collected
- * by `Promise.allSettled` in the chat engine — silently swallowed, with no
- * `memory:error` event and no `events.onError` call. That's a debuggability
- * cliff for adapter outages (e.g. a Redis blip).
+ * Used by BOTH finish-turn persistence (via `persistTurn`) and `onToolResult`
+ * deferred persistence so that observability is symmetric across the two
+ * paths — `afterPersist` and the persist devtools events fire for every
+ * `adapter.add` commit, not just the finish-turn one.
+ *
+ * Adapter failures surface via `memory:error` + `events.onError` and (in
+ * strict mode) re-throw so a deferred persist promise rejects rather than
+ * being silently swallowed by the chat engine's `Promise.allSettled`.
  */
-async function deferredApplyOps(
+async function runObservedPersist(
   options: MemoryMiddlewareOptions,
   scope: MemoryScope,
   ops: Array<MemoryOp>,
 ): Promise<Array<MemoryRecord>> {
+  if (ops.length === 0) return []
+  const startedAt = Date.now()
+  const adds = ops.filter((o): o is Extract<MemoryOp, { op: 'add' }> => o.op === 'add')
+  // Only emit persist:started when there's at least one add. Update-only or
+  // delete-only batches don't represent a new write that observers care about.
+  if (adds.length > 0) {
+    safeEmit('memory:persist:started', {
+      scope,
+      records: adds.map((o) => {
+        const r = o.record
+        return {
+          id: r.id,
+          kind: r.kind,
+          role: r.role,
+          preview: preview(r.text),
+        }
+      }),
+      timestamp: startedAt,
+    })
+    await options.events?.onPersistStart?.({
+      scope,
+      records: adds.map((o) => o.record),
+    })
+  }
+  let newRecords: Array<MemoryRecord> = []
   try {
-    return await applyOps(options, scope, ops)
+    newRecords = await applyOps(options, scope, ops)
   } catch (error) {
     safeEmit('memory:error', {
       scope,
@@ -322,6 +358,37 @@ async function deferredApplyOps(
     if (options.strict) throw error
     return []
   }
+  if (adds.length > 0) {
+    safeEmit('memory:persist:completed', {
+      scope,
+      recordIds: newRecords.map((r) => r.id),
+      durationMs: Date.now() - startedAt,
+      timestamp: Date.now(),
+    })
+    await options.events?.onPersistEnd?.({ scope, records: newRecords })
+  }
+  if (options.afterPersist && newRecords.length > 0) {
+    try {
+      await options.afterPersist({
+        newRecords,
+        scope,
+        adapter: options.adapter,
+      })
+    } catch (error) {
+      // afterPersist is documented as background work — surface failures via
+      // the same plumbing as adapter failures so they aren't swallowed, but
+      // route through phase: 'persist' since it's part of the persist arc.
+      safeEmit('memory:error', {
+        scope,
+        phase: 'persist',
+        error: errorInfo(error),
+        timestamp: Date.now(),
+      })
+      await emitError(options, scope, 'persist', error)
+      if (options.strict) throw error
+    }
+  }
+  return newRecords
 }
 
 async function persistTurn(args: {
@@ -343,7 +410,6 @@ async function persistTurn(args: {
   // deferred promise via the engine's `Promise.allSettled` collector.
   try {
     const now = Date.now()
-    const startedAt = now
 
     // Per-turn `shouldRemember` gate. Per JSDoc: "Returning `false`
     // short-circuits `extractMemories` and the persist path for the current
@@ -427,63 +493,34 @@ async function persistTurn(args: {
       }
     }
 
-    safeEmit('memory:persist:started', {
-      scope,
-      records: ops
-        .filter((o) => o.op === 'add')
-        .map((o) => {
-          const r = o.record
-          return {
-            id: r.id,
-            kind: r.kind,
-            role: r.role,
-            preview: preview(r.text),
-          }
-        }),
-      timestamp: Date.now(),
-    })
-    await options.events?.onPersistStart?.({
-      scope,
-      records: ops.filter((o) => o.op === 'add').map((o) => o.record),
-    })
-
-    const newRecords = await applyOps(options, scope, ops)
-
-    safeEmit('memory:persist:completed', {
-      scope,
-      recordIds: newRecords.map((r) => r.id),
-      durationMs: Date.now() - startedAt,
-      timestamp: Date.now(),
-    })
-    await options.events?.onPersistEnd?.({ scope, records: newRecords })
-    if (options.afterPersist) {
-      await options.afterPersist({
-        newRecords,
-        scope,
-        adapter: options.adapter,
-      })
-    }
+    // `runObservedPersist` owns the persist:started/completed events, the
+    // onPersistStart/onPersistEnd callbacks, afterPersist, and the
+    // memory:error+strict rethrow on adapter failure. Letting it handle
+    // strict-mode rethrows itself means the catch below ONLY has to deal
+    // with the strict-mode extract rethrow (and a guard against double-
+    // emitting memory:error for that case).
+    await runObservedPersist(options, scope, ops)
 
     // Strict-mode extract failure: base records have now been committed via
-    // `applyOps`. Re-throw the original extract error so the deferred persist
-    // promise rejects. The outer catch below recognises this case and does
-    // NOT re-emit `memory:error` (it would otherwise fire a second event
-    // with phase: 'persist' for the same failure).
+    // `runObservedPersist`. Re-throw the original extract error so the
+    // deferred persist promise rejects. The outer catch below recognises
+    // this case and does NOT re-emit `memory:error` (it would otherwise
+    // fire a second event with phase: 'persist' for the same failure).
     if (extractFailed && options.strict) throw extractError
   } catch (error) {
-    // Skip re-emit/re-callback when the error is the strict-mode extract
-    // re-throw we just performed — `memory:error` (phase: 'extract') already
-    // fired in the inner catch above. Emitting again here would produce a
-    // duplicate event with the wrong phase ('persist') for one failure.
-    if (!(extractFailed && error === extractError)) {
-      safeEmit('memory:error', {
-        scope,
-        phase: 'persist',
-        error: errorInfo(error),
-        timestamp: Date.now(),
-      })
-      await emitError(options, scope, 'persist', error)
-    }
+    // By the time we reach this catch, `memory:error` has ALREADY been
+    // emitted at the source — either:
+    //   (a) Strict-mode extract rethrow: the inner extract catch above
+    //       emitted `phase: 'extract'`. The `extractFailed` /
+    //       `extractError` hoisted state lets future maintainers verify
+    //       at a glance that this branch is reachable.
+    //   (b) Strict-mode adapter or afterPersist rethrow: emitted inside
+    //       `runObservedPersist` with `phase: 'persist'` immediately
+    //       before it threw.
+    // Either way the event already fired with the correct phase; re-
+    // emitting here would produce a duplicate event for the same failure.
+    // So this catch is intentionally a pass-through in non-strict mode
+    // and a rethrow-only path in strict mode.
     if (options.strict) throw error
   }
 }

@@ -322,6 +322,35 @@ export function runMemoryAdapterContract(
       })
     })
 
+    describe('scope value safety', () => {
+      // Defense-in-depth: scope values that happen to contain glob
+      // metacharacters (*, ?, [, ], \) MUST NOT cross-match other tenants'
+      // index buckets. The in-memory adapter doesn't use globs so this is
+      // a no-op there; for the redis adapter it pins the escapeGlob fix on
+      // findIndexKeysForScope's SCAN MATCH pattern. Without escaping, a
+      // scope value like `tenantId: 't*'` would cause the SCAN to glob
+      // every other tenant's index key and surface their records.
+      it('does not cross-match scope values that contain glob metacharacters', async () => {
+        const realTenant: MemoryScope = { tenantId: 'real-tenant' }
+        const otherTenant: MemoryScope = { tenantId: 'tenant-x' }
+        const attacker: MemoryScope = { tenantId: 't*' }
+        await adapter.add(
+          rec({ id: 'real', scope: realTenant, text: 'tenant data' }),
+        )
+        await adapter.add(
+          rec({ id: 'other', scope: otherTenant, text: 'tenant data' }),
+        )
+        const out = await adapter.search({
+          scope: attacker,
+          text: 'tenant data',
+        })
+        // Neither tenant's records are leaked — the attacker's literal
+        // `t*` scope must not glob-match `real-tenant` or `tenant-x`.
+        expect(out.hits.find((h) => h.record.id === 'real')).toBeUndefined()
+        expect(out.hits.find((h) => h.record.id === 'other')).toBeUndefined()
+      })
+    })
+
     describe('semantic vs lexical ranking', () => {
       it('lexical-only when no embeddings', async () => {
         await adapter.add(rec({ id: 'a', text: 'apple banana' }))

@@ -82,7 +82,10 @@ The middleware accepts an `embedder` for semantic search. **Add one when you nee
 - **Add** when scopes grow large or queries don't share keywords with stored records, and your adapter supports vector search (Redis with vector ops, hosted vector DBs, custom adapters).
 
 ```ts
+import OpenAI from 'openai'
 import { memoryMiddleware } from '@tanstack/ai/memory'
+
+const openai = new OpenAI()
 
 memoryMiddleware({
   adapter: memory,
@@ -90,7 +93,10 @@ memoryMiddleware({
   embedder: {
     async embed(text) {
       // Use any embedding model — OpenAI, Cohere, a local model, etc.
-      const result = await embeddings.create({ input: text })
+      const result = await openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: text,
+      })
       return result.data[0].embedding
     },
   },

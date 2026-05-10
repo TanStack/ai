@@ -25,27 +25,43 @@ import { inMemoryMemoryAdapter } from '@tanstack/ai-memory'
 
 const memory = inMemoryMemoryAdapter() // dev/tests only — see in-memory skill
 
+// In a real handler you'd attach the server-validated session (and any
+// other per-request values you trust) via `chat({ context })`. Inside the
+// middleware, scope is then derived from `ctx.context` — never from a
+// request body field the client controls.
+type AppCtx = {
+  session: {
+    tenantId: string
+    userId: string
+    activeThreadId: string
+  }
+}
+
+// Stand-in for whichever embedding client you use (OpenAI, Cohere, local
+// model, etc.). The middleware only requires `embed(text): number[]`.
+declare const myEmbeddings: {
+  embed(text: string): Promise<Array<number>>
+}
+
 const stream = chat({
   adapter: openaiText('gpt-4o'),
   messages,
+  context: { session }, // attached by your auth middleware
   middleware: [
     memoryMiddleware({
       adapter: memory,
-      scope: ({ context }) => {
-        // Server-validated session data — NOT request body.
-        const session = (
-          context as { session: { tenantId: string; userId: string } }
-        ).session
+      scope: (ctx) => {
+        const { session } = ctx.context as AppCtx
         return {
           tenantId: session.tenantId,
           userId: session.userId,
-          threadId: body.threadId,
+          threadId: session.activeThreadId,
         }
       },
       // Optional: provide an embedder for semantic search.
       embedder: {
         async embed(text) {
-          return embed(text)
+          return myEmbeddings.embed(text)
         },
       },
     }),
@@ -58,14 +74,17 @@ const stream = chat({
 Scope is the isolation boundary. **Never trust client-supplied tenantId/userId.** Resolve scope server-side from session/auth:
 
 ```ts
-scope: ({ context }) => ({
-  tenantId: requireSession(context).tenantId, // throws if missing
-  userId: requireSession(context).userId,
-  threadId: body.threadId, // OK to take from request — validate it belongs to userId
-})
+scope: (ctx) => {
+  const { session } = ctx.context as AppCtx
+  return {
+    tenantId: session.tenantId, // from server-validated session
+    userId: session.userId, // from server-validated session
+    threadId: session.activeThreadId, // server-side resolved thread
+  }
+}
 ```
 
-Pass the validated session through `chat({ context: { session } })`.
+Pass the validated session through `chat({ context: { session } })`. If you need to accept a `threadId` from the request body, validate server-side that it belongs to `session.userId` BEFORE attaching it to the chat context — never feed an unvalidated body field straight into scope.
 
 ## Adapters
 

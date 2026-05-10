@@ -54,10 +54,17 @@ export interface NodeRedisLike {
   sRem: (key: string, members: string | Array<string>) => Promise<number>
   sMembers: (key: string) => Promise<Array<string>>
   mGet: (keys: Array<string>) => Promise<Array<string | null>>
+  /**
+   * node-redis v4 accepts/returns `cursor: number`; node-redis v5 accepts
+   * and returns `cursor: string`. We widen both ends to `number | string`
+   * so the wrapper can thread either client's cursor through without
+   * lossy coercion (string cursors past `Number.MAX_SAFE_INTEGER` lose
+   * precision when round-tripped through `Number()`).
+   */
   scan: (
-    cursor: number,
+    cursor: number | string,
     options?: { MATCH?: string; COUNT?: number },
-  ) => Promise<{ cursor: number; keys: Array<string> }>
+  ) => Promise<{ cursor: number | string; keys: Array<string> }>
 }
 
 /**
@@ -86,29 +93,47 @@ export function nodeRedisAsRedisLike(client: NodeRedisLike): RedisLike {
     mget: (...keys) => client.mGet(keys),
     scan: async (cursor, ...args) => {
       // Translate variadic (cursor, 'MATCH', pattern, 'COUNT', count) into
-      // node-redis v4's options-object form. Pairs are read positionally;
+      // node-redis v4/v5's options-object form. Pairs are read positionally;
       // unknown tokens are ignored rather than rejected so future extensions
       // (e.g. TYPE) degrade gracefully if a caller passes them through.
       let match: string | undefined
       let count: number | undefined
       for (let i = 0; i < args.length; i += 2) {
-        const key = args[i]?.toUpperCase()
+        const key = String(args[i] ?? '').toUpperCase()
         const value = args[i + 1]
         if (key === 'MATCH' && typeof value === 'string') match = value
         else if (key === 'COUNT' && value !== undefined) {
           const n = Number(value)
-          if (!Number.isNaN(n)) count = n
+          // Redis rejects COUNT <= 0. Drop silently rather than throwing so
+          // a malformed caller-supplied COUNT degrades to "use server default"
+          // instead of breaking SCAN entirely.
+          if (Number.isFinite(n) && n > 0) count = n
         }
       }
-      const numericCursor =
-        typeof cursor === 'number' ? cursor : Number(cursor) || 0
-      const result = await client.scan(numericCursor, {
+      // Pass the cursor through as-is. node-redis v4 typed `cursor: number`,
+      // v5 typed `cursor: string`. Coercing via `Number(cursor)` would lose
+      // precision for v5 cursors larger than `Number.MAX_SAFE_INTEGER`. The
+      // `as never` cast bridges the v4/v5 type divergence at the TS layer
+      // without forcing callers to pin a specific node-redis major.
+      const result = await client.scan(cursor as never, {
         ...(match !== undefined ? { MATCH: match } : {}),
         ...(count !== undefined ? { COUNT: count } : {}),
       })
       return [String(result.cursor), result.keys]
     },
   }
+}
+
+/**
+ * Escape Redis glob metacharacters so a scope value can be safely interpolated
+ * into a `SCAN MATCH` pattern. Redis SCAN's MATCH glob recognises `*`, `?`,
+ * `[`, `]`, and `\` as metacharacters; the backslash is also the glob's escape
+ * character. Without this, a scope value like `tenantId: 't*'` would cause the
+ * SCAN pattern to match every other tenant's index bucket — a cross-tenant
+ * leak through the documented isolation boundary.
+ */
+function escapeGlob(value: string): string {
+  return value.replace(/[\\*?[\]]/g, '\\$&')
 }
 
 const SCOPE_KEYS = [
@@ -182,17 +207,20 @@ export function redisMemoryAdapter(
    * empty-scope semantics in `scopeMatches`, an empty scope matches
    * nothing and so resolves to zero buckets.
    *
-   * Assumption: scope values are app-supplied strings that don't contain
-   * Redis glob metacharacters (`*`, `?`, `[`). The practical risk is low;
-   * we don't escape here. Group C may revisit if a real bug surfaces.
+   * Glob metacharacters are escaped before being passed to SCAN MATCH so
+   * that scope values containing `*`, `?`, `[`, `]`, or `\` cannot
+   * cross-match other tenants' index buckets. Only literal scope values
+   * are escaped — the `*` we substitute for unset scope keys is left
+   * unescaped because it is the wildcard we actually want.
    */
   async function findIndexKeysForScope(
     scope: MemoryScope,
   ): Promise<Array<string>> {
     if (!hasAnyScopeKey(scope)) return []
-    const pattern = `${prefix}:index:${SCOPE_KEYS.map((k) =>
-      scope[k] != null ? String(scope[k]) : '*',
-    ).join(':')}`
+    const pattern = `${prefix}:index:${SCOPE_KEYS.map((k) => {
+      const v = scope[k]
+      return v != null ? escapeGlob(String(v)) : '*'
+    }).join(':')}`
     const seen = new Set<string>()
     let cursor = '0'
     do {

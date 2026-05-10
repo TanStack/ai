@@ -499,6 +499,92 @@ describe('memoryMiddleware — persistence', () => {
     expect(toolResults).toHaveLength(1)
     expect(toolResults[0]?.text).toContain('echo')
   })
+
+  it('onToolResult deferred persist flows through the same observability pipeline as finish-turn persist', async () => {
+    // Regression: previously, `onToolResult` returned ops were committed via
+    // `deferredApplyOps` which did NOT emit persist:started/completed, did
+    // NOT call events.onPersistStart/End, and did NOT call afterPersist.
+    // The unified pipeline (runObservedPersist) now fires for both paths.
+    const memory = fakeAdapter()
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.toolStart('c1', 'echo'),
+          ev.toolArgs('c1', '{"q":"x"}'),
+          ev.toolEnd('c1', 'echo'),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
+      ],
+    })
+    const startCount = { n: 0 }
+    const endCount = { n: 0 }
+    const onPersistStart = vi.fn()
+    const onPersistEnd = vi.fn()
+    const afterPersist = vi.fn()
+    const opts = { withEventTarget: true } as const
+    const off1 = aiEventClient.on(
+      'memory:persist:started',
+      () => {
+        startCount.n++
+      },
+      opts,
+    )
+    const off2 = aiEventClient.on(
+      'memory:persist:completed',
+      () => {
+        endCount.n++
+      },
+      opts,
+    )
+    try {
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'U' }],
+        tools: [
+          {
+            name: 'echo',
+            description: 'noop',
+            execute: async () => ({ ok: 1 }),
+          },
+        ],
+        middleware: [
+          memoryMiddleware({
+            adapter: memory,
+            scope: baseScope,
+            afterPersist,
+            events: { onPersistStart, onPersistEnd },
+            onToolResult: ({ toolName, result }) => [
+              rec({
+                text: `${toolName}:${JSON.stringify(result)}`,
+                kind: 'tool-result',
+                role: 'tool',
+              }),
+            ],
+          }),
+        ],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+      // Wait for deferred work to settle.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    } finally {
+      off1()
+      off2()
+    }
+    // Tool-result persist + finish-turn persist = at least 2 starts + 2 ends.
+    expect(startCount.n).toBeGreaterThanOrEqual(2)
+    expect(endCount.n).toBeGreaterThanOrEqual(2)
+    expect(onPersistStart.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(onPersistEnd.mock.calls.length).toBeGreaterThanOrEqual(2)
+    // afterPersist fires once per persist call (tool-result + finish-turn).
+    expect(afterPersist).toHaveBeenCalledTimes(2)
+    // Tool-result records visible to afterPersist.
+    const allNewRecords = afterPersist.mock.calls.flatMap(
+      (c) => (c[0] as { newRecords: Array<{ kind: string }> }).newRecords,
+    )
+    expect(allNewRecords.some((r) => r.kind === 'tool-result')).toBe(true)
+  })
 })
 
 describe('memoryMiddleware — failure handling', () => {
