@@ -2,15 +2,30 @@ import type { MemoryHit, MemoryQuery, MemoryRecord, MemoryScope } from './types'
 
 const DEFAULT_HALF_LIFE_MS = 1000 * 60 * 60 * 24 * 30 // 30 days
 
+/**
+ * Decide whether a record's scope satisfies a query scope.
+ *
+ * **Strict-by-default empty-scope semantics.** When `queryScope` has no
+ * defined keys (every key is `undefined`/null, or the object is `{}`), this
+ * returns `false` — i.e. an empty query scope matches NOTHING. This is a
+ * deliberate cross-tenant safety guard: callers like `clear({})` or
+ * `search({ scope: {}, ... })` would otherwise wipe / leak every tenant's
+ * records. Adapters that want to operate on a specific scope key (e.g. all
+ * records for a tenant regardless of user) must pass that key explicitly,
+ * e.g. `{ tenantId: 't1' }`.
+ */
 export function scopeMatches(
   recordScope: MemoryScope,
   queryScope: MemoryScope,
 ): boolean {
+  let definedKeys = 0
   for (const key of Object.keys(queryScope) as Array<keyof MemoryScope>) {
     const value = queryScope[key]
     if (value == null) continue
+    definedKeys++
     if (recordScope[key] !== value) return false
   }
+  if (definedKeys === 0) return false
   return true
 }
 

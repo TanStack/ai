@@ -198,6 +198,33 @@ export function runMemoryAdapterContract(
       })
     })
 
+    describe('empty scope safety', () => {
+      // Cross-tenant safety guard: an empty scope object MUST NOT match any
+      // record. See `scopeMatches` JSDoc — `clear({})` and `search({ scope: {} })`
+      // would otherwise wipe / leak every tenant's records.
+      it('search with empty scope returns no hits', async () => {
+        await adapter.add(rec({ id: 'a', scope: scopeA, text: 'apples' }))
+        await adapter.add(rec({ id: 'b', scope: scopeB, text: 'apples' }))
+        const out = await adapter.search({ scope: {}, text: 'apples' })
+        expect(out.hits.length).toBe(0)
+      })
+
+      it('list with empty scope returns no items', async () => {
+        await adapter.add(rec({ id: 'a', scope: scopeA }))
+        await adapter.add(rec({ id: 'b', scope: scopeB }))
+        const out = await adapter.list({})
+        expect(out.items.length).toBe(0)
+      })
+
+      it('clear with empty scope wipes nothing', async () => {
+        await adapter.add(rec({ id: 'a', scope: scopeA }))
+        await adapter.add(rec({ id: 'b', scope: scopeB }))
+        await adapter.clear({})
+        expect(await adapter.get('a', scopeA)).toBeDefined()
+        expect(await adapter.get('b', scopeB)).toBeDefined()
+      })
+    })
+
     describe('semantic vs lexical ranking', () => {
       it('lexical-only when no embeddings', async () => {
         await adapter.add(rec({ id: 'a', text: 'apple banana' }))

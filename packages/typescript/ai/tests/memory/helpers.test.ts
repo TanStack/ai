@@ -11,8 +11,16 @@ import {
 import type { MemoryRecord } from '../../src/memory/types'
 
 describe('scopeMatches', () => {
-  it('matches when query keys are absent', () => {
-    expect(scopeMatches({ tenantId: 'a' }, {})).toBe(true)
+  it('rejects empty query scope (strict-by-default cross-tenant guard)', () => {
+    // An empty query scope ({}) intentionally matches NOTHING — see JSDoc on
+    // scopeMatches. This prevents `clear({})` / `search({ scope: {} })` from
+    // wiping or leaking every tenant's records.
+    expect(scopeMatches({ tenantId: 'a' }, {})).toBe(false)
+  })
+  it('rejects query scope with only nullish values', () => {
+    expect(
+      scopeMatches({ tenantId: 'a' }, { tenantId: undefined, userId: undefined }),
+    ).toBe(false)
   })
   it('matches when all query keys are equal', () => {
     expect(

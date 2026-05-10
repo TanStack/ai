@@ -39,6 +39,13 @@ const SCOPE_KEYS = [
   'namespace',
 ] as const
 
+function hasAnyScopeKey(scope: MemoryScope): boolean {
+  for (const key of SCOPE_KEYS) {
+    if (scope[key] != null) return true
+  }
+  return false
+}
+
 export function redisMemoryAdapter(
   options: RedisMemoryAdapterOptions,
 ): MemoryAdapter {
@@ -208,6 +215,12 @@ export function redisMemoryAdapter(
     },
 
     async clear(scope) {
+      // Empty-scope safety: refuse to wipe everything. The shared
+      // `scopeMatches` helper treats `{}` as "match nothing"; mirror that
+      // behaviour here so `clear({})` is a no-op rather than a tenant-wide
+      // wipe (the index key for an all-blank scope would otherwise enumerate
+      // a real bucket of records).
+      if (!hasAnyScopeKey(scope)) return
       const ids = await redis.smembers(indexKey(scope))
       if (ids.length === 0) return
       await redis.del(...ids.map(recordKey))

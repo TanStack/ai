@@ -411,8 +411,13 @@ export interface MemoryMiddlewareOptions {
 
   /**
    * Write-side gate: decide whether a given turn should produce memories at
-   * all. Returning `false` short-circuits `extractMemories` and the persist
-   * path for the current turn.
+   * all. Evaluated **once per turn** (not per record) with the latest user
+   * message and the assistant `responseText`. Returning `false` short-
+   * circuits the entire persist path — base user/assistant records,
+   * `extractMemories`, and `afterPersist` are all skipped for the current
+   * turn. Use this when the application has a hard rule for the whole turn
+   * (e.g. PII guard, opt-out flag); use `extractMemories` itself for
+   * per-record decisions.
    */
   shouldRemember?: (args: {
     message: { role: MemoryRole; content: string }

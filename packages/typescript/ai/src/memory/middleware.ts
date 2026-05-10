@@ -15,28 +15,37 @@ import type {
 } from './types'
 
 /**
+ * Per-request scratch state. Keyed by `ChatMiddlewareContext` in a
+ * module-level `WeakMap` so the SAME `memoryMiddleware()` factory output can
+ * be safely shared across many concurrent `chat()` calls — each request gets
+ * its own `MemoryRequestState`. Mirrors the OTEL middleware's pattern.
+ */
+interface MemoryRequestState {
+  resolvedScope?: MemoryScope
+  lastUserText: string
+  lastUserEmbedding?: Array<number>
+  retrievedHits: Array<MemoryHit>
+}
+
+const stateByCtx = new WeakMap<ChatMiddlewareContext, MemoryRequestState>()
+
+/**
  * Server-side memory middleware. See docs/middlewares/memory.md and the
  * tanstack-ai-memory skill for usage.
  */
 export function memoryMiddleware(
   options: MemoryMiddlewareOptions,
 ): ChatMiddleware {
-  // Per-request closure state. The chat engine creates one ChatMiddleware
-  // instance per chat() call (no cross-request leakage).
-  let resolvedScope: MemoryScope | undefined
-  let lastUserText = ''
-  let lastUserEmbedding: Array<number> | undefined
-  let retrievedHits: Array<MemoryHit> = []
-
   async function resolveScope(
     ctx: ChatMiddlewareContext,
+    state: MemoryRequestState,
   ): Promise<MemoryScope> {
-    if (resolvedScope) return resolvedScope
-    resolvedScope =
+    if (state.resolvedScope) return state.resolvedScope
+    state.resolvedScope =
       typeof options.scope === 'function'
         ? await options.scope(ctx)
         : options.scope
-    return resolvedScope
+    return state.resolvedScope
   }
 
   return {
@@ -45,15 +54,22 @@ export function memoryMiddleware(
     async onConfig(ctx, config) {
       if (ctx.phase !== 'init') return
 
-      const lastUser = findLastUserMessage(config.messages)
-      lastUserText = getMessageText(lastUser)
-      if (!lastUserText) return
+      // Allocate per-request state once at the init phase.
+      const state: MemoryRequestState = {
+        lastUserText: '',
+        retrievedHits: [],
+      }
+      stateByCtx.set(ctx, state)
 
-      const scope = await resolveScope(ctx)
+      const lastUser = findLastUserMessage(config.messages)
+      state.lastUserText = getMessageText(lastUser)
+      if (!state.lastUserText) return
+
+      const scope = await resolveScope(ctx, state)
 
       if (options.shouldRetrieve) {
         const ok = await options.shouldRetrieve({
-          userText: lastUserText,
+          userText: state.lastUserText,
           scope,
         })
         if (!ok) return
@@ -63,7 +79,7 @@ export function memoryMiddleware(
       try {
         safeEmit('memory:retrieve:started', {
           scope,
-          query: lastUserText,
+          query: state.lastUserText,
           topK: options.topK ?? 6,
           minScore: options.minScore ?? 0.15,
           embedderUsed: !!options.embedder,
@@ -71,31 +87,33 @@ export function memoryMiddleware(
         })
         await options.events?.onRetrieveStart?.({
           scope,
-          query: lastUserText,
+          query: state.lastUserText,
         })
 
         if (options.embedder) {
-          lastUserEmbedding = await options.embedder.embed(lastUserText)
+          state.lastUserEmbedding = await options.embedder.embed(
+            state.lastUserText,
+          )
         }
 
-        retrievedHits = await searchAllPages(
+        state.retrievedHits = await searchAllPages(
           options,
           scope,
-          lastUserText,
-          lastUserEmbedding,
+          state.lastUserText,
+          state.lastUserEmbedding,
         )
 
-        if (options.rerank && retrievedHits.length > 0) {
-          retrievedHits = await options.rerank(retrievedHits, {
+        if (options.rerank && state.retrievedHits.length > 0) {
+          state.retrievedHits = await options.rerank(state.retrievedHits, {
             scope,
-            query: lastUserText,
+            query: state.lastUserText,
             ctx,
           })
         }
 
         safeEmit('memory:retrieve:completed', {
           scope,
-          hits: retrievedHits.map((h) => ({
+          hits: state.retrievedHits.map((h) => ({
             id: h.record.id,
             kind: h.record.kind,
             score: h.score,
@@ -104,7 +122,10 @@ export function memoryMiddleware(
           durationMs: Date.now() - startedAt,
           timestamp: Date.now(),
         })
-        await options.events?.onRetrieveEnd?.({ scope, hits: retrievedHits })
+        await options.events?.onRetrieveEnd?.({
+          scope,
+          hits: state.retrievedHits,
+        })
       } catch (error) {
         safeEmit('memory:error', {
           scope,
@@ -117,10 +138,11 @@ export function memoryMiddleware(
         return
       }
 
-      if (retrievedHits.length === 0) return
+      if (state.retrievedHits.length === 0) return
 
       const memoryPrompt =
-        options.render?.(retrievedHits) ?? defaultRenderMemory(retrievedHits)
+        options.render?.(state.retrievedHits) ??
+        defaultRenderMemory(state.retrievedHits)
 
       return {
         systemPrompts: [...config.systemPrompts, memoryPrompt],
@@ -129,7 +151,9 @@ export function memoryMiddleware(
 
     async onAfterToolCall(ctx, info) {
       if (!options.onToolResult || !info.ok) return
-      const scope = await resolveScope(ctx)
+      const state = stateByCtx.get(ctx)
+      if (!state) return
+      const scope = await resolveScope(ctx, state)
       try {
         let parsedArgs: unknown = {}
         try {
@@ -149,25 +173,50 @@ export function memoryMiddleware(
           adapter: options.adapter,
         })
         if (!out) return
-        ctx.defer(applyOps(options, scope, normalizeOps(out)))
+        // Wrap the deferred write so adapter.add/update/delete failures emit
+        // memory:error, fire events.onError, and (in strict mode) reject the
+        // deferred promise — instead of being silently swallowed.
+        ctx.defer(
+          deferredApplyOps(options, scope, normalizeOps(out)).then(() => {}),
+        )
       } catch (error) {
+        // Errors from `onToolResult` itself (synchronous extraction failure)
+        // — the persist phase is wrapped separately above.
+        safeEmit('memory:error', {
+          scope,
+          phase: 'extract',
+          error: errorInfo(error),
+          timestamp: Date.now(),
+        })
         await emitError(options, scope, 'extract', error)
         if (options.strict) throw error
       }
     },
 
     async onFinish(ctx, info) {
+      const state = stateByCtx.get(ctx)
+      if (!state) return
       const responseText = info.content
-      if (!lastUserText && !responseText) return
-      const scope = await resolveScope(ctx)
+      if (!state.lastUserText && !responseText) {
+        stateByCtx.delete(ctx)
+        return
+      }
+      const scope = await resolveScope(ctx, state)
+      const userText = state.lastUserText
+      const userEmbedding = state.lastUserEmbedding
+      const retrievedMemoryIds = state.retrievedHits.map((h) => h.record.id)
+      // Done with state — drop the WeakMap entry now so the deferred work
+      // below cannot accidentally observe stale fields. (The WeakMap would
+      // GC the entry once `ctx` is dropped anyway; this is just defensive.)
+      stateByCtx.delete(ctx)
       ctx.defer(
         persistTurn({
           options,
           scope,
-          userText: lastUserText,
-          userEmbedding: lastUserEmbedding,
+          userText,
+          userEmbedding,
           responseText,
-          retrievedMemoryIds: retrievedHits.map((h) => h.record.id),
+          retrievedMemoryIds,
         }),
       )
     },
@@ -215,16 +264,25 @@ function normalizeOps(input: Array<MemoryOp> | Array<MemoryRecord>): Array<Memor
   }))
 }
 
+/**
+ * Apply ops in array order, dispatching each to the matching adapter method.
+ *
+ * **Order matters.** A previous implementation batched all `add` ops to the
+ * end so they could be flushed in one `adapter.add(records[])` call; that
+ * meant `[{add X}, {update X}]` silently no-op'd because the update fired
+ * against an empty store before the add committed. Strict in-order dispatch
+ * is correct at the cost of per-op round-trips. For high-throughput callers,
+ * `afterPersist` is the right place to do bulk fan-out.
+ */
 async function applyOps(
   options: MemoryMiddlewareOptions,
   scope: MemoryScope,
   ops: Array<MemoryOp>,
 ): Promise<Array<MemoryRecord>> {
   const newRecords: Array<MemoryRecord> = []
-  const adds: Array<MemoryRecord> = []
   for (const op of ops) {
     if (op.op === 'add') {
-      adds.push(op.record)
+      await options.adapter.add(op.record)
       newRecords.push(op.record)
     } else if (op.op === 'update') {
       await options.adapter.update(op.id, scope, op.patch)
@@ -232,8 +290,36 @@ async function applyOps(
       await options.adapter.delete([op.id], scope)
     }
   }
-  if (adds.length > 0) await options.adapter.add(adds)
   return newRecords
+}
+
+/**
+ * Wrap `applyOps` so a deferred write surfaces failures via the same
+ * devtools/events/strict-mode plumbing as the synchronous paths.
+ *
+ * Without this wrapper, a rejecting `ctx.defer(applyOps(...))` is collected
+ * by `Promise.allSettled` in the chat engine — silently swallowed, with no
+ * `memory:error` event and no `events.onError` call. That's a debuggability
+ * cliff for adapter outages (e.g. a Redis blip).
+ */
+async function deferredApplyOps(
+  options: MemoryMiddlewareOptions,
+  scope: MemoryScope,
+  ops: Array<MemoryOp>,
+): Promise<Array<MemoryRecord>> {
+  try {
+    return await applyOps(options, scope, ops)
+  } catch (error) {
+    safeEmit('memory:error', {
+      scope,
+      phase: 'persist',
+      error: errorInfo(error),
+      timestamp: Date.now(),
+    })
+    await emitError(options, scope, 'persist', error)
+    if (options.strict) throw error
+    return []
+  }
 }
 
 async function persistTurn(args: {
@@ -245,79 +331,80 @@ async function persistTurn(args: {
   retrievedMemoryIds: Array<string>
 }): Promise<void> {
   const { options, scope } = args
-  const now = Date.now()
-  const startedAt = now
-  const baseRecords: Array<MemoryRecord> = []
-
-  if (args.userText) {
-    baseRecords.push({
-      id: crypto.randomUUID(),
-      scope,
-      text: args.userText,
-      kind: 'message',
-      role: 'user',
-      createdAt: now,
-      importance: 0.4,
-      embedding: args.userEmbedding,
-    })
-  }
-  if (args.responseText) {
-    baseRecords.push({
-      id: crypto.randomUUID(),
-      scope,
-      text: args.responseText,
-      kind: 'message',
-      role: 'assistant',
-      createdAt: now,
-      importance: 0.4,
-      embedding: options.embedder
-        ? await options.embedder.embed(args.responseText)
-        : undefined,
-      metadata: { retrievedMemoryIds: args.retrievedMemoryIds },
-    })
-  }
-
-  // shouldRemember filter
-  const filtered: Array<MemoryRecord> = []
-  for (const record of baseRecords) {
-    if (!options.shouldRemember) {
-      filtered.push(record)
-      continue
-    }
-    const keep = await options.shouldRemember({
-      message: { role: record.role ?? 'assistant', content: record.text },
-      responseText: args.responseText,
-    })
-    if (keep) filtered.push(record)
-  }
-
-  // extractMemories ops
-  let ops: Array<MemoryOp> = filtered.map((record) => ({
-    op: 'add' as const,
-    record,
-  }))
-  if (options.extractMemories) {
-    try {
-      const extras = await options.extractMemories({
-        userText: args.userText,
-        responseText: args.responseText,
-        scope,
-        adapter: options.adapter,
-      })
-      if (extras) ops = ops.concat(normalizeOps(extras))
-    } catch (error) {
-      safeEmit('memory:error', {
-        scope,
-        phase: 'extract',
-        error: errorInfo(error),
-        timestamp: Date.now(),
-      })
-      await emitError(options, scope, 'extract', error)
-      if (options.strict) throw error
-    }
-  }
-
+  // OUTERMOST try/catch so any throw — extract, persist, afterPersist —
+  // routes through the same error plumbing and (in strict mode) rejects the
+  // deferred promise via the engine's `Promise.allSettled` collector.
   try {
+    const now = Date.now()
+    const startedAt = now
+
+    // Per-turn `shouldRemember` gate. Per JSDoc: "Returning `false`
+    // short-circuits `extractMemories` and the persist path for the current
+    // turn." We evaluate ONCE here with the user message + responseText —
+    // returning `false` skips both the base records and `extractMemories`.
+    if (options.shouldRemember) {
+      const keep = await options.shouldRemember({
+        message: { role: 'user', content: args.userText },
+        responseText: args.responseText,
+      })
+      if (!keep) return
+    }
+
+    const baseRecords: Array<MemoryRecord> = []
+    if (args.userText) {
+      baseRecords.push({
+        id: crypto.randomUUID(),
+        scope,
+        text: args.userText,
+        kind: 'message',
+        role: 'user',
+        createdAt: now,
+        importance: 0.4,
+        embedding: args.userEmbedding,
+      })
+    }
+    if (args.responseText) {
+      baseRecords.push({
+        id: crypto.randomUUID(),
+        scope,
+        text: args.responseText,
+        kind: 'message',
+        role: 'assistant',
+        createdAt: now,
+        importance: 0.4,
+        embedding: options.embedder
+          ? await options.embedder.embed(args.responseText)
+          : undefined,
+        metadata: { retrievedMemoryIds: args.retrievedMemoryIds },
+      })
+    }
+
+    let ops: Array<MemoryOp> = baseRecords.map((record) => ({
+      op: 'add' as const,
+      record,
+    }))
+
+    if (options.extractMemories) {
+      try {
+        const extras = await options.extractMemories({
+          userText: args.userText,
+          responseText: args.responseText,
+          scope,
+          adapter: options.adapter,
+        })
+        if (extras) ops = ops.concat(normalizeOps(extras))
+      } catch (error) {
+        safeEmit('memory:error', {
+          scope,
+          phase: 'extract',
+          error: errorInfo(error),
+          timestamp: Date.now(),
+        })
+        await emitError(options, scope, 'extract', error)
+        if (options.strict) throw error
+      }
+    }
+
     safeEmit('memory:persist:started', {
       scope,
       records: ops
@@ -339,7 +426,9 @@ async function persistTurn(args: {
         .filter((o) => o.op === 'add')
         .map((o) => (o).record),
     })
+
     const newRecords = await applyOps(options, scope, ops)
+
     safeEmit('memory:persist:completed', {
       scope,
       recordIds: newRecords.map((r) => r.id),

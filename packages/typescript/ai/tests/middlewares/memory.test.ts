@@ -250,7 +250,43 @@ describe('memoryMiddleware — persistence', () => {
     expect(texts).toEqual(['Ping', 'Pong.'])
   })
 
-  it('drops records rejected by shouldRemember', async () => {
+  it('shouldRemember=false skips the entire turn (base records and extractMemories)', async () => {
+    // Per-turn semantics: shouldRemember is evaluated ONCE per turn and
+    // gates the whole persist path. The user message is short ("hi", 2
+    // chars) so the gate returns false and NOTHING is persisted — the
+    // assistant message is dropped too, and `extractMemories` is never
+    // called.
+    const memory = fakeAdapter()
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textContent('long enough response text'),
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+    const extractMemories = vi.fn(async () => [
+      rec({ text: 'should not run', kind: 'fact' }),
+    ])
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      middleware: [
+        memoryMiddleware({
+          adapter: memory,
+          scope: baseScope,
+          shouldRemember: ({ message }) => message.content.length > 10,
+          extractMemories,
+        }),
+      ],
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+    expect([...memory.store.values()]).toEqual([])
+    expect(extractMemories).not.toHaveBeenCalled()
+  })
+
+  it('shouldRemember=true persists user, assistant, and extracted records', async () => {
     const memory = fakeAdapter()
     const { adapter } = createMockAdapter({
       iterations: [
@@ -263,18 +299,19 @@ describe('memoryMiddleware — persistence', () => {
     })
     const stream = chat({
       adapter,
-      messages: [{ role: 'user', content: 'hi' }],
+      messages: [{ role: 'user', content: 'a meaningful user message' }],
       middleware: [
         memoryMiddleware({
           adapter: memory,
           scope: baseScope,
+          // 25-char user message + non-empty response — gate keeps the turn.
           shouldRemember: ({ message }) => message.content.length > 10,
         }),
       ],
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
-    const texts = [...memory.store.values()].map((r) => r.text)
-    expect(texts).toEqual(['long enough response text'])
+    const texts = [...memory.store.values()].map((r) => r.text).sort()
+    expect(texts).toEqual(['a meaningful user message', 'long enough response text'])
   })
 
   it('extractMemories returning records adds them as kind: fact', async () => {
@@ -331,6 +368,35 @@ describe('memoryMiddleware — persistence', () => {
     expect([...memory.store.values()].some((r) => r.text === 'new fact')).toBe(
       true,
     )
+  })
+
+  it('applies ops in array order: update after add in same batch sees the add', async () => {
+    // Order-sensitivity regression test. Previously, all `add` ops were
+    // batched and flushed at the END after updates/deletes, meaning an
+    // `update` of an id added in the SAME batch silently no-op'd. With
+    // strict in-order dispatch the update now sees the just-added record.
+    const memory = fakeAdapter()
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')],
+      ],
+    })
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'U' }],
+      middleware: [
+        memoryMiddleware({
+          adapter: memory,
+          scope: baseScope,
+          extractMemories: () => [
+            { op: 'add', record: rec({ id: 'X', text: 'initial', kind: 'fact' }) },
+            { op: 'update', id: 'X', patch: { text: 'patched' } },
+          ],
+        }),
+      ],
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+    expect(memory.store.get('X')?.text).toBe('patched')
   })
 
   it('afterPersist receives newly-added records (not updates/deletes)', async () => {
