@@ -381,7 +381,9 @@ export function runMemoryAdapterContract(
           scope: splitScope,
           text: 'data',
         })
-        expect(splitOut.hits.find((h) => h.record.id === 'colon')).toBeUndefined()
+        expect(
+          splitOut.hits.find((h) => h.record.id === 'colon'),
+        ).toBeUndefined()
         expect(splitOut.hits.find((h) => h.record.id === 'split')).toBeDefined()
         // get() uses an id+scope check via scopeMatches against the raw
         // scope object, so the own-record reachability half is also testable
@@ -483,9 +485,7 @@ export function runMemoryAdapterContract(
           scope: underscoreUserScope,
           text: 'orange',
         })
-        expect(
-          out.hits.find((h) => h.record.id === 'no-user'),
-        ).toBeUndefined()
+        expect(out.hits.find((h) => h.record.id === 'no-user')).toBeUndefined()
         expect(
           out.hits.find((h) => h.record.id === 'real-user'),
         ).toBeUndefined()
@@ -499,7 +499,9 @@ export function runMemoryAdapterContract(
         // partial-scope asymmetry; the converse (broader query, narrower
         // record) is the legitimate partial-scope cascade and is not
         // asserted here.
-        expect(await adapter.get('no-user', underscoreUserScope)).toBeUndefined()
+        expect(
+          await adapter.get('no-user', underscoreUserScope),
+        ).toBeUndefined()
       })
 
       it('treats empty-string scope values as undefined (not as a distinct bucket)', async () => {

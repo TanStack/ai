@@ -59,10 +59,16 @@ describe('scopeMatches', () => {
       // `{ tenantId: 't1', userId: '' }` is equivalent to `{ tenantId: 't1' }`
       // — the empty userId is ignored and tenant matching proceeds normally.
       expect(
-        scopeMatches({ tenantId: 't1', userId: 'u1' }, { tenantId: 't1', userId: '' }),
+        scopeMatches(
+          { tenantId: 't1', userId: 'u1' },
+          { tenantId: 't1', userId: '' },
+        ),
       ).toBe(true)
       expect(
-        scopeMatches({ tenantId: 't2', userId: 'u1' }, { tenantId: 't1', userId: '' }),
+        scopeMatches(
+          { tenantId: 't2', userId: 'u1' },
+          { tenantId: 't1', userId: '' },
+        ),
       ).toBe(false)
     })
   })

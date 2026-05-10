@@ -356,7 +356,9 @@ async function runObservedPersist(
 ): Promise<Array<MemoryRecord>> {
   if (ops.length === 0) return []
   const startedAt = Date.now()
-  const adds = ops.filter((o): o is Extract<MemoryOp, { op: 'add' }> => o.op === 'add')
+  const adds = ops.filter(
+    (o): o is Extract<MemoryOp, { op: 'add' }> => o.op === 'add',
+  )
   // Only emit persist:started when there's at least one add. Update-only or
   // delete-only batches don't represent a new write that observers care about.
   if (adds.length > 0) {
