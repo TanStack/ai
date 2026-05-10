@@ -5,6 +5,7 @@ import {
   approve,
   defineAgent,
   defineOrchestrator,
+  defineRouter,
   defineWorkflow,
 } from '@tanstack/ai-orchestration'
 
@@ -193,27 +194,26 @@ const triageAgent = defineAgent({
 
 // ===== Orchestrator =====
 
-export const featureOrchestrator = defineOrchestrator({
-  name: 'feature-orchestrator',
-  input: OrchestratorInput,
-  output: OrchestratorOutput,
-  state: OrchestratorState,
+const orchestratorConfig = {
   agents: {
     implement: implementWorkflow,
     review: reviewAgent,
     spec: specAgent,
     triage: triageAgent,
   },
-  initialize: ({ input }) => ({
-    phase: 'scoping' as const,
-    lastUserMessage: input.userMessage,
-  }),
-  router: function* ({ input, state, agents }) {
+  input: OrchestratorInput,
+  output: OrchestratorOutput,
+  state: OrchestratorState,
+}
+
+const featureRouter = defineRouter(
+  orchestratorConfig,
+  function* ({ agents, input, state }) {
     const triage = yield* agents.triage({
-      userMessage: state.lastUserMessage || input.userMessage,
-      phase: state.phase,
-      hasSpec: !!state.spec,
       hasResult: !!state.result,
+      hasSpec: !!state.spec,
+      phase: state.phase,
+      userMessage: state.lastUserMessage || input.userMessage,
     })
 
     if (triage.next === 'done') {
@@ -231,10 +231,10 @@ export const featureOrchestrator = defineOrchestrator({
 
     if (triage.next === 'await-approval') {
       const approval = yield* approve({
-        title: 'Start implementation?',
         description: state.spec
           ? `Spec ready: "${state.spec.title}". Begin implementing?`
           : 'Begin implementing?',
+        title: 'Start implementation?',
       })
       if (approval.approved) {
         state.phase = 'implementing'
@@ -263,4 +263,11 @@ export const featureOrchestrator = defineOrchestrator({
     state.phase = 'done'
     return { done: true, output: { phase: state.phase, result: state.result } }
   },
+)
+
+export const featureOrchestrator = defineOrchestrator({
+  ...orchestratorConfig,
+  initialize: ({ input }) => ({ lastUserMessage: input.userMessage }),
+  name: 'feature-orchestrator',
+  router: featureRouter,
 })
