@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-memory",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Pluggable memory adapters for TanStack AI memoryMiddleware",
   "author": "",
   "license": "MIT",
