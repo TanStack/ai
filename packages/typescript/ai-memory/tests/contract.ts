@@ -48,10 +48,24 @@ export function runMemoryAdapterContract(
       it('upserts by id (replays the same id replace)', async () => {
         const r = rec({ id: 'x', text: 'first' })
         await adapter.add(r)
+        const after1 = await adapter.get('x', scopeA)
+        expect(after1?.text).toBe('first')
+        expect(after1?.updatedAt).toBeGreaterThanOrEqual(after1!.createdAt)
+
+        // Yield to the event loop so Date.now() can advance — without this,
+        // a tight double-add can land in the same millisecond and the
+        // strictly-greater assertion below would be flaky on fast machines.
+        await new Promise((resolve) => setTimeout(resolve, 2))
+
         await adapter.add({ ...r, text: 'second' })
-        const got = await adapter.get('x', scopeA)
-        expect(got?.text).toBe('second')
-        expect(got?.updatedAt).toBeGreaterThanOrEqual(got!.createdAt)
+        const after2 = await adapter.get('x', scopeA)
+        expect(after2?.text).toBe('second')
+        expect(after2?.updatedAt).toBeGreaterThanOrEqual(after2!.createdAt)
+        // Load-bearing assertion: the second add MUST bump updatedAt.
+        // Without this, an adapter that sets updatedAt = createdAt once
+        // and never touches it again would silently pass the upsert
+        // contract test.
+        expect(after2!.updatedAt).toBeGreaterThan(after1!.updatedAt!)
       })
     })
 
@@ -107,6 +121,9 @@ export function runMemoryAdapterContract(
         await adapter.add(rec({ id: 'a', scope: scopeA, text: 'apples' }))
         await adapter.add(rec({ id: 'b', scope: scopeB, text: 'apples' }))
         const out = await adapter.search({ scope: scopeA, text: 'apples' })
+        // Non-empty guard: `every` on [] is vacuously true and would mask
+        // an adapter that returned zero hits.
+        expect(out.hits.length).toBeGreaterThan(0)
         expect(out.hits.every((h) => h.record.scope.userId === 'u1')).toBe(true)
       })
 
@@ -118,6 +135,8 @@ export function runMemoryAdapterContract(
           text: 'foo',
           kinds: ['fact'],
         })
+        // Non-empty guard: `every` on [] is vacuously true.
+        expect(out.hits.length).toBeGreaterThan(0)
         expect(out.hits.every((h) => h.record.kind === 'fact')).toBe(true)
       })
 
@@ -150,8 +169,13 @@ export function runMemoryAdapterContract(
           pages++
           if (pages > 10) throw new Error('cursor did not terminate')
         } while (cursor)
-        // Either single page if adapter returns everything, or multi-page if it streams.
-        expect(seen.size).toBeGreaterThan(0)
+        // Load-bearing: every record must be visible exactly once across
+        // pages. Catches adapters that drop records between pages or
+        // return the same page repeatedly with a terminating cursor.
+        // Adapters MAY return all in one page (no nextCursor) OR paginate;
+        // either is fine, but the union of pages must cover all 12 ids.
+        expect(seen.size).toBe(12)
+        expect(pages).toBeGreaterThanOrEqual(1)
       })
     })
 
@@ -160,6 +184,8 @@ export function runMemoryAdapterContract(
         await adapter.add(rec({ id: 'a', scope: scopeA }))
         await adapter.add(rec({ id: 'b', scope: scopeB }))
         const out = await adapter.list(scopeA)
+        // Non-empty guard: `every` on [] is vacuously true.
+        expect(out.items.length).toBeGreaterThan(0)
         expect(out.items.every((r) => r.scope.userId === 'u1')).toBe(true)
       })
       it('respects limit', async () => {
@@ -171,6 +197,8 @@ export function runMemoryAdapterContract(
         await adapter.add(rec({ id: 'a', kind: 'fact' }))
         await adapter.add(rec({ id: 'b', kind: 'preference' }))
         const out = await adapter.list(scopeA, { kinds: ['preference'] })
+        // Non-empty guard: `every` on [] is vacuously true.
+        expect(out.items.length).toBeGreaterThan(0)
         expect(out.items.every((r) => r.kind === 'preference')).toBe(true)
       })
     })

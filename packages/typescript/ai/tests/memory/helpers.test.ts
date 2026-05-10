@@ -63,8 +63,9 @@ describe('recencyScore', () => {
   })
   it('halves at one half-life', () => {
     const halfLife = 1000
-    const t = Date.now() - halfLife
-    expect(recencyScore(t, halfLife)).toBeCloseTo(0.5, 2)
+    const now = Date.now()
+    const t = now - halfLife
+    expect(recencyScore(t, halfLife, now)).toBeCloseTo(0.5, 5)
   })
 })
 
