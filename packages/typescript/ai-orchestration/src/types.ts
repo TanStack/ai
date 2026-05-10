@@ -127,7 +127,12 @@ export type StepDescriptor =
   | { kind: 'nested-workflow'; name: string; input: unknown; workflow: AnyWorkflowDefinition }
   | { kind: 'approval'; title: string; description?: string }
 
-export type StepGenerator<T> = Generator<StepDescriptor, T, T>
+// TNext is `any` so a generator with TReturn=A can `yield*` another generator
+// with TReturn=B without TS rejecting the delegation. The engine sends the
+// correct typed value back at each yield boundary; the type of the value is
+// determined by the inner generator (e.g., `agents.writer(...)` returns
+// `WriterOutput`, `approve(...)` returns `ApprovalResult`).
+export type StepGenerator<T> = Generator<StepDescriptor, T, any>
 
 // ==========================================
 // Approval result
