@@ -108,7 +108,7 @@ export class WorkflowClient<
     }
   }
 
-  async approve(approved: boolean): Promise<void> {
+  async approve(approved: boolean, feedback?: string): Promise<void> {
     if (!this.clientState.pendingApproval || !this.clientState.runId) {
       throw new Error('No pending approval')
     }
@@ -119,7 +119,7 @@ export class WorkflowClient<
       status: 'running',
     })
     const workflowStream = this.openStream({
-      approval: { approvalId, approved },
+      approval: { approvalId, approved, feedback },
       runId,
     })
     await this.consumeStream(workflowStream)
@@ -186,7 +186,10 @@ export class WorkflowClient<
         break
       }
       case 'RUN_FINISHED':
-        this.setState({ status: 'finished' })
+        this.setState({
+          status: 'finished',
+          output: chunk.output as TOutput,
+        } as Partial<WorkflowClientState<TState, TOutput>>)
         break
       case 'RUN_STARTED':
         this.setState({

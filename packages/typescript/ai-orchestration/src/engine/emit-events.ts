@@ -21,12 +21,14 @@ export function runStartedEvent(args: {
 export function runFinishedEvent(args: {
   runId: string
   threadId?: string
+  output?: unknown
 }): StreamChunk {
   return {
     type: 'RUN_FINISHED',
     timestamp: Date.now(),
     runId: args.runId,
     threadId: args.threadId ?? args.runId,
+    output: args.output,
   } as StreamChunk
 }
 

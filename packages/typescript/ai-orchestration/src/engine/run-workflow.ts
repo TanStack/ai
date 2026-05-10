@@ -391,7 +391,7 @@ async function* driveLoop(
       updatedAt: Date.now(),
     }
     await runStore.set(runId, live.runState)
-    yield runFinishedEvent({ runId, threadId })
+    yield runFinishedEvent({ runId, threadId, output: finalOutput })
     await runStore.delete(runId, 'finished')
   } catch (err) {
     if (abortController.signal.aborted) {
