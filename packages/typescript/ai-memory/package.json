@@ -43,9 +43,13 @@
   ],
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
+    "ioredis": ">=5.0.0",
     "redis": ">=4.0.0"
   },
   "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    },
     "redis": {
       "optional": true
     }

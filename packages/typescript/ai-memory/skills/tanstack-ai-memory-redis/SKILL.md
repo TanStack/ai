@@ -9,26 +9,56 @@ Production-grade `MemoryAdapter` backed by plain Redis (no vector index required
 
 ## Setup
 
+Pick a Redis client and wire it in. Both `ioredis` and `redis` (node-redis v4+) are supported, but they expose different method-name styles, so the wiring differs.
+
+### Option A: `ioredis` (direct wiring)
+
 ```bash
-pnpm add redis  # or: pnpm add ioredis
+pnpm add ioredis
 ```
 
-Pass the connected client into the adapter:
-
 ```ts
-import { createClient } from 'redis'
+import Redis from 'ioredis'
 import { memoryMiddleware } from '@tanstack/ai/memory'
 import { redisMemoryAdapter } from '@tanstack/ai-memory'
 
-const redis = createClient({ url: process.env.REDIS_URL })
-await redis.connect()
-
+const redis = new Redis(process.env.REDIS_URL!)
 const memory = redisMemoryAdapter({ redis, prefix: 'myapp:memory' })
 
 memoryMiddleware({ adapter: memory, scope })
 ```
 
-The adapter accepts any client implementing the `RedisLike` shape (a small subset: `get`, `set`, `del`, `sadd`, `srem`, `smembers`, `mget`). Both `redis` (node-redis v4+) and `ioredis` work.
+`ioredis` exposes lowercase method names (`sadd`, `mget`, `scan(cursor, 'MATCH', ...)`) directly, which matches the adapter's `RedisLike` contract — no wrapper needed.
+
+### Option B: `redis` (node-redis v4+) — wrap with `nodeRedisAsRedisLike`
+
+```bash
+pnpm add redis
+```
+
+```ts
+import { createClient } from 'redis'
+import { memoryMiddleware } from '@tanstack/ai/memory'
+import { redisMemoryAdapter, nodeRedisAsRedisLike } from '@tanstack/ai-memory'
+
+const client = createClient({ url: process.env.REDIS_URL })
+await client.connect()
+
+const memory = redisMemoryAdapter({
+  redis: nodeRedisAsRedisLike(client),
+  prefix: 'myapp:memory',
+})
+
+memoryMiddleware({ adapter: memory, scope })
+```
+
+node-redis v4+ uses a camelCase API by default (`sAdd`, `mGet`, `scan(cursor, { MATCH, COUNT })`); `nodeRedisAsRedisLike` translates between the two shapes. Passing a raw node-redis v4+ client without the wrapper will throw `client.sadd is not a function` at runtime.
+
+(You can also use `createClient({ legacyMode: true })` and skip the wrapper, but the wrapper is the cleaner choice for new code — `legacyMode` is deprecated upstream.)
+
+### `RedisLike` shape
+
+The adapter accepts any client implementing the `RedisLike` shape: `get`, `set`, `del`, `sadd`, `srem`, `smembers`, `mget`, `scan` (ioredis-style variadic). Bring-your-own clients (e.g. Upstash, hand-rolled mocks) only need to implement that subset.
 
 ## Storage model
 

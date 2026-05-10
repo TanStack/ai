@@ -72,6 +72,8 @@ const memory = redisMemoryAdapter({ redis })
 memoryMiddleware({ adapter: memory, scope })
 ```
 
+> **Using `redis` (node-redis v4+) instead of `ioredis`?** node-redis exposes a camelCase API by default (`sAdd`, `mGet`, …) which does not match the adapter's lowercase `RedisLike` contract. Wrap the client with `nodeRedisAsRedisLike` from `@tanstack/ai-memory` before passing it in. See the [Redis adapter skill](https://github.com/TanStack/ai) for the full example.
+
 ## Step 4 — Add an embedder (optional)
 
 The middleware accepts an `embedder` for semantic search. **Add one when you need it; skip it when you don't:**

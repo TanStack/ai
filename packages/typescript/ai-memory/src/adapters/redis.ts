@@ -11,15 +11,15 @@ import type {
 } from '@tanstack/ai/memory'
 
 /**
- * Minimal subset of the Redis client API this adapter uses.
- * Compatible with both `redis` (node-redis v4+) and `ioredis` shapes.
- * Real users pass an instance of either.
+ * Minimal subset of the Redis client API this adapter uses. Shaped to match
+ * `ioredis` (and node-redis with `legacyMode: true`) directly — lowercase
+ * method names plus the variadic `scan(cursor, 'MATCH', pattern, 'COUNT', n)`
+ * form returning `[nextCursor, matchedKeys]`.
  *
- * NOTE: `scan` follows the lowercase variadic form used by ioredis and
- * node-redis legacyMode: `scan(cursor, 'MATCH', pattern, 'COUNT', n)`
- * returning `[nextCursor, matchedKeys]`. node-redis v4+'s default
- * camelCase shape (`scan(cursor, { MATCH, COUNT })`) is not handled
- * here — Group C will address camelCase compatibility separately.
+ * For node-redis v4+'s default camelCase API (`sAdd`, `sRem`, `sMembers`,
+ * `mGet`, `scan(cursor, { MATCH, COUNT })`), wrap the client with
+ * {@link nodeRedisAsRedisLike} before passing it in. ioredis clients do not
+ * need a wrapper.
  */
 export interface RedisLike {
   set: (key: string, value: string) => Promise<unknown>
@@ -39,6 +39,76 @@ export interface RedisMemoryAdapterOptions {
   redis: RedisLike
   /** Default 'tanstack-ai:memory'. */
   prefix?: string
+}
+
+/**
+ * Minimal node-redis v4+ default-mode (camelCase) surface used by
+ * {@link nodeRedisAsRedisLike}. Real node-redis clients are structurally
+ * compatible with this shape — you do not need to construct one manually.
+ */
+export interface NodeRedisLike {
+  get: (key: string) => Promise<string | null>
+  set: (key: string, value: string) => Promise<unknown>
+  del: (keys: Array<string> | string) => Promise<number>
+  sAdd: (key: string, members: string | Array<string>) => Promise<number>
+  sRem: (key: string, members: string | Array<string>) => Promise<number>
+  sMembers: (key: string) => Promise<Array<string>>
+  mGet: (keys: Array<string>) => Promise<Array<string | null>>
+  scan: (
+    cursor: number,
+    options?: { MATCH?: string; COUNT?: number },
+  ) => Promise<{ cursor: number; keys: Array<string> }>
+}
+
+/**
+ * Adapter helper: wraps a node-redis v4+ default-mode client (camelCase API)
+ * into the lowercase {@link RedisLike} shape this adapter expects. Use when
+ * you have a `redis` package client and don't want to enable `legacyMode`.
+ *
+ * Pass the result into `redisMemoryAdapter({ redis: nodeRedisAsRedisLike(client) })`.
+ *
+ * For `ioredis`, no wrapper is needed — `redisMemoryAdapter({ redis: client })`
+ * works directly because ioredis already exposes lowercase method names.
+ *
+ * The wrapper translates the ioredis-style variadic `scan(cursor, 'MATCH',
+ * pattern, 'COUNT', n)` form this adapter uses into node-redis v4's
+ * options-object form, and unwraps the `{ cursor, keys }` reply back into
+ * the `[nextCursor, matchedKeys]` tuple ioredis returns.
+ */
+export function nodeRedisAsRedisLike(client: NodeRedisLike): RedisLike {
+  return {
+    get: (key) => client.get(key),
+    set: (key, value) => client.set(key, value),
+    del: (...keys) => client.del(keys).then((n) => n),
+    sadd: (key, ...members) => client.sAdd(key, members),
+    srem: (key, ...members) => client.sRem(key, members),
+    smembers: (key) => client.sMembers(key),
+    mget: (...keys) => client.mGet(keys),
+    scan: async (cursor, ...args) => {
+      // Translate variadic (cursor, 'MATCH', pattern, 'COUNT', count) into
+      // node-redis v4's options-object form. Pairs are read positionally;
+      // unknown tokens are ignored rather than rejected so future extensions
+      // (e.g. TYPE) degrade gracefully if a caller passes them through.
+      let match: string | undefined
+      let count: number | undefined
+      for (let i = 0; i < args.length; i += 2) {
+        const key = args[i]?.toUpperCase()
+        const value = args[i + 1]
+        if (key === 'MATCH' && typeof value === 'string') match = value
+        else if (key === 'COUNT' && value !== undefined) {
+          const n = Number(value)
+          if (!Number.isNaN(n)) count = n
+        }
+      }
+      const numericCursor =
+        typeof cursor === 'number' ? cursor : Number(cursor) || 0
+      const result = await client.scan(numericCursor, {
+        ...(match !== undefined ? { MATCH: match } : {}),
+        ...(count !== undefined ? { COUNT: count } : {}),
+      })
+      return [String(result.cursor), result.keys]
+    },
+  }
 }
 
 const SCOPE_KEYS = [
