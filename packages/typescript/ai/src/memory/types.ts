@@ -561,7 +561,25 @@ export interface MemoryMiddlewareOptions {
       scope: MemoryScope
       records: Array<MemoryRecord>
     }) => void | Promise<void>
-    /** Fired when retrieval, persistence, or extraction throws. */
+    /**
+     * Fired when retrieval, persistence, or extraction throws. Always paired
+     * with a `memory:error` devtools event for the same failure.
+     *
+     * Phase taxonomy:
+     * - `'retrieve'` — failures during the retrieval arc: the user-text
+     *   `embedder.embed` call, `adapter.search` (including paginated
+     *   continuations), and `rerank` failures.
+     * - `'persist'` — failures during the persist arc: `adapter.add`,
+     *   `adapter.update`, `adapter.delete` against the configured adapter,
+     *   the assistant-side `embedder.embed` call inside the finish-turn
+     *   persist (NOT the user-side embed; that is `'retrieve'`), and any
+     *   throw from `afterPersist`.
+     * - `'extract'` — failures from extraction-shaped callbacks:
+     *   `extractMemories` throwing, `onToolResult` throwing, and the JSON
+     *   parse of tool-call arguments inside `onAfterToolCall` (parse failure
+     *   is non-fatal — `onToolResult` still runs with `args: {}` — but the
+     *   event is emitted so observers can see the malformed payload).
+     */
     onError?: (args: {
       scope: MemoryScope
       phase: 'retrieve' | 'persist' | 'extract'

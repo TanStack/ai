@@ -732,3 +732,157 @@ describe('memoryMiddleware — devtools events', () => {
     }
   })
 })
+
+describe('memoryMiddleware — error-path observability', () => {
+  it('emits memory:error with phase: persist when assistant embedder fails (non-strict)', async () => {
+    // Round 3 finding: when `options.embedder.embed(args.responseText)` throws
+    // inside `persistTurn`, the assistant-side embed lives OUTSIDE
+    // `runObservedPersist` and therefore bypassed the persist-phase event
+    // pipeline. The fix wraps that call locally; this test pins the
+    // observable contract.
+    const memory = fakeAdapter()
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')],
+      ],
+    })
+    const flakyEmbedder = {
+      // Fail only on the assistant-side embed; succeed for the user-side
+      // query embed so the failure under test is unambiguously the
+      // assistant-side one.
+      async embed(text: string) {
+        if (text === 'R') throw new Error('embedder boom')
+        return [1, 0]
+      },
+    }
+    const errorEvents: Array<{ phase: string; message: string }> = []
+    const opts = { withEventTarget: true } as const
+    const off = aiEventClient.on(
+      'memory:error',
+      (e) =>
+        errorEvents.push({
+          phase: e.payload.phase,
+          message: e.payload.error.message,
+        }),
+      opts,
+    )
+    try {
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'U' }],
+        middleware: [
+          memoryMiddleware({
+            adapter: memory,
+            scope: baseScope,
+            embedder: flakyEmbedder,
+          }),
+        ],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+      // Allow deferred persist to settle.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      // Both base records still land (user with embedding, assistant without).
+      expect(memory.store.size).toBeGreaterThanOrEqual(2)
+      const stored = [...memory.store.values()]
+      const assistantRecord = stored.find((r) => r.role === 'assistant')
+      expect(assistantRecord?.embedding).toBeUndefined()
+      // Exactly one persist-phase memory:error fired with the embedder cause.
+      const persistErrors = errorEvents.filter((e) => e.phase === 'persist')
+      expect(persistErrors.length).toBe(1)
+      expect(persistErrors[0]?.message).toContain('boom')
+    } finally {
+      off()
+    }
+  })
+
+  it('emits memory:error with phase: extract when tool args fail to parse', async () => {
+    // Convergence-audit fix: the tool-args JSON parse fallback in
+    // `onAfterToolCall` used to silently coerce malformed payloads to `{}`.
+    // Observers now get a `memory:error` (phase: 'extract') for the same
+    // failure while the surrounding `onToolResult` path still runs.
+    //
+    // The chat engine itself fails fast on malformed tool arguments BEFORE
+    // `onAfterToolCall` fires, so the only way to exercise the defensive
+    // parse-catch in middleware.ts is to invoke the hook directly with a
+    // synthesized `info.toolCall.function.arguments` payload — this is the
+    // pure-unit test of that branch.
+    const memory = fakeAdapter()
+    const errorEvents: Array<{ phase: string }> = []
+    const opts = { withEventTarget: true } as const
+    const off = aiEventClient.on(
+      'memory:error',
+      (e) => errorEvents.push({ phase: e.payload.phase }),
+      opts,
+    )
+    try {
+      const mw = memoryMiddleware({
+        adapter: memory,
+        scope: baseScope,
+        onToolResult: ({ args }) => [
+          rec({
+            text: `args=${JSON.stringify(args)}`,
+            kind: 'tool-result',
+            role: 'tool',
+          }),
+        ],
+      })
+      // Minimal `ChatMiddlewareContext` covering the fields the memory
+      // middleware actually reads (resolveScope needs none beyond its
+      // closure; onAfterToolCall calls `ctx.defer`).
+      const deferred: Array<Promise<unknown>> = []
+      const ctx = {
+        requestId: 'req-1',
+        streamId: 'stream-1',
+        phase: 'init' as const,
+        iteration: 0,
+        chunkIndex: 0,
+        abort: () => {},
+        context: undefined,
+        defer: (p: Promise<unknown>) => {
+          deferred.push(p)
+        },
+        provider: 'mock',
+        model: 'm',
+        source: 'server' as const,
+        streaming: true,
+        systemPrompts: [],
+        messageCount: 1,
+        hasTools: true,
+        currentMessageId: null,
+        accumulatedContent: '',
+        messages: [{ role: 'user' as const, content: 'U' }],
+        createId: (p: string) => `${p}-id`,
+      }
+      // Prime per-request state via onConfig — `onAfterToolCall` short-
+      // circuits when state is missing.
+      await mw.onConfig?.(ctx as never, {
+        messages: [{ role: 'user', content: 'U' }],
+        systemPrompts: [],
+        tools: [],
+      })
+      // Synthesize a tool call whose `arguments` is structurally a string
+      // but not valid JSON. The engine never produces this in practice (it
+      // throws first), so direct invocation is the only path that exercises
+      // the defensive parse-catch.
+      await mw.onAfterToolCall?.(ctx as never, {
+        toolCall: {
+          id: 'c1',
+          type: 'function',
+          function: { name: 'echo', arguments: 'NOT-VALID-JSON{' },
+        },
+        tool: undefined,
+        toolName: 'echo',
+        toolCallId: 'c1',
+        ok: true,
+        duration: 1,
+        result: { ok: 1 },
+      })
+      // Drain any deferred persists.
+      await Promise.all(deferred)
+      // The malformed args produced a memory:error with phase: 'extract'.
+      expect(errorEvents.some((e) => e.phase === 'extract')).toBe(true)
+    } finally {
+      off()
+    }
+  })
+})

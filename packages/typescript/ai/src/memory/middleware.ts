@@ -161,8 +161,28 @@ export function memoryMiddleware(
           if (typeof raw === 'string' && raw.length > 0) {
             parsedArgs = JSON.parse(raw)
           }
-        } catch {
+        } catch (parseError) {
+          // Tool-args JSON parse failure: the engine yielded malformed
+          // tool-call arguments. We still want `onToolResult` to run with the
+          // result it has — but observers MUST see this as a real failure
+          // because callers receive `args: {}` regardless of what the model
+          // actually sent. Fire `memory:error` (phase: 'extract') and route
+          // through `events.onError` so the failure isn't silent.
+          //
+          // Intentionally NOT rethrowing on strict: the malformed payload is
+          // an engine/provider bug, not a memory failure, and rethrowing here
+          // would also cause the outer `onAfterToolCall` catch to emit a
+          // second `phase: 'extract'` event for the same root cause. Falling
+          // back to `parsedArgs = {}` lets `onToolResult` still derive a
+          // record from `result`, which is the more useful signal anyway.
           parsedArgs = {}
+          safeEmit('memory:error', {
+            scope,
+            phase: 'extract',
+            error: errorInfo(parseError),
+            timestamp: Date.now(),
+          })
+          await emitError(options, scope, 'extract', parseError)
         }
         const out = await options.onToolResult({
           toolName: info.toolName,
@@ -437,6 +457,30 @@ async function persistTurn(args: {
       })
     }
     if (args.responseText) {
+      // The assistant-side embedder call lives OUTSIDE `runObservedPersist`,
+      // so a throw here would bypass the persist-phase observability if it
+      // escaped uncaught. Wrap it locally and route failures through the same
+      // `memory:error` + `events.onError` plumbing as every other site.
+      // Mirrors the user-text embedder catch in `onConfig`'s retrieval block.
+      // In strict mode we rethrow so the outer catch turns it into a deferred
+      // persist rejection. In non-strict mode we continue with
+      // `embedding: undefined` so the assistant record still lands.
+      let assistantEmbedding: Array<number> | undefined
+      if (options.embedder) {
+        try {
+          assistantEmbedding = await options.embedder.embed(args.responseText)
+        } catch (error) {
+          safeEmit('memory:error', {
+            scope,
+            phase: 'persist',
+            error: errorInfo(error),
+            timestamp: Date.now(),
+          })
+          await emitError(options, scope, 'persist', error)
+          if (options.strict) throw error
+          // Non-strict: leave `assistantEmbedding` undefined and continue.
+        }
+      }
       baseRecords.push({
         id: crypto.randomUUID(),
         scope,
@@ -445,9 +489,7 @@ async function persistTurn(args: {
         role: 'assistant',
         createdAt: now,
         importance: 0.4,
-        embedding: options.embedder
-          ? await options.embedder.embed(args.responseText)
-          : undefined,
+        embedding: assistantEmbedding,
         metadata: { retrievedMemoryIds: args.retrievedMemoryIds },
       })
     }
@@ -517,6 +559,9 @@ async function persistTurn(args: {
     //   (b) Strict-mode adapter or afterPersist rethrow: emitted inside
     //       `runObservedPersist` with `phase: 'persist'` immediately
     //       before it threw.
+    //   (c) Strict-mode assistant-side embedder rethrow: the local
+    //       try/catch around the assistant embedder call above emitted
+    //       `phase: 'persist'` before rethrowing.
     // Either way the event already fired with the correct phase; re-
     // emitting here would produce a duplicate event for the same failure.
     // So this catch is intentionally a pass-through in non-strict mode
