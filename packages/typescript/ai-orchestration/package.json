@@ -1,0 +1,48 @@
+{
+  "name": "@tanstack/ai-orchestration",
+  "version": "0.0.1",
+  "description": "Generator-based workflows and orchestrators for TanStack AI",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-orchestration"
+  },
+  "keywords": ["ai", "tanstack", "workflow", "orchestration", "agents"],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:coverage": "vitest run --coverage",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "dependencies": {
+    "@tanstack/ai-event-client": "workspace:*",
+    "fast-json-patch": "^3.1.1"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^"
+  },
+  "devDependencies": {
+    "@standard-schema/spec": "^1.1.0",
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^7.2.7",
+    "zod": "^4.2.0"
+  }
+}
