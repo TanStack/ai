@@ -21,7 +21,7 @@ export interface UseWorkflowReturn<
   TOutput = unknown,
   TState = unknown,
 > extends WorkflowClientState<TState, TOutput> {
-  approve: (approved: boolean) => Promise<void>
+  approve: (approved: boolean, feedback?: string) => Promise<void>
   start: (input: TInput) => Promise<void>
   stop: () => void
 }
@@ -63,7 +63,7 @@ export function useWorkflow<
   }, [client])
 
   const approve = useCallback(
-    (approved: boolean) => client.approve(approved),
+    (approved: boolean, feedback?: string) => client.approve(approved, feedback),
     [client],
   )
   const start = useCallback((input: TInput) => client.start(input), [client])

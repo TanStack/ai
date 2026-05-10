@@ -141,6 +141,8 @@ export type StepGenerator<T> = Generator<StepDescriptor, T, any>
 export interface ApprovalResult {
   approved: boolean
   approvalId: string
+  /** Optional free-text feedback. Set when the user denies and asks for revisions. */
+  feedback?: string
 }
 
 // ==========================================
