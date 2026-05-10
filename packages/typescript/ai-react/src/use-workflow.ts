@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { WorkflowClient } from '@tanstack/ai-client'
 import type {
-  WorkflowClientOptions,
   WorkflowClientState,
+  WorkflowConnectionAdapter,
 } from '@tanstack/ai-client'
 
-export interface UseWorkflowOptions extends WorkflowClientOptions {}
+export interface UseWorkflowOptions {
+  /** Connection adapter (e.g. `fetchWorkflowEvents('/api/workflow')`). */
+  connection: WorkflowConnectionAdapter
+  /** Optional: arbitrary extra body fields to send with every request. */
+  body?: Record<string, unknown>
+  onCustomEvent?: (name: string, value: Record<string, unknown>) => void
+  onStateChange?: (state: WorkflowClientState) => void
+}
 
 export interface UseWorkflowReturn<
   TInput = unknown,
@@ -26,9 +33,7 @@ export function useWorkflow<
   optsRef.current = opts
 
   // Re-create the client only when the stable connection identity changes.
-  // For the `endpoint` variant, the string itself is the identity.
-  const connectionKey =
-    'endpoint' in opts ? opts.endpoint : opts.connection
+  const connectionKey = opts.connection
 
   const client = useMemo(
     () => new WorkflowClient<TInput, TOutput, TState>(optsRef.current),
