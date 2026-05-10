@@ -125,7 +125,7 @@ export type MemoryRecord = {
    * within a single adapter deployment SHOULD share a consistent dimension if
    * vector search is used.
    */
-  embedding?: number[]
+  embedding?: Array<number>
   /** Free-form metadata bag for adapter-specific or app-specific annotations. */
   metadata?: Record<string, unknown>
 }
@@ -162,13 +162,13 @@ export type MemoryQuery = {
   /** Query text used by the adapter for ranking (lexical, semantic, or hybrid). */
   text: string
   /** Optional precomputed query embedding. If provided, the adapter MAY use it instead of embedding `text`. */
-  embedding?: number[]
+  embedding?: Array<number>
   /** Maximum number of hits to return. */
   topK?: number
   /** Drop hits with `score < minScore`. */
   minScore?: number
   /** Restrict matches to the given record kinds. */
-  kinds?: MemoryKind[]
+  kinds?: Array<MemoryKind>
   /**
    * Opaque pagination cursor returned from a previous `search` call. The
    * cursor format is adapter-defined and MUST NOT be parsed by callers.
@@ -181,7 +181,7 @@ export type MemoryQuery = {
  */
 export type MemorySearchResult = {
   /** Hits ordered by descending relevance. */
-  hits: MemoryHit[]
+  hits: Array<MemoryHit>
   /** Opaque cursor for fetching the next page, or `undefined` if no more results. */
   nextCursor?: string
 }
@@ -191,7 +191,7 @@ export type MemorySearchResult = {
  */
 export type MemoryListOptions = {
   /** Restrict to the given record kinds. */
-  kinds?: MemoryKind[]
+  kinds?: Array<MemoryKind>
   /** Maximum number of records to return. */
   limit?: number
   /** Opaque pagination cursor returned from a previous `list` call. */
@@ -205,7 +205,7 @@ export type MemoryListOptions = {
  */
 export type MemoryListResult = {
   /** Records ordered per `MemoryListOptions.order`. */
-  items: MemoryRecord[]
+  items: Array<MemoryRecord>
   /** Opaque cursor for fetching the next page, or `undefined` if no more records. */
   nextCursor?: string
 }
@@ -246,7 +246,7 @@ export interface MemoryAdapter {
    *
    * Adapters SHOULD opportunistically evict expired records on `add`.
    */
-  add(records: MemoryRecord | MemoryRecord[]): Promise<void>
+  add: (records: MemoryRecord | Array<MemoryRecord>) => Promise<void>
 
   /**
    * Fetch a record by id within a scope.
@@ -259,7 +259,7 @@ export interface MemoryAdapter {
    * In all three cases the adapter returns `undefined` — it does not throw and
    * does not leak the existence of out-of-scope records.
    */
-  get(id: string, scope: MemoryScope): Promise<MemoryRecord | undefined>
+  get: (id: string, scope: MemoryScope) => Promise<MemoryRecord | undefined>
 
   /**
    * Patch a record in place.
@@ -272,11 +272,11 @@ export interface MemoryAdapter {
    * Returns `undefined` when the target record does not exist, lives in a
    * different scope, or has expired — symmetric with {@link MemoryAdapter.get}.
    */
-  update(
+  update: (
     id: string,
     scope: MemoryScope,
     patch: MemoryRecordPatch,
-  ): Promise<MemoryRecord | undefined>
+  ) => Promise<MemoryRecord | undefined>
 
   /**
    * Run a relevance-ranked search within a scope.
@@ -286,7 +286,7 @@ export interface MemoryAdapter {
    * the cursor format is adapter-internal and MUST NOT be parsed by callers.
    * Expired records are filtered out.
    */
-  search(query: MemoryQuery): Promise<MemorySearchResult>
+  search: (query: MemoryQuery) => Promise<MemorySearchResult>
 
   /**
    * Browse records by scope without relevance ranking.
@@ -295,10 +295,10 @@ export interface MemoryAdapter {
    * UIs, admin tooling, and bulk export. Ordering is controlled by
    * `options.order`. Expired records are filtered out.
    */
-  list(
+  list: (
     scope: MemoryScope,
     options?: MemoryListOptions,
-  ): Promise<MemoryListResult>
+  ) => Promise<MemoryListResult>
 
   /**
    * Delete records by id within a scope.
@@ -307,7 +307,7 @@ export interface MemoryAdapter {
    * silently no-op'd — `delete` does not throw on missing ids, and it MUST NOT
    * cross scope boundaries.
    */
-  delete(ids: string[], scope: MemoryScope): Promise<void>
+  delete: (ids: Array<string>, scope: MemoryScope) => Promise<void>
 
   /**
    * Remove ALL records that match the supplied scope.
@@ -320,7 +320,7 @@ export interface MemoryAdapter {
    * explicit safety check; treating it as a silent global wipe is considered
    * misuse.
    */
-  clear(scope: MemoryScope): Promise<void>
+  clear: (scope: MemoryScope) => Promise<void>
 }
 
 /**
@@ -333,7 +333,7 @@ export interface MemoryAdapter {
  * idempotent: embedding the same input twice should yield the same vector.
  */
 export interface MemoryEmbedder {
-  embed(text: string): Promise<number[]>
+  embed: (text: string) => Promise<Array<number>>
 }
 
 // ===========================
@@ -402,12 +402,12 @@ export interface MemoryMiddlewareOptions {
   /** Drop hits with `score < minScore`. Defaults to `0.15`. */
   minScore?: number
   /** Restrict retrieval to the given record kinds. Defaults to all kinds. */
-  kinds?: MemoryKind[]
+  kinds?: Array<MemoryKind>
   /**
    * Render retrieved hits into a string injected into the prompt. Replaces
    * the built-in `defaultRenderMemory` formatter when provided.
    */
-  render?: (hits: MemoryHit[]) => string
+  render?: (hits: Array<MemoryHit>) => string
 
   /**
    * Write-side gate: decide whether a given turn should produce memories at
@@ -437,9 +437,9 @@ export interface MemoryMiddlewareOptions {
    * cross-encoder reranking, etc.).
    */
   rerank?: (
-    hits: MemoryHit[],
+    hits: Array<MemoryHit>,
     args: { scope: MemoryScope; query: string; ctx: ChatMiddlewareContext },
-  ) => MemoryHit[] | Promise<MemoryHit[]>
+  ) => Array<MemoryHit> | Promise<Array<MemoryHit>>
 
   /**
    * Extract memory mutations from a completed turn. Runs at finish, after the
@@ -456,9 +456,9 @@ export interface MemoryMiddlewareOptions {
     scope: MemoryScope
     adapter: MemoryAdapter
   }) =>
-    | Promise<MemoryOp[] | MemoryRecord[] | undefined>
-    | MemoryOp[]
-    | MemoryRecord[]
+    | Promise<Array<MemoryOp> | Array<MemoryRecord> | undefined>
+    | Array<MemoryOp>
+    | Array<MemoryRecord>
     | undefined
 
   /**
@@ -478,9 +478,9 @@ export interface MemoryMiddlewareOptions {
     scope: MemoryScope
     adapter: MemoryAdapter
   }) =>
-    | Promise<MemoryOp[] | MemoryRecord[] | undefined>
-    | MemoryOp[]
-    | MemoryRecord[]
+    | Promise<Array<MemoryOp> | Array<MemoryRecord> | undefined>
+    | Array<MemoryOp>
+    | Array<MemoryRecord>
     | undefined
 
   /**
@@ -492,7 +492,7 @@ export interface MemoryMiddlewareOptions {
    * notifications).
    */
   afterPersist?: (args: {
-    newRecords: MemoryRecord[]
+    newRecords: Array<MemoryRecord>
     scope: MemoryScope
     adapter: MemoryAdapter
   }) => Promise<void> | void
@@ -513,17 +513,17 @@ export interface MemoryMiddlewareOptions {
     /** Fired after retrieval completes, with the final hit set (post-rerank). */
     onRetrieveEnd?: (args: {
       scope: MemoryScope
-      hits: MemoryHit[]
+      hits: Array<MemoryHit>
     }) => void | Promise<void>
     /** Fired before the persist path commits records to the adapter. */
     onPersistStart?: (args: {
       scope: MemoryScope
-      records: MemoryRecord[]
+      records: Array<MemoryRecord>
     }) => void | Promise<void>
     /** Fired after the persist path commits records to the adapter. */
     onPersistEnd?: (args: {
       scope: MemoryScope
-      records: MemoryRecord[]
+      records: Array<MemoryRecord>
     }) => void | Promise<void>
     /** Fired when retrieval, persistence, or extraction throws. */
     onError?: (args: {

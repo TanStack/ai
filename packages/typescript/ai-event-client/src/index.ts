@@ -666,7 +666,7 @@ export interface MemoryPersistStartedEvent extends BaseEventContext {
 
 export interface MemoryPersistCompletedEvent extends BaseEventContext {
   scope: MemoryScopeLite
-  recordIds: string[]
+  recordIds: Array<string>
   durationMs: number
 }
 

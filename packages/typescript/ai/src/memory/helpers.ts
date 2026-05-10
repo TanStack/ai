@@ -14,7 +14,7 @@ export function scopeMatches(
   return true
 }
 
-export function cosine(a?: number[], b?: number[]): number {
+export function cosine(a?: Array<number>, b?: Array<number>): number {
   if (!a || !b || a.length !== b.length || a.length === 0) return 0
   let dot = 0
   let aMag = 0
@@ -69,7 +69,7 @@ export function defaultScoreHit(args: {
   return semantic * 0.55 + lexical * 0.2 + recency * 0.15 + importance * 0.1
 }
 
-export function defaultRenderMemory(hits: MemoryHit[]): string {
+export function defaultRenderMemory(hits: Array<MemoryHit>): string {
   if (hits.length === 0) return ''
   return [
     'Relevant memory:',

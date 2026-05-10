@@ -1,4 +1,5 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
+import { defaultRenderMemory } from './helpers'
 import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
@@ -12,7 +13,6 @@ import type {
   MemoryRecord,
   MemoryScope,
 } from './types'
-import { defaultRenderMemory } from './helpers'
 
 /**
  * Server-side memory middleware. See docs/middlewares/memory.md and the
@@ -25,8 +25,8 @@ export function memoryMiddleware(
   // instance per chat() call (no cross-request leakage).
   let resolvedScope: MemoryScope | undefined
   let lastUserText = ''
-  let lastUserEmbedding: number[] | undefined
-  let retrievedHits: MemoryHit[] = []
+  let lastUserEmbedding: Array<number> | undefined
+  let retrievedHits: Array<MemoryHit> = []
 
   async function resolveScope(
     ctx: ChatMiddlewareContext,
@@ -109,10 +109,7 @@ export function memoryMiddleware(
         safeEmit('memory:error', {
           scope,
           phase: 'retrieve',
-          error: {
-            name: (error as Error)?.name ?? 'Error',
-            message: String((error as Error)?.message ?? error),
-          },
+          error: errorInfo(error),
           timestamp: Date.now(),
         })
         await emitError(options, scope, 'retrieve', error)
@@ -136,7 +133,7 @@ export function memoryMiddleware(
       try {
         let parsedArgs: unknown = {}
         try {
-          const raw = info.toolCall?.function?.arguments
+          const raw = info.toolCall.function.arguments
           if (typeof raw === 'string' && raw.length > 0) {
             parsedArgs = JSON.parse(raw)
           }
@@ -160,7 +157,7 @@ export function memoryMiddleware(
     },
 
     async onFinish(ctx, info) {
-      const responseText = info.content ?? ''
+      const responseText = info.content
       if (!lastUserText && !responseText) return
       const scope = await resolveScope(ctx)
       ctx.defer(
@@ -185,11 +182,11 @@ async function searchAllPages(
   options: MemoryMiddlewareOptions,
   scope: MemoryScope,
   text: string,
-  embedding: number[] | undefined,
-): Promise<MemoryHit[]> {
+  embedding: Array<number> | undefined,
+): Promise<Array<MemoryHit>> {
   const topK = options.topK ?? 6
   const minScore = options.minScore ?? 0.15
-  const all: MemoryHit[] = []
+  const all: Array<MemoryHit> = []
   let cursor: string | undefined
   do {
     const page = await options.adapter.search({
@@ -208,11 +205,11 @@ async function searchAllPages(
   return all.slice(0, topK)
 }
 
-function normalizeOps(input: MemoryOp[] | MemoryRecord[]): MemoryOp[] {
+function normalizeOps(input: Array<MemoryOp> | Array<MemoryRecord>): Array<MemoryOp> {
   if (input.length === 0) return []
   const first = input[0]
-  if (first && 'op' in first) return input as MemoryOp[]
-  return (input as MemoryRecord[]).map((record) => ({
+  if (first && 'op' in first) return input as Array<MemoryOp>
+  return (input as Array<MemoryRecord>).map((record) => ({
     op: 'add' as const,
     record,
   }))
@@ -221,10 +218,10 @@ function normalizeOps(input: MemoryOp[] | MemoryRecord[]): MemoryOp[] {
 async function applyOps(
   options: MemoryMiddlewareOptions,
   scope: MemoryScope,
-  ops: MemoryOp[],
-): Promise<MemoryRecord[]> {
-  const newRecords: MemoryRecord[] = []
-  const adds: MemoryRecord[] = []
+  ops: Array<MemoryOp>,
+): Promise<Array<MemoryRecord>> {
+  const newRecords: Array<MemoryRecord> = []
+  const adds: Array<MemoryRecord> = []
   for (const op of ops) {
     if (op.op === 'add') {
       adds.push(op.record)
@@ -243,14 +240,14 @@ async function persistTurn(args: {
   options: MemoryMiddlewareOptions
   scope: MemoryScope
   userText: string
-  userEmbedding?: number[]
+  userEmbedding?: Array<number>
   responseText: string
-  retrievedMemoryIds: string[]
+  retrievedMemoryIds: Array<string>
 }): Promise<void> {
   const { options, scope } = args
   const now = Date.now()
   const startedAt = now
-  const baseRecords: MemoryRecord[] = []
+  const baseRecords: Array<MemoryRecord> = []
 
   if (args.userText) {
     baseRecords.push({
@@ -281,7 +278,7 @@ async function persistTurn(args: {
   }
 
   // shouldRemember filter
-  const filtered: MemoryRecord[] = []
+  const filtered: Array<MemoryRecord> = []
   for (const record of baseRecords) {
     if (!options.shouldRemember) {
       filtered.push(record)
@@ -295,7 +292,7 @@ async function persistTurn(args: {
   }
 
   // extractMemories ops
-  let ops: MemoryOp[] = filtered.map((record) => ({
+  let ops: Array<MemoryOp> = filtered.map((record) => ({
     op: 'add' as const,
     record,
   }))
@@ -312,10 +309,7 @@ async function persistTurn(args: {
       safeEmit('memory:error', {
         scope,
         phase: 'extract',
-        error: {
-          name: (error as Error)?.name ?? 'Error',
-          message: String((error as Error)?.message ?? error),
-        },
+        error: errorInfo(error),
         timestamp: Date.now(),
       })
       await emitError(options, scope, 'extract', error)
@@ -329,7 +323,7 @@ async function persistTurn(args: {
       records: ops
         .filter((o) => o.op === 'add')
         .map((o) => {
-          const r = (o as Extract<MemoryOp, { op: 'add' }>).record
+          const r = (o).record
           return {
             id: r.id,
             kind: r.kind,
@@ -343,7 +337,7 @@ async function persistTurn(args: {
       scope,
       records: ops
         .filter((o) => o.op === 'add')
-        .map((o) => (o as Extract<MemoryOp, { op: 'add' }>).record),
+        .map((o) => (o).record),
     })
     const newRecords = await applyOps(options, scope, ops)
     safeEmit('memory:persist:completed', {
@@ -364,10 +358,7 @@ async function persistTurn(args: {
     safeEmit('memory:error', {
       scope,
       phase: 'persist',
-      error: {
-        name: (error as Error)?.name ?? 'Error',
-        message: String((error as Error)?.message ?? error),
-      },
+      error: errorInfo(error),
       timestamp: Date.now(),
     })
     await emitError(options, scope, 'persist', error)
@@ -382,6 +373,29 @@ async function emitError(
   error: unknown,
 ): Promise<void> {
   await options.events?.onError?.({ scope, phase, error })
+}
+
+/**
+ * Extract a `{ name, message }` pair from an unknown thrown value. The
+ * runtime can't trust `error` to be an `Error` instance (anything is throwable
+ * in JS), so we narrow defensively and fall back to stringification.
+ */
+function errorInfo(error: unknown): { name: string; message: string } {
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message }
+  }
+  if (
+    error &&
+    typeof error === 'object' &&
+    'name' in error &&
+    typeof (error as { name: unknown }).name === 'string'
+  ) {
+    return {
+      name: (error as { name: string }).name,
+      message: String((error as { message?: unknown }).message ?? error),
+    }
+  }
+  return { name: 'Error', message: String(error) }
 }
 
 function findLastUserMessage(
@@ -419,7 +433,6 @@ function getMessageText(message?: ModelMessage): string {
       .map((part) => {
         if (typeof part === 'string') return part
         if (
-          part &&
           typeof part === 'object' &&
           'text' in part &&
           typeof part.text === 'string'
