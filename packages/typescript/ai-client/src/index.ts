@@ -63,6 +63,16 @@ export {
   type SubscribeConnectionAdapter,
 } from './connection-adapters'
 
+export { WorkflowClient } from './workflow-client'
+export type {
+  WorkflowApproval,
+  WorkflowClientOptions,
+  WorkflowClientState,
+  WorkflowError,
+  WorkflowStatus,
+  WorkflowStep,
+} from './workflow-client'
+
 // Re-export message converters from @tanstack/ai
 export {
   uiMessageToModelMessages,
