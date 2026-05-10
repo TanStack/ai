@@ -236,6 +236,21 @@ async function* driveLoop(
   let finalOutput: unknown = undefined
 
   try {
+    // If we're resuming from an approval pause, finalize the approval step
+    // that was left dangling at STEP_STARTED before the SSE closed.
+    if (live.pendingApprovalStepId) {
+      const approvalResult = args.seedValue as ApprovalResult | undefined
+      yield stepFinishedEvent({
+        stepId: live.pendingApprovalStepId,
+        stepName: 'approval',
+        content: {
+          approved: approvalResult?.approved ?? false,
+          feedback: approvalResult?.feedback,
+        },
+      })
+      live.pendingApprovalStepId = undefined
+    }
+
     for (;;) {
       // Drain any custom events queued by emit() before advancing the generator.
       while (live.pendingEvents.length > 0) yield live.pendingEvents.shift()!
@@ -372,6 +387,7 @@ async function* driveLoop(
           },
           updatedAt: Date.now(),
         }
+        live.pendingApprovalStepId = stepId
         await runStore.set(runId, live.runState)
 
         // SSE stream ends here; runWorkflow continues after client posts approval.

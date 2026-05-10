@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchWorkflowEvents, useWorkflow } from '@tanstack/ai-react'
+import { ArticleModal } from '@/components/ArticleModal'
 import { DraftPreview } from '@/components/DraftPreview'
 import { StateInspector } from '@/components/StateInspector'
 import { WorkflowTimeline } from '@/components/WorkflowTimeline'
@@ -29,6 +30,28 @@ function WorkflowPage() {
   const finalResult = (wf.status === 'finished' ? wf.output : null) as
     | ArticleOutput
     | null
+
+  // Auto-open the modal when the workflow finalizes successfully. Local
+  // dismiss state lets the user close it; re-running re-opens.
+  const [modalOpen, setModalOpen] = useState(false)
+  const lastRunIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (
+      finalResult &&
+      finalResult.ok &&
+      wf.runId &&
+      wf.runId !== lastRunIdRef.current
+    ) {
+      lastRunIdRef.current = wf.runId
+      setModalOpen(true)
+    }
+    if (wf.status === 'idle' || wf.status === 'running') {
+      // New run starting — clear the modal-shown marker so the next finish opens it.
+      if (wf.runId !== lastRunIdRef.current) {
+        // keep marker; only reset when user explicitly starts again with a different runId
+      }
+    }
+  }, [finalResult, wf.runId, wf.status])
 
   return (
     <main className="relative z-10 min-h-screen px-8 lg:px-16 py-12 max-w-[1320px] mx-auto">
@@ -76,7 +99,18 @@ function WorkflowPage() {
       </div>
 
       {finalResult && finalResult.ok && (
-        <PublishedArticle article={finalResult.article} />
+        <>
+          <PublishedSummary
+            article={finalResult.article}
+            onOpenModal={() => setModalOpen(true)}
+          />
+          {modalOpen && (
+            <ArticleModal
+              article={finalResult.article}
+              onClose={() => setModalOpen(false)}
+            />
+          )}
+        </>
       )}
 
       {finalResult && finalResult.ok === false && (
@@ -258,49 +292,40 @@ function ApprovalBand(props: {
   )
 }
 
-function PublishedArticle(props: {
+function PublishedSummary(props: {
   article: { title: string; paragraphs: Array<string> }
+  onOpenModal: () => void
 }) {
+  const wordCount = props.article.paragraphs.reduce(
+    (n, p) => n + p.split(/\s+/).filter(Boolean).length,
+    0,
+  )
   return (
-    <article className="mt-16 relative anim-log-in">
-      <div className="flex items-baseline justify-between border-b border-bone pb-3 mb-8">
+    <section className="mt-16 anim-log-in">
+      <div className="flex items-baseline justify-between border-b border-bone pb-3 mb-6">
         <span className="label-mono text-citron">Published</span>
-        <span className="label-mono text-taupe">
-          {new Date().toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
+        <span className="label-mono text-taupe tabular">
+          {props.article.paragraphs.length}¶ · {wordCount}w
         </span>
       </div>
-      <h2
-        className="text-5xl md:text-6xl leading-[0.95] tracking-tight mb-6"
-        style={{
-          fontFamily: 'var(--font-display)',
-          fontVariationSettings: "'opsz' 144, 'SOFT' 30, 'WONK' 1",
-        }}
-      >
-        {props.article.title}
-      </h2>
-      <div className="columns-1 md:columns-2 gap-10 max-w-5xl">
-        {props.article.paragraphs.map((p, i) => (
-          <p
-            key={i}
-            className={`mb-5 text-bone leading-[1.65] text-[17px] break-inside-avoid ${
-              i === 0
-                ? 'first-letter:float-left first-letter:text-7xl first-letter:font-bold first-letter:leading-[0.85] first-letter:mr-3 first-letter:text-citron'
-                : ''
-            }`}
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontVariationSettings: "'opsz' 17, 'SOFT' 100, 'WONK' 0",
-            }}
-          >
-            {p}
-          </p>
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-end">
+        <h2
+          className="text-4xl md:text-5xl leading-[0.97] tracking-tight"
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontVariationSettings: "'opsz' 144, 'SOFT' 30, 'WONK' 1",
+          }}
+        >
+          {props.article.title}
+        </h2>
+        <button
+          onClick={props.onOpenModal}
+          className="px-6 py-3 bg-citron text-ink label-mono hover:bg-bone transition-colors w-fit justify-self-end"
+        >
+          ▸ Open Article
+        </button>
       </div>
-    </article>
+    </section>
   )
 }
 

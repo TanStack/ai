@@ -196,4 +196,6 @@ export interface LiveRun {
   abortController: AbortController
   approvalResolver?: (result: ApprovalResult) => void
   pendingEvents: Array<StreamChunk>
+  /** Step ID of the currently paused approval, if any. Used to emit STEP_FINISHED on resume. */
+  pendingApprovalStepId?: string
 }
