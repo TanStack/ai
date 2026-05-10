@@ -1,7 +1,4 @@
-import type {
-  ConnectConnectionAdapter,
-  SubscribeConnectionAdapter,
-} from './connection-adapters'
+import { parseSSEResponse } from './sse-parser'
 
 export interface WorkflowApproval {
   approvalId: string
@@ -46,13 +43,47 @@ export interface WorkflowClientState<TState = unknown, TOutput = unknown> {
   steps: Array<WorkflowStep>
 }
 
-export interface WorkflowClientOptions {
+/**
+ * Minimal connection adapter interface for workflows. Accepts any body,
+ * yields raw parsed event objects.
+ */
+export interface WorkflowConnectionAdapter {
+  connect: (
+    body: unknown,
+  ) => AsyncIterable<unknown> | Promise<AsyncIterable<unknown>>
+}
+
+type WorkflowClientOptionsBase = {
   /** Optional: arbitrary extra body fields to send with the start request. */
   body?: Record<string, unknown>
-  connection: ConnectConnectionAdapter | SubscribeConnectionAdapter
   onCustomEvent?: (name: string, value: Record<string, unknown>) => void
   onStateChange?: (state: WorkflowClientState) => void
 }
+
+/**
+ * Options for WorkflowClient. Provide either `endpoint` (a URL string for the
+ * workflow API route) or a custom `connection` adapter. These are mutually
+ * exclusive.
+ *
+ *   // Shortcut — POST JSON to the given endpoint, parse SSE response:
+ *   new WorkflowClient({ endpoint: '/api/workflow' })
+ *
+ *   // Advanced — bring your own adapter:
+ *   new WorkflowClient({ connection: myAdapter })
+ */
+export type WorkflowClientOptions = WorkflowClientOptionsBase &
+  (
+    | {
+        /** URL of the workflow API route. Internally constructs a fetch+SSE adapter. */
+        endpoint: string
+        connection?: never
+      }
+    | {
+        endpoint?: never
+        /** Custom connection adapter for advanced use cases. */
+        connection: WorkflowConnectionAdapter
+      }
+  )
 
 const initialState: WorkflowClientState = {
   currentStep: null,
@@ -243,16 +274,25 @@ export class WorkflowClient<
   }
 
   private openStream(body: Record<string, unknown>): AsyncIterable<unknown> {
-    const conn = this.opts.connection
     const fullBody = { ...this.opts.body, ...body }
-    if ('connect' in conn) {
-      return conn.connect(
-        fullBody as unknown as Parameters<typeof conn.connect>[0],
-      ) as AsyncIterable<unknown>
+    if (this.opts.endpoint) {
+      const endpoint = this.opts.endpoint
+      return (async function* () {
+        const response = await fetch(endpoint, {
+          body: JSON.stringify(fullBody),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        })
+        yield* parseSSEResponse(response)
+      })()
     }
-    throw new Error(
-      'Subscribe-mode connection adapters not supported for workflow client in v1',
-    )
+    const conn = this.opts.connection
+    if (!conn) {
+      throw new Error('WorkflowClient: either endpoint or connection must be provided')
+    }
+    return (async function* () {
+      yield* await conn.connect(fullBody)
+    })()
   }
 
   private setState(

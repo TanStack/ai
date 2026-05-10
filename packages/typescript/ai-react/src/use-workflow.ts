@@ -25,15 +25,15 @@ export function useWorkflow<
   const optsRef = useRef(opts)
   optsRef.current = opts
 
+  // Re-create the client only when the stable connection identity changes.
+  // For the `endpoint` variant, the string itself is the identity.
+  const connectionKey =
+    'endpoint' in opts ? opts.endpoint : opts.connection
+
   const client = useMemo(
-    () =>
-      new WorkflowClient<TInput, TOutput, TState>({
-        body: optsRef.current.body,
-        connection: optsRef.current.connection,
-        onCustomEvent: (name, value) =>
-          optsRef.current.onCustomEvent?.(name, value),
-      }),
-    [opts.connection],
+    () => new WorkflowClient<TInput, TOutput, TState>(optsRef.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [connectionKey],
   )
 
   const [state, setState] = useState(client.state)

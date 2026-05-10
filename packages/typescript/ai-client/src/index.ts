@@ -68,6 +68,7 @@ export type {
   WorkflowApproval,
   WorkflowClientOptions,
   WorkflowClientState,
+  WorkflowConnectionAdapter,
   WorkflowError,
   WorkflowStatus,
   WorkflowStep,
