@@ -49,4 +49,4 @@ For larger scopes use a vector-index-aware adapter. None ships in v1; write one 
 
 - **Records not visible across processes:** check that all processes use the same `REDIS_URL` and `prefix`. The adapter does not auto-namespace by host.
 - **Records expiring unexpectedly:** check whether your records carry `expiresAt`; the adapter sweeps these on read. If you do not want expiry, leave `expiresAt` undefined.
-- **`SerializationError` on read:** the JSON in `{prefix}:record:{id}` is malformed — likely from an older schema or a third-party writer. The adapter skips malformed rows but you'll want to clean them up via `clear(scope)`.
+- **Malformed JSON rows:** if the JSON in `{prefix}:record:{id}` is malformed (older schema, third-party writer), the adapter silently skips the row. There is no exception you can catch — the only observable signal is a one-time `console.warn` per process. To detect drift, periodically run `list(scope)` and compare counts to your application's source of truth, then clean up the offending rows via `clear(scope)` or by deleting the underlying record keys directly.

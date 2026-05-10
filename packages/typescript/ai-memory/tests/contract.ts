@@ -225,6 +225,75 @@ export function runMemoryAdapterContract(
       })
     })
 
+    describe('partial scope semantics', () => {
+      it('search with a partial scope finds records added under sub-scopes', async () => {
+        const sub1: MemoryScope = { tenantId: 't1', userId: 'u1' }
+        const sub2: MemoryScope = { tenantId: 't1', userId: 'u2' }
+        const other: MemoryScope = { tenantId: 't2', userId: 'u1' }
+        await adapter.add(rec({ id: 'a', scope: sub1, text: 'apple' }))
+        await adapter.add(rec({ id: 'b', scope: sub2, text: 'apple' }))
+        await adapter.add(rec({ id: 'c', scope: other, text: 'apple' }))
+
+        const out = await adapter.search({
+          scope: { tenantId: 't1' },
+          text: 'apple',
+        })
+        const ids = new Set(out.hits.map((h) => h.record.id))
+        expect(ids.has('a')).toBe(true)
+        expect(ids.has('b')).toBe(true)
+        expect(ids.has('c')).toBe(false)
+      })
+
+      it('list with a partial scope returns records from sub-scopes', async () => {
+        const sub1: MemoryScope = { tenantId: 't1', userId: 'u1' }
+        const sub2: MemoryScope = { tenantId: 't1', userId: 'u2' }
+        await adapter.add(rec({ id: 'a', scope: sub1 }))
+        await adapter.add(rec({ id: 'b', scope: sub2 }))
+        const out = await adapter.list({ tenantId: 't1' })
+        expect(out.items.length).toBe(2)
+      })
+
+      it('clear with a partial scope wipes records from sub-scopes', async () => {
+        const sub1: MemoryScope = { tenantId: 't1', userId: 'u1' }
+        const sub2: MemoryScope = { tenantId: 't1', userId: 'u2' }
+        const other: MemoryScope = { tenantId: 't2', userId: 'u1' }
+        await adapter.add(rec({ id: 'a', scope: sub1 }))
+        await adapter.add(rec({ id: 'b', scope: sub2 }))
+        await adapter.add(rec({ id: 'c', scope: other }))
+        await adapter.clear({ tenantId: 't1' })
+        expect(await adapter.get('a', sub1)).toBeUndefined()
+        expect(await adapter.get('b', sub2)).toBeUndefined()
+        expect(await adapter.get('c', other)).toBeDefined()
+      })
+
+      it('delete by id keeps the record findable via the actual scope after the call', async () => {
+        // NOT a partial-scope test, but it pins the srem-uses-record-scope fix.
+        const subScope: MemoryScope = { tenantId: 't1', userId: 'u1' }
+        await adapter.add(rec({ id: 'd', scope: subScope }))
+        await adapter.delete(['d'], { tenantId: 't1' }) // wider than record scope
+        expect(await adapter.get('d', subScope)).toBeUndefined()
+        // After the delete, list({tenantId:'t1'}) should also not return it
+        const listed = await adapter.list({ tenantId: 't1' })
+        expect(listed.items.find((r) => r.id === 'd')).toBeUndefined()
+      })
+
+      it('add upsert with changed scope removes id from old scope index', async () => {
+        const oldScope: MemoryScope = { tenantId: 't1', userId: 'u1' }
+        const newScope: MemoryScope = { tenantId: 't1', userId: 'u2' }
+        await adapter.add(rec({ id: 'm', scope: oldScope, text: 'original' }))
+        await adapter.add(rec({ id: 'm', scope: newScope, text: 'rescoped' }))
+        // Record is no longer findable via old scope
+        expect(await adapter.get('m', oldScope)).toBeUndefined()
+        expect(await adapter.get('m', newScope)).toBeDefined()
+        // list under old scope shouldn't return it
+        const oldList = await adapter.list(oldScope)
+        expect(oldList.items.find((r) => r.id === 'm')).toBeUndefined()
+        // list under new scope should
+        const newList = await adapter.list(newScope)
+        expect(newList.items.find((r) => r.id === 'm')).toBeDefined()
+      })
+    })
+
     describe('semantic vs lexical ranking', () => {
       it('lexical-only when no embeddings', async () => {
         await adapter.add(rec({ id: 'a', text: 'apple banana' }))

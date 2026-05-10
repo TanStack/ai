@@ -14,6 +14,12 @@ import type {
  * Minimal subset of the Redis client API this adapter uses.
  * Compatible with both `redis` (node-redis v4+) and `ioredis` shapes.
  * Real users pass an instance of either.
+ *
+ * NOTE: `scan` follows the lowercase variadic form used by ioredis and
+ * node-redis legacyMode: `scan(cursor, 'MATCH', pattern, 'COUNT', n)`
+ * returning `[nextCursor, matchedKeys]`. node-redis v4+'s default
+ * camelCase shape (`scan(cursor, { MATCH, COUNT })`) is not handled
+ * here — Group C will address camelCase compatibility separately.
  */
 export interface RedisLike {
   set: (key: string, value: string) => Promise<unknown>
@@ -23,6 +29,10 @@ export interface RedisLike {
   srem: (key: string, ...members: Array<string>) => Promise<unknown>
   smembers: (key: string) => Promise<Array<string>>
   mget: (...keys: Array<string>) => Promise<Array<string | null>>
+  scan: (
+    cursor: string | number,
+    ...args: Array<string>
+  ) => Promise<[string, Array<string>]>
 }
 
 export interface RedisMemoryAdapterOptions {
@@ -46,6 +56,19 @@ function hasAnyScopeKey(scope: MemoryScope): boolean {
   return false
 }
 
+// Module-level flag so we only emit the malformed-row warning once per
+// process. The adapter still skips malformed rows; this just surfaces a
+// hint to developers who happen to be watching the console.
+let warnedMalformedRow = false
+function warnMalformedRowOnce(id: string, err: unknown): void {
+  if (warnedMalformedRow) return
+  warnedMalformedRow = true
+  console.warn(
+    `[tanstack-ai-memory] redisMemoryAdapter: skipped malformed record JSON (id=${id}). ` +
+      `Subsequent malformed rows will be skipped silently. Reason: ${String(err)}`,
+  )
+}
+
 export function redisMemoryAdapter(
   options: RedisMemoryAdapterOptions,
 ): MemoryAdapter {
@@ -62,46 +85,144 @@ export function redisMemoryAdapter(
     return `${prefix}:record:${id}`
   }
 
+  /**
+   * Scope-key equality across all five SCOPE_KEYS. Used by `add` to detect
+   * an upsert whose scope changed from the previously-stored record, so we
+   * can srem the id from the old scope's index before sadding to the new
+   * one. A simple per-key comparison is sufficient — `MemoryScope` values
+   * are plain strings.
+   */
+  function scopesEqual(a: MemoryScope, b: MemoryScope): boolean {
+    for (const key of SCOPE_KEYS) {
+      if ((a[key] ?? null) !== (b[key] ?? null)) return false
+    }
+    return true
+  }
+
+  /**
+   * Find every index bucket whose scope tuple is consistent with `scope`.
+   *
+   * The adapter stores records under an EXACT scope tuple
+   * `${tenantId or _}:${userId or _}:${sessionId or _}:${threadId or _}:${namespace or _}`.
+   * A partial query scope (e.g. `{ tenantId: 't1' }`) must therefore
+   * enumerate every bucket whose tuple positions match the defined keys —
+   * the rest can be anything, so we glob them with `*` and SCAN.
+   *
+   * Returns `[]` when `scope` has no defined keys: per the strict
+   * empty-scope semantics in `scopeMatches`, an empty scope matches
+   * nothing and so resolves to zero buckets.
+   *
+   * Assumption: scope values are app-supplied strings that don't contain
+   * Redis glob metacharacters (`*`, `?`, `[`). The practical risk is low;
+   * we don't escape here. Group C may revisit if a real bug surfaces.
+   */
+  async function findIndexKeysForScope(
+    scope: MemoryScope,
+  ): Promise<Array<string>> {
+    if (!hasAnyScopeKey(scope)) return []
+    const pattern = `${prefix}:index:${SCOPE_KEYS.map((k) =>
+      scope[k] != null ? String(scope[k]) : '*',
+    ).join(':')}`
+    const seen = new Set<string>()
+    let cursor = '0'
+    do {
+      const [next, batch] = await redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        '100',
+      )
+      for (const k of batch) seen.add(k)
+      cursor = next
+    } while (cursor !== '0')
+    return Array.from(seen)
+  }
+
   async function loadRecord(id: string): Promise<MemoryRecord | undefined> {
     const raw = await redis.get(recordKey(id))
     if (!raw) return undefined
     try {
       return JSON.parse(raw) as MemoryRecord
-    } catch {
+    } catch (err) {
+      warnMalformedRowOnce(id, err)
       return undefined
     }
   }
 
+  /**
+   * Load and scope-filter every record reachable from `scope`.
+   *
+   * Iterates ALL index buckets whose scope tuple is consistent with the
+   * query scope (via `findIndexKeysForScope`), mGets the records, filters
+   * via `scopeMatches` (defensive — sub-bucket records that wouldn't
+   * satisfy a mid-tuple constraint must still be dropped), and sweeps
+   * expired/missing rows from each bucket they appeared in.
+   */
   async function loadAllForScope(
     scope: MemoryScope,
   ): Promise<Array<MemoryRecord>> {
-    const ids = await redis.smembers(indexKey(scope))
-    if (ids.length === 0) return []
+    if (!hasAnyScopeKey(scope)) return []
+    const indexKeys = await findIndexKeysForScope(scope)
+    if (indexKeys.length === 0) return []
+
+    // Maintain id -> originating index key so srem of expired/missing rows
+    // targets the bucket the id actually lives in.
+    const idToIndexKey = new Map<string, string>()
+    for (const idx of indexKeys) {
+      const members = await redis.smembers(idx)
+      for (const m of members) {
+        // First-write-wins is fine: each record only lives in exactly one
+        // index bucket in steady state, so duplicates here would only be a
+        // transient state we're about to clean up anyway.
+        if (!idToIndexKey.has(m)) idToIndexKey.set(m, idx)
+      }
+    }
+    if (idToIndexKey.size === 0) return []
+
+    const ids = Array.from(idToIndexKey.keys())
     const raws = await redis.mget(...ids.map(recordKey))
     const out: Array<MemoryRecord> = []
-    const expired: Array<string> = []
+    // Group expired/missing ids by their originating index key so we can
+    // srem them in a single call per bucket.
+    const expiredByIndex = new Map<string, Array<string>>()
+    function markExpired(id: string) {
+      const idx = idToIndexKey.get(id)
+      if (!idx) return
+      const arr = expiredByIndex.get(idx) ?? []
+      arr.push(id)
+      expiredByIndex.set(idx, arr)
+    }
     for (let i = 0; i < raws.length; i++) {
       const raw = raws[i] as string | null
       const id = ids[i] as string
       if (!raw) {
-        expired.push(id)
+        markExpired(id)
         continue
       }
       try {
         const r = JSON.parse(raw) as MemoryRecord
         if (isExpired(r)) {
-          expired.push(r.id)
+          markExpired(r.id)
           continue
         }
         if (!scopeMatches(r.scope, scope)) continue
         out.push(r)
-      } catch {
+      } catch (err) {
+        warnMalformedRowOnce(id, err)
         /* skip malformed */
       }
     }
-    if (expired.length > 0) {
-      await redis.srem(indexKey(scope), ...expired)
-      await redis.del(...expired.map(recordKey))
+    if (expiredByIndex.size > 0) {
+      const recordKeysToDelete: Array<string> = []
+      for (const [idx, ids2] of expiredByIndex) {
+        if (ids2.length === 0) continue
+        await redis.srem(idx, ...ids2)
+        for (const id of ids2) recordKeysToDelete.push(recordKey(id))
+      }
+      if (recordKeysToDelete.length > 0) {
+        await redis.del(...recordKeysToDelete)
+      }
     }
     return out
   }
@@ -113,6 +234,14 @@ export function redisMemoryAdapter(
       const batch = Array.isArray(input) ? input : [input]
       const now = Date.now()
       for (const r of batch) {
+        // If this id already exists under a DIFFERENT scope, remove it
+        // from the old scope's index before we sadd to the new one.
+        // Without this the id would be reachable from the old bucket and
+        // surface in partial-scope traversals that happen to include it.
+        const prev = await loadRecord(r.id)
+        if (prev && !scopesEqual(prev.scope, r.scope)) {
+          await redis.srem(indexKey(prev.scope), r.id)
+        }
         const next: MemoryRecord = { ...r, updatedAt: now }
         await redis.set(recordKey(r.id), JSON.stringify(next))
         await redis.sadd(indexKey(r.scope), r.id)
@@ -210,7 +339,11 @@ export function redisMemoryAdapter(
         if (!r) continue
         if (!scopeMatches(r.scope, scope)) continue
         await redis.del(recordKey(id))
-        await redis.srem(indexKey(scope), id)
+        // srem against the RECORD'S actual scope, not the caller's scope.
+        // A partial-scope caller (e.g. `{ tenantId: 't1' }`) would otherwise
+        // try to srem from `t1:_:_:_:_` while the id actually lives in
+        // `t1:u1:_:_:_`, leaving a dangling index entry.
+        await redis.srem(indexKey(r.scope), id)
       }
     },
 
@@ -221,10 +354,17 @@ export function redisMemoryAdapter(
       // wipe (the index key for an all-blank scope would otherwise enumerate
       // a real bucket of records).
       if (!hasAnyScopeKey(scope)) return
-      const ids = await redis.smembers(indexKey(scope))
-      if (ids.length === 0) return
-      await redis.del(...ids.map(recordKey))
-      await redis.del(indexKey(scope))
+      const indexKeys = await findIndexKeysForScope(scope)
+      if (indexKeys.length === 0) return
+      const idsToDelete = new Set<string>()
+      for (const idx of indexKeys) {
+        const members = await redis.smembers(idx)
+        for (const m of members) idsToDelete.add(m)
+      }
+      if (idsToDelete.size > 0) {
+        await redis.del(...Array.from(idsToDelete).map(recordKey))
+      }
+      await redis.del(...indexKeys)
     },
   }
 }
