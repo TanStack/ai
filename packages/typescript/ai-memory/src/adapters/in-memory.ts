@@ -71,6 +71,9 @@ export function inMemoryMemoryAdapter(): MemoryAdapter {
     },
 
     async search(query: MemoryQuery): Promise<MemorySearchResult> {
+      // Snapshot `now` once so every candidate in this pass shares the same
+      // recency reference time (mirrors redisMemoryAdapter.search).
+      const now = Date.now()
       const candidates = scopedLive(query.scope).filter((r) => {
         if (query.kinds?.length && !query.kinds.includes(r.kind)) return false
         return true
@@ -80,7 +83,7 @@ export function inMemoryMemoryAdapter(): MemoryAdapter {
       const scored = candidates
         .map((record) => ({
           record,
-          score: defaultScoreHit({ record, query }),
+          score: defaultScoreHit({ record, query, now }),
         }))
         .filter((h) => h.score >= minScore)
         .sort((a, b) => b.score - a.score)

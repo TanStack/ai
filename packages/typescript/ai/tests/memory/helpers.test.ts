@@ -140,7 +140,9 @@ describe('defaultRenderMemory', () => {
       },
     ])
     expect(out).toContain('Relevant memory:')
-    expect(out).toContain('1. [fact] User is on Windows.')
+    // Text is JSON.stringify'd so memory content cannot break out of the
+    // list structure (see defaultRenderMemory implementation).
+    expect(out).toContain('1. [fact] "User is on Windows."')
   })
 })
 

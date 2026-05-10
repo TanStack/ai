@@ -508,9 +508,16 @@ export interface MemoryMiddlewareOptions {
    * with its arguments and result, allowing the app to persist tool output as
    * memory (typical `kind` is `'tool-result'`).
    *
-   * The middleware defers the resulting work via `ctx.defer` so it does not
-   * block the chat stream. Same return-shape conventions as `extractMemories`
-   * — `MemoryOp[]`, `MemoryRecord[]` shorthand, or `undefined`.
+   * The middleware buffers the returned ops and flushes them in the
+   * finish-turn persist round so the per-turn `shouldRemember` gate applies
+   * uniformly to base records, `extractMemories` output, AND tool-result
+   * memories. Same return-shape conventions as `extractMemories` —
+   * `MemoryOp[]`, `MemoryRecord[]` shorthand, or `undefined`.
+   *
+   * **Persist events fire once per turn.** A single `memory:persist:started`
+   * / `:completed` pair (and one `events.onPersistStart` / `onPersistEnd` /
+   * `afterPersist` invocation) covers base records, extracted ops, and
+   * tool-result ops together — they all commit in one observed round.
    *
    * **Scope is enforced.** Records returned by this callback have their
    * `scope` field overridden with the resolved scope before being persisted,

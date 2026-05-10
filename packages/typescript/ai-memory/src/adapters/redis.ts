@@ -372,7 +372,12 @@ export function redisMemoryAdapter(
         out.push(r)
       } catch (err) {
         warnMalformedRowOnce(id, err)
-        /* skip malformed */
+        // Sweep malformed payloads from BOTH the index bucket and the record
+        // key — without this, the bad row stays at recordKey(id) and the id
+        // stays in the index, causing every subsequent loadAllForScope to
+        // re-parse and re-warn forever. Reuse `markExpired` so the expired/
+        // missing/malformed paths share one cleanup pass per index bucket.
+        markExpired(id)
       }
     }
     if (expiredByIndex.size > 0) {
@@ -445,6 +450,12 @@ export function redisMemoryAdapter(
 
     async search(query: MemoryQuery): Promise<MemorySearchResult> {
       const records = await loadAllForScope(query.scope)
+      // Snapshot `now` once so every candidate in this pass is scored
+      // against the SAME reference time. Without this, `defaultScoreHit`
+      // calls `Date.now()` per record and later candidates in the same
+      // search get a slightly tinier recency contribution than earlier
+      // ones, perturbing the relative ranking of equally-recent records.
+      const now = Date.now()
       const candidates = records.filter((r) => {
         if (query.kinds?.length && !query.kinds.includes(r.kind)) return false
         return true
@@ -454,7 +465,7 @@ export function redisMemoryAdapter(
       const scored = candidates
         .map((record) => ({
           record,
-          score: defaultScoreHit({ record, query }),
+          score: defaultScoreHit({ record, query, now }),
         }))
         .filter((h) => h.score >= minScore)
         .sort((a, b) => b.score - a.score)

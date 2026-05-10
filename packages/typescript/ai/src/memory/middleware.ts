@@ -25,6 +25,14 @@ interface MemoryRequestState {
   lastUserText: string
   lastUserEmbedding?: Array<number>
   retrievedHits: Array<MemoryHit>
+  /**
+   * Tool-result ops buffered from `onAfterToolCall` until `onFinish`. Flushed
+   * inside `persistTurn` AFTER the per-turn `shouldRemember` gate passes —
+   * returning `false` from `shouldRemember` short-circuits both base records,
+   * `extractMemories`, AND these tool-result ops, matching the documented
+   * "short-circuits the entire persist path for the current turn" contract.
+   */
+  pendingToolOps: Array<MemoryOp>
 }
 
 const stateByCtx = new WeakMap<ChatMiddlewareContext, MemoryRequestState>()
@@ -58,6 +66,7 @@ export function memoryMiddleware(
       const state: MemoryRequestState = {
         lastUserText: '',
         retrievedHits: [],
+        pendingToolOps: [],
       }
       stateByCtx.set(ctx, state)
 
@@ -79,7 +88,7 @@ export function memoryMiddleware(
       try {
         safeEmit('memory:retrieve:started', {
           scope,
-          query: state.lastUserText,
+          query: preview(state.lastUserText),
           topK: options.topK ?? 6,
           minScore: options.minScore ?? 0.15,
           embedderUsed: !!options.embedder,
@@ -193,13 +202,13 @@ export function memoryMiddleware(
           adapter: options.adapter,
         })
         if (!out) return
-        // Deferred tool-result persistence flows through the SAME observability
-        // pipeline as finish-turn persist: emits memory:persist:started /
-        // completed, fires events.onPersistStart / onPersistEnd, and calls
-        // afterPersist with the newly-added records. `runObservedPersist`
-        // also wraps adapter failures in memory:error + events.onError and
-        // (in strict mode) rejects the deferred promise.
-        ctx.defer(runObservedPersist(options, scope, normalizeOps(out)))
+        // Buffer the tool-result ops for the per-turn `shouldRemember` gate
+        // inside `persistTurn`. Per the JSDoc contract on `shouldRemember`,
+        // returning `false` short-circuits the ENTIRE persist path for the
+        // current turn — including tool-result memories. Persist then flushes
+        // these buffered ops in a single observed round at finish-turn time
+        // alongside base records and `extractMemories` output.
+        state.pendingToolOps.push(...normalizeOps(out))
       } catch (error) {
         // Errors from `onToolResult` itself (synchronous extraction failure)
         // — the persist phase is wrapped separately above.
@@ -226,6 +235,10 @@ export function memoryMiddleware(
       const userText = state.lastUserText
       const userEmbedding = state.lastUserEmbedding
       const retrievedMemoryIds = state.retrievedHits.map((h) => h.record.id)
+      // Snapshot tool-result ops buffered by `onAfterToolCall` so they can be
+      // gated by `shouldRemember` and flushed in the same observed persist
+      // round as base records + `extractMemories` output.
+      const pendingToolOps = state.pendingToolOps
       // Done with state — drop the WeakMap entry now so the deferred work
       // below cannot accidentally observe stale fields. (The WeakMap would
       // GC the entry once `ctx` is dropped anyway; this is just defensive.)
@@ -238,6 +251,7 @@ export function memoryMiddleware(
           userEmbedding,
           responseText,
           retrievedMemoryIds,
+          pendingToolOps,
         }),
       )
     },
@@ -434,6 +448,12 @@ async function persistTurn(args: {
   userEmbedding?: Array<number>
   responseText: string
   retrievedMemoryIds: Array<string>
+  /**
+   * Tool-result ops buffered by `onAfterToolCall` during the turn. Flushed
+   * AFTER the `shouldRemember` gate passes so a `false` return short-circuits
+   * tool-result memories along with base records and `extractMemories`.
+   */
+  pendingToolOps: Array<MemoryOp>
 }): Promise<void> {
   const { options, scope } = args
   // Hoisted out of the try block so the outer catch can read them when
@@ -510,6 +530,14 @@ async function persistTurn(args: {
       })
     }
 
+    // Op ordering is intentional and documented:
+    //   1. base records (user, assistant) — always first
+    //   2. extractMemories output — appended after base
+    //   3. pendingToolOps — appended last
+    // `applyOps` dispatches in array order (see its JSDoc for why ordering
+    // matters), so `[{add X}, {update X}]` from extractMemories will see the
+    // base records already committed, and tool-result ops referring to ids
+    // that extractMemories created will be applied last.
     let ops: Array<MemoryOp> = baseRecords.map((record) => ({
       op: 'add' as const,
       record,
@@ -549,6 +577,15 @@ async function persistTurn(args: {
         // Intentionally NOT re-throwing here — see note (2)/(3) above. The
         // re-throw happens after `applyOps` so base records still persist.
       }
+    }
+
+    // Append tool-result ops (buffered from `onAfterToolCall`) AFTER the
+    // shouldRemember gate has passed. This is what enforces the contract:
+    // returning `false` from `shouldRemember` discards tool-result memories
+    // along with base records and `extractMemories` output, since none of
+    // them ever reach `runObservedPersist`.
+    if (args.pendingToolOps.length > 0) {
+      ops = ops.concat(args.pendingToolOps)
     }
 
     // `runObservedPersist` owns the persist:started/completed events, the

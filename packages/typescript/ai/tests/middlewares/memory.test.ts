@@ -586,11 +586,59 @@ describe('memoryMiddleware — persistence', () => {
     expect(toolResults[0]?.text).toContain('echo')
   })
 
-  it('onToolResult deferred persist flows through the same observability pipeline as finish-turn persist', async () => {
-    // Regression: previously, `onToolResult` returned ops were committed via
-    // `deferredApplyOps` which did NOT emit persist:started/completed, did
-    // NOT call events.onPersistStart/End, and did NOT call afterPersist.
-    // The unified pipeline (runObservedPersist) now fires for both paths.
+  it('shouldRemember=false skips tool-result memories from onToolResult', async () => {
+    // Regression: previously `onToolResult` deferred persists fired
+    // immediately and `shouldRemember` only gated the finish-turn path,
+    // so a `false` return left tool-result memories already committed.
+    // After buffering + flushing inside `persistTurn`, `shouldRemember`
+    // gates the entire turn — tool-result ops included.
+    const memory = fakeAdapter()
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.toolStart('c1', 'echo'),
+          ev.toolArgs('c1', '{}'),
+          ev.toolEnd('c1', 'echo'),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
+      ],
+    })
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'U' }],
+      tools: [
+        { name: 'echo', description: 'noop', execute: async () => ({ ok: 1 }) },
+      ],
+      middleware: [
+        memoryMiddleware({
+          adapter: memory,
+          scope: baseScope,
+          shouldRemember: () => false,
+          onToolResult: ({ toolName, result }) => [
+            rec({
+              text: `${toolName}:${JSON.stringify(result)}`,
+              kind: 'tool-result',
+              role: 'tool',
+            }),
+          ],
+        }),
+      ],
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+    // Wait a tick for any deferred work — there should be none.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    expect(memory.store.size).toBe(0)
+  })
+
+  it('onToolResult ops flow through finish-turn observability pipeline', async () => {
+    // Behaviour: `onToolResult` returned ops are buffered on per-request
+    // state and flushed inside the finish-turn persist round AFTER the
+    // per-turn `shouldRemember` gate passes. They share a single observed
+    // persist with base + extracted records, so persist:started/completed,
+    // events.onPersistStart/End, and afterPersist each fire ONCE per turn
+    // (not once per tool call + once for finish-turn).
     const memory = fakeAdapter()
     const { adapter } = createMockAdapter({
       iterations: [
@@ -658,14 +706,15 @@ describe('memoryMiddleware — persistence', () => {
       off1()
       off2()
     }
-    // Tool-result persist + finish-turn persist = at least 2 starts + 2 ends.
-    expect(startCount.n).toBeGreaterThanOrEqual(2)
-    expect(endCount.n).toBeGreaterThanOrEqual(2)
-    expect(onPersistStart.mock.calls.length).toBeGreaterThanOrEqual(2)
-    expect(onPersistEnd.mock.calls.length).toBeGreaterThanOrEqual(2)
-    // afterPersist fires once per persist call (tool-result + finish-turn).
-    expect(afterPersist).toHaveBeenCalledTimes(2)
-    // Tool-result records visible to afterPersist.
+    // Single unified finish-turn persist round covers base + extracted +
+    // tool-result records — exactly one start/end pair per turn.
+    expect(startCount.n).toBe(1)
+    expect(endCount.n).toBe(1)
+    expect(onPersistStart).toHaveBeenCalledTimes(1)
+    expect(onPersistEnd).toHaveBeenCalledTimes(1)
+    expect(afterPersist).toHaveBeenCalledTimes(1)
+    // Tool-result records still visible to afterPersist (folded into the
+    // single newRecords array passed to the callback).
     const allNewRecords = afterPersist.mock.calls.flatMap(
       (c) => (c[0] as { newRecords: Array<{ kind: string }> }).newRecords,
     )

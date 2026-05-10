@@ -135,8 +135,13 @@ export function defaultRenderMemory(hits: Array<MemoryHit>): string {
     'Do not mention memory directly unless the user asks about it.',
     'If current conversation context contradicts memory, prefer the current conversation.',
     '',
+    // JSON.stringify the record text so persisted memory containing newlines
+    // or instruction-shaped content cannot break out of the list structure
+    // and steer subsequent turns at system priority. The double-quoted form
+    // also makes the content visibly data-shaped rather than instruction-shaped.
     ...hits.map(
-      (hit, index) => `${index + 1}. [${hit.record.kind}] ${hit.record.text}`,
+      (hit, index) =>
+        `${index + 1}. [${hit.record.kind}] ${JSON.stringify(hit.record.text)}`,
     ),
   ].join('\n')
 }
