@@ -1,3 +1,17 @@
-// @tanstack/ai-memory
-// Adapters land in Phase E (in-memory) and Phase F (redis).
-export {}
+export { inMemoryMemoryAdapter } from './adapters/in-memory'
+
+export type {
+  MemoryAdapter,
+  MemoryRecord,
+  MemoryRecordPatch,
+  MemoryScope,
+  MemoryQuery,
+  MemoryHit,
+  MemoryKind,
+  MemoryRole,
+  MemoryEmbedder,
+  MemoryOp,
+  MemorySearchResult,
+  MemoryListOptions,
+  MemoryListResult,
+} from '@tanstack/ai/memory'
