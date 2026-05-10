@@ -117,13 +117,20 @@ export async function* runWorkflow(
   yield runStartedEvent({ runId, threadId: options.threadId })
   yield stateSnapshotEvent({ snapshot: state })
 
-  const pendingEvents: Array<StreamChunk> = []
+  const live: LiveRun = {
+    runState,
+    generator: undefined as unknown as LiveRun['generator'],
+    abortController,
+    approvalResolver: undefined,
+    pendingEvents: [],
+  }
+
   const args: WorkflowRunArgs<unknown, unknown, AgentMap> = {
     input: options.input,
     state,
     agents: bindAgents(options.workflow.agents),
     emit: (name, value) => {
-      pendingEvents.push({
+      live.pendingEvents.push({
         type: 'CUSTOM',
         timestamp: Date.now(),
         name,
@@ -134,13 +141,8 @@ export async function* runWorkflow(
   }
 
   const generator = options.workflow.run(args as any)
+  live.generator = generator
 
-  const live: LiveRun = {
-    runState,
-    generator,
-    abortController,
-    approvalResolver: undefined,
-  }
   options.runStore.setLive(runId, live)
 
   let prevState = snapshotState(state)
@@ -150,7 +152,7 @@ export async function* runWorkflow(
   try {
     for (;;) {
       // Drain any custom events queued by emit() before advancing the generator.
-      while (pendingEvents.length > 0) yield pendingEvents.shift()!
+      while (live.pendingEvents.length > 0) yield live.pendingEvents.shift()!
 
       const result = await generator.next(nextValue as StepDescriptor)
 
@@ -354,6 +356,9 @@ export async function* resumeWorkflow(args: {
 
   try {
     for (;;) {
+      // Drain any custom events queued by emit() before advancing the generator.
+      while (live.pendingEvents.length > 0) yield live.pendingEvents.shift()!
+
       const result = await live.generator.next(nextValue as StepDescriptor)
 
       const delta = diffState(prevState, live.runState.state)
@@ -379,6 +384,7 @@ export async function* resumeWorkflow(args: {
       output: finalOutput,
       updatedAt: Date.now(),
     }
+    await args.runStore.set(args.runId, live.runState)
     yield runFinishedEvent({ runId: args.runId })
     await args.runStore.delete(args.runId, 'finished')
   } catch (err) {

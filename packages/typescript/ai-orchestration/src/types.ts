@@ -188,4 +188,5 @@ export interface LiveRun {
   generator: AsyncGenerator<StepDescriptor, unknown, unknown>
   abortController: AbortController
   approvalResolver?: (result: ApprovalResult) => void
+  pendingEvents: Array<StreamChunk>
 }

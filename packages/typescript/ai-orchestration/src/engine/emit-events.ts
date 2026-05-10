@@ -38,6 +38,7 @@ export function runErrorEvent(args: {
   return {
     type: 'RUN_ERROR',
     timestamp: Date.now(),
+    runId: args.runId,
     message: args.message,
     code: args.code ?? 'error',
   } as StreamChunk
