@@ -32,8 +32,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tanstack/ai-event-client": "workspace:*",
-    "fast-json-patch": "^3.1.1"
+    "@tanstack/ai-event-client": "workspace:*"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
