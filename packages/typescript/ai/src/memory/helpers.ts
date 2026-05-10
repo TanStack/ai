@@ -1,9 +1,4 @@
-import type {
-  MemoryHit,
-  MemoryQuery,
-  MemoryRecord,
-  MemoryScope,
-} from './types'
+import type { MemoryHit, MemoryQuery, MemoryRecord, MemoryScope } from './types'
 
 const DEFAULT_HALF_LIFE_MS = 1000 * 60 * 60 * 24 * 30 // 30 days
 
@@ -54,7 +49,10 @@ export function recencyScore(
   return Math.pow(0.5, age / halfLifeMs)
 }
 
-export function isExpired(record: MemoryRecord, now: number = Date.now()): boolean {
+export function isExpired(
+  record: MemoryRecord,
+  now: number = Date.now(),
+): boolean {
   return record.expiresAt !== undefined && record.expiresAt < now
 }
 

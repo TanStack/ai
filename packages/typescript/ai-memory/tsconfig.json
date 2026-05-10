@@ -3,10 +3,6 @@
   "compilerOptions": {
     "outDir": "dist"
   },
-  "include": [
-    "vite.config.ts",
-    "./src",
-    "./tests"
-  ],
+  "include": ["vite.config.ts", "./src", "./tests"],
   "exclude": ["node_modules", "dist", "**/*.config.ts"]
 }

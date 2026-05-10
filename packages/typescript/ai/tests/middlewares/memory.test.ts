@@ -53,7 +53,10 @@ function fakeAdapter(seed: MemoryRecord[] = []): MemoryAdapter & {
       for (const r of store.values()) {
         let match = true
         for (const k of Object.keys(query.scope) as Array<keyof MemoryScope>) {
-          if (query.scope[k] && r.scope[k] !== query.scope[k]) { match = false; break }
+          if (query.scope[k] && r.scope[k] !== query.scope[k]) {
+            match = false
+            break
+          }
         }
         if (!match) continue
         if (query.kinds && !query.kinds.includes(r.kind)) continue
@@ -66,14 +69,21 @@ function fakeAdapter(seed: MemoryRecord[] = []): MemoryAdapter & {
       for (const r of store.values()) {
         let match = true
         for (const k of Object.keys(scope) as Array<keyof MemoryScope>) {
-          if (scope[k] && r.scope[k] !== scope[k]) { match = false; break }
+          if (scope[k] && r.scope[k] !== scope[k]) {
+            match = false
+            break
+          }
         }
         if (match) items.push(r)
       }
       return { items: items.slice(0, options?.limit ?? items.length) }
     },
-    async delete(ids) { for (const id of ids) store.delete(id) },
-    async clear() { store.clear() },
+    async delete(ids) {
+      for (const id of ids) store.delete(id)
+    },
+    async clear() {
+      store.clear()
+    },
   }
 }
 
@@ -93,7 +103,9 @@ function rec(over: Partial<MemoryRecord> = {}): MemoryRecord {
 describe('memoryMiddleware — retrieval', () => {
   it('is a no-op when there is no user message', async () => {
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('hi'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('hi'), ev.runFinished('stop')],
+      ],
     })
     const memory = fakeAdapter([rec({ text: 'X' })])
     const stream = chat({
@@ -106,9 +118,13 @@ describe('memoryMiddleware — retrieval', () => {
   })
 
   it('retrieves at init and injects a memory system prompt', async () => {
-    const memory = fakeAdapter([rec({ text: 'User likes TS.', kind: 'preference' })])
+    const memory = fakeAdapter([
+      rec({ text: 'User likes TS.', kind: 'preference' }),
+    ])
     const { adapter, calls } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+      ],
     })
     const stream = chat({
       adapter,
@@ -117,14 +133,22 @@ describe('memoryMiddleware — retrieval', () => {
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
     const first = calls[0] as { systemPrompts?: string[] }
-    expect(first.systemPrompts?.some((p) => p.includes('User likes TS.'))).toBe(true)
+    expect(first.systemPrompts?.some((p) => p.includes('User likes TS.'))).toBe(
+      true,
+    )
   })
 
   it('does not re-inject across agent-loop iterations', async () => {
     const memory = fakeAdapter([rec({ text: 'X' })])
     const { adapter, calls } = createMockAdapter({
       iterations: [
-        [ev.runStarted(), ev.toolStart('c1', 't'), ev.toolArgs('c1', '{}'), ev.toolEnd('c1', 't'), ev.runFinished('tool_calls')],
+        [
+          ev.runStarted(),
+          ev.toolStart('c1', 't'),
+          ev.toolArgs('c1', '{}'),
+          ev.toolEnd('c1', 't'),
+          ev.runFinished('tool_calls'),
+        ],
         [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
       ],
     })
@@ -135,20 +159,30 @@ describe('memoryMiddleware — retrieval', () => {
       middleware: [memoryMiddleware({ adapter: memory, scope: baseScope })],
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
-    const iter1 = (calls[0] as { systemPrompts?: string[] }).systemPrompts?.length ?? 0
-    const iter2 = (calls[1] as { systemPrompts?: string[] }).systemPrompts?.length ?? 0
+    const iter1 =
+      (calls[0] as { systemPrompts?: string[] }).systemPrompts?.length ?? 0
+    const iter2 =
+      (calls[1] as { systemPrompts?: string[] }).systemPrompts?.length ?? 0
     expect(iter1).toBe(iter2)
   })
 
   it('skips retrieval and injection when shouldRetrieve returns false', async () => {
     const memory = fakeAdapter([rec({ text: 'X' })])
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+      ],
     })
     const stream = chat({
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
-      middleware: [memoryMiddleware({ adapter: memory, scope: baseScope, shouldRetrieve: () => false })],
+      middleware: [
+        memoryMiddleware({
+          adapter: memory,
+          scope: baseScope,
+          shouldRetrieve: () => false,
+        }),
+      ],
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
     expect(memory.searchCalls).toHaveLength(0)
@@ -160,24 +194,32 @@ describe('memoryMiddleware — retrieval', () => {
       rec({ id: 'b', text: 'B' }),
     ])
     const { adapter, calls } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+      ],
     })
     const rerank = vi.fn(async (hits: MemoryHit[]) => [...hits].reverse())
     const stream = chat({
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
-      middleware: [memoryMiddleware({ adapter: memory, scope: baseScope, rerank })],
+      middleware: [
+        memoryMiddleware({ adapter: memory, scope: baseScope, rerank }),
+      ],
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
     expect(rerank).toHaveBeenCalledTimes(1)
-    const promptText = (calls[0] as { systemPrompts: string[] }).systemPrompts.join('\n')
+    const promptText = (
+      calls[0] as { systemPrompts: string[] }
+    ).systemPrompts.join('\n')
     expect(promptText.indexOf('B')).toBeLessThan(promptText.indexOf('A'))
   })
 
   it('resolves function-form scope once and caches it', async () => {
     const memory = fakeAdapter([rec({ text: 'X' })])
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+      ],
     })
     const scopeFn = vi.fn(() => baseScope)
     const stream = chat({
@@ -194,7 +236,9 @@ describe('memoryMiddleware — persistence', () => {
   it('persists user and assistant messages on finish', async () => {
     const memory = fakeAdapter()
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('Pong.'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('Pong.'), ev.runFinished('stop')],
+      ],
     })
     const stream = chat({
       adapter,
@@ -209,7 +253,13 @@ describe('memoryMiddleware — persistence', () => {
   it('drops records rejected by shouldRemember', async () => {
     const memory = fakeAdapter()
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('long enough response text'), ev.runFinished('stop')]],
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textContent('long enough response text'),
+          ev.runFinished('stop'),
+        ],
+      ],
     })
     const stream = chat({
       adapter,
@@ -230,13 +280,23 @@ describe('memoryMiddleware — persistence', () => {
   it('extractMemories returning records adds them as kind: fact', async () => {
     const memory = fakeAdapter()
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')],
+      ],
     })
-    const extractMemories = vi.fn(async () => [rec({ text: 'extracted', kind: 'fact' })])
+    const extractMemories = vi.fn(async () => [
+      rec({ text: 'extracted', kind: 'fact' }),
+    ])
     const stream = chat({
       adapter,
       messages: [{ role: 'user', content: 'U' }],
-      middleware: [memoryMiddleware({ adapter: memory, scope: baseScope, extractMemories })],
+      middleware: [
+        memoryMiddleware({
+          adapter: memory,
+          scope: baseScope,
+          extractMemories,
+        }),
+      ],
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
     expect(extractMemories).toHaveBeenCalledTimes(1)
@@ -248,7 +308,9 @@ describe('memoryMiddleware — persistence', () => {
     const existing = rec({ id: 'old', text: 'old text', kind: 'fact' })
     const memory = fakeAdapter([existing])
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')],
+      ],
     })
     const stream = chat({
       adapter,
@@ -266,23 +328,31 @@ describe('memoryMiddleware — persistence', () => {
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
     expect(memory.store.get('old')?.text).toBe('updated text')
-    expect([...memory.store.values()].some((r) => r.text === 'new fact')).toBe(true)
+    expect([...memory.store.values()].some((r) => r.text === 'new fact')).toBe(
+      true,
+    )
   })
 
   it('afterPersist receives newly-added records (not updates/deletes)', async () => {
     const memory = fakeAdapter()
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')],
+      ],
     })
     const afterPersist = vi.fn()
     const stream = chat({
       adapter,
       messages: [{ role: 'user', content: 'U' }],
-      middleware: [memoryMiddleware({ adapter: memory, scope: baseScope, afterPersist })],
+      middleware: [
+        memoryMiddleware({ adapter: memory, scope: baseScope, afterPersist }),
+      ],
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
     expect(afterPersist).toHaveBeenCalledTimes(1)
-    const arg = afterPersist.mock.calls[0]?.[0] as { newRecords: MemoryRecord[] } | undefined
+    const arg = afterPersist.mock.calls[0]?.[0] as
+      | { newRecords: MemoryRecord[] }
+      | undefined
     expect(arg?.newRecords.length).toBe(2) // user + assistant
   })
 
@@ -290,26 +360,40 @@ describe('memoryMiddleware — persistence', () => {
     const memory = fakeAdapter()
     const { adapter } = createMockAdapter({
       iterations: [
-        [ev.runStarted(), ev.toolStart('c1', 'echo'), ev.toolArgs('c1', '{}'), ev.toolEnd('c1', 'echo'), ev.runFinished('tool_calls')],
+        [
+          ev.runStarted(),
+          ev.toolStart('c1', 'echo'),
+          ev.toolArgs('c1', '{}'),
+          ev.toolEnd('c1', 'echo'),
+          ev.runFinished('tool_calls'),
+        ],
         [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
       ],
     })
     const stream = chat({
       adapter,
       messages: [{ role: 'user', content: 'U' }],
-      tools: [{ name: 'echo', description: 'noop', execute: async () => ({ ok: 1 }) }],
+      tools: [
+        { name: 'echo', description: 'noop', execute: async () => ({ ok: 1 }) },
+      ],
       middleware: [
         memoryMiddleware({
           adapter: memory,
           scope: baseScope,
           onToolResult: ({ toolName, result }) => [
-            rec({ text: `${toolName}:${JSON.stringify(result)}`, kind: 'tool-result', role: 'tool' }),
+            rec({
+              text: `${toolName}:${JSON.stringify(result)}`,
+              kind: 'tool-result',
+              role: 'tool',
+            }),
           ],
         }),
       ],
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
-    const toolResults = [...memory.store.values()].filter((r) => r.kind === 'tool-result')
+    const toolResults = [...memory.store.values()].filter(
+      (r) => r.kind === 'tool-result',
+    )
     expect(toolResults).toHaveLength(1)
     expect(toolResults[0]?.text).toContain('echo')
   })
@@ -318,9 +402,13 @@ describe('memoryMiddleware — persistence', () => {
 describe('memoryMiddleware — failure handling', () => {
   it('non-strict: retrieval failure does not abort chat', async () => {
     const memory = fakeAdapter()
-    memory.search = async () => { throw new Error('boom') }
+    memory.search = async () => {
+      throw new Error('boom')
+    }
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+      ],
     })
     const stream = chat({
       adapter,
@@ -333,16 +421,24 @@ describe('memoryMiddleware — failure handling', () => {
 
   it('strict: retrieval failure rejects the stream', async () => {
     const memory = fakeAdapter()
-    memory.search = async () => { throw new Error('boom') }
+    memory.search = async () => {
+      throw new Error('boom')
+    }
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+      ],
     })
     const stream = chat({
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
-      middleware: [memoryMiddleware({ adapter: memory, scope: baseScope, strict: true })],
+      middleware: [
+        memoryMiddleware({ adapter: memory, scope: baseScope, strict: true }),
+      ],
     })
-    await expect(collectChunks(stream as AsyncIterable<StreamChunk>)).rejects.toThrow('boom')
+    await expect(
+      collectChunks(stream as AsyncIterable<StreamChunk>),
+    ).rejects.toThrow('boom')
   })
 })
 
@@ -350,14 +446,32 @@ describe('memoryMiddleware — devtools events', () => {
   it('emits retrieve and persist events in order', async () => {
     const memory = fakeAdapter([rec({ text: 'X' })])
     const { adapter } = createMockAdapter({
-      iterations: [[ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')]],
+      iterations: [
+        [ev.runStarted(), ev.textContent('R'), ev.runFinished('stop')],
+      ],
     })
     const seen: string[] = []
     const opts = { withEventTarget: true } as const
-    const off1 = aiEventClient.on('memory:retrieve:started', () => seen.push('retrieve:started'), opts)
-    const off2 = aiEventClient.on('memory:retrieve:completed', () => seen.push('retrieve:completed'), opts)
-    const off3 = aiEventClient.on('memory:persist:started', () => seen.push('persist:started'), opts)
-    const off4 = aiEventClient.on('memory:persist:completed', () => seen.push('persist:completed'), opts)
+    const off1 = aiEventClient.on(
+      'memory:retrieve:started',
+      () => seen.push('retrieve:started'),
+      opts,
+    )
+    const off2 = aiEventClient.on(
+      'memory:retrieve:completed',
+      () => seen.push('retrieve:completed'),
+      opts,
+    )
+    const off3 = aiEventClient.on(
+      'memory:persist:started',
+      () => seen.push('persist:started'),
+      opts,
+    )
+    const off4 = aiEventClient.on(
+      'memory:persist:completed',
+      () => seen.push('persist:completed'),
+      opts,
+    )
     try {
       const stream = chat({
         adapter,
@@ -366,11 +480,16 @@ describe('memoryMiddleware — devtools events', () => {
       })
       await collectChunks(stream as AsyncIterable<StreamChunk>)
       expect(seen).toEqual([
-        'retrieve:started', 'retrieve:completed',
-        'persist:started', 'persist:completed',
+        'retrieve:started',
+        'retrieve:completed',
+        'persist:started',
+        'persist:completed',
       ])
     } finally {
-      off1(); off2(); off3(); off4()
+      off1()
+      off2()
+      off3()
+      off4()
     }
   })
 })

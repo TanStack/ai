@@ -15,7 +15,9 @@ describe('scopeMatches', () => {
     expect(scopeMatches({ tenantId: 'a' }, {})).toBe(true)
   })
   it('matches when all query keys are equal', () => {
-    expect(scopeMatches({ tenantId: 'a', userId: 'u' }, { tenantId: 'a' })).toBe(true)
+    expect(
+      scopeMatches({ tenantId: 'a', userId: 'u' }, { tenantId: 'a' }),
+    ).toBe(true)
   })
   it('rejects when any provided key differs', () => {
     expect(scopeMatches({ tenantId: 'a' }, { tenantId: 'b' })).toBe(false)
@@ -63,7 +65,9 @@ describe('isExpired', () => {
     expect(isExpired({ expiresAt: Date.now() - 1 } as MemoryRecord)).toBe(true)
   })
   it('false when expiresAt > now', () => {
-    expect(isExpired({ expiresAt: Date.now() + 10000 } as MemoryRecord)).toBe(false)
+    expect(isExpired({ expiresAt: Date.now() + 10000 } as MemoryRecord)).toBe(
+      false,
+    )
   })
 })
 
@@ -76,7 +80,10 @@ describe('defaultRenderMemory', () => {
       {
         score: 1,
         record: {
-          id: '1', scope: {}, kind: 'fact', text: 'User is on Windows.',
+          id: '1',
+          scope: {},
+          kind: 'fact',
+          text: 'User is on Windows.',
           createdAt: 0,
         },
       },
@@ -90,8 +97,13 @@ describe('defaultScoreHit', () => {
   it('weighted sum stays in [0,1] for in-range inputs', () => {
     const score = defaultScoreHit({
       record: {
-        id: 'r', scope: {}, kind: 'fact', text: 'foo bar',
-        createdAt: Date.now(), embedding: [1, 0], importance: 1,
+        id: 'r',
+        scope: {},
+        kind: 'fact',
+        text: 'foo bar',
+        createdAt: Date.now(),
+        embedding: [1, 0],
+        importance: 1,
       },
       query: { scope: {}, text: 'foo bar', embedding: [1, 0] },
     })

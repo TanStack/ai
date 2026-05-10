@@ -33,11 +33,21 @@ const stream = chat({
       adapter: memory,
       scope: ({ context }) => {
         // Server-validated session data — NOT request body.
-        const session = (context as { session: { tenantId: string; userId: string } }).session
-        return { tenantId: session.tenantId, userId: session.userId, threadId: body.threadId }
+        const session = (
+          context as { session: { tenantId: string; userId: string } }
+        ).session
+        return {
+          tenantId: session.tenantId,
+          userId: session.userId,
+          threadId: body.threadId,
+        }
       },
       // Optional: provide an embedder for semantic search.
-      embedder: { async embed(text) { return embed(text) } },
+      embedder: {
+        async embed(text) {
+          return embed(text)
+        },
+      },
     }),
   ],
 })
@@ -65,14 +75,14 @@ Pass the validated session through `chat({ context: { session } })`.
 
 ## Extension hooks
 
-| Hook | When | Use for |
-|---|---|---|
-| `shouldRetrieve({ userText, scope })` | before search | Skip retrieval (cost, content gating) |
-| `rerank(hits, { scope, query, ctx })` | after search, before render | MMR / RRF / cross-encoder rerankers |
-| `shouldRemember({ message, responseText })` | before persist | Drop short / sensitive messages |
-| `extractMemories({ userText, responseText, scope, adapter })` | after model finishes | Add/update/delete records (Mem0-style consolidation) |
-| `onToolResult({ toolName, toolCallId, args, result, scope, adapter })` | per completed tool call | Persist tool outputs as `kind: 'tool-result'` |
-| `afterPersist({ newRecords, scope, adapter })` | after add | Background work: summarization, eviction |
+| Hook                                                                   | When                        | Use for                                              |
+| ---------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------- |
+| `shouldRetrieve({ userText, scope })`                                  | before search               | Skip retrieval (cost, content gating)                |
+| `rerank(hits, { scope, query, ctx })`                                  | after search, before render | MMR / RRF / cross-encoder rerankers                  |
+| `shouldRemember({ message, responseText })`                            | before persist              | Drop short / sensitive messages                      |
+| `extractMemories({ userText, responseText, scope, adapter })`          | after model finishes        | Add/update/delete records (Mem0-style consolidation) |
+| `onToolResult({ toolName, toolCallId, args, result, scope, adapter })` | per completed tool call     | Persist tool outputs as `kind: 'tool-result'`        |
+| `afterPersist({ newRecords, scope, adapter })`                         | after add                   | Background work: summarization, eviction             |
 
 `extractMemories` and `onToolResult` may return `MemoryRecord[]` (treated as all-add) or `MemoryOp[]` for mixed ADD/UPDATE/DELETE.
 

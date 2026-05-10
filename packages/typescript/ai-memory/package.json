@@ -34,13 +34,21 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
-  "keywords": ["ai", "tanstack", "memory", "redis", "rag"],
+  "keywords": [
+    "ai",
+    "tanstack",
+    "memory",
+    "redis",
+    "rag"
+  ],
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
     "redis": ">=4.0.0"
   },
   "peerDependenciesMeta": {
-    "redis": { "optional": true }
+    "redis": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",

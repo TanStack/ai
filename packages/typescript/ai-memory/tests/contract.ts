@@ -15,7 +15,9 @@ export function runMemoryAdapterContract(
     const scopeA: MemoryScope = { tenantId: 't1', userId: 'u1' }
     const scopeB: MemoryScope = { tenantId: 't1', userId: 'u2' }
 
-    beforeEach(async () => { adapter = await factory() })
+    beforeEach(async () => {
+      adapter = await factory()
+    })
 
     function rec(over: Partial<MemoryRecord> = {}): MemoryRecord {
       return {
@@ -82,7 +84,9 @@ export function runMemoryAdapterContract(
       it('returns undefined for unknown id or wrong scope', async () => {
         await adapter.add(rec({ id: 'u', scope: scopeA }))
         expect(await adapter.update('u', scopeB, { text: 'x' })).toBeUndefined()
-        expect(await adapter.update('nope', scopeA, { text: 'x' })).toBeUndefined()
+        expect(
+          await adapter.update('nope', scopeA, { text: 'x' }),
+        ).toBeUndefined()
       })
     })
 
@@ -91,7 +95,11 @@ export function runMemoryAdapterContract(
         for (let i = 0; i < 10; i++) {
           await adapter.add(rec({ id: `r${i}`, text: `word${i} same` }))
         }
-        const out = await adapter.search({ scope: scopeA, text: 'same', topK: 3 })
+        const out = await adapter.search({
+          scope: scopeA,
+          text: 'same',
+          topK: 3,
+        })
         expect(out.hits.length).toBeLessThanOrEqual(3)
       })
 
@@ -105,12 +113,18 @@ export function runMemoryAdapterContract(
       it('filters by kinds', async () => {
         await adapter.add(rec({ id: 'a', text: 'foo', kind: 'fact' }))
         await adapter.add(rec({ id: 'b', text: 'foo', kind: 'preference' }))
-        const out = await adapter.search({ scope: scopeA, text: 'foo', kinds: ['fact'] })
+        const out = await adapter.search({
+          scope: scopeA,
+          text: 'foo',
+          kinds: ['fact'],
+        })
         expect(out.hits.every((h) => h.record.kind === 'fact')).toBe(true)
       })
 
       it('does not return expired records', async () => {
-        await adapter.add(rec({ id: 'e', text: 'orange', expiresAt: Date.now() - 1 }))
+        await adapter.add(
+          rec({ id: 'e', text: 'orange', expiresAt: Date.now() - 1 }),
+        )
         await adapter.add(rec({ id: 'f', text: 'orange' }))
         const out = await adapter.search({ scope: scopeA, text: 'orange' })
         expect(out.hits.find((h) => h.record.id === 'e')).toBeUndefined()
@@ -125,7 +139,12 @@ export function runMemoryAdapterContract(
         const seen = new Set<string>()
         let pages = 0
         do {
-          const out = await adapter.search({ scope: scopeA, text: 'pagework', topK: 4, cursor })
+          const out = await adapter.search({
+            scope: scopeA,
+            text: 'pagework',
+            topK: 4,
+            cursor,
+          })
           for (const h of out.hits) seen.add(h.record.id)
           cursor = out.nextCursor
           pages++
@@ -190,7 +209,9 @@ export function runMemoryAdapterContract(
         await adapter.add(rec({ id: 'lex', text: 'apple', embedding: [0, 1] }))
         await adapter.add(rec({ id: 'sem', text: 'fruit', embedding: [1, 0] }))
         const out = await adapter.search({
-          scope: scopeA, text: 'apple', embedding: [1, 0],
+          scope: scopeA,
+          text: 'apple',
+          embedding: [1, 0],
         })
         expect(out.hits[0]?.record.id).toBe('sem')
       })

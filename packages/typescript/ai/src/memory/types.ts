@@ -295,7 +295,10 @@ export interface MemoryAdapter {
    * UIs, admin tooling, and bulk export. Ordering is controlled by
    * `options.order`. Expired records are filtered out.
    */
-  list(scope: MemoryScope, options?: MemoryListOptions): Promise<MemoryListResult>
+  list(
+    scope: MemoryScope,
+    options?: MemoryListOptions,
+  ): Promise<MemoryListResult>
 
   /**
    * Delete records by id within a scope.
@@ -503,13 +506,25 @@ export interface MemoryMiddlewareOptions {
    */
   events?: {
     /** Fired before the retrieval path runs. */
-    onRetrieveStart?: (args: { scope: MemoryScope; query: string }) => void | Promise<void>
+    onRetrieveStart?: (args: {
+      scope: MemoryScope
+      query: string
+    }) => void | Promise<void>
     /** Fired after retrieval completes, with the final hit set (post-rerank). */
-    onRetrieveEnd?: (args: { scope: MemoryScope; hits: MemoryHit[] }) => void | Promise<void>
+    onRetrieveEnd?: (args: {
+      scope: MemoryScope
+      hits: MemoryHit[]
+    }) => void | Promise<void>
     /** Fired before the persist path commits records to the adapter. */
-    onPersistStart?: (args: { scope: MemoryScope; records: MemoryRecord[] }) => void | Promise<void>
+    onPersistStart?: (args: {
+      scope: MemoryScope
+      records: MemoryRecord[]
+    }) => void | Promise<void>
     /** Fired after the persist path commits records to the adapter. */
-    onPersistEnd?: (args: { scope: MemoryScope; records: MemoryRecord[] }) => void | Promise<void>
+    onPersistEnd?: (args: {
+      scope: MemoryScope
+      records: MemoryRecord[]
+    }) => void | Promise<void>
     /** Fired when retrieval, persistence, or extraction throws. */
     onError?: (args: {
       scope: MemoryScope

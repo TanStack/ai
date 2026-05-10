@@ -14,8 +14,11 @@ const config = defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
       exclude: [
-        'node_modules/', 'dist/', 'tests/',
-        '**/*.test.ts', '**/*.config.ts',
+        'node_modules/',
+        'dist/',
+        'tests/',
+        '**/*.test.ts',
+        '**/*.config.ts',
       ],
       include: ['src/**/*.ts'],
     },

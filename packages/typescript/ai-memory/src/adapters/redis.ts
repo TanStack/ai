@@ -154,7 +154,10 @@ export function redisMemoryAdapter(
       const minScore = query.minScore ?? 0
       const topK = query.topK ?? 6
       const scored = candidates
-        .map((record) => ({ record, score: defaultScoreHit({ record, query }) }))
+        .map((record) => ({
+          record,
+          score: defaultScoreHit({ record, query }),
+        }))
         .filter((h) => h.score >= minScore)
         .sort((a, b) => b.score - a.score)
       const offset = query.cursor ? Number.parseInt(query.cursor, 10) || 0 : 0
@@ -179,9 +182,7 @@ export function redisMemoryAdapter(
           case 'createdAt:asc':
             return a.createdAt - b.createdAt
           case 'updatedAt:desc':
-            return (
-              (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt)
-            )
+            return (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt)
           default:
             return b.createdAt - a.createdAt
         }
