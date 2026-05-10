@@ -1,8 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 import { fetchWorkflowEvents, useWorkflow } from '@tanstack/ai-react'
+import { DraftPreview } from '@/components/DraftPreview'
 import { StateInspector } from '@/components/StateInspector'
 import { WorkflowTimeline } from '@/components/WorkflowTimeline'
+
+interface ArticleState {
+  phase?: string
+  draft?: { title: string; paragraphs: Array<string> }
+}
 
 export const Route = createFileRoute('/workflow')({
   component: WorkflowPage,
@@ -15,7 +21,7 @@ type ArticleOutput =
 function WorkflowPage() {
   const [topic, setTopic] = useState('the cultural history of pufferfish')
 
-  const wf = useWorkflow<{ topic: string }, ArticleOutput, unknown>({
+  const wf = useWorkflow<{ topic: string }, ArticleOutput, ArticleState>({
     connection: fetchWorkflowEvents('/api/workflow'),
   })
 
@@ -47,13 +53,26 @@ function WorkflowPage() {
         />
       )}
 
-      <div className="mt-12 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-x-12 gap-y-10">
+      <div className="mt-12 grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-x-12 gap-y-10">
         <WorkflowTimeline
           steps={wf.steps}
           currentStep={wf.currentStep}
           currentText={wf.currentText}
         />
-        <StateInspector state={wf.state} />
+        <div className="flex flex-col gap-10 lg:sticky lg:top-8 lg:self-start">
+          <DraftPreview draft={wf.state?.draft} phase={wf.state?.phase} />
+          <details className="group">
+            <summary className="cursor-pointer label-mono text-taupe hover:text-citron transition-colors flex items-center gap-2 list-none">
+              <span className="text-citron group-open:rotate-90 transition-transform inline-block">
+                ▸
+              </span>
+              State Snapshot
+            </summary>
+            <div className="mt-4">
+              <StateInspector state={wf.state} />
+            </div>
+          </details>
+        </div>
       </div>
 
       {finalResult && finalResult.ok && (
