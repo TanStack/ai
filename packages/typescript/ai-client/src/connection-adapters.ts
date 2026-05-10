@@ -510,7 +510,9 @@ export function fetchWorkflowEvents(
   url: string | (() => string),
   options:
     | FetchWorkflowEventsOptions
-    | (() => FetchWorkflowEventsOptions | Promise<FetchWorkflowEventsOptions>) = {},
+    | (() =>
+        | FetchWorkflowEventsOptions
+        | Promise<FetchWorkflowEventsOptions>) = {},
 ): WorkflowConnectionAdapter {
   return {
     async *connect(body, abortSignal) {

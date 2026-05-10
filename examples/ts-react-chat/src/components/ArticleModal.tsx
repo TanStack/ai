@@ -5,10 +5,7 @@ interface Article {
   paragraphs: Array<string>
 }
 
-export function ArticleModal(props: {
-  article: Article
-  onClose: () => void
-}) {
+export function ArticleModal(props: { article: Article; onClose: () => void }) {
   // Close on Escape, lock body scroll while open.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -95,8 +92,7 @@ export function ArticleModal(props: {
                   }`}
                   style={{
                     fontFamily: 'var(--font-display)',
-                    fontVariationSettings:
-                      "'opsz' 17, 'SOFT' 100, 'WONK' 0",
+                    fontVariationSettings: "'opsz' 17, 'SOFT' 100, 'WONK' 0",
                   }}
                 >
                   {p}

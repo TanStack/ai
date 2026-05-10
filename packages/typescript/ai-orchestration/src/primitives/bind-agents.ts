@@ -12,7 +12,9 @@ export function bindAgents<TAgents extends AgentMap>(
 
   for (const [name, def] of Object.entries(agents)) {
     if (def.__kind === 'agent') {
-      bound[name] = function* (input: unknown): Generator<StepDescriptor, unknown, unknown> {
+      bound[name] = function* (
+        input: unknown,
+      ): Generator<StepDescriptor, unknown, unknown> {
         const descriptor: StepDescriptor = {
           kind: 'agent',
           name,
@@ -23,7 +25,9 @@ export function bindAgents<TAgents extends AgentMap>(
         return result
       }
     } else {
-      bound[name] = function* (input: unknown): Generator<StepDescriptor, unknown, unknown> {
+      bound[name] = function* (
+        input: unknown,
+      ): Generator<StepDescriptor, unknown, unknown> {
         const descriptor: StepDescriptor = {
           kind: 'nested-workflow',
           name,

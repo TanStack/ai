@@ -39,11 +39,7 @@ export function invokeAgent<T>(
   const result = agent.run({ input, emit, signal } as any) as AgentRunResult<T>
 
   // Shape (c): { stream, output }
-  if (
-    typeof result === 'object' &&
-    'stream' in result &&
-    'output' in result
-  ) {
+  if (typeof result === 'object' && 'stream' in result && 'output' in result) {
     return {
       stream: filterInnerRunBoundaries(result.stream),
       output: result.output.then((o) => parseOutput<T>(agent, o)),
@@ -51,10 +47,7 @@ export function invokeAgent<T>(
   }
 
   // Shape (a): AsyncIterable<StreamChunk>
-  if (
-    typeof result === 'object' &&
-    Symbol.asyncIterator in (result as any)
-  ) {
+  if (typeof result === 'object' && Symbol.asyncIterator in (result as any)) {
     const stream = result as AsyncIterable<StreamChunk>
     let resolveOutput!: (val: T) => void
     let rejectOutput!: (err: unknown) => void

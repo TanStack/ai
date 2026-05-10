@@ -35,7 +35,14 @@ const ArticleOutput = z.union([
 
 const ArticleState = z.object({
   phase: z
-    .enum(['drafting', 'reviewing', 'editing', 'awaiting-approval', 'revising', 'done'])
+    .enum([
+      'drafting',
+      'reviewing',
+      'editing',
+      'awaiting-approval',
+      'revising',
+      'done',
+    ])
     .default('drafting'),
   draft: Draft.optional(),
   legalReview: Review.optional(),

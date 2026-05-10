@@ -30,12 +30,7 @@ export type {
   InMemoryRunStore,
   InMemoryRunStoreOptions,
 } from './run-store/in-memory'
-export type {
-  DeleteReason,
-  RunState,
-  RunStatus,
-  RunStore,
-} from './types'
+export type { DeleteReason, RunState, RunStatus, RunStore } from './types'
 
 // ===== Errors =====
 export { SchemaValidationError } from './engine/invoke-agent'

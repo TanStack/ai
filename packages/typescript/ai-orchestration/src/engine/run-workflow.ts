@@ -225,11 +225,16 @@ interface DriveLoopArgs {
  * dispatches descriptor kinds, emits state deltas, and finalizes the run on
  * done / error / abort / pause.
  */
-async function* driveLoop(
-  args: DriveLoopArgs,
-): AsyncIterable<StreamChunk> {
-  const { live, runId, state, runStore, threadId, outputSink, abortController } =
-    args
+async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
+  const {
+    live,
+    runId,
+    state,
+    runStore,
+    threadId,
+    outputSink,
+    abortController,
+  } = args
 
   let prevState = snapshotState(state)
   let nextValue: unknown = args.seedValue

@@ -82,7 +82,9 @@ export function stateSnapshotEvent(args: { snapshot: unknown }): StreamChunk {
   } as StreamChunk
 }
 
-export function stateDeltaEvent(args: { delta: Array<Operation> }): StreamChunk {
+export function stateDeltaEvent(args: {
+  delta: Array<Operation>
+}): StreamChunk {
   return {
     type: 'STATE_DELTA',
     timestamp: Date.now(),

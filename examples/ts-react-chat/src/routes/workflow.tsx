@@ -27,9 +27,9 @@ function WorkflowPage() {
   })
 
   const isRunning = wf.status === 'running' || wf.status === 'paused'
-  const finalResult = (wf.status === 'finished' ? wf.output : null) as
-    | ArticleOutput
-    | null
+  const finalResult = (
+    wf.status === 'finished' ? wf.output : null
+  ) as ArticleOutput | null
 
   // Auto-open the modal when the workflow finalizes successfully. Local
   // dismiss state lets the user close it; re-running re-opens.
@@ -129,14 +129,13 @@ function WorkflowPage() {
   )
 }
 
-function Masthead(props: {
-  status: string
-  runId: string | null
-}) {
+function Masthead(props: { status: string; runId: string | null }) {
   return (
     <header className="relative">
       <div className="flex items-baseline justify-between mb-2">
-        <span className="label-mono text-taupe">Volume I · Pipeline No. 01</span>
+        <span className="label-mono text-taupe">
+          Volume I · Pipeline No. 01
+        </span>
         <span className="label-mono text-taupe tabular">
           {props.runId ? props.runId.slice(-12) : '—'}
         </span>
@@ -149,7 +148,8 @@ function Masthead(props: {
           fontVariationSettings: "'opsz' 144, 'SOFT' 30, 'WONK' 1",
         }}
       >
-        Article<br />
+        Article
+        <br />
         <em
           className="font-display-italic text-citron"
           style={{ fontVariationSettings: "'opsz' 144, 'SOFT' 80, 'WONK' 1" }}

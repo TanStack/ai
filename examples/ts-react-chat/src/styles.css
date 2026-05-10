@@ -17,11 +17,13 @@
   --color-moss: #a8b86b;
 
   --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --font-mono:
+    'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
 }
 
 @layer base {
-  html, body {
+  html,
+  body {
     background-color: var(--color-ink);
     color: var(--color-bone);
     font-family: var(--font-display);
@@ -33,8 +35,16 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-image:
-      radial-gradient(ellipse 1200px 600px at 50% -10%, rgba(255, 206, 0, 0.04), transparent 60%),
-      radial-gradient(ellipse 800px 400px at 100% 100%, rgba(200, 75, 28, 0.03), transparent 60%);
+      radial-gradient(
+        ellipse 1200px 600px at 50% -10%,
+        rgba(255, 206, 0, 0.04),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 800px 400px at 100% 100%,
+        rgba(200, 75, 28, 0.03),
+        transparent 60%
+      );
     min-height: 100dvh;
   }
 
@@ -74,19 +84,28 @@
 /* ---------- Fraunces utility shorthands ---------- */
 .font-display-tight {
   font-family: var(--font-display);
-  font-variation-settings: 'opsz' 144, 'SOFT' 30, 'WONK' 1;
+  font-variation-settings:
+    'opsz' 144,
+    'SOFT' 30,
+    'WONK' 1;
   letter-spacing: -0.025em;
 }
 
 .font-display-soft {
   font-family: var(--font-display);
-  font-variation-settings: 'opsz' 24, 'SOFT' 100, 'WONK' 0;
+  font-variation-settings:
+    'opsz' 24,
+    'SOFT' 100,
+    'WONK' 0;
 }
 
 .font-display-italic {
   font-family: var(--font-display);
   font-style: italic;
-  font-variation-settings: 'opsz' 144, 'SOFT' 80, 'WONK' 1;
+  font-variation-settings:
+    'opsz' 144,
+    'SOFT' 80,
+    'WONK' 1;
 }
 
 /* ---------- Decorative rules ---------- */
@@ -146,16 +165,27 @@
 }
 
 @keyframes citron-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 .anim-citron-pulse {
   animation: citron-pulse 1.6s ease-in-out infinite;
 }
 
 @keyframes blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 .anim-blink {
   animation: blink 1s steps(1, end) infinite;
@@ -176,6 +206,10 @@
 }
 
 @keyframes type-in {
-  from { width: 0; }
-  to { width: 100%; }
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
 }

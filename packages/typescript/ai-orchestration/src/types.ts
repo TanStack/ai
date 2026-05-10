@@ -6,9 +6,8 @@ import type { StreamChunk } from '@tanstack/ai'
 // ==========================================
 
 export type SchemaInput = StandardSchemaV1
-export type InferSchema<T> = T extends StandardSchemaV1<infer _, infer Out>
-  ? Out
-  : never
+export type InferSchema<T> =
+  T extends StandardSchemaV1<infer _, infer Out> ? Out : never
 
 // ==========================================
 // Agent
@@ -58,7 +57,10 @@ export type WorkflowRunArgs<TInput, TState, TAgents extends AgentMap> = {
   signal: AbortSignal
 }
 
-export type AgentMap = Record<string, AnyAgentDefinition | AnyWorkflowDefinition>
+export type AgentMap = Record<
+  string,
+  AnyAgentDefinition | AnyWorkflowDefinition
+>
 
 export type BoundAgents<TAgents extends AgentMap> = {
   [K in keyof TAgents]: TAgents[K] extends AgentDefinition<
@@ -68,18 +70,13 @@ export type BoundAgents<TAgents extends AgentMap> = {
   >
     ? (
         input: TIn extends SchemaInput ? InferSchema<TIn> : unknown,
-      ) => StepGenerator<
-        TOut extends SchemaInput ? InferSchema<TOut> : unknown
-      >
-    : TAgents[K] extends WorkflowDefinition<
-          infer WIn,
-          infer WOut,
-          any,
-          any
-        >
+      ) => StepGenerator<TOut extends SchemaInput ? InferSchema<TOut> : unknown>
+    : TAgents[K] extends WorkflowDefinition<infer WIn, infer WOut, any, any>
       ? (
           input: WIn extends SchemaInput ? InferSchema<WIn> : unknown,
-        ) => StepGenerator<WOut extends SchemaInput ? InferSchema<WOut> : unknown>
+        ) => StepGenerator<
+          WOut extends SchemaInput ? InferSchema<WOut> : unknown
+        >
       : never
 }
 
@@ -106,7 +103,9 @@ export interface WorkflowDefinition<
   run: (
     args: WorkflowRunArgs<
       TInputSchema extends SchemaInput ? InferSchema<TInputSchema> : unknown,
-      TStateSchema extends SchemaInput ? InferSchema<TStateSchema> : Record<string, unknown>,
+      TStateSchema extends SchemaInput
+        ? InferSchema<TStateSchema>
+        : Record<string, unknown>,
       TAgents
     >,
   ) => AsyncGenerator<
@@ -124,7 +123,12 @@ export type AnyWorkflowDefinition = WorkflowDefinition<any, any, any, any>
 
 export type StepDescriptor =
   | { kind: 'agent'; name: string; input: unknown; agent: AnyAgentDefinition }
-  | { kind: 'nested-workflow'; name: string; input: unknown; workflow: AnyWorkflowDefinition }
+  | {
+      kind: 'nested-workflow'
+      name: string
+      input: unknown
+      workflow: AnyWorkflowDefinition
+    }
   | { kind: 'approval'; title: string; description?: string }
 
 // TNext is `any` so a generator with TReturn=A can `yield*` another generator
@@ -155,14 +159,13 @@ export type EmitFn = (name: string, value: Record<string, unknown>) => void
 // Run state
 // ==========================================
 
-export type RunStatus =
-  | 'running'
-  | 'paused'
-  | 'finished'
-  | 'error'
-  | 'aborted'
+export type RunStatus = 'running' | 'paused' | 'finished' | 'error' | 'aborted'
 
-export interface RunState<TInput = unknown, TState = unknown, TOutput = unknown> {
+export interface RunState<
+  TInput = unknown,
+  TState = unknown,
+  TOutput = unknown,
+> {
   runId: string
   status: RunStatus
   workflowName: string

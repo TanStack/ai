@@ -48,7 +48,9 @@ export function defineRouter<
   _config: RouterConfig<TInputSchema, TOutputSchema, TStateSchema, TAgents>,
   router: (args: {
     agents: BoundAgents<TAgents>
-    input: TInputSchema extends SchemaInput ? InferSchema<TInputSchema> : unknown
+    input: TInputSchema extends SchemaInput
+      ? InferSchema<TInputSchema>
+      : unknown
     state: TStateSchema extends SchemaInput
       ? InferSchema<TStateSchema>
       : Record<string, unknown>

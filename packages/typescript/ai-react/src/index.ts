@@ -53,10 +53,7 @@ export type {
 
 // Workflow/Orchestration hooks
 export { useOrchestration, useWorkflow } from './use-workflow'
-export type {
-  UseWorkflowOptions,
-  UseWorkflowReturn,
-} from './use-workflow'
+export type { UseWorkflowOptions, UseWorkflowReturn } from './use-workflow'
 
 // Re-export from ai-client for convenience
 export {

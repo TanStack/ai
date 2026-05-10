@@ -63,7 +63,8 @@ export function useWorkflow<
   }, [client])
 
   const approve = useCallback(
-    (approved: boolean, feedback?: string) => client.approve(approved, feedback),
+    (approved: boolean, feedback?: string) =>
+      client.approve(approved, feedback),
     [client],
   )
   const start = useCallback((input: TInput) => client.start(input), [client])

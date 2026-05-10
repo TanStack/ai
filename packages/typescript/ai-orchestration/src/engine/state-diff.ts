@@ -29,11 +29,7 @@ export function diffState<T>(prev: T, next: T): Array<Operation> {
   return diff(prev, next, '')
 }
 
-function diff(
-  prev: unknown,
-  next: unknown,
-  path: string,
-): Array<Operation> {
+function diff(prev: unknown, next: unknown, path: string): Array<Operation> {
   if (Object.is(prev, next)) return []
 
   const prevIsObj = isObject(prev)

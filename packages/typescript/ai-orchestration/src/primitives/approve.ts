@@ -14,7 +14,9 @@ export interface ApproveOptions {
  * The engine pauses the run, emits an `approval-requested` custom event with
  * `kind: 'workflow'`, closes the SSE, and resumes when the client replies.
  */
-export function* approve(options: ApproveOptions): StepGenerator<ApprovalResult> {
+export function* approve(
+  options: ApproveOptions,
+): StepGenerator<ApprovalResult> {
   const descriptor: StepDescriptor = {
     kind: 'approval',
     title: options.title,

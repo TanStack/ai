@@ -72,7 +72,9 @@ function OrchestrationPage() {
       {orch.error && (
         <div className="mt-10 border-l-4 border-rust pl-5 py-2">
           <div className="label-mono text-rust mb-1">runtime error</div>
-          <div className="font-mono text-sm text-bone">{orch.error.message}</div>
+          <div className="font-mono text-sm text-bone">
+            {orch.error.message}
+          </div>
         </div>
       )}
 

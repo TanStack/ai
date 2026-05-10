@@ -9,7 +9,13 @@
     "url": "git+https://github.com/TanStack/ai.git",
     "directory": "packages/typescript/ai-orchestration"
   },
-  "keywords": ["ai", "tanstack", "workflow", "orchestration", "agents"],
+  "keywords": [
+    "ai",
+    "tanstack",
+    "workflow",
+    "orchestration",
+    "agents"
+  ],
   "type": "module",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
@@ -19,7 +25,10 @@
       "import": "./dist/esm/index.js"
     }
   },
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",

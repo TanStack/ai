@@ -176,13 +176,7 @@ const triageAgent = defineAgent({
     chat({
       adapter: openaiText('gpt-4o-mini'),
       outputSchema: z.object({
-        next: z.enum([
-          'spec',
-          'await-approval',
-          'implement',
-          'review',
-          'done',
-        ]),
+        next: z.enum(['spec', 'await-approval', 'implement', 'review', 'done']),
         reason: z.string(),
       }),
       systemPrompts: [

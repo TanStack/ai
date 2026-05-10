@@ -99,9 +99,7 @@ export class WorkflowClient<
     return this.clientState
   }
 
-  subscribe(
-    cb: (s: WorkflowClientState<TState, TOutput>) => void,
-  ): () => void {
+  subscribe(cb: (s: WorkflowClientState<TState, TOutput>) => void): () => void {
     this.subscribers.add(cb)
     return () => {
       this.subscribers.delete(cb)
@@ -245,8 +243,7 @@ export class WorkflowClient<
       }
       case 'TEXT_MESSAGE_CONTENT':
         this.setState({
-          currentText:
-            this.clientState.currentText + (chunk.delta as string),
+          currentText: this.clientState.currentText + (chunk.delta as string),
         })
         break
     }
@@ -263,9 +260,7 @@ export class WorkflowClient<
     })()
   }
 
-  private setState(
-    patch: Partial<WorkflowClientState<TState, TOutput>>,
-  ): void {
+  private setState(patch: Partial<WorkflowClientState<TState, TOutput>>): void {
     this.clientState = { ...this.clientState, ...patch }
     for (const sub of this.subscribers) sub(this.clientState)
     this.opts.onStateChange?.(this.clientState as WorkflowClientState)
