@@ -25,4 +25,4 @@ export {
   defaultScoreHit,
 } from './helpers'
 
-// memoryMiddleware export added in Task B2.
+export { memoryMiddleware } from './middleware'
