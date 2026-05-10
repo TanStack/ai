@@ -165,6 +165,24 @@
       ]
     },
     {
+      "label": "Middlewares",
+      "children": [
+        {
+          "label": "Memory",
+          "to": "middlewares/memory"
+        }
+      ]
+    },
+    {
+      "label": "Guides",
+      "children": [
+        {
+          "label": "Memory Quickstart",
+          "to": "guides/memory-quickstart"
+        }
+      ]
+    },
+    {
       "label": "Advanced",
       "children": [
         {
