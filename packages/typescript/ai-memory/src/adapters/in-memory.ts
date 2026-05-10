@@ -1,22 +1,20 @@
-import {
-  defaultScoreHit,
-  isExpired,
-  scopeMatches,
-  type MemoryAdapter,
-  type MemoryListOptions,
-  type MemoryListResult,
-  type MemoryQuery,
-  type MemoryRecord,
-  type MemoryScope,
-  type MemorySearchResult,
+import { defaultScoreHit, isExpired, scopeMatches } from '@tanstack/ai/memory'
+import type {
+  MemoryAdapter,
+  MemoryListOptions,
+  MemoryListResult,
+  MemoryQuery,
+  MemoryRecord,
+  MemoryScope,
+  MemorySearchResult,
 } from '@tanstack/ai/memory'
 
 export function inMemoryMemoryAdapter(): MemoryAdapter {
   const records = new Map<string, MemoryRecord>()
 
-  function liveRecords(): MemoryRecord[] {
+  function liveRecords(): Array<MemoryRecord> {
     const now = Date.now()
-    const out: MemoryRecord[] = []
+    const out: Array<MemoryRecord> = []
     for (const r of records.values()) {
       if (isExpired(r, now)) records.delete(r.id)
       else out.push(r)
@@ -24,7 +22,7 @@ export function inMemoryMemoryAdapter(): MemoryAdapter {
     return out
   }
 
-  function scopedLive(scope: MemoryScope): MemoryRecord[] {
+  function scopedLive(scope: MemoryScope): Array<MemoryRecord> {
     return liveRecords().filter((r) => scopeMatches(r.scope, scope))
   }
 
