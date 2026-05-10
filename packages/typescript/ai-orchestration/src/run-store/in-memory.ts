@@ -1,4 +1,4 @@
-import type { RunStore, RunState, LiveRun } from '../types'
+import type { LiveRun, RunState, RunStore } from '../types'
 
 export interface InMemoryRunStoreOptions {
   /** TTL in milliseconds. Default 1 hour. */
@@ -12,9 +12,9 @@ export interface InMemoryRunStoreOptions {
  */
 export interface InMemoryRunStore extends RunStore {
   /** Engine-only: stash the live generator handle alongside the run state. */
-  setLive(runId: string, live: LiveRun): void
+  setLive: (runId: string, live: LiveRun) => void
   /** Engine-only: retrieve the live generator handle. */
-  getLive(runId: string): LiveRun | undefined
+  getLive: (runId: string) => LiveRun | undefined
 }
 
 export function inMemoryRunStore(
@@ -37,19 +37,21 @@ export function inMemoryRunStore(
   }
 
   return {
-    async get(runId) {
-      return runs.get(runId)
+    get(runId) {
+      return Promise.resolve(runs.get(runId))
     },
-    async set(runId, state) {
+    set(runId, state) {
       runs.set(runId, state)
       scheduleExpiry(runId)
+      return Promise.resolve()
     },
-    async delete(runId, _reason) {
+    delete(runId, _reason) {
       runs.delete(runId)
       live.delete(runId)
       const handle = expirations.get(runId)
       if (handle) clearTimeout(handle)
       expirations.delete(runId)
+      return Promise.resolve()
     },
     setLive(runId, l) {
       live.set(runId, l)

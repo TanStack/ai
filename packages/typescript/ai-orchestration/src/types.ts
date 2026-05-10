@@ -175,9 +175,9 @@ export interface RunState<TInput = unknown, TState = unknown, TOutput = unknown>
 export type DeleteReason = 'finished' | 'error' | 'aborted'
 
 export interface RunStore {
-  get(runId: string): Promise<RunState | undefined>
-  set(runId: string, state: RunState): Promise<void>
-  delete(runId: string, reason: DeleteReason): Promise<void>
+  get: (runId: string) => Promise<RunState | undefined>
+  set: (runId: string, state: RunState) => Promise<void>
+  delete: (runId: string, reason: DeleteReason) => Promise<void>
 }
 
 // ==========================================
