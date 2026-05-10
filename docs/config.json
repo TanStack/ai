@@ -165,20 +165,19 @@
       ]
     },
     {
-      "label": "Middlewares",
+      "label": "Memory",
       "children": [
         {
-          "label": "Memory",
-          "to": "middlewares/memory"
-        }
-      ]
-    },
-    {
-      "label": "Guides",
-      "children": [
+          "label": "Overview",
+          "to": "memory/overview"
+        },
         {
-          "label": "Memory Quickstart",
-          "to": "guides/memory-quickstart"
+          "label": "Quickstart",
+          "to": "memory/quickstart"
+        },
+        {
+          "label": "Custom Adapter",
+          "to": "memory/custom-adapter"
         }
       ]
     },

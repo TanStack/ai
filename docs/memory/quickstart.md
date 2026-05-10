@@ -1,7 +1,7 @@
 ---
-title: Memory Quickstart
+title: Quickstart
 id: memory-quickstart
-order: 1
+order: 2
 description: "Add cross-session memory to a TanStack AI chat() call in five steps — install the package, pick an adapter, wire memoryMiddleware, optionally add an embedder, and derive scope server-side."
 keywords:
   - tanstack ai
@@ -14,7 +14,7 @@ keywords:
 
 You have a working `chat()` call and you want it to remember context across turns or sessions. By the end of this guide, you'll have `memoryMiddleware` retrieving relevant records into the prompt and persisting new turns through a real adapter, with scope derived safely from your server-validated session.
 
-> **Want the full contract first?** See the [Memory Middleware](../middlewares/memory) concept page for the adapter interface, hooks, and devtools events.
+> **Want the full contract first?** See the [Overview](./overview) page for the adapter interface, hooks, and devtools events.
 
 ## Step 1 — Install the package
 
@@ -32,7 +32,7 @@ pnpm add @tanstack/ai-memory
 
 > **Redis** — `redisMemoryAdapter({ redis })` persists across restarts and shares state across processes. Use it for production. Bring your own Redis client (`ioredis`, `redis`, Upstash, ...) — the adapter is BYO-client.
 
-Custom adapters implement the `MemoryAdapter` interface from `@tanstack/ai/memory`.
+Custom adapters implement the `MemoryAdapter` interface from `@tanstack/ai/memory`. See [Custom Adapter](./custom-adapter) for the full authoring journey.
 
 ## Step 3 — Wire `memoryMiddleware` into `chat()`
 
@@ -139,6 +139,5 @@ If you accept `userId` or `tenantId` from the client, one user can read or overw
 
 ## Where to go next
 
-- [Memory Middleware](../middlewares/memory) — adapter contract, hooks reference, devtools events, failure modes
-- [In-memory adapter skill](https://github.com/TanStack/ai) — `tanstack-ai-memory-in-memory` (when to use, capacity limits)
-- [Redis adapter skill](https://github.com/TanStack/ai) — `tanstack-ai-memory-redis` (vector search, key layout, ops)
+- [Overview](./overview) — adapter contract, hooks reference, devtools events, failure modes
+- [Custom Adapter](./custom-adapter) — implement `MemoryAdapter` for a backend not shipped (pgvector, MongoDB, Pinecone, …)

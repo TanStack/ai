@@ -1,6 +1,6 @@
 ---
-title: Memory Middleware
-id: memory-middleware
+title: Overview
+id: memory-overview
 order: 1
 description: "Persist and recall context across turns and sessions in TanStack AI — the memoryMiddleware retrieves relevant records into the prompt, then deferred-persists user, assistant, and tool turns through a pluggable adapter."
 keywords:
@@ -16,7 +16,7 @@ keywords:
 
 `memoryMiddleware` plugs server-side memory into a `chat()` run. It retrieves relevant records from a pluggable adapter into the system prompt before the model runs, then asynchronously persists what should be remembered after the run finishes. It is the right tool when you need recall **across turns or across sessions** — not for keeping recent messages in the same request.
 
-> **Want a copy-paste setup before reading the contract?** See the [Memory Quickstart](../guides/memory-quickstart) guide.
+> **Want a copy-paste setup before reading the contract?** See the [Memory Quickstart](./quickstart) guide. **Building an adapter for a backend that isn't shipped?** See the [Custom Adapter](./custom-adapter) guide.
 
 ## When to reach for it
 
@@ -52,7 +52,7 @@ Built-in adapters live in `@tanstack/ai-memory`:
 import { inMemoryMemoryAdapter, redisMemoryAdapter } from '@tanstack/ai-memory'
 ```
 
-Custom adapters implement `MemoryAdapter` from `@tanstack/ai/memory`.
+Custom adapters implement `MemoryAdapter` from `@tanstack/ai/memory` — see the [Custom Adapter](./custom-adapter) guide for a complete walkthrough.
 
 ## Scope and security
 
@@ -165,6 +165,7 @@ import type {
 
 ## Next steps
 
-- [Memory Quickstart](../guides/memory-quickstart) — wire the middleware into a real `chat()` call in five steps
+- [Memory Quickstart](./quickstart) — wire the middleware into a real `chat()` call in five steps
+- [Custom Adapter](./custom-adapter) — implement `MemoryAdapter` for an unsupported backend
 - [Middleware](../advanced/middleware) — the underlying `chat()` middleware lifecycle and hooks
 - [Observability](../advanced/observability) — subscribe to `memory:*` events for tracing
