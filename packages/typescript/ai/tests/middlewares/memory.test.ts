@@ -5,11 +5,9 @@ import { memoryMiddleware } from '../../src/memory'
 import type {
   MemoryAdapter,
   MemoryHit,
-  MemoryListOptions,
   MemoryListResult,
   MemoryQuery,
   MemoryRecord,
-  MemoryRecordPatch,
   MemoryScope,
   MemorySearchResult,
 } from '../../src/memory'
@@ -283,8 +281,8 @@ describe('memoryMiddleware — persistence', () => {
     })
     await collectChunks(stream as AsyncIterable<StreamChunk>)
     expect(afterPersist).toHaveBeenCalledTimes(1)
-    const arg = afterPersist.mock.calls[0][0] as { newRecords: MemoryRecord[] }
-    expect(arg.newRecords.length).toBe(2) // user + assistant
+    const arg = afterPersist.mock.calls[0]?.[0] as { newRecords: MemoryRecord[] } | undefined
+    expect(arg?.newRecords.length).toBe(2) // user + assistant
   })
 
   it('onToolResult persists kind: tool-result records', async () => {
@@ -312,7 +310,7 @@ describe('memoryMiddleware — persistence', () => {
     await collectChunks(stream as AsyncIterable<StreamChunk>)
     const toolResults = [...memory.store.values()].filter((r) => r.kind === 'tool-result')
     expect(toolResults).toHaveLength(1)
-    expect(toolResults[0].text).toContain('echo')
+    expect(toolResults[0]?.text).toContain('echo')
   })
 })
 
