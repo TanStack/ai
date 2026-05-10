@@ -220,4 +220,161 @@ describe('OpenAI Image Adapter', () => {
       expect(result2.id).toMatch(/^openai-/)
     })
   })
+
+  describe('inputImages (image-to-image)', () => {
+    const tinyPngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
+    it('dispatches to images.edit when inputImages is supplied', async () => {
+      const mockResponse = {
+        data: [{ b64_json: 'editedimage' }],
+      }
+      const mockGenerate = vi.fn().mockResolvedValue({ data: [] })
+      const mockEdit = vi.fn().mockResolvedValue(mockResponse)
+
+      const adapter = createOpenaiImage('gpt-image-1', 'test-api-key')
+      ;(
+        adapter as unknown as {
+          client: { images: { generate: unknown; edit: unknown } }
+        }
+      ).client = {
+        images: { generate: mockGenerate, edit: mockEdit },
+      }
+
+      const result = await adapter.generateImages({
+        model: 'gpt-image-1',
+        prompt: 'Make it sepia',
+        size: '1024x1024',
+        logger: testLogger,
+        inputImages: [
+          {
+            type: 'image',
+            source: {
+              type: 'data',
+              value: tinyPngBase64,
+              mimeType: 'image/png',
+            },
+          },
+        ],
+      })
+
+      expect(mockGenerate).not.toHaveBeenCalled()
+      expect(mockEdit).toHaveBeenCalledTimes(1)
+      const editCall = mockEdit.mock.calls[0][0]
+      expect(editCall.model).toBe('gpt-image-1')
+      expect(editCall.prompt).toBe('Make it sepia')
+      expect(editCall.size).toBe('1024x1024')
+      expect(editCall.stream).toBe(false)
+      // A single ImagePart maps to a single Uploadable, not an array.
+      expect(Array.isArray(editCall.image)).toBe(false)
+      expect(result.images[0].b64Json).toBe('editedimage')
+    })
+
+    it('passes an array of Uploadables when multiple inputImages are supplied', async () => {
+      const mockEdit = vi
+        .fn()
+        .mockResolvedValue({ data: [{ b64_json: 'composed' }] })
+      const adapter = createOpenaiImage('gpt-image-1', 'test-api-key')
+      ;(
+        adapter as unknown as { client: { images: { edit: unknown } } }
+      ).client = {
+        images: { edit: mockEdit, generate: vi.fn() },
+      }
+
+      await adapter.generateImages({
+        model: 'gpt-image-1',
+        prompt: 'Compose these together',
+        logger: testLogger,
+        inputImages: [
+          {
+            type: 'image',
+            source: {
+              type: 'data',
+              value: tinyPngBase64,
+              mimeType: 'image/png',
+            },
+          },
+          {
+            type: 'image',
+            source: {
+              type: 'data',
+              value: tinyPngBase64,
+              mimeType: 'image/png',
+            },
+          },
+        ],
+      })
+
+      const editCall = mockEdit.mock.calls[0][0]
+      expect(Array.isArray(editCall.image)).toBe(true)
+      expect(editCall.image).toHaveLength(2)
+    })
+
+    it('throws when inputImages is supplied with dall-e-3 (no edit endpoint)', async () => {
+      const adapter = createOpenaiImage('dall-e-3', 'test-api-key')
+      ;(
+        adapter as unknown as {
+          client: { images: { generate: unknown; edit: unknown } }
+        }
+      ).client = {
+        images: { generate: vi.fn(), edit: vi.fn() },
+      }
+
+      await expect(
+        adapter.generateImages({
+          model: 'dall-e-3',
+          prompt: 'Make it sepia',
+          logger: testLogger,
+          inputImages: [
+            {
+              type: 'image',
+              source: {
+                type: 'data',
+                value: tinyPngBase64,
+                mimeType: 'image/png',
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow(/does not support image input/)
+    })
+
+    it('throws when more than one reference is supplied to dall-e-2', async () => {
+      const adapter = createOpenaiImage('dall-e-2', 'test-api-key')
+      ;(
+        adapter as unknown as {
+          client: { images: { generate: unknown; edit: unknown } }
+        }
+      ).client = {
+        images: { generate: vi.fn(), edit: vi.fn() },
+      }
+
+      await expect(
+        adapter.generateImages({
+          model: 'dall-e-2',
+          prompt: 'Edit',
+          size: '512x512',
+          logger: testLogger,
+          inputImages: [
+            {
+              type: 'image',
+              source: {
+                type: 'data',
+                value: tinyPngBase64,
+                mimeType: 'image/png',
+              },
+            },
+            {
+              type: 'image',
+              source: {
+                type: 'data',
+                value: tinyPngBase64,
+                mimeType: 'image/png',
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow(/single reference image/)
+    })
+  })
 })

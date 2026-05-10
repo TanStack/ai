@@ -1,5 +1,6 @@
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { createOpenAIClient, getOpenAIApiKeyFromEnv } from '../utils/client'
+import { imagePartToUploadable } from '../utils/image-input'
 import {
   toApiSeconds,
   validateVideoSeconds,
@@ -97,11 +98,10 @@ export class OpenAIVideoAdapter<
       const seconds = duration ?? modelOptions?.seconds
       validateVideoSeconds(model, seconds)
 
-      // Build request
-      const request = this.buildRequest(options)
+      // Build request (async — may need to fetch reference image)
+      const request = await this.buildRequest(options)
 
       // POST /v1/videos
-      // Cast to any because the videos API may not be in SDK types yet
       const client = this.client
       const response = await client.videos.create(request)
 
@@ -286,10 +286,10 @@ export class OpenAIVideoAdapter<
     }
   }
 
-  private buildRequest(
+  private async buildRequest(
     options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
-  ): OpenAI_SDK.Videos.VideoCreateParams {
-    const { model, prompt, size, duration, modelOptions } = options
+  ): Promise<OpenAI_SDK.Videos.VideoCreateParams> {
+    const { model, prompt, size, duration, modelOptions, inputImages } = options
 
     const request: OpenAI_SDK.Videos.VideoCreateParams = {
       model: model as VideoModel,
@@ -309,6 +309,17 @@ export class OpenAIVideoAdapter<
     const seconds = duration ?? modelOptions?.seconds
     if (seconds !== undefined) {
       request.seconds = toApiSeconds(seconds)
+    }
+
+    // Image-to-video: pass the reference frame as `input_reference`.
+    // Sora-2 accepts exactly one reference; reject more.
+    if (inputImages && inputImages.length > 0) {
+      if (inputImages.length > 1) {
+        throw new Error(
+          `OpenAI video models accept a single reference image; received ${inputImages.length}.`,
+        )
+      }
+      request.input_reference = await imagePartToUploadable(inputImages[0]!, 0)
     }
 
     return request

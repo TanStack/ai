@@ -419,6 +419,12 @@ export interface ImageRequestStartedEvent extends BaseEventContext {
   prompt: string
   numberOfImages?: number
   size?: string
+  /**
+   * Number of reference images supplied for image-to-image / edit /
+   * composition. Absent or 0 means a text-only generation. The base64 / URL
+   * payloads themselves are not emitted to keep devtools traffic small.
+   */
+  inputImageCount?: number
 }
 
 /** Emitted when an image request completes. */
@@ -591,6 +597,11 @@ export interface VideoRequestStartedEvent extends BaseEventContext {
   prompt?: string
   size?: string
   duration?: number
+  /**
+   * Number of reference images supplied for image-to-video. Absent or 0 means
+   * a text-only generation. Payloads themselves are not emitted.
+   */
+  inputImageCount?: number
 }
 
 /** Emitted when a video request completes. */

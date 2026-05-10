@@ -4,6 +4,7 @@ import {
   generateId,
   getOpenAIApiKeyFromEnv,
 } from '../utils/client'
+import { imagePartToUploadable } from '../utils/image-input'
 import {
   validateImageSize,
   validateNumberOfImages,
@@ -19,9 +20,21 @@ import type {
   GeneratedImage,
   ImageGenerationOptions,
   ImageGenerationResult,
+  ImagePart,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { Uploadable } from 'openai'
 import type { OpenAIClientConfig } from '../utils/client'
+
+/**
+ * Models that accept reference images via the OpenAI image-edit endpoint.
+ * `dall-e-3` is excluded — it has no edit endpoint.
+ */
+const IMAGE_EDIT_MODELS = new Set<string>([
+  'gpt-image-1',
+  'gpt-image-1-mini',
+  'dall-e-2',
+])
 
 /**
  * Configuration for OpenAI image adapter
@@ -60,7 +73,7 @@ export class OpenAIImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<OpenAIImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, logger } = options
+    const { model, prompt, numberOfImages, size, inputImages, logger } = options
 
     logger.request(
       `activity=generateImage provider=openai model=${this.model}`,
@@ -75,6 +88,21 @@ export class OpenAIImageAdapter<
       validatePrompt({ prompt, model })
       validateImageSize(model, size)
       validateNumberOfImages(model, numberOfImages)
+
+      if (inputImages && inputImages.length > 0) {
+        if (!IMAGE_EDIT_MODELS.has(model)) {
+          throw new Error(
+            `OpenAI model "${model}" does not support image input. ` +
+              `Use one of: ${[...IMAGE_EDIT_MODELS].join(', ')}.`,
+          )
+        }
+        const editRequest = await this.buildEditRequest(options, inputImages)
+        const response = await this.client.images.edit({
+          ...editRequest,
+          stream: false,
+        })
+        return this.transformResponse(model, response)
+      }
 
       // Build request based on model type
       const request = this.buildRequest(options)
@@ -92,6 +120,40 @@ export class OpenAIImageAdapter<
       })
       throw error
     }
+  }
+
+  private async buildEditRequest(
+    options: ImageGenerationOptions<OpenAIImageProviderOptions>,
+    inputImages: ReadonlyArray<ImagePart>,
+  ): Promise<OpenAI_SDK.Images.ImageEditParamsNonStreaming> {
+    const { model, prompt, numberOfImages, size, modelOptions } = options
+
+    if (model === 'dall-e-2' && inputImages.length > 1) {
+      throw new Error(
+        'dall-e-2 only accepts a single reference image; received ' +
+          `${inputImages.length}.`,
+      )
+    }
+
+    const uploads = await Promise.all(
+      inputImages.map((part, index) => imagePartToUploadable(part, index)),
+    )
+    const image: Uploadable | Array<Uploadable> =
+      uploads.length === 1 ? uploads[0]! : uploads
+
+    // The shared OpenAIImageProviderOptions union mixes fields from
+    // generate-only models (e.g. dall-e-3 quality "hd") that aren't valid on
+    // edit. The runtime guard above already rejected those models — cast here
+    // so TS doesn't reject the wider union.
+    return {
+      ...modelOptions,
+      model,
+      prompt,
+      image,
+      n: numberOfImages ?? 1,
+      size: size as OpenAI_SDK.Images.ImageEditParamsNonStreaming['size'],
+      stream: false,
+    } as OpenAI_SDK.Images.ImageEditParamsNonStreaming
   }
 
   private buildRequest(

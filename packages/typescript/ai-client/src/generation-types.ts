@@ -1,4 +1,4 @@
-import type { StreamChunk } from '@tanstack/ai'
+import type { ImagePart, StreamChunk } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 
 // ===========================
@@ -203,6 +203,11 @@ export interface ImageGenerateInput {
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: string
+  /**
+   * Reference images for image-to-image / edit / multi-image composition.
+   * Adapters that don't support image input throw at call time.
+   */
+  inputImages?: Array<ImagePart>
   /** Model-specific options */
   modelOptions?: Record<string, any>
 }
@@ -277,6 +282,11 @@ export interface VideoGenerateInput {
   size?: string
   /** Video duration in seconds */
   duration?: number
+  /**
+   * Reference images for image-to-video. Some providers accept only a single
+   * reference (e.g., Sora-2 `input_reference`).
+   */
+  inputImages?: Array<ImagePart>
   /** Model-specific options */
   modelOptions?: Record<string, any>
 }

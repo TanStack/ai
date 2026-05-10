@@ -1210,6 +1210,15 @@ export interface ImageGenerationOptions<
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: TSize
+  /**
+   * Optional reference images to condition generation on. When supplied, the
+   * adapter performs an image-to-image / edit / composition operation instead
+   * of text-only generation. Each entry is a standard {@link ImagePart} whose
+   * source may be base64 data or a URL.
+   *
+   * Adapters that don't support image input throw at call time.
+   */
+  inputImages?: Array<ImagePart>
   /** Model-specific options for image generation */
   modelOptions?: TProviderOptions
   /**
@@ -1340,6 +1349,16 @@ export interface VideoGenerationOptions<
   size?: TSize
   /** Video duration in seconds */
   duration?: number
+  /**
+   * Optional reference images to condition generation on for image-to-video
+   * workflows (e.g., animating a still). Each entry is a standard
+   * {@link ImagePart} whose source may be base64 data or a URL.
+   *
+   * Adapters that don't support image input throw at call time. Some providers
+   * accept only one reference (e.g., Sora-2 `input_reference`) — passing more
+   * than the supported count is a client-side error.
+   */
+  inputImages?: Array<ImagePart>
   /** Model-specific options for video generation */
   modelOptions?: TProviderOptions
   /**

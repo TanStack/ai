@@ -628,5 +628,89 @@ describe('Gemini Image Adapter', () => {
         },
       })
     })
+
+    it('prepends inputImages as inlineData parts on the Gemini path', async () => {
+      const mockResponse = {
+        candidates: [
+          {
+            content: {
+              parts: [
+                { inlineData: { mimeType: 'image/png', data: 'edited-bytes' } },
+              ],
+            },
+          },
+        ],
+      }
+      const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockResponse)
+
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image-preview',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateContent: unknown } }
+        }
+      ).client = {
+        models: { generateContent: mockGenerateContent },
+      }
+
+      const tinyPng =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
+      await adapter.generateImages({
+        model: 'gemini-3.1-flash-image-preview',
+        prompt: 'Make it sepia',
+        logger: testLogger,
+        inputImages: [
+          {
+            type: 'image',
+            source: { type: 'data', value: tinyPng, mimeType: 'image/png' },
+          },
+        ],
+      })
+
+      const call = mockGenerateContent.mock.calls[0][0]
+      expect(Array.isArray(call.contents)).toBe(true)
+      expect(call.contents).toHaveLength(2)
+      expect(call.contents[0]).toEqual({
+        inlineData: { data: tinyPng, mimeType: 'image/png' },
+      })
+      expect(call.contents[1]).toEqual({ text: 'Make it sepia' })
+    })
+
+    it('throws when inputImages is supplied to an Imagen model', async () => {
+      const mockGenerateImages = vi.fn()
+      const adapter = createGeminiImage(
+        'imagen-4.0-generate-001',
+        'test-api-key',
+      )
+      ;(
+        adapter as unknown as {
+          client: { models: { generateImages: unknown } }
+        }
+      ).client = {
+        models: { generateImages: mockGenerateImages },
+      }
+
+      await expect(
+        adapter.generateImages({
+          model: 'imagen-4.0-generate-001',
+          prompt: 'Make it sepia',
+          logger: testLogger,
+          inputImages: [
+            {
+              type: 'image',
+              source: {
+                type: 'data',
+                value: 'aGVsbG8=',
+                mimeType: 'image/png',
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow(/does not accept image input/)
+      expect(mockGenerateImages).not.toHaveBeenCalled()
+    })
   })
 })

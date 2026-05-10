@@ -82,7 +82,45 @@ All image adapters support these common options:
 | `prompt` | `string` | Text description of the image to generate (required) |
 | `numberOfImages` | `number` | Number of images to generate |
 | `size` | `string` | Size of the generated image in WIDTHxHEIGHT format |
+| `inputImages?` | `Array<ImagePart>` | Reference images for image-to-image / edit / multi-image composition |
 | `modelOptions?` | `object` | Model-specific options (renamed from `providerOptions`) |
+
+### Image-to-Image (Reference Images)
+
+Pass one or more `ImagePart` references to perform image-editing or
+multi-image composition. The same `ImagePart` shape used for chat multimodal
+input is reused — `source` may be base64 (`type: 'data'`) or a URL
+(`type: 'url'`).
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+import fs from 'node:fs/promises'
+
+const bytes = await fs.readFile('./input.png')
+const result = await generateImage({
+  adapter: openaiImage('gpt-image-1'),
+  prompt: 'Make the sky a vivid sunset',
+  inputImages: [
+    {
+      type: 'image',
+      source: {
+        type: 'data',
+        value: bytes.toString('base64'),
+        mimeType: 'image/png',
+      },
+    },
+  ],
+})
+```
+
+Provider/model support:
+
+| Provider | Models that accept `inputImages` |
+|----------|-----------------------------------|
+| OpenAI   | `gpt-image-1`, `gpt-image-1-mini`, `dall-e-2` (single reference only) |
+| Gemini   | Nano Banana models (`gemini-*-image-*`); Imagen does not |
+| Others   | Throw at call time when `inputImages` is supplied |
 
 ### Size Options
 

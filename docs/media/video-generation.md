@@ -57,6 +57,38 @@ const { jobId, model } = await generateVideo({
 console.log('Job started:', jobId)
 ```
 
+### Image-to-Video (Reference Image)
+
+Pass an `ImagePart` via `inputImages` to animate a still frame. Sora-2 accepts
+exactly one reference; passing more than one throws.
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+import fs from 'node:fs/promises'
+
+const bytes = await fs.readFile('./first-frame.png')
+const { jobId } = await generateVideo({
+  adapter: openaiVideo('sora-2'),
+  prompt: 'Camera dollies forward as the leaves rustle',
+  inputImages: [
+    {
+      type: 'image',
+      source: {
+        type: 'data',
+        value: bytes.toString('base64'),
+        mimeType: 'image/png',
+      },
+    },
+  ],
+})
+```
+
+| Provider | Models that accept `inputImages` |
+|----------|-----------------------------------|
+| OpenAI   | `sora-2`, `sora-2-pro` (single reference only)            |
+| Others   | Throw at call time when `inputImages` is supplied         |
+
 ### Polling for Status
 
 ```typescript

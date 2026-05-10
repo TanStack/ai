@@ -21,13 +21,16 @@ import type {
   GeneratedImage,
   ImageGenerationOptions,
   ImageGenerationResult,
+  ImagePart,
 } from '@tanstack/ai'
 import type {
+  ContentListUnion,
   GenerateContentConfig,
   GenerateContentResponse,
   GenerateImagesConfig,
   GenerateImagesResponse,
   GoogleGenAI,
+  Part,
 } from '@google/genai'
 import type { GeminiClientConfig } from '../utils'
 
@@ -81,7 +84,7 @@ export class GeminiImageAdapter<
   async generateImages(
     options: ImageGenerationOptions<GeminiImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, logger } = options
+    const { model, prompt, inputImages, logger } = options
 
     logger.request(
       `activity=generateImage provider=gemini model=${this.model}`,
@@ -96,6 +99,14 @@ export class GeminiImageAdapter<
 
       if (this.isGeminiImageModel(model)) {
         return await this.generateWithGeminiApi(options)
+      }
+
+      // Imagen path: image input is not supported via the generateImages API.
+      if (inputImages && inputImages.length > 0) {
+        throw new Error(
+          `Gemini Imagen model "${model}" does not accept image input. ` +
+            `Use a Nano Banana model (e.g., "gemini-2.5-flash-image") for image-to-image.`,
+        )
       }
 
       // Imagen models path (generateImages API)
@@ -127,7 +138,8 @@ export class GeminiImageAdapter<
   private async generateWithGeminiApi(
     options: ImageGenerationOptions<GeminiImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, size, numberOfImages, modelOptions } = options
+    const { model, prompt, size, numberOfImages, modelOptions, inputImages } =
+      options
 
     const parsedSize = size ? parseNativeImageSize(size) : undefined
 
@@ -169,9 +181,23 @@ export class GeminiImageAdapter<
       }),
     }
 
+    // For image-to-image / multi-image composition: prepend each reference
+    // image as an inlineData part. Gemini's generateContent does not accept
+    // remote URLs for input images, so URL-source parts are fetched first and
+    // converted to base64.
+    const contents: ContentListUnion =
+      inputImages && inputImages.length > 0
+        ? [
+            ...(await Promise.all(
+              inputImages.map((part) => imagePartToInlineDataPart(part)),
+            )),
+            { text: augmentedPrompt },
+          ]
+        : augmentedPrompt
+
     const response = await this.client.models.generateContent({
       model,
-      contents: augmentedPrompt,
+      contents,
       config,
     })
 
@@ -339,4 +365,55 @@ export function geminiImage<TModel extends GeminiImageModel>(
 ): GeminiImageAdapter<TModel> {
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiImage(model, apiKey, config)
+}
+
+/**
+ * Convert an `ImagePart` into a Gemini `inlineData` Part. URL-source parts are
+ * fetched first because `generateContent` does not accept remote URLs for
+ * image inputs.
+ */
+async function imagePartToInlineDataPart(part: ImagePart): Promise<Part> {
+  const { source } = part
+
+  if (source.type === 'data') {
+    return {
+      inlineData: {
+        data: stripDataUriPrefix(source.value),
+        mimeType: source.mimeType,
+      },
+    }
+  }
+
+  const response = await fetch(source.value)
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch input image at ${source.value}: ${response.status} ${response.statusText}`,
+    )
+  }
+  const arrayBuffer = await response.arrayBuffer()
+  const data = arrayBufferToBase64(arrayBuffer)
+  const mimeType =
+    response.headers.get('content-type') ?? source.mimeType ?? 'image/png'
+  return { inlineData: { data, mimeType } }
+}
+
+function stripDataUriPrefix(value: string): string {
+  if (value.startsWith('data:')) {
+    const commaIndex = value.indexOf(',')
+    if (commaIndex !== -1) return value.slice(commaIndex + 1)
+  }
+  return value
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(buffer).toString('base64')
+  }
+  // Browser fallback
+  let binary = ''
+  const bytes = new Uint8Array(buffer)
+  for (let i = 0; i < bytes.byteLength; i += 1) {
+    binary += String.fromCharCode(bytes[i]!)
+  }
+  return btoa(binary)
 }

@@ -11,7 +11,7 @@ import { resolveDebugOption } from '../../logger/resolve'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { ImageAdapter } from './adapter'
-import type { ImageGenerationResult, StreamChunk } from '../../types'
+import type { ImageGenerationResult, ImagePart, StreamChunk } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -78,6 +78,13 @@ export type ImageActivityOptions<
   numberOfImages?: number
   /** Image size in WIDTHxHEIGHT format (e.g., "1024x1024") */
   size?: ImageSizeForModel<TAdapter, TAdapter['model']>
+  /**
+   * Reference images for image-to-image / edit / multi-image composition. When
+   * supplied, the adapter performs an image-to-image operation instead of a
+   * text-only generation. Adapters that don't support image input throw at
+   * call time.
+   */
+  inputImages?: Array<ImagePart>
   /**
    * Whether to stream the image generation result.
    * When true, returns an AsyncIterable<StreamChunk> for streaming transport.
@@ -210,6 +217,7 @@ async function runGenerateImage<
     prompt: rest.prompt,
     numberOfImages: rest.numberOfImages,
     size: rest.size,
+    inputImageCount: rest.inputImages?.length,
     modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
     timestamp: startTime,
   })

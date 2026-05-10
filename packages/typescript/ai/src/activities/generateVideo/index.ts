@@ -14,6 +14,7 @@ import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { VideoAdapter } from './adapter'
 import type {
+  ImagePart,
   StreamChunk,
   VideoJobResult,
   VideoStatusResult,
@@ -89,6 +90,12 @@ export type VideoCreateOptions<
   size?: VideoSizeForAdapter<TAdapter>
   /** Video duration in seconds */
   duration?: number
+  /**
+   * Reference images for image-to-video. When supplied, the adapter conditions
+   * generation on the first frame / reference. Some providers accept only a
+   * single reference (e.g., Sora-2 `input_reference`).
+   */
+  inputImages?: Array<ImagePart>
   /**
    * Whether to stream the video generation lifecycle.
    * When true, returns an AsyncIterable<StreamChunk> that handles the full
@@ -249,7 +256,7 @@ export function generateVideo<
 async function runCreateVideoJob<
   TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
-  const { adapter, prompt, size, duration, modelOptions } = options
+  const { adapter, prompt, size, duration, modelOptions, inputImages } = options
   const model = adapter.model
   const logger: InternalLogger = resolveDebugOption(options.debug)
   const providerName =
@@ -268,6 +275,7 @@ async function runCreateVideoJob<
       prompt,
       size,
       duration,
+      inputImages,
       modelOptions,
       logger,
     })
@@ -296,7 +304,7 @@ function sleep(ms: number): Promise<void> {
 async function* runStreamingVideoGeneration<
   TAdapter extends VideoAdapter<string, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, true>): AsyncIterable<StreamChunk> {
-  const { adapter, prompt, size, duration, modelOptions } = options
+  const { adapter, prompt, size, duration, modelOptions, inputImages } = options
   const model = adapter.model
   const runId = options.runId ?? createId('run')
   const pollingInterval = options.pollingInterval ?? 2000
@@ -331,6 +339,7 @@ async function* runStreamingVideoGeneration<
       prompt,
       size,
       duration,
+      inputImages,
       modelOptions,
       logger,
     })
