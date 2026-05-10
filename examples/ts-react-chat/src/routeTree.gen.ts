@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkflowRouteImport } from './routes/workflow'
 import { Route as RealtimeRouteImport } from './routes/realtime'
+import { Route as OrchestrationRouteImport } from './routes/orchestration'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
@@ -19,10 +21,12 @@ import { Route as GenerationsStructuredOutputRouteImport } from './routes/genera
 import { Route as GenerationsSpeechRouteImport } from './routes/generations.speech'
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
 import { Route as GenerationsAudioRouteImport } from './routes/generations.audio'
+import { Route as ApiWorkflowRouteImport } from './routes/api.workflow'
 import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
+import { Route as ApiOrchestrationRouteImport } from './routes/api.orchestration'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
@@ -31,9 +35,19 @@ import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.spe
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 
+const WorkflowRoute = WorkflowRouteImport.update({
+  id: '/workflow',
+  path: '/workflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrchestrationRoute = OrchestrationRouteImport.update({
+  id: '/orchestration',
+  path: '/orchestration',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImageGenRoute = ImageGenRouteImport.update({
@@ -83,6 +97,11 @@ const GenerationsAudioRoute = GenerationsAudioRouteImport.update({
   path: '/generations/audio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkflowRoute = ApiWorkflowRouteImport.update({
+  id: '/api/workflow',
+  path: '/api/workflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   id: '/api/transcribe',
   path: '/api/transcribe',
@@ -101,6 +120,11 @@ const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
 const ApiStructuredOutputRoute = ApiStructuredOutputRouteImport.update({
   id: '/api/structured-output',
   path: '/api/structured-output',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOrchestrationRoute = ApiOrchestrationRouteImport.update({
+  id: '/api/orchestration',
+  path: '/api/orchestration',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiImageGenRoute = ApiImageGenRouteImport.update({
@@ -142,12 +166,16 @@ const ApiGenerateAudioRoute = ApiGenerateAudioRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
+  '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
+  '/workflow': typeof WorkflowRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/orchestration': typeof ApiOrchestrationRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/api/workflow': typeof ApiWorkflowRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -165,12 +193,16 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
+  '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
+  '/workflow': typeof WorkflowRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/orchestration': typeof ApiOrchestrationRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/api/workflow': typeof ApiWorkflowRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -189,12 +221,16 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
+  '/orchestration': typeof OrchestrationRoute
   '/realtime': typeof RealtimeRoute
+  '/workflow': typeof WorkflowRoute
   '/api/image-gen': typeof ApiImageGenRoute
+  '/api/orchestration': typeof ApiOrchestrationRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/api/workflow': typeof ApiWorkflowRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
   '/generations/speech': typeof GenerationsSpeechRoute
@@ -214,12 +250,16 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/image-gen'
+    | '/orchestration'
     | '/realtime'
+    | '/workflow'
     | '/api/image-gen'
+    | '/api/orchestration'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/api/workflow'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -237,12 +277,16 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/image-gen'
+    | '/orchestration'
     | '/realtime'
+    | '/workflow'
     | '/api/image-gen'
+    | '/api/orchestration'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/api/workflow'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -260,12 +304,16 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/image-gen'
+    | '/orchestration'
     | '/realtime'
+    | '/workflow'
     | '/api/image-gen'
+    | '/api/orchestration'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/api/workflow'
     | '/generations/audio'
     | '/generations/image'
     | '/generations/speech'
@@ -284,12 +332,16 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ImageGenRoute: typeof ImageGenRoute
+  OrchestrationRoute: typeof OrchestrationRoute
   RealtimeRoute: typeof RealtimeRoute
+  WorkflowRoute: typeof WorkflowRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
+  ApiOrchestrationRoute: typeof ApiOrchestrationRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  ApiWorkflowRoute: typeof ApiWorkflowRoute
   GenerationsAudioRoute: typeof GenerationsAudioRoute
   GenerationsImageRoute: typeof GenerationsImageRoute
   GenerationsSpeechRoute: typeof GenerationsSpeechRoute
@@ -307,11 +359,25 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workflow': {
+      id: '/workflow'
+      path: '/workflow'
+      fullPath: '/workflow'
+      preLoaderRoute: typeof WorkflowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/realtime': {
       id: '/realtime'
       path: '/realtime'
       fullPath: '/realtime'
       preLoaderRoute: typeof RealtimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orchestration': {
+      id: '/orchestration'
+      path: '/orchestration'
+      fullPath: '/orchestration'
+      preLoaderRoute: typeof OrchestrationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/image-gen': {
@@ -377,6 +443,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GenerationsAudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workflow': {
+      id: '/api/workflow'
+      path: '/api/workflow'
+      fullPath: '/api/workflow'
+      preLoaderRoute: typeof ApiWorkflowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/transcribe': {
       id: '/api/transcribe'
       path: '/api/transcribe'
@@ -403,6 +476,13 @@ declare module '@tanstack/react-router' {
       path: '/api/structured-output'
       fullPath: '/api/structured-output'
       preLoaderRoute: typeof ApiStructuredOutputRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/orchestration': {
+      id: '/api/orchestration'
+      path: '/api/orchestration'
+      fullPath: '/api/orchestration'
+      preLoaderRoute: typeof ApiOrchestrationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/image-gen': {
@@ -460,12 +540,16 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ImageGenRoute: ImageGenRoute,
+  OrchestrationRoute: OrchestrationRoute,
   RealtimeRoute: RealtimeRoute,
+  WorkflowRoute: WorkflowRoute,
   ApiImageGenRoute: ApiImageGenRoute,
+  ApiOrchestrationRoute: ApiOrchestrationRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  ApiWorkflowRoute: ApiWorkflowRoute,
   GenerationsAudioRoute: GenerationsAudioRoute,
   GenerationsImageRoute: GenerationsImageRoute,
   GenerationsSpeechRoute: GenerationsSpeechRoute,

@@ -35,7 +35,7 @@ const ArticleOutput = z.union([
 
 const ArticleState = z.object({
   phase: z
-    .enum(['drafting', 'reviewing', 'awaiting-approval', 'editing', 'done'])
+    .enum(['drafting', 'reviewing', 'editing', 'awaiting-approval', 'revising', 'done'])
     .default('drafting'),
   draft: Draft.optional(),
   legalReview: Review.optional(),
@@ -126,34 +126,43 @@ export const articleWorkflow = defineWorkflow({
     const legal = yield* agents.legal({ draft })
     state.legalReview = legal
     if (legal.verdict === 'block') {
-      state.phase = 'done'
       return fail(`legal: ${legal.findings.join('; ')}`)
     }
 
     const skeptic = yield* agents.skeptic({ draft })
     state.skepticReview = skeptic
     if (skeptic.verdict === 'block') {
-      state.phase = 'done'
       return fail(`skeptic: ${skeptic.findings.join('; ')}`)
     }
 
-    state.phase = 'awaiting-approval'
-    const decision = yield* approve({
-      title: 'Publish this draft?',
-      description: `"${draft.title}" passed both reviews.`,
-    })
-    if (!decision.approved) {
-      state.phase = 'done'
-      return fail('user denied')
-    }
-
     state.phase = 'editing'
-    const final = yield* agents.editor({
+    let current = yield* agents.editor({
       draft,
       notes: [...legal.findings, ...skeptic.findings],
     })
-    state.draft = final
-    state.phase = 'done'
-    return succeed({ article: final })
+    state.draft = current
+
+    for (let round = 0; round < 4; round++) {
+      state.phase = 'awaiting-approval'
+      const decision = yield* approve({
+        title: round === 0 ? 'Publish this article?' : 'Publish the revision?',
+        description: current.title,
+      })
+      if (decision.approved) {
+        state.phase = 'done'
+        return succeed({ article: current })
+      }
+      if (!decision.feedback || !decision.feedback.trim()) {
+        state.phase = 'done'
+        return fail('user denied')
+      }
+      state.phase = 'revising'
+      current = yield* agents.editor({
+        draft: current,
+        notes: [decision.feedback],
+      })
+      state.draft = current
+    }
+    return fail('too many revision rounds')
   },
 })

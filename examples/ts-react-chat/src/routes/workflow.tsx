@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { fetchWorkflowEvents, useWorkflow } from '@tanstack/ai-react'
 import { StateInspector } from '@/components/StateInspector'
 import { WorkflowTimeline } from '@/components/WorkflowTimeline'
@@ -20,11 +20,9 @@ function WorkflowPage() {
   })
 
   const isRunning = wf.status === 'running' || wf.status === 'paused'
-  const finalStep = wf.steps.at(-1)
-  const finalResult = (wf.status === 'finished' ? finalStep?.result : null) as
+  const finalResult = (wf.status === 'finished' ? wf.output : null) as
     | ArticleOutput
     | null
-    | undefined
 
   return (
     <main className="relative z-10 min-h-screen px-8 lg:px-16 py-12 max-w-[1320px] mx-auto">
@@ -43,8 +41,9 @@ function WorkflowPage() {
         <ApprovalBand
           title={wf.pendingApproval.title}
           description={wf.pendingApproval.description}
-          onApprove={() => wf.approve(true)}
-          onDeny={() => wf.approve(false)}
+          onPublish={() => wf.approve(true)}
+          onRevise={(feedback) => wf.approve(false, feedback)}
+          onDiscard={() => wf.approve(false)}
         />
       )}
 
@@ -176,13 +175,17 @@ function Composer(props: {
 function ApprovalBand(props: {
   title: string
   description?: string
-  onApprove: () => void
-  onDeny: () => void
+  onPublish: () => void
+  onRevise: (feedback: string) => void
+  onDiscard: () => void
 }) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [feedback, setFeedback] = useState('')
+
   return (
     <div className="mt-10 anim-slip-in">
       <div className="tape-citron h-3" />
-      <div className="bg-ink-soft border-x border-bone px-8 py-7 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-center">
+      <div className="bg-ink-soft border-x border-bone px-8 py-7 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-start">
         <div>
           <div className="label-mono text-citron mb-2">decision required</div>
           <h2
@@ -200,19 +203,34 @@ function ApprovalBand(props: {
               {props.description}
             </p>
           )}
+          <textarea
+            ref={textareaRef}
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            placeholder="Leave a note for the editor (optional — required to revise)"
+            rows={3}
+            className="mt-5 w-full bg-transparent border border-bone/40 focus:border-citron outline-none px-3 py-2 text-sm text-bone placeholder:text-taupe-deep resize-none transition-colors"
+          />
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3 min-w-[140px]">
           <button
-            onClick={props.onApprove}
+            onClick={props.onPublish}
             className="px-6 py-3 bg-citron text-ink label-mono hover:bg-bone transition-colors"
           >
-            ✓ Approve
+            ✓ Publish
           </button>
           <button
-            onClick={props.onDeny}
+            onClick={() => props.onRevise(feedback)}
+            disabled={!feedback.trim()}
+            className="px-6 py-3 border border-citron text-citron label-mono hover:bg-citron hover:text-ink transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            ↻ Revise
+          </button>
+          <button
+            onClick={props.onDiscard}
             className="px-6 py-3 border border-bone text-bone label-mono hover:bg-bone hover:text-ink transition-colors"
           >
-            ✗ Deny
+            ✗ Discard
           </button>
         </div>
       </div>
