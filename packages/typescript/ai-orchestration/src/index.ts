@@ -14,6 +14,7 @@ export { approve } from './primitives/approve'
 export type { ApproveOptions } from './primitives/approve'
 export { retry } from './primitives/retry'
 export type { RetryOptions } from './primitives/retry'
+export { fail, ok } from './result'
 
 // ===== Server-side run =====
 export { runWorkflow } from './engine/run-workflow'

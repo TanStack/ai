@@ -5,6 +5,8 @@ import {
   approve,
   defineAgent,
   defineWorkflow,
+  fail,
+  ok,
 } from '@tanstack/ai-orchestration'
 
 // ===== Schemas =====
@@ -126,14 +128,14 @@ export const articleWorkflow = defineWorkflow({
     state.legalReview = legal
     if (legal.verdict === 'block') {
       state.phase = 'done'
-      return { ok: false as const, reason: `legal: ${legal.findings.join('; ')}` }
+      return fail(`legal: ${legal.findings.join('; ')}`)
     }
 
     const skeptic = yield* agents.skeptic({ draft })
     state.skepticReview = skeptic
     if (skeptic.verdict === 'block') {
       state.phase = 'done'
-      return { ok: false as const, reason: `skeptic: ${skeptic.findings.join('; ')}` }
+      return fail(`skeptic: ${skeptic.findings.join('; ')}`)
     }
 
     state.phase = 'awaiting-approval'
@@ -143,7 +145,7 @@ export const articleWorkflow = defineWorkflow({
     })
     if (!decision.approved) {
       state.phase = 'done'
-      return { ok: false as const, reason: 'user denied' }
+      return fail('user denied')
     }
 
     state.phase = 'editing'
@@ -153,6 +155,6 @@ export const articleWorkflow = defineWorkflow({
     })
     state.draft = final
     state.phase = 'done'
-    return { ok: true as const, article: final }
+    return ok({ article: final })
   },
 })
