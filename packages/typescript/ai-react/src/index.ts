@@ -51,6 +51,13 @@ export type {
   UseGenerateVideoReturn,
 } from './use-generate-video'
 
+// Workflow/Orchestration hooks
+export { useOrchestration, useWorkflow } from './use-workflow'
+export type {
+  UseWorkflowOptions,
+  UseWorkflowReturn,
+} from './use-workflow'
+
 // Re-export from ai-client for convenience
 export {
   fetchServerSentEvents,
