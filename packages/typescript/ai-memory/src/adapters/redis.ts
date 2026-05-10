@@ -149,8 +149,12 @@ function escapeGlob(value: string): string {
  * isolation boundary.
  */
 function escapeScopeValue(value: string): string {
-  // Escape : (our delimiter) and \ (the escape character itself).
-  return value.replace(/[\\:]/g, '\\$&')
+  // Escape : (our delimiter), \ (the escape character itself), and _ (the
+  // unset-key placeholder). Without escaping _, a user-supplied scope value
+  // of literal '_' would collide with the placeholder for an unset key — e.g.
+  // {tenantId:'t1', userId:'_'} would build the same index key as
+  // {tenantId:'t1'} (userId unset), allowing cross-leak via clear().
+  return value.replace(/[\\:_]/g, '\\$&')
 }
 
 const SCOPE_KEYS = [

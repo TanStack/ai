@@ -418,6 +418,90 @@ export function runMemoryAdapterContract(
         expect(await adapter.get('plain', otherTenant)).toBeDefined()
       })
 
+      // Underscore placeholder collision: the redis adapter uses literal `_`
+      // as the placeholder for an UNSET scope key in `scopeKey`. Without
+      // escaping `_` in `escapeScopeValue`, a user-supplied scope value of
+      // literal `'_'` (e.g. `userId: '_'`) would build the same index key as
+      // a scope with `userId` unset — opening a cross-leak surface on
+      // `clear()` (which deletes by exact index key, not via `scopeMatches`).
+      // The in-memory adapter is unaffected because it does not serialize
+      // scope to strings, but the contract test still pins isolation across
+      // both adapters.
+      it('clear({tenantId}) cascades to records with userId="_" via partial-scope semantics', async () => {
+        const baseTenant: MemoryScope = { tenantId: 't1' }
+        const subWithUnderscore: MemoryScope = {
+          tenantId: 't1',
+          userId: '_',
+        }
+        await adapter.add(
+          rec({ id: 'base', scope: baseTenant, text: 'base record' }),
+        )
+        await adapter.add(
+          rec({ id: 'sub', scope: subWithUnderscore, text: 'sub record' }),
+        )
+        await adapter.clear(baseTenant)
+        // Both records are wiped — `base` is directly under `baseTenant`, and
+        // `sub` is wiped because partial-scope clear cascades across
+        // sub-scopes (see "clear with a partial scope wipes records from
+        // sub-scopes" above). The key insight is that this is the CONSISTENT
+        // partial-scope contract, not an accidental key collision: the literal
+        // underscore value is escaped so it indexes distinctly from "unset".
+        expect(await adapter.get('base', baseTenant)).toBeUndefined()
+        expect(await adapter.get('sub', subWithUnderscore)).toBeUndefined()
+      })
+
+      it('userId="_" does not collide with userId unset', async () => {
+        // Same isolation-only assertion shape as the colon and backslash
+        // tests above: ioredis-mock does not implement SCAN MATCH
+        // backslash-escape, so we verify the security-critical half (no
+        // cross-leak from the underscore-user scope into the no-user
+        // bucket) via search, and the own-record reachability half via
+        // `adapter.get`, which uses `scopeMatches` against the raw scope
+        // object rather than SCAN MATCH.
+        const noUserScope: MemoryScope = { tenantId: 't1' }
+        const underscoreUserScope: MemoryScope = {
+          tenantId: 't1',
+          userId: '_',
+        }
+        const realUserScope: MemoryScope = {
+          tenantId: 't1',
+          userId: 'real',
+        }
+        await adapter.add(
+          rec({ id: 'no-user', scope: noUserScope, text: 'orange' }),
+        )
+        await adapter.add(
+          rec({ id: 'us', scope: underscoreUserScope, text: 'orange' }),
+        )
+        await adapter.add(
+          rec({ id: 'real-user', scope: realUserScope, text: 'orange' }),
+        )
+        // Exact-match search for the underscore-user scope must NOT surface
+        // the no-user record (which would have collided pre-fix) nor the
+        // real-user record.
+        const out = await adapter.search({
+          scope: underscoreUserScope,
+          text: 'orange',
+        })
+        expect(
+          out.hits.find((h) => h.record.id === 'no-user'),
+        ).toBeUndefined()
+        expect(
+          out.hits.find((h) => h.record.id === 'real-user'),
+        ).toBeUndefined()
+        // Own-record reachability via id+scope is testable without SCAN.
+        expect(await adapter.get('no-user', noUserScope)).toBeDefined()
+        expect(await adapter.get('us', underscoreUserScope)).toBeDefined()
+        expect(await adapter.get('real-user', realUserScope)).toBeDefined()
+        // The narrower (underscore-user) query against the broader (no-user)
+        // record must NOT match — per `scopeMatches`, the query's defined
+        // `userId: '_'` does not match a missing `userId`. This is the
+        // partial-scope asymmetry; the converse (broader query, narrower
+        // record) is the legitimate partial-scope cascade and is not
+        // asserted here.
+        expect(await adapter.get('no-user', underscoreUserScope)).toBeUndefined()
+      })
+
       it('treats empty-string scope values as undefined (not as a distinct bucket)', async () => {
         // A scope value of `''` is equivalent to the key being unset — see
         // `scopeMatches` JSDoc. A record written with `{ tenantId: '' }`
