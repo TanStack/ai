@@ -6,7 +6,7 @@ import {
   defineAgent,
   defineWorkflow,
   fail,
-  ok,
+  succeed,
 } from '@tanstack/ai-orchestration'
 
 // ===== Schemas =====
@@ -117,7 +117,6 @@ export const articleWorkflow = defineWorkflow({
     skeptic: reviewerFor('skeptic'),
     editor,
   },
-  initialize: () => ({ phase: 'drafting' as const }),
   run: async function* ({ input, state, agents }) {
     state.phase = 'drafting'
     const draft = yield* agents.writer({ topic: input.topic })
@@ -155,6 +154,6 @@ export const articleWorkflow = defineWorkflow({
     })
     state.draft = final
     state.phase = 'done'
-    return ok({ article: final })
+    return succeed({ article: final })
   },
 })

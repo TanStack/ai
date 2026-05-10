@@ -1,24 +1,28 @@
 // ===== Definitions =====
 export { defineAgent } from './define/define-agent'
 export type { DefineAgentConfig } from './define/define-agent'
-export { defineWorkflow } from './define/define-workflow'
-export type { DefineWorkflowConfig } from './define/define-workflow'
 export { defineOrchestrator } from './define/define-orchestrator'
 export type {
   DefineOrchestratorConfig,
   RouterDecision,
 } from './define/define-orchestrator'
+export { defineRouter } from './define/define-router'
+export type { RouterConfig } from './define/define-router'
+export { defineWorkflow } from './define/define-workflow'
+export type { DefineWorkflowConfig } from './define/define-workflow'
 
 // ===== Generator primitives =====
 export { approve } from './primitives/approve'
 export type { ApproveOptions } from './primitives/approve'
 export { retry } from './primitives/retry'
 export type { RetryOptions } from './primitives/retry'
-export { fail, ok } from './result'
+export { fail, succeed } from './result'
 
 // ===== Server-side run =====
 export { runWorkflow } from './engine/run-workflow'
 export type { RunWorkflowOptions } from './engine/run-workflow'
+export { handleWorkflowRequest } from './server'
+export type { HandleWorkflowRequestOptions } from './server'
 
 // ===== Run store =====
 export { inMemoryRunStore } from './run-store/in-memory'
