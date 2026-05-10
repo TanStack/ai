@@ -1,6 +1,7 @@
 import { defineWorkflow } from './define-workflow'
 import type {
   AgentMap,
+  BoundAgents,
   InferSchema,
   SchemaInput,
   StepGenerator,
@@ -55,6 +56,7 @@ export interface DefineOrchestratorConfig<
     state: TStateSchema extends SchemaInput
       ? InferSchema<TStateSchema>
       : Record<string, unknown>
+    agents: BoundAgents<TAgents>
     turn: number
   }) => StepGenerator<RouterDecision<TAgents, TOutputSchema>>
 }
@@ -88,6 +90,7 @@ export function defineOrchestrator<
         const decision = yield* config.router({
           input: args.input as any,
           state: args.state as any,
+          agents: args.agents,
           turn,
         })
 
