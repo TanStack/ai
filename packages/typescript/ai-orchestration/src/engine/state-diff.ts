@@ -1,5 +1,10 @@
-import { compare } from 'fast-json-patch'
+import jsonpatch from 'fast-json-patch'
 import type { Operation } from 'fast-json-patch'
+
+// fast-json-patch ships CJS. Vite SSR (and other strict ESM runtimes) can't
+// extract named exports from a CJS module, so import the default and pull
+// `compare` off it.
+const { compare } = jsonpatch
 
 /**
  * Snapshot a state object via structuredClone for later diffing.
