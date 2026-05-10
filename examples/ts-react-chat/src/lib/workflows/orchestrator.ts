@@ -2,12 +2,10 @@ import { z } from 'zod'
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import {
+  approve,
   defineAgent,
   defineOrchestrator,
   defineWorkflow,
-  type AgentMap,
-  type RouterDecision,
-  type StepGenerator,
 } from '@tanstack/ai-orchestration'
 
 // ===== Schemas =====
@@ -195,125 +193,6 @@ const triageAgent = defineAgent({
 
 // ===== Orchestrator =====
 
-// v1 ergonomics gap: the router runs outside the BoundAgents context so
-// specific-agent types can't reach here. RouterDecision<AgentMap> is wider
-// than RouterDecision<specificAgents> due to the contravariant `agent` key.
-// Extracting the router and casting it `as any` is the v1 workaround; fix in
-// v2 by threading TAgents all the way into the router signature.
-function* featureRouter({
-  input,
-  state,
-}: {
-  input: { userMessage: string }
-  state: {
-    phase: string
-    spec?: { title: string; summary: string; files: Array<string> }
-    result?: {
-      patches: Array<{ filename: string; patch: string }>
-      rationale: string
-    }
-    lastUserMessage: string
-  }
-}): StepGenerator<RouterDecision<AgentMap, any>> {
-    // Inline triage call. The orchestrator's router runs outside the bound
-    // agents context (v1 ergonomics gap), so we yield raw step descriptors.
-    const triageDescriptor = {
-      kind: 'agent' as const,
-      name: 'triage',
-      input: {
-        userMessage: state.lastUserMessage || input.userMessage,
-        phase: state.phase,
-        hasSpec: !!state.spec,
-        hasResult: !!state.result,
-      },
-      agent: triageAgent,
-    }
-    const triageResult = (yield triageDescriptor) as unknown as {
-      next: 'spec' | 'await-approval' | 'implement' | 'review' | 'done'
-      reason: string
-    }
-
-    if (triageResult.next === 'done') {
-      return {
-        done: true as const,
-        output: {
-          phase: state.phase as 'scoping' | 'implementing' | 'review' | 'done',
-          result: state.result,
-        },
-      }
-    }
-
-    if (triageResult.next === 'spec') {
-      state.phase = 'scoping'
-      return {
-        agent: 'spec' as const,
-        input: { userMessage: state.lastUserMessage },
-      }
-    }
-
-    if (triageResult.next === 'await-approval') {
-      // yield* approve() causes a TNext mismatch inside the router generator
-      // (v1 ergonomics gap: approve's TNext=ApprovalResult conflicts with
-      // the router's TNext=RouterDecision). Yield the descriptor directly.
-      const approvalDescriptor = {
-        kind: 'approval' as const,
-        title: 'Start implementation?',
-        description: state.spec
-          ? `Spec ready: "${state.spec.title}". Begin implementing?`
-          : 'Begin implementing?',
-      }
-      const approval = (yield approvalDescriptor) as unknown as {
-        approved: boolean
-        approvalId: string
-      }
-      if (approval.approved) {
-        state.phase = 'implementing'
-        if (!state.spec) {
-          throw new Error('No spec to implement')
-        }
-        return {
-          agent: 'implement' as const,
-          input: { spec: state.spec },
-        }
-      }
-      state.phase = 'scoping'
-      return {
-        agent: 'spec' as const,
-        input: { userMessage: state.lastUserMessage },
-      }
-    }
-
-    if (triageResult.next === 'implement') {
-      state.phase = 'implementing'
-      if (!state.spec) {
-        throw new Error('No spec to implement')
-      }
-      return {
-        agent: 'implement' as const,
-        input: { spec: state.spec },
-      }
-    }
-
-    if (triageResult.next === 'review') {
-      state.phase = 'review'
-      if (!state.result) {
-        throw new Error('No result to review')
-      }
-      return {
-        agent: 'review' as const,
-        input: { result: state.result, userMessage: state.lastUserMessage },
-      }
-    }
-
-    return {
-      done: true as const,
-      output: {
-        phase: state.phase as 'scoping' | 'implementing' | 'review' | 'done',
-        result: state.result,
-      },
-    }
-}
-
 export const featureOrchestrator = defineOrchestrator({
   name: 'feature-orchestrator',
   input: OrchestratorInput,
@@ -329,6 +208,59 @@ export const featureOrchestrator = defineOrchestrator({
     phase: 'scoping' as const,
     lastUserMessage: input.userMessage,
   }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  router: featureRouter as any,
+  router: function* ({ input, state, agents }) {
+    const triage = yield* agents.triage({
+      userMessage: state.lastUserMessage || input.userMessage,
+      phase: state.phase,
+      hasSpec: !!state.spec,
+      hasResult: !!state.result,
+    })
+
+    if (triage.next === 'done') {
+      state.phase = 'done'
+      return {
+        done: true,
+        output: { phase: state.phase, result: state.result },
+      }
+    }
+
+    if (triage.next === 'spec') {
+      state.phase = 'scoping'
+      return { agent: 'spec', input: { userMessage: state.lastUserMessage } }
+    }
+
+    if (triage.next === 'await-approval') {
+      const approval = yield* approve({
+        title: 'Start implementation?',
+        description: state.spec
+          ? `Spec ready: "${state.spec.title}". Begin implementing?`
+          : 'Begin implementing?',
+      })
+      if (approval.approved) {
+        state.phase = 'implementing'
+        if (!state.spec) throw new Error('No spec to implement')
+        return { agent: 'implement', input: { spec: state.spec } }
+      }
+      state.phase = 'scoping'
+      return { agent: 'spec', input: { userMessage: state.lastUserMessage } }
+    }
+
+    if (triage.next === 'implement') {
+      state.phase = 'implementing'
+      if (!state.spec) throw new Error('No spec to implement')
+      return { agent: 'implement', input: { spec: state.spec } }
+    }
+
+    if (triage.next === 'review') {
+      state.phase = 'review'
+      if (!state.result) throw new Error('No result to review')
+      return {
+        agent: 'review',
+        input: { result: state.result, userMessage: state.lastUserMessage },
+      }
+    }
+
+    state.phase = 'done'
+    return { done: true, output: { phase: state.phase, result: state.result } }
+  },
 })
