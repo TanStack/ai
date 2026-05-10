@@ -16,9 +16,8 @@ export { retry } from './primitives/retry'
 export type { RetryOptions } from './primitives/retry'
 
 // ===== Server-side run =====
-export { runWorkflow, resumeWorkflow } from './engine/run-workflow'
+export { runWorkflow } from './engine/run-workflow'
 export type { RunWorkflowOptions } from './engine/run-workflow'
-export { toWorkflowSSEResponse } from './server'
 
 // ===== Run store =====
 export { inMemoryRunStore } from './run-store/in-memory'

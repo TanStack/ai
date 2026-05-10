@@ -25,10 +25,11 @@ import type { InMemoryRunStore } from '../run-store/in-memory'
 
 export interface RunWorkflowOptions {
   workflow: AnyWorkflowDefinition
-  input: unknown
   runStore: InMemoryRunStore
-  /** Optional: provide an existing runId (used for resume). If absent, generated. */
+  /** First-call: provide `input`. Resume-call: provide `runId` + `approval`. */
+  input?: unknown
   runId?: string
+  approval?: ApprovalResult
   /** Optional: external abort signal. */
   signal?: AbortSignal
   /** Optional: thread ID for client-side correlation. */
@@ -76,16 +77,34 @@ function errorMessage(err: unknown): string {
 }
 
 /**
- * Run a workflow to completion or pause point. Returns an AsyncIterable of
- * StreamChunk that the caller pipes to SSE.
+ * Run a workflow to completion or pause point (start or resume). Returns an
+ * AsyncIterable of StreamChunk that the caller pipes to SSE.
+ *
+ * - Start call: provide `workflow`, `input`, and `runStore`.
+ * - Resume call: provide `workflow`, `runId`, `approval`, and `runStore`.
  *
  * Pause semantics: when the user code yields an `approval` descriptor, the
  * engine emits `approval-requested`, persists run state, stores the live
- * generator handle in `runStore.setLive`, then ends the stream. Resume is a
- * separate call to `resumeWorkflow`.
+ * generator handle in `runStore.setLive`, then ends the stream. The client
+ * resumes by calling `runWorkflow` again with `runId` and `approval`.
  */
 export async function* runWorkflow(
   options: RunWorkflowOptions,
+): AsyncIterable<StreamChunk> {
+  if (options.runId && options.approval) {
+    yield* resumeRun(options.runId, options.runStore, options.approval)
+    return
+  }
+  if (options.input === undefined) {
+    throw new Error(
+      'runWorkflow: either `input` or both `runId` and `approval` must be provided',
+    )
+  }
+  yield* startRun(options as RunWorkflowOptions & { input: unknown })
+}
+
+async function* startRun(
+  options: RunWorkflowOptions & { input: unknown },
 ): AsyncIterable<StreamChunk> {
   const runId = options.runId ?? generateId('run')
   const abortController = new AbortController()
@@ -321,36 +340,27 @@ export async function* runWorkflow(
   }
 }
 
-/**
- * Resume a paused workflow with an approval response. Returns the SSE stream
- * for the resumed segment.
- *
- * v1 limitation: this only supports straight-line continuation after the
- * approval. If the user code yields more agent/nested-workflow descriptors
- * after the approval, those will fail. Refactor into a class with shared
- * dispatch loop in v2.
- */
-export async function* resumeWorkflow(args: {
-  runId: string
-  runStore: InMemoryRunStore
-  approval: ApprovalResult
-}): AsyncIterable<StreamChunk> {
-  const live = args.runStore.getLive(args.runId)
+async function* resumeRun(
+  runId: string,
+  runStore: InMemoryRunStore,
+  approval: ApprovalResult,
+): AsyncIterable<StreamChunk> {
+  const live = runStore.getLive(runId)
   if (!live) {
     yield runErrorEvent({
-      runId: args.runId,
-      message: `Run ${args.runId} not found (expired or never existed)`,
+      runId,
+      message: `Run ${runId} not found (expired or never existed)`,
       code: 'run_lost',
     })
     return
   }
 
   live.runState = { ...live.runState, status: 'running', updatedAt: Date.now() }
-  await args.runStore.set(args.runId, live.runState)
+  await runStore.set(runId, live.runState)
 
-  yield runStartedEvent({ runId: args.runId })
+  yield runStartedEvent({ runId })
 
-  const nextValue: unknown = args.approval
+  const nextValue: unknown = approval
   let prevState = snapshotState(live.runState.state)
   let finalOutput: unknown = undefined
 
@@ -384,15 +394,15 @@ export async function* resumeWorkflow(args: {
       output: finalOutput,
       updatedAt: Date.now(),
     }
-    await args.runStore.set(args.runId, live.runState)
-    yield runFinishedEvent({ runId: args.runId })
-    await args.runStore.delete(args.runId, 'finished')
+    await runStore.set(runId, live.runState)
+    yield runFinishedEvent({ runId })
+    await runStore.delete(runId, 'finished')
   } catch (err) {
     yield runErrorEvent({
-      runId: args.runId,
+      runId,
       message: errorMessage(err),
       code: 'error',
     })
-    await args.runStore.delete(args.runId, 'error')
+    await runStore.delete(runId, 'error')
   }
 }
