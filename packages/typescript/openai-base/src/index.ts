@@ -3,6 +3,15 @@ export { createOpenAICompatibleClient } from './utils/client'
 export type { OpenAICompatibleClientConfig } from './types/config'
 export * from './tools/index'
 export { OpenAICompatibleChatCompletionsTextAdapter } from './adapters/chat-completions-text'
+// Re-export the OpenAI SDK types subclasses need when overriding the
+// `callChatCompletion*` / `processStreamChunks` hooks, so they don't need
+// to declare `openai` as a direct dependency.
+export type {
+  ChatCompletion,
+  ChatCompletionChunk,
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
+} from 'openai/resources/chat/completions'
 export {
   convertFunctionToolToChatCompletionsFormat,
   convertToolsToChatCompletionsFormat,

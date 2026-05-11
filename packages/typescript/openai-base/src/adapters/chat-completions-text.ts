@@ -86,7 +86,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const stream = await this.client.chat.completions.create(
+      const stream = await this.callChatCompletionStream(
         {
           ...requestParams,
           stream: true,
@@ -165,7 +165,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.chat.completions.create(
+      const response = await this.callChatCompletion(
         {
           ...cleanParams,
           stream: false,
@@ -195,8 +195,10 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
       }
 
       // Transform null values to undefined to match original Zod schema expectations
-      // Provider returns null for optional fields we made nullable in the schema
-      const transformed = transformNullsToUndefined(parsed)
+      // Provider returns null for optional fields we made nullable in the schema.
+      // Subclasses can override `transformStructuredOutput` to skip this — e.g.
+      // OpenRouter historically passed nulls through unchanged.
+      const transformed = this.transformStructuredOutput(parsed)
 
       return {
         data: transformed,
@@ -222,6 +224,67 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
     originalRequired?: Array<string>,
   ): Record<string, any> {
     return makeStructuredOutputCompatible(schema, originalRequired)
+  }
+
+  /**
+   * Performs the non-streaming Chat Completions network call. The default
+   * uses the OpenAI SDK (`client.chat.completions.create`), which covers any
+   * provider whose endpoint accepts the OpenAI SDK verbatim (e.g. xAI/Grok,
+   * Groq with a `baseURL` override, DeepSeek, Together, Fireworks).
+   *
+   * Override in subclasses whose SDK has a different call shape — for
+   * example `@openrouter/sdk` exposes `client.chat.send({ chatRequest })`
+   * with camelCase fields. The override is responsible for converting the
+   * params shape on the way in and returning an object structurally
+   * compatible with `ChatCompletion` (the base only reads documented fields
+   * like `response.choices[0].message.content`).
+   */
+  protected async callChatCompletion(
+    params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+    requestOptions: ReturnType<typeof extractRequestOptions>,
+  ): Promise<OpenAI_SDK.Chat.Completions.ChatCompletion> {
+    return this.client.chat.completions.create(params, requestOptions)
+  }
+
+  /**
+   * Performs the streaming Chat Completions network call. Same pattern as
+   * {@link callChatCompletion} — default uses the OpenAI SDK; override for
+   * providers whose SDK exposes a different streaming entry point. Returns
+   * an `AsyncIterable<ChatCompletionChunk>` because the base's
+   * {@link processStreamChunks} only needs structural iteration over chunks.
+   */
+  protected async callChatCompletionStream(
+    params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming,
+    requestOptions: ReturnType<typeof extractRequestOptions>,
+  ): Promise<
+    AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>
+  > {
+    return this.client.chat.completions.create(params, requestOptions)
+  }
+
+  /**
+   * Extract reasoning content from a stream chunk. Default returns
+   * `undefined` because OpenAI Chat Completions doesn't carry reasoning in
+   * the chunk format. Providers that DO carry reasoning on this wire (e.g.
+   * OpenRouter's `delta.reasoningDetails`) override this to yield reasoning
+   * text — the base then folds it into a single REASONING_* lifecycle
+   * without each subclass duplicating `processStreamChunks`.
+   */
+  protected extractReasoning(
+    _chunk: OpenAI_SDK.Chat.Completions.ChatCompletionChunk,
+  ): { text: string } | undefined {
+    return undefined
+  }
+
+  /**
+   * Final shaping pass applied to parsed structured-output JSON before it is
+   * returned to the caller. Default converts `null` values to `undefined` so
+   * the result aligns with the original Zod schema's optional-field
+   * semantics. Subclasses with different conventions (OpenRouter historically
+   * preserves nulls) can override.
+   */
+  protected transformStructuredOutput(parsed: unknown): unknown {
+    return transformNullsToUndefined(parsed)
   }
 
   /**
@@ -265,6 +328,17 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         started: boolean // Track if TOOL_CALL_START has been emitted
       }
     >()
+
+    // Reasoning lifecycle (driven by extractReasoning() hook — see method
+    // docs). The base wire format (OpenAI Chat Completions) has no reasoning,
+    // so these stay unused for openai/grok/groq. OpenRouter etc. opt in.
+    let reasoningMessageId: string | undefined
+    let hasClosedReasoning = false
+    // Legacy STEP_STARTED/STEP_FINISHED pair emitted alongside REASONING_*
+    // for back-compat with consumers (UI, devtools) that haven't migrated
+    // to the spec REASONING_* events yet.
+    let stepId: string | undefined
+    let accumulatedReasoning = ''
     // Track whether ANY tool call lifecycle was actually completed across the
     // entire stream. Lets us downgrade a `tool_calls` finish_reason to `stop`
     // when the upstream signalled tool calls but never produced a complete
@@ -306,6 +380,49 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
           })
         }
 
+        // Reasoning content (extractReasoning() hook). Run before reading
+        // choice/delta so reasoning-only chunks (no `choices`) still drive
+        // the REASONING_* lifecycle on providers that send reasoning out of
+        // band. The base default returns undefined.
+        const reasoning = this.extractReasoning(chunk)
+        if (reasoning && reasoning.text) {
+          if (!reasoningMessageId) {
+            reasoningMessageId = generateId(this.name)
+            stepId = generateId(this.name)
+            yield asChunk({
+              type: 'REASONING_START',
+              messageId: reasoningMessageId,
+              model: chunk.model || options.model,
+              timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_MESSAGE_START',
+              messageId: reasoningMessageId,
+              role: 'reasoning' as const,
+              model: chunk.model || options.model,
+              timestamp,
+            })
+            // Legacy STEP_STARTED (single emission, paired with the
+            // STEP_FINISHED below when reasoning closes).
+            yield asChunk({
+              type: 'STEP_STARTED',
+              stepName: stepId,
+              stepId,
+              model: chunk.model || options.model,
+              timestamp,
+              stepType: 'thinking',
+            })
+          }
+          accumulatedReasoning += reasoning.text
+          yield asChunk({
+            type: 'REASONING_MESSAGE_CONTENT',
+            messageId: reasoningMessageId,
+            delta: reasoning.text,
+            model: chunk.model || options.model,
+            timestamp,
+          })
+        }
+
         const choice = chunk.choices[0]
 
         if (!choice) continue
@@ -316,6 +433,34 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
 
         // Handle content delta
         if (deltaContent) {
+          // Close reasoning before text starts so consumers see a clean
+          // REASONING_END before any TEXT_MESSAGE_START.
+          if (reasoningMessageId && !hasClosedReasoning) {
+            hasClosedReasoning = true
+            yield asChunk({
+              type: 'REASONING_MESSAGE_END',
+              messageId: reasoningMessageId,
+              model: chunk.model || options.model,
+              timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_END',
+              messageId: reasoningMessageId,
+              model: chunk.model || options.model,
+              timestamp,
+            })
+            if (stepId) {
+              yield asChunk({
+                type: 'STEP_FINISHED',
+                stepName: stepId,
+                stepId,
+                model: chunk.model || options.model,
+                timestamp,
+                content: accumulatedReasoning,
+              })
+            }
+          }
+
           // Emit TEXT_MESSAGE_START on first text content
           if (!hasEmittedTextMessageStart) {
             hasEmittedTextMessageStart = true
@@ -524,6 +669,34 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
             model: lastModel || options.model,
             timestamp,
           })
+        }
+
+        // Close any reasoning lifecycle that text never closed (no text
+        // content arrived, or the stream cut off before text started).
+        if (reasoningMessageId && !hasClosedReasoning) {
+          hasClosedReasoning = true
+          yield asChunk({
+            type: 'REASONING_MESSAGE_END',
+            messageId: reasoningMessageId,
+            model: lastModel || options.model,
+            timestamp,
+          })
+          yield asChunk({
+            type: 'REASONING_END',
+            messageId: reasoningMessageId,
+            model: lastModel || options.model,
+            timestamp,
+          })
+          if (stepId) {
+            yield asChunk({
+              type: 'STEP_FINISHED',
+              stepName: stepId,
+              stepId,
+              model: lastModel || options.model,
+              timestamp,
+              content: accumulatedReasoning,
+            })
+          }
         }
 
         // Map upstream finish_reason to AG-UI's narrower vocabulary while

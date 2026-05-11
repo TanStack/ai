@@ -1151,6 +1151,9 @@ describe('OpenRouter structured output', () => {
 
     const adapter = createAdapter()
 
+    // The shared base re-throws the underlying error rather than wrapping it
+    // with a "Structured output generation failed:" prefix — the prefix only
+    // existed in the pre-migration OpenRouter adapter.
     await expect(
       adapter.structuredOutput({
         chatOptions: {
@@ -1160,7 +1163,7 @@ describe('OpenRouter structured output', () => {
         },
         outputSchema: { type: 'object' },
       }),
-    ).rejects.toThrow('Structured output generation failed: Server error')
+    ).rejects.toThrow('Server error')
   })
 
   it('handles empty content gracefully', async () => {
@@ -1177,6 +1180,8 @@ describe('OpenRouter structured output', () => {
     setupMockSdkClient([], nonStreamResponse)
     const adapter = createAdapter()
 
+    // The shared base surfaces the JSON parse failure rather than a separate
+    // "no content" error — empty content fails JSON.parse() in the base.
     await expect(
       adapter.structuredOutput({
         chatOptions: {
@@ -1186,7 +1191,7 @@ describe('OpenRouter structured output', () => {
         },
         outputSchema: { type: 'object' },
       }),
-    ).rejects.toThrow('Structured output response contained no content')
+    ).rejects.toThrow('Failed to parse structured output as JSON')
   })
 })
 

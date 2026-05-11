@@ -8,22 +8,26 @@ import {
   type Mock,
 } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { createGroqText, groqText } from '../src/adapters/text'
+import {
+  createGroqText as _realCreateGroqText,
+  groqText as _realGroqText,
+} from '../src/adapters/text'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
 // Test helper: a silent logger for test chatStream calls.
 const testLogger = resolveDebugOption(false)
 
-// Declare mockCreate at module level
-let mockCreate: Mock<(...args: Array<unknown>) => unknown>
-
-// Mock the Groq SDK
-vi.mock('groq-sdk', () => {
+// Stub the OpenAI SDK so adapter construction doesn't open a real network
+// handle. The per-test mock client is injected post-construction via
+// `setupMockSdkClient` (mirrors the ai-grok pattern). We avoid relying on
+// vi.mock to intercept transitive openai imports — the built openai-base
+// dist resolves `openai` independently and is unaffected by vi.mock here.
+vi.mock('openai', () => {
   return {
     default: class {
       chat = {
         completions: {
-          create: (...args: Array<unknown>) => mockCreate(...args),
+          create: vi.fn(),
         },
       }
     },
@@ -47,18 +51,41 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   }
 }
 
-// Helper to setup the mock SDK client for streaming responses
+// Sets up a mock client on the most recently created adapter. Tests use the
+// existing call order: `setupMockSdkClient(chunks)` first, then `const adapter
+// = createGroqText(...)`. The wrapped factories below apply the pending
+// mock to the returned adapter so it intercepts subsequent chatStream/
+// structuredOutput calls.
+let pendingMockCreate:
+  | Mock<(...args: Array<unknown>) => unknown>
+  | undefined
+
 function setupMockSdkClient(
   streamChunks: Array<Record<string, unknown>>,
   nonStreamResponse?: Record<string, unknown>,
-) {
-  mockCreate = vi.fn().mockImplementation((params) => {
+): Mock<(...args: Array<unknown>) => unknown> {
+  pendingMockCreate = vi.fn().mockImplementation((params) => {
     if (params.stream) {
       return Promise.resolve(createAsyncIterable(streamChunks))
     }
     return Promise.resolve(nonStreamResponse)
   })
+  return pendingMockCreate
 }
+
+function applyPendingMock<T extends object>(adapter: T): T {
+  if (pendingMockCreate) {
+    ;(adapter as any).client = {
+      chat: { completions: { create: pendingMockCreate } },
+    }
+    pendingMockCreate = undefined
+  }
+  return adapter
+}
+const createGroqText: typeof _realCreateGroqText = (model, apiKey, config) =>
+  applyPendingMock(_realCreateGroqText(model, apiKey, config))
+const groqText: typeof _realGroqText = (model, config) =>
+  applyPendingMock(_realGroqText(model, config))
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
@@ -422,7 +449,7 @@ describe('Groq AG-UI event emission', () => {
       },
     }
 
-    mockCreate = vi.fn().mockResolvedValue(errorIterable)
+    pendingMockCreate = vi.fn().mockResolvedValue(errorIterable)
 
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
     const chunks: Array<StreamChunk> = []
