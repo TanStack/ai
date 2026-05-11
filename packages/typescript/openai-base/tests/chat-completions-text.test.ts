@@ -738,6 +738,115 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
         }),
       ).rejects.toThrow('Failed to parse structured output as JSON')
     })
+
+    it('throws a clear "no content" error when content is empty', async () => {
+      const nonStreamResponse = {
+        choices: [{ message: { content: '' } }],
+      }
+      setupMockSdkClient([], nonStreamResponse)
+
+      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
+        testConfig,
+        'test-model',
+      )
+
+      // Empty content must surface as a distinct error rather than masquerade
+      // as a JSON-parse failure on an empty string.
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'Give me data' }],
+          },
+          outputSchema: { type: 'object' },
+        }),
+      ).rejects.toThrow('response contained no content')
+    })
+
+    it('throws a clear "no content" error when content is missing', async () => {
+      const nonStreamResponse = {
+        choices: [{ message: {} }],
+      }
+      setupMockSdkClient([], nonStreamResponse)
+
+      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
+        testConfig,
+        'test-model',
+      )
+
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'Give me data' }],
+          },
+          outputSchema: { type: 'object' },
+        }),
+      ).rejects.toThrow('response contained no content')
+    })
+  })
+
+  describe('drain-path tool args error handling', () => {
+    it('logs malformed JSON tool args via the logger when the stream ends without finish_reason', async () => {
+      // Simulates a truncated stream: tool call starts and accumulates
+      // malformed JSON, but no finish_reason chunk ever arrives. The drain
+      // block must still surface the parse failure rather than swallowing it.
+      const streamChunks = [
+        {
+          id: 'chatcmpl-drain',
+          model: 'test-model',
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_drain',
+                    type: 'function',
+                    function: {
+                      name: 'lookup_weather',
+                      arguments: '{"location":', // truncated — invalid JSON
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        },
+      ]
+
+      setupMockSdkClient(streamChunks)
+      const errorsSpy = vi.spyOn(testLogger, 'errors')
+      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
+        testConfig,
+        'test-model',
+      )
+
+      try {
+        for await (const _ of adapter.chatStream({
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Weather?' }],
+          tools: [weatherTool],
+        })) {
+          // consume
+        }
+
+        const drainCall = errorsSpy.mock.calls.find((c) =>
+          String(c[0]).includes('(drain)'),
+        )
+        expect(drainCall).toBeDefined()
+        const ctx = drainCall![1] as Record<string, unknown>
+        expect(ctx.toolCallId).toBe('call_drain')
+        expect(ctx.toolName).toBe('lookup_weather')
+        expect(ctx.rawArguments).toBe('{"location":')
+      } finally {
+        errorsSpy.mockRestore()
+      }
+    })
   })
 
   describe('subclassing', () => {

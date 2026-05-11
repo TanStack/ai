@@ -10,12 +10,19 @@ import type { StreamChunk, Tool } from '@tanstack/ai'
 const testLogger = resolveDebugOption(false)
 // Declare mockSend at module level
 let mockSend: any
+// Captures the most recent OpenRouter SDK constructor config so tests can
+// assert that app-attribution headers (httpReferer, appTitle, etc.) actually
+// reach the SDK rather than being silently dropped by the adapter.
+let lastOpenRouterConfig: any
 
 // Mock the SDK with a class defined inline
 // eslint-disable-next-line @typescript-eslint/require-await
 vi.mock('@openrouter/sdk', async () => {
   return {
     OpenRouter: class {
+      constructor(config?: unknown) {
+        lastOpenRouterConfig = config
+      }
       chat = {
         send: (...args: Array<unknown>) => mockSend(...args),
       }
@@ -789,6 +796,10 @@ describe('OpenRouter AG-UI event emission', () => {
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
       expect(runErrorChunk.error?.message).toBe('Rate limit exceeded')
+      // Provider error codes arrive as numbers (429, 500, etc.) but
+      // toRunErrorPayload only retains string codes — the chunk adapter
+      // must stringify before throwing.
+      expect(runErrorChunk.error?.code).toBe('429')
     }
   })
 
@@ -1166,7 +1177,7 @@ describe('OpenRouter structured output', () => {
     ).rejects.toThrow('Server error')
   })
 
-  it('handles empty content gracefully', async () => {
+  it('throws a clear "no content" error when the response is empty', async () => {
     const nonStreamResponse = {
       choices: [
         {
@@ -1180,8 +1191,9 @@ describe('OpenRouter structured output', () => {
     setupMockSdkClient([], nonStreamResponse)
     const adapter = createAdapter()
 
-    // The shared base surfaces the JSON parse failure rather than a separate
-    // "no content" error — empty content fails JSON.parse() in the base.
+    // Empty content must surface as a distinct error so the actual failure
+    // mode (the model returned no content) is visible in logs rather than
+    // being masked by a misleading JSON-parse error on an empty string.
     await expect(
       adapter.structuredOutput({
         chatOptions: {
@@ -1191,7 +1203,7 @@ describe('OpenRouter structured output', () => {
         },
         outputSchema: { type: 'object' },
       }),
-    ).rejects.toThrow('Failed to parse structured output as JSON')
+    ).rejects.toThrow('response contained no content')
   })
 })
 
@@ -1667,5 +1679,214 @@ describe('OpenRouter STEP event consistency', () => {
 
     expect(stepStarted).toHaveLength(1)
     expect(stepFinished).toHaveLength(1)
+  })
+})
+
+describe('OpenRouter SDK constructor wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    lastOpenRouterConfig = undefined
+  })
+
+  it('forwards app-attribution headers (httpReferer, appTitle) to the SDK constructor', () => {
+    void createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      httpReferer: 'https://app.example.com',
+      appTitle: 'TestApp',
+    } as any)
+    expect(lastOpenRouterConfig).toBeDefined()
+    expect(lastOpenRouterConfig.apiKey).toBe('test-key')
+    expect(lastOpenRouterConfig.httpReferer).toBe('https://app.example.com')
+    expect(lastOpenRouterConfig.appTitle).toBe('TestApp')
+  })
+
+  it('forwards serverURL overrides to the SDK constructor', () => {
+    void createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      serverURL: 'https://custom.example.com/api/v1',
+    } as any)
+    expect(lastOpenRouterConfig.serverURL).toBe(
+      'https://custom.example.com/api/v1',
+    )
+  })
+})
+
+describe('OpenRouter stream_options conversion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('converts include_usage to includeUsage so the SDK preserves it', async () => {
+    const streamChunks = [
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      },
+    ]
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    // The SDK's outbound Zod schema strips unknown keys. Without the
+    // include_usage → includeUsage rename, the camelCase key would survive
+    // here but the wire-format serialisation would drop it entirely.
+    expect(params.streamOptions).toBeDefined()
+    expect(params.streamOptions.includeUsage).toBe(true)
+    expect(params.streamOptions).not.toHaveProperty('include_usage')
+
+    const serialized = ChatRequest$outboundSchema.parse(params)
+    expect((serialized as any).stream_options).toEqual({ include_usage: true })
+  })
+
+  it('propagates the abort signal to the SDK call', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+    const controller = new AbortController()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+      request: { signal: controller.signal } as any,
+    })) {
+      // consume
+    }
+
+    // The second argument to the SDK call must carry the signal so
+    // user-initiated aborts actually reach the SDK rather than letting the
+    // request continue burning tokens silently.
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options).toEqual({ signal: controller.signal })
+  })
+
+  it('maps RequestAbortedError from the SDK to RUN_ERROR with code: aborted', async () => {
+    const abortErr = Object.assign(new Error('Request aborted by client'), {
+      name: 'RequestAbortedError',
+    })
+    mockSend = vi.fn().mockRejectedValueOnce(abortErr)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runErr = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runErr).toBeDefined()
+    if (runErr?.type === 'RUN_ERROR') {
+      expect(runErr.error?.code).toBe('aborted')
+      expect(runErr.error?.message).toBe('Request aborted')
+    }
+  })
+})
+
+describe('OpenRouter convertMessage fail-loud guards', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('throws when a user message has empty text content', async () => {
+    setupMockSdkClient([])
+    const adapter = createAdapter()
+
+    // mapOptionsToRequest runs before chatStream's try block, so the
+    // fail-loud guard surfaces as a synchronous iterator throw — verifies
+    // we never made a paid request with an empty user message.
+    await expect(async () => {
+      for await (const _ of adapter.chatStream({
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: '' }],
+        logger: testLogger,
+      })) {
+        // consume
+      }
+    }).rejects.toThrow(/empty text content/i)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('throws on unsupported content-part types instead of dropping them', async () => {
+    setupMockSdkClient([])
+    const adapter = createAdapter()
+
+    await expect(async () => {
+      for await (const _ of adapter.chatStream({
+        model: 'openai/gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [{ type: 'mystery-type' as any, content: 'x' } as any],
+          },
+        ],
+        logger: testLogger,
+      })) {
+        // consume
+      }
+    }).rejects.toThrow(/unsupported content part/i)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('stringifies object-shaped assistant toolCalls.function.arguments', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                // Object args from a prior parsed turn — SDK expects string.
+                arguments: { location: 'Berlin' } as any,
+              },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '{"temp":72}' },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const assistantMsg = rawParams.chatRequest.messages.find(
+      (m: any) => m.role === 'assistant',
+    )
+    expect(assistantMsg).toBeDefined()
+    const args = assistantMsg.toolCalls[0].function.arguments
+    expect(typeof args).toBe('string')
+    expect(JSON.parse(args)).toEqual({ location: 'Berlin' })
   })
 })

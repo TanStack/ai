@@ -181,8 +181,16 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         extractRequestOptions(chatOptions.request),
       )
 
-      // Extract text content from the response
-      const rawText = response.choices[0]?.message.content || ''
+      // Extract text content from the response. Fail loud on empty content
+      // rather than letting it cascade into a JSON-parse error on '' — the
+      // root cause (the model returned no content for the structured request)
+      // is then visible in logs.
+      const rawText = response.choices[0]?.message.content
+      if (typeof rawText !== 'string' || rawText.length === 0) {
+        throw new Error(
+          `${this.name}.structuredOutput: response contained no content`,
+        )
+      }
 
       // Parse the JSON response
       let parsed: unknown
@@ -640,7 +648,24 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
             try {
               const parsed: unknown = JSON.parse(toolCall.arguments)
               parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-            } catch {
+            } catch (parseError) {
+              // Mirror the finish_reason path's logger call — a truncated
+              // stream emitting malformed tool-call JSON would otherwise
+              // silently invoke the tool with `{}`, the exact failure the
+              // finish_reason logger was added to prevent.
+              options.logger.errors(
+                `${this.name}.processStreamChunks tool-args JSON parse failed (drain)`,
+                {
+                  error: toRunErrorPayload(
+                    parseError,
+                    `tool ${toolCall.name} (${toolCall.id}) returned malformed JSON arguments`,
+                  ),
+                  source: `${this.name}.processStreamChunks`,
+                  toolCallId: toolCall.id,
+                  toolName: toolCall.name,
+                  rawArguments: toolCall.arguments,
+                },
+              )
               parsedInput = {}
             }
           }

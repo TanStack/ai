@@ -73,4 +73,49 @@ describe('toRunErrorPayload', () => {
     expect(payload).toEqual({ message: 'leaky', code: undefined })
     expect(payload).not.toHaveProperty('request')
   })
+
+  describe('abort normalization', () => {
+    it('normalizes DOM AbortError to code: aborted', () => {
+      const err = new Error('The operation was aborted')
+      err.name = 'AbortError'
+      expect(toRunErrorPayload(err)).toEqual({
+        message: 'Request aborted',
+        code: 'aborted',
+      })
+    })
+
+    it('normalizes OpenAI APIUserAbortError', () => {
+      const err = new Error('Request was aborted.')
+      err.name = 'APIUserAbortError'
+      expect(toRunErrorPayload(err)).toEqual({
+        message: 'Request aborted',
+        code: 'aborted',
+      })
+    })
+
+    it('normalizes OpenRouter RequestAbortedError', () => {
+      const err = new Error('Request aborted by client: AbortError: ...')
+      err.name = 'RequestAbortedError'
+      expect(toRunErrorPayload(err)).toEqual({
+        message: 'Request aborted',
+        code: 'aborted',
+      })
+    })
+
+    it('normalizes abort-named plain objects (non-Error throws)', () => {
+      const obj = { name: 'AbortError', message: 'whatever' }
+      expect(toRunErrorPayload(obj)).toEqual({
+        message: 'Request aborted',
+        code: 'aborted',
+      })
+    })
+
+    it('does not normalize errors with similar-looking names', () => {
+      const err = Object.assign(new Error('hi'), { name: 'NotAbortError' })
+      expect(toRunErrorPayload(err)).toEqual({
+        message: 'hi',
+        code: undefined,
+      })
+    })
+  })
 })

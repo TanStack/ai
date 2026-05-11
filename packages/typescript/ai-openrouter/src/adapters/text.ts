@@ -181,6 +181,21 @@ export class OpenRouterTextAdapter<
     }
 
     if (message.role === 'assistant') {
+      // Stringify object-shaped tool-call arguments to match the SDK's
+      // `ChatToolCall.function.arguments: string` contract. Without this an
+      // assistant message that carries already-parsed args (common after a
+      // multi-turn run) would either serialise as `[object Object]` or be
+      // rejected by the SDK's Zod schema with an opaque validation error.
+      const toolCalls = message.toolCalls?.map((tc) => ({
+        ...tc,
+        function: {
+          name: tc.function.name,
+          arguments:
+            typeof tc.function.arguments === 'string'
+              ? tc.function.arguments
+              : JSON.stringify(tc.function.arguments),
+        },
+      }))
       return {
         role: 'assistant',
         content:
@@ -189,27 +204,51 @@ export class OpenRouterTextAdapter<
             : message.content
               ? JSON.stringify(message.content)
               : undefined,
-        toolCalls: message.toolCalls,
+        toolCalls,
       } satisfies ChatMessages
     }
 
-    // user
+    // user — mirror the base's fail-loud behaviour on empty and unsupported
+    // content. Silently sending an empty string would mask a real caller bug
+    // and produce a paid request with no input.
     const contentParts = this.normalizeContent(message.content)
     if (contentParts.length === 1 && contentParts[0]?.type === 'text') {
+      const text = contentParts[0].content
+      if (text.length === 0) {
+        throw new Error(
+          `User message for ${this.name} has empty text content. ` +
+            `Empty user messages would produce a paid request with no input; ` +
+            `provide non-empty content or omit the message.`,
+        )
+      }
       return {
         role: 'user',
-        content: contentParts[0].content,
+        content: text,
       } satisfies ChatMessages
     }
 
     const parts: Array<ChatContentItems> = []
     for (const part of contentParts) {
       const converted = this.convertContentPartToOpenRouter(part)
-      if (converted) parts.push(converted)
+      if (!converted) {
+        throw new Error(
+          `Unsupported content part type for ${this.name}: ${part.type}. ` +
+            `Override convertContentPartToOpenRouter to handle this type, ` +
+            `or remove it from the message.`,
+        )
+      }
+      parts.push(converted)
+    }
+    if (parts.length === 0) {
+      throw new Error(
+        `User message for ${this.name} has no content parts. ` +
+          `Empty user messages would produce a paid request with no input; ` +
+          `provide at least one text/image/audio part or omit the message.`,
+      )
     }
     return {
       role: 'user',
-      content: parts.length ? parts : [{ type: 'text', text: '' }],
+      content: parts,
     } satisfies ChatMessages
   }
 
@@ -326,7 +365,20 @@ function toOpenRouterRequest(
     delete out.top_p
   }
   if ('stream_options' in p) {
-    out.streamOptions = p.stream_options
+    const so = p.stream_options as Record<string, any> | undefined
+    if (so && typeof so === 'object') {
+      // The SDK's ChatStreamOptions schema uses camelCase keys and Zod
+      // strips unknowns at parse time — without this rename the base's
+      // include_usage flag would be silently dropped and RUN_FINISHED.usage
+      // would always be undefined for streaming OpenRouter calls.
+      const { include_usage, ...rest } = so
+      out.streamOptions = {
+        ...rest,
+        ...(include_usage !== undefined && { includeUsage: include_usage }),
+      }
+    } else {
+      out.streamOptions = so
+    }
     delete out.stream_options
   }
   if ('response_format' in p && p.response_format) {
@@ -412,11 +464,15 @@ async function* adaptOpenRouterStreamChunks(
     }
 
     // Surface upstream errors so the base can route them to RUN_ERROR.
+    // Stringify code: OpenRouter's chunk error.code is numeric (401, 429,
+    // 500, …) but `toRunErrorPayload` drops non-string codes, which would
+    // silently lose provider error codes from the RUN_ERROR payload.
     if ((chunk as any).error) {
+      const errObj = (chunk as any).error
       throw Object.assign(
-        new Error((chunk as any).error.message || 'OpenRouter stream error'),
+        new Error(errObj.message || 'OpenRouter stream error'),
         {
-          code: (chunk as any).error.code,
+          code: errObj.code != null ? String(errObj.code) : undefined,
         },
       )
     }

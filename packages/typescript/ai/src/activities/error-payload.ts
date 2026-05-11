@@ -5,11 +5,29 @@
  * Accepts Error instances, objects with string-ish `message`/`code`, or bare
  * strings; always returns a shape safe to serialize. Never leaks the full
  * error object (which may carry request/response state from an SDK).
+ *
+ * Abort-shaped errors (DOM `AbortError`, OpenAI `APIUserAbortError`,
+ * OpenRouter `RequestAbortedError`) are normalized to a stable
+ * `{ message: 'Request aborted', code: 'aborted' }` shape so callers can
+ * discriminate user-initiated cancellation from other failures without
+ * matching on provider-specific message strings.
  */
+const ABORT_ERROR_NAMES = new Set([
+  'AbortError',
+  'APIUserAbortError',
+  'RequestAbortedError',
+])
+
 export function toRunErrorPayload(
   error: unknown,
   fallbackMessage = 'Unknown error occurred',
 ): { message: string; code: string | undefined } {
+  if (error && typeof error === 'object') {
+    const name = (error as { name?: unknown }).name
+    if (typeof name === 'string' && ABORT_ERROR_NAMES.has(name)) {
+      return { message: 'Request aborted', code: 'aborted' }
+    }
+  }
   if (error instanceof Error) {
     const codeField = (error as Error & { code?: unknown }).code
     return {
