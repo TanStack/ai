@@ -56,9 +56,7 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
 // = createGroqText(...)`. The wrapped factories below apply the pending
 // mock to the returned adapter so it intercepts subsequent chatStream/
 // structuredOutput calls.
-let pendingMockCreate:
-  | Mock<(...args: Array<unknown>) => unknown>
-  | undefined
+let pendingMockCreate: Mock<(...args: Array<unknown>) => unknown> | undefined
 
 function setupMockSdkClient(
   streamChunks: Array<Record<string, unknown>>,

@@ -98,8 +98,7 @@ export class OpenRouterTextAdapter<
     // client we never use. The OpenRouter SDK supports a Promise-returning
     // apiKey getter; the OpenAI SDK's constructor here is a no-op for our
     // purposes, so any string suffices.
-    const apiKey =
-      typeof config.apiKey === 'string' ? config.apiKey : 'unused'
+    const apiKey = typeof config.apiKey === 'string' ? config.apiKey : 'unused'
     super(
       { apiKey, baseURL: 'https://openrouter.ai/api/v1' },
       model,
@@ -259,7 +258,9 @@ export class OpenRouterTextAdapter<
     const modelOptions = options.modelOptions as
       | (Record<string, any> & { variant?: string })
       | undefined
-    const variantSuffix = modelOptions?.variant ? `:${modelOptions.variant}` : ''
+    const variantSuffix = modelOptions?.variant
+      ? `:${modelOptions.variant}`
+      : ''
 
     const messages: Array<any> = []
     if (options.systemPrompts?.length) {
@@ -412,9 +413,12 @@ async function* adaptOpenRouterStreamChunks(
 
     // Surface upstream errors so the base can route them to RUN_ERROR.
     if ((chunk as any).error) {
-      throw Object.assign(new Error((chunk as any).error.message || 'OpenRouter stream error'), {
-        code: (chunk as any).error.code,
-      })
+      throw Object.assign(
+        new Error((chunk as any).error.message || 'OpenRouter stream error'),
+        {
+          code: (chunk as any).error.code,
+        },
+      )
     }
 
     yield adapted as ChatCompletionChunk

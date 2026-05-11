@@ -256,9 +256,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
   protected async callChatCompletionStream(
     params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming,
     requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<
-    AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>
-  > {
+  ): Promise<AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>> {
     return this.client.chat.completions.create(params, requestOptions)
   }
 
