@@ -5,7 +5,7 @@ title: TTSResult
 
 # Interface: TTSResult
 
-Defined in: [packages/typescript/ai/src/types.ts:1431](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1431)
+Defined in: [packages/typescript/ai/src/types.ts:1439](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1439)
 
 Result of text-to-speech generation.
 
@@ -17,7 +17,7 @@ Result of text-to-speech generation.
 audio: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1437](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1437)
+Defined in: [packages/typescript/ai/src/types.ts:1445](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1445)
 
 Base64-encoded audio data
 
@@ -29,7 +29,7 @@ Base64-encoded audio data
 optional contentType: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1443](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1443)
+Defined in: [packages/typescript/ai/src/types.ts:1451](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1451)
 
 Content type of the audio (e.g., 'audio/mp3')
 
@@ -41,7 +41,7 @@ Content type of the audio (e.g., 'audio/mp3')
 optional duration: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1441](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1441)
+Defined in: [packages/typescript/ai/src/types.ts:1449](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1449)
 
 Duration of the audio in seconds, if available
 
@@ -53,7 +53,7 @@ Duration of the audio in seconds, if available
 format: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1439](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1439)
+Defined in: [packages/typescript/ai/src/types.ts:1447](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1447)
 
 Audio format of the generated audio
 
@@ -65,7 +65,7 @@ Audio format of the generated audio
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1433](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1433)
+Defined in: [packages/typescript/ai/src/types.ts:1441](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1441)
 
 Unique identifier for the generation
 
@@ -77,6 +77,6 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1435](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1435)
+Defined in: [packages/typescript/ai/src/types.ts:1443](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1443)
 
 Model used for generation

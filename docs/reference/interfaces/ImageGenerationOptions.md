@@ -5,7 +5,7 @@ title: ImageGenerationOptions
 
 # Interface: ImageGenerationOptions\<TProviderOptions, TSize\>
 
-Defined in: [packages/typescript/ai/src/types.ts:1206](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1206)
+Defined in: [packages/typescript/ai/src/types.ts:1214](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1214)
 
 Options for image generation.
 These are the common options supported across providers.
@@ -28,7 +28,7 @@ These are the common options supported across providers.
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1224](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1224)
+Defined in: [packages/typescript/ai/src/types.ts:1232](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1232)
 
 Internal logger threaded from the generateImage() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -41,7 +41,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1211](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1211)
+Defined in: [packages/typescript/ai/src/types.ts:1219](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1219)
 
 The model to use for image generation
 
@@ -53,7 +53,7 @@ The model to use for image generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1219](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1219)
+Defined in: [packages/typescript/ai/src/types.ts:1227](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1227)
 
 Model-specific options for image generation
 
@@ -65,7 +65,7 @@ Model-specific options for image generation
 optional numberOfImages: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1215](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1215)
+Defined in: [packages/typescript/ai/src/types.ts:1223](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1223)
 
 Number of images to generate (default: 1)
 
@@ -77,7 +77,7 @@ Number of images to generate (default: 1)
 prompt: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1213](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1213)
+Defined in: [packages/typescript/ai/src/types.ts:1221](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1221)
 
 Text description of the desired image(s)
 
@@ -89,6 +89,6 @@ Text description of the desired image(s)
 optional size: TSize;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1217](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1217)
+Defined in: [packages/typescript/ai/src/types.ts:1225](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1225)
 
 Image size in WIDTHxHEIGHT format (e.g., "1024x1024")

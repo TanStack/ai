@@ -5,7 +5,7 @@ title: SummarizationOptions
 
 # Interface: SummarizationOptions
 
-Defined in: [packages/typescript/ai/src/types.ts:1174](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1174)
+Defined in: [packages/typescript/ai/src/types.ts:1182](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1182)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1174](https://github.com/TanSta
 optional focus: string[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1179](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1179)
+Defined in: [packages/typescript/ai/src/types.ts:1187](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1187)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1179](https://github.com/TanSta
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1184](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1184)
+Defined in: [packages/typescript/ai/src/types.ts:1192](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1192)
 
 Internal logger threaded from the summarize() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -38,7 +38,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 optional maxLength: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1177](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1177)
+Defined in: [packages/typescript/ai/src/types.ts:1185](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1185)
 
 ***
 
@@ -48,7 +48,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1177](https://github.com/TanSta
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1175](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1175)
+Defined in: [packages/typescript/ai/src/types.ts:1183](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1183)
 
 ***
 
@@ -58,7 +58,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1175](https://github.com/TanSta
 optional style: "bullet-points" | "paragraph" | "concise";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1178](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1178)
+Defined in: [packages/typescript/ai/src/types.ts:1186](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1186)
 
 ***
 
@@ -68,4 +68,4 @@ Defined in: [packages/typescript/ai/src/types.ts:1178](https://github.com/TanSta
 text: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1176](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1176)
+Defined in: [packages/typescript/ai/src/types.ts:1184](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1184)
