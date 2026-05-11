@@ -229,8 +229,8 @@ export function makeToolCall(
       name: overrides.function?.name ?? 'test_tool',
       arguments: overrides.function?.arguments ?? '{}',
     },
-    ...(overrides.providerMetadata !== undefined
-      ? { providerMetadata: overrides.providerMetadata }
+    ...(overrides.metadata !== undefined
+      ? { metadata: overrides.metadata }
       : {}),
   }
 }
