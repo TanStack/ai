@@ -25,6 +25,11 @@ export interface InternalToolCallState {
   state: ToolCallState
   parsedArguments?: any
   index: number
+  /** Provider-specific metadata that round-trips with the tool call
+   * (e.g. Gemini's `thoughtSignature`). Untyped at this layer because
+   * the stream processor is provider-agnostic; adapters narrow it
+   * via their `TToolCallMetadata` generic. */
+  metadata?: Record<string, unknown>
 }
 
 /**

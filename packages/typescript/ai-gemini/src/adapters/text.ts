@@ -33,7 +33,10 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
-import type { GeminiMessageMetadataByModality } from '../message-types'
+import type {
+  GeminiMessageMetadataByModality,
+  GeminiToolCallMetadata,
+} from '../message-types'
 import type { GeminiClientConfig } from '../utils'
 
 /** Cast an event object to StreamChunk. Adapters construct events with string
@@ -104,7 +107,8 @@ export class GeminiTextAdapter<
   TProviderOptions,
   TInputModalities,
   GeminiMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  GeminiToolCallMetadata
 > {
   readonly kind = 'text' as const
   readonly name = 'gemini' as const
@@ -385,6 +389,11 @@ export class GeminiTextAdapter<
               `${functionCall.name}_${Date.now()}_${nextToolIndex}`
             const functionArgs = functionCall.args || {}
 
+            // Gemini emits thoughtSignature as a Part-level sibling of
+            // functionCall (per @google/genai Part type), not nested inside
+            // functionCall itself.
+            const partThoughtSignature = part.thoughtSignature || undefined
+
             let toolCallData = toolCallMap.get(toolCallId)
             if (!toolCallData) {
               toolCallData = {
@@ -395,11 +404,13 @@ export class GeminiTextAdapter<
                     : JSON.stringify(functionArgs),
                 index: nextToolIndex++,
                 started: false,
-                thoughtSignature:
-                  (functionCall as any).thoughtSignature || undefined,
+                thoughtSignature: partThoughtSignature,
               }
               toolCallMap.set(toolCallId, toolCallData)
             } else {
+              if (!toolCallData.thoughtSignature && partThoughtSignature) {
+                toolCallData.thoughtSignature = partThoughtSignature
+              }
               try {
                 const existingArgs = JSON.parse(toolCallData.args)
                 const newArgs =
@@ -428,9 +439,9 @@ export class GeminiTextAdapter<
                 timestamp,
                 index: toolCallData.index,
                 ...(toolCallData.thoughtSignature && {
-                  providerMetadata: {
+                  metadata: {
                     thoughtSignature: toolCallData.thoughtSignature,
-                  },
+                  } satisfies GeminiToolCallMetadata,
                 }),
               })
             }
@@ -707,16 +718,24 @@ export class GeminiTextAdapter<
             >
           }
 
-          const thoughtSignature = toolCall.providerMetadata
-            ?.thoughtSignature as string | undefined
-          parts.push({
+          const thoughtSignature = (
+            toolCall.metadata as GeminiToolCallMetadata | undefined
+          )?.thoughtSignature
+          // Gemini requires thoughtSignature at the Part level (sibling of
+          // functionCall), not nested inside functionCall. Nesting it causes
+          // the API to reject the next turn with
+          // "Function call is missing a thought_signature".
+          const part: Part = {
             functionCall: {
               id: toolCall.id,
               name: toolCall.function.name,
               args: parsedArgs,
-              ...(thoughtSignature && { thoughtSignature }),
-            } as any,
-          })
+            },
+          }
+          if (thoughtSignature) {
+            part.thoughtSignature = thoughtSignature
+          }
+          parts.push(part)
         }
       }
 
