@@ -1,5 +1,5 @@
-import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import { createGrokClient, generateId, getGrokApiKeyFromEnv } from '../utils'
+import { OpenAICompatibleImageAdapter } from '@tanstack/openai-base'
+import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
   validateImageSize,
   validateNumberOfImages,
@@ -11,12 +11,6 @@ import type {
   GrokImageModelSizeByName,
   GrokImageProviderOptions,
 } from '../image/image-provider-options'
-import type {
-  GeneratedImage,
-  ImageGenerationOptions,
-  ImageGenerationResult,
-} from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
 import type { GrokClientConfig } from '../utils'
 
 /**
@@ -37,7 +31,7 @@ export interface GrokImageConfig extends GrokClientConfig {}
  */
 export class GrokImageAdapter<
   TModel extends GrokImageModel,
-> extends BaseImageAdapter<
+> extends OpenAICompatibleImageAdapter<
   TModel,
   GrokImageProviderOptions,
   GrokImageModelProviderOptionsByName,
@@ -46,92 +40,29 @@ export class GrokImageAdapter<
   readonly kind = 'image' as const
   readonly name = 'grok' as const
 
-  private client: OpenAI_SDK
-
   constructor(config: GrokImageConfig, model: TModel) {
-    super(model, {})
-    this.client = createGrokClient(config)
+    super(withGrokDefaults(config), model, 'grok')
   }
 
-  async generateImages(
-    options: ImageGenerationOptions<GrokImageProviderOptions>,
-  ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, logger } = options
-
-    logger.request(`activity=generateImage provider=grok model=${this.model}`, {
-      provider: 'grok',
-      model: this.model,
-    })
-
-    try {
-      // Validate inputs
-      validatePrompt({ prompt, model })
-      validateImageSize(model, size)
-      validateNumberOfImages(model, numberOfImages)
-
-      // Build request based on model type
-      const request = this.buildRequest(options)
-
-      const response = await this.client.images.generate({
-        ...request,
-        stream: false,
-      })
-
-      return this.transformResponse(model, response)
-    } catch (error) {
-      logger.errors('grok.generateImage fatal', {
-        error,
-        source: 'grok.generateImage',
-      })
-      throw error
-    }
+  protected override validatePrompt(options: {
+    prompt: string
+    model: string
+  }): void {
+    validatePrompt(options)
   }
 
-  private buildRequest(
-    options: ImageGenerationOptions<GrokImageProviderOptions>,
-  ): OpenAI_SDK.Images.ImageGenerateParams {
-    const { model, prompt, numberOfImages, size, modelOptions } = options
-
-    // Spread modelOptions FIRST so explicit args (model, prompt, n, size) win
-    // and user-supplied modelOptions cannot silently override them.
-    return {
-      ...modelOptions,
-      model,
-      prompt,
-      n: numberOfImages ?? 1,
-      size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
-    }
-  }
-
-  private transformResponse(
+  protected override validateImageSize(
     model: string,
-    response: OpenAI_SDK.Images.ImagesResponse,
-  ): ImageGenerationResult {
-    const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
-      (item): Array<GeneratedImage> => {
-        const revisedPrompt = item.revised_prompt
-        if (item.b64_json) {
-          return [{ b64Json: item.b64_json, revisedPrompt }]
-        }
-        if (item.url) {
-          return [{ url: item.url, revisedPrompt }]
-        }
-        return []
-      },
-    )
+    size: string | undefined,
+  ): void {
+    validateImageSize(model, size)
+  }
 
-    return {
-      id: generateId(this.name),
-      model,
-      images,
-      usage: response.usage
-        ? {
-            inputTokens: response.usage.input_tokens,
-            outputTokens: response.usage.output_tokens,
-            totalTokens: response.usage.total_tokens,
-          }
-        : undefined,
-    }
+  protected override validateNumberOfImages(
+    model: string,
+    numberOfImages: number | undefined,
+  ): void {
+    validateNumberOfImages(model, numberOfImages)
   }
 }
 

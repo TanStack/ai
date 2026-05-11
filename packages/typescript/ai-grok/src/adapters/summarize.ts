@@ -1,12 +1,8 @@
-import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
+import { OpenAICompatibleSummarizeAdapter } from '@tanstack/openai-base'
 import { getGrokApiKeyFromEnv } from '../utils'
 import { GrokTextAdapter } from './text'
+import type { ChatStreamCapable } from '@tanstack/openai-base'
 import type { GROK_CHAT_MODELS } from '../model-meta'
-import type {
-  StreamChunk,
-  SummarizationOptions,
-  SummarizationResult,
-} from '@tanstack/ai'
 import type { GrokClientConfig } from '../utils'
 
 /**
@@ -35,125 +31,24 @@ export type GrokSummarizeModel = (typeof GROK_CHAT_MODELS)[number]
  */
 export class GrokSummarizeAdapter<
   TModel extends GrokSummarizeModel,
-> extends BaseSummarizeAdapter<TModel, GrokSummarizeProviderOptions> {
+> extends OpenAICompatibleSummarizeAdapter<
+  TModel,
+  GrokSummarizeProviderOptions
+> {
   readonly kind = 'summarize' as const
   readonly name = 'grok' as const
 
-  private textAdapter: GrokTextAdapter<TModel>
-
   constructor(config: GrokSummarizeConfig, model: TModel) {
-    super({}, model)
-    this.textAdapter = new GrokTextAdapter(config, model)
-  }
-
-  async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
-    const { logger } = options
-    const systemPrompt = this.buildSummarizationPrompt(options)
-
-    logger.request(`activity=summarize provider=grok`, {
-      provider: 'grok',
-      model: options.model,
-    })
-
-    // Use the text adapter's streaming and collect the result
-    let summary = ''
-    const id = ''
-    let model = options.model
-    let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
-
-    try {
-      for await (const chunk of this.textAdapter.chatStream({
-        model: options.model,
-        messages: [{ role: 'user', content: options.text }],
-        systemPrompts: [systemPrompt],
-        maxTokens: options.maxLength,
-        temperature: 0.3,
-        logger,
-      })) {
-        // AG-UI TEXT_MESSAGE_CONTENT event
-        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-          if (chunk.content) {
-            summary = chunk.content
-          } else {
-            summary += chunk.delta
-          }
-          model = chunk.model || model
-        }
-        // AG-UI RUN_FINISHED event
-        if (chunk.type === 'RUN_FINISHED') {
-          if (chunk.usage) {
-            usage = chunk.usage
-          }
-        }
-      }
-    } catch (error) {
-      logger.errors('grok.summarize fatal', {
-        error,
-        source: 'grok.summarize',
-      })
-      throw error
-    }
-
-    return { id, model, summary, usage }
-  }
-
-  async *summarizeStream(
-    options: SummarizationOptions,
-  ): AsyncIterable<StreamChunk> {
-    const { logger } = options
-    const systemPrompt = this.buildSummarizationPrompt(options)
-
-    logger.request(`activity=summarize provider=grok`, {
-      provider: 'grok',
-      model: options.model,
-      stream: true,
-    })
-
-    try {
-      // Delegate directly to the text adapter's streaming
-      yield* this.textAdapter.chatStream({
-        model: options.model,
-        messages: [{ role: 'user', content: options.text }],
-        systemPrompts: [systemPrompt],
-        maxTokens: options.maxLength,
-        temperature: 0.3,
-        logger,
-      })
-    } catch (error) {
-      logger.errors('grok.summarize fatal', {
-        error,
-        source: 'grok.summarize',
-      })
-      throw error
-    }
-  }
-
-  private buildSummarizationPrompt(options: SummarizationOptions): string {
-    let prompt = 'You are a professional summarizer. '
-
-    switch (options.style) {
-      case 'bullet-points':
-        prompt += 'Provide a summary in bullet point format. '
-        break
-      case 'paragraph':
-        prompt += 'Provide a summary in paragraph format. '
-        break
-      case 'concise':
-        prompt += 'Provide a very concise summary in 1-2 sentences. '
-        break
-      default:
-        prompt += 'Provide a clear and concise summary. '
-    }
-
-    if (options.focus && options.focus.length > 0) {
-      prompt += `Focus on the following aspects: ${options.focus.join(', ')}. `
-    }
-
-    if (options.maxLength) {
-      prompt += `Keep the summary under ${options.maxLength} tokens. `
-    }
-
-    return prompt
+    // The text adapter accepts richer provider options than the summarize adapter needs,
+    // but we only pass basic options (model, messages, systemPrompts, etc.) at call time.
+    super(
+      new GrokTextAdapter(
+        config,
+        model,
+      ) as unknown as ChatStreamCapable<GrokSummarizeProviderOptions>,
+      model,
+      'grok',
+    )
   }
 }
 

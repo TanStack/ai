@@ -1,4 +1,8 @@
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
+import {
+  getApiKeyFromEnv,
+  generateId as sharedGenerateId,
+} from '@tanstack/ai-utils'
 import type { ElevenLabsOutputFormat } from '../model-meta'
 
 /**
@@ -39,14 +43,7 @@ function getEnvironment(): EnvObject | undefined {
 }
 
 export function getElevenLabsApiKeyFromEnv(): string {
-  const key = getEnvironment()?.ELEVENLABS_API_KEY
-  if (!key) {
-    throw new Error(
-      'ELEVENLABS_API_KEY is required. Please set it in your environment ' +
-        'variables or pass it explicitly to the adapter factory.',
-    )
-  }
-  return key
+  return getApiKeyFromEnv('ELEVENLABS_API_KEY')
 }
 
 export function getElevenLabsAgentIdFromEnv(): string {
@@ -80,9 +77,9 @@ export function createElevenLabsClient(
   })
 }
 
-export function generateId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2)}`
-}
+// Re-exported from `@tanstack/ai-utils` so existing callers keep working
+// while the implementation stays deduped across provider packages.
+export const generateId = sharedGenerateId
 
 /**
  * Convert an ArrayBuffer to base64 in a cross-runtime way.

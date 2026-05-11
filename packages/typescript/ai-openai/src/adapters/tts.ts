@@ -1,22 +1,12 @@
-import { BaseTTSAdapter } from '@tanstack/ai/adapters'
-import {
-  createOpenAIClient,
-  generateId,
-  getOpenAIApiKeyFromEnv,
-} from '../utils/client'
+import { OpenAICompatibleTTSAdapter } from '@tanstack/openai-base'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   validateAudioInput,
   validateInstructions,
   validateSpeed,
 } from '../audio/audio-provider-options'
 import type { OpenAITTSModel } from '../model-meta'
-import type {
-  OpenAITTSFormat,
-  OpenAITTSProviderOptions,
-  OpenAITTSVoice,
-} from '../audio/tts-provider-options'
-import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
+import type { OpenAITTSProviderOptions } from '../audio/tts-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
 
 /**
@@ -37,88 +27,36 @@ export interface OpenAITTSConfig extends OpenAIClientConfig {}
  */
 export class OpenAITTSAdapter<
   TModel extends OpenAITTSModel,
-> extends BaseTTSAdapter<TModel, OpenAITTSProviderOptions> {
+> extends OpenAICompatibleTTSAdapter<TModel, OpenAITTSProviderOptions> {
   readonly name = 'openai' as const
 
-  private client: OpenAI_SDK
-
   constructor(config: OpenAITTSConfig, model: TModel) {
-    super(model, config)
-    this.client = createOpenAIClient(config)
+    super(config, model, 'openai')
   }
 
-  async generateSpeech(
-    options: TTSOptions<OpenAITTSProviderOptions>,
-  ): Promise<TTSResult> {
-    const { logger } = options
-    const { model, text, voice, format, speed, modelOptions } = options
+  protected override validateAudioInput(text: string): void {
+    // Delegate to OpenAI-specific validation that also validates model/voice/format
+    validateAudioInput({ input: text, model: this.model, voice: 'alloy' })
+  }
 
-    logger.request(`activity=generateSpeech provider=openai model=${model}`, {
-      provider: 'openai',
-      model,
-    })
-
-    // Validate inputs using existing validators
-    const audioOptions = {
-      input: text,
-      model,
-      voice: voice as OpenAITTSVoice,
-      speed,
-      response_format: format as OpenAITTSFormat,
-      ...modelOptions,
+  protected override validateSpeed(speed?: number): void {
+    if (speed !== undefined) {
+      validateSpeed({ speed, model: this.model, input: '', voice: 'alloy' })
     }
+  }
 
-    validateAudioInput(audioOptions)
-    validateSpeed(audioOptions)
-    validateInstructions(audioOptions)
-
-    // Build request
-    const request: OpenAI_SDK.Audio.SpeechCreateParams = {
-      model,
-      input: text,
-      voice: voice || 'alloy',
-      response_format: format,
-      speed,
-      ...modelOptions,
-    }
-
-    try {
-      // Call OpenAI API
-      const response = await this.client.audio.speech.create(request)
-
-      // Convert response to base64
-      const arrayBuffer = await response.arrayBuffer()
-      const base64 = Buffer.from(arrayBuffer).toString('base64')
-
-      const outputFormat = format || 'mp3'
-      const contentType = this.getContentType(outputFormat)
-
-      return {
-        id: generateId(this.name),
+  protected override validateInstructions(
+    model: string,
+    modelOptions?: OpenAITTSProviderOptions,
+  ): void {
+    if (modelOptions) {
+      validateInstructions({
+        ...modelOptions,
         model,
-        audio: base64,
-        format: outputFormat,
-        contentType,
-      }
-    } catch (error) {
-      logger.errors('openai.generateSpeech fatal', {
-        error,
-        source: 'openai.generateSpeech',
+        input: '',
+        voice: 'alloy',
       })
-      throw error
     }
-  }
-
-  private getContentType(format: string): string {
-    const contentTypes: Record<string, string> = {
-      mp3: 'audio/mpeg',
-      opus: 'audio/opus',
-      aac: 'audio/aac',
-      flac: 'audio/flac',
-      wav: 'audio/wav',
-      pcm: 'audio/pcm',
-    }
-    return contentTypes[format] || 'audio/mpeg'
   }
 }
 

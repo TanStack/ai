@@ -44,14 +44,15 @@
   ],
   "dependencies": {
     "@openrouter/sdk": "0.12.14",
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai-utils": "workspace:*"
   },
   "devDependencies": {
+    "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7",
     "zod": "^4.2.0"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:^"
   }
 }

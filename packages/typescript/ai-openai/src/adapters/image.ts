@@ -1,9 +1,5 @@
-import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import {
-  createOpenAIClient,
-  generateId,
-  getOpenAIApiKeyFromEnv,
-} from '../utils/client'
+import { OpenAICompatibleImageAdapter } from '@tanstack/openai-base'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   validateImageSize,
   validateNumberOfImages,
@@ -15,12 +11,6 @@ import type {
   OpenAIImageModelSizeByName,
   OpenAIImageProviderOptions,
 } from '../image/image-provider-options'
-import type {
-  GeneratedImage,
-  ImageGenerationOptions,
-  ImageGenerationResult,
-} from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
 import type { OpenAIClientConfig } from '../utils/client'
 
 /**
@@ -41,7 +31,7 @@ export interface OpenAIImageConfig extends OpenAIClientConfig {}
  */
 export class OpenAIImageAdapter<
   TModel extends OpenAIImageModel,
-> extends BaseImageAdapter<
+> extends OpenAICompatibleImageAdapter<
   TModel,
   OpenAIImageProviderOptions,
   OpenAIImageModelProviderOptionsByName,
@@ -50,95 +40,29 @@ export class OpenAIImageAdapter<
   readonly kind = 'image' as const
   readonly name = 'openai' as const
 
-  private client: OpenAI_SDK
-
   constructor(config: OpenAIImageConfig, model: TModel) {
-    super(model, {})
-    this.client = createOpenAIClient(config)
+    super(config, model, 'openai')
   }
 
-  async generateImages(
-    options: ImageGenerationOptions<OpenAIImageProviderOptions>,
-  ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, logger } = options
-
-    logger.request(
-      `activity=generateImage provider=openai model=${this.model}`,
-      {
-        provider: 'openai',
-        model: this.model,
-      },
-    )
-
-    try {
-      // Validate inputs
-      validatePrompt({ prompt, model })
-      validateImageSize(model, size)
-      validateNumberOfImages(model, numberOfImages)
-
-      // Build request based on model type
-      const request = this.buildRequest(options)
-
-      const response = await this.client.images.generate({
-        ...request,
-        stream: false,
-      })
-
-      return this.transformResponse(model, response)
-    } catch (error) {
-      logger.errors('openai.generateImage fatal', {
-        error,
-        source: 'openai.generateImage',
-      })
-      throw error
-    }
+  protected override validatePrompt(options: {
+    prompt: string
+    model: string
+  }): void {
+    validatePrompt(options)
   }
 
-  private buildRequest(
-    options: ImageGenerationOptions<OpenAIImageProviderOptions>,
-  ): OpenAI_SDK.Images.ImageGenerateParams {
-    const { model, prompt, numberOfImages, size, modelOptions } = options
-
-    // Spread modelOptions FIRST so explicit args (model, prompt, n, size) win
-    // and user-supplied modelOptions cannot silently override them.
-    return {
-      ...modelOptions,
-      model,
-      prompt,
-      n: numberOfImages ?? 1,
-      size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
-    }
-  }
-
-  private transformResponse(
+  protected override validateImageSize(
     model: string,
-    response: OpenAI_SDK.Images.ImagesResponse,
-  ): ImageGenerationResult {
-    const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
-      (item): Array<GeneratedImage> => {
-        const revisedPrompt = item.revised_prompt
-        if (item.b64_json) {
-          return [{ b64Json: item.b64_json, revisedPrompt }]
-        }
-        if (item.url) {
-          return [{ url: item.url, revisedPrompt }]
-        }
-        return []
-      },
-    )
+    size: string | undefined,
+  ): void {
+    validateImageSize(model, size)
+  }
 
-    return {
-      id: generateId(this.name),
-      model,
-      images,
-      usage: response.usage
-        ? {
-            inputTokens: response.usage.input_tokens,
-            outputTokens: response.usage.output_tokens,
-            totalTokens: response.usage.total_tokens,
-          }
-        : undefined,
-    }
+  protected override validateNumberOfImages(
+    model: string,
+    numberOfImages: number | undefined,
+  ): void {
+    validateNumberOfImages(model, numberOfImages)
   }
 }
 
