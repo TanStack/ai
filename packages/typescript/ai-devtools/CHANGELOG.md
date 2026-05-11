@@ -1,5 +1,13 @@
 # @tanstack/ai-devtools-core
 
+## 0.3.27
+
+### Patch Changes
+
+- Updated dependencies [[`87f305c`](https://github.com/TanStack/ai/commit/87f305c9961d608fd7bea93a5100698a98aed11d)]:
+  - @tanstack/ai@0.16.0
+  - @tanstack/ai-event-client@0.3.0
+
 ## 0.3.26
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/openai-base",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Shared base adapters and utilities for OpenAI-compatible providers in TanStack AI",
   "author": "",
   "license": "MIT",
