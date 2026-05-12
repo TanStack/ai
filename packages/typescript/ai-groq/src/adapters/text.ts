@@ -75,7 +75,6 @@ export class GroqTextAdapter<
       runId: string
       threadId: string
       messageId: string
-      timestamp: number
       hasEmittedRunStarted: boolean
     },
   ) {
