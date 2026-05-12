@@ -16,6 +16,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -25,6 +26,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini']),
   'multi-turn-reasoning': new Set(['anthropic']),
@@ -36,6 +38,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -45,6 +48,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -53,6 +57,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   'tool-approval': new Set([
@@ -62,6 +67,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -71,6 +77,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   'structured-output': new Set([
     'openai',
@@ -80,6 +87,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -89,6 +97,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   'multimodal-image': new Set([
     'openai',
@@ -96,6 +105,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   'multimodal-structured': new Set([
     'openai',
@@ -103,6 +113,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   summarize: new Set([
     'openai',
@@ -111,6 +122,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -119,6 +131,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'grok',
     'openrouter',
+    'openrouter-responses',
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),

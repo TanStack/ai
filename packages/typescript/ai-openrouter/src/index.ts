@@ -11,6 +11,15 @@ export {
   type OpenRouterTextModelOptions,
 } from './adapters/text'
 
+// Responses (beta) adapter - for the OpenRouter beta Responses API
+export {
+  OpenRouterResponsesTextAdapter,
+  createOpenRouterResponsesText,
+  openRouterResponsesText,
+  type OpenRouterResponsesConfig,
+  type OpenRouterResponsesTextProviderOptions,
+} from './adapters/responses-text'
+
 // Summarize adapter - for text summarization
 export {
   OpenRouterSummarizeAdapter,

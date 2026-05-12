@@ -105,7 +105,7 @@ export class OpenAICompatibleResponsesTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.responses.create(
+      const response = await this.callResponseStream(
         {
           ...requestParams,
           stream: true,
@@ -193,7 +193,7 @@ export class OpenAICompatibleResponsesTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.responses.create(
+      const response = await this.callResponse(
         {
           ...(cleanParams as Omit<
             OpenAI_SDK.Responses.ResponseCreateParams,
@@ -259,6 +259,39 @@ export class OpenAICompatibleResponsesTextAdapter<
     originalRequired?: Array<string>,
   ): Record<string, any> {
     return makeStructuredOutputCompatible(schema, originalRequired)
+  }
+
+  /**
+   * Performs the non-streaming Responses API network call. The default uses
+   * the OpenAI SDK (`client.responses.create`), which covers any provider
+   * whose endpoint accepts the OpenAI SDK verbatim.
+   *
+   * Override in subclasses whose SDK has a different call shape — for
+   * example `@openrouter/sdk` exposes `client.beta.responses.send
+   * ({ responsesRequest })` with camelCase fields. The override is
+   * responsible for converting the params shape on the way in and returning
+   * an object structurally compatible with `OpenAI_SDK.Responses.Response`
+   * (the base only reads documented fields like `response.output[…]`).
+   */
+  protected async callResponse(
+    params: OpenAI_SDK.Responses.ResponseCreateParamsNonStreaming,
+    requestOptions: ReturnType<typeof extractRequestOptions>,
+  ): Promise<OpenAI_SDK.Responses.Response> {
+    return this.client.responses.create(params, requestOptions)
+  }
+
+  /**
+   * Performs the streaming Responses API network call. Same pattern as
+   * {@link callResponse} — default uses the OpenAI SDK; override for
+   * providers whose SDK exposes a different streaming entry point. Returns
+   * an `AsyncIterable<ResponseStreamEvent>` because the base's
+   * {@link processStreamChunks} only needs structural iteration over events.
+   */
+  protected async callResponseStream(
+    params: OpenAI_SDK.Responses.ResponseCreateParamsStreaming,
+    requestOptions: ReturnType<typeof extractRequestOptions>,
+  ): Promise<AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>> {
+    return this.client.responses.create(params, requestOptions)
   }
 
   /**

@@ -18,6 +18,18 @@ export {
   type ChatCompletionFunctionTool,
 } from './adapters/chat-completions-tool-converter'
 export { OpenAICompatibleResponsesTextAdapter } from './adapters/responses-text'
+// Re-export the OpenAI Responses SDK types subclasses need when overriding
+// the `callResponse*` / `processStreamChunks` / `extractTextFromResponse`
+// hooks, so subclass packages don't need to declare `openai` as a direct
+// dependency.
+export type {
+  Response as ResponsesResponse,
+  ResponseCreateParams,
+  ResponseCreateParamsNonStreaming,
+  ResponseCreateParamsStreaming,
+  ResponseInputContent,
+  ResponseStreamEvent,
+} from 'openai/resources/responses/responses'
 export {
   convertFunctionToolToResponsesFormat,
   convertToolsToResponsesFormat,
