@@ -91,6 +91,13 @@ const weatherTool: Tool = {
 }
 
 describe('Groq adapters', () => {
+  // Reset the module-level `pendingMockCreate` between tests so a previous
+  // test's setupMockSdkClient call can't leak into a later test that
+  // instantiates the adapter without setting up a mock.
+  beforeEach(() => {
+    pendingMockCreate = undefined
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
