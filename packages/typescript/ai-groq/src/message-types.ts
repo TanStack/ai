@@ -10,7 +10,9 @@
 export type FunctionParameters = { [key: string]: unknown }
 
 export interface ChatCompletionNamedToolChoice {
-  Function: {
+  /** Always `function` for a named tool choice. */
+  type: 'function'
+  function: {
     /** The name of the function to call. */
     name: string
   }
