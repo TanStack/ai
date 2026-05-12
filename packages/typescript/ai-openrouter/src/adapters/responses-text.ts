@@ -416,6 +416,18 @@ async function* adaptOpenRouterResponsesStreamEvents(
 ): AsyncIterable<ResponseStreamEvent> {
   for await (const event of stream) {
     const e = event as Record<string, any>
+
+    // Speakeasy's discriminated-union parser falls back to `{ raw, type:
+    // 'UNKNOWN', isUnknown: true }` when an event's strict per-variant schema
+    // rejects (missing optional-ish fields like `sequence_number`/`logprobs`
+    // that some upstreams — including aimock — omit). The `raw` payload is
+    // the original wire-shape event in snake_case, which is exactly what the
+    // base's `processStreamChunks` reads. Re-emit it verbatim.
+    if (e.isUnknown && e.raw && typeof e.raw === 'object') {
+      yield e.raw as ResponseStreamEvent
+      continue
+    }
+
     switch (e.type) {
       case 'response.created':
       case 'response.in_progress':
