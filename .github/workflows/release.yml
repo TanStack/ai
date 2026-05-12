@@ -39,8 +39,6 @@ jobs:
           publish: pnpm run changeset:publish
           commit: 'ci: Version Packages'
           title: 'ci: Version Packages'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate Docs
         if: steps.changesets.outputs.published == 'true'
         run: pnpm generate-docs
