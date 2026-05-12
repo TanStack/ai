@@ -286,6 +286,17 @@ export class OpenRouterTextAdapter<
         }
       }
       case 'audio':
+        // OpenRouter's chat-completions `input_audio` shape carries
+        // `{ data, format }` where `data` is base64 — there's no URL
+        // variant on this wire. For URL-sourced audio, fall back to a
+        // text reference rather than feeding the literal URL into the
+        // base64 slot (which would either be rejected upstream or
+        // silently misinterpreted as garbage audio bytes). The
+        // Responses adapter does have an `input_file` URL variant and
+        // routes URLs there directly — see `responses-text.ts`.
+        if (part.source.type === 'url') {
+          return { type: 'text', text: `[Audio: ${part.source.value}]` }
+        }
         return {
           type: 'input_audio',
           inputAudio: { data: part.source.value, format: 'mp3' },
