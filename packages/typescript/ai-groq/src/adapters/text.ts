@@ -85,6 +85,26 @@ export class GroqTextAdapter<
       aguiState,
     )
   }
+
+  /**
+   * Surfaces Groq's reasoning deltas during streaming structured output.
+   * Groq emits `delta.reasoning` (or legacy `delta.reasoning_content`) on
+   * reasoning models when the caller sets `reasoning_format: 'parsed'` in
+   * modelOptions. The base's chatStream and structuredOutputStream both
+   * route reasoning through this hook.
+   */
+  protected override extractReasoning(
+    chunk: ChatCompletionChunk,
+  ): { text: string } | undefined {
+    const delta = chunk.choices?.[0]?.delta as
+      | { reasoning?: unknown; reasoning_content?: unknown }
+      | undefined
+    const raw = delta?.reasoning ?? delta?.reasoning_content
+    if (typeof raw === 'string' && raw.length > 0) {
+      return { text: raw }
+    }
+    return undefined
+  }
 }
 
 /**

@@ -8,6 +8,7 @@ import type {
   ResolveProviderOptions,
 } from '../model-meta'
 import type { Modality } from '@tanstack/ai'
+import type { ChatCompletionChunk } from '@tanstack/openai-base'
 import type { GrokMessageMetadataByModality } from '../message-types'
 import type { GrokClientConfig } from '../utils'
 
@@ -58,6 +59,26 @@ export class GrokTextAdapter<
 
   constructor(config: GrokTextConfig, model: TModel) {
     super(model, 'grok', new OpenAI(withGrokDefaults(config)))
+  }
+
+  /**
+   * Surfaces xAI reasoning deltas on Grok reasoning models. The DeepSeek-style
+   * convention puts the chain-of-thought on `delta.reasoning_content`; some
+   * Grok variants also populate `delta.reasoning`. Reading both keeps
+   * reasoning flowing through the base's REASONING_* lifecycle for both
+   * `chatStream` and `structuredOutputStream`.
+   */
+  protected override extractReasoning(
+    chunk: ChatCompletionChunk,
+  ): { text: string } | undefined {
+    const delta = chunk.choices?.[0]?.delta as
+      | { reasoning?: unknown; reasoning_content?: unknown }
+      | undefined
+    const raw = delta?.reasoning_content ?? delta?.reasoning
+    if (typeof raw === 'string' && raw.length > 0) {
+      return { text: raw }
+    }
+    return undefined
   }
 }
 

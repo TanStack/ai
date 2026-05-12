@@ -219,6 +219,330 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   }
 
   /**
+   * Stream structured output. Single Chat Completions request with
+   * `response_format: json_schema` + `stream: true`. Emits the standard
+   * AG-UI lifecycle (`RUN_STARTED` → `REASONING_*?` → `TEXT_MESSAGE_*`
+   * carrying raw JSON deltas → terminal `CUSTOM 'structured-output.complete'`
+   * → `RUN_FINISHED`). Subclasses use the same SDK-call / reasoning /
+   * structured-output-transform hooks as `chatStream` / `structuredOutput` —
+   * no per-subclass override should be needed.
+   */
+  async *structuredOutputStream(
+    options: StructuredOutputOptions<TProviderOptions>,
+  ): AsyncIterable<StreamChunk> {
+    const { chatOptions, outputSchema } = options
+    const requestParams = this.mapOptionsToRequest(chatOptions)
+
+    const jsonSchema = this.makeStructuredOutputCompatible(
+      outputSchema,
+      outputSchema.required,
+    )
+
+    const timestamp = Date.now()
+    const aguiState = {
+      runId: generateId(this.name),
+      messageId: generateId(this.name),
+      timestamp,
+      hasEmittedRunStarted: false,
+    }
+
+    let accumulatedContent = ''
+    let accumulatedReasoning = ''
+    let hasEmittedTextMessageStart = false
+    let hasEmittedTextMessageEnd = false
+    let reasoningMessageId: string | undefined
+    let hasClosedReasoning = false
+    let stepId: string | undefined
+    let lastModel: string | undefined
+    let lastUsage:
+      | OpenAI_SDK.Chat.Completions.ChatCompletionChunk['usage']
+      | undefined
+
+    const closeReasoningLifecycle = function* (this: {
+      name: string
+    }): Generator<StreamChunk> {
+      if (reasoningMessageId && !hasClosedReasoning) {
+        hasClosedReasoning = true
+        yield asChunk({
+          type: 'REASONING_MESSAGE_END',
+          messageId: reasoningMessageId,
+          model: lastModel || chatOptions.model,
+          timestamp,
+        })
+        yield asChunk({
+          type: 'REASONING_END',
+          messageId: reasoningMessageId,
+          model: lastModel || chatOptions.model,
+          timestamp,
+        })
+        if (stepId) {
+          yield asChunk({
+            type: 'STEP_FINISHED',
+            stepName: stepId,
+            stepId,
+            model: lastModel || chatOptions.model,
+            timestamp,
+            content: accumulatedReasoning,
+          })
+        }
+      }
+    }.bind(this)
+
+    try {
+      // Strip stream_options + tools from the base request. Structured output
+      // sends `response_format: json_schema` and doesn't carry tools — keeping
+      // them in the request can confuse strict-mode validation upstream.
+      const {
+        stream_options: _so,
+        stream: _s,
+        tools: _t,
+        ...cleanParams
+      } = requestParams as unknown as Record<string, unknown>
+
+      chatOptions.logger.request(
+        `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model },
+      )
+
+      const stream = await this.callChatCompletionStream(
+        {
+          ...(cleanParams as unknown as OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming),
+          stream: true,
+          stream_options: { include_usage: true },
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'structured_output',
+              schema: jsonSchema,
+              strict: true,
+            },
+          },
+        },
+        extractRequestOptions(chatOptions.request),
+      )
+
+      for await (const chunk of stream) {
+        if (chunk.model) lastModel = chunk.model
+
+        // Usage may arrive on a chunk with empty `choices` (OpenAI's
+        // include_usage terminal chunk) or piggybacked on a finish chunk
+        // (`x_groq.usage` on Groq). Capture from either independent of
+        // choices[0].
+        const usage =
+          chunk.usage ??
+          (chunk as { x_groq?: { usage?: typeof chunk.usage } }).x_groq?.usage
+        if (usage) lastUsage = usage
+
+        if (!aguiState.hasEmittedRunStarted) {
+          aguiState.hasEmittedRunStarted = true
+          yield asChunk({
+            type: 'RUN_STARTED',
+            runId: aguiState.runId,
+            model: chunk.model || chatOptions.model,
+            timestamp,
+          })
+        }
+
+        // Reasoning (via the extractReasoning hook — same hook as chatStream).
+        const reasoning = this.extractReasoning(chunk)
+        if (reasoning && reasoning.text) {
+          if (!reasoningMessageId) {
+            reasoningMessageId = generateId(this.name)
+            stepId = generateId(this.name)
+            yield asChunk({
+              type: 'REASONING_START',
+              messageId: reasoningMessageId,
+              model: chunk.model || chatOptions.model,
+              timestamp,
+            })
+            yield asChunk({
+              type: 'REASONING_MESSAGE_START',
+              messageId: reasoningMessageId,
+              role: 'reasoning' as const,
+              model: chunk.model || chatOptions.model,
+              timestamp,
+            })
+            yield asChunk({
+              type: 'STEP_STARTED',
+              stepName: stepId,
+              stepId,
+              model: chunk.model || chatOptions.model,
+              timestamp,
+              stepType: 'thinking',
+            })
+          }
+          accumulatedReasoning += reasoning.text
+          yield asChunk({
+            type: 'REASONING_MESSAGE_CONTENT',
+            messageId: reasoningMessageId,
+            delta: reasoning.text,
+            model: chunk.model || chatOptions.model,
+            timestamp,
+          })
+        }
+
+        const choice = chunk.choices[0]
+        if (!choice) continue
+
+        const deltaContent = choice.delta.content
+        if (deltaContent) {
+          yield* closeReasoningLifecycle()
+
+          if (!hasEmittedTextMessageStart) {
+            hasEmittedTextMessageStart = true
+            yield asChunk({
+              type: 'TEXT_MESSAGE_START',
+              messageId: aguiState.messageId,
+              model: chunk.model || chatOptions.model,
+              timestamp,
+              role: 'assistant',
+            })
+          }
+
+          accumulatedContent += deltaContent
+
+          yield asChunk({
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: aguiState.messageId,
+            model: chunk.model || chatOptions.model,
+            timestamp,
+            delta: deltaContent,
+            content: accumulatedContent,
+          })
+        }
+      }
+
+      // Finalisation: close any open lifecycle, parse + validate, emit
+      // terminal events. This block always runs unless the loop threw — abort
+      // and SDK errors land in the catch block below.
+      yield* closeReasoningLifecycle()
+
+      if (hasEmittedTextMessageStart && !hasEmittedTextMessageEnd) {
+        hasEmittedTextMessageEnd = true
+        yield asChunk({
+          type: 'TEXT_MESSAGE_END',
+          messageId: aguiState.messageId,
+          model: lastModel || chatOptions.model,
+          timestamp,
+        })
+      }
+
+      if (accumulatedContent.length === 0) {
+        yield asChunk({
+          type: 'RUN_ERROR',
+          runId: aguiState.runId,
+          model: lastModel || chatOptions.model,
+          timestamp,
+          message: `${this.name}.structuredOutputStream: response contained no content`,
+          code: 'empty-response',
+          error: {
+            message: `${this.name}.structuredOutputStream: response contained no content`,
+            code: 'empty-response',
+          },
+        })
+        return
+      }
+
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(accumulatedContent)
+      } catch {
+        yield asChunk({
+          type: 'RUN_ERROR',
+          runId: aguiState.runId,
+          model: lastModel || chatOptions.model,
+          timestamp,
+          message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
+          code: 'parse-error',
+          error: {
+            message: 'Failed to parse structured output as JSON',
+            code: 'parse-error',
+          },
+        })
+        return
+      }
+
+      const transformed = this.transformStructuredOutput(parsed)
+
+      yield asChunk({
+        type: 'CUSTOM',
+        name: 'structured-output.complete',
+        value: {
+          object: transformed,
+          raw: accumulatedContent,
+          ...(accumulatedReasoning
+            ? { reasoning: accumulatedReasoning }
+            : {}),
+        },
+        model: lastModel || chatOptions.model,
+        timestamp,
+      })
+
+      yield asChunk({
+        type: 'RUN_FINISHED',
+        runId: aguiState.runId,
+        model: lastModel || chatOptions.model,
+        timestamp,
+        finishReason: 'stop',
+        ...(lastUsage && {
+          usage: {
+            promptTokens: lastUsage.prompt_tokens ?? 0,
+            completionTokens: lastUsage.completion_tokens ?? 0,
+            totalTokens: lastUsage.total_tokens ?? 0,
+          },
+        }),
+      })
+    } catch (error: unknown) {
+      if (!aguiState.hasEmittedRunStarted) {
+        aguiState.hasEmittedRunStarted = true
+        yield asChunk({
+          type: 'RUN_STARTED',
+          runId: aguiState.runId,
+          model: chatOptions.model,
+          timestamp,
+        })
+      }
+
+      const isAbort = this.isAbortError(error)
+      const errorPayload = toRunErrorPayload(
+        error,
+        `${this.name}.structuredOutputStream failed`,
+      )
+
+      yield asChunk({
+        type: 'RUN_ERROR',
+        runId: aguiState.runId,
+        model: lastModel || chatOptions.model,
+        timestamp,
+        message: errorPayload.message,
+        code: isAbort ? 'aborted' : errorPayload.code,
+        error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
+      })
+
+      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+        error: errorPayload,
+        source: `${this.name}.structuredOutputStream`,
+      })
+    }
+  }
+
+  /**
+   * Cross-SDK abort detection for `structuredOutputStream`. Default duck-types
+   * on `name === 'APIUserAbortError'` (OpenAI SDK), `code === 'ERR_CANCELED'`,
+   * and standard `AbortError`s. Subclasses with proprietary error types (e.g.
+   * `@openrouter/sdk`'s `RequestAbortedError`) override to extend the check.
+   */
+  protected isAbortError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false
+    const e = error as { name?: unknown; code?: unknown }
+    return (
+      e.name === 'APIUserAbortError' ||
+      e.name === 'AbortError' ||
+      e.code === 'ERR_CANCELED'
+    )
+  }
+
+  /**
    * Applies provider-specific transformations for structured output compatibility.
    * Override this in subclasses to handle provider-specific quirks.
    */
