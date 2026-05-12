@@ -1057,6 +1057,55 @@ export interface CustomEvent extends AGUICustomEvent {
   model?: string
 }
 
+/**
+ * Final event of a streaming structured-output run. Carries the validated
+ * `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
+ * the `raw` JSON text that produced it, and — for thinking/reasoning models —
+ * the accumulated reasoning text. Adapters emit this with `T = unknown`; the
+ * chat orchestrator narrows to the schema's inferred type after validation.
+ *
+ * `reasoning` is `undefined` when the model produced none (most non-thinking
+ * models) and when the underlying adapter doesn't expose reasoning streams.
+ */
+export interface StructuredOutputCompleteEvent<T = unknown> extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
+  name: 'structured-output.complete'
+  value: { object: T; raw: string; reasoning?: string }
+}
+
+/**
+ * Public type for streams returned by `chat({ outputSchema, stream: true })`.
+ * Yields all standard `StreamChunk` lifecycle events plus a terminal
+ * `StructuredOutputCompleteEvent<T>` whose `value.object` is typed against the
+ * caller's schema.
+ */
+export type StructuredOutputStream<T = unknown> = AsyncIterable<
+  StreamChunk | StructuredOutputCompleteEvent<T>
+>
+
+/**
+ * Type guard for the terminal `structured-output.complete` event. Use to
+ * narrow chunks while iterating a `StructuredOutputStream<T>`:
+ *
+ * ```ts
+ * for await (const chunk of stream) {
+ *   if (isStructuredOutputCompleteEvent<MySchema>(chunk)) {
+ *     chunk.value.object  // typed as MySchema
+ *   }
+ * }
+ * ```
+ */
+export function isStructuredOutputCompleteEvent<T = unknown>(
+  chunk: StreamChunk | StructuredOutputCompleteEvent<T>,
+): chunk is StructuredOutputCompleteEvent<T> {
+  return (
+    chunk.type === 'CUSTOM' &&
+    (chunk as CustomEvent).name === 'structured-output.complete'
+  )
+}
+
 // ============================================================================
 // AG-UI Reasoning Event Interfaces
 // ============================================================================
