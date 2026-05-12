@@ -1,3 +1,4 @@
+import { EventType } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
@@ -19,11 +20,6 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { OpenAICompatibleClientConfig } from '../types/config'
-
-/** Cast an event object to StreamChunk. Adapters construct events with string
- *  literal types which are structurally compatible with the EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 /**
  * OpenAI-compatible Chat Completions Text Adapter
@@ -71,13 +67,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
     options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const requestParams = this.mapOptionsToRequest(options)
-    const timestamp = Date.now()
 
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
       runId: generateId(this.name),
+      threadId: options.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
-      timestamp,
       hasEmittedRunStarted: false,
     }
 
@@ -107,22 +102,24 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
-        yield asChunk({
-          type: 'RUN_STARTED',
+        yield {
+          type: EventType.RUN_STARTED,
           runId: aguiState.runId,
+          threadId: aguiState.threadId,
           model: options.model,
-          timestamp,
-        })
+          timestamp: Date.now(),
+        } satisfies StreamChunk
       }
 
       // Emit AG-UI RUN_ERROR
-      yield asChunk({
-        type: 'RUN_ERROR',
-        runId: aguiState.runId,
+      yield {
+        type: EventType.RUN_ERROR,
         model: options.model,
-        timestamp,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        code: errorPayload.code,
         error: errorPayload,
-      })
+      } satisfies StreamChunk
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
         error: errorPayload,
@@ -302,13 +299,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
     options: TextOptions,
     aguiState: {
       runId: string
+      threadId: string
       messageId: string
-      timestamp: number
       hasEmittedRunStarted: boolean
     },
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
-    const timestamp = aguiState.timestamp
     let hasEmittedTextMessageStart = false
     let lastModel: string | undefined
     // Track usage from any chunk that carries it. With
@@ -378,12 +374,13 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         // `hasEmittedRunStarted`).
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
-          yield asChunk({
-            type: 'RUN_STARTED',
+          yield {
+            type: EventType.RUN_STARTED,
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model: chunk.model || options.model,
-            timestamp,
-          })
+            timestamp: Date.now(),
+          } satisfies StreamChunk
         }
 
         // Reasoning content (extractReasoning() hook). Run before reading
@@ -395,38 +392,38 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
           if (!reasoningMessageId) {
             reasoningMessageId = generateId(this.name)
             stepId = generateId(this.name)
-            yield asChunk({
-              type: 'REASONING_START',
+            yield {
+              type: EventType.REASONING_START,
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
-              timestamp,
-            })
-            yield asChunk({
-              type: 'REASONING_MESSAGE_START',
+              timestamp: Date.now(),
+            } satisfies StreamChunk
+            yield {
+              type: EventType.REASONING_MESSAGE_START,
               messageId: reasoningMessageId,
               role: 'reasoning' as const,
               model: chunk.model || options.model,
-              timestamp,
-            })
+              timestamp: Date.now(),
+            } satisfies StreamChunk
             // Legacy STEP_STARTED (single emission, paired with the
             // STEP_FINISHED below when reasoning closes).
-            yield asChunk({
-              type: 'STEP_STARTED',
+            yield {
+              type: EventType.STEP_STARTED,
               stepName: stepId,
               stepId,
               model: chunk.model || options.model,
-              timestamp,
+              timestamp: Date.now(),
               stepType: 'thinking',
-            })
+            } satisfies StreamChunk
           }
           accumulatedReasoning += reasoning.text
-          yield asChunk({
-            type: 'REASONING_MESSAGE_CONTENT',
+          yield {
+            type: EventType.REASONING_MESSAGE_CONTENT,
             messageId: reasoningMessageId,
             delta: reasoning.text,
             model: chunk.model || options.model,
-            timestamp,
-          })
+            timestamp: Date.now(),
+          } satisfies StreamChunk
         }
 
         const choice = chunk.choices[0]
@@ -443,53 +440,53 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
           // REASONING_END before any TEXT_MESSAGE_START.
           if (reasoningMessageId && !hasClosedReasoning) {
             hasClosedReasoning = true
-            yield asChunk({
-              type: 'REASONING_MESSAGE_END',
+            yield {
+              type: EventType.REASONING_MESSAGE_END,
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
-              timestamp,
-            })
-            yield asChunk({
-              type: 'REASONING_END',
+              timestamp: Date.now(),
+            } satisfies StreamChunk
+            yield {
+              type: EventType.REASONING_END,
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
-              timestamp,
-            })
+              timestamp: Date.now(),
+            } satisfies StreamChunk
             if (stepId) {
-              yield asChunk({
-                type: 'STEP_FINISHED',
+              yield {
+                type: EventType.STEP_FINISHED,
                 stepName: stepId,
                 stepId,
                 model: chunk.model || options.model,
-                timestamp,
+                timestamp: Date.now(),
                 content: accumulatedReasoning,
-              })
+              } satisfies StreamChunk
             }
           }
 
           // Emit TEXT_MESSAGE_START on first text content
           if (!hasEmittedTextMessageStart) {
             hasEmittedTextMessageStart = true
-            yield asChunk({
-              type: 'TEXT_MESSAGE_START',
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
               messageId: aguiState.messageId,
               model: chunk.model || options.model,
-              timestamp,
+              timestamp: Date.now(),
               role: 'assistant',
-            })
+            } satisfies StreamChunk
           }
 
           accumulatedContent += deltaContent
 
           // Emit AG-UI TEXT_MESSAGE_CONTENT
-          yield asChunk({
-            type: 'TEXT_MESSAGE_CONTENT',
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: aguiState.messageId,
             model: chunk.model || options.model,
-            timestamp,
+            timestamp: Date.now(),
             delta: deltaContent,
             content: accumulatedContent,
-          })
+          } satisfies StreamChunk
         }
 
         // Handle tool calls - they come in as deltas
@@ -523,26 +520,26 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
             // Emit TOOL_CALL_START when we have id and name
             if (toolCall.id && toolCall.name && !toolCall.started) {
               toolCall.started = true
-              yield asChunk({
-                type: 'TOOL_CALL_START',
+              yield {
+                type: EventType.TOOL_CALL_START,
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
-                timestamp,
+                timestamp: Date.now(),
                 index,
-              })
+              } satisfies StreamChunk
             }
 
             // Emit TOOL_CALL_ARGS for argument deltas
             if (toolCallDelta.function?.arguments && toolCall.started) {
-              yield asChunk({
-                type: 'TOOL_CALL_ARGS',
+              yield {
+                type: EventType.TOOL_CALL_ARGS,
                 toolCallId: toolCall.id,
                 model: chunk.model || options.model,
-                timestamp,
+                timestamp: Date.now(),
                 delta: toolCallDelta.function.arguments,
-              })
+              } satisfies StreamChunk
             }
           }
         }
@@ -596,15 +593,15 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
               }
 
               // Emit AG-UI TOOL_CALL_END
-              yield asChunk({
-                type: 'TOOL_CALL_END',
+              yield {
+                type: EventType.TOOL_CALL_END,
                 toolCallId: toolCall.id,
                 toolCallName: toolCall.name,
                 toolName: toolCall.name,
                 model: chunk.model || options.model,
-                timestamp,
+                timestamp: Date.now(),
                 input: parsedInput,
-              })
+              } satisfies StreamChunk
               emittedAnyToolCallEnd = true
             }
             // Clear tool-call state after emission so a subsequent
@@ -615,12 +612,12 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
 
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
-            yield asChunk({
-              type: 'TEXT_MESSAGE_END',
+            yield {
+              type: EventType.TEXT_MESSAGE_END,
               messageId: aguiState.messageId,
               model: chunk.model || options.model,
-              timestamp,
-            })
+              timestamp: Date.now(),
+            } satisfies StreamChunk
             hasEmittedTextMessageStart = false
           }
 
@@ -669,15 +666,15 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
               parsedInput = {}
             }
           }
-          yield asChunk({
-            type: 'TOOL_CALL_END',
+          yield {
+            type: EventType.TOOL_CALL_END,
             toolCallId: toolCall.id,
             toolCallName: toolCall.name,
             toolName: toolCall.name,
             model: lastModel || options.model,
-            timestamp,
+            timestamp: Date.now(),
             input: parsedInput,
-          })
+          } satisfies StreamChunk
           pendingToolCount += 1
           emittedAnyToolCallEnd = true
         }
@@ -686,39 +683,39 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         // Make sure the text message lifecycle is closed even on early
         // termination paths where finish_reason never arrives.
         if (hasEmittedTextMessageStart) {
-          yield asChunk({
-            type: 'TEXT_MESSAGE_END',
+          yield {
+            type: EventType.TEXT_MESSAGE_END,
             messageId: aguiState.messageId,
             model: lastModel || options.model,
-            timestamp,
-          })
+            timestamp: Date.now(),
+          } satisfies StreamChunk
         }
 
         // Close any reasoning lifecycle that text never closed (no text
         // content arrived, or the stream cut off before text started).
         if (reasoningMessageId && !hasClosedReasoning) {
           hasClosedReasoning = true
-          yield asChunk({
-            type: 'REASONING_MESSAGE_END',
+          yield {
+            type: EventType.REASONING_MESSAGE_END,
             messageId: reasoningMessageId,
             model: lastModel || options.model,
-            timestamp,
-          })
-          yield asChunk({
-            type: 'REASONING_END',
+            timestamp: Date.now(),
+          } satisfies StreamChunk
+          yield {
+            type: EventType.REASONING_END,
             messageId: reasoningMessageId,
             model: lastModel || options.model,
-            timestamp,
-          })
+            timestamp: Date.now(),
+          } satisfies StreamChunk
           if (stepId) {
-            yield asChunk({
-              type: 'STEP_FINISHED',
+            yield {
+              type: EventType.STEP_FINISHED,
               stepName: stepId,
               stepId,
               model: lastModel || options.model,
-              timestamp,
+              timestamp: Date.now(),
               content: accumulatedReasoning,
-            })
+            } satisfies StreamChunk
           }
         }
 
@@ -730,17 +727,18 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
         // `tool_calls` but never produced a started/ended pair must NOT
         // surface `tool_calls` here, since downstream consumers wait for
         // tool results that would never arrive.
-        const finishReason: string = emittedAnyToolCallEnd
+        const finishReason = emittedAnyToolCallEnd
           ? 'tool_calls'
           : pendingFinishReason === 'tool_calls'
             ? 'stop'
             : (pendingFinishReason ?? 'stop')
 
-        yield asChunk({
-          type: 'RUN_FINISHED',
+        yield {
+          type: EventType.RUN_FINISHED,
           runId: aguiState.runId,
+          threadId: aguiState.threadId,
           model: lastModel || options.model,
-          timestamp,
+          timestamp: Date.now(),
           usage: lastUsage
             ? {
                 promptTokens: lastUsage.prompt_tokens || 0,
@@ -749,7 +747,7 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
               }
             : undefined,
           finishReason,
-        })
+        } satisfies StreamChunk
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
@@ -764,13 +762,14 @@ export class OpenAICompatibleChatCompletionsTextAdapter<
       })
 
       // Emit AG-UI RUN_ERROR
-      yield asChunk({
-        type: 'RUN_ERROR',
-        runId: aguiState.runId,
+      yield {
+        type: EventType.RUN_ERROR,
         model: options.model,
-        timestamp,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        code: errorPayload.code,
         error: errorPayload,
-      })
+      } satisfies StreamChunk
     }
   }
 

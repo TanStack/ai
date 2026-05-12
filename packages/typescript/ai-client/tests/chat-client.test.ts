@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { EventType } from '@tanstack/ai'
 import { ChatClient } from '../src/chat-client'
 import {
   createMockConnectionAdapter,
@@ -14,10 +15,6 @@ import type {
 } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '../src/types'
-
-/** Cast an event object to StreamChunk for type compatibility with EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 describe('ChatClient', () => {
   describe('constructor', () => {
@@ -154,8 +151,9 @@ describe('ChatClient', () => {
     it('stop should not unsubscribe an active subscription', async () => {
       const adapter = createSubscribeAdapter([
         {
-          type: 'RUN_FINISHED',
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
@@ -259,7 +257,7 @@ describe('ChatClient', () => {
     it('unsubscribe should abort in-flight requests and disconnect', async () => {
       const adapter = createSubscribeAdapter([
         {
-          type: 'TEXT_MESSAGE_CONTENT',
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
@@ -318,7 +316,7 @@ describe('ChatClient', () => {
     it('should remain pending without terminal run events', async () => {
       const adapter = createSubscribeAdapter([
         {
-          type: 'TEXT_MESSAGE_CONTENT',
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
@@ -354,13 +352,14 @@ describe('ChatClient', () => {
       it('should flip to true on RUN_STARTED and false on RUN_FINISHED', async () => {
         const chunks: Array<StreamChunk> = [
           {
-            type: 'RUN_STARTED',
+            type: EventType.RUN_STARTED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
           } as unknown as StreamChunk,
           {
-            type: 'TEXT_MESSAGE_CONTENT',
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
             model: 'test',
             timestamp: Date.now(),
@@ -368,8 +367,9 @@ describe('ChatClient', () => {
             content: 'Hi',
           } as unknown as StreamChunk,
           {
-            type: 'RUN_FINISHED',
+            type: EventType.RUN_FINISHED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
             finishReason: 'stop',
@@ -393,13 +393,15 @@ describe('ChatClient', () => {
       it('should flip to false on RUN_ERROR', async () => {
         const chunks: Array<StreamChunk> = [
           {
-            type: 'RUN_STARTED',
+            type: EventType.RUN_STARTED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
           } as unknown as StreamChunk,
           {
-            type: 'RUN_ERROR',
+            type: EventType.RUN_ERROR,
+            message: 'something went wrong',
             runId: 'run-1',
             model: 'test',
             timestamp: Date.now(),
@@ -424,13 +426,14 @@ describe('ChatClient', () => {
       it('should remain correct through subscribe/unsubscribe cycles', async () => {
         const chunks: Array<StreamChunk> = [
           {
-            type: 'RUN_STARTED',
+            type: EventType.RUN_STARTED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
           } as unknown as StreamChunk,
           {
-            type: 'TEXT_MESSAGE_CONTENT',
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
             model: 'test',
             timestamp: Date.now(),
@@ -438,8 +441,9 @@ describe('ChatClient', () => {
             content: 'Hi',
           } as unknown as StreamChunk,
           {
-            type: 'RUN_FINISHED',
+            type: EventType.RUN_FINISHED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
             finishReason: 'stop',
@@ -464,12 +468,13 @@ describe('ChatClient', () => {
             while (!signal?.aborted) {
               if (!yieldedStart) {
                 yieldedStart = true
-                yield asChunk({
-                  type: 'RUN_STARTED' as const,
+                yield {
+                  type: EventType.RUN_STARTED as const,
                   runId: 'run-1',
+                  threadId: 'thread-1',
                   model: 'test',
                   timestamp: Date.now(),
-                })
+                } satisfies StreamChunk
               }
               await new Promise<void>((resolve) => {
                 const onAbort = () => resolve()
@@ -507,12 +512,13 @@ describe('ChatClient', () => {
             while (!signal?.aborted) {
               if (!yieldedStart) {
                 yieldedStart = true
-                yield asChunk({
-                  type: 'RUN_STARTED' as const,
+                yield {
+                  type: EventType.RUN_STARTED as const,
                   runId: 'run-1',
+                  threadId: 'thread-1',
                   model: 'test',
                   timestamp: Date.now(),
-                })
+                } satisfies StreamChunk
               }
               await new Promise<void>((resolve) => {
                 const onAbort = () => resolve()
@@ -546,19 +552,21 @@ describe('ChatClient', () => {
       it('should not emit duplicate callbacks on repeated same-state events', async () => {
         const chunks: Array<StreamChunk> = [
           {
-            type: 'RUN_STARTED',
+            type: EventType.RUN_STARTED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
           } as unknown as StreamChunk,
           {
-            type: 'RUN_STARTED',
+            type: EventType.RUN_STARTED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
           } as unknown as StreamChunk,
           {
-            type: 'TEXT_MESSAGE_CONTENT',
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
             model: 'test',
             timestamp: Date.now(),
@@ -566,15 +574,17 @@ describe('ChatClient', () => {
             content: 'Hi',
           } as unknown as StreamChunk,
           {
-            type: 'RUN_FINISHED',
+            type: EventType.RUN_FINISHED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
             finishReason: 'stop',
           } as unknown as StreamChunk,
           {
-            type: 'RUN_FINISHED',
+            type: EventType.RUN_FINISHED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
             finishReason: 'stop',
@@ -597,13 +607,14 @@ describe('ChatClient', () => {
       it('should handle interleaved multi-run events from durable subscription', async () => {
         const chunks: Array<StreamChunk> = [
           {
-            type: 'RUN_STARTED',
+            type: EventType.RUN_STARTED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
           } as unknown as StreamChunk,
           {
-            type: 'TEXT_MESSAGE_CONTENT',
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
             model: 'test',
             timestamp: Date.now(),
@@ -611,8 +622,9 @@ describe('ChatClient', () => {
             content: 'A',
           } as unknown as StreamChunk,
           {
-            type: 'RUN_FINISHED',
+            type: EventType.RUN_FINISHED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
             finishReason: 'stop',
@@ -671,14 +683,16 @@ describe('ChatClient', () => {
         // Simulate two concurrent runs starting
         chunks.push(
           {
-            type: 'RUN_STARTED',
+            type: EventType.RUN_STARTED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
           } as unknown as StreamChunk,
           {
-            type: 'RUN_STARTED',
+            type: EventType.RUN_STARTED,
             runId: 'run-2',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
           } as unknown as StreamChunk,
@@ -690,8 +704,9 @@ describe('ChatClient', () => {
 
         // First run finishes — should still be generating because run-2 is active
         chunks.push({
-          type: 'RUN_FINISHED',
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
@@ -703,8 +718,9 @@ describe('ChatClient', () => {
 
         // Second run finishes — now should be false
         chunks.push({
-          type: 'RUN_FINISHED',
+          type: EventType.RUN_FINISHED,
           runId: 'run-2',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
@@ -756,14 +772,16 @@ describe('ChatClient', () => {
         // Two runs active
         chunks.push(
           {
-            type: 'RUN_STARTED',
+            type: EventType.RUN_STARTED,
             runId: 'run-1',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
           } as unknown as StreamChunk,
           {
-            type: 'RUN_STARTED',
+            type: EventType.RUN_STARTED,
             runId: 'run-2',
+            threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
           } as unknown as StreamChunk,
@@ -775,7 +793,8 @@ describe('ChatClient', () => {
 
         // Session-level error without runId clears everything
         chunks.push({
-          type: 'RUN_ERROR',
+          type: EventType.RUN_ERROR,
+          message: 'session crashed',
           model: 'test',
           timestamp: Date.now(),
           error: { message: 'session crashed' },
@@ -795,12 +814,13 @@ describe('ChatClient', () => {
           subscribe: async function* (_signal?: AbortSignal) {
             if (!yieldedStart) {
               yieldedStart = true
-              yield asChunk({
-                type: 'RUN_STARTED' as const,
+              yield {
+                type: EventType.RUN_STARTED as const,
                 runId: 'run-1',
+                threadId: 'thread-1',
                 model: 'test',
                 timestamp: Date.now(),
-              })
+              } satisfies StreamChunk
               await new Promise((resolve) => setTimeout(resolve, 10))
             }
             throw new Error('subscription failed')
@@ -1349,7 +1369,7 @@ describe('ChatClient', () => {
       const noTerminalAdapter = createMockConnectionAdapter({
         chunks: [
           {
-            type: 'TEXT_MESSAGE_CONTENT',
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
             model: 'test',
             timestamp: Date.now(),
@@ -1991,7 +2011,7 @@ describe('ChatClient', () => {
             // Yield the tool call and approval request
             const preChunks: Array<StreamChunk> = [
               {
-                type: 'TOOL_CALL_START',
+                type: EventType.TOOL_CALL_START,
                 toolCallId: 'tc-2',
                 toolName: 'dangerous_tool_2',
                 model: 'test',
@@ -1999,21 +2019,21 @@ describe('ChatClient', () => {
                 index: 0,
               } as unknown as StreamChunk,
               {
-                type: 'TOOL_CALL_ARGS',
+                type: EventType.TOOL_CALL_ARGS,
                 toolCallId: 'tc-2',
                 model: 'test',
                 timestamp: Date.now(),
                 delta: '{}',
               } as unknown as StreamChunk,
               {
-                type: 'TOOL_CALL_END',
+                type: EventType.TOOL_CALL_END,
                 toolCallId: 'tc-2',
                 toolName: 'dangerous_tool_2',
                 model: 'test',
                 timestamp: Date.now(),
               } as unknown as StreamChunk,
               {
-                type: 'CUSTOM',
+                type: EventType.CUSTOM,
                 model: 'test',
                 timestamp: Date.now(),
                 name: 'approval-requested',
@@ -2032,13 +2052,14 @@ describe('ChatClient', () => {
               resolveStreamPause = resolve
             })
 
-            yield asChunk({
-              type: 'RUN_FINISHED' as const,
+            yield {
+              type: EventType.RUN_FINISHED as const,
               runId: 'run-2',
+              threadId: 'thread-1',
               model: 'test',
               timestamp: Date.now(),
               finishReason: 'tool_calls' as const,
-            })
+            } satisfies StreamChunk
           } else if (streamCount === 3) {
             // Third stream (after second approval): final text response
             const chunks = createTextChunks('All done!')
@@ -2134,20 +2155,21 @@ describe('ChatClient', () => {
       // Run A starts with text message
       chunks.push(
         {
-          type: 'RUN_STARTED',
+          type: EventType.RUN_STARTED,
           runId: 'run-a',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
         } as unknown as StreamChunk,
         {
-          type: 'TEXT_MESSAGE_START',
+          type: EventType.TEXT_MESSAGE_START,
           messageId: 'msg-a',
           role: 'assistant',
           model: 'test',
           timestamp: Date.now(),
         } as StreamChunk,
         {
-          type: 'TEXT_MESSAGE_CONTENT',
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-a',
           model: 'test',
           timestamp: Date.now(),
@@ -2160,20 +2182,21 @@ describe('ChatClient', () => {
       // Run B starts concurrently
       chunks.push(
         {
-          type: 'RUN_STARTED',
+          type: EventType.RUN_STARTED,
           runId: 'run-b',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
         } as unknown as StreamChunk,
         {
-          type: 'TEXT_MESSAGE_START',
+          type: EventType.TEXT_MESSAGE_START,
           messageId: 'msg-b',
           role: 'assistant',
           model: 'test',
           timestamp: Date.now(),
         } as StreamChunk,
         {
-          type: 'TEXT_MESSAGE_CONTENT',
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-b',
           model: 'test',
           timestamp: Date.now(),
@@ -2185,8 +2208,9 @@ describe('ChatClient', () => {
 
       // Run B finishes — Run A should still be active
       chunks.push({
-        type: 'RUN_FINISHED',
+        type: EventType.RUN_FINISHED,
         runId: 'run-b',
+        threadId: 'thread-1',
         model: 'test',
         timestamp: Date.now(),
         finishReason: 'stop',
@@ -2196,7 +2220,7 @@ describe('ChatClient', () => {
 
       // Run A continues streaming
       chunks.push({
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: 'msg-a',
         model: 'test',
         timestamp: Date.now(),
@@ -2224,8 +2248,9 @@ describe('ChatClient', () => {
 
       // Finish run A
       chunks.push({
-        type: 'RUN_FINISHED',
+        type: EventType.RUN_FINISHED,
         runId: 'run-a',
+        threadId: 'thread-1',
         model: 'test',
         timestamp: Date.now(),
         finishReason: 'stop',
@@ -2289,21 +2314,23 @@ describe('ChatClient', () => {
       // Resumed content for in-progress message (no TEXT_MESSAGE_START)
       chunks.push(
         {
-          type: 'RUN_STARTED',
+          type: EventType.RUN_STARTED,
           runId: 'run-1',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
         } as unknown as StreamChunk,
         {
-          type: 'TEXT_MESSAGE_CONTENT',
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'asst-1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'time...',
         } as StreamChunk,
         {
-          type: 'RUN_FINISHED',
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',

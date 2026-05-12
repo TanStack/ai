@@ -1,3 +1,4 @@
+import { EventType } from '@tanstack/ai'
 import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
 import {
   createAnthropicClient,
@@ -11,10 +12,6 @@ import type {
   SummarizationResult,
 } from '@tanstack/ai'
 import type { AnthropicClientConfig } from '../utils'
-
-/** Cast an event object to StreamChunk. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 /**
  * Configuration for Anthropic summarize adapter
@@ -102,6 +99,7 @@ export class AnthropicSummarizeAdapter<
     const { logger } = options
     const systemPrompt = this.buildSummarizationPrompt(options)
     const id = generateId(this.name)
+    const threadId = generateId('thread')
     const model = options.model
     let accumulatedContent = ''
     let inputTokens = 0
@@ -114,6 +112,14 @@ export class AnthropicSummarizeAdapter<
     })
 
     try {
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: id,
+        threadId,
+        model,
+        timestamp: Date.now(),
+      } satisfies StreamChunk
+
       const stream = await this.client.messages.create({
         model: options.model,
         messages: [{ role: 'user', content: options.text }],
@@ -134,20 +140,21 @@ export class AnthropicSummarizeAdapter<
           if (event.delta.type === 'text_delta') {
             const delta = event.delta.text
             accumulatedContent += delta
-            yield asChunk({
-              type: 'TEXT_MESSAGE_CONTENT',
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
               messageId: id,
               model,
               timestamp: Date.now(),
               delta,
               content: accumulatedContent,
-            })
+            } satisfies StreamChunk
           }
         } else if (event.type === 'message_delta') {
           outputTokens = event.usage.output_tokens
-          yield asChunk({
-            type: 'RUN_FINISHED',
+          yield {
+            type: EventType.RUN_FINISHED,
             runId: id,
+            threadId,
             model,
             timestamp: Date.now(),
             finishReason: event.delta.stop_reason as
@@ -160,7 +167,7 @@ export class AnthropicSummarizeAdapter<
               completionTokens: outputTokens,
               totalTokens: inputTokens + outputTokens,
             },
-          })
+          } satisfies StreamChunk
         }
       }
     } catch (error) {

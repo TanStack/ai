@@ -1,4 +1,5 @@
 import { FinishReason } from '@google/genai'
+import { EventType } from '@tanstack/ai'
 import {
   createGeminiClient,
   generateId,
@@ -12,10 +13,6 @@ import type {
   SummarizationOptions,
   SummarizationResult,
 } from '@tanstack/ai'
-
-/** Cast an event object to StreamChunk. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 /**
  * Configuration for Gemini summarize adapter
@@ -142,6 +139,7 @@ export class GeminiSummarizeAdapter<
     const { logger } = options
     const model = options.model
     const id = generateId('sum')
+    const threadId = generateId('thread')
     let accumulatedContent = ''
     let inputTokens = 0
     let outputTokens = 0
@@ -161,6 +159,14 @@ export class GeminiSummarizeAdapter<
     })
 
     try {
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: id,
+        threadId,
+        model,
+        timestamp: Date.now(),
+      } satisfies StreamChunk
+
       const result = await this.client.models.generateContentStream({
         model,
         contents: [
@@ -189,14 +195,14 @@ export class GeminiSummarizeAdapter<
           for (const part of chunk.candidates[0].content.parts) {
             if (part.text) {
               accumulatedContent += part.text
-              yield asChunk({
-                type: 'TEXT_MESSAGE_CONTENT',
+              yield {
+                type: EventType.TEXT_MESSAGE_CONTENT,
                 messageId: id,
                 model,
                 timestamp: Date.now(),
                 delta: part.text,
                 content: accumulatedContent,
-              })
+              } satisfies StreamChunk
             }
           }
         }
@@ -208,9 +214,10 @@ export class GeminiSummarizeAdapter<
           finishReason === FinishReason.MAX_TOKENS ||
           finishReason === FinishReason.SAFETY
         ) {
-          yield asChunk({
-            type: 'RUN_FINISHED',
+          yield {
+            type: EventType.RUN_FINISHED,
             runId: id,
+            threadId,
             model,
             timestamp: Date.now(),
             finishReason:
@@ -224,7 +231,7 @@ export class GeminiSummarizeAdapter<
               completionTokens: outputTokens,
               totalTokens: inputTokens + outputTokens,
             },
-          })
+          } satisfies StreamChunk
         }
       }
     } catch (error) {

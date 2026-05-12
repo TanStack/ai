@@ -1,3 +1,4 @@
+import { EventType } from '@tanstack/ai'
 import {
   createOllamaClient,
   estimateTokens,
@@ -13,10 +14,6 @@ import type {
   SummarizationOptions,
   SummarizationResult,
 } from '@tanstack/ai'
-
-/** Cast an event object to StreamChunk. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 export type OllamaSummarizeModel =
   | (typeof OllamaSummarizeModels)[number]
@@ -128,6 +125,7 @@ export class OllamaSummarizeAdapter<
     const { logger } = options
     const model = options.model
     const id = generateId('sum')
+    const threadId = generateId('thread')
     const prompt = this.buildSummarizationPrompt(options)
     let accumulatedContent = ''
 
@@ -138,6 +136,14 @@ export class OllamaSummarizeAdapter<
     })
 
     try {
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: id,
+        threadId,
+        model,
+        timestamp: Date.now(),
+      } satisfies StreamChunk
+
       const stream = await this.client.generate({
         model,
         prompt,
@@ -153,22 +159,23 @@ export class OllamaSummarizeAdapter<
 
         if (chunk.response) {
           accumulatedContent += chunk.response
-          yield asChunk({
-            type: 'TEXT_MESSAGE_CONTENT',
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: id,
             model: chunk.model,
             timestamp: Date.now(),
             delta: chunk.response,
             content: accumulatedContent,
-          })
+          } satisfies StreamChunk
         }
 
         if (chunk.done) {
           const promptTokens = estimateTokens(prompt)
           const completionTokens = estimateTokens(accumulatedContent)
-          yield asChunk({
-            type: 'RUN_FINISHED',
+          yield {
+            type: EventType.RUN_FINISHED,
             runId: id,
+            threadId,
             model: chunk.model,
             timestamp: Date.now(),
             finishReason: 'stop',
@@ -177,7 +184,7 @@ export class OllamaSummarizeAdapter<
               completionTokens,
               totalTokens: promptTokens + completionTokens,
             },
-          })
+          } satisfies StreamChunk
         }
       }
     } catch (error) {

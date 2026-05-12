@@ -1,11 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
+import { EventType } from '@tanstack/ai'
 import { GenerationClient } from '../src/generation-client'
 import type { StreamChunk } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
-
-/** Cast an event object to StreamChunk for type compatibility with EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 // Helper to create a mock connect-based adapter from StreamChunks
 function createMockConnection(
@@ -133,19 +130,25 @@ describe('GenerationClient', () => {
       const onResult = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'CUSTOM',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: mockResult,
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new GenerationClient({
@@ -164,13 +167,19 @@ describe('GenerationClient', () => {
       const onError = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'RUN_ERROR',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_ERROR,
+          message: 'Generation failed',
           runId: 'run-1',
           error: { message: 'Generation failed' },
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new GenerationClient({
@@ -189,25 +198,31 @@ describe('GenerationClient', () => {
       const onProgress = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'CUSTOM',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'generation:progress',
           value: { progress: 50, message: 'Halfway' },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'CUSTOM',
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new GenerationClient({
@@ -225,19 +240,21 @@ describe('GenerationClient', () => {
 
       const chunks: Array<StreamChunk> = [
         {
-          type: 'RUN_STARTED',
+          type: EventType.RUN_STARTED,
           runId: 'run-1',
+          threadId: 'thread-1',
           timestamp: Date.now(),
         } as unknown as StreamChunk,
         {
-          type: 'CUSTOM',
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
         } as unknown as StreamChunk,
         {
-          type: 'RUN_FINISHED',
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
         } as unknown as StreamChunk,
@@ -257,18 +274,19 @@ describe('GenerationClient', () => {
 
     it('should pass body and input as data to connection', async () => {
       const connectSpy = vi.fn(async function* () {
-        yield asChunk({
-          type: 'CUSTOM' as const,
+        yield {
+          type: EventType.CUSTOM as const,
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
-        })
-        yield asChunk({
-          type: 'RUN_FINISHED' as const,
+        } satisfies StreamChunk
+        yield {
+          type: EventType.RUN_FINISHED as const,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop' as const,
           timestamp: Date.now(),
-        })
+        } satisfies StreamChunk
       })
 
       const connection: ConnectConnectionAdapter = {
@@ -334,12 +352,13 @@ describe('GenerationClient', () => {
   describe('updateOptions()', () => {
     it('should update body without recreating client', async () => {
       const connectSpy = vi.fn(async function* () {
-        yield asChunk({
-          type: 'RUN_FINISHED' as const,
+        yield {
+          type: EventType.RUN_FINISHED as const,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop' as const,
           timestamp: Date.now(),
-        })
+        } satisfies StreamChunk
       })
 
       const connection: ConnectConnectionAdapter = { connect: connectSpy }
@@ -366,23 +385,24 @@ describe('GenerationClient', () => {
 
       const connection: ConnectConnectionAdapter = {
         async *connect(_msgs, _data, signal) {
-          yield asChunk({
-            type: 'RUN_STARTED' as const,
+          yield {
+            type: EventType.RUN_STARTED as const,
             runId: 'run-1',
+            threadId: 'thread-1',
             timestamp: Date.now(),
-          })
+          } satisfies StreamChunk
           // Wait until abort is triggered
           await new Promise<void>((resolve) => {
             signal?.addEventListener('abort', () => resolve())
           })
           // Adapter honors abort signal and stops yielding
           if (signal?.aborted) return
-          yield asChunk({
-            type: 'CUSTOM' as const,
+          yield {
+            type: EventType.CUSTOM as const,
             name: 'generation:result',
             value: { id: '1' },
             timestamp: Date.now(),
-          })
+          } satisfies StreamChunk
         },
       }
 
@@ -464,13 +484,19 @@ describe('GenerationClient', () => {
       const onResult = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        {
+          type: EventType.RUN_STARTED,
           runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new GenerationClient({
@@ -489,19 +515,25 @@ describe('GenerationClient', () => {
       const onChunk = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'CUSTOM',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'unknown:event',
           value: { foo: 'bar' },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new GenerationClient({
@@ -594,19 +626,25 @@ describe('GenerationClient', () => {
 
     it('should transform result from stream CUSTOM event', async () => {
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'CUSTOM',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: { id: '1', images: [] },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new GenerationClient<
@@ -697,19 +735,21 @@ describe('GenerationClient', () => {
 
       const response = createSSEResponse([
         JSON.stringify({
-          type: 'RUN_STARTED',
+          type: EventType.RUN_STARTED,
           runId: 'run-1',
+          threadId: 'thread-1',
           timestamp: 100,
         }),
         JSON.stringify({
-          type: 'CUSTOM',
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: mockResult,
           timestamp: 200,
         }),
         JSON.stringify({
-          type: 'RUN_FINISHED',
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: 300,
         }),
@@ -732,12 +772,14 @@ describe('GenerationClient', () => {
 
       const response = createSSEResponse([
         JSON.stringify({
-          type: 'RUN_STARTED',
+          type: EventType.RUN_STARTED,
           runId: 'run-1',
+          threadId: 'thread-1',
           timestamp: 100,
         }),
         JSON.stringify({
-          type: 'RUN_ERROR',
+          type: EventType.RUN_ERROR,
+          message: 'Generation failed',
           runId: 'run-1',
           error: { message: 'Generation failed' },
           timestamp: 200,
@@ -761,19 +803,21 @@ describe('GenerationClient', () => {
 
       const response = createSSEResponse([
         JSON.stringify({
-          type: 'RUN_STARTED',
+          type: EventType.RUN_STARTED,
           runId: 'run-1',
+          threadId: 'thread-1',
           timestamp: 100,
         }),
         JSON.stringify({
-          type: 'CUSTOM',
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: { id: '1' },
           timestamp: 200,
         }),
         JSON.stringify({
-          type: 'RUN_FINISHED',
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: 300,
         }),
@@ -794,25 +838,27 @@ describe('GenerationClient', () => {
 
       const response = createSSEResponse([
         JSON.stringify({
-          type: 'RUN_STARTED',
+          type: EventType.RUN_STARTED,
           runId: 'run-1',
+          threadId: 'thread-1',
           timestamp: 100,
         }),
         JSON.stringify({
-          type: 'CUSTOM',
+          type: EventType.CUSTOM,
           name: 'generation:progress',
           value: { progress: 50, message: 'Halfway' },
           timestamp: 200,
         }),
         JSON.stringify({
-          type: 'CUSTOM',
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: { id: '1' },
           timestamp: 300,
         }),
         JSON.stringify({
-          type: 'RUN_FINISHED',
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: 400,
         }),
@@ -852,14 +898,15 @@ describe('GenerationClient', () => {
       const fetcherSpy = vi.fn(async (_input: { prompt: string }) => {
         return createSSEResponse([
           JSON.stringify({
-            type: 'CUSTOM',
+            type: EventType.CUSTOM,
             name: 'generation:result',
             value: { id: '1' },
             timestamp: 100,
           }),
           JSON.stringify({
-            type: 'RUN_FINISHED',
+            type: EventType.RUN_FINISHED,
             runId: 'run-1',
+            threadId: 'thread-1',
             finishReason: 'stop',
             timestamp: 200,
           }),

@@ -1,3 +1,4 @@
+import { EventType } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
@@ -47,11 +48,6 @@ import type {
   AnthropicTextMetadata,
 } from '../message-types'
 import type { AnthropicClientConfig } from '../utils'
-
-/** Cast an event object to StreamChunk. Adapters construct events with string
- *  literal types which are structurally compatible with the EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 /**
  * Configuration for Anthropic text adapter
@@ -177,8 +173,8 @@ export class AnthropicTextAdapter<
         error,
         source: 'anthropic.chatStream',
       })
-      yield asChunk({
-        type: 'RUN_ERROR',
+      yield {
+        type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
@@ -187,7 +183,7 @@ export class AnthropicTextAdapter<
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
         },
-      })
+      } satisfies StreamChunk
     }
   }
 
@@ -629,7 +625,6 @@ export class AnthropicTextAdapter<
     let accumulatedContent = ''
     let accumulatedThinking = ''
     let accumulatedSignature = ''
-    const timestamp = Date.now()
     const toolCallsMap = new Map<
       number,
       { id: string; name: string; input: string; started: boolean }
@@ -657,13 +652,13 @@ export class AnthropicTextAdapter<
         // Emit RUN_STARTED on first event
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
-          yield asChunk({
-            type: 'RUN_STARTED',
+          yield {
+            type: EventType.RUN_STARTED,
             runId,
             threadId,
             model,
-            timestamp,
-          })
+            timestamp: Date.now(),
+          } satisfies StreamChunk
         }
 
         if (event.type === 'content_block_start') {
@@ -684,94 +679,94 @@ export class AnthropicTextAdapter<
             reasoningMessageId = genId()
 
             // Spec REASONING events
-            yield asChunk({
-              type: 'REASONING_START',
+            yield {
+              type: EventType.REASONING_START,
               messageId: reasoningMessageId,
               model,
-              timestamp,
-            })
-            yield asChunk({
-              type: 'REASONING_MESSAGE_START',
+              timestamp: Date.now(),
+            } satisfies StreamChunk
+            yield {
+              type: EventType.REASONING_MESSAGE_START,
               messageId: reasoningMessageId,
               role: 'reasoning' as const,
               model,
-              timestamp,
-            })
+              timestamp: Date.now(),
+            } satisfies StreamChunk
 
             // Legacy STEP events (kept during transition)
-            yield asChunk({
-              type: 'STEP_STARTED',
+            yield {
+              type: EventType.STEP_STARTED,
               stepName: stepId,
               stepId,
               model,
-              timestamp,
+              timestamp: Date.now(),
               stepType: 'thinking',
-            })
+            } satisfies StreamChunk
           }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
             // Close reasoning before text starts
             if (reasoningMessageId && !hasClosedReasoning) {
               hasClosedReasoning = true
-              yield asChunk({
-                type: 'REASONING_MESSAGE_END',
+              yield {
+                type: EventType.REASONING_MESSAGE_END,
                 messageId: reasoningMessageId,
                 model,
-                timestamp,
-              })
-              yield asChunk({
-                type: 'REASONING_END',
+                timestamp: Date.now(),
+              } satisfies StreamChunk
+              yield {
+                type: EventType.REASONING_END,
                 messageId: reasoningMessageId,
                 model,
-                timestamp,
-              })
+                timestamp: Date.now(),
+              } satisfies StreamChunk
             }
 
             // Emit TEXT_MESSAGE_START on first text content
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
-              yield asChunk({
-                type: 'TEXT_MESSAGE_START',
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
                 messageId,
                 model,
-                timestamp,
+                timestamp: Date.now(),
                 role: 'assistant',
-              })
+              } satisfies StreamChunk
             }
 
             const delta = event.delta.text
             accumulatedContent += delta
-            yield asChunk({
-              type: 'TEXT_MESSAGE_CONTENT',
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
               messageId,
               model,
-              timestamp,
+              timestamp: Date.now(),
               delta,
               content: accumulatedContent,
-            })
+            } satisfies StreamChunk
           } else if (event.delta.type === 'thinking_delta') {
             const delta = event.delta.thinking
             accumulatedThinking += delta
 
             // Spec REASONING content event
-            yield asChunk({
-              type: 'REASONING_MESSAGE_CONTENT',
+            yield {
+              type: EventType.REASONING_MESSAGE_CONTENT,
               messageId: reasoningMessageId!,
               delta,
               model,
-              timestamp,
-            })
+              timestamp: Date.now(),
+            } satisfies StreamChunk
 
             // Legacy STEP event
-            yield asChunk({
-              type: 'STEP_FINISHED',
+            yield {
+              type: EventType.STEP_FINISHED,
               stepName: stepId || genId(),
               stepId: stepId || genId(),
               model,
-              timestamp,
+              timestamp: Date.now(),
               delta,
               content: accumulatedThinking,
-            })
+            } satisfies StreamChunk
           } else if (
             (event.delta as { type: string }).type === 'signature_delta'
           ) {
@@ -783,43 +778,43 @@ export class AnthropicTextAdapter<
               // Emit TOOL_CALL_START on first args delta
               if (!existing.started) {
                 existing.started = true
-                yield asChunk({
-                  type: 'TOOL_CALL_START',
+                yield {
+                  type: EventType.TOOL_CALL_START,
                   toolCallId: existing.id,
                   toolCallName: existing.name,
                   toolName: existing.name,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   index: currentToolIndex,
-                })
+                } satisfies StreamChunk
               }
 
               existing.input += event.delta.partial_json
 
-              yield asChunk({
-                type: 'TOOL_CALL_ARGS',
+              yield {
+                type: EventType.TOOL_CALL_ARGS,
                 toolCallId: existing.id,
                 model,
-                timestamp,
+                timestamp: Date.now(),
                 delta: event.delta.partial_json,
                 args: existing.input,
-              })
+              } satisfies StreamChunk
             }
           }
         } else if (event.type === 'content_block_stop') {
           if (currentBlockType === 'thinking') {
             // Emit signature so it can be replayed in multi-turn context
             if (accumulatedSignature && stepId) {
-              yield asChunk({
-                type: 'STEP_FINISHED',
+              yield {
+                type: EventType.STEP_FINISHED,
                 stepName: stepId,
                 stepId,
                 model,
-                timestamp,
+                timestamp: Date.now(),
                 delta: '',
                 content: accumulatedThinking,
                 signature: accumulatedSignature,
-              })
+              } satisfies StreamChunk
             }
           } else if (currentBlockType === 'tool_use') {
             const existing = toolCallsMap.get(currentToolIndex)
@@ -827,15 +822,15 @@ export class AnthropicTextAdapter<
               // If tool call wasn't started yet (no args), start it now
               if (!existing.started) {
                 existing.started = true
-                yield asChunk({
-                  type: 'TOOL_CALL_START',
+                yield {
+                  type: EventType.TOOL_CALL_START,
                   toolCallId: existing.id,
                   toolCallName: existing.name,
                   toolName: existing.name,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   index: currentToolIndex,
-                })
+                } satisfies StreamChunk
               }
 
               // Emit TOOL_CALL_END
@@ -847,15 +842,15 @@ export class AnthropicTextAdapter<
                 parsedInput = {}
               }
 
-              yield asChunk({
-                type: 'TOOL_CALL_END',
+              yield {
+                type: EventType.TOOL_CALL_END,
                 toolCallId: existing.id,
                 toolCallName: existing.name,
                 toolName: existing.name,
                 model,
-                timestamp,
+                timestamp: Date.now(),
                 input: parsedInput,
-              })
+              } satisfies StreamChunk
 
               // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
               hasEmittedTextMessageStart = false
@@ -863,12 +858,12 @@ export class AnthropicTextAdapter<
           } else {
             // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
             if (hasEmittedTextMessageStart && accumulatedContent) {
-              yield asChunk({
-                type: 'TEXT_MESSAGE_END',
+              yield {
+                type: EventType.TEXT_MESSAGE_END,
                 messageId,
                 model,
-                timestamp,
-              })
+                timestamp: Date.now(),
+              } satisfies StreamChunk
             }
           }
           currentBlockType = null
@@ -876,32 +871,32 @@ export class AnthropicTextAdapter<
           // Close reasoning events if still open
           if (reasoningMessageId && !hasClosedReasoning) {
             hasClosedReasoning = true
-            yield asChunk({
-              type: 'REASONING_MESSAGE_END',
+            yield {
+              type: EventType.REASONING_MESSAGE_END,
               messageId: reasoningMessageId,
               model,
-              timestamp,
-            })
-            yield asChunk({
-              type: 'REASONING_END',
+              timestamp: Date.now(),
+            } satisfies StreamChunk
+            yield {
+              type: EventType.REASONING_END,
               messageId: reasoningMessageId,
               model,
-              timestamp,
-            })
+              timestamp: Date.now(),
+            } satisfies StreamChunk
           }
 
           // Only emit RUN_FINISHED from message_stop if message_delta didn't already emit one.
           // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
           // while message_stop is just a completion signal.
           if (!hasEmittedRunFinished) {
-            yield asChunk({
-              type: 'RUN_FINISHED',
+            yield {
+              type: EventType.RUN_FINISHED,
               runId,
               threadId,
               model,
-              timestamp,
+              timestamp: Date.now(),
               finishReason: 'stop',
-            })
+            } satisfies StreamChunk
           }
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
@@ -910,28 +905,28 @@ export class AnthropicTextAdapter<
             // Close reasoning events if still open
             if (reasoningMessageId && !hasClosedReasoning) {
               hasClosedReasoning = true
-              yield asChunk({
-                type: 'REASONING_MESSAGE_END',
+              yield {
+                type: EventType.REASONING_MESSAGE_END,
                 messageId: reasoningMessageId,
                 model,
-                timestamp,
-              })
-              yield asChunk({
-                type: 'REASONING_END',
+                timestamp: Date.now(),
+              } satisfies StreamChunk
+              yield {
+                type: EventType.REASONING_END,
                 messageId: reasoningMessageId,
                 model,
-                timestamp,
-              })
+                timestamp: Date.now(),
+              } satisfies StreamChunk
             }
 
             switch (event.delta.stop_reason) {
               case 'tool_use': {
-                yield asChunk({
-                  type: 'RUN_FINISHED',
+                yield {
+                  type: EventType.RUN_FINISHED,
                   runId,
                   threadId,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   finishReason: 'tool_calls',
                   usage: {
                     promptTokens: event.usage.input_tokens || 0,
@@ -940,15 +935,14 @@ export class AnthropicTextAdapter<
                       (event.usage.input_tokens || 0) +
                       (event.usage.output_tokens || 0),
                   },
-                })
+                } satisfies StreamChunk
                 break
               }
               case 'max_tokens': {
-                yield asChunk({
-                  type: 'RUN_ERROR',
-                  runId,
+                yield {
+                  type: EventType.RUN_ERROR,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   message:
                     'The response was cut off because the maximum token limit was reached.',
                   code: 'max_tokens',
@@ -957,16 +951,16 @@ export class AnthropicTextAdapter<
                       'The response was cut off because the maximum token limit was reached.',
                     code: 'max_tokens',
                   },
-                })
+                } satisfies StreamChunk
                 break
               }
               default: {
-                yield asChunk({
-                  type: 'RUN_FINISHED',
+                yield {
+                  type: EventType.RUN_FINISHED,
                   runId,
                   threadId,
                   model,
-                  timestamp,
+                  timestamp: Date.now(),
                   finishReason: 'stop',
                   usage: {
                     promptTokens: event.usage.input_tokens || 0,
@@ -975,7 +969,7 @@ export class AnthropicTextAdapter<
                       (event.usage.input_tokens || 0) +
                       (event.usage.output_tokens || 0),
                   },
-                })
+                } satisfies StreamChunk
               }
             }
           }
@@ -988,18 +982,17 @@ export class AnthropicTextAdapter<
         error,
         source: 'anthropic.processAnthropicStream',
       })
-      yield asChunk({
-        type: 'RUN_ERROR',
-        runId,
+      yield {
+        type: EventType.RUN_ERROR,
         model,
-        timestamp,
+        timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
         code: err.code || String(err.status),
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
         },
-      })
+      } satisfies StreamChunk
     }
   }
 }

@@ -1,11 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
+import { EventType } from '@tanstack/ai'
 import { VideoGenerationClient } from '../src/video-generation-client'
 import type { StreamChunk } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
-
-/** Cast an event object to StreamChunk for type compatibility with EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 // Helper to create a mock connect-based adapter from StreamChunks
 function createMockConnection(
@@ -145,15 +142,20 @@ describe('VideoGenerationClient', () => {
       const onStatusUpdate = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'CUSTOM',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'video:job:created',
           value: { jobId: 'job-123' },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'CUSTOM',
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'video:status',
           value: {
             jobId: 'job-123',
@@ -161,9 +163,9 @@ describe('VideoGenerationClient', () => {
             progress: 50,
           },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'CUSTOM',
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'video:status',
           value: {
             jobId: 'job-123',
@@ -171,9 +173,9 @@ describe('VideoGenerationClient', () => {
             progress: 100,
           },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'CUSTOM',
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: {
             jobId: 'job-123',
@@ -181,13 +183,14 @@ describe('VideoGenerationClient', () => {
             url: 'https://example.com/video.mp4',
           },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new VideoGenerationClient({
@@ -215,9 +218,14 @@ describe('VideoGenerationClient', () => {
       const onVideoStatusChange = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'CUSTOM',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'video:status',
           value: {
             jobId: 'job-1',
@@ -225,9 +233,9 @@ describe('VideoGenerationClient', () => {
             progress: 25,
           },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'CUSTOM',
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: {
             jobId: 'job-1',
@@ -235,13 +243,14 @@ describe('VideoGenerationClient', () => {
             url: 'https://example.com/video.mp4',
           },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new VideoGenerationClient({
@@ -268,13 +277,19 @@ describe('VideoGenerationClient', () => {
       const onError = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'RUN_ERROR',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_ERROR,
+          message: 'Video generation failed',
           runId: 'run-1',
           error: { message: 'Video generation failed' },
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new VideoGenerationClient({
@@ -293,9 +308,14 @@ describe('VideoGenerationClient', () => {
       const onProgress = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'CUSTOM',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'video:status',
           value: {
             jobId: 'job-1',
@@ -303,13 +323,14 @@ describe('VideoGenerationClient', () => {
             progress: 50,
           },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new VideoGenerationClient({
@@ -326,19 +347,25 @@ describe('VideoGenerationClient', () => {
       const onProgress = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'CUSTOM',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'generation:progress',
           value: { progress: 75, message: 'Almost done' },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new VideoGenerationClient({
@@ -355,9 +382,14 @@ describe('VideoGenerationClient', () => {
       const onChunk = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'CUSTOM',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: {
             jobId: 'job-1',
@@ -365,13 +397,14 @@ describe('VideoGenerationClient', () => {
             url: 'https://example.com/video.mp4',
           },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new VideoGenerationClient({
@@ -386,12 +419,13 @@ describe('VideoGenerationClient', () => {
 
     it('should pass body and input as data to connection', async () => {
       const connectSpy = vi.fn(async function* () {
-        yield asChunk({
-          type: 'RUN_FINISHED' as const,
+        yield {
+          type: EventType.RUN_FINISHED as const,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop' as const,
           timestamp: Date.now(),
-        })
+        } satisfies StreamChunk
       })
 
       const connection: ConnectConnectionAdapter = { connect: connectSpy }
@@ -445,15 +479,20 @@ describe('VideoGenerationClient', () => {
       const onVideoStatusChange = vi.fn()
 
       const connection = createMockConnection([
-        asChunk({ type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() }),
-        asChunk({
-          type: 'CUSTOM',
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'video:job:created',
           value: { jobId: 'job-123' },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'CUSTOM',
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'video:status',
           value: {
             jobId: 'job-123',
@@ -461,9 +500,9 @@ describe('VideoGenerationClient', () => {
             progress: 50,
           },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'CUSTOM',
+        } satisfies StreamChunk,
+        {
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: {
             jobId: 'job-123',
@@ -471,13 +510,14 @@ describe('VideoGenerationClient', () => {
             url: 'https://example.com/video.mp4',
           },
           timestamp: Date.now(),
-        }),
-        asChunk({
-          type: 'RUN_FINISHED',
+        } satisfies StreamChunk,
+        {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        }),
+        } satisfies StreamChunk,
       ])
 
       const client = new VideoGenerationClient({
@@ -503,12 +543,13 @@ describe('VideoGenerationClient', () => {
   describe('updateOptions()', () => {
     it('should update body without recreating client', async () => {
       const connectSpy = vi.fn(async function* () {
-        yield asChunk({
-          type: 'RUN_FINISHED' as const,
+        yield {
+          type: EventType.RUN_FINISHED as const,
           runId: 'run-1',
+          threadId: 'thread-1',
           finishReason: 'stop' as const,
           timestamp: Date.now(),
-        })
+        } satisfies StreamChunk
       })
 
       const connection: ConnectConnectionAdapter = { connect: connectSpy }
@@ -536,25 +577,26 @@ describe('VideoGenerationClient', () => {
 
       const connection: ConnectConnectionAdapter = {
         async *connect(_msgs, _data, signal) {
-          yield asChunk({
-            type: 'RUN_STARTED' as const,
+          yield {
+            type: EventType.RUN_STARTED as const,
             runId: 'run-1',
+            threadId: 'thread-1',
             timestamp: Date.now(),
-          })
-          yield asChunk({
-            type: 'CUSTOM' as const,
+          } satisfies StreamChunk
+          yield {
+            type: EventType.CUSTOM as const,
             name: 'video:job:created',
             value: { jobId: 'job-123' },
             timestamp: Date.now(),
-          })
+          } satisfies StreamChunk
           // Wait until abort is triggered
           await new Promise<void>((resolve) => {
             signal?.addEventListener('abort', () => resolve())
           })
           // Adapter honors abort signal and stops yielding
           if (signal?.aborted) return
-          yield asChunk({
-            type: 'CUSTOM' as const,
+          yield {
+            type: EventType.CUSTOM as const,
             name: 'generation:result',
             value: {
               jobId: 'job-123',
@@ -562,7 +604,7 @@ describe('VideoGenerationClient', () => {
               url: 'https://example.com/video.mp4',
             },
             timestamp: Date.now(),
-          })
+          } satisfies StreamChunk
         },
       }
 

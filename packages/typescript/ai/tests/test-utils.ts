@@ -1,3 +1,4 @@
+import { EventType } from '../src/types'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 import type { StreamChunk, TextMessageContentEvent, Tool } from '../src/types'
 
@@ -5,7 +6,9 @@ import type { StreamChunk, TextMessageContentEvent, Tool } from '../src/types'
 // Chunk factory
 // ============================================================================
 
-/** Create a typed StreamChunk with minimal boilerplate. */
+/** Escape hatch for tests that deliberately construct off-spec chunks (e.g.
+ *  to exercise deprecated-field handling or malformed input). Prefer the
+ *  strictly-typed `ev.*` builders below for normal cases. */
 export function chunk(
   type: string,
   fields: Record<string, unknown> = {},
@@ -20,32 +23,61 @@ export function chunk(
 /** Shorthand chunk factories for common AG-UI events. */
 export const ev = {
   runStarted: (runId = 'run-1', threadId = 'thread-1') =>
-    chunk('RUN_STARTED', { runId, threadId }),
+    ({
+      type: EventType.RUN_STARTED,
+      runId,
+      threadId,
+      timestamp: Date.now(),
+    }) satisfies StreamChunk,
   textStart: (messageId = 'msg-1') =>
-    chunk('TEXT_MESSAGE_START', { messageId, role: 'assistant' as const }),
+    ({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId,
+      role: 'assistant',
+      timestamp: Date.now(),
+    }) satisfies StreamChunk,
   textContent: (delta: string, messageId = 'msg-1') =>
-    chunk('TEXT_MESSAGE_CONTENT', { messageId, delta }),
-  textEnd: (messageId = 'msg-1') => chunk('TEXT_MESSAGE_END', { messageId }),
+    ({
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId,
+      delta,
+      timestamp: Date.now(),
+    }) satisfies StreamChunk,
+  textEnd: (messageId = 'msg-1') =>
+    ({
+      type: EventType.TEXT_MESSAGE_END,
+      messageId,
+      timestamp: Date.now(),
+    }) satisfies StreamChunk,
   toolStart: (toolCallId: string, toolCallName: string, index?: number) =>
-    chunk('TOOL_CALL_START', {
+    ({
+      type: EventType.TOOL_CALL_START,
       toolCallId,
       toolCallName,
       toolName: toolCallName,
+      timestamp: Date.now(),
       ...(index !== undefined ? { index } : {}),
-    }),
+    }) satisfies StreamChunk,
   toolArgs: (toolCallId: string, delta: string) =>
-    chunk('TOOL_CALL_ARGS', { toolCallId, delta }),
+    ({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId,
+      delta,
+      timestamp: Date.now(),
+    }) satisfies StreamChunk,
   toolEnd: (
     toolCallId: string,
     toolCallName: string,
     opts?: { input?: unknown; result?: string },
   ) =>
-    chunk('TOOL_CALL_END', {
+    ({
+      type: EventType.TOOL_CALL_END,
       toolCallId,
       toolCallName,
       toolName: toolCallName,
+      timestamp: Date.now(),
       ...opts,
-    }),
+    }) satisfies StreamChunk,
   runFinished: (
     finishReason:
       | 'stop'
@@ -61,17 +93,35 @@ export const ev = {
     },
     threadId = 'thread-1',
   ) =>
-    chunk('RUN_FINISHED', {
+    ({
+      type: EventType.RUN_FINISHED,
       runId,
       threadId,
       finishReason,
+      timestamp: Date.now(),
       ...(usage ? { usage } : {}),
-    }),
-  runError: (message: string, runId = 'run-1') =>
-    chunk('RUN_ERROR', { message, runId, error: { message } }),
-  stepStarted: (stepName = 'step-1') => chunk('STEP_STARTED', { stepName }),
+    }) satisfies StreamChunk,
+  runError: (message: string) =>
+    ({
+      type: EventType.RUN_ERROR,
+      message,
+      timestamp: Date.now(),
+      error: { message },
+    }) satisfies StreamChunk,
+  stepStarted: (stepName = 'step-1') =>
+    ({
+      type: EventType.STEP_STARTED,
+      stepName,
+      timestamp: Date.now(),
+    }) satisfies StreamChunk,
   stepFinished: (delta: string, stepName = 'step-1') =>
-    chunk('STEP_FINISHED', { stepName, stepId: stepName, delta }),
+    ({
+      type: EventType.STEP_FINISHED,
+      stepName,
+      stepId: stepName,
+      delta,
+      timestamp: Date.now(),
+    }) satisfies StreamChunk,
 }
 
 // ============================================================================
