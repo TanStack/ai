@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@main
+        uses: TanStack/config/.github/setup@b033ad732e1f4becf88075ce76cf59f6ba2b86bb # main
 
       - name: Fetch and sync model metadata
         run: pnpm generate:models
@@ -43,7 +43,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages/ scripts/openrouter.models.ts scripts/.sync-models-last-run .changeset/
+          git add packages/ scripts/openrouter.models.json scripts/.sync-models-last-run .changeset/
           git commit -m "chore: sync model metadata from OpenRouter"
           git push --force origin HEAD:automated/sync-models
         env:
