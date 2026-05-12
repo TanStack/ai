@@ -24,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6.0.2
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@b033ad732e1f4becf88075ce76cf59f6ba2b86bb # main
+        uses: TanStack/config/.github/setup@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
       - name: Fix formatting
         run: pnpm format
       - name: Apply fixes
