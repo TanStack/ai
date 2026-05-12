@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@main
+        uses: TanStack/config/.github/setup@b033ad732e1f4becf88075ce76cf59f6ba2b86bb # main
 
       - name: Cache Playwright Browsers
         id: playwright-cache

@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@main
+        uses: TanStack/config/.github/setup@b033ad732e1f4becf88075ce76cf59f6ba2b86bb # main
       - name: Run Tests
         run: pnpm run test:ci
       - name: Run Changesets (version or publish)
@@ -58,6 +58,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Comment on PRs about release
         if: steps.changesets.outputs.published == 'true'
-        uses: TanStack/config/.github/comment-on-release@main
+        uses: TanStack/config/.github/comment-on-release@b033ad732e1f4becf88075ce76cf59f6ba2b86bb # main
         with:
           published-packages: ${{ steps.changesets.outputs.publishedPackages }}
