@@ -11,9 +11,6 @@
     "overrides": {
       "abbrev": "^3.0.0"
     },
-    "ignoredBuiltDependencies": [
-      "isolated-vm"
-    ],
     "patchedDependencies": {
       "@changesets/assemble-release-plan@6.0.9": "patches/@changesets__assemble-release-plan@6.0.9.patch"
     }
