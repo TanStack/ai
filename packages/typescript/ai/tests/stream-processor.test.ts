@@ -2617,6 +2617,53 @@ describe('StreamProcessor', () => {
         expect(toolCallPart.state).toBe('input-complete')
       }
     })
+
+    it('should preserve the server message id in tool-first flows when parentMessageId is provided', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk('TOOL_CALL_START', {
+          toolCallId: 'tc-1',
+          toolCallName: 'lookupWeather',
+          toolName: 'lookupWeather',
+          parentMessageId: 'anthropic-msg-1',
+        }),
+      )
+
+      let messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('anthropic-msg-1')
+
+      processor.processChunk(ev.toolArgs('tc-1', '{"location":"Berlin"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'lookupWeather'))
+
+      processor.processChunk(
+        chunk('TEXT_MESSAGE_START', {
+          messageId: 'anthropic-msg-1',
+          role: 'assistant' as const,
+        }),
+      )
+      processor.processChunk(ev.textContent('It is sunny.', 'anthropic-msg-1'))
+      processor.processChunk(ev.textEnd('anthropic-msg-1'))
+      processor.finalizeStream()
+
+      messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('anthropic-msg-1')
+      expect(messages[0]?.parts).toEqual([
+        {
+          type: 'tool-call',
+          id: 'tc-1',
+          name: 'lookupWeather',
+          arguments: '{"location":"Berlin"}',
+          state: 'input-complete',
+        },
+        {
+          type: 'text',
+          content: 'It is sunny.',
+        },
+      ])
+    })
   })
 
   describe('double onStreamEnd guard', () => {
