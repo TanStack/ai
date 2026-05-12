@@ -304,8 +304,22 @@ export class OpenRouterTextAdapter<
       case 'video':
         return { type: 'video_url', videoUrl: { url: part.source.value } }
       case 'document':
-        // SDK doesn't have a document_url type — surface as text so the
-        // model at least sees the URL rather than dropping the part.
+        // The chat-completions SDK has no document_url type. For URL
+        // sources, surface a text reference so the model at least sees
+        // the link. For data sources, `part.source.value` is the raw
+        // base64 payload — inlining it into the prompt would blow the
+        // context window with megabytes of binary and leak the document
+        // content verbatim. Throw instead so the caller can either
+        // switch to the Responses adapter (which has proper input_file
+        // support for data documents) or strip the document before
+        // sending.
+        if (part.source.type === 'data') {
+          throw new Error(
+            `${this.name} chat-completions does not support inline (data) document content parts. ` +
+              `Use the Responses adapter (openRouterResponsesText) for document data, ` +
+              `or pass the document as a URL.`,
+          )
+        }
         return { type: 'text', text: `[Document: ${part.source.value}]` }
       default:
         return null
