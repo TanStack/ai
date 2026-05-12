@@ -170,12 +170,17 @@ export class OpenRouterTextAdapter<
 
   protected override convertMessage(message: ModelMessage): any {
     if (message.role === 'tool') {
+      // For structured (Array<ContentPart>) tool results, extract the text
+      // content rather than JSON-stringifying the parts — sending the raw
+      // ContentPart shape (e.g. `[{"type":"text","content":"…"}]`) into the
+      // tool message's `content` field would feed the literal JSON of the
+      // parts back to the model instead of the tool's textual result.
       return {
         role: 'tool',
         content:
           typeof message.content === 'string'
             ? message.content
-            : JSON.stringify(message.content),
+            : this.extractTextContent(message.content),
         toolCallId: message.toolCallId || '',
       } satisfies ChatMessages
     }

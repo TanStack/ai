@@ -1975,6 +1975,61 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     expect(assistantMsg.content).toBe('hello world')
   })
 
+  it('extracts text from array-shaped tool message content instead of JSON-stringifying parts', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          toolCallId: 'call_1',
+          // Structured tool result content. The adapter must extract the
+          // text rather than JSON-stringifying the parts; otherwise the
+          // model would see the literal `[{"type":"text","content":"..."}]`
+          // shape on its next turn instead of the actual tool output.
+          content: [
+            { type: 'text', content: '{"temp":' },
+            { type: 'text', content: '72}' },
+          ],
+        },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const toolMsg = rawParams.chatRequest.messages.find(
+      (m: any) => m.role === 'tool',
+    )
+    expect(toolMsg).toBeDefined()
+    expect(toolMsg.content).toBe('{"temp":72}')
+    expect(toolMsg.content).not.toContain('"type":"text"')
+  })
+
   it('emits content: null (not undefined) for assistant messages with only tool calls', async () => {
     setupMockSdkClient([
       {
