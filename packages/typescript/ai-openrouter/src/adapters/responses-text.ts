@@ -557,7 +557,14 @@ function toSnakeResponseResult(r: any): Record<string, any> {
       ? r.output.map((it: any) => toSnakeOutputItem(it))
       : r.output,
     ...(r.error && {
-      error: { message: r.error.message, code: r.error.code },
+      // Stringify provider error codes so they survive `toRunErrorPayload`'s
+      // string-only `code` filter — mirrors the top-level `'error'` event
+      // branch in `adaptOpenRouterResponsesStreamEvents` and the chat-
+      // completions fix in commit 0171b18e.
+      error: {
+        message: r.error.message,
+        code: r.error.code != null ? String(r.error.code) : undefined,
+      },
     }),
   }
 }

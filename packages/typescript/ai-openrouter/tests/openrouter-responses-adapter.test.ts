@@ -404,6 +404,114 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(err).toBeDefined()
     expect(err.error.code).toBe('429')
   })
+
+  it('stringifies non-string error.code on response.failed events', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.failed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          error: { message: 'upstream auth failed', code: 401 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const c of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(c)
+    }
+    const err = chunks.find((c) => c.type === 'RUN_ERROR') as any
+    expect(err).toBeDefined()
+    expect(err.message).toBe('upstream auth failed')
+    // Provider code must survive as a string so `toRunErrorPayload`'s
+    // string-only `code` filter doesn't drop it on the way through.
+    expect(err.code).toBe('401')
+    expect(err.error.code).toBe('401')
+  })
+
+  it('does not emit further lifecycle events after a top-level error event', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: { type: 'message', id: 'msg_1', role: 'assistant' },
+      },
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 2,
+        itemId: 'msg_1',
+        outputIndex: 0,
+        contentIndex: 0,
+        delta: 'partial ',
+      },
+      // Top-level error mid-stream — terminal.
+      {
+        type: 'error',
+        sequenceNumber: 3,
+        message: 'rate limit',
+        code: 429,
+        param: null,
+      },
+      // The adapter MUST NOT process anything after the error event;
+      // these chunks would otherwise yield TEXT_MESSAGE_CONTENT / END
+      // events past the terminal RUN_ERROR.
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 4,
+        itemId: 'msg_1',
+        outputIndex: 0,
+        contentIndex: 0,
+        delta: 'after-error',
+      },
+      {
+        type: 'response.output_text.done',
+        sequenceNumber: 5,
+        itemId: 'msg_1',
+        outputIndex: 0,
+        contentIndex: 0,
+        text: 'partial after-error',
+      },
+    ])
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const c of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(c)
+    }
+
+    const errIndex = chunks.findIndex((c) => c.type === 'RUN_ERROR')
+    expect(errIndex).toBeGreaterThanOrEqual(0)
+    // No content/lifecycle events emitted after RUN_ERROR.
+    const post = chunks.slice(errIndex + 1)
+    expect(post).toEqual([])
+    // The first delta's content reached the consumer; the second did not.
+    const allContent = chunks
+      .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+      .map((c: any) => c.delta)
+      .join('')
+    expect(allContent).toBe('partial ')
+    expect(allContent).not.toContain('after-error')
+  })
 })
 
 describe('OpenRouter responses adapter — SDK constructor wiring', () => {
