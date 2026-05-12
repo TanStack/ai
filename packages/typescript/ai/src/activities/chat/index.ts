@@ -9,6 +9,7 @@ import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import { EventType, isStructuredOutputCompleteEvent } from '../../types'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
   MiddlewareAbortError,
@@ -1785,12 +1786,12 @@ async function* fallbackStructuredOutputStream(
   const timestamp = Date.now()
 
   yield {
-    type: 'RUN_STARTED',
+    type: EventType.RUN_STARTED,
     runId,
     threadId,
     model,
     timestamp,
-  } as unknown as StreamChunk
+  } satisfies StreamChunk
 
   let result: { data: unknown; rawText: string }
   try {
@@ -1798,55 +1799,55 @@ async function* fallbackStructuredOutputStream(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     yield {
-      type: 'RUN_ERROR',
+      type: EventType.RUN_ERROR,
       runId,
       model,
       timestamp,
       message,
       error: { message },
-    } as unknown as StreamChunk
+    } satisfies StreamChunk
     return
   }
 
   yield {
-    type: 'TEXT_MESSAGE_START',
+    type: EventType.TEXT_MESSAGE_START,
     messageId,
     role: 'assistant',
     model,
     timestamp,
-  } as unknown as StreamChunk
+  } satisfies StreamChunk
 
   yield {
-    type: 'TEXT_MESSAGE_CONTENT',
+    type: EventType.TEXT_MESSAGE_CONTENT,
     messageId,
     delta: result.rawText,
     model,
     timestamp,
-  } as unknown as StreamChunk
+  } satisfies StreamChunk
 
   yield {
-    type: 'TEXT_MESSAGE_END',
+    type: EventType.TEXT_MESSAGE_END,
     messageId,
     model,
     timestamp,
-  } as unknown as StreamChunk
+  } satisfies StreamChunk
 
   yield {
-    type: 'CUSTOM',
+    type: EventType.CUSTOM,
     name: 'structured-output.complete',
     value: { object: result.data, raw: result.rawText },
     model,
     timestamp,
-  } as unknown as StreamChunk
+  } satisfies StreamChunk
 
   yield {
-    type: 'RUN_FINISHED',
+    type: EventType.RUN_FINISHED,
     runId,
     threadId,
     model,
     timestamp,
     finishReason: 'stop',
-  } as unknown as StreamChunk
+  } satisfies StreamChunk
 }
 
 /**
@@ -1945,14 +1946,14 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
         source: 'runStreamingStructuredOutput',
       })
       yield {
-        type: 'RUN_ERROR',
+        type: EventType.RUN_ERROR,
         runId,
         model,
         timestamp: Date.now(),
         message,
         code: 'agent-loop-failed',
         error: { message, code: 'agent-loop-failed' },
-      } as unknown as StreamChunk
+      } satisfies StreamChunk
       return
     }
 
@@ -2008,21 +2009,16 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
       })
 
   for await (const chunk of stream) {
-    if (
-      chunk.type === 'CUSTOM' &&
-      chunk.name === 'structured-output.complete'
-    ) {
-      const customChunk = chunk
-      const value = customChunk.value as {
-        object: unknown
-        raw: string
-        reasoning?: string
-      }
+    if (isStructuredOutputCompleteEvent<InferSchemaType<TSchema>>(chunk)) {
+      const { value } = chunk
       if (isStandardSchema(outputSchema)) {
         try {
-          const validated = parseWithStandardSchema(outputSchema, value.object)
+          const validated = parseWithStandardSchema<InferSchemaType<TSchema>>(
+            outputSchema,
+            value.object,
+          )
           yield {
-            ...customChunk,
+            ...chunk,
             // Forward `reasoning` through schema validation so consumers that
             // only listen for the terminal event don't lose chain-of-thought.
             value: {
@@ -2030,7 +2026,7 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
               raw: value.raw,
               ...(value.reasoning ? { reasoning: value.reasoning } : {}),
             },
-          } as StructuredOutputCompleteEvent<InferSchemaType<TSchema>>
+          } satisfies StructuredOutputCompleteEvent<InferSchemaType<TSchema>>
           continue
         } catch (err) {
           const message = (err as Error).message || 'Schema validation failed'
@@ -2045,10 +2041,10 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
             },
           )
           yield {
-            type: 'RUN_ERROR',
+            type: EventType.RUN_ERROR,
             runId,
-            model: customChunk.model ?? model,
-            timestamp: customChunk.timestamp ?? Date.now(),
+            model: chunk.model ?? model,
+            timestamp: chunk.timestamp ?? Date.now(),
             message,
             code: 'schema-validation',
             error: {
@@ -2056,11 +2052,11 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
               code: 'schema-validation',
               ...(value.reasoning ? { reasoning: value.reasoning } : {}),
             },
-          } as unknown as StreamChunk
+          } satisfies StreamChunk
           return
         }
       }
-      yield customChunk as StructuredOutputCompleteEvent<
+      yield chunk satisfies StructuredOutputCompleteEvent<
         InferSchemaType<TSchema>
       >
       continue

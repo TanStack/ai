@@ -296,7 +296,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         stream: _s,
         tools: _t,
         ...cleanParams
-      } = requestParams as unknown as Record<string, unknown>
+      } = requestParams
 
       chatOptions.logger.request(
         `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
@@ -305,7 +305,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
       const stream = await this.callChatCompletionStream(
         {
-          ...(cleanParams as unknown as OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming),
+          ...cleanParams,
           stream: true,
           stream_options: { include_usage: true },
           response_format: {
