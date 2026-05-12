@@ -110,6 +110,17 @@ export class OpenRouterResponsesTextAdapter<
     this.orClient = new OpenRouter(config)
   }
 
+  /**
+   * Preserve nulls in structured-output results. OpenRouter routes through
+   * a wide variety of upstream providers; some of them return `null` as a
+   * distinct sentinel ("the field exists, the value is null") rather than
+   * collapsing it to absent. Stripping nulls here would erase that
+   * distinction. Mirrors the chat-completions adapter override.
+   */
+  protected override transformStructuredOutput(parsed: unknown): unknown {
+    return parsed
+  }
+
   // ────────────────────────────────────────────────────────────────────────
   // SDK call hooks — the params we get here were built by our overridden
   // mapOptionsToRequest / convertMessagesToInput / convertContentPartToInput

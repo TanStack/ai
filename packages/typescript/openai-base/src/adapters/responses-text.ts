@@ -228,9 +228,13 @@ export class OpenAICompatibleResponsesTextAdapter<
         )
       }
 
-      // Transform null values to undefined to match original Zod schema expectations
-      // Provider returns null for optional fields we made nullable in the schema
-      const transformed = transformNullsToUndefined(parsed)
+      // Apply the provider-specific post-parse shaping (default: null →
+      // undefined to align with the original Zod schema's optional-field
+      // semantics; subclasses with different conventions can override
+      // `transformStructuredOutput`, mirroring the chat-completions base's
+      // hook so OpenRouter and other providers that preserve nulls in
+      // structured output can opt out without forking `structuredOutput`).
+      const transformed = this.transformStructuredOutput(parsed)
 
       return {
         data: transformed,
@@ -256,6 +260,19 @@ export class OpenAICompatibleResponsesTextAdapter<
     originalRequired?: Array<string>,
   ): Record<string, any> {
     return makeStructuredOutputCompatible(schema, originalRequired)
+  }
+
+  /**
+   * Final shaping pass applied to parsed structured-output JSON before it is
+   * returned to the caller. Default converts `null` values to `undefined` so
+   * the result aligns with the original Zod schema's optional-field
+   * semantics. Subclasses with different conventions (OpenRouter historically
+   * preserves nulls) can override — mirrors the chat-completions base's hook
+   * so a subclass that opts out of null-stripping doesn't have to fork the
+   * whole `structuredOutput` method.
+   */
+  protected transformStructuredOutput(parsed: unknown): unknown {
+    return transformNullsToUndefined(parsed)
   }
 
   /**

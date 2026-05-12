@@ -514,6 +514,68 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
   })
 })
 
+describe('OpenRouter responses adapter — structured output', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('preserves null values in structured output (does not strip nulls)', async () => {
+    // Non-streaming Responses API result with a `null` field in the parsed
+    // JSON. The base default `transformStructuredOutput` would convert
+    // nulls to undefined; the OpenRouter override must keep them intact
+    // so consumers that discriminate "field present but null" from
+    // "field absent" see the null sentinel the upstream returned.
+    setupMockSdkClient([], {
+      id: 'resp_1',
+      model: 'openai/gpt-4o-mini',
+      output: [
+        {
+          type: 'message',
+          id: 'msg_1',
+          role: 'assistant',
+          content: [
+            {
+              type: 'output_text',
+              text: JSON.stringify({
+                name: 'Alice',
+                age: 30,
+                nickname: null,
+              }),
+            },
+          ],
+        },
+      ],
+      usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+    })
+
+    const adapter = createAdapter()
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini' as any,
+        messages: [{ role: 'user', content: 'profile?' }],
+        logger: testLogger,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+          nickname: { type: ['string', 'null'] },
+        },
+        required: ['name', 'age', 'nickname'],
+      },
+    })
+
+    expect(result.data).toEqual({
+      name: 'Alice',
+      age: 30,
+      nickname: null,
+    })
+    // Critical: nickname should be `null`, not `undefined`.
+    expect((result.data as any).nickname).toBeNull()
+  })
+})
+
 describe('OpenRouter responses adapter — SDK constructor wiring', () => {
   beforeEach(() => {
     vi.clearAllMocks()
