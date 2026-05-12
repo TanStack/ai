@@ -71,7 +71,7 @@ export class GrokTextAdapter<
   protected override extractReasoning(
     chunk: ChatCompletionChunk,
   ): { text: string } | undefined {
-    const delta = chunk.choices?.[0]?.delta as
+    const delta = chunk.choices[0]?.delta as
       | { reasoning?: unknown; reasoning_content?: unknown }
       | undefined
     const raw = delta?.reasoning_content ?? delta?.reasoning

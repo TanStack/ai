@@ -288,7 +288,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let accumulatedContent = ''
     let accumulatedReasoning = ''
     let hasEmittedTextMessageStart = false
-    let hasEmittedTextMessageEnd = false
     let reasoningMessageId: string | undefined
     let stepId: string | undefined
     let hasClosedReasoning = false
@@ -507,8 +506,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       yield* closeReasoning()
 
-      if (hasEmittedTextMessageStart && !hasEmittedTextMessageEnd) {
-        hasEmittedTextMessageEnd = true
+      if (hasEmittedTextMessageStart) {
         yield asChunk({
           type: 'TEXT_MESSAGE_END',
           messageId: aguiState.messageId,
@@ -574,9 +572,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         finishReason: 'stop',
         ...(usage && {
           usage: {
-            promptTokens: usage.input_tokens ?? 0,
-            completionTokens: usage.output_tokens ?? 0,
-            totalTokens: usage.total_tokens ?? 0,
+            promptTokens: usage.input_tokens,
+            completionTokens: usage.output_tokens,
+            totalTokens: usage.total_tokens,
           },
         }),
       })
