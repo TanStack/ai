@@ -1,8 +1,12 @@
 /**
  * Groq-specific message types for the Chat Completions API.
  *
- * These type definitions mirror the Groq SDK types and are used internally
- * by the adapter to avoid tight coupling to the SDK's exported types.
+ * Groq's wire format is OpenAI Chat Completions plus a few Groq-specific
+ * extensions (compound tools, citation/service-tier provider options,
+ * etc.). These type definitions describe that wire shape directly — the
+ * Groq SDK was dropped in favour of pointing the OpenAI SDK at Groq's
+ * `/openai/v1` base URL, so this file is the source of truth for
+ * Groq-only fields rather than a mirror of an external SDK's types.
  *
  * @see https://console.groq.com/docs/api-reference#chat
  */
