@@ -1,5 +1,43 @@
 # @tanstack/ai-elevenlabs
 
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [[`87f305c`](https://github.com/TanStack/ai/commit/87f305c9961d608fd7bea93a5100698a98aed11d)]:
+  - @tanstack/ai@0.16.0
+  - @tanstack/ai-client@0.9.1
+
+## 0.2.2
+
+### Patch Changes
+
+- Internal refactor: every provider now delegates `getApiKeyFromEnv` / `generateId` / `transformNullsToUndefined` / `ModelMeta` helpers to the new `@tanstack/ai-utils` package. `ai-openai` and `ai-grok` additionally inherit OpenAI-compatible adapter base classes (Chat Completions / Responses text, image, summarize, transcription, TTS, video) from the new `@tanstack/openai-base` package; `ai-groq` keeps its own `BaseTextAdapter`-derived text adapter (Groq uses the `groq-sdk`, not the OpenAI SDK) but consumes `@tanstack/openai-base`'s schema converter and tool converters. The remaining providers (`ai-anthropic`, `ai-gemini`, `ai-ollama`, `ai-openrouter`, `ai-fal`, `ai-elevenlabs`) only consume `@tanstack/ai-utils` because they speak provider-native protocols, not OpenAI-compatible ones. No breaking changes — all public APIs remain identical. ([#409](https://github.com/TanStack/ai/pull/409))
+
+- Updated dependencies [[`27c9aeb`](https://github.com/TanStack/ai/commit/27c9aeb80993f8262e65ef623a4cc6dadf18817e)]:
+  - @tanstack/ai-utils@0.2.0
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`a4e2c55`](https://github.com/TanStack/ai/commit/a4e2c55a79490c2245ff2de2d3e1803a533c867b), [`82078bd`](https://github.com/TanStack/ai/commit/82078bdabe28d7d4a15a2847d667f363bf0a9cbe), [`b2d3cc1`](https://github.com/TanStack/ai/commit/b2d3cc131a31c54bd1e5841f958fbe333514e508), [`13cceae`](https://github.com/TanStack/ai/commit/13cceaedf64e398ca15b8dbbbfe215329ea26794)]:
+  - @tanstack/ai@0.15.0
+  - @tanstack/ai-client@0.9.0
+
+## 0.2.0
+
+### Minor Changes
+
+- feat: add REST adapters to @tanstack/ai-elevenlabs and migrate realtime to the renamed SDK ([#504](https://github.com/TanStack/ai/pull/504))
+
+  Extends `@tanstack/ai-elevenlabs` (previously realtime-only) with three tree-shakeable REST adapters built on the official `@elevenlabs/elevenlabs-js` SDK (v2.44+):
+  - `elevenlabsSpeech()` — text-to-speech on `eleven_v3`, `eleven_multilingual_v2`, `eleven_flash_*`, `eleven_turbo_*`
+  - `elevenlabsAudio()` — music (`music_v1`, with structured composition plans) and sound effects (`eleven_text_to_sound_v2`/`v1`) via a single adapter that dispatches by model
+  - `elevenlabsTranscription()` — Scribe v1/v2 speech-to-text with diarization, keyterm biasing, PII redaction, and word-level timestamps
+
+  Also migrates the existing realtime adapter off the deprecated `@11labs/client` onto the renamed `@elevenlabs/client` package.
+
 ## 0.1.8
 
 ### Patch Changes

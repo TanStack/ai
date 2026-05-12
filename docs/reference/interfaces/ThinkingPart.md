@@ -5,7 +5,7 @@ title: ThinkingPart
 
 # Interface: ThinkingPart
 
-Defined in: [packages/typescript/ai/src/types.ts:335](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L335)
+Defined in: [packages/typescript/ai/src/types.ts:341](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L341)
 
 ## Properties
 
@@ -15,7 +15,27 @@ Defined in: [packages/typescript/ai/src/types.ts:335](https://github.com/TanStac
 content: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:337](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L337)
+Defined in: [packages/typescript/ai/src/types.ts:343](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L343)
+
+***
+
+### signature?
+
+```ts
+optional signature: string;
+```
+
+Defined in: [packages/typescript/ai/src/types.ts:345](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L345)
+
+***
+
+### stepId?
+
+```ts
+optional stepId: string;
+```
+
+Defined in: [packages/typescript/ai/src/types.ts:344](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L344)
 
 ***
 
@@ -25,4 +45,4 @@ Defined in: [packages/typescript/ai/src/types.ts:337](https://github.com/TanStac
 type: "thinking";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:336](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L336)
+Defined in: [packages/typescript/ai/src/types.ts:342](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L342)

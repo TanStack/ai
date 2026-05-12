@@ -1,4 +1,4 @@
-import type { Provider, Feature } from '@/lib/types'
+import type { Feature, Provider } from '@/lib/types'
 
 /**
  * Single source of truth for provider × feature support.
@@ -29,6 +29,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini', 'mistral']),
+  'multi-turn-reasoning': new Set(['anthropic']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
@@ -133,16 +134,25 @@ export const matrix: Record<Feature, Set<Provider>> = {
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
-  tts: new Set(['openai', 'grok']),
-  transcription: new Set(['openai', 'grok']),
+  // ElevenLabs TTS (/v1/text-to-speech/{voice_id}) and STT (/v1/speech-to-text)
+  // are mocked via local mounts in global-setup.ts (aimock 1.17 covers
+  // /v1/sound-generation + /v1/music/* but not these two routes yet).
+  tts: new Set(['openai', 'grok', 'elevenlabs']),
+  transcription: new Set(['openai', 'grok', 'elevenlabs']),
   'video-gen': new Set(['openai']),
+  // Music generation: Gemini Lyria (generateContent with AUDIO modality)
+  // and ElevenLabs music_v1 (/v1/music/*) — both natively mocked by aimock
+  // 1.17+.
+  'audio-gen': new Set(['gemini', 'elevenlabs']),
+  // ElevenLabs sound-generation (/v1/sound-generation), aimock 1.17+.
+  'sound-effects': new Set(['elevenlabs']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {
   return matrix[feature]?.has(provider) ?? false
 }
 
-export function getSupportedFeatures(provider: Provider): Feature[] {
+export function getSupportedFeatures(provider: Provider): Array<Feature> {
   return (Object.entries(matrix) as Array<[Feature, Set<Provider>]>)
     .filter(([_, providers]) => providers.has(provider))
     .map(([feature]) => feature)

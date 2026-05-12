@@ -41,6 +41,21 @@ Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:27](http
 
 ***
 
+### metadata?
+
+```ts
+optional metadata: Record<string, unknown>;
+```
+
+Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:32](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L32)
+
+Provider-specific metadata that round-trips with the tool call
+(e.g. Gemini's `thoughtSignature`). Untyped at this layer because
+the stream processor is provider-agnostic; adapters narrow it
+via their `TToolCallMetadata` generic.
+
+***
+
 ### name
 
 ```ts

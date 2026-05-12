@@ -22,6 +22,7 @@ export const providers: Provider[] = [
   'grok',
   'openrouter',
   'mistral',
+  'elevenlabs',
 ]
 
 export { isSupported }

@@ -55,6 +55,7 @@ export function updateToolCallPart(
     name: string
     arguments: string
     state: ToolCallState
+    metadata?: Record<string, unknown>
   },
 ): Array<UIMessage> {
   return messages.map((msg) => {
@@ -67,6 +68,12 @@ export function updateToolCallPart(
       (p): p is ToolCallPart => p.type === 'tool-call' && p.id === toolCall.id,
     )
 
+    // Carry forward metadata from either the new toolCall or the existing
+    // part. Once the adapter has emitted metadata for a tool call (e.g.
+    // Gemini's thoughtSignature on TOOL_CALL_START) we must not lose it on
+    // subsequent updates that don't re-supply it.
+    const metadata = toolCall.metadata ?? existing?.metadata
+
     const toolCallPart: ToolCallPart = {
       type: 'tool-call',
       id: toolCall.id,
@@ -76,6 +83,7 @@ export function updateToolCallPart(
       // Carry forward approval and output from the existing part
       ...(existing?.approval && { approval: { ...existing.approval } }),
       ...(existing?.output !== undefined && { output: existing.output }),
+      ...(metadata !== undefined && { metadata }),
     }
 
     if (existing) {
@@ -244,12 +252,15 @@ export function updateToolCallApprovalResponse(
 }
 
 /**
- * Update or add a thinking part to a message.
+ * Update or add a thinking part to a message, keyed by stepId.
+ * Each distinct stepId produces its own ThinkingPart.
  */
 export function updateThinkingPart(
   messages: Array<UIMessage>,
   messageId: string,
+  stepId: string,
   content: string,
+  signature?: string,
 ): Array<UIMessage> {
   return messages.map((msg) => {
     if (msg.id !== messageId) {
@@ -257,15 +268,19 @@ export function updateThinkingPart(
     }
 
     const parts = [...msg.parts]
-    const thinkingPartIndex = parts.findIndex((p) => p.type === 'thinking')
+    const thinkingPartIndex = parts.findIndex(
+      (p) => p.type === 'thinking' && p.stepId === stepId,
+    )
 
     const thinkingPart: ThinkingPart = {
       type: 'thinking',
       content,
+      stepId,
+      ...(signature && { signature }),
     }
 
     if (thinkingPartIndex >= 0) {
-      // Update existing thinking part
+      // Update existing thinking part for this step
       parts[thinkingPartIndex] = thinkingPart
     } else {
       // Add new thinking part at the end (preserve natural streaming order)

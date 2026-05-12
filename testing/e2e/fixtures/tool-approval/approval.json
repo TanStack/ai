@@ -45,6 +45,15 @@
       "response": {
         "content": "Understood, I won't add the guitar to your cart. Let me know if you change your mind."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[approval] follow-up: anything else?",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Here is the follow-up reply: nothing else needed for now."
+      }
     }
   ]
 }

@@ -4,9 +4,9 @@ import type { ToolResultPayload, ToolSchema } from '../src/types'
 
 /**
  * The CF Worker delegates actual sandboxing to Workers' V8 isolate via the
- * UNSAFE_EVAL binding, so we can't perform a real escape attempt in Node. What
- * we verify here instead is structural — the wrapper must not let user inputs
- * break out of their intended quoting/scoping.
+ * worker_loader binding, so we can't perform a real escape attempt in Node.
+ * What we verify here instead is structural — the wrapper must not let user
+ * inputs break out of their intended quoting/scoping.
  */
 
 const benignTool: ToolSchema = {

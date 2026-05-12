@@ -12,7 +12,7 @@ import { realtimeClientTools } from '@/lib/realtime-tools'
 type Provider = 'openai' | 'elevenlabs' | 'grok'
 
 const getRealtimeTokenFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { provider: Provider; agentId?: string }) => {
+  .inputValidator((data: { provider: Provider; language?: string }) => {
     if (!data.provider) throw new Error('Provider is required')
     return data
   })
@@ -26,14 +26,10 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
     }
 
     if (data.provider === 'elevenlabs') {
-      const agentId = data.agentId || process.env.ELEVENLABS_AGENT_ID
-      if (!agentId) {
-        throw new Error(
-          'ElevenLabs agent ID is required. Set ELEVENLABS_AGENT_ID or pass agentId in request body.',
-        )
-      }
       return realtimeToken({
-        adapter: elevenlabsRealtimeToken({ agentId }),
+        adapter: elevenlabsRealtimeToken({
+          ...(data.language ? { overrides: { language: data.language } } : {}),
+        }),
       })
     }
 
@@ -59,7 +55,7 @@ function adapterForProvider(provider: Provider) {
 
 export function useRealtime({
   provider,
-  agentId,
+  language,
   voice,
   outputModalities,
   temperature,
@@ -67,7 +63,7 @@ export function useRealtime({
   semanticEagerness,
 }: {
   provider: Provider
-  agentId: string
+  language?: string
   voice?: string
   outputModalities?: Array<'audio' | 'text'>
   temperature?: number
@@ -79,7 +75,7 @@ export function useRealtime({
       getRealtimeTokenFn({
         data: {
           provider,
-          ...(provider === 'elevenlabs' && agentId ? { agentId } : {}),
+          ...(provider === 'elevenlabs' && language ? { language } : {}),
         },
       }),
     adapter: adapterForProvider(provider),

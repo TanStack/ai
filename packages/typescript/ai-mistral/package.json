@@ -54,6 +54,6 @@
     "zod": "^4.0.0"
   },
   "dependencies": {
-    "@mistralai/mistralai": "^2.2.0"
+    "@mistralai/mistralai": "2.2.0"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-openai",
-  "version": "0.8.2",
+  "version": "0.8.5",
   "description": "OpenAI adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -44,6 +44,8 @@
     "adapter"
   ],
   "dependencies": {
+    "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/openai-base": "workspace:*",
     "openai": "^6.9.1"
   },
   "peerDependencies": {

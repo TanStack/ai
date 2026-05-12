@@ -3,9 +3,9 @@ id: TextAdapter
 title: TextAdapter
 ---
 
-# Interface: TextAdapter\<TModel, TProviderOptions, TInputModalities, TMessageMetadataByModality, TToolCapabilities\>
+# Interface: TextAdapter\<TModel, TProviderOptions, TInputModalities, TMessageMetadataByModality, TToolCapabilities, TToolCallMetadata\>
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:58](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L58)
+Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:59](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L59)
 
 Text adapter interface with pre-resolved generics.
 
@@ -18,6 +18,7 @@ Generic parameters:
 - TInputModalities: Supported input modalities for this model (already resolved)
 - TMessageMetadata: Metadata types for content parts (already resolved)
 - TToolCapabilities: Tuple of tool-kind strings supported by this model, resolved from `supports.tools`
+- TToolCallMetadata: Metadata type that round-trips with tool calls (e.g. Gemini's `thoughtSignature`)
 
 ## Type Parameters
 
@@ -41,6 +42,10 @@ Generic parameters:
 
 `TToolCapabilities` *extends* `ReadonlyArray`\<`string`\> = `ReadonlyArray`\<`string`\>
 
+### TToolCallMetadata
+
+`TToolCallMetadata` = `unknown`
+
 ## Properties
 
 ### ~types
@@ -49,7 +54,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:75](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L75)
+Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L77)
 
 **`Internal`**
 
@@ -73,6 +78,12 @@ messageMetadataByModality: TMessageMetadataByModality;
 providerOptions: TProviderOptions;
 ```
 
+#### toolCallMetadata
+
+```ts
+toolCallMetadata: TToolCallMetadata;
+```
+
 #### toolCapabilities
 
 ```ts
@@ -87,7 +98,7 @@ toolCapabilities: TToolCapabilities;
 chatStream: (options) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:85](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L85)
+Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:88](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L88)
 
 Stream text completions from the model
 
@@ -109,7 +120,7 @@ Stream text completions from the model
 readonly kind: "text";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:66](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L66)
+Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L68)
 
 Discriminator for adapter kind
 
@@ -121,7 +132,7 @@ Discriminator for adapter kind
 readonly model: TModel;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L70)
+Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:72](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L72)
 
 The model this adapter is configured for
 
@@ -133,7 +144,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L68)
+Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L70)
 
 Provider name identifier (e.g., 'openai', 'anthropic')
 
@@ -145,7 +156,7 @@ Provider name identifier (e.g., 'openai', 'anthropic')
 structuredOutput: (options) => Promise<StructuredOutputResult<unknown>>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:97](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L97)
+Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:100](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L100)
 
 Generate structured output using the provider's native structured output API.
 This method uses stream: false and sends the JSON schema to the provider

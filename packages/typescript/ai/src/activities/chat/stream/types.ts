@@ -25,6 +25,11 @@ export interface InternalToolCallState {
   state: ToolCallState
   parsedArguments?: any
   index: number
+  /** Provider-specific metadata that round-trips with the tool call
+   * (e.g. Gemini's `thoughtSignature`). Untyped at this layer because
+   * the stream processor is provider-agnostic; adapters narrow it
+   * via their `TToolCallMetadata` generic. */
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -56,8 +61,11 @@ export interface MessageStreamState {
   totalTextContent: string
   currentSegmentText: string
   lastEmittedText: string
-  thinkingContent: string
   hasSeenReasoningEvents: boolean
+  thinkingSteps: Map<string, string>
+  thinkingStepSignatures: Map<string, string>
+  thinkingStepOrder: Array<string>
+  currentThinkingStepId: string | null
   toolCalls: Map<string, InternalToolCallState>
   toolCallOrder: Array<string>
   hasToolCallsSinceTextStart: boolean

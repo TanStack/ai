@@ -1,10 +1,12 @@
-import type { ProviderTool, Tool } from '@tanstack/ai'
-import type OpenAI from 'openai'
+import { codeInterpreterTool as baseCodeInterpreterTool } from '@tanstack/openai-base'
+import type { ProviderTool } from '@tanstack/ai'
+import type { CodeInterpreterToolConfig } from '@tanstack/openai-base'
 
-export type CodeInterpreterToolConfig = OpenAI.Responses.Tool.CodeInterpreter
-
-/** @deprecated Renamed to `CodeInterpreterToolConfig`. Will be removed in a future release. */
-export type CodeInterpreterTool = CodeInterpreterToolConfig
+export {
+  type CodeInterpreterToolConfig,
+  type CodeInterpreterTool,
+  convertCodeInterpreterToolToAdapterFormat,
+} from '@tanstack/openai-base'
 
 export type OpenAICodeInterpreterTool = ProviderTool<
   'openai',
@@ -12,31 +14,12 @@ export type OpenAICodeInterpreterTool = ProviderTool<
 >
 
 /**
- * Converts a standard Tool to OpenAI CodeInterpreterTool format
- */
-export function convertCodeInterpreterToolToAdapterFormat(
-  tool: Tool,
-): CodeInterpreterToolConfig {
-  const metadata = tool.metadata as CodeInterpreterToolConfig
-  return {
-    type: 'code_interpreter',
-    container: metadata.container,
-  }
-}
-
-/**
- * Creates a standard Tool from CodeInterpreterTool parameters
+ * Creates a standard Tool from CodeInterpreterTool parameters, branded as an
+ * OpenAI provider tool. Delegates construction to the base factory and brands
+ * the result via a phantom-typed `ProviderTool` cast.
  */
 export function codeInterpreterTool(
   container: CodeInterpreterToolConfig,
 ): OpenAICodeInterpreterTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
-    name: 'code_interpreter',
-    description: 'Execute code in a sandboxed environment',
-    metadata: {
-      type: 'code_interpreter',
-      container,
-    },
-  } as unknown as OpenAICodeInterpreterTool
+  return baseCodeInterpreterTool(container) as OpenAICodeInterpreterTool
 }

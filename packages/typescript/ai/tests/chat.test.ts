@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { chat, createChatOptions } from '../src/activities/chat/index'
 import type { StreamChunk, Tool } from '../src/types'
 import {
+  chunk,
   ev,
   createMockAdapter,
   collectChunks,
@@ -706,6 +707,9 @@ describe('chat()', () => {
           c.type === 'TOOL_CALL_START' && (c as any).toolCallId === 'call_1',
       )
       expect(toolStartChunks).toHaveLength(1)
+      // Both AG-UI spec field `toolCallName` and deprecated alias `toolName`
+      // must be set so consumers reading either get a valid name (issue #532).
+      expect((toolStartChunks[0] as any).toolCallName).toBe('getWeather')
       expect((toolStartChunks[0] as any).toolName).toBe('getWeather')
 
       const toolArgsChunks = chunks.filter(
@@ -788,6 +792,7 @@ describe('chat()', () => {
           (c) => c.type === 'TOOL_CALL_START' && (c as any).toolCallId === id,
         )
         expect(starts).toHaveLength(1)
+        expect((starts[0] as any).toolCallName).toBe(name)
         expect((starts[0] as any).toolName).toBe(name)
 
         const argChunks = chunks.filter(
@@ -858,6 +863,7 @@ describe('chat()', () => {
           (c as any).toolCallId === 'call_server',
       )
       expect(starts).toHaveLength(1)
+      expect((starts[0] as any).toolCallName).toBe('getWeather')
       expect((starts[0] as any).toolName).toBe('getWeather')
 
       const argChunks = chunks.filter(
@@ -880,6 +886,94 @@ describe('chat()', () => {
       const endIdx = chunks.indexOf(ends[0]!)
       expect(startIdx).toBeLessThan(argsIdx)
       expect(argsIdx).toBeLessThan(endIdx)
+    })
+
+    it('should replace pendingExecution placeholder with the real tool result and supply both toolCallName/toolName (issue #532)', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ status: 'ok' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      // Simulate the UIMessages a client sends back after approving a tool.
+      // The chat activity extracts the approval decision from the
+      // `approval-responded` part and converts the rest into ModelMessages,
+      // which includes a placeholder `tool` message marked pendingExecution.
+      const stream = chat({
+        adapter,
+        messages: [
+          {
+            id: 'm-user',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Run it' }],
+          },
+          {
+            id: 'm-assistant',
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool-call',
+                id: 'call_approval',
+                name: 'approvedTool',
+                arguments: '{"x":1}',
+                state: 'approval-responded',
+                approval: {
+                  id: 'approval_call_approval',
+                  needsApproval: true,
+                  approved: true,
+                },
+              },
+            ],
+          },
+        ] as any,
+        tools: [
+          { ...serverTool('approvedTool', executeSpy), needsApproval: true },
+        ],
+      })
+
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // The tool must have actually executed because the placeholder marks
+      // it as pendingExecution.
+      expect(executeSpy).toHaveBeenCalledTimes(1)
+
+      // Synthesized TOOL_CALL_START must include both `toolCallName` (AG-UI
+      // spec) and `toolName` (deprecated alias). Without `toolCallName` the
+      // chat-client's StreamProcessor would create a tool-call part with
+      // name=undefined and the next outbound request would fail at Anthropic
+      // with `tool_use.name: String should have at least 1 character`.
+      const toolStart = chunks.find(
+        (c) =>
+          c.type === 'TOOL_CALL_START' &&
+          (c as any).toolCallId === 'call_approval',
+      )
+      expect(toolStart).toBeDefined()
+      expect((toolStart as any).toolCallName).toBe('approvedTool')
+      expect((toolStart as any).toolName).toBe('approvedTool')
+
+      // The follow-up adapter call (after the tool ran) must see the real
+      // tool result, not the placeholder. With the placeholder still in the
+      // messages array, the Anthropic adapter's tool_result de-dup would
+      // keep the placeholder and drop the real result.
+      expect(calls).toHaveLength(1)
+      const adapterMessages = calls[0]!.messages as Array<{
+        role: string
+        content: unknown
+        toolCallId?: string
+      }>
+      const toolMessages = adapterMessages.filter(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_approval',
+      )
+      expect(toolMessages).toHaveLength(1)
+      expect(toolMessages[0]!.content).toBe(JSON.stringify({ status: 'ok' }))
     })
   })
 
@@ -1233,6 +1327,92 @@ describe('chat()', () => {
       expect(tool1Spy).toHaveBeenCalledTimes(1)
       expect(tool2Spy).toHaveBeenCalledTimes(1)
       expect(calls).toHaveLength(3)
+    })
+
+    it('should preserve signed thinking in continuation message history after a tool call', async () => {
+      const toolSpy = vi.fn().mockReturnValue({ result: 'inventory' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.stepStarted('think-1'),
+            {
+              ...ev.stepFinished('Need inventory.', 'think-1'),
+              signature: 'sig-think-1',
+            } as StreamChunk,
+            ev.toolStart('call_1', 'getInventory'),
+            ev.toolArgs('call_1', '{}'),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Inventory loaded.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Check inventory' }],
+        tools: [serverTool('getInventory', toolSpy)],
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(toolSpy).toHaveBeenCalledTimes(1)
+      expect(calls).toHaveLength(2)
+
+      const continuationMessages = calls[1]!.messages as Array<any>
+      const assistantToolMessage = continuationMessages.find(
+        (message) =>
+          message.role === 'assistant' &&
+          message.toolCalls?.[0]?.id === 'call_1',
+      )
+
+      expect(assistantToolMessage?.thinking).toEqual([
+        { content: 'Need inventory.', signature: 'sig-think-1' },
+      ])
+    })
+
+    it('should execute tool calls that only provide the deprecated toolName field', async () => {
+      const toolSpy = vi.fn().mockReturnValue({ result: 'inventory' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            chunk('TOOL_CALL_START', {
+              toolCallId: 'call_1',
+              toolName: 'getInventory',
+            }),
+            ev.toolArgs('call_1', '{}'),
+            ev.toolEnd('call_1', 'getInventory'),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Inventory loaded.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Check inventory' }],
+        tools: [serverTool('getInventory', toolSpy)],
+      })
+
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(toolSpy).toHaveBeenCalledTimes(1)
+      expect(calls).toHaveLength(2)
     })
   })
 

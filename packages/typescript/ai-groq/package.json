@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-groq",
-  "version": "0.1.8",
+  "version": "0.1.11",
   "type": "module",
   "description": "Groq adapter for TanStack AI",
   "author": "",
@@ -51,6 +51,8 @@
     "zod": "^4.0.0"
   },
   "dependencies": {
+    "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/openai-base": "workspace:*",
     "groq-sdk": "^0.37.0"
   }
 }

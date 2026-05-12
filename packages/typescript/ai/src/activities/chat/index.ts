@@ -281,6 +281,10 @@ class TextEngine<
   private totalChunkCount = 0
   private currentMessageId: string | null = null
   private accumulatedContent = ''
+  private accumulatedThinking: Array<{ content: string; signature?: string }> =
+    []
+  private currentThinkingContent = ''
+  private currentThinkingSignature = ''
   private eventOptions?: Record<string, unknown>
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -556,6 +560,9 @@ class TextEngine<
   private async beginIteration(): Promise<void> {
     this.currentMessageId = this.createId('msg')
     this.accumulatedContent = ''
+    this.accumulatedThinking = []
+    this.currentThinkingContent = ''
+    this.currentThinkingSignature = ''
     this.finishedEvent = null
 
     // Update mutable context fields
@@ -666,6 +673,9 @@ class TextEngine<
       case 'RUN_ERROR':
         this.handleRunErrorEvent(chunk)
         break
+      case 'STEP_STARTED':
+        this.handleStepStartedEvent()
+        break
       case 'STEP_FINISHED':
         this.handleStepFinishedEvent(chunk)
         break
@@ -683,7 +693,7 @@ class TextEngine<
         break
 
       default:
-        // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END, STEP_STARTED,
+        // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END,
         // STATE_SNAPSHOT, STATE_DELTA, CUSTOM
         // - no special handling needed in chat activity
         break
@@ -726,10 +736,32 @@ class TextEngine<
     this.earlyTermination = true
   }
 
+  private finalizeCurrentThinkingStep(): void {
+    if (this.currentThinkingContent) {
+      this.accumulatedThinking.push({
+        content: this.currentThinkingContent,
+        ...(this.currentThinkingSignature && {
+          signature: this.currentThinkingSignature,
+        }),
+      })
+      this.currentThinkingContent = ''
+      this.currentThinkingSignature = ''
+    }
+  }
+
+  private handleStepStartedEvent(): void {
+    this.finalizeCurrentThinkingStep()
+  }
+
   private handleStepFinishedEvent(
-    _chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
+    chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
-    // State tracking for STEP_FINISHED is handled by middleware
+    if (chunk.delta) {
+      this.currentThinkingContent += chunk.delta
+    }
+    if (chunk.signature) {
+      this.currentThinkingSignature = chunk.signature
+    }
   }
 
   private async *checkForPendingToolCalls(): AsyncGenerator<
@@ -1057,12 +1089,17 @@ class TextEngine<
   }
 
   private addAssistantToolCallMessage(toolCalls: Array<ToolCall>): void {
+    this.finalizeCurrentThinkingStep()
+
     this.messages = [
       ...this.messages,
       {
         role: 'assistant',
         content: this.accumulatedContent || null,
         toolCalls,
+        ...(this.accumulatedThinking.length > 0 && {
+          thinking: this.accumulatedThinking,
+        }),
       },
     ]
   }
@@ -1213,6 +1250,7 @@ class TextEngine<
           timestamp: Date.now(),
           model: finishEvent.model,
           toolCallId: result.toolCallId,
+          toolCallName: result.toolName,
           toolName: result.toolName,
         } as StreamChunk)
 
@@ -1248,14 +1286,39 @@ class TextEngine<
         role: 'tool',
       } as StreamChunk)
 
-      this.messages = [
-        ...this.messages,
-        {
-          role: 'tool',
-          content,
-          toolCallId: result.toolCallId,
-        },
-      ]
+      // If a placeholder tool message exists for this toolCallId (created by
+      // uiMessageToModelMessages for an approval-responded part with no
+      // output yet), replace it with the real result. Otherwise the LLM sees
+      // both messages — and since the Anthropic adapter dedupes tool_result
+      // blocks by tool_use_id keeping the first match, the placeholder wins
+      // and the real result is dropped (see issue #532).
+      const placeholderIdx = this.messages.findIndex((m) => {
+        if (m.role !== 'tool' || m.toolCallId !== result.toolCallId) {
+          return false
+        }
+        if (typeof m.content !== 'string') return false
+        try {
+          return JSON.parse(m.content)?.pendingExecution === true
+        } catch {
+          return false
+        }
+      })
+
+      const newToolMessage: ModelMessage = {
+        role: 'tool',
+        content,
+        toolCallId: result.toolCallId,
+      }
+
+      if (placeholderIdx >= 0) {
+        this.messages = [
+          ...this.messages.slice(0, placeholderIdx),
+          newToolMessage,
+          ...this.messages.slice(placeholderIdx + 1),
+        ]
+      } else {
+        this.messages = [...this.messages, newToolMessage]
+      }
     }
 
     return chunks

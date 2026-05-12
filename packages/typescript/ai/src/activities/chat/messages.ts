@@ -138,6 +138,10 @@ interface AssistantSegment {
     id: string
     type: 'function'
     function: { name: string; arguments: string }
+    /** Provider-specific metadata that round-trips with the tool call.
+     * Untyped at this framework layer; adapters narrow it via their
+     * `TToolCallMetadata` generic. */
+    metadata?: unknown
   }>
 }
 
@@ -165,6 +169,7 @@ function isToolCallIncluded(part: ToolCallPart): boolean {
 function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   const messageList: Array<ModelMessage> = []
   let current = createSegment()
+  let pendingThinking: Array<{ content: string; signature?: string }> = []
 
   // Track emitted tool result IDs to avoid duplicates.
   // A tool call can have BOTH an explicit tool-result part AND an output
@@ -181,7 +186,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         role: 'assistant',
         content,
         ...(hasToolCalls && { toolCalls: current.toolCalls }),
+        ...(pendingThinking.length > 0 && { thinking: pendingThinking }),
       })
+      pendingThinking = []
     }
     current = createSegment()
   }
@@ -205,6 +212,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
               name: part.name,
               arguments: part.arguments,
             },
+            ...(part.metadata !== undefined && { metadata: part.metadata }),
           })
         }
         break
@@ -227,7 +235,15 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         }
         break
 
-      // thinking parts are skipped - they're UI-only
+      case 'thinking':
+        if (part.content) {
+          pendingThinking.push({
+            content: part.content,
+            ...(part.signature && { signature: part.signature }),
+          })
+        }
+        break
+
       default:
         break
     }
@@ -306,6 +322,17 @@ export function modelMessageToUIMessage(
 ): UIMessage {
   const parts: Array<MessagePart> = []
 
+  if (modelMessage.role === 'assistant' && modelMessage.thinking?.length) {
+    for (const thinking of modelMessage.thinking) {
+      if (!thinking.content) continue
+      parts.push({
+        type: 'thinking',
+        content: thinking.content,
+        ...(thinking.signature && { signature: thinking.signature }),
+      })
+    }
+  }
+
   // Handle tool results (when role is "tool") - only produce tool-result part,
   // not a text part (the content IS the tool result, not display text)
   if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
@@ -340,6 +367,7 @@ export function modelMessageToUIMessage(
         name: toolCall.function.name,
         arguments: toolCall.function.arguments,
         state: 'input-complete', // Model messages have complete arguments
+        ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
       })
     }
   }

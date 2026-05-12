@@ -27,7 +27,7 @@ describe('stripToSpec', () => {
       toolCallName: 'getTodos',
       toolName: 'getTodos',
       index: 0,
-      providerMetadata: { foo: 'bar' },
+      metadata: { foo: 'bar' },
       model: 'gpt-4o',
     })
     const result = stripToSpec(chunk)

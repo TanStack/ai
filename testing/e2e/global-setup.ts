@@ -36,6 +36,13 @@ export default async function globalSetup() {
   mock.mount('/v1/tts', grokTTSMount())
   mock.mount('/v1/stt', grokSTTMount())
 
+  // ElevenLabs TTS (/v1/text-to-speech/{voiceId}) and STT (/v1/speech-to-text)
+  // are not yet covered by aimock helpers (1.17 added /v1/sound-generation
+  // and /v1/music/* but not these). Mount them here following the grok
+  // pattern above.
+  mock.mount('/v1/text-to-speech', elevenLabsTTSMount())
+  mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
+
   await mock.start()
   console.log(`[aimock] started on port 4010`)
   ;(globalThis as any).__aimock = mock
@@ -61,6 +68,11 @@ function registerMediaFixtures(mock: LLMock) {
       status: 'completed',
     },
   })
+
+  // ElevenLabs music (/v1/music/*) and SFX (/v1/sound-generation) are
+  // covered natively by aimock 1.17 — fixtures live under
+  // fixtures/audio-gen/ and fixtures/sound-effects/ and are loaded by the
+  // generic loadFixtureDir() loop above.
 }
 
 /**
@@ -118,6 +130,99 @@ function grokSTTMount(): Mountable {
             { text: 'Fender', start: 0.9, end: 1.3, confidence: 0.96 },
             { text: 'Stratocaster', start: 1.3, end: 2.0, confidence: 0.94 },
             { text: 'please', start: 2.0, end: 2.4, confidence: 0.97 },
+          ],
+        }),
+      )
+      return true
+    },
+  }
+}
+
+function elevenLabsTTSMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // ElevenLabs TTS hits POST /v1/text-to-speech/{voiceId} or
+      // /v1/text-to-speech/{voiceId}/stream. After mount-prefix stripping
+      // pathname will be /{voiceId} or /{voiceId}/stream — accept any
+      // sub-path so we don't have to enumerate voice IDs.
+      if (req.method !== 'POST' || pathname === '/' || pathname === '')
+        return false
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'audio/mpeg')
+      res.setHeader('Content-Length', String(FAKE_MP3_BYTES.length))
+      res.end(FAKE_MP3_BYTES)
+      return true
+    },
+  }
+}
+
+function elevenLabsSTTMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      // Scribe wire format is snake_case (the SDK converts to camelCase
+      // before handing the response to user code). Each word needs a
+      // `logprob` field per the SDK's runtime validation. Keep "Fender
+      // Stratocaster" so the existing transcription.spec.ts assertion
+      // passes for elevenlabs too.
+      res.end(
+        JSON.stringify({
+          language_code: 'en',
+          language_probability: 0.99,
+          text: 'I would like to buy a Fender Stratocaster please',
+          audio_duration_secs: 2.4,
+          words: [
+            { text: 'I', start: 0, end: 0.1, type: 'word', logprob: -0.01 },
+            {
+              text: 'would',
+              start: 0.1,
+              end: 0.3,
+              type: 'word',
+              logprob: -0.02,
+            },
+            {
+              text: 'like',
+              start: 0.3,
+              end: 0.5,
+              type: 'word',
+              logprob: -0.03,
+            },
+            { text: 'to', start: 0.5, end: 0.6, type: 'word', logprob: -0.01 },
+            { text: 'buy', start: 0.6, end: 0.8, type: 'word', logprob: -0.02 },
+            { text: 'a', start: 0.8, end: 0.9, type: 'word', logprob: -0.01 },
+            {
+              text: 'Fender',
+              start: 0.9,
+              end: 1.3,
+              type: 'word',
+              logprob: -0.04,
+            },
+            {
+              text: 'Stratocaster',
+              start: 1.3,
+              end: 2.0,
+              type: 'word',
+              logprob: -0.06,
+            },
+            {
+              text: 'please',
+              start: 2.0,
+              end: 2.4,
+              type: 'word',
+              logprob: -0.03,
+            },
           ],
         }),
       )

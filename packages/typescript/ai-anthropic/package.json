@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-anthropic",
-  "version": "0.8.2",
+  "version": "0.8.6",
   "description": "Anthropic Claude adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -44,7 +44,8 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2"
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@tanstack/ai-utils": "workspace:*"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
