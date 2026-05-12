@@ -5,6 +5,7 @@ import { createAnthropicSummarize } from '@tanstack/ai-anthropic'
 import { createGeminiSummarize } from '@tanstack/ai-gemini'
 import { createOllamaSummarize } from '@tanstack/ai-ollama'
 import { createGrokSummarize } from '@tanstack/ai-grok'
+import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -26,10 +27,19 @@ function createSummarizeAdapter(provider: Provider) {
     ollama: () => createOllamaSummarize('mistral', LLMOCK_BASE),
     grok: () =>
       createGrokSummarize('grok-3', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
+    // Both OpenRouter provider rows use the OpenRouter summarize adapter:
+    // `OpenRouterSummarizeAdapter` wraps the OpenRouter chat-completions
+    // text adapter regardless of whether the caller selected the Chat
+    // Completions or Responses surface, so a single factory backs both
+    // matrix entries.
     openrouter: () =>
-      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
+      createOpenRouterSummarize('openai/gpt-4o', DUMMY_KEY, {
+        serverURL: LLMOCK_OPENAI,
+      }),
     'openrouter-responses': () =>
-      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
+      createOpenRouterSummarize('openai/gpt-4o', DUMMY_KEY, {
+        serverURL: LLMOCK_OPENAI,
+      }),
   }
   return factories[provider]?.()
 }
