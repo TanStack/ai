@@ -280,6 +280,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     const timestamp = Date.now()
     const aguiState = {
       runId: generateId(this.name),
+      threadId: chatOptions.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
       timestamp,
       hasEmittedRunStarted: false,
@@ -297,27 +298,27 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     const closeReasoning = function* (this: { name: string }): Generator<StreamChunk> {
       if (reasoningMessageId && !hasClosedReasoning) {
         hasClosedReasoning = true
-        yield asChunk({
-          type: 'REASONING_MESSAGE_END',
+        yield {
+          type: EventType.REASONING_MESSAGE_END,
           messageId: reasoningMessageId,
           model,
           timestamp,
-        })
-        yield asChunk({
-          type: 'REASONING_END',
+        } satisfies StreamChunk
+        yield {
+          type: EventType.REASONING_END,
           messageId: reasoningMessageId,
           model,
           timestamp,
-        })
+        } satisfies StreamChunk
         if (stepId) {
-          yield asChunk({
-            type: 'STEP_FINISHED',
+          yield {
+            type: EventType.STEP_FINISHED,
             stepName: stepId,
             stepId,
             model,
             timestamp,
             content: accumulatedReasoning,
-          })
+          } satisfies StreamChunk
         }
       }
     }.bind(this)
@@ -328,27 +329,27 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       if (reasoningMessageId) return
       reasoningMessageId = generateId(this.name)
       stepId = generateId(this.name)
-      yield asChunk({
-        type: 'REASONING_START',
+      yield {
+        type: EventType.REASONING_START,
         messageId: reasoningMessageId,
         model,
         timestamp,
-      })
-      yield asChunk({
-        type: 'REASONING_MESSAGE_START',
+      } satisfies StreamChunk
+      yield {
+        type: EventType.REASONING_MESSAGE_START,
         messageId: reasoningMessageId,
         role: 'reasoning' as const,
         model,
         timestamp,
-      })
-      yield asChunk({
-        type: 'STEP_STARTED',
+      } satisfies StreamChunk
+      yield {
+        type: EventType.STEP_STARTED,
         stepName: stepId,
         stepId,
         model,
         timestamp,
         stepType: 'thinking',
-      })
+      } satisfies StreamChunk
     }.bind(this)
 
     try {
@@ -379,12 +380,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       for await (const chunk of stream) {
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
-          yield asChunk({
-            type: 'RUN_STARTED',
+          yield {
+            type: EventType.RUN_STARTED,
             runId: aguiState.runId,
+            threadId: aguiState.threadId,
             model,
             timestamp,
-          })
+          } satisfies StreamChunk
         }
 
         if (chunk.type === 'response.created' || chunk.type === 'response.in_progress') {
@@ -399,15 +401,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             typeof (chunk as { delta?: unknown }).delta === 'string'
               ? ((chunk as { delta: string }).delta)
               : ''
-          yield asChunk({
-            type: 'RUN_ERROR',
+          yield {
+            type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
             timestamp,
             message: `Model refused: ${delta}`,
             code: 'refusal',
             error: { message: `Model refused: ${delta}`, code: 'refusal' },
-          })
+          } satisfies StreamChunk
           return
         }
 
@@ -423,14 +425,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               : ''
           if (!reasoningDelta) continue
           yield* openReasoning()
+          // openReasoning() guarantees reasoningMessageId is set on first call;
+          // TS can't see through the generator side-effect.
+          const messageId = reasoningMessageId!
           accumulatedReasoning += reasoningDelta
-          yield asChunk({
-            type: 'REASONING_MESSAGE_CONTENT',
-            messageId: reasoningMessageId,
+          yield {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId,
             delta: reasoningDelta,
             model,
             timestamp,
-          })
+          } satisfies StreamChunk
           continue
         }
 
@@ -447,23 +452,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
           if (!hasEmittedTextMessageStart) {
             hasEmittedTextMessageStart = true
-            yield asChunk({
-              type: 'TEXT_MESSAGE_START',
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
               messageId: aguiState.messageId,
               model,
               timestamp,
               role: 'assistant',
-            })
+            } satisfies StreamChunk
           }
           accumulatedContent += textDelta
-          yield asChunk({
-            type: 'TEXT_MESSAGE_CONTENT',
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: aguiState.messageId,
             model,
             timestamp,
             delta: textDelta,
             content: accumulatedContent,
-          })
+          } satisfies StreamChunk
           continue
         }
 
@@ -481,15 +486,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }).response
           const message =
             response?.error?.message || 'Responses API stream failed'
-          yield asChunk({
-            type: 'RUN_ERROR',
+          yield {
+            type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
             timestamp,
             message,
             code: response?.error?.code,
             error: { message, code: response?.error?.code },
-          })
+          } satisfies StreamChunk
           return
         }
       }
@@ -497,17 +502,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       yield* closeReasoning()
 
       if (hasEmittedTextMessageStart) {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_END',
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
           messageId: aguiState.messageId,
           model,
           timestamp,
-        })
+        } satisfies StreamChunk
       }
 
       if (accumulatedContent.length === 0) {
-        yield asChunk({
-          type: 'RUN_ERROR',
+        yield {
+          type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model,
           timestamp,
@@ -517,7 +522,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             message: `${this.name}.structuredOutputStream: response contained no content`,
             code: 'empty-response',
           },
-        })
+        } satisfies StreamChunk
         return
       }
 
@@ -525,8 +530,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       try {
         parsed = JSON.parse(accumulatedContent)
       } catch {
-        yield asChunk({
-          type: 'RUN_ERROR',
+        yield {
+          type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model,
           timestamp,
@@ -536,14 +541,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             message: 'Failed to parse structured output as JSON',
             code: 'parse-error',
           },
-        })
+        } satisfies StreamChunk
         return
       }
 
       const transformed = transformNullsToUndefined(parsed)
 
-      yield asChunk({
-        type: 'CUSTOM',
+      yield {
+        type: EventType.CUSTOM,
         name: 'structured-output.complete',
         value: {
           object: transformed,
@@ -552,11 +557,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         },
         model,
         timestamp,
-      })
+      } satisfies StreamChunk
 
-      yield asChunk({
-        type: 'RUN_FINISHED',
+      yield {
+        type: EventType.RUN_FINISHED,
         runId: aguiState.runId,
+        threadId: aguiState.threadId,
         model,
         timestamp,
         finishReason: 'stop',
@@ -567,16 +573,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             totalTokens: usage.total_tokens,
           },
         }),
-      })
+      } satisfies StreamChunk
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
-        yield asChunk({
-          type: 'RUN_STARTED',
+        yield {
+          type: EventType.RUN_STARTED,
           runId: aguiState.runId,
+          threadId: aguiState.threadId,
           model,
           timestamp,
-        })
+        } satisfies StreamChunk
       }
 
       const isAbort = this.isAbortError(error)
@@ -585,15 +592,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `${this.name}.structuredOutputStream failed`,
       )
 
-      yield asChunk({
-        type: 'RUN_ERROR',
+      yield {
+        type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model,
         timestamp,
         message: errorPayload.message,
         code: isAbort ? 'aborted' : errorPayload.code,
         error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
-      })
+      } satisfies StreamChunk
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
         error: errorPayload,
