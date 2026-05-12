@@ -265,9 +265,15 @@ export class OpenRouterTextAdapter<
       case 'image': {
         const meta = part.metadata as OpenRouterImageMetadata | undefined
         const value = part.source.value
+        // Default to `application/octet-stream` when the source didn't
+        // provide a MIME type — interpolating `undefined` into the URI
+        // ("data:undefined;base64,...") produces an invalid data URI the
+        // API rejects. Mirrors the base's defaulting in
+        // `OpenAICompatibleChatCompletionsTextAdapter.convertContentPart`.
+        const imageMime = part.source.mimeType || 'application/octet-stream'
         const url =
           part.source.type === 'data' && !value.startsWith('data:')
-            ? `data:${part.source.mimeType};base64,${value}`
+            ? `data:${imageMime};base64,${value}`
             : value
         return {
           type: 'image_url',

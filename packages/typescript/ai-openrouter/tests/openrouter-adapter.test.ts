@@ -381,6 +381,52 @@ describe('OpenRouter adapter option mapping', () => {
     })
   })
 
+  it('defaults base64 image data URIs to application/octet-stream when mimeType is missing', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', content: 'see image' },
+            {
+              type: 'image',
+              // The TS type requires `mimeType` on data sources, but at
+              // runtime a JS caller (or a cast) can still elide it. Cast
+              // to bypass the type check so the adapter's defensive
+              // default — `application/octet-stream` — is exercised; the
+              // alternative is a literal `data:undefined;base64,...` URI
+              // that the upstream rejects.
+              source: { type: 'data', value: 'aGVsbG8=' } as any,
+            },
+          ],
+        },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    const imagePart = params.messages[0].content.find(
+      (p: any) => p.type === 'image_url',
+    )
+    expect(imagePart).toBeDefined()
+    expect(imagePart.imageUrl.url).toBe(
+      'data:application/octet-stream;base64,aGVsbG8=',
+    )
+    expect(imagePart.imageUrl.url).not.toContain('undefined')
+  })
+
   it('yields error chunk on SDK error', async () => {
     mockSend = vi.fn().mockRejectedValueOnce(new Error('Invalid API key'))
 
