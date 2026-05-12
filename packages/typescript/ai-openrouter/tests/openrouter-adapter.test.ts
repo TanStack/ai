@@ -1889,4 +1889,89 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     expect(typeof args).toBe('string')
     expect(JSON.parse(args)).toEqual({ location: 'Berlin' })
   })
+
+  it('extracts text from array-shaped assistant content instead of JSON-stringifying parts', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        { role: 'user', content: 'first' },
+        {
+          role: 'assistant',
+          // Multi-part assistant content from a prior turn. The base extracts
+          // joined text; the OpenRouter override must do the same instead of
+          // JSON-stringifying the parts into the next-turn prompt.
+          content: [
+            { type: 'text', content: 'hello ' },
+            { type: 'text', content: 'world' },
+          ],
+        },
+        { role: 'user', content: 'second' },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const assistantMsg = rawParams.chatRequest.messages.find(
+      (m: any) => m.role === 'assistant',
+    )
+    expect(assistantMsg).toBeDefined()
+    expect(assistantMsg.content).toBe('hello world')
+  })
+
+  it('emits content: null (not undefined) for assistant messages with only tool calls', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '{"temp":72}' },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const assistantMsg = rawParams.chatRequest.messages.find(
+      (m: any) => m.role === 'assistant',
+    )
+    expect(assistantMsg).toBeDefined()
+    // Strictly null — the OpenAI Chat Completions contract documents `null`
+    // for tool-call-only assistant messages, and the SDK's Zod schema may
+    // strip `undefined` entirely.
+    expect(assistantMsg.content).toBeNull()
+  })
 })

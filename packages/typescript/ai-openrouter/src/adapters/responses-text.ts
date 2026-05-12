@@ -258,13 +258,18 @@ export class OpenRouterResponsesTextAdapter<
 
     for (const message of messages) {
       if (message.role === 'tool') {
+        // For structured (Array<ContentPart>) tool results, extract the text
+        // content rather than JSON-stringifying the parts — sending the raw
+        // ContentPart shape (e.g. `[{"type":"text","content":"…"}]`) into the
+        // `output` field would feed the literal JSON of the parts back to the
+        // model instead of the tool's textual result.
         result.push({
           type: 'function_call_output',
           callId: message.toolCallId || '',
           output:
             typeof message.content === 'string'
               ? message.content
-              : JSON.stringify(message.content),
+              : this.extractTextContent(message.content),
         } as unknown as InputsItem)
         continue
       }

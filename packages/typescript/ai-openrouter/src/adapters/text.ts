@@ -196,14 +196,17 @@ export class OpenRouterTextAdapter<
               : JSON.stringify(tc.function.arguments),
         },
       }))
+      // Per the OpenAI-compatible Chat Completions contract, an assistant
+      // message that only carries tool_calls should have `content: null`
+      // rather than `content: ''` or `content: undefined`. For multi-part
+      // assistant content (Array<ContentPart>) we extract the text rather
+      // than JSON-stringifying the parts, which would otherwise leak the
+      // literal part shape into the next-turn prompt.
+      const textContent = this.extractTextContent(message.content)
+      const hasToolCalls = !!toolCalls && toolCalls.length > 0
       return {
         role: 'assistant',
-        content:
-          typeof message.content === 'string'
-            ? message.content
-            : message.content
-              ? JSON.stringify(message.content)
-              : undefined,
+        content: hasToolCalls && !textContent ? null : textContent,
         toolCalls,
       } satisfies ChatMessages
     }
