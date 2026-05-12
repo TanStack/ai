@@ -907,8 +907,13 @@ export class OpenAICompatibleResponsesTextAdapter<
             },
           } satisfies StreamChunk
           // RUN_ERROR is terminal — don't let the synthetic RUN_FINISHED
-          // block fire after a top-level stream error event.
+          // block fire after a top-level stream error event, and stop
+          // processing further chunks so no in-flight lifecycle events
+          // (TEXT_MESSAGE_CONTENT, TOOL_CALL_*) leak past the terminal
+          // error. Mirrors the `response.failed` / `response.incomplete`
+          // branches above which return after their RUN_ERROR emission.
           runFinishedEmitted = true
+          return
         }
       }
 
