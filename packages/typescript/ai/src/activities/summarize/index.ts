@@ -46,7 +46,7 @@ export type SummarizeProviderOptions<TAdapter> =
  * @template TStream - Whether to stream the output
  */
 export interface SummarizeActivityOptions<
-  TAdapter extends SummarizeAdapter<string, Record<string, unknown>>,
+  TAdapter extends SummarizeAdapter<string, object>,
   TStream extends boolean = false,
 > {
   /** The summarize adapter to use (must be created with a model) */
@@ -154,7 +154,7 @@ function createId(prefix: string): string {
  * ```
  */
 export function summarize<
-  TAdapter extends SummarizeAdapter<string, Record<string, unknown>>,
+  TAdapter extends SummarizeAdapter<string, object>,
   TStream extends boolean = false,
 >(
   options: SummarizeActivityOptions<TAdapter, TStream>,
@@ -164,7 +164,7 @@ export function summarize<
   if (stream) {
     return runStreamingSummarize(
       options as unknown as SummarizeActivityOptions<
-        SummarizeAdapter<string, Record<string, unknown>>,
+        SummarizeAdapter<string, object>,
         true
       >,
     ) as SummarizeActivityResult<TStream>
@@ -172,7 +172,7 @@ export function summarize<
 
   return runSummarize(
     options as unknown as SummarizeActivityOptions<
-      SummarizeAdapter<string, Record<string, unknown>>,
+      SummarizeAdapter<string, object>,
       false
     >,
   ) as SummarizeActivityResult<TStream>
@@ -183,7 +183,7 @@ export function summarize<
  */
 async function runSummarize(
   options: SummarizeActivityOptions<
-    SummarizeAdapter<string, Record<string, unknown>>,
+    SummarizeAdapter<string, object>,
     false
   >,
 ): Promise<SummarizationResult> {
@@ -208,7 +208,7 @@ async function runSummarize(
     inputLength,
   })
 
-  const summarizeOptions: SummarizationOptions = {
+  const summarizeOptions: SummarizationOptions<object> = {
     model,
     text,
     maxLength,
@@ -256,7 +256,7 @@ async function runSummarize(
  */
 async function* runStreamingSummarize(
   options: SummarizeActivityOptions<
-    SummarizeAdapter<string, Record<string, unknown>>,
+    SummarizeAdapter<string, object>,
     true
   >,
 ): AsyncIterable<StreamChunk> {
@@ -270,7 +270,7 @@ async function* runStreamingSummarize(
     stream: true,
   })
 
-  const summarizeOptions: SummarizationOptions = {
+  const summarizeOptions: SummarizationOptions<object> = {
     model,
     text,
     maxLength,
@@ -306,7 +306,7 @@ async function* runStreamingSummarize(
  * Create typed options for the summarize() function without executing.
  */
 export function createSummarizeOptions<
-  TAdapter extends SummarizeAdapter<string, Record<string, unknown>>,
+  TAdapter extends SummarizeAdapter<string, object>,
   TStream extends boolean = false,
 >(
   options: SummarizeActivityOptions<TAdapter, TStream>,

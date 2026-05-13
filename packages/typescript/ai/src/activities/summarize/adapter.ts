@@ -27,7 +27,7 @@ export interface SummarizeAdapterConfig {
  */
 export interface SummarizeAdapter<
   TModel extends string = string,
-  TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
+  TProviderOptions extends object = Record<string, unknown>,
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind: 'summarize'
@@ -74,7 +74,7 @@ export type AnySummarizeAdapter = SummarizeAdapter<any, any>
  */
 export abstract class BaseSummarizeAdapter<
   TModel extends string = string,
-  TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
+  TProviderOptions extends object = Record<string, unknown>,
 > implements SummarizeAdapter<TModel, TProviderOptions> {
   readonly kind = 'summarize' as const
   abstract readonly name: string
