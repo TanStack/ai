@@ -295,7 +295,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let model: string = chatOptions.model
     let usage: OpenAI_SDK.Responses.Response['usage'] | undefined
 
-    const closeReasoning = function* (this: { name: string }): Generator<StreamChunk> {
+    const closeReasoning = function* (this: {
+      name: string
+    }): Generator<StreamChunk> {
       if (reasoningMessageId && !hasClosedReasoning) {
         hasClosedReasoning = true
         yield {
@@ -323,9 +325,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
     }.bind(this)
 
-    const openReasoning = function* (
-      this: { name: string },
-    ): Generator<StreamChunk> {
+    const openReasoning = function* (this: {
+      name: string
+    }): Generator<StreamChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(this.name)
       stepId = generateId(this.name)
@@ -389,7 +391,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           } satisfies StreamChunk
         }
 
-        if (chunk.type === 'response.created' || chunk.type === 'response.in_progress') {
+        if (
+          chunk.type === 'response.created' ||
+          chunk.type === 'response.in_progress'
+        ) {
           const responseModel = (chunk as { response?: { model?: string } })
             .response?.model
           if (responseModel) model = responseModel
@@ -399,7 +404,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (chunk.type === 'response.refusal.delta') {
           const delta =
             typeof (chunk as { delta?: unknown }).delta === 'string'
-              ? ((chunk as { delta: string }).delta)
+              ? (chunk as { delta: string }).delta
               : ''
           yield {
             type: EventType.RUN_ERROR,
@@ -473,17 +478,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
-          const response = (chunk as { response?: OpenAI_SDK.Responses.Response })
-            .response
+          const response = (
+            chunk as { response?: OpenAI_SDK.Responses.Response }
+          ).response
           if (response?.usage) usage = response.usage
           if (response?.model) model = response.model
           continue
         }
 
         if (chunk.type === 'response.failed') {
-          const response = (chunk as {
-            response?: { error?: { message?: string; code?: string } }
-          }).response
+          const response = (
+            chunk as {
+              response?: { error?: { message?: string; code?: string } }
+            }
+          ).response
           const message =
             response?.error?.message || 'Responses API stream failed'
           yield {

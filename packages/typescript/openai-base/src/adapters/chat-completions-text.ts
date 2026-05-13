@@ -470,9 +470,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         value: {
           object: transformed,
           raw: accumulatedContent,
-          ...(accumulatedReasoning
-            ? { reasoning: accumulatedReasoning }
-            : {}),
+          ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
         },
         model: lastModel || chatOptions.model,
         timestamp,
