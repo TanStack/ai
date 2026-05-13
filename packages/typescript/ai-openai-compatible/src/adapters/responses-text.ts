@@ -188,10 +188,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
       )
       const response = await this.callResponse(
         {
-          ...(cleanParams as Omit<
-            ResponseCreateParams,
-            'stream'
-          >),
+          ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
           stream: false,
           // Configure structured output via text.format
           text: {
@@ -210,9 +207,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
       // SDK return type to `Response`, but the explicit annotation makes
       // that contract local rather than relying on inference through the
       // overloaded `client.responses.create` signature.
-      const rawText = this.extractTextFromResponse(
-        response satisfies Response,
-      )
+      const rawText = this.extractTextFromResponse(response satisfies Response)
 
       // Fail loud on empty content rather than letting it cascade into a
       // confusing "Failed to parse JSON. Content: " error — the root cause
@@ -306,9 +301,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
    * Extract text content from a non-streaming Responses API response.
    * Override this in subclasses for provider-specific response shapes.
    */
-  protected extractTextFromResponse(
-    response: Response,
-  ): string {
+  protected extractTextFromResponse(response: Response): string {
     let textContent = ''
     let refusal: string | undefined
     let sawMessageItem = false
@@ -1352,9 +1345,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
    * Handles text, image, and audio content parts.
    * Override this in subclasses for additional content types or provider-specific metadata.
    */
-  protected convertContentPartToInput(
-    part: ContentPart,
-  ): ResponseInputContent {
+  protected convertContentPartToInput(part: ContentPart): ResponseInputContent {
     switch (part.type) {
       case 'text':
         return {

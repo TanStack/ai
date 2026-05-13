@@ -295,9 +295,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
     // earlier `finish_reason` chunk does NOT include token counts. We must
     // therefore defer RUN_FINISHED until the iterator is exhausted so we can
     // pick up usage from the trailing chunk regardless of arrival order.
-    let lastUsage:
-      | ChatCompletionChunk['usage']
-      | undefined
+    let lastUsage: ChatCompletionChunk['usage'] | undefined
     let pendingFinishReason:
       | ChatCompletionChunkChoice['finish_reason']
       | undefined
@@ -770,8 +768,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
       : undefined
 
     // Build messages array with system prompts
-    const messages: Array<ChatCompletionMessageParam> =
-      []
+    const messages: Array<ChatCompletionMessageParam> = []
 
     // Add system prompts first
     if (options.systemPrompts && options.systemPrompts.length > 0) {
@@ -818,9 +815,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
    * Converts a single ModelMessage to the Chat Completions API message format.
    * Override this in subclasses to handle provider-specific message formats.
    */
-  protected convertMessage(
-    message: ModelMessage,
-  ): ChatCompletionMessageParam {
+  protected convertMessage(message: ModelMessage): ChatCompletionMessageParam {
     // Handle tool messages
     if (message.role === 'tool') {
       return {
@@ -886,8 +881,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
     // content parts rather than silently dropping them — a message of all
     // unsupported parts would otherwise turn into an empty user prompt and
     // mask a real capability mismatch.
-    const parts: Array<ChatCompletionContentPart> =
-      []
+    const parts: Array<ChatCompletionContentPart> = []
     for (const part of contentParts) {
       const converted = this.convertContentPart(part)
       if (!converted) {

@@ -153,8 +153,7 @@ export interface ResponseCreateParamsBase {
   }
 }
 
-export interface ResponseCreateParamsNonStreaming
-  extends ResponseCreateParamsBase {
+export interface ResponseCreateParamsNonStreaming extends ResponseCreateParamsBase {
   stream?: false | null
 }
 

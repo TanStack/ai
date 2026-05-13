@@ -159,13 +159,11 @@ export interface ChatCompletionCreateParamsBase {
   metadata?: Record<string, string> | null
 }
 
-export interface ChatCompletionCreateParamsNonStreaming
-  extends ChatCompletionCreateParamsBase {
+export interface ChatCompletionCreateParamsNonStreaming extends ChatCompletionCreateParamsBase {
   stream?: false | null
 }
 
-export interface ChatCompletionCreateParamsStreaming
-  extends ChatCompletionCreateParamsBase {
+export interface ChatCompletionCreateParamsStreaming extends ChatCompletionCreateParamsBase {
   stream: true
 }
 
