@@ -44,18 +44,11 @@
     "@tanstack/ai-utils": "workspace:*"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:^",
-    "openai": "^6.9.1"
-  },
-  "peerDependenciesMeta": {
-    "openai": {
-      "optional": true
-    }
+    "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "openai": "^6.9.1",
     "vite": "^7.2.7"
   }
 }

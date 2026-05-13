@@ -1,7 +1,7 @@
+import type { CodeInterpreterToolConfig } from '../types/tools'
 import type { Tool } from '@tanstack/ai'
-import type OpenAI from 'openai'
 
-export type CodeInterpreterToolConfig = OpenAI.Responses.Tool.CodeInterpreter
+export type { CodeInterpreterToolConfig }
 
 /** @deprecated Renamed to `CodeInterpreterToolConfig`. Will be removed in a future release. */
 export type CodeInterpreterTool = CodeInterpreterToolConfig

@@ -1,7 +1,7 @@
-import type OpenAI from 'openai'
+import type { LocalShellToolConfig } from '../types/tools'
 import type { Tool } from '@tanstack/ai'
 
-export type LocalShellToolConfig = OpenAI.Responses.Tool.LocalShell
+export type { LocalShellToolConfig }
 
 /** @deprecated Renamed to `LocalShellToolConfig`. Will be removed in a future release. */
 export type LocalShellTool = LocalShellToolConfig

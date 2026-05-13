@@ -1,8 +1,8 @@
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import type { FunctionToolConfig } from '../types/tools'
 import type { JSONSchema, Tool } from '@tanstack/ai'
-import type OpenAI from 'openai'
 
-export type FunctionToolConfig = OpenAI.Responses.FunctionTool
+export type { FunctionToolConfig }
 
 /** @deprecated Renamed to `FunctionToolConfig`. Will be removed in a future release. */
 export type FunctionTool = FunctionToolConfig

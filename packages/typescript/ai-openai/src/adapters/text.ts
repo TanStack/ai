@@ -10,6 +10,13 @@ import type {
   OpenAIChatModelToolCapabilitiesByName,
   OpenAIModelInputModalitiesByName,
 } from '../model-meta'
+import type {
+  ResponseCreateParams,
+  ResponseCreateParamsNonStreaming,
+  ResponseCreateParamsStreaming,
+  ResponseStreamEvent,
+  ResponsesResponse,
+} from '@tanstack/ai-openai-compatible'
 import type OpenAI_SDK from 'openai'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type {
@@ -96,18 +103,32 @@ export class OpenAITextAdapter<
     this.client = new OpenAI(config)
   }
 
+  // The override signatures use the local protocol types from
+  // `@tanstack/ai-openai-compatible` so we stay variance-compatible with the
+  // base. Inside the body we still call the openai SDK; casting at the SDK
+  // boundary (where we already own the runtime contract) is the cleanest
+  // place to land the two-type-name reality.
+
   protected async callResponse(
-    params: OpenAI_SDK.Responses.ResponseCreateParamsNonStreaming,
+    params: ResponseCreateParamsNonStreaming,
     requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
-  ): Promise<OpenAI_SDK.Responses.Response> {
-    return this.client.responses.create(params, requestOptions)
+  ): Promise<ResponsesResponse> {
+    const response = await this.client.responses.create(
+      params as unknown as OpenAI_SDK.Responses.ResponseCreateParamsNonStreaming,
+      requestOptions,
+    )
+    return response as unknown as ResponsesResponse
   }
 
   protected async callResponseStream(
-    params: OpenAI_SDK.Responses.ResponseCreateParamsStreaming,
+    params: ResponseCreateParamsStreaming,
     requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
-  ): Promise<AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>> {
-    return this.client.responses.create(params, requestOptions)
+  ): Promise<AsyncIterable<ResponseStreamEvent>> {
+    const stream = await this.client.responses.create(
+      params as unknown as OpenAI_SDK.Responses.ResponseCreateParamsStreaming,
+      requestOptions,
+    )
+    return stream as unknown as AsyncIterable<ResponseStreamEvent>
   }
 
   /**
@@ -118,7 +139,7 @@ export class OpenAITextAdapter<
    */
   protected override mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
-  ): Omit<OpenAI_SDK.Responses.ResponseCreateParams, 'stream'> {
+  ): Omit<ResponseCreateParams, 'stream'> {
     // The structural type the validator expects is broader than what
     // `TProviderOptions` is bound to per-model, so narrow via the internal
     // shape rather than re-exposing it on the public override signature.
@@ -143,10 +164,7 @@ export class OpenAITextAdapter<
     // previous override spread `...modelOptions` LAST and wrote
     // `temperature: options.temperature` unconditionally — re-introducing the
     // exact regression the base class's nullish-aware merge fixes.
-    const requestParams: Omit<
-      OpenAI_SDK.Responses.ResponseCreateParams,
-      'stream'
-    > = {
+    const requestParams: Omit<ResponseCreateParams, 'stream'> = {
       ...modelOptions,
       model: options.model,
       ...(options.temperature !== undefined && {

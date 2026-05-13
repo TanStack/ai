@@ -1,5 +1,7 @@
-import type OpenAI from 'openai'
+import type { FileSearchToolConfig } from '../types/tools'
 import type { Tool } from '@tanstack/ai'
+
+export type { FileSearchToolConfig }
 
 const validateMaxNumResults = (maxNumResults: number | undefined) => {
   if (
@@ -9,8 +11,6 @@ const validateMaxNumResults = (maxNumResults: number | undefined) => {
     throw new Error('max_num_results must be between 1 and 50.')
   }
 }
-
-export type FileSearchToolConfig = OpenAI.Responses.FileSearchTool
 
 /** @deprecated Renamed to `FileSearchToolConfig`. Will be removed in a future release. */
 export type FileSearchTool = FileSearchToolConfig

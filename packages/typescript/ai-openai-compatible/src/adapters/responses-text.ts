@@ -9,8 +9,15 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
-import type OpenAI_SDK from 'openai'
-import type { Responses } from 'openai/resources'
+import type {
+  Response,
+  ResponseCreateParams,
+  ResponseCreateParamsNonStreaming,
+  ResponseCreateParamsStreaming,
+  ResponseInput,
+  ResponseInputContent,
+  ResponseStreamEvent,
+} from '../types/responses'
 import type {
   ContentPart,
   DefaultMessageMetadataByModality,
@@ -182,7 +189,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
       const response = await this.callResponse(
         {
           ...(cleanParams as Omit<
-            OpenAI_SDK.Responses.ResponseCreateParams,
+            ResponseCreateParams,
             'stream'
           >),
           stream: false,
@@ -204,7 +211,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
       // that contract local rather than relying on inference through the
       // overloaded `client.responses.create` signature.
       const rawText = this.extractTextFromResponse(
-        response satisfies OpenAI_SDK.Responses.Response,
+        response satisfies Response,
       )
 
       // Fail loud on empty content rather than letting it cascade into a
@@ -281,9 +288,9 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
    * documented fields like `response.output[...]`.
    */
   protected abstract callResponse(
-    params: OpenAI_SDK.Responses.ResponseCreateParamsNonStreaming,
+    params: ResponseCreateParamsNonStreaming,
     requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<OpenAI_SDK.Responses.Response>
+  ): Promise<Response>
 
   /**
    * Performs the streaming Responses API network call. Returns an
@@ -291,16 +298,16 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
    * only needs structural iteration over events.
    */
   protected abstract callResponseStream(
-    params: OpenAI_SDK.Responses.ResponseCreateParamsStreaming,
+    params: ResponseCreateParamsStreaming,
     requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>>
+  ): Promise<AsyncIterable<ResponseStreamEvent>>
 
   /**
    * Extract text content from a non-streaming Responses API response.
    * Override this in subclasses for provider-specific response shapes.
    */
   protected extractTextFromResponse(
-    response: OpenAI_SDK.Responses.Response,
+    response: Response,
   ): string {
     let textContent = ''
     let refusal: string | undefined
@@ -370,7 +377,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
    * - error
    */
   protected async *processStreamChunks(
-    stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
+    stream: AsyncIterable<ResponseStreamEvent>,
     toolCallMetadata: Map<
       string,
       {
@@ -1204,7 +1211,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
    */
   protected mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
-  ): Omit<OpenAI_SDK.Responses.ResponseCreateParams, 'stream'> {
+  ): Omit<ResponseCreateParams, 'stream'> {
     const input = this.convertMessagesToInput(options.messages)
 
     const tools = options.tools
@@ -1257,8 +1264,8 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
    */
   protected convertMessagesToInput(
     messages: Array<ModelMessage>,
-  ): Responses.ResponseInput {
-    const result: Responses.ResponseInput = []
+  ): ResponseInput {
+    const result: ResponseInput = []
 
     for (const message of messages) {
       // Handle tool messages - convert to FunctionToolCallOutput
@@ -1312,7 +1319,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
 
       // Handle user messages (default case) — support multimodal content
       const contentParts = this.normalizeContent(message.content)
-      const inputContent: Array<Responses.ResponseInputContent> = []
+      const inputContent: Array<ResponseInputContent> = []
 
       for (const part of contentParts) {
         inputContent.push(this.convertContentPartToInput(part))
@@ -1347,7 +1354,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
    */
   protected convertContentPartToInput(
     part: ContentPart,
-  ): Responses.ResponseInputContent {
+  ): ResponseInputContent {
     switch (part.type) {
       case 'text':
         return {

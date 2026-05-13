@@ -1,3 +1,4 @@
+import type { ResponseInput } from '@tanstack/ai-openai-compatible'
 import type OpenAI from 'openai'
 import type { ApplyPatchTool } from '../tools/apply-patch-tool'
 import type { CodeInterpreterTool } from '../tools/code-interpreter-tool'
@@ -246,7 +247,7 @@ export type ExternalTextProviderOptions = OpenAIBaseOptions &
  * Tip: gate these by model capability in your SDK, not just by presence.
  */
 export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
-  input: string | OpenAI.Responses.ResponseInput
+  input: string | ResponseInput
   /**
    * A system (or developer) message inserted into the model's context.
 

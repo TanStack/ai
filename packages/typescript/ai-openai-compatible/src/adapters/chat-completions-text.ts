@@ -9,7 +9,15 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
-import type OpenAI_SDK from 'openai'
+import type {
+  ChatCompletion,
+  ChatCompletionChunk,
+  ChatCompletionChunkChoice,
+  ChatCompletionContentPart,
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
+  ChatCompletionMessageParam,
+} from '../types/chat-completions'
 import type {
   ContentPart,
   DefaultMessageMetadataByModality,
@@ -228,9 +236,9 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
    * reads documented fields like `response.choices[0].message.content`.
    */
   protected abstract callChatCompletion(
-    params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+    params: ChatCompletionCreateParamsNonStreaming,
     requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<OpenAI_SDK.Chat.Completions.ChatCompletion>
+  ): Promise<ChatCompletion>
 
   /**
    * Performs the streaming Chat Completions network call. Returns an
@@ -238,9 +246,9 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
    * only needs structural iteration over chunks.
    */
   protected abstract callChatCompletionStream(
-    params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming,
+    params: ChatCompletionCreateParamsStreaming,
     requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>>
+  ): Promise<AsyncIterable<ChatCompletionChunk>>
 
   /**
    * Extract reasoning content from a stream chunk. Default returns
@@ -269,7 +277,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
    * Override this in subclasses to handle provider-specific stream behavior.
    */
   protected async *processStreamChunks(
-    stream: AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>,
+    stream: AsyncIterable<ChatCompletionChunk>,
     options: TextOptions,
     aguiState: {
       runId: string
@@ -288,10 +296,10 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
     // therefore defer RUN_FINISHED until the iterator is exhausted so we can
     // pick up usage from the trailing chunk regardless of arrival order.
     let lastUsage:
-      | OpenAI_SDK.Chat.Completions.ChatCompletionChunk['usage']
+      | ChatCompletionChunk['usage']
       | undefined
     let pendingFinishReason:
-      | OpenAI_SDK.Chat.Completions.ChatCompletionChunk.Choice['finish_reason']
+      | ChatCompletionChunkChoice['finish_reason']
       | undefined
 
     // Track tool calls being streamed (arguments come in chunks)
@@ -753,7 +761,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
    */
   protected mapOptionsToRequest(
     options: TextOptions,
-  ): OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming {
+  ): ChatCompletionCreateParamsStreaming {
     const tools = options.tools
       ? convertToolsToChatCompletionsFormat(
           options.tools,
@@ -762,7 +770,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
       : undefined
 
     // Build messages array with system prompts
-    const messages: Array<OpenAI_SDK.Chat.Completions.ChatCompletionMessageParam> =
+    const messages: Array<ChatCompletionMessageParam> =
       []
 
     // Add system prompts first
@@ -812,7 +820,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
    */
   protected convertMessage(
     message: ModelMessage,
-  ): OpenAI_SDK.Chat.Completions.ChatCompletionMessageParam {
+  ): ChatCompletionMessageParam {
     // Handle tool messages
     if (message.role === 'tool') {
       return {
@@ -878,7 +886,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
     // content parts rather than silently dropping them — a message of all
     // unsupported parts would otherwise turn into an empty user prompt and
     // mask a real capability mismatch.
-    const parts: Array<OpenAI_SDK.Chat.Completions.ChatCompletionContentPart> =
+    const parts: Array<ChatCompletionContentPart> =
       []
     for (const part of contentParts) {
       const converted = this.convertContentPart(part)
@@ -915,7 +923,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
    */
   protected convertContentPart(
     part: ContentPart,
-  ): OpenAI_SDK.Chat.Completions.ChatCompletionContentPart | null {
+  ): ChatCompletionContentPart | null {
     if (part.type === 'text') {
       return { type: 'text', text: part.content }
     }

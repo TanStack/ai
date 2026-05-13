@@ -1,7 +1,7 @@
-import type OpenAI from 'openai'
+import type { CustomToolConfig } from '../types/tools'
 import type { Tool } from '@tanstack/ai'
 
-export type CustomToolConfig = OpenAI.Responses.CustomTool
+export type { CustomToolConfig }
 
 /** @deprecated Renamed to `CustomToolConfig`. Will be removed in a future release. */
 export type CustomTool = CustomToolConfig

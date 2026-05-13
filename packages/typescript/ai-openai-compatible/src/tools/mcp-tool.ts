@@ -1,7 +1,7 @@
-import type OpenAI from 'openai'
+import type { MCPToolConfig } from '../types/tools'
 import type { Tool } from '@tanstack/ai'
 
-export type MCPToolConfig = OpenAI.Responses.Tool.Mcp
+export type { MCPToolConfig }
 
 /** @deprecated Renamed to `MCPToolConfig`. Will be removed in a future release. */
 export type MCPTool = MCPToolConfig
