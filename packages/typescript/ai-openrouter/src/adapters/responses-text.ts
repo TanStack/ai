@@ -435,8 +435,7 @@ export class OpenRouterResponsesTextAdapter<
           }
 
           if (contentPart.type === 'refusal') {
-            const message =
-              contentPart.refusal || 'Refused without explanation'
+            const message = contentPart.refusal || 'Refused without explanation'
             return {
               type: EventType.RUN_ERROR,
               model: model || options.model,
