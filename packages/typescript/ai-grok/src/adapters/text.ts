@@ -68,14 +68,14 @@ export class GrokTextAdapter<
     params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
     requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
   ): Promise<OpenAI_SDK.Chat.Completions.ChatCompletion> {
-    return this.client.chat.completions.create(params, requestOptions)
+    return await this.client.chat.completions.create(params, requestOptions)
   }
 
   protected async callChatCompletionStream(
     params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming,
     requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
   ): Promise<AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>> {
-    return this.client.chat.completions.create(params, requestOptions)
+    return await this.client.chat.completions.create(params, requestOptions)
   }
 }
 

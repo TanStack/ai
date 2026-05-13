@@ -28,7 +28,7 @@ function createSummarizeAdapter(provider: Provider) {
     grok: () =>
       createGrokSummarize('grok-3', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
     // Both OpenRouter provider rows use the OpenRouter summarize adapter:
-    // `OpenRouterSummarizeAdapter` wraps the OpenRouter chat-completions
+    // `createOpenRouterSummarize` wraps the OpenRouter chat-completions
     // text adapter regardless of whether the caller selected the Chat
     // Completions or Responses surface, so a single factory backs both
     // matrix entries.

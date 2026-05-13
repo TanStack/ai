@@ -11,12 +11,29 @@ import type {
  * Minimal contract for a text adapter that supports `chatStream`. Lets
  * `ChatStreamSummarizeAdapter` work with any text adapter without coupling
  * to a specific implementation.
+ *
+ * The provider-options shape is intentionally `any` here — the wrapper only
+ * forwards `modelOptions` straight through, so a text adapter with a richer
+ * per-model options type (e.g. `ResolveProviderOptions<TModel>`) is still
+ * acceptable. Summarize-level type safety is enforced via
+ * `SummarizationOptions<TProviderOptions>` on the wrapper itself.
  */
-export interface ChatStreamCapable<TProviderOptions extends object> {
-  chatStream: (
-    options: TextOptions<TProviderOptions>,
-  ) => AsyncIterable<StreamChunk>
+export interface ChatStreamCapable {
+  chatStream: (options: TextOptions<any>) => AsyncIterable<StreamChunk>
 }
+
+/**
+ * Extract the per-model `modelOptions` type a text adapter accepts. Used by
+ * provider summarize factories so their `modelOptions` IntelliSense matches
+ * what the underlying text adapter actually understands.
+ */
+export type InferTextProviderOptions<TAdapter> = TAdapter extends {
+  '~types': { providerOptions: infer P }
+}
+  ? P extends object
+    ? P
+    : object
+  : object
 
 /**
  * Summarize adapter that wraps any `ChatStreamCapable` text adapter and
@@ -28,10 +45,10 @@ export class ChatStreamSummarizeAdapter<
 > extends BaseSummarizeAdapter<TModel, TProviderOptions> {
   readonly name: string
 
-  private textAdapter: ChatStreamCapable<TProviderOptions>
+  private textAdapter: ChatStreamCapable
 
   constructor(
-    textAdapter: ChatStreamCapable<TProviderOptions>,
+    textAdapter: ChatStreamCapable,
     model: TModel,
     name: string = 'chat-stream-summarize',
   ) {
@@ -40,7 +57,9 @@ export class ChatStreamSummarizeAdapter<
     this.textAdapter = textAdapter
   }
 
-  async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
+  async summarize(
+    options: SummarizationOptions<TProviderOptions>,
+  ): Promise<SummarizationResult> {
     const systemPrompt = this.buildSummarizationPrompt(options)
 
     let summary = ''
@@ -54,14 +73,9 @@ export class ChatStreamSummarizeAdapter<
     )
 
     try {
-      for await (const chunk of this.textAdapter.chatStream({
-        model: options.model,
-        messages: [{ role: 'user', content: options.text }],
-        systemPrompts: [systemPrompt],
-        maxTokens: options.maxLength,
-        temperature: 0.3,
-        logger: options.logger,
-      } satisfies TextOptions<TProviderOptions>)) {
+      for await (const chunk of this.textAdapter.chatStream(
+        this.buildTextOptions(options, systemPrompt),
+      )) {
         if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
           if (chunk.content) {
             summary = chunk.content
@@ -110,7 +124,7 @@ export class ChatStreamSummarizeAdapter<
   }
 
   async *summarizeStream(
-    options: SummarizationOptions,
+    options: SummarizationOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const systemPrompt = this.buildSummarizationPrompt(options)
 
@@ -120,14 +134,9 @@ export class ChatStreamSummarizeAdapter<
     )
 
     try {
-      yield* this.textAdapter.chatStream({
-        model: options.model,
-        messages: [{ role: 'user', content: options.text }],
-        systemPrompts: [systemPrompt],
-        maxTokens: options.maxLength,
-        temperature: 0.3,
-        logger: options.logger,
-      } satisfies TextOptions<TProviderOptions>)
+      yield* this.textAdapter.chatStream(
+        this.buildTextOptions(options, systemPrompt),
+      )
     } catch (error: unknown) {
       options.logger.errors(`${this.name}.summarizeStream fatal`, {
         error: toRunErrorPayload(error, `${this.name}.summarizeStream failed`),
@@ -137,7 +146,30 @@ export class ChatStreamSummarizeAdapter<
     }
   }
 
-  protected buildSummarizationPrompt(options: SummarizationOptions): string {
+  /**
+   * Build the TextOptions passed to the underlying chatStream. Provider
+   * `modelOptions` from the summarize call are forwarded as-is so knobs like
+   * Anthropic cache headers, Gemini safety settings, or Ollama tuning params
+   * still reach the wire layer.
+   */
+  protected buildTextOptions(
+    options: SummarizationOptions<TProviderOptions>,
+    systemPrompt: string,
+  ): TextOptions<TProviderOptions> {
+    return {
+      model: options.model,
+      messages: [{ role: 'user', content: options.text }],
+      systemPrompts: [systemPrompt],
+      maxTokens: options.maxLength,
+      temperature: 0.3,
+      modelOptions: options.modelOptions,
+      logger: options.logger,
+    }
+  }
+
+  protected buildSummarizationPrompt(
+    options: SummarizationOptions<TProviderOptions>,
+  ): string {
     let prompt = 'You are a professional summarizer. '
 
     switch (options.style) {

@@ -184,7 +184,7 @@ export function summarize<
 async function runSummarize(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, false>,
 ): Promise<SummarizationResult> {
-  const { adapter, text, maxLength, style, focus } = options
+  const { adapter, text, maxLength, style, focus, modelOptions } = options
   const model = adapter.model
   const requestId = createId('summarize')
   const inputLength = text.length
@@ -211,6 +211,7 @@ async function runSummarize(
     maxLength,
     style,
     focus,
+    modelOptions,
     logger,
   }
 
@@ -253,7 +254,7 @@ async function runSummarize(
 async function* runStreamingSummarize(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, true>,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, text, maxLength, style, focus } = options
+  const { adapter, text, maxLength, style, focus, modelOptions } = options
   const model = adapter.model
   const logger: InternalLogger = resolveDebugOption(options.debug)
 
@@ -269,6 +270,7 @@ async function* runStreamingSummarize(
     maxLength,
     style,
     focus,
+    modelOptions,
     logger,
   }
 
@@ -316,4 +318,5 @@ export { BaseSummarizeAdapter } from './adapter'
 export {
   ChatStreamSummarizeAdapter,
   type ChatStreamCapable,
+  type InferTextProviderOptions,
 } from './chat-stream-summarize'

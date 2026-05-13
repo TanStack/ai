@@ -16,7 +16,6 @@ export {
   createOpenaiSummarize,
   openaiSummarize,
   type OpenAISummarizeConfig,
-  type OpenAISummarizeProviderOptions,
 } from './adapters/summarize'
 
 // Image adapter - for image generation

@@ -11,15 +11,12 @@ export {
   type GeminiTextProviderOptions,
 } from './adapters/text'
 
-// Summarize adapter
+// Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
 export {
-  GeminiSummarizeAdapter,
-  GeminiSummarizeModels,
   createGeminiSummarize,
   geminiSummarize,
-  type GeminiSummarizeAdapterOptions,
+  type GeminiSummarizeConfig,
   type GeminiSummarizeModel,
-  type GeminiSummarizeProviderOptions,
 } from './adapters/summarize'
 
 // Image adapter

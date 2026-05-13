@@ -8,7 +8,7 @@ import {
   type SafetySetting,
 } from '@google/genai'
 import { GeminiTextAdapter } from '../src/adapters/text'
-import { GeminiSummarizeAdapter } from '../src/adapters/summarize'
+import { createGeminiSummarize } from '../src/adapters/summarize'
 import type { GeminiTextProviderOptions } from '../src/adapters/text'
 import type { Schema } from '@google/genai'
 
@@ -53,7 +53,7 @@ vi.mock('@google/genai', async () => {
 const createTextAdapter = () =>
   new GeminiTextAdapter({ apiKey: 'test-key' }, 'gemini-2.5-pro')
 const createSummarizeAdapter = () =>
-  new GeminiSummarizeAdapter('test-key', 'gemini-2.0-flash')
+  createGeminiSummarize('test-key', 'gemini-2.0-flash')
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
@@ -755,15 +755,26 @@ describe('GeminiAdapter through AI', () => {
     expect(funcResponsePart.functionResponse.id).toBe('fc_001')
   })
 
-  it('uses summarize function with models API', async () => {
+  it('routes summarize() through the gemini chat-stream path', async () => {
     const summaryText = 'Short and sweet.'
-    mocks.generateContentSpy.mockResolvedValueOnce({
-      text: summaryText,
-      usageMetadata: {
-        promptTokenCount: 10,
-        candidatesTokenCount: 5,
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: summaryText }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
       },
-    })
+    ]
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream(streamChunks),
+    )
 
     const adapter = createSummarizeAdapter()
     const result = await summarize({
@@ -773,10 +784,11 @@ describe('GeminiAdapter through AI', () => {
       style: 'paragraph',
     })
 
-    expect(mocks.generateContentSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.generateContentSpy.mock.calls[0]
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
     expect(payload.model).toBe('gemini-2.0-flash')
-    expect(payload.config.systemInstruction).toContain('summarizes text')
+    expect(payload.config.systemInstruction).toContain('professional summarizer')
+    expect(payload.config.systemInstruction).toContain('paragraph format')
     expect(payload.config.systemInstruction).toContain('123 tokens')
     expect(result.summary).toBe(summaryText)
   })

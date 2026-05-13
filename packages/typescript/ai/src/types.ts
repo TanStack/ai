@@ -1185,12 +1185,16 @@ export interface TextCompletionChunk {
   }
 }
 
-export interface SummarizationOptions {
+export interface SummarizationOptions<
+  TProviderOptions extends object = Record<string, any>,
+> {
   model: string
   text: string
   maxLength?: number
   style?: 'bullet-points' | 'paragraph' | 'concise'
   focus?: Array<string>
+  /** Provider-specific options forwarded by the summarize() activity. */
+  modelOptions?: TProviderOptions
   /**
    * Internal logger threaded from the summarize() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.

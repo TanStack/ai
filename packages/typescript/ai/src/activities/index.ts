@@ -63,6 +63,7 @@ export {
 export {
   ChatStreamSummarizeAdapter,
   type ChatStreamCapable,
+  type InferTextProviderOptions,
 } from './summarize/chat-stream-summarize'
 
 // ===========================

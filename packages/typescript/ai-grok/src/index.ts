@@ -16,7 +16,6 @@ export {
   createGrokSummarize,
   grokSummarize,
   type GrokSummarizeConfig,
-  type GrokSummarizeProviderOptions,
   type GrokSummarizeModel,
 } from './adapters/summarize'
 
