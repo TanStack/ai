@@ -25,13 +25,13 @@ set of protected hooks for SDK-shape variance.
 ## Why this package exists
 
 The old name, `@tanstack/openai-base`, implied that OpenAI's evolving API
-*was* the contract — that everyone else inherits from OpenAI. That framing
+_was_ the contract — that everyone else inherits from OpenAI. That framing
 broke down in two ways:
 
 1. **OpenAI doesn't define the protocol; the ecosystem does.** Many providers
    ship `/v1/chat/completions` as their native API (Groq, Together, vLLM,
    SGLang, Fireworks, Ollama's compat layer). When OpenAI ships a new field
-   that no other provider supports, that field belongs to *OpenAI's product*,
+   that no other provider supports, that field belongs to _OpenAI's product_,
    not to the protocol.
 2. **The Responses API has the same shape.** OpenRouter's beta Responses
    endpoint routes requests with OpenAI's Responses wire format to Claude,
@@ -46,12 +46,12 @@ originally shipped it.
 
 ## What goes here vs. in `@tanstack/ai-openai`
 
-| Belongs in `@tanstack/ai-openai-compatible` | Belongs in `@tanstack/ai-openai` |
-| ------------------------------------------- | -------------------------------- |
-| Logic for the Chat Completions wire format  | OpenAI-specific tool types (`web_search_preview`, `code_interpreter`, `local_shell`, `apply_patch`, `computer_use`, `mcp`, …) |
-| Logic for the Responses wire format         | OpenAI model metadata, model lists, capability matrices |
-| Streaming chunk assembly, AG-UI lifecycle, partial-JSON tool-arg buffering, tool-call deduplication | OpenAI-only request/response fields that no other vendor supports |
-| Schema converters and structured-output coercion that all OpenAI-compatible servers accept | OpenAI's media adapters (image/TTS/video/transcription) that other providers don't implement |
+| Belongs in `@tanstack/ai-openai-compatible`                                                         | Belongs in `@tanstack/ai-openai`                                                                                              |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Logic for the Chat Completions wire format                                                          | OpenAI-specific tool types (`web_search_preview`, `code_interpreter`, `local_shell`, `apply_patch`, `computer_use`, `mcp`, …) |
+| Logic for the Responses wire format                                                                 | OpenAI model metadata, model lists, capability matrices                                                                       |
+| Streaming chunk assembly, AG-UI lifecycle, partial-JSON tool-arg buffering, tool-call deduplication | OpenAI-only request/response fields that no other vendor supports                                                             |
+| Schema converters and structured-output coercion that all OpenAI-compatible servers accept          | OpenAI's media adapters (image/TTS/video/transcription) that other providers don't implement                                  |
 
 **Rule of thumb**: if you'd add a field here, it should be supported by at
 least two OpenAI-compatible providers. Otherwise it belongs in the
