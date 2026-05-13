@@ -11,6 +11,7 @@ import { getOpenRouterApiKeyFromEnv } from '../utils'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
 import type {
+  ContentPartAddedEventPart,
   InputsUnion,
   OpenResponsesResult,
   OutputItems,
@@ -400,25 +401,23 @@ export class OpenRouterResponsesTextAdapter<
           }
         }
 
-        const handleContentPart = (contentPart: {
-          type: string
-          text?: string
-          refusal?: string
-        }): StreamChunk => {
+        const handleContentPart = (
+          contentPart: ContentPartAddedEventPart,
+        ): StreamChunk => {
           if (contentPart.type === 'output_text') {
-            accumulatedContent += contentPart.text || ''
+            accumulatedContent += contentPart.text
             return {
               type: EventType.TEXT_MESSAGE_CONTENT,
               messageId: aguiState.messageId,
               model: model || options.model,
               timestamp: Date.now(),
-              delta: contentPart.text || '',
+              delta: contentPart.text,
               content: accumulatedContent,
             }
           }
 
           if (contentPart.type === 'reasoning_text') {
-            accumulatedReasoning += contentPart.text || ''
+            accumulatedReasoning += contentPart.text
             // Cache the fallback stepId rather than generating a fresh one
             // on every call.
             if (!stepId) {
@@ -430,18 +429,29 @@ export class OpenRouterResponsesTextAdapter<
               stepId,
               model: model || options.model,
               timestamp: Date.now(),
-              delta: contentPart.text || '',
+              delta: contentPart.text,
               content: accumulatedReasoning,
             }
           }
-          // Either a real refusal or an unknown content_part type. Surface
-          // the part type in the error so unknown parts are debuggable
-          // instead of being misreported as "Unknown refusal".
-          const isRefusal = contentPart.type === 'refusal'
-          const message = isRefusal
-            ? contentPart.refusal || 'Refused without explanation'
-            : `Unsupported response content_part type: ${contentPart.type}`
-          const code = isRefusal ? 'refusal' : contentPart.type
+
+          if (contentPart.type === 'refusal') {
+            const message =
+              contentPart.refusal || 'Refused without explanation'
+            return {
+              type: EventType.RUN_ERROR,
+              model: model || options.model,
+              timestamp: Date.now(),
+              message,
+              code: 'refusal',
+              error: { message, code: 'refusal' },
+            }
+          }
+
+          // Forward-compat `Unknown<"type">` arm. Surface the discriminator
+          // value so unknown parts are debuggable instead of being misreported
+          // as "Unknown refusal".
+          const code = contentPart.type
+          const message = `Unsupported response content_part type: ${code}`
           return {
             type: EventType.RUN_ERROR,
             model: model || options.model,
@@ -459,8 +469,7 @@ export class OpenRouterResponsesTextAdapter<
           chunk.type === 'response.incomplete' ||
           chunk.type === 'response.failed'
         ) {
-          const r = chunk.response as { model?: string } | undefined
-          if (r?.model) model = r.model
+          if (chunk.response?.model) model = chunk.response.model
         }
 
         // response.created marks the start of a fresh run — safe to reset
@@ -488,19 +497,15 @@ export class OpenRouterResponsesTextAdapter<
             }
             hasEmittedTextMessageStart = false
           }
-          const r = (chunk.response ?? {}) as {
-            error?: { message?: string; code?: unknown } | null
-            incompleteDetails?: { reason?: string } | null
-          }
           const errorMessage =
-            r.error?.message ||
-            r.incompleteDetails?.reason ||
+            chunk.response?.error?.message ||
+            chunk.response?.incompleteDetails?.reason ||
             (chunk.type === 'response.failed'
               ? 'Response failed'
               : 'Response ended incomplete')
           const errorCode =
-            normalizeCode(r.error?.code) ??
-            (r.incompleteDetails ? 'incomplete' : undefined) ??
+            normalizeCode(chunk.response?.error?.code) ??
+            (chunk.response?.incompleteDetails ? 'incomplete' : undefined) ??
             undefined
           yield {
             type: EventType.RUN_ERROR,
@@ -625,12 +630,8 @@ export class OpenRouterResponsesTextAdapter<
         }
 
         // handle content_part added events for text, reasoning and refusals
-        if (chunk.type === 'response.content_part.added') {
-          const contentPart = chunk.part as {
-            type: string
-            text?: string
-            refusal?: string
-          }
+        if (chunk.type === 'response.content_part.added' && chunk.part) {
+          const contentPart = chunk.part
           if (
             contentPart.type === 'output_text' &&
             !hasEmittedTextMessageStart
@@ -669,12 +670,8 @@ export class OpenRouterResponsesTextAdapter<
           }
         }
 
-        if (chunk.type === 'response.content_part.done') {
-          const contentPart = chunk.part as {
-            type: string
-            text?: string
-            refusal?: string
-          }
+        if (chunk.type === 'response.content_part.done' && chunk.part) {
+          const contentPart = chunk.part
 
           // Skip emitting chunks for content parts that we've already streamed via deltas
           if (contentPart.type === 'output_text' && hasStreamedContentDeltas) {
@@ -995,7 +992,7 @@ export class OpenRouterResponsesTextAdapter<
           }
 
           const hasFunctionCalls = outputItems.some(
-            (item) => (item as { type?: string }).type === 'function_call',
+            (item) => item.type === 'function_call',
           )
           const incompleteReason = responseObj.incompleteDetails?.reason
           const finishReason:
@@ -1354,7 +1351,10 @@ interface NormalizedStreamEvent {
   response?: Partial<OpenResponsesResult>
   /** SDK discriminated union — narrow with `item.type === '<variant>'`. */
   item?: OutputItems
-  part?: unknown
+  /** SDK discriminated union — narrow with `part.type === '<variant>'`.
+   *  Shared by `response.content_part.added` and `response.content_part.done`
+   *  (`ContentPartDoneEventPart` is structurally identical). */
+  part?: ContentPartAddedEventPart
 }
 
 /**
