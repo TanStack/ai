@@ -293,7 +293,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
-    let usage: OpenAI_SDK.Responses.Response['usage'] | undefined
+    let usage: OpenAI.Responses.Response['usage'] | undefined
 
     const closeReasoning = function* (this: {
       name: string
@@ -363,7 +363,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
 
-      const stream = await this.callResponseStream(
+      const stream = await this.client.responses.create(
         {
           ...cleanParams,
           stream: true,
@@ -478,11 +478,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
-          const response = (
-            chunk as { response?: OpenAI_SDK.Responses.Response }
-          ).response
-          if (response?.usage) usage = response.usage
-          if (response?.model) model = response.model
+          const response = chunk.response
+          if (response.usage) usage = response.usage
+          if (response.model) model = response.model
           continue
         }
 

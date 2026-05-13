@@ -255,7 +255,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     let stepId: string | undefined
     let lastModel: string | undefined
     let lastUsage:
-      | OpenAI_SDK.Chat.Completions.ChatCompletionChunk['usage']
+      | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
       | undefined
 
     const closeReasoningLifecycle = function* (this: {
@@ -304,7 +304,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         { provider: this.name, model: this.model },
       )
 
-      const stream = await this.callChatCompletionStream(
+      const stream = await this.client.chat.completions.create(
         {
           ...cleanParams,
           stream: true,
