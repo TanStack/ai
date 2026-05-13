@@ -830,13 +830,7 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
   /** Model identifier for multi-model support */
   model?: string
   /** Why the generation stopped */
-  finishReason?:
-    | 'stop'
-    | 'length'
-    | 'content_filter'
-    | 'tool_calls'
-    | 'function_call'
-    | null
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** Token usage statistics */
   usage?: {
     promptTokens: number

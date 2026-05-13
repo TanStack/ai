@@ -32,6 +32,11 @@ export interface OpenAIImageConfig extends OpenAIClientConfig {}
  *
  * Tree-shakeable adapter for OpenAI image generation functionality.
  * Supports gpt-image-1, gpt-image-1-mini, dall-e-3, and dall-e-2 models.
+ *
+ * Features:
+ * - Model-specific type-safe provider options
+ * - Size validation per model
+ * - Number of images validation
  */
 export class OpenAIImageAdapter<
   TModel extends OpenAIImageModel,
@@ -115,6 +120,25 @@ export class OpenAIImageAdapter<
   }
 }
 
+/**
+ * Creates an OpenAI image adapter with explicit API key.
+ * Type resolution happens here at the call site.
+ *
+ * @param model - The model name (e.g., 'dall-e-3', 'gpt-image-1')
+ * @param apiKey - Your OpenAI API key
+ * @param config - Optional additional configuration
+ * @returns Configured OpenAI image adapter instance with resolved types
+ *
+ * @example
+ * ```typescript
+ * const adapter = createOpenaiImage('dall-e-3', "sk-...");
+ *
+ * const result = await generateImage({
+ *   adapter,
+ *   prompt: 'A cute baby sea otter'
+ * });
+ * ```
+ */
 export function createOpenaiImage<TModel extends OpenAIImageModel>(
   model: TModel,
   apiKey: string,
@@ -123,6 +147,30 @@ export function createOpenaiImage<TModel extends OpenAIImageModel>(
   return new OpenAIImageAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates an OpenAI image adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
+ *
+ * Looks for `OPENAI_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
+ *
+ * @param model - The model name (e.g., 'dall-e-3', 'gpt-image-1')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured OpenAI image adapter instance with resolved types
+ * @throws Error if OPENAI_API_KEY is not found in environment
+ *
+ * @example
+ * ```typescript
+ * // Automatically uses OPENAI_API_KEY from environment
+ * const adapter = openaiImage('dall-e-3');
+ *
+ * const result = await generateImage({
+ *   adapter,
+ *   prompt: 'A beautiful sunset over mountains'
+ * });
+ * ```
+ */
 export function openaiImage<TModel extends OpenAIImageModel>(
   model: TModel,
   config?: Omit<OpenAIImageConfig, 'apiKey'>,

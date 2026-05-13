@@ -13,6 +13,7 @@ import type { ResponsesFunctionTool } from '../internal/responses-tool-converter
 import type {
   InputsUnion,
   OpenResponsesResult,
+  OutputItems,
   ResponsesRequest,
   StreamEvents,
 } from '@openrouter/sdk/models'
@@ -25,7 +26,6 @@ import type {
   ModelMessage,
   StreamChunk,
   TextOptions,
-  Tool,
 } from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type {
@@ -133,13 +133,13 @@ export class OpenRouterResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(options.request)
-      const response = (await this.orClient.beta.responses.send(
+      const response = await this.orClient.beta.responses.send(
         { responsesRequest: { ...responsesRequest, stream: true } },
         {
           signal: reqOptions.signal ?? undefined,
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
-      )) as AsyncIterable<StreamEvents>
+      )
 
       yield* this.processStreamChunks(
         response,
@@ -164,7 +164,7 @@ export class OpenRouterResponsesTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
       }
 
       yield {
@@ -174,7 +174,7 @@ export class OpenRouterResponsesTextAdapter<
         message: errorPayload.message,
         code: errorPayload.code,
         error: errorPayload,
-      } satisfies StreamChunk
+      }
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
         error: errorPayload,
@@ -216,7 +216,7 @@ export class OpenRouterResponsesTextAdapter<
                 schema: jsonSchema,
                 strict: true,
               },
-            } as ResponsesRequest['text'],
+            },
           },
         },
         {
@@ -397,7 +397,7 @@ export class OpenRouterResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         const handleContentPart = (contentPart: {
@@ -414,7 +414,7 @@ export class OpenRouterResponsesTextAdapter<
               timestamp: Date.now(),
               delta: contentPart.text || '',
               content: accumulatedContent,
-            } satisfies StreamChunk
+            }
           }
 
           if (contentPart.type === 'reasoning_text') {
@@ -432,7 +432,7 @@ export class OpenRouterResponsesTextAdapter<
               timestamp: Date.now(),
               delta: contentPart.text || '',
               content: accumulatedReasoning,
-            } satisfies StreamChunk
+            }
           }
           // Either a real refusal or an unknown content_part type. Surface
           // the part type in the error so unknown parts are debuggable
@@ -449,7 +449,7 @@ export class OpenRouterResponsesTextAdapter<
             message,
             code,
             error: { message, code },
-          } satisfies StreamChunk
+          }
         }
 
         // Capture model metadata from any of these events.
@@ -485,7 +485,7 @@ export class OpenRouterResponsesTextAdapter<
               messageId: aguiState.messageId,
               model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             hasEmittedTextMessageStart = false
           }
           const r = (chunk.response ?? {}) as {
@@ -512,7 +512,7 @@ export class OpenRouterResponsesTextAdapter<
               message: errorMessage,
               ...(errorCode !== undefined && { code: errorCode }),
             },
-          } satisfies StreamChunk
+          }
           runFinishedEmitted = true
           return
         }
@@ -534,7 +534,7 @@ export class OpenRouterResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 role: 'assistant',
-              } satisfies StreamChunk
+              }
             }
 
             accumulatedContent += textDelta
@@ -546,7 +546,7 @@ export class OpenRouterResponsesTextAdapter<
               timestamp: Date.now(),
               delta: textDelta,
               content: accumulatedContent,
-            } satisfies StreamChunk
+            }
           }
         }
 
@@ -569,7 +569,7 @@ export class OpenRouterResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 stepType: 'thinking',
-              } satisfies StreamChunk
+              }
             }
 
             accumulatedReasoning += reasoningDelta
@@ -583,7 +583,7 @@ export class OpenRouterResponsesTextAdapter<
               timestamp: Date.now(),
               delta: reasoningDelta,
               content: accumulatedReasoning,
-            } satisfies StreamChunk
+            }
           }
         }
 
@@ -606,7 +606,7 @@ export class OpenRouterResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 stepType: 'thinking',
-              } satisfies StreamChunk
+              }
             }
 
             accumulatedReasoning += summaryDelta
@@ -620,7 +620,7 @@ export class OpenRouterResponsesTextAdapter<
               timestamp: Date.now(),
               delta: summaryDelta,
               content: accumulatedReasoning,
-            } satisfies StreamChunk
+            }
           }
         }
 
@@ -642,7 +642,7 @@ export class OpenRouterResponsesTextAdapter<
               model: model || options.model,
               timestamp: Date.now(),
               role: 'assistant',
-            } satisfies StreamChunk
+            }
           }
           if (contentPart.type === 'reasoning_text' && !hasEmittedStepStarted) {
             hasEmittedStepStarted = true
@@ -654,7 +654,7 @@ export class OpenRouterResponsesTextAdapter<
               model: model || options.model,
               timestamp: Date.now(),
               stepType: 'thinking',
-            } satisfies StreamChunk
+            }
           }
           if (contentPart.type === 'output_text') {
             hasStreamedContentDeltas = true
@@ -701,7 +701,7 @@ export class OpenRouterResponsesTextAdapter<
               model: model || options.model,
               timestamp: Date.now(),
               role: 'assistant',
-            } satisfies StreamChunk
+            }
           } else if (
             contentPart.type === 'reasoning_text' &&
             !hasEmittedStepStarted
@@ -715,7 +715,7 @@ export class OpenRouterResponsesTextAdapter<
               model: model || options.model,
               timestamp: Date.now(),
               stepType: 'thinking',
-            } satisfies StreamChunk
+            }
           }
 
           const doneChunk = handleContentPart(contentPart)
@@ -728,20 +728,16 @@ export class OpenRouterResponsesTextAdapter<
 
         // handle output_item.added to capture function call metadata (name)
         if (chunk.type === 'response.output_item.added') {
-          const item = chunk.item as {
-            type: string
-            id?: string
-            name?: string
-          }
-          if (item.type === 'function_call' && item.id) {
+          const item = chunk.item
+          if (item?.type === 'function_call' && item.id) {
             const existing = toolCallMetadata.get(item.id)
             if (!existing) {
               toolCallMetadata.set(item.id, {
                 index: chunk.outputIndex ?? 0,
-                name: item.name || '',
+                name: item.name,
                 started: false,
               })
-            } else if (!existing.name && item.name) {
+            } else if (!existing.name) {
               existing.name = item.name
             }
             const metadata = toolCallMetadata.get(item.id)!
@@ -754,7 +750,7 @@ export class OpenRouterResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.outputIndex ?? 0,
-              } satisfies StreamChunk
+              }
               metadata.started = true
             }
           }
@@ -784,7 +780,7 @@ export class OpenRouterResponsesTextAdapter<
             model: model || options.model,
             timestamp: Date.now(),
             delta: typeof chunk.delta === 'string' ? chunk.delta : '',
-          } satisfies StreamChunk
+          }
         }
 
         if (chunk.type === 'response.function_call_arguments.done') {
@@ -840,27 +836,22 @@ export class OpenRouterResponsesTextAdapter<
             model: model || options.model,
             timestamp: Date.now(),
             input: parsedInput,
-          } satisfies StreamChunk
+          }
         }
 
         // `output_item.done` is the last point at which a function_call's
         // name is guaranteed to be on the wire.
         if (chunk.type === 'response.output_item.done') {
-          const item = chunk.item as {
-            type: string
-            id?: string
-            name?: string
-            arguments?: string
-          }
-          if (item.type === 'function_call' && item.id) {
+          const item = chunk.item
+          if (item?.type === 'function_call' && item.id) {
             const metadata = toolCallMetadata.get(item.id) ?? {
               index: chunk.outputIndex ?? 0,
-              name: item.name || '',
+              name: item.name,
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
               toolCallMetadata.set(item.id, metadata)
-            } else if (!metadata.name && item.name) {
+            } else if (!metadata.name) {
               metadata.name = item.name
             }
             if (!metadata.started && metadata.name) {
@@ -872,7 +863,7 @@ export class OpenRouterResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
-              } satisfies StreamChunk
+              }
               metadata.started = true
             }
             const rawArgs =
@@ -912,7 +903,7 @@ export class OpenRouterResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 input: parsedInput,
-              } satisfies StreamChunk
+              }
               metadata.ended = true
               metadata.pendingArguments = undefined
             }
@@ -920,27 +911,13 @@ export class OpenRouterResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
-          const responseObj = (chunk.response ?? {}) as {
-            output?: ReadonlyArray<unknown>
-            usage?: {
-              inputTokens?: number
-              outputTokens?: number
-              totalTokens?: number
-            } | null
-            incompleteDetails?: { reason?: string } | null
-          }
+          const responseObj = chunk.response ?? {}
           const outputItems = Array.isArray(responseObj.output)
             ? responseObj.output
             : []
 
           // Final backstop for function_call lifecycle.
-          for (const rawItem of outputItems) {
-            const item = rawItem as {
-              type?: string
-              id?: string
-              name?: string
-              arguments?: string
-            }
+          for (const item of outputItems) {
             if (item.type !== 'function_call' || !item.id) continue
             const metadata = toolCallMetadata.get(item.id) ?? {
               index: 0,
@@ -961,7 +938,7 @@ export class OpenRouterResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
-              } satisfies StreamChunk
+              }
               metadata.started = true
             }
             const rawArgs =
@@ -1001,7 +978,7 @@ export class OpenRouterResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 input: parsedInput,
-              } satisfies StreamChunk
+              }
               metadata.ended = true
               metadata.pendingArguments = undefined
             }
@@ -1013,7 +990,7 @@ export class OpenRouterResponsesTextAdapter<
               messageId: aguiState.messageId,
               model: model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             hasEmittedTextMessageStart = false
           }
 
@@ -1045,7 +1022,7 @@ export class OpenRouterResponsesTextAdapter<
               totalTokens: responseObj.usage?.totalTokens || 0,
             },
             finishReason,
-          } satisfies StreamChunk
+          }
           runFinishedEmitted = true
         }
 
@@ -1061,7 +1038,7 @@ export class OpenRouterResponsesTextAdapter<
               message: chunk.message ?? '',
               ...(code !== undefined && { code }),
             },
-          } satisfies StreamChunk
+          }
           runFinishedEmitted = true
           return
         }
@@ -1076,7 +1053,7 @@ export class OpenRouterResponsesTextAdapter<
             messageId: aguiState.messageId,
             model: model || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
         yield {
           type: EventType.RUN_FINISHED,
@@ -1086,7 +1063,7 @@ export class OpenRouterResponsesTextAdapter<
           timestamp: Date.now(),
           usage: undefined,
           finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
-        } satisfies StreamChunk
+        }
       }
     } catch (error: unknown) {
       const errorPayload = toRunErrorPayload(
@@ -1104,7 +1081,7 @@ export class OpenRouterResponsesTextAdapter<
         message: errorPayload.message,
         code: errorPayload.code,
         error: errorPayload,
-      } satisfies StreamChunk
+      }
     }
   }
 
@@ -1117,7 +1094,7 @@ export class OpenRouterResponsesTextAdapter<
     // Fail loud on webSearchTool() — v1 only routes function tools.
     if (options.tools) {
       for (const tool of options.tools) {
-        if (isWebSearchTool(tool as Tool)) {
+        if (isWebSearchTool(tool)) {
           throw new Error(
             `OpenRouterResponsesTextAdapter does not yet support webSearchTool(). ` +
               `Use the chat-completions adapter (openRouterText) for web search ` +
@@ -1175,10 +1152,10 @@ export class OpenRouterResponsesTextAdapter<
         options.systemPrompts.length > 0 && {
           instructions: options.systemPrompts.join('\n'),
         }),
-      input: input as ResponsesRequest['input'],
+      input,
       ...(tools &&
         tools.length > 0 && {
-          tools: tools as ResponsesRequest['tools'],
+          tools,
         }),
     }
 
@@ -1204,7 +1181,7 @@ export class OpenRouterResponsesTextAdapter<
             typeof message.content === 'string'
               ? message.content
               : this.extractTextContent(message.content),
-        } as InputsItem)
+        })
         continue
       }
 
@@ -1221,7 +1198,7 @@ export class OpenRouterResponsesTextAdapter<
               id: toolCall.id,
               name: toolCall.function.name,
               arguments: argumentsString,
-            } as InputsItem)
+            })
           }
         }
 
@@ -1232,7 +1209,7 @@ export class OpenRouterResponsesTextAdapter<
               type: 'message',
               role: 'assistant',
               content: contentStr,
-            } as InputsItem)
+            })
           }
         }
         continue
@@ -1255,7 +1232,7 @@ export class OpenRouterResponsesTextAdapter<
         type: 'message',
         role: 'user',
         content: inputContent,
-      } as InputsItem)
+      })
     }
 
     return result
@@ -1373,8 +1350,10 @@ interface NormalizedStreamEvent {
   code?: unknown
   param?: string | null
   sequenceNumber?: number
-  response?: unknown
-  item?: unknown
+  /** camelCased copy of the `response` payload from `response.{completed,failed,incomplete}` events. */
+  response?: Partial<OpenResponsesResult>
+  /** SDK discriminated union — narrow with `item.type === '<variant>'`. */
+  item?: OutputItems
   part?: unknown
 }
 

@@ -3,8 +3,8 @@ import type { ClientOptions } from 'openai'
 
 /**
  * OpenAI client configuration. Pass through to `new OpenAI(...)`. `apiKey`
- * is required so the openai-compatible adapters don't need to handle a
- * missing-key case at construction time.
+ * is required so the OpenAI adapters don't need to handle a missing-key
+ * case at construction time.
  */
 export interface OpenAIClientConfig extends Omit<ClientOptions, 'apiKey'> {
   apiKey: string

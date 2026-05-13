@@ -128,7 +128,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
       }
 
       // Emit AG-UI RUN_ERROR
@@ -139,7 +139,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         message: errorPayload.message,
         code: errorPayload.code,
         error: errorPayload,
-      } satisfies StreamChunk
+      }
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
         error: errorPayload,
@@ -404,7 +404,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         const handleContentPart = (contentPart: {
@@ -421,7 +421,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               timestamp: Date.now(),
               delta: contentPart.text || '',
               content: accumulatedContent,
-            } satisfies StreamChunk
+            }
           }
 
           if (contentPart.type === 'reasoning_text') {
@@ -441,7 +441,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               timestamp: Date.now(),
               delta: contentPart.text || '',
               content: accumulatedReasoning,
-            } satisfies StreamChunk
+            }
           }
           // Either a real refusal or an unknown content_part type. Surface
           // the part type in the error so unknown parts are debuggable
@@ -458,7 +458,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             message,
             code,
             error: { message, code },
-          } satisfies StreamChunk
+          }
         }
 
         // Capture model metadata from any of these events (created starts
@@ -498,7 +498,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               messageId: aguiState.messageId,
               model: chunk.response.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             hasEmittedTextMessageStart = false
           }
           // Coalesce error + incomplete_details into a single RUN_ERROR
@@ -529,7 +529,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               message: errorMessage,
               ...(errorCode !== undefined && { code: errorCode }),
             },
-          } satisfies StreamChunk
+          }
           // RUN_ERROR is the terminal event for this run; stop processing
           // any further chunks the iterator might still deliver.
           runFinishedEmitted = true
@@ -556,7 +556,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 role: 'assistant',
-              } satisfies StreamChunk
+              }
             }
 
             accumulatedContent += textDelta
@@ -568,7 +568,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               timestamp: Date.now(),
               delta: textDelta,
               content: accumulatedContent,
-            } satisfies StreamChunk
+            }
           }
         }
 
@@ -594,7 +594,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 stepType: 'thinking',
-              } satisfies StreamChunk
+              }
             }
 
             accumulatedReasoning += reasoningDelta
@@ -608,7 +608,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               timestamp: Date.now(),
               delta: reasoningDelta,
               content: accumulatedReasoning,
-            } satisfies StreamChunk
+            }
           }
         }
 
@@ -633,7 +633,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 stepType: 'thinking',
-              } satisfies StreamChunk
+              }
             }
 
             accumulatedReasoning += summaryDelta
@@ -647,7 +647,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               timestamp: Date.now(),
               delta: summaryDelta,
               content: accumulatedReasoning,
-            } satisfies StreamChunk
+            }
           }
         }
 
@@ -666,7 +666,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               model: model || options.model,
               timestamp: Date.now(),
               role: 'assistant',
-            } satisfies StreamChunk
+            }
           }
           // Emit STEP_STARTED if this is reasoning content
           if (contentPart.type === 'reasoning_text' && !hasEmittedStepStarted) {
@@ -679,7 +679,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               model: model || options.model,
               timestamp: Date.now(),
               stepType: 'thinking',
-            } satisfies StreamChunk
+            }
           }
           // Mark whichever stream we just emitted into so a subsequent
           // `content_part.done` doesn't duplicate the same text. Without
@@ -736,7 +736,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               model: model || options.model,
               timestamp: Date.now(),
               role: 'assistant',
-            } satisfies StreamChunk
+            }
           } else if (
             contentPart.type === 'reasoning_text' &&
             !hasEmittedStepStarted
@@ -750,7 +750,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               model: model || options.model,
               timestamp: Date.now(),
               stepType: 'thinking',
-            } satisfies StreamChunk
+            }
           }
 
           // Only emit if we haven't been streaming deltas (e.g., for non-streaming responses)
@@ -794,7 +794,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.output_index,
-              } satisfies StreamChunk
+              }
               metadata.started = true
             }
           }
@@ -834,7 +834,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             model: model || options.model,
             timestamp: Date.now(),
             delta: chunk.delta,
-          } satisfies StreamChunk
+          }
         }
 
         if (chunk.type === 'response.function_call_arguments.done') {
@@ -904,7 +904,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             model: model || options.model,
             timestamp: Date.now(),
             input: parsedInput,
-          } satisfies StreamChunk
+          }
         }
 
         // `output_item.done` is the last point at which a function_call's
@@ -935,7 +935,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
-              } satisfies StreamChunk
+              }
               metadata.started = true
             }
             // Emit END if we have args (either from a previously-deferred
@@ -977,7 +977,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 input: parsedInput,
-              } satisfies StreamChunk
+              }
               metadata.ended = true
               metadata.pendingArguments = undefined
             }
@@ -1013,7 +1013,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
-              } satisfies StreamChunk
+              }
               metadata.started = true
             }
             const rawArgs =
@@ -1053,7 +1053,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 input: parsedInput,
-              } satisfies StreamChunk
+              }
               metadata.ended = true
               metadata.pendingArguments = undefined
             }
@@ -1066,7 +1066,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               messageId: aguiState.messageId,
               model: model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             hasEmittedTextMessageStart = false
           }
 
@@ -1106,7 +1106,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               totalTokens: chunk.response.usage?.total_tokens || 0,
             },
             finishReason,
-          } satisfies StreamChunk
+          }
           runFinishedEmitted = true
         }
 
@@ -1121,7 +1121,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               message: chunk.message,
               code: chunk.code ?? undefined,
             },
-          } satisfies StreamChunk
+          }
           // RUN_ERROR is terminal — don't let the synthetic RUN_FINISHED
           // block fire after a top-level stream error event, and stop
           // processing further chunks so no in-flight lifecycle events
@@ -1144,7 +1144,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             messageId: aguiState.messageId,
             model: model || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
         yield {
           type: EventType.RUN_FINISHED,
@@ -1154,7 +1154,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           timestamp: Date.now(),
           usage: undefined,
           finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
-        } satisfies StreamChunk
+        }
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
@@ -1174,7 +1174,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         message: errorPayload.message,
         code: errorPayload.code,
         error: errorPayload,
-      } satisfies StreamChunk
+      }
     }
   }
 

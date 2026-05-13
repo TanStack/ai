@@ -21,6 +21,7 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   ModelMessage,
+  RunFinishedEvent,
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
@@ -105,7 +106,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
       }
 
       // Emit AG-UI RUN_ERROR
@@ -116,7 +117,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         message: errorPayload.message,
         code: errorPayload.code,
         error: errorPayload,
-      } satisfies StreamChunk
+      }
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
         error: errorPayload,
@@ -338,7 +339,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         // Reasoning content (extractReasoning() hook). Run before reading
@@ -355,14 +356,14 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             yield {
               type: EventType.REASONING_MESSAGE_START,
               messageId: reasoningMessageId,
               role: 'reasoning' as const,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             // Legacy STEP_STARTED (single emission, paired with the
             // STEP_FINISHED below when reasoning closes).
             yield {
@@ -372,7 +373,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               model: chunk.model || options.model,
               timestamp: Date.now(),
               stepType: 'thinking',
-            } satisfies StreamChunk
+            }
           }
           accumulatedReasoning += reasoning.text
           yield {
@@ -381,7 +382,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             delta: reasoning.text,
             model: chunk.model || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         const choice = chunk.choices[0]
@@ -403,13 +404,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             yield {
               type: EventType.REASONING_END,
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             if (stepId) {
               yield {
                 type: EventType.STEP_FINISHED,
@@ -418,7 +419,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 content: accumulatedReasoning,
-              } satisfies StreamChunk
+              }
             }
           }
 
@@ -431,7 +432,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               model: chunk.model || options.model,
               timestamp: Date.now(),
               role: 'assistant',
-            } satisfies StreamChunk
+            }
           }
 
           accumulatedContent += deltaContent
@@ -444,7 +445,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             timestamp: Date.now(),
             delta: deltaContent,
             content: accumulatedContent,
-          } satisfies StreamChunk
+          }
         }
 
         // Handle tool calls - they come in as deltas
@@ -486,7 +487,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 index,
-              } satisfies StreamChunk
+              }
             }
 
             // Emit TOOL_CALL_ARGS for argument deltas
@@ -497,7 +498,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 delta: toolCallDelta.function.arguments,
-              } satisfies StreamChunk
+              }
             }
           }
         }
@@ -559,7 +560,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 input: parsedInput,
-              } satisfies StreamChunk
+              }
               emittedAnyToolCallEnd = true
             }
             // Clear tool-call state after emission so a subsequent
@@ -575,7 +576,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               messageId: aguiState.messageId,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             hasEmittedTextMessageStart = false
           }
 
@@ -632,7 +633,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             model: lastModel || options.model,
             timestamp: Date.now(),
             input: parsedInput,
-          } satisfies StreamChunk
+          }
           pendingToolCount += 1
           emittedAnyToolCallEnd = true
         }
@@ -646,7 +647,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             messageId: aguiState.messageId,
             model: lastModel || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         // Close any reasoning lifecycle that text never closed (no text
@@ -658,13 +659,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             messageId: reasoningMessageId,
             model: lastModel || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           yield {
             type: EventType.REASONING_END,
             messageId: reasoningMessageId,
             model: lastModel || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           if (stepId) {
             yield {
               type: EventType.STEP_FINISHED,
@@ -673,23 +674,27 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               model: lastModel || options.model,
               timestamp: Date.now(),
               content: accumulatedReasoning,
-            } satisfies StreamChunk
+            }
           }
         }
 
-        // Map upstream finish_reason to AG-UI's narrower vocabulary while
-        // preserving the upstream value when it falls outside the AG-UI set.
+        // Map upstream finish_reason to AG-UI's narrower vocabulary.
         // Collapsing length / content_filter to 'stop' would hide why the
         // run terminated — surface it instead. Use `tool_calls` only when
         // a TOOL_CALL_END was actually emitted: an upstream that signalled
         // `tool_calls` but never produced a started/ended pair must NOT
         // surface `tool_calls` here, since downstream consumers wait for
-        // tool results that would never arrive.
-        const finishReason = emittedAnyToolCallEnd
-          ? 'tool_calls'
-          : pendingFinishReason === 'tool_calls'
-            ? 'stop'
-            : (pendingFinishReason ?? 'stop')
+        // tool results that would never arrive. OpenAI's legacy
+        // `function_call` value (from the v1 function-calling API) is
+        // normalized to `tool_calls` — semantically the same termination.
+        const finishReason: NonNullable<RunFinishedEvent['finishReason']> =
+          emittedAnyToolCallEnd
+            ? 'tool_calls'
+            : pendingFinishReason === 'tool_calls'
+              ? 'stop'
+              : pendingFinishReason === 'function_call'
+                ? 'tool_calls'
+                : (pendingFinishReason ?? 'stop')
 
         yield {
           type: EventType.RUN_FINISHED,
@@ -705,7 +710,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               }
             : undefined,
           finishReason,
-        } satisfies StreamChunk
+        }
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
@@ -727,7 +732,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         message: errorPayload.message,
         code: errorPayload.code,
         error: errorPayload,
-      } satisfies StreamChunk
+      }
     }
   }
 

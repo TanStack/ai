@@ -474,7 +474,7 @@ describe('ChatClient', () => {
                   threadId: 'thread-1',
                   model: 'test',
                   timestamp: Date.now(),
-                } satisfies StreamChunk
+                }
               }
               await new Promise<void>((resolve) => {
                 const onAbort = () => resolve()
@@ -518,7 +518,7 @@ describe('ChatClient', () => {
                   threadId: 'thread-1',
                   model: 'test',
                   timestamp: Date.now(),
-                } satisfies StreamChunk
+                }
               }
               await new Promise<void>((resolve) => {
                 const onAbort = () => resolve()
@@ -820,7 +820,7 @@ describe('ChatClient', () => {
                 threadId: 'thread-1',
                 model: 'test',
                 timestamp: Date.now(),
-              } satisfies StreamChunk
+              }
               await new Promise((resolve) => setTimeout(resolve, 10))
             }
             throw new Error('subscription failed')
@@ -2059,7 +2059,7 @@ describe('ChatClient', () => {
               model: 'test',
               timestamp: Date.now(),
               finishReason: 'tool_calls' as const,
-            } satisfies StreamChunk
+            }
           } else if (streamCount === 3) {
             // Third stream (after second approval): final text response
             const chunks = createTextChunks('All done!')

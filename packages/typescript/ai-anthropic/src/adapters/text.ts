@@ -183,7 +183,7 @@ export class AnthropicTextAdapter<
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
         },
-      } satisfies StreamChunk
+      }
     }
   }
 
@@ -658,7 +658,7 @@ export class AnthropicTextAdapter<
             threadId,
             model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         if (event.type === 'content_block_start') {
@@ -684,14 +684,14 @@ export class AnthropicTextAdapter<
               messageId: reasoningMessageId,
               model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             yield {
               type: EventType.REASONING_MESSAGE_START,
               messageId: reasoningMessageId,
               role: 'reasoning' as const,
               model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
 
             // Legacy STEP events (kept during transition)
             yield {
@@ -701,7 +701,7 @@ export class AnthropicTextAdapter<
               model,
               timestamp: Date.now(),
               stepType: 'thinking',
-            } satisfies StreamChunk
+            }
           }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
@@ -713,13 +713,13 @@ export class AnthropicTextAdapter<
                 messageId: reasoningMessageId,
                 model,
                 timestamp: Date.now(),
-              } satisfies StreamChunk
+              }
               yield {
                 type: EventType.REASONING_END,
                 messageId: reasoningMessageId,
                 model,
                 timestamp: Date.now(),
-              } satisfies StreamChunk
+              }
             }
 
             // Emit TEXT_MESSAGE_START on first text content
@@ -731,7 +731,7 @@ export class AnthropicTextAdapter<
                 model,
                 timestamp: Date.now(),
                 role: 'assistant',
-              } satisfies StreamChunk
+              }
             }
 
             const delta = event.delta.text
@@ -743,7 +743,7 @@ export class AnthropicTextAdapter<
               timestamp: Date.now(),
               delta,
               content: accumulatedContent,
-            } satisfies StreamChunk
+            }
           } else if (event.delta.type === 'thinking_delta') {
             const delta = event.delta.thinking
             accumulatedThinking += delta
@@ -755,7 +755,7 @@ export class AnthropicTextAdapter<
               delta,
               model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
 
             // Legacy STEP event
             yield {
@@ -766,7 +766,7 @@ export class AnthropicTextAdapter<
               timestamp: Date.now(),
               delta,
               content: accumulatedThinking,
-            } satisfies StreamChunk
+            }
           } else if (
             (event.delta as { type: string }).type === 'signature_delta'
           ) {
@@ -786,7 +786,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   index: currentToolIndex,
-                } satisfies StreamChunk
+                }
               }
 
               existing.input += event.delta.partial_json
@@ -798,7 +798,7 @@ export class AnthropicTextAdapter<
                 timestamp: Date.now(),
                 delta: event.delta.partial_json,
                 args: existing.input,
-              } satisfies StreamChunk
+              }
             }
           }
         } else if (event.type === 'content_block_stop') {
@@ -814,7 +814,7 @@ export class AnthropicTextAdapter<
                 delta: '',
                 content: accumulatedThinking,
                 signature: accumulatedSignature,
-              } satisfies StreamChunk
+              }
             }
           } else if (currentBlockType === 'tool_use') {
             const existing = toolCallsMap.get(currentToolIndex)
@@ -830,7 +830,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   index: currentToolIndex,
-                } satisfies StreamChunk
+                }
               }
 
               // Emit TOOL_CALL_END
@@ -850,7 +850,7 @@ export class AnthropicTextAdapter<
                 model,
                 timestamp: Date.now(),
                 input: parsedInput,
-              } satisfies StreamChunk
+              }
 
               // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
               hasEmittedTextMessageStart = false
@@ -863,7 +863,7 @@ export class AnthropicTextAdapter<
                 messageId,
                 model,
                 timestamp: Date.now(),
-              } satisfies StreamChunk
+              }
             }
           }
           currentBlockType = null
@@ -876,13 +876,13 @@ export class AnthropicTextAdapter<
               messageId: reasoningMessageId,
               model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             yield {
               type: EventType.REASONING_END,
               messageId: reasoningMessageId,
               model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
           }
 
           // Only emit RUN_FINISHED from message_stop if message_delta didn't already emit one.
@@ -896,7 +896,7 @@ export class AnthropicTextAdapter<
               model,
               timestamp: Date.now(),
               finishReason: 'stop',
-            } satisfies StreamChunk
+            }
           }
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
@@ -910,13 +910,13 @@ export class AnthropicTextAdapter<
                 messageId: reasoningMessageId,
                 model,
                 timestamp: Date.now(),
-              } satisfies StreamChunk
+              }
               yield {
                 type: EventType.REASONING_END,
                 messageId: reasoningMessageId,
                 model,
                 timestamp: Date.now(),
-              } satisfies StreamChunk
+              }
             }
 
             switch (event.delta.stop_reason) {
@@ -935,7 +935,7 @@ export class AnthropicTextAdapter<
                       (event.usage.input_tokens || 0) +
                       (event.usage.output_tokens || 0),
                   },
-                } satisfies StreamChunk
+                }
                 break
               }
               case 'max_tokens': {
@@ -951,7 +951,7 @@ export class AnthropicTextAdapter<
                       'The response was cut off because the maximum token limit was reached.',
                     code: 'max_tokens',
                   },
-                } satisfies StreamChunk
+                }
                 break
               }
               default: {
@@ -969,7 +969,7 @@ export class AnthropicTextAdapter<
                       (event.usage.input_tokens || 0) +
                       (event.usage.output_tokens || 0),
                   },
-                } satisfies StreamChunk
+                }
               }
             }
           }
@@ -992,7 +992,7 @@ export class AnthropicTextAdapter<
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
         },
-      } satisfies StreamChunk
+      }
     }
   }
 }

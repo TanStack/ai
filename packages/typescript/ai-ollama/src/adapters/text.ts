@@ -248,7 +248,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           threadId,
           model: chunk.model,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
       }
 
       const handleToolCall = (toolCall: ToolCall): Array<StreamChunk> => {
@@ -271,7 +271,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             model: chunk.model,
             timestamp: Date.now(),
             index: actualToolCall.function.index,
-          } satisfies StreamChunk)
+          })
         }
 
         // Serialize arguments to a string for the TOOL_CALL_ARGS event
@@ -295,7 +295,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           timestamp: Date.now(),
           delta: argsStr,
           args: argsStr,
-        } satisfies StreamChunk)
+        })
 
         // Emit TOOL_CALL_END
         events.push({
@@ -306,7 +306,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           model: chunk.model,
           timestamp: Date.now(),
           input: parsedInput,
-        } satisfies StreamChunk)
+        })
 
         return events
       }
@@ -329,13 +329,13 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             messageId: reasoningMessageId,
             model: chunk.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           yield {
             type: EventType.REASONING_END,
             messageId: reasoningMessageId,
             model: chunk.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         // Emit TEXT_MESSAGE_END if we had text content
@@ -345,7 +345,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             messageId,
             model: chunk.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         yield {
@@ -361,7 +361,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             totalTokens:
               (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0),
           },
-        } satisfies StreamChunk
+        }
         continue
       }
 
@@ -374,13 +374,13 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             messageId: reasoningMessageId,
             model: chunk.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           yield {
             type: EventType.REASONING_END,
             messageId: reasoningMessageId,
             model: chunk.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         // Emit TEXT_MESSAGE_START on first text content
@@ -392,7 +392,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             model: chunk.model,
             timestamp: Date.now(),
             role: 'assistant',
-          } satisfies StreamChunk
+          }
         }
 
         accumulatedContent += chunk.message.content
@@ -403,7 +403,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           timestamp: Date.now(),
           delta: chunk.message.content,
           content: accumulatedContent,
-        } satisfies StreamChunk
+        }
       }
 
       if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
@@ -428,14 +428,14 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             messageId: reasoningMessageId,
             model: chunk.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           yield {
             type: EventType.REASONING_MESSAGE_START,
             messageId: reasoningMessageId,
             role: 'reasoning' as const,
             model: chunk.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
 
           // Legacy STEP events (kept during transition)
           yield {
@@ -445,7 +445,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             model: chunk.model,
             timestamp: Date.now(),
             stepType: 'thinking',
-          } satisfies StreamChunk
+          }
         }
 
         accumulatedReasoning += chunk.message.thinking
@@ -457,7 +457,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           delta: chunk.message.thinking,
           model: chunk.model,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
 
         // Legacy STEP event
         yield {
@@ -468,7 +468,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           timestamp: Date.now(),
           delta: chunk.message.thinking,
           content: accumulatedReasoning,
-        } satisfies StreamChunk
+        }
       }
     }
   }

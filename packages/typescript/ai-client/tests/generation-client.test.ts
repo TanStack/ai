@@ -135,20 +135,20 @@ describe('GenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'generation:result',
           value: mockResult,
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new GenerationClient({
@@ -172,14 +172,14 @@ describe('GenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_ERROR,
           message: 'Generation failed',
           runId: 'run-1',
           error: { message: 'Generation failed' },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new GenerationClient({
@@ -203,26 +203,26 @@ describe('GenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'generation:progress',
           value: { progress: 50, message: 'Halfway' },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new GenerationClient({
@@ -279,14 +279,14 @@ describe('GenerationClient', () => {
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
         yield {
           type: EventType.RUN_FINISHED as const,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop' as const,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
       })
 
       const connection: ConnectConnectionAdapter = {
@@ -358,7 +358,7 @@ describe('GenerationClient', () => {
           threadId: 'thread-1',
           finishReason: 'stop' as const,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
       })
 
       const connection: ConnectConnectionAdapter = { connect: connectSpy }
@@ -390,7 +390,7 @@ describe('GenerationClient', () => {
             runId: 'run-1',
             threadId: 'thread-1',
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           // Wait until abort is triggered
           await new Promise<void>((resolve) => {
             signal?.addEventListener('abort', () => resolve())
@@ -402,7 +402,7 @@ describe('GenerationClient', () => {
             name: 'generation:result',
             value: { id: '1' },
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         },
       }
 
@@ -489,14 +489,14 @@ describe('GenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new GenerationClient({
@@ -520,20 +520,20 @@ describe('GenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'unknown:event',
           value: { foo: 'bar' },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new GenerationClient({
@@ -631,20 +631,20 @@ describe('GenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'generation:result',
           value: { id: '1', images: [] },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new GenerationClient<

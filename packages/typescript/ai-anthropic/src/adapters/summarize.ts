@@ -5,12 +5,22 @@ import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { ANTHROPIC_MODELS } from '../model-meta'
 import type { AnthropicClientConfig } from '../utils'
 
+/**
+ * Configuration for Anthropic summarize adapter
+ */
 export interface AnthropicSummarizeConfig extends AnthropicClientConfig {}
 
+/** Model type for Anthropic summarization */
 export type AnthropicSummarizeModel = (typeof ANTHROPIC_MODELS)[number]
 
 /**
  * Creates an Anthropic summarize adapter with explicit API key.
+ * Type resolution happens here at the call site.
+ *
+ * @param model - The model name (e.g., 'claude-sonnet-4-5', 'claude-3-5-haiku-latest')
+ * @param apiKey - Your Anthropic API key
+ * @param config - Optional additional configuration
+ * @returns Configured Anthropic summarize adapter instance with resolved types
  *
  * @example
  * ```typescript
@@ -35,7 +45,12 @@ export function createAnthropicSummarize<
 }
 
 /**
- * Creates an Anthropic summarize adapter with API key from `ANTHROPIC_API_KEY`.
+ * Creates an Anthropic summarize adapter with automatic API key detection.
+ * Type resolution happens here at the call site.
+ *
+ * @param model - The model name (e.g., 'claude-sonnet-4-5', 'claude-3-5-haiku-latest')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured Anthropic summarize adapter instance with resolved types
  *
  * @example
  * ```typescript

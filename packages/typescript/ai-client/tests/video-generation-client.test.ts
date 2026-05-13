@@ -147,13 +147,13 @@ describe('VideoGenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'video:job:created',
           value: { jobId: 'job-123' },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'video:status',
@@ -163,7 +163,7 @@ describe('VideoGenerationClient', () => {
             progress: 50,
           },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'video:status',
@@ -173,7 +173,7 @@ describe('VideoGenerationClient', () => {
             progress: 100,
           },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'generation:result',
@@ -183,14 +183,14 @@ describe('VideoGenerationClient', () => {
             url: 'https://example.com/video.mp4',
           },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new VideoGenerationClient({
@@ -223,7 +223,7 @@ describe('VideoGenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'video:status',
@@ -233,7 +233,7 @@ describe('VideoGenerationClient', () => {
             progress: 25,
           },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'generation:result',
@@ -243,14 +243,14 @@ describe('VideoGenerationClient', () => {
             url: 'https://example.com/video.mp4',
           },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new VideoGenerationClient({
@@ -282,14 +282,14 @@ describe('VideoGenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_ERROR,
           message: 'Video generation failed',
           runId: 'run-1',
           error: { message: 'Video generation failed' },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new VideoGenerationClient({
@@ -313,7 +313,7 @@ describe('VideoGenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'video:status',
@@ -323,14 +323,14 @@ describe('VideoGenerationClient', () => {
             progress: 50,
           },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new VideoGenerationClient({
@@ -352,20 +352,20 @@ describe('VideoGenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'generation:progress',
           value: { progress: 75, message: 'Almost done' },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new VideoGenerationClient({
@@ -387,7 +387,7 @@ describe('VideoGenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'generation:result',
@@ -397,14 +397,14 @@ describe('VideoGenerationClient', () => {
             url: 'https://example.com/video.mp4',
           },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new VideoGenerationClient({
@@ -425,7 +425,7 @@ describe('VideoGenerationClient', () => {
           threadId: 'thread-1',
           finishReason: 'stop' as const,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
       })
 
       const connection: ConnectConnectionAdapter = { connect: connectSpy }
@@ -484,13 +484,13 @@ describe('VideoGenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'video:job:created',
           value: { jobId: 'job-123' },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'video:status',
@@ -500,7 +500,7 @@ describe('VideoGenerationClient', () => {
             progress: 50,
           },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.CUSTOM,
           name: 'generation:result',
@@ -510,14 +510,14 @@ describe('VideoGenerationClient', () => {
             url: 'https://example.com/video.mp4',
           },
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } satisfies StreamChunk,
+        },
       ])
 
       const client = new VideoGenerationClient({
@@ -549,7 +549,7 @@ describe('VideoGenerationClient', () => {
           threadId: 'thread-1',
           finishReason: 'stop' as const,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
       })
 
       const connection: ConnectConnectionAdapter = { connect: connectSpy }
@@ -582,13 +582,13 @@ describe('VideoGenerationClient', () => {
             runId: 'run-1',
             threadId: 'thread-1',
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           yield {
             type: EventType.CUSTOM as const,
             name: 'video:job:created',
             value: { jobId: 'job-123' },
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           // Wait until abort is triggered
           await new Promise<void>((resolve) => {
             signal?.addEventListener('abort', () => resolve())
@@ -604,7 +604,7 @@ describe('VideoGenerationClient', () => {
               url: 'https://example.com/video.mp4',
             },
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         },
       }
 

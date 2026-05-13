@@ -24,7 +24,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        } satisfies StreamChunk
+        }
         yield {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: '1',
@@ -32,7 +32,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           timestamp: Date.now(),
           delta: ' World',
           content: 'Hello World',
-        } satisfies StreamChunk
+        }
         yield {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
@@ -40,7 +40,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        } satisfies StreamChunk
+        }
       },
     }
   })
@@ -87,7 +87,7 @@ describe('ChatClient - Abort Signal Handling', () => {
             timestamp: Date.now(),
             delta: 'Hello',
             content: 'Hello',
-          } satisfies StreamChunk
+          }
           // Simulate long-running stream
           await new Promise((resolve) => setTimeout(resolve, 100))
           yield {
@@ -97,7 +97,7 @@ describe('ChatClient - Abort Signal Handling', () => {
             timestamp: Date.now(),
             delta: ' World',
             content: 'Hello World',
-          } satisfies StreamChunk
+          }
         } catch (err) {
           // Abort errors are expected
           if (err instanceof Error && err.name === 'AbortError') {
@@ -142,7 +142,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        } satisfies StreamChunk
+        }
         yieldedChunks++
 
         if (abortSignal?.aborted) {
@@ -156,7 +156,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           timestamp: Date.now(),
           delta: ' World',
           content: 'Hello World',
-        } satisfies StreamChunk
+        }
         yieldedChunks++
       },
     }
@@ -199,7 +199,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        } satisfies StreamChunk
+        }
 
         if (abortSignal?.aborted) {
           return
@@ -239,7 +239,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        } satisfies StreamChunk
+        }
         await new Promise((resolve) => setTimeout(resolve, 50))
       },
     }
@@ -281,7 +281,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        } satisfies StreamChunk
+        }
       },
     }
 
@@ -325,7 +325,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        } satisfies StreamChunk
+        }
       },
     }
 
@@ -374,7 +374,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        } satisfies StreamChunk
+        }
       },
     }
 

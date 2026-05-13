@@ -150,7 +150,7 @@ export class GeminiTextAdapter<
               ? error.message
               : 'An unknown error occurred during the chat stream.',
         },
-      } satisfies StreamChunk
+      }
     }
   }
 
@@ -271,7 +271,7 @@ export class GeminiTextAdapter<
           threadId,
           model,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
       }
 
       if (chunk.candidates?.[0]?.content?.parts) {
@@ -292,14 +292,14 @@ export class GeminiTextAdapter<
                   messageId: reasoningMessageId,
                   model,
                   timestamp: Date.now(),
-                } satisfies StreamChunk
+                }
                 yield {
                   type: EventType.REASONING_MESSAGE_START,
                   messageId: reasoningMessageId,
                   role: 'reasoning' as const,
                   model,
                   timestamp: Date.now(),
-                } satisfies StreamChunk
+                }
 
                 // Legacy STEP events (kept during transition)
                 yield {
@@ -309,7 +309,7 @@ export class GeminiTextAdapter<
                   model,
                   timestamp: Date.now(),
                   stepType: 'thinking',
-                } satisfies StreamChunk
+                }
               }
 
               accumulatedThinking += part.text
@@ -321,7 +321,7 @@ export class GeminiTextAdapter<
                 delta: part.text,
                 model,
                 timestamp: Date.now(),
-              } satisfies StreamChunk
+              }
 
               // Legacy STEP event
               yield {
@@ -332,7 +332,7 @@ export class GeminiTextAdapter<
                 timestamp: Date.now(),
                 delta: part.text,
                 content: accumulatedThinking,
-              } satisfies StreamChunk
+              }
             } else if (part.text.trim()) {
               // Close reasoning before text starts
               if (reasoningMessageId && !hasClosedReasoning) {
@@ -342,13 +342,13 @@ export class GeminiTextAdapter<
                   messageId: reasoningMessageId,
                   model,
                   timestamp: Date.now(),
-                } satisfies StreamChunk
+                }
                 yield {
                   type: EventType.REASONING_END,
                   messageId: reasoningMessageId,
                   model,
                   timestamp: Date.now(),
-                } satisfies StreamChunk
+                }
               }
 
               // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
@@ -361,7 +361,7 @@ export class GeminiTextAdapter<
                   model,
                   timestamp: Date.now(),
                   role: 'assistant',
-                } satisfies StreamChunk
+                }
               }
 
               accumulatedContent += part.text
@@ -372,7 +372,7 @@ export class GeminiTextAdapter<
                 timestamp: Date.now(),
                 delta: part.text,
                 content: accumulatedContent,
-              } satisfies StreamChunk
+              }
             }
           }
 
@@ -437,7 +437,7 @@ export class GeminiTextAdapter<
                     thoughtSignature: toolCallData.thoughtSignature,
                   } satisfies GeminiToolCallMetadata,
                 }),
-              } satisfies StreamChunk
+              }
             }
 
             // Emit TOOL_CALL_ARGS
@@ -448,7 +448,7 @@ export class GeminiTextAdapter<
               timestamp: Date.now(),
               delta: toolCallData.args,
               args: toolCallData.args,
-            } satisfies StreamChunk
+            }
           }
         }
       } else if (chunk.data && chunk.data.trim()) {
@@ -462,7 +462,7 @@ export class GeminiTextAdapter<
             model,
             timestamp: Date.now(),
             role: 'assistant',
-          } satisfies StreamChunk
+          }
         }
 
         accumulatedContent += chunk.data
@@ -473,7 +473,7 @@ export class GeminiTextAdapter<
           timestamp: Date.now(),
           delta: chunk.data,
           content: accumulatedContent,
-        } satisfies StreamChunk
+        }
       }
 
       if (chunk.candidates?.[0]?.finishReason) {
@@ -510,7 +510,7 @@ export class GeminiTextAdapter<
                   model,
                   timestamp: Date.now(),
                   index: nextToolIndex - 1,
-                } satisfies StreamChunk
+                }
 
                 // Emit TOOL_CALL_END with parsed input
                 let parsedInput: unknown = {}
@@ -533,7 +533,7 @@ export class GeminiTextAdapter<
                   model,
                   timestamp: Date.now(),
                   input: parsedInput,
-                } satisfies StreamChunk
+                }
               }
             }
           }
@@ -557,7 +557,7 @@ export class GeminiTextAdapter<
             model,
             timestamp: Date.now(),
             input: parsedInput,
-          } satisfies StreamChunk
+          }
         }
 
         // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
@@ -579,7 +579,7 @@ export class GeminiTextAdapter<
                 'The response was cut off because the maximum token limit was reached.',
               code: 'max_tokens',
             },
-          } satisfies StreamChunk
+          }
         }
 
         // Close reasoning events if still open
@@ -590,13 +590,13 @@ export class GeminiTextAdapter<
             messageId: reasoningMessageId,
             model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           yield {
             type: EventType.REASONING_END,
             messageId: reasoningMessageId,
             model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         // Emit TEXT_MESSAGE_END if we had text content
@@ -606,7 +606,7 @@ export class GeminiTextAdapter<
             messageId,
             model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         yield {
@@ -623,7 +623,7 @@ export class GeminiTextAdapter<
                 totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
               }
             : undefined,
-        } satisfies StreamChunk
+        }
       }
     }
   }

@@ -124,7 +124,7 @@ export class OpenRouterTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(options.request)
-      const stream = (await this.orClient.chat.send(
+      const stream = await this.orClient.chat.send(
         {
           chatRequest: {
             ...chatRequest,
@@ -139,7 +139,7 @@ export class OpenRouterTextAdapter<
           signal: reqOptions.signal ?? undefined,
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
-      )) as AsyncIterable<ChatStreamChunk>
+      )
 
       yield* this.processStreamChunks(stream, options, aguiState)
     } catch (error: unknown) {
@@ -159,7 +159,7 @@ export class OpenRouterTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp: Date.now(),
-        } satisfies StreamChunk
+        }
       }
 
       // Emit AG-UI RUN_ERROR
@@ -170,7 +170,7 @@ export class OpenRouterTextAdapter<
         message: errorPayload.message,
         code: errorPayload.code,
         error: errorPayload,
-      } satisfies StreamChunk
+      }
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
         error: errorPayload,
@@ -392,7 +392,7 @@ export class OpenRouterTextAdapter<
             threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         // Reasoning content (OpenRouter emits this as `delta.reasoningDetails`).
@@ -408,14 +408,14 @@ export class OpenRouterTextAdapter<
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             yield {
               type: EventType.REASONING_MESSAGE_START,
               messageId: reasoningMessageId,
               role: 'reasoning' as const,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             // Legacy STEP_STARTED (single emission, paired with the
             // STEP_FINISHED below when reasoning closes).
             yield {
@@ -425,7 +425,7 @@ export class OpenRouterTextAdapter<
               model: chunk.model || options.model,
               timestamp: Date.now(),
               stepType: 'thinking',
-            } satisfies StreamChunk
+            }
           }
           accumulatedReasoning += reasoningText
           yield {
@@ -434,7 +434,7 @@ export class OpenRouterTextAdapter<
             delta: reasoningText,
             model: chunk.model || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         const choice = chunk.choices[0]
@@ -456,13 +456,13 @@ export class OpenRouterTextAdapter<
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             yield {
               type: EventType.REASONING_END,
               messageId: reasoningMessageId,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             if (stepId) {
               yield {
                 type: EventType.STEP_FINISHED,
@@ -471,7 +471,7 @@ export class OpenRouterTextAdapter<
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 content: accumulatedReasoning,
-              } satisfies StreamChunk
+              }
             }
           }
 
@@ -484,7 +484,7 @@ export class OpenRouterTextAdapter<
               model: chunk.model || options.model,
               timestamp: Date.now(),
               role: 'assistant',
-            } satisfies StreamChunk
+            }
           }
 
           accumulatedContent += deltaContent
@@ -497,7 +497,7 @@ export class OpenRouterTextAdapter<
             timestamp: Date.now(),
             delta: deltaContent,
             content: accumulatedContent,
-          } satisfies StreamChunk
+          }
         }
 
         // Handle tool calls - they come in as deltas (camelCase toolCalls)
@@ -539,7 +539,7 @@ export class OpenRouterTextAdapter<
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 index,
-              } satisfies StreamChunk
+              }
             }
 
             // Emit TOOL_CALL_ARGS for argument deltas
@@ -550,7 +550,7 @@ export class OpenRouterTextAdapter<
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 delta: toolCallDelta.function.arguments,
-              } satisfies StreamChunk
+              }
             }
           }
         }
@@ -609,7 +609,7 @@ export class OpenRouterTextAdapter<
                 model: chunk.model || options.model,
                 timestamp: Date.now(),
                 input: parsedInput,
-              } satisfies StreamChunk
+              }
               emittedAnyToolCallEnd = true
             }
             // Clear tool-call state after emission so a subsequent
@@ -625,7 +625,7 @@ export class OpenRouterTextAdapter<
               messageId: aguiState.messageId,
               model: chunk.model || options.model,
               timestamp: Date.now(),
-            } satisfies StreamChunk
+            }
             hasEmittedTextMessageStart = false
           }
 
@@ -670,7 +670,7 @@ export class OpenRouterTextAdapter<
             model: lastModel || options.model,
             timestamp: Date.now(),
             input: parsedInput,
-          } satisfies StreamChunk
+          }
           emittedAnyToolCallEnd = true
         }
         toolCallsInProgress.clear()
@@ -683,7 +683,7 @@ export class OpenRouterTextAdapter<
             messageId: aguiState.messageId,
             model: lastModel || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         // Close any reasoning lifecycle that text never closed (no text
@@ -695,13 +695,13 @@ export class OpenRouterTextAdapter<
             messageId: reasoningMessageId,
             model: lastModel || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           yield {
             type: EventType.REASONING_END,
             messageId: reasoningMessageId,
             model: lastModel || options.model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
           if (stepId) {
             yield {
               type: EventType.STEP_FINISHED,
@@ -710,7 +710,7 @@ export class OpenRouterTextAdapter<
               model: lastModel || options.model,
               timestamp: Date.now(),
               content: accumulatedReasoning,
-            } satisfies StreamChunk
+            }
           }
         }
 
@@ -748,7 +748,7 @@ export class OpenRouterTextAdapter<
               }
             : undefined,
           finishReason,
-        } satisfies StreamChunk
+        }
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
@@ -770,7 +770,7 @@ export class OpenRouterTextAdapter<
         message: errorPayload.message,
         code: errorPayload.code,
         error: errorPayload,
-      } satisfies StreamChunk
+      }
     }
   }
 
@@ -794,7 +794,7 @@ export class OpenRouterTextAdapter<
       messages.push({
         role: 'system',
         content: options.systemPrompts.join('\n'),
-      } as ChatMessages)
+      })
     }
     for (const m of options.messages) {
       messages.push(this.convertMessage(m))
@@ -807,8 +807,8 @@ export class OpenRouterTextAdapter<
     // Spread modelOptions first so explicit top-level options (set below) win
     // when defined but `undefined` doesn't clobber values the caller set in
     // modelOptions.
-    return {
-      ...(modelOptions as Record<string, any>),
+    const request: Omit<ChatRequest, 'stream'> = {
+      ...modelOptions,
       model: options.model + variantSuffix,
       messages,
       ...(options.temperature !== undefined && {
@@ -818,9 +818,9 @@ export class OpenRouterTextAdapter<
         maxCompletionTokens: options.maxTokens,
       }),
       ...(options.topP !== undefined && { topP: options.topP }),
-      ...(tools &&
-        tools.length > 0 && { tools: tools as ChatRequest['tools'] }),
-    } as Omit<ChatRequest, 'stream'>
+      ...(tools && tools.length > 0 && { tools }),
+    }
+    return request
   }
 
   /**
@@ -841,7 +841,7 @@ export class OpenRouterTextAdapter<
             ? message.content
             : this.extractTextContent(message.content),
         toolCallId: message.toolCallId || '',
-      } as ChatMessages
+      }
     }
 
     if (message.role === 'assistant') {
@@ -872,7 +872,7 @@ export class OpenRouterTextAdapter<
         role: 'assistant',
         content: hasToolCalls && !textContent ? null : textContent,
         toolCalls,
-      } as ChatMessages
+      }
     }
 
     // user — fail loud on empty and unsupported content. Silently sending an
@@ -891,7 +891,7 @@ export class OpenRouterTextAdapter<
       return {
         role: 'user',
         content: text,
-      } as ChatMessages
+      }
     }
 
     const parts: Array<ChatContentItems> = []
@@ -916,14 +916,14 @@ export class OpenRouterTextAdapter<
     return {
       role: 'user',
       content: parts,
-    } as ChatMessages
+    }
   }
 
   /** OpenRouter content-part converter (camelCase imageUrl/inputAudio/videoUrl). */
   protected convertContentPart(part: ContentPart): ChatContentItems | null {
     switch (part.type) {
       case 'text':
-        return { type: 'text', text: part.content } as ChatContentItems
+        return { type: 'text', text: part.content }
       case 'image': {
         const meta = part.metadata as OpenRouterImageMetadata | undefined
         const value = part.source.value
@@ -939,7 +939,7 @@ export class OpenRouterTextAdapter<
         return {
           type: 'image_url',
           imageUrl: { url, detail: meta?.detail || 'auto' },
-        } as ChatContentItems
+        }
       }
       case 'audio':
         // OpenRouter's chat-completions `input_audio` shape carries
@@ -953,17 +953,17 @@ export class OpenRouterTextAdapter<
           return {
             type: 'text',
             text: `[Audio: ${part.source.value}]`,
-          } as ChatContentItems
+          }
         }
         return {
           type: 'input_audio',
           inputAudio: { data: part.source.value, format: 'mp3' },
-        } as ChatContentItems
+        }
       case 'video':
         return {
           type: 'video_url',
           videoUrl: { url: part.source.value },
-        } as ChatContentItems
+        }
       case 'document':
         // The chat-completions SDK has no document_url type. For URL
         // sources, surface a text reference so the model at least sees
@@ -984,7 +984,7 @@ export class OpenRouterTextAdapter<
         return {
           type: 'text',
           text: `[Document: ${part.source.value}]`,
-        } as ChatContentItems
+        }
       default:
         return null
     }

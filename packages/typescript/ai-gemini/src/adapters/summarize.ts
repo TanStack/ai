@@ -5,6 +5,9 @@ import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { GEMINI_MODELS } from '../model-meta'
 import type { GeminiClientConfig } from '../utils'
 
+/**
+ * Configuration for Gemini summarize adapter
+ */
 export interface GeminiSummarizeConfig extends GeminiClientConfig {}
 
 export type GeminiSummarizeModel = (typeof GEMINI_MODELS)[number]

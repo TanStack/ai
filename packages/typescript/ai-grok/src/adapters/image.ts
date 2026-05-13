@@ -28,7 +28,15 @@ import type { GrokClientConfig } from '../utils'
 export interface GrokImageConfig extends GrokClientConfig {}
 
 /**
- * Grok Image Generation Adapter. Supports grok-2-image-1212.
+ * Grok Image Generation Adapter
+ *
+ * Tree-shakeable adapter for Grok image generation functionality.
+ * Supports grok-2-image-1212 model.
+ *
+ * Features:
+ * - Model-specific type-safe provider options
+ * - Size validation per model
+ * - Number of images validation
  */
 export class GrokImageAdapter<
   TModel extends GrokImageModel,
@@ -110,6 +118,25 @@ export class GrokImageAdapter<
   }
 }
 
+/**
+ * Creates a Grok image adapter with explicit API key.
+ * Type resolution happens here at the call site.
+ *
+ * @param model - The model name (e.g., 'grok-2-image-1212')
+ * @param apiKey - Your xAI API key
+ * @param config - Optional additional configuration
+ * @returns Configured Grok image adapter instance with resolved types
+ *
+ * @example
+ * ```typescript
+ * const adapter = createGrokImage('grok-2-image-1212', "xai-...");
+ *
+ * const result = await generateImage({
+ *   adapter,
+ *   prompt: 'A cute baby sea otter'
+ * });
+ * ```
+ */
 export function createGrokImage<TModel extends GrokImageModel>(
   model: TModel,
   apiKey: string,
@@ -118,6 +145,30 @@ export function createGrokImage<TModel extends GrokImageModel>(
   return new GrokImageAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates a Grok image adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
+ *
+ * Looks for `XAI_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
+ *
+ * @param model - The model name (e.g., 'grok-2-image-1212')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured Grok image adapter instance with resolved types
+ * @throws Error if XAI_API_KEY is not found in environment
+ *
+ * @example
+ * ```typescript
+ * // Automatically uses XAI_API_KEY from environment
+ * const adapter = grokImage('grok-2-image-1212');
+ *
+ * const result = await generateImage({
+ *   adapter,
+ *   prompt: 'A beautiful sunset over mountains'
+ * });
+ * ```
+ */
 export function grokImage<TModel extends GrokImageModel>(
   model: TModel,
   config?: Omit<GrokImageConfig, 'apiKey'>,

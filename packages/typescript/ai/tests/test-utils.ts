@@ -1,6 +1,20 @@
 import { EventType } from '../src/types'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
-import type { StreamChunk, TextMessageContentEvent, Tool } from '../src/types'
+import type {
+  RunErrorEvent,
+  RunFinishedEvent,
+  RunStartedEvent,
+  StepFinishedEvent,
+  StepStartedEvent,
+  StreamChunk,
+  TextMessageContentEvent,
+  TextMessageEndEvent,
+  TextMessageStartEvent,
+  Tool,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+  ToolCallStartEvent,
+} from '../src/types'
 
 // ============================================================================
 // Chunk factory
@@ -22,62 +36,62 @@ export function chunk(
 
 /** Shorthand chunk factories for common AG-UI events. */
 export const ev = {
-  runStarted: (runId = 'run-1', threadId = 'thread-1') =>
-    ({
-      type: EventType.RUN_STARTED,
-      runId,
-      threadId,
-      timestamp: Date.now(),
-    }) satisfies StreamChunk,
-  textStart: (messageId = 'msg-1') =>
-    ({
-      type: EventType.TEXT_MESSAGE_START,
-      messageId,
-      role: 'assistant',
-      timestamp: Date.now(),
-    }) satisfies StreamChunk,
-  textContent: (delta: string, messageId = 'msg-1') =>
-    ({
-      type: EventType.TEXT_MESSAGE_CONTENT,
-      messageId,
-      delta,
-      timestamp: Date.now(),
-    }) satisfies StreamChunk,
-  textEnd: (messageId = 'msg-1') =>
-    ({
-      type: EventType.TEXT_MESSAGE_END,
-      messageId,
-      timestamp: Date.now(),
-    }) satisfies StreamChunk,
-  toolStart: (toolCallId: string, toolCallName: string, index?: number) =>
-    ({
-      type: EventType.TOOL_CALL_START,
-      toolCallId,
-      toolCallName,
-      toolName: toolCallName,
-      timestamp: Date.now(),
-      ...(index !== undefined ? { index } : {}),
-    }) satisfies StreamChunk,
-  toolArgs: (toolCallId: string, delta: string) =>
-    ({
-      type: EventType.TOOL_CALL_ARGS,
-      toolCallId,
-      delta,
-      timestamp: Date.now(),
-    }) satisfies StreamChunk,
+  runStarted: (runId = 'run-1', threadId = 'thread-1'): RunStartedEvent => ({
+    type: EventType.RUN_STARTED,
+    runId,
+    threadId,
+    timestamp: Date.now(),
+  }),
+  textStart: (messageId = 'msg-1'): TextMessageStartEvent => ({
+    type: EventType.TEXT_MESSAGE_START,
+    messageId,
+    role: 'assistant',
+    timestamp: Date.now(),
+  }),
+  textContent: (
+    delta: string,
+    messageId = 'msg-1',
+  ): TextMessageContentEvent => ({
+    type: EventType.TEXT_MESSAGE_CONTENT,
+    messageId,
+    delta,
+    timestamp: Date.now(),
+  }),
+  textEnd: (messageId = 'msg-1'): TextMessageEndEvent => ({
+    type: EventType.TEXT_MESSAGE_END,
+    messageId,
+    timestamp: Date.now(),
+  }),
+  toolStart: (
+    toolCallId: string,
+    toolCallName: string,
+    index?: number,
+  ): ToolCallStartEvent => ({
+    type: EventType.TOOL_CALL_START,
+    toolCallId,
+    toolCallName,
+    toolName: toolCallName,
+    timestamp: Date.now(),
+    ...(index !== undefined ? { index } : {}),
+  }),
+  toolArgs: (toolCallId: string, delta: string): ToolCallArgsEvent => ({
+    type: EventType.TOOL_CALL_ARGS,
+    toolCallId,
+    delta,
+    timestamp: Date.now(),
+  }),
   toolEnd: (
     toolCallId: string,
     toolCallName: string,
     opts?: { input?: unknown; result?: string },
-  ) =>
-    ({
-      type: EventType.TOOL_CALL_END,
-      toolCallId,
-      toolCallName,
-      toolName: toolCallName,
-      timestamp: Date.now(),
-      ...opts,
-    }) satisfies StreamChunk,
+  ): ToolCallEndEvent => ({
+    type: EventType.TOOL_CALL_END,
+    toolCallId,
+    toolCallName,
+    toolName: toolCallName,
+    timestamp: Date.now(),
+    ...opts,
+  }),
   runFinished: (
     finishReason:
       | 'stop'
@@ -92,36 +106,32 @@ export const ev = {
       totalTokens: number
     },
     threadId = 'thread-1',
-  ) =>
-    ({
-      type: EventType.RUN_FINISHED,
-      runId,
-      threadId,
-      finishReason,
-      timestamp: Date.now(),
-      ...(usage ? { usage } : {}),
-    }) satisfies StreamChunk,
-  runError: (message: string) =>
-    ({
-      type: EventType.RUN_ERROR,
-      message,
-      timestamp: Date.now(),
-      error: { message },
-    }) satisfies StreamChunk,
-  stepStarted: (stepName = 'step-1') =>
-    ({
-      type: EventType.STEP_STARTED,
-      stepName,
-      timestamp: Date.now(),
-    }) satisfies StreamChunk,
-  stepFinished: (delta: string, stepName = 'step-1') =>
-    ({
-      type: EventType.STEP_FINISHED,
-      stepName,
-      stepId: stepName,
-      delta,
-      timestamp: Date.now(),
-    }) satisfies StreamChunk,
+  ): RunFinishedEvent => ({
+    type: EventType.RUN_FINISHED,
+    runId,
+    threadId,
+    finishReason,
+    timestamp: Date.now(),
+    ...(usage ? { usage } : {}),
+  }),
+  runError: (message: string): RunErrorEvent => ({
+    type: EventType.RUN_ERROR,
+    message,
+    timestamp: Date.now(),
+    error: { message },
+  }),
+  stepStarted: (stepName = 'step-1'): StepStartedEvent => ({
+    type: EventType.STEP_STARTED,
+    stepName,
+    timestamp: Date.now(),
+  }),
+  stepFinished: (delta: string, stepName = 'step-1'): StepFinishedEvent => ({
+    type: EventType.STEP_FINISHED,
+    stepName,
+    stepId: stepName,
+    delta,
+    timestamp: Date.now(),
+  }),
 }
 
 // ============================================================================

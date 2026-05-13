@@ -34,7 +34,7 @@ export async function* streamGenerationResult<TResult>(
     runId,
     threadId,
     timestamp: Date.now(),
-  } satisfies StreamChunk
+  }
 
   try {
     const result = await generator()
@@ -44,7 +44,7 @@ export async function* streamGenerationResult<TResult>(
       name: 'generation:result',
       value: result as unknown,
       timestamp: Date.now(),
-    } satisfies StreamChunk
+    }
 
     yield {
       type: EventType.RUN_FINISHED,
@@ -52,7 +52,7 @@ export async function* streamGenerationResult<TResult>(
       threadId,
       finishReason: 'stop',
       timestamp: Date.now(),
-    } satisfies StreamChunk
+    }
   } catch (error: unknown) {
     const payload = toRunErrorPayload(error, 'Generation failed')
     yield {
@@ -62,6 +62,6 @@ export async function* streamGenerationResult<TResult>(
       // Deprecated nested form for backward compatibility
       error: payload,
       timestamp: Date.now(),
-    } satisfies StreamChunk
+    }
   }
 }

@@ -27,11 +27,7 @@ function makeStubClient(): OpenAI {
  * `mockResponsesCreate` for per-test setup.
  */
 class TestResponsesAdapter extends OpenAIBaseResponsesTextAdapter<string> {
-  constructor(
-    _config: unknown,
-    model: string,
-    name = 'openai-compatible-responses',
-  ) {
+  constructor(_config: unknown, model: string, name = 'openai-base-responses') {
     super(model, name, makeStubClient())
   }
 }
@@ -91,7 +87,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
-      expect(adapter.name).toBe('openai-compatible-responses')
+      expect(adapter.name).toBe('openai-base-responses')
       expect(adapter.model).toBe('test-model')
     })
 

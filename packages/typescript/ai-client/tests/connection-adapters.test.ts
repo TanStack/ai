@@ -793,7 +793,7 @@ describe('connection-adapters', () => {
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        } satisfies StreamChunk
+        }
       })
 
       const adapter = stream(streamFactory)
@@ -818,7 +818,7 @@ describe('connection-adapters', () => {
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        } satisfies StreamChunk
+        }
       })
 
       const adapter = stream(streamFactory)
@@ -879,7 +879,7 @@ describe('connection-adapters', () => {
           timestamp: Date.now(),
           delta: 'Hi',
           content: 'Hi',
-        } satisfies StreamChunk
+        }
       })
 
       const adapter = normalizeConnectionAdapter(base)
@@ -938,7 +938,7 @@ describe('connection-adapters', () => {
           error: {
             message: 'already failed',
           },
-        } satisfies StreamChunk
+        }
         throw new Error('connect exploded')
       })
 
@@ -978,7 +978,7 @@ describe('connection-adapters', () => {
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        } satisfies StreamChunk
+        }
       })
 
       const adapter = rpcStream(rpcCall)
@@ -1007,7 +1007,7 @@ describe('connection-adapters', () => {
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        } satisfies StreamChunk
+        }
       })
 
       const adapter = rpcStream(rpcCall)

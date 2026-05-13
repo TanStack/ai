@@ -31,7 +31,7 @@ function makeStubClient(): OpenAI {
  * naturally; `config` is ignored.
  */
 class TestChatCompletionsAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
-  constructor(_config: unknown, model: string, name = 'openai-compatible') {
+  constructor(_config: unknown, model: string, name = 'openai-base') {
     super(model, name, makeStubClient())
   }
 }
@@ -91,7 +91,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
-      expect(adapter.name).toBe('openai-compatible')
+      expect(adapter.name).toBe('openai-base')
       expect(adapter.model).toBe('test-model')
     })
 

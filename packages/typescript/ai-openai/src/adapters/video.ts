@@ -49,9 +49,18 @@ function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
 export interface OpenAIVideoConfig extends OpenAIClientConfig {}
 
 /**
- * OpenAI Video Generation Adapter (Sora-2). Job/polling architecture.
+ * OpenAI Video Generation Adapter
+ *
+ * Tree-shakeable adapter for OpenAI video generation functionality using Sora-2.
+ * Uses a jobs/polling architecture for async video generation.
  *
  * @experimental Video generation is an experimental feature and may change.
+ *
+ * Features:
+ * - Async job-based video generation
+ * - Status polling for job progress
+ * - URL retrieval for completed videos
+ * - Model-specific type-safe provider options
  */
 export class OpenAIVideoAdapter<
   TModel extends OpenAIVideoModel,
@@ -303,6 +312,27 @@ export class OpenAIVideoAdapter<
   }
 }
 
+/**
+ * Creates an OpenAI video adapter with an explicit API key.
+ * Type resolution happens here at the call site.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ *
+ * @param model - The model name (e.g., 'sora-2')
+ * @param apiKey - Your OpenAI API key
+ * @param config - Optional additional configuration
+ * @returns Configured OpenAI video adapter instance with resolved types
+ *
+ * @example
+ * ```typescript
+ * const adapter = createOpenaiVideo('sora-2', 'your-api-key');
+ *
+ * const { jobId } = await generateVideo({
+ *   adapter,
+ *   prompt: 'A beautiful sunset over the ocean'
+ * });
+ * ```
+ */
 export function createOpenaiVideo<TModel extends OpenAIVideoModel>(
   model: TModel,
   apiKey: string,
@@ -311,6 +341,39 @@ export function createOpenaiVideo<TModel extends OpenAIVideoModel>(
   return new OpenAIVideoAdapter({ apiKey, ...config }, model)
 }
 
+/**
+ * Creates an OpenAI video adapter with automatic API key detection from environment variables.
+ * Type resolution happens here at the call site.
+ *
+ * Looks for `OPENAI_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ *
+ * @param model - The model name (e.g., 'sora-2')
+ * @param config - Optional configuration (excluding apiKey which is auto-detected)
+ * @returns Configured OpenAI video adapter instance with resolved types
+ * @throws Error if OPENAI_API_KEY is not found in environment
+ *
+ * @example
+ * ```typescript
+ * // Automatically uses OPENAI_API_KEY from environment
+ * const adapter = openaiVideo('sora-2');
+ *
+ * // Create a video generation job
+ * const { jobId } = await generateVideo({
+ *   adapter,
+ *   prompt: 'A cat playing piano'
+ * });
+ *
+ * // Poll for status
+ * const status = await getVideoJobStatus({
+ *   adapter,
+ *   jobId
+ * });
+ * ```
+ */
 export function openaiVideo<TModel extends OpenAIVideoModel>(
   model: TModel,
   config?: Omit<OpenAIVideoConfig, 'apiKey'>,
