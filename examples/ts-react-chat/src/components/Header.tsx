@@ -163,7 +163,7 @@ export default function Header() {
             }}
           >
             <Braces size={20} />
-            <span className="font-medium">Structured Output (OpenRouter)</span>
+            <span className="font-medium">Structured Output</span>
           </Link>
 
           <hr className="border-gray-700 my-2" />

@@ -191,11 +191,14 @@ export const summarizeFn = createServerFn({ method: 'POST' })
       text: z.string(),
       maxLength: z.number().optional(),
       style: z.enum(['bullet-points', 'paragraph', 'concise']).optional(),
+      model: z.string().optional(),
     }),
   )
   .handler(async ({ data }) => {
     return summarize({
-      adapter: openaiSummarize('gpt-4o-mini'),
+      adapter: openaiSummarize(
+        (data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini',
+      ),
       text: data.text,
       maxLength: data.maxLength,
       style: data.style,
@@ -338,12 +341,15 @@ export const summarizeStreamFn = createServerFn({ method: 'POST' })
       text: z.string(),
       maxLength: z.number().optional(),
       style: z.enum(['bullet-points', 'paragraph', 'concise']).optional(),
+      model: z.string().optional(),
     }),
   )
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       summarize({
-        adapter: openaiSummarize('gpt-4o-mini'),
+        adapter: openaiSummarize(
+          (data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini',
+        ),
         text: data.text,
         maxLength: data.maxLength,
         style: data.style,

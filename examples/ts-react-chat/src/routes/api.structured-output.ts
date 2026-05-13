@@ -1,9 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
+import { openaiChatCompletions, openaiText } from '@tanstack/ai-openai'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
-import { openRouterText } from '@tanstack/ai-openrouter'
+import {
+  openRouterResponsesText,
+  openRouterText,
+} from '@tanstack/ai-openrouter'
 import { z } from 'zod'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
@@ -25,11 +28,26 @@ const GuitarRecommendationSchema = z.object({
   nextSteps: z.array(z.string()).describe('Practical follow-up actions'),
 })
 
-type Provider = 'openai' | 'grok' | 'groq' | 'openrouter'
+type Provider =
+  | 'openai'
+  | 'openai-chat'
+  | 'grok'
+  | 'groq'
+  | 'openrouter'
+  | 'openrouter-responses'
 
 const StructuredOutputRequestSchema = z.object({
   prompt: z.string().min(1),
-  provider: z.enum(['openai', 'grok', 'groq', 'openrouter']).optional(),
+  provider: z
+    .enum([
+      'openai',
+      'openai-chat',
+      'grok',
+      'groq',
+      'openrouter',
+      'openrouter-responses',
+    ])
+    .optional(),
   model: z.string().optional(),
   stream: z.boolean().optional(),
 })
@@ -38,6 +56,11 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
   switch (provider) {
     case 'openai':
       return openaiText((model || 'gpt-5.2') as 'gpt-5.2')
+    case 'openai-chat':
+      // Same model surface as the Responses adapter, but talks to
+      // `/v1/chat/completions`. Useful for side-by-side comparison of
+      // streaming structured output across the two OpenAI wire formats.
+      return openaiChatCompletions((model || 'gpt-4o') as 'gpt-4o')
     case 'grok':
       return grokText(
         (model || 'grok-4-1-fast-reasoning') as 'grok-4-1-fast-reasoning',
@@ -49,6 +72,13 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
       )
     case 'openrouter':
       return openRouterText(
+        (model || 'anthropic/claude-opus-4.6') as 'anthropic/claude-opus-4.6',
+      )
+    case 'openrouter-responses':
+      // OpenRouter Responses (beta) endpoint — same model surface as the
+      // chat-completions adapter, but routes through `/v1/responses`. This
+      // is what exercises `OpenRouterResponsesTextAdapter.structuredOutputStream`.
+      return openRouterResponsesText(
         (model || 'anthropic/claude-opus-4.6') as 'anthropic/claude-opus-4.6',
       )
   }
@@ -73,6 +103,11 @@ function reasoningOptionsFor(
         return { reasoning: { summary: 'auto' } }
       }
       return undefined
+    case 'openai-chat':
+      // Chat Completions API doesn't surface reasoning summaries the way
+      // Responses does. Reasoning models still reason silently; no opt-in
+      // option to inject here.
+      return undefined
     case 'groq':
       // Groq's Chat Completions only streams `delta.reasoning` when
       // `reasoning_format: 'parsed'`. Required for gpt-oss / qwen3 / kimi-k2
@@ -86,8 +121,10 @@ function reasoningOptionsFor(
       }
       return undefined
     case 'openrouter':
+    case 'openrouter-responses':
       // OpenRouter normalises across providers. `reasoning.effort` triggers
-      // the upstream model's reasoning + surfaces the deltas.
+      // the upstream model's reasoning + surfaces the deltas. Same option on
+      // both the chat-completions and Responses-beta endpoints.
       return { reasoning: { effort: 'medium' } }
     case 'grok':
       // xAI surfaces `delta.reasoning_content` automatically on reasoning

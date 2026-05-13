@@ -2,7 +2,7 @@
 // New Tree-Shakeable Adapters (Recommended)
 // ============================================================================
 
-// Text (Chat) adapter - for chat/text completion
+// Text (Chat) adapter - for chat/text completion (Responses API)
 export {
   OpenAITextAdapter,
   createOpenaiChat,
@@ -10,6 +10,15 @@ export {
   type OpenAITextConfig,
   type OpenAITextProviderOptions,
 } from './adapters/text'
+
+// Text (Chat Completions) adapter - older `/v1/chat/completions` wire format
+export {
+  OpenAIChatCompletionsTextAdapter,
+  createOpenaiChatCompletions,
+  openaiChatCompletions,
+  type OpenAIChatCompletionsConfig,
+  type OpenAIChatCompletionsProviderOptions,
+} from './adapters/text-chat-completions'
 
 // Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
 export {

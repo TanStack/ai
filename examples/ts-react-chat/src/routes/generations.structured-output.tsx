@@ -5,7 +5,13 @@ import { parsePartialJSON } from '@tanstack/ai'
 const SAMPLE_PROMPT =
   'I play indie rock and have a $1500 budget. Recommend two electric guitars and one acoustic to round out my rig.'
 
-type Provider = 'openai' | 'grok' | 'groq' | 'openrouter'
+type Provider =
+  | 'openai'
+  | 'openai-chat'
+  | 'grok'
+  | 'groq'
+  | 'openrouter'
+  | 'openrouter-responses'
 
 const PROVIDER_MODELS: Record<
   Provider,
@@ -18,6 +24,17 @@ const PROVIDER_MODELS: Record<
     { value: 'gpt-5', label: 'GPT-5' },
     { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
     { value: 'gpt-4o', label: 'GPT-4o' },
+  ],
+  // OpenAI Chat Completions: same model surface, older `/v1/chat/completions`
+  // wire format. The reasoning-summary opt-in isn't available here, so
+  // streaming reasoning won't be surfaced for gpt-5.x even though the model
+  // is still doing it under the hood.
+  'openai-chat': [
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+    { value: 'gpt-5', label: 'GPT-5' },
+    { value: 'gpt-5.1', label: 'GPT-5.1' },
+    { value: 'gpt-5.2', label: 'GPT-5.2 (frontier)' },
   ],
   grok: [
     { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (reasoning)' },
@@ -45,6 +62,15 @@ const PROVIDER_MODELS: Record<
     { value: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
   ],
   openrouter: [
+    { value: 'anthropic/claude-opus-4.6', label: 'Claude Opus 4.6' },
+    { value: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
+    { value: 'openai/gpt-5.2', label: 'GPT-5.2 (via OpenRouter)' },
+    { value: 'x-ai/grok-4.1-fast', label: 'Grok 4.1 Fast (via OpenRouter)' },
+  ],
+  // OpenRouter Responses (beta) endpoint — same upstream models, but the
+  // request/response uses the Responses API wire format. Useful to compare
+  // streaming behaviour against the chat-completions adapter above.
+  'openrouter-responses': [
     { value: 'anthropic/claude-opus-4.6', label: 'Claude Opus 4.6' },
     { value: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
     { value: 'openai/gpt-5.2', label: 'GPT-5.2 (via OpenRouter)' },
@@ -304,10 +330,14 @@ function StructuredOutputPage() {
                 disabled={isLoading}
                 className="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
               >
-                <option value="openai">OpenAI</option>
+                <option value="openai">OpenAI (Responses)</option>
+                <option value="openai-chat">OpenAI (Chat Completions)</option>
                 <option value="grok">Grok (xAI)</option>
                 <option value="groq">Groq</option>
-                <option value="openrouter">OpenRouter</option>
+                <option value="openrouter">OpenRouter (Chat Completions)</option>
+                <option value="openrouter-responses">
+                  OpenRouter (Responses beta)
+                </option>
               </select>
             </div>
             <div className="space-y-2">

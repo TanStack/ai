@@ -1,3 +1,4 @@
+import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from '../error-payload'
 import { BaseSummarizeAdapter } from './adapter'
 import type {
@@ -133,10 +134,48 @@ export class ChatStreamSummarizeAdapter<
       { provider: this.name, model: options.model },
     )
 
+    const id = this.generateId()
+    let summary = ''
+    let model = options.model
+    let usage: SummarizationResult['usage'] = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+    }
+
     try {
-      yield* this.textAdapter.chatStream(
+      for await (const chunk of this.textAdapter.chatStream(
         this.buildTextOptions(options, systemPrompt),
-      )
+      )) {
+        // Accumulate the same way `summarize()` does so consumers see deltas
+        // AND the terminal `generation:result` event below carries the same
+        // final summary that non-streaming returns.
+        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+          if (chunk.content) {
+            summary = chunk.content
+          } else if (chunk.delta) {
+            summary += chunk.delta
+          }
+          if (chunk.model) model = chunk.model
+        }
+
+        // Emit the GenerationClient-shaped result event just before the
+        // terminal RUN_FINISHED so subscribers (useSummarize) populate
+        // `result` before flipping `status` to success.
+        if (chunk.type === 'RUN_FINISHED') {
+          if (chunk.usage) usage = chunk.usage
+          if (chunk.model) model = chunk.model
+          yield {
+            type: EventType.CUSTOM,
+            name: 'generation:result',
+            value: { id, model, summary, usage } satisfies SummarizationResult,
+            model,
+            timestamp: Date.now(),
+          } satisfies StreamChunk
+        }
+
+        yield chunk
+      }
     } catch (error: unknown) {
       options.logger.errors(`${this.name}.summarizeStream fatal`, {
         error: toRunErrorPayload(error, `${this.name}.summarizeStream failed`),
