@@ -1180,7 +1180,7 @@ export interface TextCompletionChunk {
 }
 
 export interface SummarizationOptions<
-  TProviderOptions extends object = Record<string, any>,
+  TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
 > {
   model: string
   text: string

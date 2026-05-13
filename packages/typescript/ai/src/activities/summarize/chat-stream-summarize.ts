@@ -41,7 +41,7 @@ export type InferTextProviderOptions<TAdapter> = TAdapter extends {
  */
 export class ChatStreamSummarizeAdapter<
   TModel extends string,
-  TProviderOptions extends object = Record<string, any>,
+  TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
 > extends BaseSummarizeAdapter<TModel, TProviderOptions> {
   readonly name: string
 
