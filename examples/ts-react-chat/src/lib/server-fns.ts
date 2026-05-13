@@ -196,9 +196,7 @@ export const summarizeFn = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data }) => {
     return summarize({
-      adapter: openaiSummarize(
-        (data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini',
-      ),
+      adapter: openaiSummarize((data.model ?? 'gpt-4o-mini') as 'gpt-4o-mini'),
       text: data.text,
       maxLength: data.maxLength,
       style: data.style,

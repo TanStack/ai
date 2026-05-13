@@ -334,7 +334,9 @@ function StructuredOutputPage() {
                 <option value="openai-chat">OpenAI (Chat Completions)</option>
                 <option value="grok">Grok (xAI)</option>
                 <option value="groq">Groq</option>
-                <option value="openrouter">OpenRouter (Chat Completions)</option>
+                <option value="openrouter">
+                  OpenRouter (Chat Completions)
+                </option>
                 <option value="openrouter-responses">
                   OpenRouter (Responses beta)
                 </option>
