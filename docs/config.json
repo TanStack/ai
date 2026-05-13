@@ -279,6 +279,10 @@
           "to": "adapters/groq"
         },
         {
+          "label": "Mistral",
+          "to": "adapters/mistral"
+        },
+        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs"
         },

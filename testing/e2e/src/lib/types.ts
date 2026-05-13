@@ -8,6 +8,7 @@ export type Provider =
   | 'grok'
   | 'groq'
   | 'openrouter'
+  | 'mistral'
   | 'elevenlabs'
 
 export type Feature =
@@ -41,6 +42,7 @@ export const ALL_PROVIDERS: Provider[] = [
   'grok',
   'groq',
   'openrouter',
+  'mistral',
   'elevenlabs',
 ]
 
