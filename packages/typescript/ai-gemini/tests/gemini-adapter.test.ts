@@ -787,7 +787,9 @@ describe('GeminiAdapter through AI', () => {
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
     const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
     expect(payload.model).toBe('gemini-2.0-flash')
-    expect(payload.config.systemInstruction).toContain('professional summarizer')
+    expect(payload.config.systemInstruction).toContain(
+      'professional summarizer',
+    )
     expect(payload.config.systemInstruction).toContain('paragraph format')
     expect(payload.config.systemInstruction).toContain('123 tokens')
     expect(result.summary).toBe(summaryText)
