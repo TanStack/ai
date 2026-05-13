@@ -249,9 +249,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     const params = mockSend.mock.calls[0]![0].responsesRequest
     const userMsg = params.input.find((i: any) => i.role === 'user')
     expect(userMsg).toBeDefined()
-    const audioPart = userMsg.content.find(
-      (p: any) => p.type === 'input_file',
-    )
+    const audioPart = userMsg.content.find((p: any) => p.type === 'input_file')
     expect(audioPart).toBeDefined()
     expect(audioPart.fileUrl).toBe('https://example.com/clip.mp3')
   })
@@ -370,9 +368,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     }
     const params = mockSend.mock.calls[0]![0].responsesRequest
     const userMsg = params.input.find((i: any) => i.role === 'user')
-    const videoPart = userMsg.content.find(
-      (p: any) => p.type === 'input_video',
-    )
+    const videoPart = userMsg.content.find((p: any) => p.type === 'input_video')
     expect(videoPart).toBeDefined()
     expect(videoPart.videoUrl).toBe('https://example.com/v.mp4')
     // The outbound schema would strip the camelCase videoUrl if the converter
@@ -501,7 +497,9 @@ describe('OpenRouter responses adapter — request shape', () => {
         e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
-    expect(runError!.message.toLowerCase()).toMatch(/inline.*document|document.*inline|responses adapter/)
+    expect(runError!.message.toLowerCase()).toMatch(
+      /inline.*document|document.*inline|responses adapter/,
+    )
   })
 })
 

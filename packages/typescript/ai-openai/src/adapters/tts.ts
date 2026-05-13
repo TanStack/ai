@@ -26,10 +26,9 @@ export interface OpenAITTSConfig extends OpenAIClientConfig {}
  * Voices: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse.
  * Formats: mp3, opus, aac, flac, wav, pcm. Speed 0.25 to 4.0.
  */
-export class OpenAITTSAdapter<TModel extends OpenAITTSModel> extends BaseTTSAdapter<
-  TModel,
-  OpenAITTSProviderOptions
-> {
+export class OpenAITTSAdapter<
+  TModel extends OpenAITTSModel,
+> extends BaseTTSAdapter<TModel, OpenAITTSProviderOptions> {
   readonly name = 'openai' as const
 
   protected client: OpenAI

@@ -1794,9 +1794,7 @@ describe('OpenRouter STEP event consistency', () => {
       {
         id: 'r-1',
         model: 'openai/o1-preview',
-        choices: [
-          { delta: { content: 'Final answer.' }, finishReason: null },
-        ],
+        choices: [{ delta: { content: 'Final answer.' }, finishReason: null }],
       },
       {
         id: 'r-1',
@@ -1836,9 +1834,7 @@ describe('OpenRouter STEP event consistency', () => {
     // equivalent to the legacy STEP_FINISHED accumulator without losing data.
     const reasoningDeltas = chunks
       .filter(
-        (
-          c,
-        ): c is Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }> =>
+        (c): c is Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }> =>
           c.type === 'REASONING_MESSAGE_CONTENT',
       )
       .map((c) => c.delta)

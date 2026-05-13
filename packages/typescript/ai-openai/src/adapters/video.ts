@@ -251,7 +251,10 @@ export class OpenAIVideoAdapter<
         )
       }
       const fallthroughBuffer = await fallthroughBlob.arrayBuffer()
-      warnIfLargeMediaBuffer(fallthroughBuffer.byteLength, 'video.sdkFallthrough')
+      warnIfLargeMediaBuffer(
+        fallthroughBuffer.byteLength,
+        'video.sdkFallthrough',
+      )
       const fallthroughBase64 = arrayBufferToBase64(fallthroughBuffer)
       const fallthroughMime =
         (typeof response?.headers?.get === 'function'

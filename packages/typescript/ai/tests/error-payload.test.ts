@@ -50,9 +50,10 @@ describe('toRunErrorPayload', () => {
   })
 
   it('ignores non-finite or otherwise non-string/non-number codes', () => {
-    expect(
-      toRunErrorPayload({ message: 'nan', code: Number.NaN }),
-    ).toEqual({ message: 'nan', code: undefined })
+    expect(toRunErrorPayload({ message: 'nan', code: Number.NaN })).toEqual({
+      message: 'nan',
+      code: undefined,
+    })
     expect(toRunErrorPayload({ message: 'sym', code: Symbol('x') })).toEqual({
       message: 'sym',
       code: undefined,

@@ -17,10 +17,7 @@ class TestResponsesAdapter extends OpenAICompatibleResponsesTextAdapter<string> 
   constructor(_config: unknown, model: string, name?: string) {
     super(model, name)
   }
-  protected async callResponse(
-    params: any,
-    requestOptions: any,
-  ): Promise<any> {
+  protected async callResponse(params: any, requestOptions: any): Promise<any> {
     return mockResponsesCreate(params, requestOptions)
   }
   protected async callResponseStream(
@@ -82,10 +79,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
   describe('instantiation', () => {
     it('creates an adapter with default name', () => {
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
@@ -150,10 +144,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -202,10 +193,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -265,10 +253,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -336,10 +321,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -404,10 +386,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -478,10 +457,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -562,10 +538,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -649,10 +622,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -775,10 +745,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -864,10 +831,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -952,10 +916,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         },
       ]
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1038,10 +999,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         },
       ]
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1106,10 +1064,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         },
       ]
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1186,10 +1141,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         },
       ]
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1241,10 +1193,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -1307,10 +1256,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -1355,10 +1301,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         },
       ]
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1411,10 +1354,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       mockResponsesCreate = vi.fn().mockResolvedValue(errorIterable)
 
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -1438,10 +1378,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         .fn()
         .mockRejectedValue(new Error('API key invalid'))
 
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -1478,10 +1415,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -1515,10 +1449,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -1556,10 +1487,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -1599,10 +1527,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       setupMockResponsesClient([], nonStreamResponse)
 
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
       const result = await adapter.structuredOutput({
         chatOptions: {
@@ -1656,10 +1581,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       setupMockResponsesClient([], nonStreamResponse)
 
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
       const result = await adapter.structuredOutput({
         chatOptions: {
@@ -1699,10 +1621,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       setupMockResponsesClient([], nonStreamResponse)
 
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
       await expect(
         adapter.structuredOutput({
@@ -1732,10 +1651,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         ],
       }
       setupMockResponsesClient([], nonStreamResponse)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       await expect(
         adapter.structuredOutput({
           chatOptions: {
@@ -1765,10 +1681,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         ],
       }
       setupMockResponsesClient([], nonStreamResponse)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       await expect(
         adapter.structuredOutput({
           chatOptions: {
@@ -1795,10 +1708,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         ],
       }
       setupMockResponsesClient([], nonStreamResponse)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       await expect(
         adapter.structuredOutput({
           chatOptions: {
@@ -1844,10 +1754,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
@@ -1915,10 +1822,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
@@ -1966,10 +1870,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new TestResponsesAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
