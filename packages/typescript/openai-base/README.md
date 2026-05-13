@@ -46,7 +46,7 @@ originally shipped it.
 
 ## What goes here vs. in `@tanstack/ai-openai`
 
-| Belongs in `@tanstack/openai-base`                                                         | Belongs in `@tanstack/ai-openai`                                                                                              |
+| Belongs in `@tanstack/openai-base`                                                                  | Belongs in `@tanstack/ai-openai`                                                                                              |
 | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Logic for the Chat Completions wire format                                                          | OpenAI-specific tool types (`web_search_preview`, `code_interpreter`, `local_shell`, `apply_patch`, `computer_use`, `mcp`, …) |
 | Logic for the Responses wire format                                                                 | OpenAI model metadata, model lists, capability matrices                                                                       |

@@ -719,17 +719,20 @@ export class OpenRouterTextAdapter<
         // Use `tool_calls` only when a TOOL_CALL_END was actually emitted.
         // OpenRouter emits 'error' as a finish reason for upstream errors;
         // collapse to 'content_filter' (the closest AG-UI equivalent).
-        const finishReason: 'tool_calls' | 'length' | 'content_filter' | 'stop' =
-          emittedAnyToolCallEnd
-            ? 'tool_calls'
-            : pendingFinishReason === 'tool_calls'
-              ? 'stop'
-              : pendingFinishReason === 'length'
-                ? 'length'
-                : pendingFinishReason === 'content_filter' ||
-                    pendingFinishReason === 'error'
-                  ? 'content_filter'
-                  : 'stop'
+        const finishReason:
+          | 'tool_calls'
+          | 'length'
+          | 'content_filter'
+          | 'stop' = emittedAnyToolCallEnd
+          ? 'tool_calls'
+          : pendingFinishReason === 'tool_calls'
+            ? 'stop'
+            : pendingFinishReason === 'length'
+              ? 'length'
+              : pendingFinishReason === 'content_filter' ||
+                  pendingFinishReason === 'error'
+                ? 'content_filter'
+                : 'stop'
 
         yield {
           type: EventType.RUN_FINISHED,
@@ -815,7 +818,8 @@ export class OpenRouterTextAdapter<
         maxCompletionTokens: options.maxTokens,
       }),
       ...(options.topP !== undefined && { topP: options.topP }),
-      ...(tools && tools.length > 0 && { tools: tools as ChatRequest['tools'] }),
+      ...(tools &&
+        tools.length > 0 && { tools: tools as ChatRequest['tools'] }),
     } as Omit<ChatRequest, 'stream'>
   }
 

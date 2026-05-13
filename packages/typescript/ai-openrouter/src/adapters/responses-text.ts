@@ -1261,7 +1261,9 @@ export class OpenRouterResponsesTextAdapter<
     return result
   }
 
-  protected convertContentPartToInput(part: ContentPart): ResponsesInputContent {
+  protected convertContentPartToInput(
+    part: ContentPart,
+  ): ResponsesInputContent {
     switch (part.type) {
       case 'text':
         return {
@@ -1410,12 +1412,10 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     if ('content_index' in raw) out.contentIndex = raw.content_index
     if ('sequence_number' in raw) out.sequenceNumber = raw.sequence_number
     if ('summary_index' in raw) out.summaryIndex = raw.summary_index
-    if (
-      'response' in raw &&
-      raw.response &&
-      typeof raw.response === 'object'
-    ) {
-      out.response = camelCaseResponseShape(raw.response as Record<string, unknown>)
+    if ('response' in raw && raw.response && typeof raw.response === 'object') {
+      out.response = camelCaseResponseShape(
+        raw.response as Record<string, unknown>,
+      )
     }
     if ('item' in raw && raw.item && typeof raw.item === 'object') {
       out.item = camelCaseOutputItem(raw.item as Record<string, unknown>)
@@ -1435,17 +1435,22 @@ function camelCaseResponseShape(
   src: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...src }
-  if ('incomplete_details' in src) out.incompleteDetails = src.incomplete_details
-  if ('input_tokens' in src || 'output_tokens' in src || 'total_tokens' in src) {
+  if ('incomplete_details' in src)
+    out.incompleteDetails = src.incomplete_details
+  if (
+    'input_tokens' in src ||
+    'output_tokens' in src ||
+    'total_tokens' in src
+  ) {
     // never mutate src; rewrite usage in place if present.
   }
   if (src.usage && typeof src.usage === 'object') {
     const u = src.usage as Record<string, unknown>
     out.usage = {
       ...u,
-      ...(('input_tokens' in u) && { inputTokens: u.input_tokens }),
-      ...(('output_tokens' in u) && { outputTokens: u.output_tokens }),
-      ...(('total_tokens' in u) && { totalTokens: u.total_tokens }),
+      ...('input_tokens' in u && { inputTokens: u.input_tokens }),
+      ...('output_tokens' in u && { outputTokens: u.output_tokens }),
+      ...('total_tokens' in u && { totalTokens: u.total_tokens }),
     }
   }
   if (Array.isArray(src.output)) {

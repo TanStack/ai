@@ -27,7 +27,11 @@ function makeStubClient(): OpenAI {
  * `mockResponsesCreate` for per-test setup.
  */
 class TestResponsesAdapter extends OpenAIBaseResponsesTextAdapter<string> {
-  constructor(_config: unknown, model: string, name = 'openai-compatible-responses') {
+  constructor(
+    _config: unknown,
+    model: string,
+    name = 'openai-compatible-responses',
+  ) {
     super(model, name, makeStubClient())
   }
 }
