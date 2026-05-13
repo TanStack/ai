@@ -22,5 +22,21 @@ for (const provider of providersFor('chat')) {
       const response = await getLastAssistantMessage(page)
       expect(response).toContain('Fender Stratocaster')
     })
+
+    test('fetcher mode — streams an SSE Response through useChat({ fetcher })', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      await page.goto(
+        featureUrl(provider, 'chat', testId, aimockPort, 'fetcher'),
+      )
+
+      await sendMessage(page, '[chat] recommend a guitar')
+      await waitForResponse(page)
+
+      const response = await getLastAssistantMessage(page)
+      expect(response).toContain('Fender Stratocaster')
+    })
   })
 }

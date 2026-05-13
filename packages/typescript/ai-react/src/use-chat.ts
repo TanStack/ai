@@ -53,8 +53,12 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
 
     isFirstMountRef.current = false
 
+    const transport = optionsRef.current.connection
+      ? { connection: optionsRef.current.connection }
+      : { fetcher: optionsRef.current.fetcher! }
+
     return new ChatClient({
-      connection: optionsRef.current.connection,
+      ...transport,
       id: clientId,
       initialMessages: messagesToUse,
       body: optionsRef.current.body,

@@ -60,8 +60,12 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   // by reference. Callbacks are therefore frozen to whatever the caller passed
   // at creation — to swap them dynamically, mutate the options object
   // in-place or call `client.updateOptions(...)` imperatively.
+  const transport = options.connection
+    ? { connection: options.connection }
+    : { fetcher: options.fetcher! }
+
   const client = new ChatClient({
-    connection: options.connection,
+    ...transport,
     id: clientId,
     initialMessages: options.initialMessages,
     body: options.body,

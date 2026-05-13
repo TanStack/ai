@@ -67,7 +67,7 @@ function FeaturePage() {
     )
   }
 
-  return <ChatFeature provider={provider} feature={feature} />
+  return <ChatFeature provider={provider} feature={feature} mode={mode} />
 }
 
 function MediaFeature({
@@ -139,9 +139,11 @@ function MediaFeature({
 function ChatFeature({
   provider,
   feature,
+  mode,
 }: {
   provider: Provider
   feature: Feature
+  mode?: Mode
 }) {
   const needsApproval = feature === 'tool-approval'
   const showImageInput =
@@ -151,9 +153,32 @@ function ChatFeature({
 
   const { testId, aimockPort } = Route.useSearch()
 
+  const transport =
+    mode === 'fetcher'
+      ? {
+          fetcher: async (
+            input: { messages: unknown; data?: unknown },
+            options: { signal: AbortSignal },
+          ) =>
+            fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                messages: input.messages,
+                data: input.data,
+                provider,
+                feature,
+                testId,
+                aimockPort,
+              }),
+              signal: options.signal,
+            }),
+        }
+      : { connection: fetchServerSentEvents('/api/chat') }
+
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: fetchServerSentEvents('/api/chat'),
+      ...transport,
       tools,
       body: { provider, feature, testId, aimockPort },
     })
