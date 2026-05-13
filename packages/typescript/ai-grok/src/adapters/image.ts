@@ -1,4 +1,4 @@
-import { OpenAICompatibleImageAdapter } from '@tanstack/openai-base'
+import { OpenAICompatibleImageAdapter } from '@tanstack/openai-compatible'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
   validateImageSize,

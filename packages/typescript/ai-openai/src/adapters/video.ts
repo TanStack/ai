@@ -1,4 +1,4 @@
-import { OpenAICompatibleVideoAdapter } from '@tanstack/openai-base'
+import { OpenAICompatibleVideoAdapter } from '@tanstack/openai-compatible'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   toApiSeconds,

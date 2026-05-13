@@ -45,7 +45,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
-    "@tanstack/openai-base": "workspace:*",
+    "@tanstack/openai-compatible": "workspace:*",
     "openai": "^6.9.1"
   },
   "peerDependencies": {

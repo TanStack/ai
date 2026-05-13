@@ -1,5 +1,5 @@
 import { transformNullsToUndefined } from '@tanstack/ai-utils'
-import { makeStructuredOutputCompatible } from '@tanstack/openai-base'
+import { makeStructuredOutputCompatible } from '@tanstack/openai-compatible'
 
 export { transformNullsToUndefined }
 

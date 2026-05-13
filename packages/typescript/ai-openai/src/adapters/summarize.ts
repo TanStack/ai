@@ -1,4 +1,4 @@
-import { OpenAICompatibleSummarizeAdapter } from '@tanstack/openai-base'
+import { OpenAICompatibleSummarizeAdapter } from '@tanstack/openai-compatible'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import { OpenAITextAdapter } from './text'
 import type { OpenAIChatModel } from '../model-meta'

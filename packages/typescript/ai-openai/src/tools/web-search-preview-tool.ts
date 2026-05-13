@@ -1,12 +1,12 @@
-import { webSearchPreviewTool as baseWebSearchPreviewTool } from '@tanstack/openai-base'
+import { webSearchPreviewTool as baseWebSearchPreviewTool } from '@tanstack/openai-compatible'
 import type { ProviderTool } from '@tanstack/ai'
-import type { WebSearchPreviewToolConfig } from '@tanstack/openai-base'
+import type { WebSearchPreviewToolConfig } from '@tanstack/openai-compatible'
 
 export {
   type WebSearchPreviewToolConfig,
   type WebSearchPreviewTool,
   convertWebSearchPreviewToolToAdapterFormat,
-} from '@tanstack/openai-base'
+} from '@tanstack/openai-compatible'
 
 export type OpenAIWebSearchPreviewTool = ProviderTool<
   'openai',

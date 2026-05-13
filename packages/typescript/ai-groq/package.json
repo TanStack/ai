@@ -53,6 +53,6 @@
   },
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
-    "@tanstack/openai-base": "workspace:*"
+    "@tanstack/openai-compatible": "workspace:*"
   }
 }

@@ -1,11 +1,11 @@
-import { applyPatchTool as baseApplyPatchTool } from '@tanstack/openai-base'
+import { applyPatchTool as baseApplyPatchTool } from '@tanstack/openai-compatible'
 import type { ProviderTool } from '@tanstack/ai'
 
 export {
   type ApplyPatchToolConfig,
   type ApplyPatchTool,
   convertApplyPatchToolToAdapterFormat,
-} from '@tanstack/openai-base'
+} from '@tanstack/openai-compatible'
 
 export type OpenAIApplyPatchTool = ProviderTool<'openai', 'apply_patch'>
 

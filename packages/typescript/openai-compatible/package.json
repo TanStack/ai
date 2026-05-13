@@ -1,13 +1,13 @@
 {
-  "name": "@tanstack/openai-base",
+  "name": "@tanstack/openai-compatible",
   "version": "0.2.1",
-  "description": "Shared base adapters and utilities for OpenAI-compatible providers in TanStack AI",
+  "description": "Shared protocol adapters and utilities for OpenAI-compatible providers in TanStack AI (Chat Completions and Responses wire formats)",
   "author": "",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/typescript/openai-base"
+    "directory": "packages/typescript/openai-compatible"
   },
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -35,9 +35,10 @@
   "keywords": [
     "ai",
     "openai",
+    "openai-compatible",
     "tanstack",
     "adapter",
-    "base"
+    "protocol"
   ],
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",

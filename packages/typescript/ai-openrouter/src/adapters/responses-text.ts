@@ -2,7 +2,7 @@ import { OpenRouter } from '@openrouter/sdk'
 import {
   OpenAICompatibleResponsesTextAdapter,
   convertFunctionToolToResponsesFormat,
-} from '@tanstack/openai-base'
+} from '@tanstack/openai-compatible'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import type { SDKOptions } from '@openrouter/sdk'
@@ -19,7 +19,7 @@ import type {
   ResponseStreamEvent,
   ResponsesFunctionTool,
   ResponsesResponse,
-} from '@tanstack/openai-base'
+} from '@tanstack/openai-compatible'
 import type { ContentPart, ModelMessage, TextOptions, Tool } from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type {
@@ -201,7 +201,7 @@ export class OpenRouterResponsesTextAdapter<
       | ResponsesRequest['input']
       | undefined
 
-    // Reuse the openai-base function-tool converter. ResponsesFunctionTool
+    // Reuse the openai-compatible function-tool converter. ResponsesFunctionTool
     // already matches OpenRouter's ResponsesRequestToolFunction shape:
     // `{ type:'function', name, parameters, description, strict }`.
     const tools: Array<ResponsesFunctionTool> | undefined = options.tools

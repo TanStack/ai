@@ -1,12 +1,12 @@
-import { computerUseTool as baseComputerUseTool } from '@tanstack/openai-base'
+import { computerUseTool as baseComputerUseTool } from '@tanstack/openai-compatible'
 import type { ProviderTool } from '@tanstack/ai'
-import type { ComputerUseToolConfig } from '@tanstack/openai-base'
+import type { ComputerUseToolConfig } from '@tanstack/openai-compatible'
 
 export {
   type ComputerUseToolConfig,
   type ComputerUseTool,
   convertComputerUseToolToAdapterFormat,
-} from '@tanstack/openai-base'
+} from '@tanstack/openai-compatible'
 
 // The brand discriminator (`computer_use`) intentionally differs from the
 // runtime tool name (`computer_use_preview`). The brand matches the model-meta

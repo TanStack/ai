@@ -1,1 +1,1 @@
-export { convertToolsToProviderFormat } from '@tanstack/openai-base'
+export { convertToolsToProviderFormat } from '@tanstack/openai-compatible'

@@ -1,12 +1,12 @@
-import { codeInterpreterTool as baseCodeInterpreterTool } from '@tanstack/openai-base'
+import { codeInterpreterTool as baseCodeInterpreterTool } from '@tanstack/openai-compatible'
 import type { ProviderTool } from '@tanstack/ai'
-import type { CodeInterpreterToolConfig } from '@tanstack/openai-base'
+import type { CodeInterpreterToolConfig } from '@tanstack/openai-compatible'
 
 export {
   type CodeInterpreterToolConfig,
   type CodeInterpreterTool,
   convertCodeInterpreterToolToAdapterFormat,
-} from '@tanstack/openai-base'
+} from '@tanstack/openai-compatible'
 
 export type OpenAICodeInterpreterTool = ProviderTool<
   'openai',

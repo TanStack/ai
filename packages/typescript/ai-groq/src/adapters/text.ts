@@ -1,8 +1,8 @@
-import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/openai-compatible'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { makeGroqStructuredOutputCompatible } from '../utils/schema-converter'
 import type { Modality, TextOptions } from '@tanstack/ai'
-import type { ChatCompletionChunk } from '@tanstack/openai-base'
+import type { ChatCompletionChunk } from '@tanstack/openai-compatible'
 import type {
   GROQ_CHAT_MODELS,
   GroqChatModelToolCapabilitiesByName,

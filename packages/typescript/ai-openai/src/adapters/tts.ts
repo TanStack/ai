@@ -1,4 +1,4 @@
-import { OpenAICompatibleTTSAdapter } from '@tanstack/openai-base'
+import { OpenAICompatibleTTSAdapter } from '@tanstack/openai-compatible'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   validateAudioInput,

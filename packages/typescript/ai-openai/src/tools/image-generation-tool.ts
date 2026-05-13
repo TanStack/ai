@@ -1,12 +1,12 @@
-import { imageGenerationTool as baseImageGenerationTool } from '@tanstack/openai-base'
+import { imageGenerationTool as baseImageGenerationTool } from '@tanstack/openai-compatible'
 import type { ProviderTool } from '@tanstack/ai'
-import type { ImageGenerationToolConfig } from '@tanstack/openai-base'
+import type { ImageGenerationToolConfig } from '@tanstack/openai-compatible'
 
 export {
   type ImageGenerationToolConfig,
   type ImageGenerationTool,
   convertImageGenerationToolToAdapterFormat,
-} from '@tanstack/openai-base'
+} from '@tanstack/openai-compatible'
 
 export type OpenAIImageGenerationTool = ProviderTool<
   'openai',
