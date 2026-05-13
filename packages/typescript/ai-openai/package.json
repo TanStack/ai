@@ -44,8 +44,8 @@
     "adapter"
   ],
   "dependencies": {
-    "@tanstack/openai-base": "workspace:*",
     "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/openai-base": "workspace:*",
     "openai": "^6.9.1"
   },
   "peerDependencies": {
@@ -58,6 +58,6 @@
     "@tanstack/ai-client": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^7.2.7",
-    "zod": "^4.3.0"
+    "zod": "^4.2.0"
   }
 }
