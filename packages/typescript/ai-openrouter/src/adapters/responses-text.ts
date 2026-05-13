@@ -54,10 +54,20 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * OpenRouter Responses (beta) Adapter.
  *
- * Extends the OpenAI Responses base so the streaming event lifecycle,
- * structured-output flow, tool-call accumulator, and RUN_ERROR taxonomy are
- * shared with the rest of the OpenAI-Responses-compatible providers (OpenAI,
- * Azure, …).
+ * Why this extends `OpenAICompatibleResponsesTextAdapter` from
+ * `@tanstack/ai-openai-compatible`:
+ *
+ * OpenRouter's `/v1/responses` (beta) endpoint accepts OpenAI's Responses
+ * wire format and fans out to any underlying model — including Anthropic
+ * Claude and Google Gemini, neither of which has a native Responses
+ * endpoint. That makes Responses a multi-vendor protocol from OpenRouter's
+ * perspective, not an OpenAI-only product, and the shared compatible base
+ * is the right place for the streaming event lifecycle, structured-output
+ * flow, tool-call accumulator, and RUN_ERROR taxonomy that any Responses
+ * implementer needs. If we duplicated that here we'd ship the same ~1.2k
+ * LOC in OpenRouter and OpenAI separately and have to keep them in sync.
+ *
+ * What's different about OpenRouter (and why we still need overrides):
  *
  * The wire format is OpenAI-Responses-compatible, but the `@openrouter/sdk`
  * SDK exposes a different call shape — `client.beta.responses.send

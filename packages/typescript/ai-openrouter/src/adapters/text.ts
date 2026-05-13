@@ -52,16 +52,28 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * OpenRouter Text (Chat) Adapter.
  *
- * Extends the OpenAI Chat Completions base so it shares the stream
- * accumulator, partial-JSON tool-call buffer, RUN_ERROR taxonomy, and
- * lifecycle gates with the rest of the OpenAI-compatible providers.
+ * Why this extends `OpenAICompatibleChatCompletionsTextAdapter` from
+ * `@tanstack/ai-openai-compatible`:
+ *
+ * OpenRouter's `/v1/chat/completions` endpoint implements OpenAI's Chat
+ * Completions wire format verbatim (it's how OpenRouter routes a single
+ * client request to GPT, Claude, Gemini, Llama, etc.). Extending the shared
+ * compatible base means we inherit ~1k LOC of stream accumulation,
+ * partial-JSON tool-call buffering, AG-UI lifecycle emission, RUN_ERROR
+ * taxonomy, and structured-output coercion that every OpenAI-compatible
+ * provider needs — without copy-pasting it. The compatible package is
+ * deliberately not "the OpenAI adapter"; it is the shared implementation of
+ * the wire-format protocol that OpenAI, OpenRouter, Groq, Grok, vLLM,
+ * SGLang, and others all speak.
+ *
+ * What's different about OpenRouter (and why we still need overrides):
  *
  * The wire format is identical to OpenAI's Chat Completions, but the
  * `@openrouter/sdk` SDK exposes a different call shape — `client.chat.send
  * ({ chatRequest })` with camelCase fields. We override the two SDK-call
  * hooks (`callChatCompletion` / `callChatCompletionStream`) to bridge that,
  * plus a small chunk-shape adapter on the way back, and `extractReasoning`
- * to surface OpenRouter's reasoning deltas through the base's REASONING_*
+ * to surface OpenRouter's reasoning deltas through the shared REASONING_*
  * lifecycle.
  *
  * Behaviour preserved from the pre-migration implementation:
