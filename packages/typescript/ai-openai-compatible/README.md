@@ -1,4 +1,4 @@
-# @tanstack/openai-compatible
+# @tanstack/ai-openai-compatible
 
 Shared protocol adapters for OpenAI-compatible providers in TanStack AI.
 

@@ -1,5 +1,5 @@
 ---
-'@tanstack/openai-compatible': minor
+'@tanstack/ai-openai-compatible': minor
 '@tanstack/ai-groq': patch
 '@tanstack/ai-openrouter': patch
 '@tanstack/ai': patch
@@ -7,9 +7,9 @@
 
 Migrate `ai-groq` and `ai-openrouter` onto `OpenAICompatibleChatCompletionsTextAdapter` so they share the stream accumulator, partial-JSON tool-call buffer, RUN_ERROR taxonomy, and lifecycle gates with `ai-openai` / `ai-grok`. Removes ~1k LOC of duplicated stream processing.
 
-`@tanstack/openai-compatible` adds three protected hooks on `OpenAICompatibleChatCompletionsTextAdapter` so providers with non-OpenAI SDK shapes can reuse the base: `callChatCompletion` and `callChatCompletionStream` (SDK call sites for non-streaming and streaming Chat Completions), and `extractReasoning` (surface reasoning content from chunk shapes that carry it, e.g. OpenRouter's `delta.reasoningDetails`, into the base's REASONING\_\* + legacy STEP_STARTED/STEP_FINISHED lifecycle). Also adds `transformStructuredOutput` for subclasses (like OpenRouter) that preserve nulls in structured output instead of converting them to undefined.
+`@tanstack/ai-openai-compatible` adds three protected hooks on `OpenAICompatibleChatCompletionsTextAdapter` so providers with non-OpenAI SDK shapes can reuse the base: `callChatCompletion` and `callChatCompletionStream` (SDK call sites for non-streaming and streaming Chat Completions), and `extractReasoning` (surface reasoning content from chunk shapes that carry it, e.g. OpenRouter's `delta.reasoningDetails`, into the base's REASONING\_\* + legacy STEP_STARTED/STEP_FINISHED lifecycle). Also adds `transformStructuredOutput` for subclasses (like OpenRouter) that preserve nulls in structured output instead of converting them to undefined.
 
-`@tanstack/openai-compatible` fixes two error-handling regressions in the shared base: `structuredOutput` now throws a distinct `"response contained no content"` error rather than letting empty content cascade into a misleading JSON-parse error, and the post-loop tool-args drain block now logs malformed JSON via `logger.errors` (matching the in-loop finish_reason path) so truncated streams emitting partial tool args are debuggable instead of silently invoking the tool with `{}`.
+`@tanstack/ai-openai-compatible` fixes two error-handling regressions in the shared base: `structuredOutput` now throws a distinct `"response contained no content"` error rather than letting empty content cascade into a misleading JSON-parse error, and the post-loop tool-args drain block now logs malformed JSON via `logger.errors` (matching the in-loop finish_reason path) so truncated streams emitting partial tool args are debuggable instead of silently invoking the tool with `{}`.
 
 `@tanstack/ai` normalizes abort-shaped errors (`AbortError`, `APIUserAbortError`, `RequestAbortedError`) to a stable `{ message: 'Request aborted', code: 'aborted' }` payload in `toRunErrorPayload`, so consumers can discriminate user-initiated cancellation from other failures without matching on provider-specific message strings.
 

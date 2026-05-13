@@ -1,4 +1,4 @@
-import { OpenAICompatibleResponsesTextAdapter } from '@tanstack/openai-compatible'
+import { OpenAICompatibleResponsesTextAdapter } from '@tanstack/ai-openai-compatible'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
@@ -68,7 +68,7 @@ type ResolveToolCapabilities<TModel extends string> =
  *
  * Tree-shakeable adapter for OpenAI chat/text completion functionality.
  * Delegates implementation to {@link OpenAICompatibleResponsesTextAdapter} from
- * `@tanstack/openai-compatible` and threads OpenAI-specific tool-capability typing
+ * `@tanstack/ai-openai-compatible` and threads OpenAI-specific tool-capability typing
  * through the 5th generic of the base class.
  */
 export class OpenAITextAdapter<

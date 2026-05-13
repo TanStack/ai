@@ -1,4 +1,4 @@
-export { type OpenAITool } from '@tanstack/openai-compatible'
+export { type OpenAITool } from '@tanstack/ai-openai-compatible'
 
 export {
   applyPatchTool,

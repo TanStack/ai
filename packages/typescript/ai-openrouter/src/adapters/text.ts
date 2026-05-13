@@ -1,5 +1,5 @@
 import { OpenRouter } from '@openrouter/sdk'
-import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/openai-compatible'
+import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/ai-openai-compatible'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import type { SDKOptions } from '@openrouter/sdk'
@@ -8,7 +8,7 @@ import type {
   ChatCompletionChunk,
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionCreateParamsStreaming,
-} from '@tanstack/openai-compatible'
+} from '@tanstack/ai-openai-compatible'
 import type {
   ChatContentItems,
   ChatMessages,

@@ -1,4 +1,4 @@
-import { OpenAICompatibleTranscriptionAdapter } from '@tanstack/openai-compatible'
+import { OpenAICompatibleTranscriptionAdapter } from '@tanstack/ai-openai-compatible'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import type { OpenAITranscriptionModel } from '../model-meta'
 import type { OpenAITranscriptionProviderOptions } from '../audio/transcription-provider-options'

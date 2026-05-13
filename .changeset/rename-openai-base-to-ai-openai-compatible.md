@@ -1,12 +1,12 @@
 ---
-'@tanstack/openai-compatible': minor
+'@tanstack/ai-openai-compatible': minor
 '@tanstack/ai-openai': patch
 '@tanstack/ai-openrouter': patch
 '@tanstack/ai-groq': patch
 '@tanstack/ai-grok': patch
 ---
 
-Rename `@tanstack/openai-base` → `@tanstack/openai-compatible`.
+Rename `@tanstack/openai-base` → `@tanstack/ai-openai-compatible`.
 
 The previous "base" name implied this package tracked OpenAI's product roadmap. In reality it implements two OpenAI-shaped _wire-format protocols_ that multiple providers ship:
 
@@ -21,7 +21,7 @@ If you were importing from `@tanstack/openai-base` directly (uncommon — the pa
 
 ```diff
 - import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/openai-base'
-+ import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/openai-compatible'
++ import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/ai-openai-compatible'
 ```
 
 `@tanstack/openai-base@0.2.x` remains published on npm for anyone with a pinned lockfile reference but will receive no further updates.

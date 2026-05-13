@@ -1,5 +1,5 @@
 {
-  "name": "@tanstack/openai-compatible",
+  "name": "@tanstack/ai-openai-compatible",
   "version": "0.2.1",
   "description": "Shared protocol adapters and utilities for OpenAI-compatible providers in TanStack AI (Chat Completions and Responses wire formats)",
   "author": "",
@@ -7,7 +7,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/typescript/openai-compatible"
+    "directory": "packages/typescript/ai-openai-compatible"
   },
   "type": "module",
   "module": "./dist/esm/index.js",

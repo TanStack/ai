@@ -2,4 +2,4 @@ export {
   type FunctionToolConfig,
   type FunctionTool,
   convertFunctionToolToAdapterFormat,
-} from '@tanstack/openai-compatible'
+} from '@tanstack/ai-openai-compatible'

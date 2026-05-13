@@ -1,4 +1,4 @@
-import { OpenAICompatibleImageAdapter } from '@tanstack/openai-compatible'
+import { OpenAICompatibleImageAdapter } from '@tanstack/ai-openai-compatible'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   validateImageSize,

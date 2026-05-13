@@ -1,11 +1,11 @@
-import { localShellTool as baseLocalShellTool } from '@tanstack/openai-compatible'
+import { localShellTool as baseLocalShellTool } from '@tanstack/ai-openai-compatible'
 import type { ProviderTool } from '@tanstack/ai'
 
 export {
   type LocalShellToolConfig,
   type LocalShellTool,
   convertLocalShellToolToAdapterFormat,
-} from '@tanstack/openai-compatible'
+} from '@tanstack/ai-openai-compatible'
 
 export type OpenAILocalShellTool = ProviderTool<'openai', 'local_shell'>
 

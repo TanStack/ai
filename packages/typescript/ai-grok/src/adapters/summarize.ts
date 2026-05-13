@@ -1,7 +1,7 @@
-import { OpenAICompatibleSummarizeAdapter } from '@tanstack/openai-compatible'
+import { OpenAICompatibleSummarizeAdapter } from '@tanstack/ai-openai-compatible'
 import { getGrokApiKeyFromEnv } from '../utils'
 import { GrokTextAdapter } from './text'
-import type { ChatStreamCapable } from '@tanstack/openai-compatible'
+import type { ChatStreamCapable } from '@tanstack/ai-openai-compatible'
 import type { GROK_CHAT_MODELS } from '../model-meta'
 import type { GrokClientConfig } from '../utils'
 

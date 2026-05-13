@@ -1,12 +1,12 @@
-import { fileSearchTool as baseFileSearchTool } from '@tanstack/openai-compatible'
+import { fileSearchTool as baseFileSearchTool } from '@tanstack/ai-openai-compatible'
 import type { ProviderTool } from '@tanstack/ai'
-import type { FileSearchToolConfig } from '@tanstack/openai-compatible'
+import type { FileSearchToolConfig } from '@tanstack/ai-openai-compatible'
 
 export {
   type FileSearchToolConfig,
   type FileSearchTool,
   convertFileSearchToolToAdapterFormat,
-} from '@tanstack/openai-compatible'
+} from '@tanstack/ai-openai-compatible'
 
 export type OpenAIFileSearchTool = ProviderTool<'openai', 'file_search'>
 

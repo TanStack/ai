@@ -1,4 +1,4 @@
-import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/openai-compatible'
+import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/ai-openai-compatible'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import type {
   GROK_CHAT_MODELS,
@@ -35,7 +35,7 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  * Uses OpenAI-compatible Chat Completions API (not Responses API).
  *
  * Delegates implementation to {@link OpenAICompatibleChatCompletionsTextAdapter}
- * from `@tanstack/openai-compatible` and threads Grok-specific tool-capability typing
+ * from `@tanstack/ai-openai-compatible` and threads Grok-specific tool-capability typing
  * through the 5th generic of the base class.
  */
 export class GrokTextAdapter<

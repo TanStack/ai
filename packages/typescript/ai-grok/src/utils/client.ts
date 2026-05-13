@@ -1,5 +1,5 @@
 import { getApiKeyFromEnv } from '@tanstack/ai-utils'
-import type { OpenAICompatibleClientConfig } from '@tanstack/openai-compatible'
+import type { OpenAICompatibleClientConfig } from '@tanstack/ai-openai-compatible'
 
 export interface GrokClientConfig extends OpenAICompatibleClientConfig {}
 
