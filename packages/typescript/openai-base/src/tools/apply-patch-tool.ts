@@ -1,4 +1,4 @@
-import type { ApplyPatchToolConfig } from '../types/tools'
+import type { ApplyPatchTool as ApplyPatchToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
 export type { ApplyPatchToolConfig }

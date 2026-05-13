@@ -196,7 +196,7 @@ describe('OpenRouter responses adapter — request shape', () => {
 
   it('rejects webSearchTool() as RUN_ERROR pointing at the chat adapter', async () => {
     const adapter = createAdapter()
-    const ws = webSearchTool() as unknown as Tool
+    const ws = webSearchTool() as Tool
     const events: Array<StreamChunk> = []
     for await (const evt of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,

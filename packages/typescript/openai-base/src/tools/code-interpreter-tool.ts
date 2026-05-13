@@ -1,5 +1,7 @@
-import type { CodeInterpreterToolConfig } from '../types/tools'
+import type { Tool as SDKTool } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
+
+type CodeInterpreterToolConfig = SDKTool.CodeInterpreter
 
 export type { CodeInterpreterToolConfig }
 

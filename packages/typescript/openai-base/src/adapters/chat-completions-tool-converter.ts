@@ -1,12 +1,17 @@
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
-import type { ChatCompletionTool } from '../types/chat-completions'
+import type { ChatCompletionTool } from 'openai/resources/chat/completions/completions'
 import type { JSONSchema, Tool } from '@tanstack/ai'
 
 /**
- * Chat Completions API tool format.
- * This is distinct from the Responses API tool format.
+ * Chat Completions API tool format. The SDK's `ChatCompletionTool` is the
+ * union `ChatCompletionFunctionTool | ChatCompletionCustomTool`; we only
+ * emit the function variant here. Re-exported as our own alias so consumers
+ * importing the converter's output don't have to reach into the SDK.
  */
-export type ChatCompletionFunctionTool = ChatCompletionTool
+export type ChatCompletionFunctionTool = Extract<
+  ChatCompletionTool,
+  { type: 'function' }
+>
 
 /**
  * Converts a standard Tool to OpenAI Chat Completions ChatCompletionTool format.

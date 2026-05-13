@@ -1,4 +1,4 @@
-import type { WebSearchToolConfig } from '../types/tools'
+import type { WebSearchTool as WebSearchToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
 export type { WebSearchToolConfig }

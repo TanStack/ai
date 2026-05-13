@@ -1,5 +1,7 @@
-import type { MCPToolConfig } from '../types/tools'
+import type { Tool as SDKTool } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
+
+type MCPToolConfig = SDKTool.Mcp
 
 export type { MCPToolConfig }
 

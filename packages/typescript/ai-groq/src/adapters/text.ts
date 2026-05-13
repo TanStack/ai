@@ -1,10 +1,9 @@
 import OpenAI from 'openai'
-import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/ai-openai-compatible'
+import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { makeGroqStructuredOutputCompatible } from '../utils/schema-converter'
-import type OpenAI_SDK from 'openai'
 import type { Modality, TextOptions } from '@tanstack/ai'
-import type { ChatCompletionChunk } from '@tanstack/ai-openai-compatible'
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions/completions'
 import type {
   GROQ_CHAT_MODELS,
   GroqChatModelToolCapabilitiesByName,
@@ -49,7 +48,7 @@ export class GroqTextAdapter<
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
-> extends OpenAICompatibleChatCompletionsTextAdapter<
+> extends OpenAIBaseChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
@@ -59,25 +58,8 @@ export class GroqTextAdapter<
   readonly kind = 'text' as const
   readonly name = 'groq' as const
 
-  protected client: OpenAI
-
   constructor(config: GroqTextConfig, model: TModel) {
-    super(model, 'groq')
-    this.client = new OpenAI(withGroqDefaults(config))
-  }
-
-  protected async callChatCompletion(
-    params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
-    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
-  ): Promise<OpenAI_SDK.Chat.Completions.ChatCompletion> {
-    return this.client.chat.completions.create(params, requestOptions)
-  }
-
-  protected async callChatCompletionStream(
-    params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming,
-    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
-  ): Promise<AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>> {
-    return this.client.chat.completions.create(params, requestOptions)
+    super(model, 'groq', new OpenAI(withGroqDefaults(config)))
   }
 
   protected override makeStructuredOutputCompatible(

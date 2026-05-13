@@ -5,6 +5,7 @@ import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
+import type OpenAI from 'openai'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -12,12 +13,10 @@ import type {
 import type {
   Response,
   ResponseCreateParams,
-  ResponseCreateParamsNonStreaming,
-  ResponseCreateParamsStreaming,
   ResponseInput,
   ResponseInputContent,
   ResponseStreamEvent,
-} from '../types/responses'
+} from 'openai/resources/responses/responses'
 import type {
   ContentPart,
   DefaultMessageMetadataByModality,
@@ -28,12 +27,12 @@ import type {
 } from '@tanstack/ai'
 
 /**
- * Shared implementation of the OpenAI Responses wire format. Holds the
- * stream-event accumulator + AG-UI lifecycle; subclasses provide the actual
- * SDK calls via the abstract `callResponse*` hooks. The base never imports
- * the OpenAI SDK at runtime — it only borrows the SDK's TypeScript shapes.
+ * Shared implementation of the OpenAI Responses API. Holds the stream-event
+ * accumulator + AG-UI lifecycle and calls the OpenAI SDK directly. Subclasses
+ * (today: ai-openai) construct an OpenAI client with their provider-specific
+ * `baseURL` / headers and pass it in.
  */
-export abstract class OpenAICompatibleResponsesTextAdapter<
+export abstract class OpenAIBaseResponsesTextAdapter<
   TModel extends string,
   TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
   TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
@@ -49,10 +48,12 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
 > {
   readonly kind = 'text' as const
   readonly name: string
+  protected client: OpenAI
 
-  constructor(model: TModel, name: string = 'openai-compatible-responses') {
+  constructor(model: TModel, name: string, client: OpenAI) {
     super({}, model)
     this.name = name
+    this.client = client
   }
 
   async *chatStream(
@@ -96,7 +97,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.callResponseStream(
+      const response = await this.client.responses.create(
         {
           ...requestParams,
           stream: true,
@@ -186,7 +187,7 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.callResponse(
+      const response = await this.client.responses.create(
         {
           ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
           stream: false,
@@ -275,27 +276,6 @@ export abstract class OpenAICompatibleResponsesTextAdapter<
   protected transformStructuredOutput(parsed: unknown): unknown {
     return transformNullsToUndefined(parsed)
   }
-
-  /**
-   * Performs the non-streaming Responses API network call. Subclasses
-   * implement against whatever SDK or HTTP client they bridge to. Must
-   * return a value structurally compatible with `Response` — the base reads
-   * documented fields like `response.output[...]`.
-   */
-  protected abstract callResponse(
-    params: ResponseCreateParamsNonStreaming,
-    requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<Response>
-
-  /**
-   * Performs the streaming Responses API network call. Returns an
-   * `AsyncIterable<ResponseStreamEvent>`; the base's `processStreamChunks`
-   * only needs structural iteration over events.
-   */
-  protected abstract callResponseStream(
-    params: ResponseCreateParamsStreaming,
-    requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<AsyncIterable<ResponseStreamEvent>>
 
   /**
    * Extract text content from a non-streaming Responses API response.

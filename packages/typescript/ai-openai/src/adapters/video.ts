@@ -137,7 +137,7 @@ export class OpenAIVideoAdapter<
     getContent?: (id: string) => Promise<unknown>
     download?: (id: string) => Promise<unknown>
   } {
-    return (this.client as unknown as { videos: any }).videos
+    return (this.client as { videos: any }).videos
   }
 
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {

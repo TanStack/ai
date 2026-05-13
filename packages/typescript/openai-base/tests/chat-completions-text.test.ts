@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { OpenAICompatibleChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
+import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
+import type OpenAI from 'openai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
@@ -8,28 +9,30 @@ const testLogger = resolveDebugOption(false)
 // Declare mockCreate at module level
 let mockCreate: ReturnType<typeof vi.fn>
 
+/** Build a stub OpenAI client whose `chat.completions.create` defers to the
+ *  module-level `mockCreate`. Reassigning `mockCreate` inside a test still
+ *  takes effect because the stub looks it up at call time. */
+function makeStubClient(): OpenAI {
+  return {
+    chat: {
+      completions: {
+        create: (params: unknown, options: unknown) =>
+          mockCreate(params, options),
+      },
+    },
+  } as unknown as OpenAI
+}
+
 /**
- * Concrete test subclass — the base is abstract, so tests need a class that
- * implements `callChatCompletion*`. The hooks delegate to `mockCreate` so
- * each test can configure the SDK response without spinning up a real client.
- * The constructor accepts (config, model, name) so test call sites read
- * naturally; config is ignored since the base no longer constructs a client.
+ * Concrete test subclass. The base now calls the OpenAI SDK directly, so the
+ * subclass just supplies a stub client whose `chat.completions.create` routes
+ * into `mockCreate` for per-test setup. Constructor signature mirrors the
+ * pre-refactor `(config, model, name)` shape so existing call sites read
+ * naturally; `config` is ignored.
  */
-class TestChatCompletionsAdapter extends OpenAICompatibleChatCompletionsTextAdapter<string> {
-  constructor(_config: unknown, model: string, name?: string) {
-    super(model, name)
-  }
-  protected async callChatCompletion(
-    params: any,
-    requestOptions: any,
-  ): Promise<any> {
-    return mockCreate(params, requestOptions)
-  }
-  protected async callChatCompletionStream(
-    params: any,
-    requestOptions: any,
-  ): Promise<any> {
-    return mockCreate(params, requestOptions)
+class TestChatCompletionsAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
+  constructor(_config: unknown, model: string, name = 'openai-compatible') {
+    super(model, name, makeStubClient())
   }
 }
 
@@ -73,7 +76,7 @@ const weatherTool: Tool = {
   description: 'Return the forecast for a location',
 }
 
-describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
+describe('OpenAIBaseChatCompletionsTextAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -818,15 +821,9 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
 
   describe('subclassing', () => {
     it('allows subclassing with custom name', () => {
-      class MyProviderAdapter extends OpenAICompatibleChatCompletionsTextAdapter<string> {
+      class MyProviderAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
         constructor(_apiKey: string, model: string) {
-          super(model, 'my-provider')
-        }
-        protected async callChatCompletion(): Promise<any> {
-          throw new Error('not called in this test')
-        }
-        protected async callChatCompletionStream(): Promise<any> {
-          throw new Error('not called in this test')
+          super(model, 'my-provider', makeStubClient())
         }
       }
 

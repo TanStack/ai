@@ -1,4 +1,4 @@
-import type { CustomToolConfig } from '../types/tools'
+import type { CustomTool as CustomToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
 export type { CustomToolConfig }

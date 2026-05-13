@@ -20,7 +20,7 @@ const testLogger = resolveDebugOption(false)
 // Stub the OpenAI SDK so adapter construction doesn't open a real network
 // handle. The per-test mock client is injected post-construction via
 // `setupMockSdkClient` (mirrors the ai-grok pattern). We avoid relying on
-// vi.mock to intercept transitive openai imports — the built ai-openai-compatible
+// vi.mock to intercept transitive openai imports — the built ai-openai-base
 // dist resolves `openai` independently and is unaffected by vi.mock here.
 vi.mock('openai', () => {
   return {

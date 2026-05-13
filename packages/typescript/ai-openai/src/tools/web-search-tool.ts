@@ -1,12 +1,12 @@
-import { webSearchTool as baseWebSearchTool } from '@tanstack/ai-openai-compatible'
+import { webSearchTool as baseWebSearchTool } from '@tanstack/openai-base'
 import type { ProviderTool } from '@tanstack/ai'
-import type { WebSearchToolConfig } from '@tanstack/ai-openai-compatible'
+import type { WebSearchToolConfig } from '@tanstack/openai-base'
 
 export {
   type WebSearchToolConfig,
   type WebSearchTool,
   convertWebSearchToolToAdapterFormat,
-} from '@tanstack/ai-openai-compatible'
+} from '@tanstack/openai-base'
 
 export type OpenAIWebSearchTool = ProviderTool<'openai', 'web_search'>
 

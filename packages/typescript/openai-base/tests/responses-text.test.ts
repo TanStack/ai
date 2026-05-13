@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { OpenAICompatibleResponsesTextAdapter } from '../src/adapters/responses-text'
+import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
+import type OpenAI from 'openai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
@@ -8,23 +9,26 @@ const testLogger = resolveDebugOption(false)
 // Declare mockCreate at module level
 let mockResponsesCreate: ReturnType<typeof vi.fn>
 
+/** Build a stub OpenAI client whose `responses.create` defers to the
+ *  module-level `mockResponsesCreate`. Reassigning the mock inside a test
+ *  still takes effect because the stub looks it up at call time. */
+function makeStubClient(): OpenAI {
+  return {
+    responses: {
+      create: (params: unknown, options: unknown) =>
+        mockResponsesCreate(params, options),
+    },
+  } as unknown as OpenAI
+}
+
 /**
- * Concrete test subclass — the base is abstract, so tests need a class that
- * implements `callResponse*`. Hooks delegate to `mockResponsesCreate` so
- * each test can configure the SDK response without spinning up a real client.
+ * Concrete test subclass. The base now calls the OpenAI SDK directly, so the
+ * subclass just supplies a stub client whose `responses.create` routes into
+ * `mockResponsesCreate` for per-test setup.
  */
-class TestResponsesAdapter extends OpenAICompatibleResponsesTextAdapter<string> {
-  constructor(_config: unknown, model: string, name?: string) {
-    super(model, name)
-  }
-  protected async callResponse(params: any, requestOptions: any): Promise<any> {
-    return mockResponsesCreate(params, requestOptions)
-  }
-  protected async callResponseStream(
-    params: any,
-    requestOptions: any,
-  ): Promise<any> {
-    return mockResponsesCreate(params, requestOptions)
+class TestResponsesAdapter extends OpenAIBaseResponsesTextAdapter<string> {
+  constructor(_config: unknown, model: string, name = 'openai-compatible-responses') {
+    super(model, name, makeStubClient())
   }
 }
 
@@ -68,7 +72,7 @@ const weatherTool: Tool = {
   description: 'Return the forecast for a location',
 }
 
-describe('OpenAICompatibleResponsesTextAdapter', () => {
+describe('OpenAIBaseResponsesTextAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -1928,15 +1932,9 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
   describe('subclassing', () => {
     it('allows subclassing with custom name', () => {
-      class MyProviderAdapter extends OpenAICompatibleResponsesTextAdapter<string> {
+      class MyProviderAdapter extends OpenAIBaseResponsesTextAdapter<string> {
         constructor(_apiKey: string, model: string) {
-          super(model, 'my-provider')
-        }
-        protected async callResponse(): Promise<any> {
-          throw new Error('not called in this test')
-        }
-        protected async callResponseStream(): Promise<any> {
-          throw new Error('not called in this test')
+          super(model, 'my-provider', makeStubClient())
         }
       }
 

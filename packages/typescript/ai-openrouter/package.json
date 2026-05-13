@@ -44,7 +44,6 @@
   ],
   "dependencies": {
     "@openrouter/sdk": "0.12.14",
-    "@tanstack/ai-openai-compatible": "workspace:*",
     "@tanstack/ai-utils": "workspace:*"
   },
   "devDependencies": {

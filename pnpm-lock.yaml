@@ -1201,12 +1201,12 @@ importers:
 
   packages/typescript/ai-grok:
     dependencies:
-      '@tanstack/ai-openai-compatible':
-        specifier: workspace:*
-        version: link:../ai-openai-compatible
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
+      '@tanstack/openai-base':
+        specifier: workspace:*
+        version: link:../openai-base
       openai:
         specifier: ^6.9.1
         version: 6.10.0(ws@8.19.0)(zod@4.3.6)
@@ -1229,12 +1229,12 @@ importers:
 
   packages/typescript/ai-groq:
     dependencies:
-      '@tanstack/ai-openai-compatible':
-        specifier: workspace:*
-        version: link:../ai-openai-compatible
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
+      '@tanstack/openai-base':
+        specifier: workspace:*
+        version: link:../openai-base
       openai:
         specifier: ^6.9.1
         version: 6.10.0(ws@8.19.0)(zod@4.3.6)
@@ -1315,15 +1315,15 @@ importers:
 
   packages/typescript/ai-openai:
     dependencies:
-      '@tanstack/ai-openai-compatible':
-        specifier: workspace:*
-        version: link:../ai-openai-compatible
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
+      '@tanstack/openai-base':
+        specifier: workspace:*
+        version: link:../openai-base
       openai:
         specifier: ^6.9.1
-        version: 6.10.0(ws@8.19.0)(zod@4.2.1)
+        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -1338,33 +1338,14 @@ importers:
         specifier: ^7.2.7
         version: 7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
       zod:
-        specifier: ^4.2.0
-        version: 4.2.1
-
-  packages/typescript/ai-openai-compatible:
-    dependencies:
-      '@tanstack/ai-utils':
-        specifier: workspace:*
-        version: link:../ai-utils
-    devDependencies:
-      '@tanstack/ai':
-        specifier: workspace:*
-        version: link:../ai
-      '@vitest/coverage-v8':
-        specifier: 4.0.14
-        version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
-      vite:
-        specifier: ^7.2.7
-        version: 7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+        specifier: ^4.3.0
+        version: 4.3.6
 
   packages/typescript/ai-openrouter:
     dependencies:
       '@openrouter/sdk':
         specifier: 0.12.14
         version: 0.12.14
-      '@tanstack/ai-openai-compatible':
-        specifier: workspace:*
-        version: link:../ai-openai-compatible
       '@tanstack/ai-utils':
         specifier: workspace:*
         version: link:../ai-utils
@@ -1662,6 +1643,28 @@ importers:
       vue-tsc:
         specifier: ^2.2.10
         version: 2.2.12(typescript@5.9.3)
+
+  packages/typescript/openai-base:
+    dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:*
+        version: link:../ai-utils
+      openai:
+        specifier: ^6.9.1
+        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.0.14(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.3.0(postcss@8.5.9))(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      vite:
+        specifier: ^7.2.7
+        version: 7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      zod:
+        specifier: ^4.3.0
+        version: 4.3.6
 
   packages/typescript/preact-ai-devtools:
     dependencies:
@@ -21287,11 +21290,6 @@ snapshots:
       define-lazy-prop: 2.0.0
       is-docker: 2.2.1
       is-wsl: 2.2.0
-
-  openai@6.10.0(ws@8.19.0)(zod@4.2.1):
-    optionalDependencies:
-      ws: 8.19.0
-      zod: 4.2.1
 
   openai@6.10.0(ws@8.19.0)(zod@4.3.6):
     optionalDependencies:

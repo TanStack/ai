@@ -1,4 +1,4 @@
-import type { ShellToolConfig } from '../types/tools'
+import type { FunctionShellTool as ShellToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
 export type { ShellToolConfig }

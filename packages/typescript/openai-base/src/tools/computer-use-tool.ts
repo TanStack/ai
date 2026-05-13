@@ -1,4 +1,4 @@
-import type { ComputerUseToolConfig } from '../types/tools'
+import type { ComputerTool as ComputerUseToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
 export type { ComputerUseToolConfig }

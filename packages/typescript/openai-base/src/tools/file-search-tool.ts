@@ -1,4 +1,4 @@
-import type { FileSearchToolConfig } from '../types/tools'
+import type { FileSearchTool as FileSearchToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
 export type { FileSearchToolConfig }

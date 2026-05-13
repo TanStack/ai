@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/ai-openai-compatible'
+import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import type {
   GROK_CHAT_MODELS,
@@ -7,7 +7,6 @@ import type {
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
-import type OpenAI_SDK from 'openai'
 import type { Modality } from '@tanstack/ai'
 import type { GrokMessageMetadataByModality } from '../message-types'
 import type { GrokClientConfig } from '../utils'
@@ -36,9 +35,9 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  * Tree-shakeable adapter for Grok chat/text completion functionality.
  * Uses OpenAI-compatible Chat Completions API (not Responses API).
  *
- * Delegates implementation to {@link OpenAICompatibleChatCompletionsTextAdapter}
- * from `@tanstack/ai-openai-compatible` and threads Grok-specific tool-capability typing
- * through the 5th generic of the base class.
+ * Delegates implementation to {@link OpenAIBaseChatCompletionsTextAdapter}
+ * from `@tanstack/openai-base` and threads Grok-specific tool-capability
+ * typing through the 5th generic of the base class.
  */
 export class GrokTextAdapter<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
@@ -47,7 +46,7 @@ export class GrokTextAdapter<
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
-> extends OpenAICompatibleChatCompletionsTextAdapter<
+> extends OpenAIBaseChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
@@ -57,25 +56,8 @@ export class GrokTextAdapter<
   readonly kind = 'text' as const
   readonly name = 'grok' as const
 
-  protected client: OpenAI
-
   constructor(config: GrokTextConfig, model: TModel) {
-    super(model, 'grok')
-    this.client = new OpenAI(withGrokDefaults(config))
-  }
-
-  protected async callChatCompletion(
-    params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
-    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
-  ): Promise<OpenAI_SDK.Chat.Completions.ChatCompletion> {
-    return await this.client.chat.completions.create(params, requestOptions)
-  }
-
-  protected async callChatCompletionStream(
-    params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming,
-    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
-  ): Promise<AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>> {
-    return await this.client.chat.completions.create(params, requestOptions)
+    super(model, 'grok', new OpenAI(withGrokDefaults(config)))
   }
 }
 

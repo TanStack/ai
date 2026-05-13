@@ -5,19 +5,17 @@ import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
+import type OpenAI from 'openai'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
-  ChatCompletion,
   ChatCompletionChunk,
-  ChatCompletionChunkChoice,
   ChatCompletionContentPart,
-  ChatCompletionCreateParamsNonStreaming,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
-} from '../types/chat-completions'
+} from 'openai/resources/chat/completions/completions'
 import type {
   ContentPart,
   DefaultMessageMetadataByModality,
@@ -28,13 +26,12 @@ import type {
 } from '@tanstack/ai'
 
 /**
- * Shared implementation of the OpenAI Chat Completions wire format. Holds the
- * stream-accumulator + AG-UI lifecycle logic; subclasses provide the actual
- * SDK calls via the abstract `callChatCompletion*` hooks. The base never
- * imports the OpenAI SDK at runtime — it only borrows the SDK's TypeScript
- * shapes as the canonical reference for the protocol.
+ * Shared implementation of the OpenAI Chat Completions API. Holds the
+ * stream-accumulator + AG-UI lifecycle logic and calls the OpenAI SDK
+ * directly. Subclasses (ai-openai, ai-grok, ai-groq) construct an OpenAI
+ * client with their provider-specific `baseURL` / headers and pass it in.
  */
-export abstract class OpenAICompatibleChatCompletionsTextAdapter<
+export abstract class OpenAIBaseChatCompletionsTextAdapter<
   TModel extends string,
   TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
   TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
@@ -50,10 +47,12 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
 > {
   readonly kind = 'text' as const
   readonly name: string
+  protected client: OpenAI
 
-  constructor(model: TModel, name: string = 'openai-compatible') {
+  constructor(model: TModel, name: string, client: OpenAI) {
     super({}, model)
     this.name = name
+    this.client = client
   }
 
   async *chatStream(
@@ -79,7 +78,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
-      const stream = await this.callChatCompletionStream(
+      const stream = await this.client.chat.completions.create(
         {
           ...requestParams,
           stream: true,
@@ -160,7 +159,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.callChatCompletion(
+      const response = await this.client.chat.completions.create(
         {
           ...cleanParams,
           stream: false,
@@ -230,27 +229,6 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
   }
 
   /**
-   * Performs the non-streaming Chat Completions network call. Subclasses
-   * implement against whatever SDK or HTTP client they bridge to. Must
-   * return a value structurally compatible with `ChatCompletion` — the base
-   * reads documented fields like `response.choices[0].message.content`.
-   */
-  protected abstract callChatCompletion(
-    params: ChatCompletionCreateParamsNonStreaming,
-    requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<ChatCompletion>
-
-  /**
-   * Performs the streaming Chat Completions network call. Returns an
-   * `AsyncIterable<ChatCompletionChunk>`; the base's `processStreamChunks`
-   * only needs structural iteration over chunks.
-   */
-  protected abstract callChatCompletionStream(
-    params: ChatCompletionCreateParamsStreaming,
-    requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<AsyncIterable<ChatCompletionChunk>>
-
-  /**
    * Extract reasoning content from a stream chunk. Default returns
    * `undefined` because the OpenAI Chat Completions chunk shape doesn't
    * carry reasoning. The chunk param is typed `unknown` so an override can
@@ -297,7 +275,7 @@ export abstract class OpenAICompatibleChatCompletionsTextAdapter<
     // pick up usage from the trailing chunk regardless of arrival order.
     let lastUsage: ChatCompletionChunk['usage'] | undefined
     let pendingFinishReason:
-      | ChatCompletionChunkChoice['finish_reason']
+      | ChatCompletionChunk['choices'][number]['finish_reason']
       | undefined
 
     // Track tool calls being streamed (arguments come in chunks)

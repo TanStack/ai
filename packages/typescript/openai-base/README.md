@@ -1,4 +1,4 @@
-# @tanstack/ai-openai-compatible
+# @tanstack/openai-base
 
 Shared adapters for providers that implement OpenAI's wire-format protocols.
 
@@ -15,8 +15,8 @@ Together, Ollama's compat layer, Fireworks, and others are too.
 
 The package holds two shared base classes:
 
-- `OpenAICompatibleChatCompletionsTextAdapter`
-- `OpenAICompatibleResponsesTextAdapter`
+- `OpenAIBaseChatCompletionsTextAdapter`
+- `OpenAIBaseResponsesTextAdapter`
 
 Provider packages (`@tanstack/ai-openai`, `@tanstack/ai-openrouter`,
 `@tanstack/ai-groq`, `@tanstack/ai-grok`) subclass these and override a small
@@ -46,7 +46,7 @@ originally shipped it.
 
 ## What goes here vs. in `@tanstack/ai-openai`
 
-| Belongs in `@tanstack/ai-openai-compatible`                                                         | Belongs in `@tanstack/ai-openai`                                                                                              |
+| Belongs in `@tanstack/openai-base`                                                         | Belongs in `@tanstack/ai-openai`                                                                                              |
 | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Logic for the Chat Completions wire format                                                          | OpenAI-specific tool types (`web_search_preview`, `code_interpreter`, `local_shell`, `apply_patch`, `computer_use`, `mcp`, …) |
 | Logic for the Responses wire format                                                                 | OpenAI model metadata, model lists, capability matrices                                                                       |
@@ -93,12 +93,12 @@ because no compatible family exists.
 @tanstack/ai
 └── BaseTextAdapter  (abstract — emits AG-UI events)
     │
-    ├── @tanstack/ai-openai-compatible::OpenAICompatibleChatCompletionsTextAdapter
+    ├── @tanstack/openai-base::OpenAIBaseChatCompletionsTextAdapter
     │   ├── ai-openrouter
     │   ├── ai-groq
     │   └── ai-grok
     │
-    ├── @tanstack/ai-openai-compatible::OpenAICompatibleResponsesTextAdapter
+    ├── @tanstack/openai-base::OpenAIBaseResponsesTextAdapter
     │   ├── ai-openai (primary text adapter — Responses is OpenAI's preferred API)
     │   └── ai-openrouter (beta — routes to any underlying model)
     │
@@ -110,7 +110,7 @@ because no compatible family exists.
 Note: `ai-openai` ships only the Responses-based adapter. For pure Chat
 Completions use cases without OpenAI-specific behaviour, use `ai-grok`
 (xAI's API is a direct OpenAI Chat Completions clone) or build a new
-provider package extending `OpenAICompatibleChatCompletionsTextAdapter`.
+provider package extending `OpenAIBaseChatCompletionsTextAdapter`.
 
 ## Direct use
 

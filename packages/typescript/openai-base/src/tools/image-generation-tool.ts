@@ -1,5 +1,7 @@
-import type { ImageGenerationToolConfig } from '../types/tools'
+import type { Tool as SDKTool } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
+
+type ImageGenerationToolConfig = SDKTool.ImageGeneration
 
 export type { ImageGenerationToolConfig }
 

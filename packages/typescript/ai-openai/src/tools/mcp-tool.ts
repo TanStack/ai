@@ -1,13 +1,13 @@
-import { mcpTool as baseMcpTool } from '@tanstack/ai-openai-compatible'
+import { mcpTool as baseMcpTool } from '@tanstack/openai-base'
 import type { ProviderTool } from '@tanstack/ai'
-import type { MCPToolConfig } from '@tanstack/ai-openai-compatible'
+import type { MCPToolConfig } from '@tanstack/openai-base'
 
 export {
   type MCPToolConfig,
   type MCPTool,
   validateMCPtool,
   convertMCPToolToAdapterFormat,
-} from '@tanstack/ai-openai-compatible'
+} from '@tanstack/openai-base'
 
 export type OpenAIMCPTool = ProviderTool<'openai', 'mcp'>
 

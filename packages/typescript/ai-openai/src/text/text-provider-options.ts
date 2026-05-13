@@ -1,5 +1,5 @@
-import type { ResponseInput } from '@tanstack/ai-openai-compatible'
 import type OpenAI from 'openai'
+import type { ResponseInput } from 'openai/resources/responses/responses'
 import type { ApplyPatchTool } from '../tools/apply-patch-tool'
 import type { CodeInterpreterTool } from '../tools/code-interpreter-tool'
 import type { ComputerUseTool } from '../tools/computer-use-tool'

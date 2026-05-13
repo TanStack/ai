@@ -1,26 +1,32 @@
 import { OpenRouter } from '@openrouter/sdk'
-import {
-  OpenAICompatibleResponsesTextAdapter,
-  convertFunctionToolToResponsesFormat,
-} from '@tanstack/ai-openai-compatible'
+import { EventType } from '@tanstack/ai'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
+import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
+import { extractRequestOptions } from '../internal/request-options'
+import { makeStructuredOutputCompatible } from '../internal/schema-converter'
+import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool-converter'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import type { SDKOptions } from '@openrouter/sdk'
+import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
 import type {
   InputsUnion,
+  OpenResponsesResult,
   ResponsesRequest,
   StreamEvents,
 } from '@openrouter/sdk/models'
 import type {
-  ResponseCreateParams,
-  ResponseCreateParamsNonStreaming,
-  ResponseCreateParamsStreaming,
-  ResponseInputContent,
-  ResponseStreamEvent,
-  ResponsesFunctionTool,
-  ResponsesResponse,
-} from '@tanstack/ai-openai-compatible'
-import type { ContentPart, ModelMessage, TextOptions, Tool } from '@tanstack/ai'
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
+import type {
+  ContentPart,
+  ModelMessage,
+  StreamChunk,
+  TextOptions,
+  Tool,
+} from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type {
   OPENROUTER_CHAT_MODELS,
@@ -31,9 +37,11 @@ import type { OpenRouterMessageMetadataByModality } from '../message-types'
 
 /** Element type of `ResponsesRequest.input` when it's the array form (the
  *  SDK union also allows a bare string). Pinning to the array element lets
- *  the convertMessagesToInput override narrow to the per-item discriminated
+ *  the convertMessagesToInput logic narrow to the per-item discriminated
  *  union so a TS rename surfaces here. */
 type InputsItem = Extract<InputsUnion, ReadonlyArray<unknown>>[number]
+/** ResponsesRequest input content part shape (per-content-part discriminated union). */
+type ResponsesInputContent = unknown
 
 export interface OpenRouterResponsesConfig extends SDKOptions {}
 export type OpenRouterResponsesTextModels =
@@ -52,36 +60,16 @@ type ResolveToolCapabilities<TModel extends string> =
     : readonly []
 
 /**
- * OpenRouter Responses (beta) Adapter.
+ * OpenRouter Responses (beta) Adapter — standalone implementation that talks
+ * to OpenRouter's `/v1/responses` (beta) endpoint via the `@openrouter/sdk`
+ * SDK.
  *
- * Why this extends `OpenAICompatibleResponsesTextAdapter` from
- * `@tanstack/ai-openai-compatible`:
- *
- * OpenRouter's `/v1/responses` (beta) endpoint accepts OpenAI's Responses
- * wire format and fans out to any underlying model — including Anthropic
- * Claude and Google Gemini, neither of which has a native Responses
- * endpoint. That makes Responses a multi-vendor protocol from OpenRouter's
- * perspective, not an OpenAI-only product, and the shared compatible base
- * is the right place for the streaming event lifecycle, structured-output
- * flow, tool-call accumulator, and RUN_ERROR taxonomy that any Responses
- * implementer needs. If we duplicated that here we'd ship the same ~1.2k
- * LOC in OpenRouter and OpenAI separately and have to keep them in sync.
- *
- * What's different about OpenRouter (and why we still need overrides):
- *
- * The wire format is OpenAI-Responses-compatible, but the `@openrouter/sdk`
- * SDK exposes a different call shape — `client.beta.responses.send
- * ({ responsesRequest })` with camelCase fields. We override the two
- * SDK-call hooks (`callResponse` / `callResponseStream`) to bridge that,
- * plus chunk and result shape adapters on the way back.
- *
- * Behaviour preserved from the chat-completions migration:
- *   - Provider routing surface (`provider`, `models`, `plugins`,
- *     `variant`) passes through `modelOptions`.
- *   - App attribution headers (`httpReferer`, `appTitle`) and base URL
- *     overrides flow through the SDK `SDKOptions` constructor.
- *   - Model variant suffixing (e.g. `:thinking`, `:free`) via
- *     `modelOptions.variant`.
+ * The wire format is OpenAI-Responses-compatible (so OpenRouter can route
+ * Responses requests to GPT, Claude, Gemini, etc.) but the SDK exposes the
+ * request/response in camelCase TS shapes (`callId`, `imageUrl`,
+ * `fileData`, `outputIndex`, `itemId`, `inputTokens`, `incompleteDetails`,
+ * etc.). This adapter operates directly in those camelCase shapes — there's
+ * no snake_case ↔ camelCase round-trip.
  *
  * v1 routes function tools only. Passing a `webSearchTool()` brand throws
  * — OpenRouter's Responses API exposes richer server-tool variants
@@ -92,7 +80,7 @@ export class OpenRouterResponsesTextAdapter<
   TModel extends OpenRouterResponsesTextModels,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
-> extends OpenAICompatibleResponsesTextAdapter<
+> extends BaseTextAdapter<
   TModel,
   OpenRouterResponsesTextProviderOptions,
   ResolveInputModalities<TModel>,
@@ -105,80 +93,1027 @@ export class OpenRouterResponsesTextAdapter<
   protected orClient: OpenRouter
 
   constructor(config: OpenRouterResponsesConfig, model: TModel) {
-    super(model, 'openrouter-responses')
+    super({}, model)
     this.orClient = new OpenRouter(config)
   }
 
+  async *chatStream(
+    options: TextOptions<OpenRouterResponsesTextProviderOptions>,
+  ): AsyncIterable<StreamChunk> {
+    // Track tool call metadata by unique ID. The Responses API streams tool
+    // calls with deltas — first chunk has ID/name, subsequent chunks only
+    // have args. We assign our own indices as we encounter unique ids.
+    const toolCallMetadata = new Map<
+      string,
+      {
+        index: number
+        name: string
+        started: boolean
+        ended?: boolean
+        pendingArguments?: string
+      }
+    >()
+
+    // AG-UI lifecycle tracking
+    const aguiState = {
+      runId: generateId(this.name),
+      threadId: options.threadId ?? generateId(this.name),
+      messageId: generateId(this.name),
+      hasEmittedRunStarted: false,
+    }
+
+    try {
+      // mapOptionsToRequest can throw on caller-side validation failures
+      // (empty user content, unsupported parts, webSearchTool() rejection).
+      // Keep it inside the try so those failures surface as RUN_ERROR events
+      // instead of iterator throws.
+      const responsesRequest = this.mapOptionsToRequest(options)
+      options.logger.request(
+        `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: this.name, model: this.model },
+      )
+      const reqOptions = extractRequestOptions(options.request)
+      const response = (await this.orClient.beta.responses.send(
+        { responsesRequest: { ...responsesRequest, stream: true } },
+        {
+          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.headers && { headers: reqOptions.headers }),
+        },
+      )) as AsyncIterable<StreamEvents>
+
+      yield* this.processStreamChunks(
+        response,
+        toolCallMetadata,
+        options,
+        aguiState,
+      )
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      const errorPayload = toRunErrorPayload(
+        error,
+        `${this.name}.chatStream failed`,
+      )
+
+      // Emit RUN_STARTED if not yet emitted
+      if (!aguiState.hasEmittedRunStarted) {
+        aguiState.hasEmittedRunStarted = true
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model: options.model,
+          timestamp: Date.now(),
+        } satisfies StreamChunk
+      }
+
+      yield {
+        type: EventType.RUN_ERROR,
+        model: options.model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        code: errorPayload.code,
+        error: errorPayload,
+      } satisfies StreamChunk
+
+      options.logger.errors(`${this.name}.chatStream fatal`, {
+        error: errorPayload,
+        source: `${this.name}.chatStream`,
+      })
+    }
+  }
+
   /**
-   * Preserve nulls in structured-output results. OpenRouter routes through
-   * a wide variety of upstream providers; some of them return `null` as a
-   * distinct sentinel ("the field exists, the value is null") rather than
-   * collapsing it to absent. Stripping nulls here would erase that
-   * distinction. Mirrors the chat-completions adapter override.
+   * Generate structured output via OpenRouter's Responses API
+   * `text.format: { type: 'json_schema', ... }`. Uses stream: false.
    */
-  protected override transformStructuredOutput(parsed: unknown): unknown {
+  async structuredOutput(
+    options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const { chatOptions, outputSchema } = options
+    const responsesRequest = this.mapOptionsToRequest(chatOptions)
+
+    const jsonSchema = this.makeStructuredOutputCompatible(
+      outputSchema,
+      outputSchema.required,
+    )
+
+    try {
+      chatOptions.logger.request(
+        `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model },
+      )
+      const reqOptions = extractRequestOptions(chatOptions.request)
+      const response = await this.orClient.beta.responses.send(
+        {
+          responsesRequest: {
+            ...responsesRequest,
+            stream: false,
+            text: {
+              format: {
+                type: 'json_schema',
+                name: 'structured_output',
+                schema: jsonSchema,
+                strict: true,
+              },
+            } as ResponsesRequest['text'],
+          },
+        },
+        {
+          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.headers && { headers: reqOptions.headers }),
+        },
+      )
+
+      const rawText = this.extractTextFromResponse(response)
+
+      if (rawText.length === 0) {
+        throw new Error(
+          `${this.name}.structuredOutput: response contained no content`,
+        )
+      }
+
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(rawText)
+      } catch {
+        throw new Error(
+          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+        )
+      }
+
+      // OpenRouter override: pass nulls through unchanged.
+      const transformed = this.transformStructuredOutput(parsed)
+
+      return {
+        data: transformed,
+        rawText,
+      }
+    } catch (error: unknown) {
+      chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.structuredOutput failed`),
+        source: `${this.name}.structuredOutput`,
+      })
+      throw error
+    }
+  }
+
+  protected makeStructuredOutputCompatible(
+    schema: Record<string, any>,
+    originalRequired?: Array<string>,
+  ): Record<string, any> {
+    return makeStructuredOutputCompatible(schema, originalRequired)
+  }
+
+  /**
+   * OpenRouter routes through a wide variety of upstream providers; some
+   * return `null` as a distinct sentinel rather than collapsing it to absent.
+   * Stripping nulls would erase that distinction, so we passthrough.
+   *
+   * `transformNullsToUndefined` is imported for parity with the other
+   * provider adapters but intentionally not invoked here.
+   */
+  protected transformStructuredOutput(parsed: unknown): unknown {
+    void transformNullsToUndefined
     return parsed
   }
 
-  // ────────────────────────────────────────────────────────────────────────
-  // SDK call hooks — the params we get here were built by our overridden
-  // mapOptionsToRequest / convertMessagesToInput / convertContentPartToInput
-  // already in OpenRouter's camelCase TS shape, so only a type cast bridges
-  // the base's static snake_case signature. The inbound result/stream still
-  // needs camel → snake reshaping because the base's processStreamChunks /
-  // extractTextFromResponse read documented snake_case fields like
-  // `response.usage.input_tokens` and `chunk.item_id`.
-  // ────────────────────────────────────────────────────────────────────────
+  /**
+   * Extract text content from a non-streaming Responses API response.
+   * Reads OpenRouter's camelCase `OpenResponsesResult` shape directly.
+   */
+  protected extractTextFromResponse(response: OpenResponsesResult): string {
+    let textContent = ''
+    let refusal: string | undefined
+    let sawMessageItem = false
+    const observedItemTypes = new Set<string>()
 
-  protected override async callResponseStream(
-    params: ResponseCreateParamsStreaming,
-    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
-  ): Promise<AsyncIterable<ResponseStreamEvent>> {
-    const responsesRequest = params as unknown as Omit<
-      ResponsesRequest,
-      'stream'
-    >
-    // The SDK's EventStream is an AsyncIterable<StreamEvents>; treat it
-    // structurally so we don't need to depend on the SDK's class export.
-    const stream = (await this.orClient.beta.responses.send(
-      { responsesRequest: { ...responsesRequest, stream: true } },
-      {
-        signal: requestOptions.signal ?? undefined,
-        ...(requestOptions.headers && { headers: requestOptions.headers }),
-      },
-    )) as unknown as AsyncIterable<StreamEvents>
-    return adaptOpenRouterResponsesStreamEvents(stream)
+    for (const rawItem of response.output) {
+      const item = rawItem as { type: string; content?: ReadonlyArray<unknown> }
+      observedItemTypes.add(item.type)
+      if (item.type === 'message') {
+        sawMessageItem = true
+        for (const part of item.content ?? []) {
+          // Cast off the discriminated union before the type discrimination
+          // so future SDK variants (e.g. `output_audio`, `output_image`) hit
+          // the explicit error path rather than being misreported as refusals
+          // when they get added to the union.
+          const partType = (part as { type: string }).type
+          if (partType === 'output_text') {
+            textContent += (part as { text?: string }).text ?? ''
+          } else if (partType === 'refusal') {
+            const refusalText = (part as { refusal?: string }).refusal
+            refusal = refusalText || refusal || 'Refused without explanation'
+          } else {
+            throw new Error(
+              `${this.name}.extractTextFromResponse: unsupported message content part type "${partType}"`,
+            )
+          }
+        }
+      }
+    }
+
+    // Surface refusals as an explicit error so callers don't see a generic
+    // "Failed to parse structured output as JSON. Content: " when the model
+    // refused for safety / content-policy reasons.
+    if (!textContent && refusal !== undefined) {
+      const err = new Error(`Model refused to respond: ${refusal}`)
+      ;(err as Error & { code?: string }).code = 'refusal'
+      throw err
+    }
+
+    // Response had items but none carried message text (e.g. only
+    // function_call or reasoning items). Surface that explicitly so a
+    // downstream structured-output caller doesn't see a misleading
+    // "Failed to parse JSON. Content: " from an empty string.
+    if (!textContent && response.output.length > 0 && !sawMessageItem) {
+      throw new Error(
+        `${this.name}.extractTextFromResponse: response.output contained items of type(s) [${[...observedItemTypes].sort().join(', ')}] but no message text — the model returned a non-text response`,
+      )
+    }
+
+    return textContent
   }
 
-  protected override async callResponse(
-    params: ResponseCreateParamsNonStreaming,
-    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
-  ): Promise<ResponsesResponse> {
-    const responsesRequest = params as unknown as Omit<
-      ResponsesRequest,
-      'stream'
-    >
-    const result = await this.orClient.beta.responses.send(
-      { responsesRequest: { ...responsesRequest, stream: false } },
+  /**
+   * Processes streamed events from the OpenRouter Responses API and yields
+   * AG-UI events. Reads the SDK's camelCase event shape directly
+   * (`itemId`, `outputIndex`, `incompleteDetails`, `inputTokens`, etc.).
+   *
+   * Speakeasy's discriminated-union parser falls back to
+   * `{ raw, type: 'UNKNOWN', isUnknown: true }` when an event's strict
+   * per-variant schema rejects (missing optional fields like `sequenceNumber`
+   * that some upstreams omit). The `raw` payload is the original wire-shape
+   * event in snake_case. We translate snake_case keys to camelCase for those
+   * unknown events so the rest of the processor reads a uniform shape.
+   */
+  protected async *processStreamChunks(
+    stream: AsyncIterable<StreamEvents>,
+    toolCallMetadata: Map<
+      string,
       {
-        signal: requestOptions.signal ?? undefined,
-        ...(requestOptions.headers && { headers: requestOptions.headers }),
-      },
-    )
-    return adaptOpenRouterResponsesResult(result)
-  }
-
-  // ────────────────────────────────────────────────────────────────────────
-  // Request construction — emit OpenRouter's camelCase TS shape directly so
-  // a `Pick<ResponsesRequest, …>` annotation catches any field-name drift at
-  // compile time. Returned via `unknown as Omit<ResponseCreateParams, 'stream'>`
-  // because the base's signature is the OpenAI snake_case type; the SDK call
-  // hooks above just pass the value through.
-  // ────────────────────────────────────────────────────────────────────────
-
-  protected override mapOptionsToRequest(
+        index: number
+        name: string
+        started: boolean
+        ended?: boolean
+        pendingArguments?: string
+      }
+    >,
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
-  ): Omit<ResponseCreateParams, 'stream'> {
+    aguiState: {
+      runId: string
+      threadId: string
+      messageId: string
+      hasEmittedRunStarted: boolean
+    },
+  ): AsyncIterable<StreamChunk> {
+    let accumulatedContent = ''
+    let accumulatedReasoning = ''
+
+    let hasStreamedContentDeltas = false
+    let hasStreamedReasoningDeltas = false
+
+    let model: string = options.model
+
+    let stepId: string | null = null
+    let hasEmittedTextMessageStart = false
+    let hasEmittedStepStarted = false
+    let runFinishedEmitted = false
+
+    try {
+      for await (const rawEvent of stream) {
+        const chunk = normalizeStreamEvent(rawEvent)
+        options.logger.provider(`provider=${this.name} type=${chunk.type}`, {
+          provider: this.name,
+          type: chunk.type,
+        })
+
+        // Emit RUN_STARTED on first chunk
+        if (!aguiState.hasEmittedRunStarted) {
+          aguiState.hasEmittedRunStarted = true
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: aguiState.runId,
+            threadId: aguiState.threadId,
+            model: model || options.model,
+            timestamp: Date.now(),
+          } satisfies StreamChunk
+        }
+
+        const handleContentPart = (contentPart: {
+          type: string
+          text?: string
+          refusal?: string
+        }): StreamChunk => {
+          if (contentPart.type === 'output_text') {
+            accumulatedContent += contentPart.text || ''
+            return {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: contentPart.text || '',
+              content: accumulatedContent,
+            } satisfies StreamChunk
+          }
+
+          if (contentPart.type === 'reasoning_text') {
+            accumulatedReasoning += contentPart.text || ''
+            // Cache the fallback stepId rather than generating a fresh one
+            // on every call.
+            if (!stepId) {
+              stepId = generateId(this.name)
+            }
+            return {
+              type: EventType.STEP_FINISHED,
+              stepName: stepId,
+              stepId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: contentPart.text || '',
+              content: accumulatedReasoning,
+            } satisfies StreamChunk
+          }
+          // Either a real refusal or an unknown content_part type. Surface
+          // the part type in the error so unknown parts are debuggable
+          // instead of being misreported as "Unknown refusal".
+          const isRefusal = contentPart.type === 'refusal'
+          const message = isRefusal
+            ? contentPart.refusal || 'Refused without explanation'
+            : `Unsupported response content_part type: ${contentPart.type}`
+          const code = isRefusal ? 'refusal' : contentPart.type
+          return {
+            type: EventType.RUN_ERROR,
+            model: model || options.model,
+            timestamp: Date.now(),
+            message,
+            code,
+            error: { message, code },
+          } satisfies StreamChunk
+        }
+
+        // Capture model metadata from any of these events.
+        if (
+          chunk.type === 'response.created' ||
+          chunk.type === 'response.in_progress' ||
+          chunk.type === 'response.incomplete' ||
+          chunk.type === 'response.failed'
+        ) {
+          const r = chunk.response as { model?: string } | undefined
+          if (r?.model) model = r.model
+        }
+
+        // response.created marks the start of a fresh run — safe to reset
+        // the per-run accumulators here.
+        if (chunk.type === 'response.created') {
+          hasStreamedContentDeltas = false
+          hasStreamedReasoningDeltas = false
+          hasEmittedTextMessageStart = false
+          hasEmittedStepStarted = false
+          accumulatedContent = ''
+          accumulatedReasoning = ''
+        }
+
+        // response.failed and response.incomplete are TERMINAL events.
+        if (
+          chunk.type === 'response.failed' ||
+          chunk.type === 'response.incomplete'
+        ) {
+          if (hasEmittedTextMessageStart) {
+            yield {
+              type: EventType.TEXT_MESSAGE_END,
+              messageId: aguiState.messageId,
+              model,
+              timestamp: Date.now(),
+            } satisfies StreamChunk
+            hasEmittedTextMessageStart = false
+          }
+          const r = (chunk.response ?? {}) as {
+            error?: { message?: string; code?: unknown } | null
+            incompleteDetails?: { reason?: string } | null
+          }
+          const errorMessage =
+            r.error?.message ||
+            r.incompleteDetails?.reason ||
+            (chunk.type === 'response.failed'
+              ? 'Response failed'
+              : 'Response ended incomplete')
+          const errorCode =
+            normalizeCode(r.error?.code) ??
+            (r.incompleteDetails ? 'incomplete' : undefined) ??
+            undefined
+          yield {
+            type: EventType.RUN_ERROR,
+            model,
+            timestamp: Date.now(),
+            message: errorMessage,
+            ...(errorCode !== undefined && { code: errorCode }),
+            error: {
+              message: errorMessage,
+              ...(errorCode !== undefined && { code: errorCode }),
+            },
+          } satisfies StreamChunk
+          runFinishedEmitted = true
+          return
+        }
+
+        // Handle output text deltas (token-by-token streaming)
+        if (chunk.type === 'response.output_text.delta' && chunk.delta) {
+          const textDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+
+          if (textDelta) {
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: aguiState.messageId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                role: 'assistant',
+              } satisfies StreamChunk
+            }
+
+            accumulatedContent += textDelta
+            hasStreamedContentDeltas = true
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: textDelta,
+              content: accumulatedContent,
+            } satisfies StreamChunk
+          }
+        }
+
+        // Handle reasoning deltas
+        if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
+          const reasoningDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+
+          if (reasoningDelta) {
+            if (!hasEmittedStepStarted) {
+              hasEmittedStepStarted = true
+              stepId = generateId(this.name)
+              yield {
+                type: EventType.STEP_STARTED,
+                stepName: stepId,
+                stepId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                stepType: 'thinking',
+              } satisfies StreamChunk
+            }
+
+            accumulatedReasoning += reasoningDelta
+            hasStreamedReasoningDeltas = true
+            const fallbackStepId = stepId || generateId(this.name)
+            yield {
+              type: EventType.STEP_FINISHED,
+              stepName: fallbackStepId,
+              stepId: fallbackStepId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: reasoningDelta,
+              content: accumulatedReasoning,
+            } satisfies StreamChunk
+          }
+        }
+
+        // Handle reasoning summary deltas
+        if (
+          chunk.type === 'response.reasoning_summary_text.delta' &&
+          chunk.delta
+        ) {
+          const summaryDelta =
+            typeof chunk.delta === 'string' ? chunk.delta : ''
+
+          if (summaryDelta) {
+            if (!hasEmittedStepStarted) {
+              hasEmittedStepStarted = true
+              stepId = generateId(this.name)
+              yield {
+                type: EventType.STEP_STARTED,
+                stepName: stepId,
+                stepId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                stepType: 'thinking',
+              } satisfies StreamChunk
+            }
+
+            accumulatedReasoning += summaryDelta
+            hasStreamedReasoningDeltas = true
+            const fallbackStepId = stepId || generateId(this.name)
+            yield {
+              type: EventType.STEP_FINISHED,
+              stepName: fallbackStepId,
+              stepId: fallbackStepId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: summaryDelta,
+              content: accumulatedReasoning,
+            } satisfies StreamChunk
+          }
+        }
+
+        // handle content_part added events for text, reasoning and refusals
+        if (chunk.type === 'response.content_part.added') {
+          const contentPart = chunk.part as {
+            type: string
+            text?: string
+            refusal?: string
+          }
+          if (
+            contentPart.type === 'output_text' &&
+            !hasEmittedTextMessageStart
+          ) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              role: 'assistant',
+            } satisfies StreamChunk
+          }
+          if (contentPart.type === 'reasoning_text' && !hasEmittedStepStarted) {
+            hasEmittedStepStarted = true
+            stepId = generateId(this.name)
+            yield {
+              type: EventType.STEP_STARTED,
+              stepName: stepId,
+              stepId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              stepType: 'thinking',
+            } satisfies StreamChunk
+          }
+          if (contentPart.type === 'output_text') {
+            hasStreamedContentDeltas = true
+          } else if (contentPart.type === 'reasoning_text') {
+            hasStreamedReasoningDeltas = true
+          }
+          const partChunk = handleContentPart(contentPart)
+          yield partChunk
+          if (partChunk.type === 'RUN_ERROR') {
+            runFinishedEmitted = true
+            return
+          }
+        }
+
+        if (chunk.type === 'response.content_part.done') {
+          const contentPart = chunk.part as {
+            type: string
+            text?: string
+            refusal?: string
+          }
+
+          // Skip emitting chunks for content parts that we've already streamed via deltas
+          if (contentPart.type === 'output_text' && hasStreamedContentDeltas) {
+            continue
+          }
+          if (
+            contentPart.type === 'reasoning_text' &&
+            hasStreamedReasoningDeltas
+          ) {
+            continue
+          }
+
+          // Upstreams that emit `content_part.done` without any preceding
+          // deltas (or `content_part.added`) still need a START event before
+          // CONTENT.
+          if (
+            contentPart.type === 'output_text' &&
+            !hasEmittedTextMessageStart
+          ) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              role: 'assistant',
+            } satisfies StreamChunk
+          } else if (
+            contentPart.type === 'reasoning_text' &&
+            !hasEmittedStepStarted
+          ) {
+            hasEmittedStepStarted = true
+            stepId = generateId(this.name)
+            yield {
+              type: EventType.STEP_STARTED,
+              stepName: stepId,
+              stepId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              stepType: 'thinking',
+            } satisfies StreamChunk
+          }
+
+          const doneChunk = handleContentPart(contentPart)
+          yield doneChunk
+          if (doneChunk.type === 'RUN_ERROR') {
+            runFinishedEmitted = true
+            return
+          }
+        }
+
+        // handle output_item.added to capture function call metadata (name)
+        if (chunk.type === 'response.output_item.added') {
+          const item = chunk.item as {
+            type: string
+            id?: string
+            name?: string
+          }
+          if (item.type === 'function_call' && item.id) {
+            const existing = toolCallMetadata.get(item.id)
+            if (!existing) {
+              toolCallMetadata.set(item.id, {
+                index: chunk.outputIndex ?? 0,
+                name: item.name || '',
+                started: false,
+              })
+            } else if (!existing.name && item.name) {
+              existing.name = item.name
+            }
+            const metadata = toolCallMetadata.get(item.id)!
+            if (!metadata.started && metadata.name) {
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: item.id,
+                toolCallName: metadata.name,
+                toolName: metadata.name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                index: chunk.outputIndex ?? 0,
+              } satisfies StreamChunk
+              metadata.started = true
+            }
+          }
+        }
+
+        // Handle function call arguments delta (streaming).
+        if (
+          chunk.type === 'response.function_call_arguments.delta' &&
+          chunk.delta
+        ) {
+          const itemId = chunk.itemId ?? ''
+          const metadata = toolCallMetadata.get(itemId)
+          if (!metadata?.started) {
+            options.logger.errors(
+              `${this.name}.processStreamChunks orphan function_call_arguments.delta`,
+              {
+                source: `${this.name}.processStreamChunks`,
+                toolCallId: itemId,
+                rawDelta: chunk.delta,
+              },
+            )
+            continue
+          }
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: itemId,
+            model: model || options.model,
+            timestamp: Date.now(),
+            delta: typeof chunk.delta === 'string' ? chunk.delta : '',
+          } satisfies StreamChunk
+        }
+
+        if (chunk.type === 'response.function_call_arguments.done') {
+          const itemId = chunk.itemId ?? ''
+
+          const metadata = toolCallMetadata.get(itemId)
+          if (!metadata?.started) {
+            if (metadata) {
+              metadata.pendingArguments = chunk.arguments
+            }
+            options.logger.errors(
+              `${this.name}.processStreamChunks deferring function_call_arguments.done — TOOL_CALL_START not yet emitted (waiting for name)`,
+              {
+                source: `${this.name}.processStreamChunks`,
+                toolCallId: itemId,
+                rawArguments: chunk.arguments,
+              },
+            )
+            continue
+          }
+          if (metadata.ended) continue
+          const name = metadata.name || ''
+          metadata.ended = true
+
+          let parsedInput: unknown = {}
+          if (chunk.arguments) {
+            try {
+              const parsed = JSON.parse(chunk.arguments)
+              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+            } catch (parseError) {
+              options.logger.errors(
+                `${this.name}.processStreamChunks tool-args JSON parse failed`,
+                {
+                  error: toRunErrorPayload(
+                    parseError,
+                    `tool ${name} (${itemId}) returned malformed JSON arguments`,
+                  ),
+                  source: `${this.name}.processStreamChunks`,
+                  toolCallId: itemId,
+                  toolName: name,
+                  rawArguments: chunk.arguments,
+                },
+              )
+              parsedInput = {}
+            }
+          }
+
+          yield {
+            type: EventType.TOOL_CALL_END,
+            toolCallId: itemId,
+            toolCallName: name,
+            toolName: name,
+            model: model || options.model,
+            timestamp: Date.now(),
+            input: parsedInput,
+          } satisfies StreamChunk
+        }
+
+        // `output_item.done` is the last point at which a function_call's
+        // name is guaranteed to be on the wire.
+        if (chunk.type === 'response.output_item.done') {
+          const item = chunk.item as {
+            type: string
+            id?: string
+            name?: string
+            arguments?: string
+          }
+          if (item.type === 'function_call' && item.id) {
+            const metadata = toolCallMetadata.get(item.id) ?? {
+              index: chunk.outputIndex ?? 0,
+              name: item.name || '',
+              started: false,
+            }
+            if (!toolCallMetadata.has(item.id)) {
+              toolCallMetadata.set(item.id, metadata)
+            } else if (!metadata.name && item.name) {
+              metadata.name = item.name
+            }
+            if (!metadata.started && metadata.name) {
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: item.id,
+                toolCallName: metadata.name,
+                toolName: metadata.name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                index: metadata.index,
+              } satisfies StreamChunk
+              metadata.started = true
+            }
+            const rawArgs =
+              typeof item.arguments === 'string' && item.arguments.length > 0
+                ? item.arguments
+                : metadata.pendingArguments
+            if (metadata.started && !metadata.ended && rawArgs !== undefined) {
+              const name = metadata.name || ''
+              let parsedInput: unknown = {}
+              if (rawArgs) {
+                try {
+                  const parsed = JSON.parse(rawArgs)
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
+                } catch (parseError) {
+                  options.logger.errors(
+                    `${this.name}.processStreamChunks tool-args JSON parse failed (output_item.done backfill)`,
+                    {
+                      error: toRunErrorPayload(
+                        parseError,
+                        `tool ${name} (${item.id}) returned malformed JSON arguments`,
+                      ),
+                      source: `${this.name}.processStreamChunks`,
+                      toolCallId: item.id,
+                      toolName: name,
+                      rawArguments: rawArgs,
+                    },
+                  )
+                  parsedInput = {}
+                }
+              }
+              yield {
+                type: EventType.TOOL_CALL_END,
+                toolCallId: item.id,
+                toolCallName: name,
+                toolName: name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                input: parsedInput,
+              } satisfies StreamChunk
+              metadata.ended = true
+              metadata.pendingArguments = undefined
+            }
+          }
+        }
+
+        if (chunk.type === 'response.completed') {
+          const responseObj = (chunk.response ?? {}) as {
+            output?: ReadonlyArray<unknown>
+            usage?: {
+              inputTokens?: number
+              outputTokens?: number
+              totalTokens?: number
+            } | null
+            incompleteDetails?: { reason?: string } | null
+          }
+          const outputItems = Array.isArray(responseObj.output)
+            ? responseObj.output
+            : []
+
+          // Final backstop for function_call lifecycle.
+          for (const rawItem of outputItems) {
+            const item = rawItem as {
+              type?: string
+              id?: string
+              name?: string
+              arguments?: string
+            }
+            if (item.type !== 'function_call' || !item.id) continue
+            const metadata = toolCallMetadata.get(item.id) ?? {
+              index: 0,
+              name: item.name || '',
+              started: false,
+            }
+            if (!toolCallMetadata.has(item.id)) {
+              toolCallMetadata.set(item.id, metadata)
+            } else if (!metadata.name && item.name) {
+              metadata.name = item.name
+            }
+            if (!metadata.started && metadata.name) {
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: item.id,
+                toolCallName: metadata.name,
+                toolName: metadata.name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                index: metadata.index,
+              } satisfies StreamChunk
+              metadata.started = true
+            }
+            const rawArgs =
+              typeof item.arguments === 'string' && item.arguments.length > 0
+                ? item.arguments
+                : metadata.pendingArguments
+            if (metadata.started && !metadata.ended) {
+              const name = metadata.name || ''
+              let parsedInput: unknown = {}
+              if (rawArgs) {
+                try {
+                  const parsed = JSON.parse(rawArgs)
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
+                } catch (parseError) {
+                  options.logger.errors(
+                    `${this.name}.processStreamChunks tool-args JSON parse failed (response.completed backfill)`,
+                    {
+                      error: toRunErrorPayload(
+                        parseError,
+                        `tool ${name} (${item.id}) returned malformed JSON arguments`,
+                      ),
+                      source: `${this.name}.processStreamChunks`,
+                      toolCallId: item.id,
+                      toolName: name,
+                      rawArguments: rawArgs,
+                    },
+                  )
+                  parsedInput = {}
+                }
+              }
+              yield {
+                type: EventType.TOOL_CALL_END,
+                toolCallId: item.id,
+                toolCallName: name,
+                toolName: name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                input: parsedInput,
+              } satisfies StreamChunk
+              metadata.ended = true
+              metadata.pendingArguments = undefined
+            }
+          }
+
+          if (hasEmittedTextMessageStart) {
+            yield {
+              type: EventType.TEXT_MESSAGE_END,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+            } satisfies StreamChunk
+            hasEmittedTextMessageStart = false
+          }
+
+          const hasFunctionCalls = outputItems.some(
+            (item) => (item as { type?: string }).type === 'function_call',
+          )
+          const incompleteReason = responseObj.incompleteDetails?.reason
+          const finishReason:
+            | 'tool_calls'
+            | 'length'
+            | 'content_filter'
+            | 'stop' = hasFunctionCalls
+            ? 'tool_calls'
+            : incompleteReason === 'max_output_tokens'
+              ? 'length'
+              : incompleteReason === 'content_filter'
+                ? 'content_filter'
+                : 'stop'
+
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: aguiState.runId,
+            threadId: aguiState.threadId,
+            model: model || options.model,
+            timestamp: Date.now(),
+            usage: {
+              promptTokens: responseObj.usage?.inputTokens || 0,
+              completionTokens: responseObj.usage?.outputTokens || 0,
+              totalTokens: responseObj.usage?.totalTokens || 0,
+            },
+            finishReason,
+          } satisfies StreamChunk
+          runFinishedEmitted = true
+        }
+
+        if (chunk.type === 'error') {
+          const code = normalizeCode(chunk.code)
+          yield {
+            type: EventType.RUN_ERROR,
+            model: model || options.model,
+            timestamp: Date.now(),
+            message: chunk.message ?? '',
+            ...(code !== undefined && { code }),
+            error: {
+              message: chunk.message ?? '',
+              ...(code !== undefined && { code }),
+            },
+          } satisfies StreamChunk
+          runFinishedEmitted = true
+          return
+        }
+      }
+
+      // Synthetic terminal RUN_FINISHED if the stream ended without a
+      // response.completed event.
+      if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
+        if (hasEmittedTextMessageStart) {
+          yield {
+            type: EventType.TEXT_MESSAGE_END,
+            messageId: aguiState.messageId,
+            model: model || options.model,
+            timestamp: Date.now(),
+          } satisfies StreamChunk
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model: model || options.model,
+          timestamp: Date.now(),
+          usage: undefined,
+          finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
+        } satisfies StreamChunk
+      }
+    } catch (error: unknown) {
+      const errorPayload = toRunErrorPayload(
+        error,
+        `${this.name}.processStreamChunks failed`,
+      )
+      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
+        error: errorPayload,
+        source: `${this.name}.processStreamChunks`,
+      })
+      yield {
+        type: EventType.RUN_ERROR,
+        model: options.model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        code: errorPayload.code,
+        error: errorPayload,
+      } satisfies StreamChunk
+    }
+  }
+
+  /**
+   * Build an OpenRouter `ResponsesRequest` (camelCase) from `TextOptions`.
+   */
+  protected mapOptionsToRequest(
+    options: TextOptions<OpenRouterResponsesTextProviderOptions>,
+  ): Omit<ResponsesRequest, 'stream'> {
     // Fail loud on webSearchTool() — v1 only routes function tools.
     if (options.tools) {
       for (const tool of options.tools) {
@@ -192,7 +1127,6 @@ export class OpenRouterResponsesTextAdapter<
       }
     }
 
-    // Apply the same modelOptions/variant precedence as the chat adapter.
     const modelOptions = options.modelOptions as
       | (Partial<ResponsesRequest> & { variant?: string })
       | undefined
@@ -200,14 +1134,10 @@ export class OpenRouterResponsesTextAdapter<
       ? `:${modelOptions.variant}`
       : ''
 
-    // The override below returns Array<InputsUnion> — re-cast through the
-    // base's documented shape so this local has the type a Pick<…> expects.
-    const input = this.convertMessagesToInput(options.messages) as unknown as
-      | ResponsesRequest['input']
-      | undefined
+    const input = this.convertMessagesToInput(options.messages)
 
-    // Reuse the ai-openai-compatible function-tool converter. ResponsesFunctionTool
-    // already matches OpenRouter's ResponsesRequestToolFunction shape:
+    // ResponsesFunctionTool already matches OpenRouter's
+    // ResponsesRequestToolFunction shape:
     // `{ type:'function', name, parameters, description, strict }`.
     const tools: Array<ResponsesFunctionTool> | undefined = options.tools
       ? options.tools.map((tool) =>
@@ -218,9 +1148,6 @@ export class OpenRouterResponsesTextAdapter<
         )
       : undefined
 
-    // `Pick<ResponsesRequest, …>` is the static gate — if the SDK renames any
-    // of these keys in a future version this annotation breaks the build
-    // instead of silently producing a request the wire schema drops.
     const built: Pick<
       ResponsesRequest,
       | 'model'
@@ -248,37 +1175,28 @@ export class OpenRouterResponsesTextAdapter<
         options.systemPrompts.length > 0 && {
           instructions: options.systemPrompts.join('\n'),
         }),
-      input,
+      input: input as ResponsesRequest['input'],
       ...(tools &&
         tools.length > 0 && {
-          tools: tools as unknown as ResponsesRequest['tools'],
+          tools: tools as ResponsesRequest['tools'],
         }),
     }
 
-    return built as unknown as Omit<ResponseCreateParams, 'stream'>
+    return built
   }
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Message + content converters — emit OpenRouter's camelCase TS shape
-  // (`callId`, `imageUrl`, `inputAudio`, `videoUrl`, `fileData`, `fileUrl`)
-  // directly. The return-type cast through `unknown` bridges to the base's
-  // signature without giving up the OpenRouter-shape return inside.
-  // ────────────────────────────────────────────────────────────────────────
-
-  protected override convertMessagesToInput(
+  /**
+   * Convert a list of ModelMessage to OpenRouter's `InputsUnion` array form.
+   * Emits camelCase shapes (`callId`, `imageUrl`, `videoUrl`, `fileData`,
+   * `fileUrl`).
+   */
+  protected convertMessagesToInput(
     messages: Array<ModelMessage>,
-  ): ReturnType<
-    OpenAICompatibleResponsesTextAdapter<TModel>['convertMessagesToInput']
-  > {
+  ): Array<InputsItem> {
     const result: Array<InputsItem> = []
 
     for (const message of messages) {
       if (message.role === 'tool') {
-        // For structured (Array<ContentPart>) tool results, extract the text
-        // content rather than JSON-stringifying the parts — sending the raw
-        // ContentPart shape (e.g. `[{"type":"text","content":"…"}]`) into the
-        // `output` field would feed the literal JSON of the parts back to the
-        // model instead of the tool's textual result.
         result.push({
           type: 'function_call_output',
           callId: message.toolCallId || '',
@@ -286,16 +1204,13 @@ export class OpenRouterResponsesTextAdapter<
             typeof message.content === 'string'
               ? message.content
               : this.extractTextContent(message.content),
-        } as unknown as InputsItem)
+        } as InputsItem)
         continue
       }
 
       if (message.role === 'assistant') {
         if (message.toolCalls && message.toolCalls.length > 0) {
           for (const toolCall of message.toolCalls) {
-            // Stringify object-shaped args to match the SDK's `arguments:
-            // string` contract — mirrors the chat adapter's fix (see
-            // commit 0171b18e).
             const argumentsString =
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
@@ -306,7 +1221,7 @@ export class OpenRouterResponsesTextAdapter<
               id: toolCall.id,
               name: toolCall.function.name,
               arguments: argumentsString,
-            } as unknown as InputsItem)
+            } as InputsItem)
           }
         }
 
@@ -317,15 +1232,15 @@ export class OpenRouterResponsesTextAdapter<
               type: 'message',
               role: 'assistant',
               content: contentStr,
-            } as unknown as InputsItem)
+            } as InputsItem)
           }
         }
         continue
       }
 
-      // user — fail loud on empty / unsupported content (mirrors the base).
+      // user — fail loud on empty / unsupported content.
       const contentParts = this.normalizeContent(message.content)
-      const inputContent: Array<ResponseInputContent> = []
+      const inputContent: Array<ResponsesInputContent> = []
       for (const part of contentParts) {
         inputContent.push(this.convertContentPartToInput(part))
       }
@@ -340,23 +1255,19 @@ export class OpenRouterResponsesTextAdapter<
         type: 'message',
         role: 'user',
         content: inputContent,
-      } as unknown as InputsItem)
+      } as InputsItem)
     }
 
-    return result as unknown as ReturnType<
-      OpenAICompatibleResponsesTextAdapter<TModel>['convertMessagesToInput']
-    >
+    return result
   }
 
-  protected override convertContentPartToInput(
-    part: ContentPart,
-  ): ResponseInputContent {
+  protected convertContentPartToInput(part: ContentPart): ResponsesInputContent {
     switch (part.type) {
       case 'text':
         return {
           type: 'input_text',
           text: part.content,
-        } as ResponseInputContent
+        }
       case 'image': {
         const meta = part.metadata as
           | { detail?: 'auto' | 'low' | 'high' }
@@ -370,7 +1281,7 @@ export class OpenRouterResponsesTextAdapter<
           type: 'input_image',
           imageUrl,
           detail: meta?.detail || 'auto',
-        } as unknown as ResponseInputContent
+        }
       }
       case 'audio': {
         if (part.source.type === 'url') {
@@ -380,24 +1291,24 @@ export class OpenRouterResponsesTextAdapter<
           return {
             type: 'input_file',
             fileUrl: part.source.value,
-          } as unknown as ResponseInputContent
+          }
         }
         return {
           type: 'input_audio',
           inputAudio: { data: part.source.value, format: 'mp3' },
-        } as unknown as ResponseInputContent
+        }
       }
       case 'video':
         return {
           type: 'input_video',
           videoUrl: part.source.value,
-        } as unknown as ResponseInputContent
+        }
       case 'document': {
         if (part.source.type === 'url') {
           return {
             type: 'input_file',
             fileUrl: part.source.value,
-          } as unknown as ResponseInputContent
+          }
         }
         const mime = part.source.mimeType || 'application/octet-stream'
         const data = part.source.value.startsWith('data:')
@@ -406,7 +1317,7 @@ export class OpenRouterResponsesTextAdapter<
         return {
           type: 'input_file',
           fileData: data,
-        } as unknown as ResponseInputContent
+        }
       }
       default:
         throw new Error(
@@ -414,218 +1325,153 @@ export class OpenRouterResponsesTextAdapter<
         )
     }
   }
-}
 
-// ──────────────────────────────────────────────────────────────────────────
-// Inbound stream-event bridge: OpenRouter SDK camelCase → OpenAI snake_case
-// so the base's `processStreamChunks` reads documented fields unchanged.
-// (Outbound conversion is no longer needed — the adapter overrides above
-// emit OpenRouter camelCase directly.)
-// ──────────────────────────────────────────────────────────────────────────
+  protected normalizeContent(
+    content: string | null | Array<ContentPart>,
+  ): Array<ContentPart> {
+    if (content === null) {
+      return []
+    }
+    if (typeof content === 'string') {
+      return [{ type: 'text', content: content }]
+    }
+    return content
+  }
+
+  protected extractTextContent(
+    content: string | null | Array<ContentPart>,
+  ): string {
+    if (content === null) {
+      return ''
+    }
+    if (typeof content === 'string') {
+      return content
+    }
+    return content
+      .filter((p) => p.type === 'text')
+      .map((p) => p.content)
+      .join('')
+  }
+}
 
 /**
- * Adapt OpenRouter's streaming events (camelCase, with extended event types)
- * into the OpenAI Responses event shape the base's `processStreamChunks`
- * reads. Reshapes the nested `response` payload for terminal events
- * (`response.completed`, `response.failed`, `response.incomplete`,
- * `response.created`) into snake_case so reads like
- * `chunk.response.incomplete_details?.reason` and
- * `chunk.response.usage.input_tokens` work unchanged.
+ * Normalised event shape we read off each OpenRouter SDK stream event after
+ * camel-case translation. Models the loose superset of fields we consult
+ * across all event-type branches; specific branches narrow further inline.
  */
-async function* adaptOpenRouterResponsesStreamEvents(
-  stream: AsyncIterable<StreamEvents>,
-): AsyncIterable<ResponseStreamEvent> {
-  for await (const event of stream) {
-    const e = event as Record<string, any>
+interface NormalizedStreamEvent {
+  type: string
+  itemId?: string
+  outputIndex?: number
+  contentIndex?: number
+  delta?: string | Array<string>
+  text?: string
+  arguments?: string
+  message?: string
+  code?: unknown
+  param?: string | null
+  sequenceNumber?: number
+  response?: unknown
+  item?: unknown
+  part?: unknown
+}
 
-    // Speakeasy's discriminated-union parser falls back to `{ raw, type:
-    // 'UNKNOWN', isUnknown: true }` when an event's strict per-variant schema
-    // rejects (missing optional-ish fields like `sequence_number`/`logprobs`
-    // that some upstreams — including aimock — omit). The `raw` payload is
-    // the original wire-shape event in snake_case, which is exactly what the
-    // base's `processStreamChunks` reads. Re-emit it verbatim.
-    if (e.isUnknown && e.raw && typeof e.raw === 'object') {
-      yield e.raw as ResponseStreamEvent
-      continue
+/**
+ * Translate the SDK's discriminated-union event into a uniform camelCase
+ * shape our processor reads.
+ *
+ * The SDK's discriminated-union parser falls back to
+ * `{ raw, type: 'UNKNOWN', isUnknown: true }` when an event's strict per-
+ * variant schema rejects (missing optional-ish fields like `sequenceNumber`/
+ * `logprobs` that some upstreams — including aimock — omit). The `raw`
+ * payload is the original wire-shape event in snake_case. We translate
+ * snake_case keys to camelCase for those unknown events so the rest of the
+ * processor reads a uniform shape.
+ *
+ * Known events already have camelCase fields and are passed through.
+ */
+function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
+  const e = event as {
+    isUnknown?: boolean
+    raw?: unknown
+    type?: string
+    [k: string]: unknown
+  }
+
+  if (e.isUnknown && e.raw && typeof e.raw === 'object') {
+    const raw = e.raw as Record<string, unknown>
+    // Translate the snake_case wire-shape fields we need into camelCase. The
+    // adapter only consults the fields below; any others are passed through
+    // verbatim so downstream extraction (e.g. for unknown event types) still
+    // sees them.
+    const out: Record<string, unknown> = { ...raw }
+    if ('item_id' in raw) out.itemId = raw.item_id
+    if ('output_index' in raw) out.outputIndex = raw.output_index
+    if ('content_index' in raw) out.contentIndex = raw.content_index
+    if ('sequence_number' in raw) out.sequenceNumber = raw.sequence_number
+    if ('summary_index' in raw) out.summaryIndex = raw.summary_index
+    if (
+      'response' in raw &&
+      raw.response &&
+      typeof raw.response === 'object'
+    ) {
+      out.response = camelCaseResponseShape(raw.response as Record<string, unknown>)
     }
+    if ('item' in raw && raw.item && typeof raw.item === 'object') {
+      out.item = camelCaseOutputItem(raw.item as Record<string, unknown>)
+    }
+    if ('part' in raw) out.part = raw.part
+    out.type =
+      typeof raw.type === 'string' ? raw.type : (e.type as string) || 'unknown'
+    return out as unknown as NormalizedStreamEvent
+  }
 
-    switch (e.type) {
-      case 'response.created':
-      case 'response.in_progress':
-      case 'response.completed':
-      case 'response.failed':
-      case 'response.incomplete': {
-        yield {
-          type: e.type,
-          response: toSnakeResponseResult(e.response),
-          sequence_number: e.sequenceNumber,
-        } as unknown as ResponseStreamEvent
-        break
-      }
-      case 'response.output_text.delta':
-      case 'response.output_text.done':
-      case 'response.reasoning_text.delta':
-      case 'response.reasoning_text.done':
-      case 'response.reasoning_summary_text.delta':
-      case 'response.reasoning_summary_text.done': {
-        yield {
-          type: e.type,
-          item_id: e.itemId,
-          output_index: e.outputIndex,
-          content_index: e.contentIndex,
-          delta: e.delta,
-          text: e.text,
-          sequence_number: e.sequenceNumber,
-        } as unknown as ResponseStreamEvent
-        break
-      }
-      case 'response.content_part.added':
-      case 'response.content_part.done': {
-        yield {
-          type: e.type,
-          item_id: e.itemId,
-          output_index: e.outputIndex,
-          content_index: e.contentIndex,
-          part: toSnakeContentPart(e.part),
-          sequence_number: e.sequenceNumber,
-        } as unknown as ResponseStreamEvent
-        break
-      }
-      case 'response.output_item.added':
-      case 'response.output_item.done': {
-        yield {
-          type: e.type,
-          item: toSnakeOutputItem(e.item),
-          output_index: e.outputIndex,
-          sequence_number: e.sequenceNumber,
-        } as unknown as ResponseStreamEvent
-        break
-      }
-      case 'response.function_call_arguments.delta':
-      case 'response.function_call_arguments.done': {
-        yield {
-          type: e.type,
-          item_id: e.itemId,
-          output_index: e.outputIndex,
-          delta: e.delta,
-          arguments: e.arguments,
-          sequence_number: e.sequenceNumber,
-        } as unknown as ResponseStreamEvent
-        break
-      }
-      case 'error': {
-        // The base reads `chunk.error.code` directly into a string-typed
-        // RUN_ERROR.code slot (no `toRunErrorPayload` narrowing on this path),
-        // so coerce here. Typeof-narrow rather than `!= null` so objects /
-        // symbols / non-finite numbers fall through to undefined instead of
-        // shipping `"[object Object]"`.
-        const code =
-          typeof e.code === 'string'
-            ? e.code
-            : typeof e.code === 'number' && Number.isFinite(e.code)
-              ? String(e.code)
-              : undefined
-        yield {
-          type: 'error',
-          message: e.message,
-          code,
-          param: e.param,
-          sequence_number: e.sequenceNumber,
-        } as unknown as ResponseStreamEvent
-        break
-      }
-      default: {
-        // Pass through unknown event types with sequenceNumber renamed so
-        // the base's debug logging still sees a usable `type`. Forwarding
-        // verbatim is safer than dropping silently — a new event type
-        // OpenRouter ships shouldn't be discarded by us.
-        const { sequenceNumber, ...rest } = e
-        yield {
-          ...rest,
-          ...(sequenceNumber !== undefined && {
-            sequence_number: sequenceNumber,
-          }),
-        } as unknown as ResponseStreamEvent
-      }
+  return event as unknown as NormalizedStreamEvent
+}
+
+/** Translate snake_case keys in a `response` payload to camelCase for the
+ *  fields our terminal-event handlers read. Unknown keys passthrough. */
+function camelCaseResponseShape(
+  src: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...src }
+  if ('incomplete_details' in src) out.incompleteDetails = src.incomplete_details
+  if ('input_tokens' in src || 'output_tokens' in src || 'total_tokens' in src) {
+    // never mutate src; rewrite usage in place if present.
+  }
+  if (src.usage && typeof src.usage === 'object') {
+    const u = src.usage as Record<string, unknown>
+    out.usage = {
+      ...u,
+      ...(('input_tokens' in u) && { inputTokens: u.input_tokens }),
+      ...(('output_tokens' in u) && { outputTokens: u.output_tokens }),
+      ...(('total_tokens' in u) && { totalTokens: u.total_tokens }),
     }
   }
-}
-
-/** Convert a non-streaming `OpenResponsesResult` so the base's
- *  `extractTextFromResponse` (which iterates `response.output[].content` for
- *  `type === 'output_text'`) reads it unchanged. */
-function adaptOpenRouterResponsesResult(result: unknown): ResponsesResponse {
-  return toSnakeResponseResult(result) as ResponsesResponse
-}
-
-function toSnakeResponseResult(r: any): Record<string, any> {
-  if (!r || typeof r !== 'object') return r
-  return {
-    ...r,
-    model: r.model,
-    incomplete_details: r.incompleteDetails ?? null,
-    ...(r.usage && {
-      usage: {
-        input_tokens: r.usage.inputTokens ?? 0,
-        output_tokens: r.usage.outputTokens ?? 0,
-        total_tokens: r.usage.totalTokens ?? 0,
-        ...(r.usage.inputTokensDetails && {
-          input_tokens_details: r.usage.inputTokensDetails,
-        }),
-        ...(r.usage.outputTokensDetails && {
-          output_tokens_details: r.usage.outputTokensDetails,
-        }),
-      },
-    }),
-    output: Array.isArray(r.output)
-      ? r.output.map((it: any) => toSnakeOutputItem(it))
-      : r.output,
-    ...(r.error && {
-      // Typeof-narrow the code (same rule as `normalizeCode` in
-      // `toRunErrorPayload`) — the base reads `chunk.response.error?.code`
-      // directly into a string slot, so object/symbol/NaN must fall through
-      // to undefined rather than ship `"[object Object]"`.
-      error: {
-        message: r.error.message,
-        code:
-          typeof r.error.code === 'string'
-            ? r.error.code
-            : typeof r.error.code === 'number' && Number.isFinite(r.error.code)
-              ? String(r.error.code)
-              : undefined,
-      },
-    }),
+  if (Array.isArray(src.output)) {
+    out.output = src.output.map((item) =>
+      item && typeof item === 'object'
+        ? camelCaseOutputItem(item as Record<string, unknown>)
+        : item,
+    )
   }
+  return out
 }
 
-function toSnakeOutputItem(item: any): any {
-  if (!item || typeof item !== 'object') return item
-  switch (item.type) {
-    case 'function_call':
-      return {
-        type: 'function_call',
-        id: item.id,
-        call_id: item.callId,
-        name: item.name,
-        arguments: item.arguments,
-        ...(item.status !== undefined && { status: item.status }),
-      }
-    case 'message':
-      return {
-        ...item,
-        // content parts already use { type:'output_text', text } — no rename
-        // needed; refusal has `refusal` either way.
-      }
-    default:
-      return item
-  }
+/** Translate snake_case keys in an output item to camelCase. */
+function camelCaseOutputItem(
+  src: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...src }
+  if ('call_id' in src) out.callId = src.call_id
+  return out
 }
 
-function toSnakeContentPart(part: any): any {
-  if (!part || typeof part !== 'object') return part
-  // Both output_text and refusal already share the same key names across
-  // SDKs (`text`, `refusal`, `type`). Pass through.
-  return part
+/** Normalize an `error.code` to the string slot our RUN_ERROR event reads. */
+function normalizeCode(code: unknown): string | undefined {
+  if (typeof code === 'string') return code
+  if (typeof code === 'number' && Number.isFinite(code)) return String(code)
+  return undefined
 }
 
 export function createOpenRouterResponsesText<

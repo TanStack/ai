@@ -3,4 +3,4 @@ export {
   type CustomTool,
   convertCustomToolToAdapterFormat,
   customTool,
-} from '@tanstack/ai-openai-compatible'
+} from '@tanstack/openai-base'

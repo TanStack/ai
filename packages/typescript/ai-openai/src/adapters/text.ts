@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { OpenAICompatibleResponsesTextAdapter } from '@tanstack/ai-openai-compatible'
+import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
@@ -10,14 +10,7 @@ import type {
   OpenAIChatModelToolCapabilitiesByName,
   OpenAIModelInputModalitiesByName,
 } from '../model-meta'
-import type {
-  ResponseCreateParams,
-  ResponseCreateParamsNonStreaming,
-  ResponseCreateParamsStreaming,
-  ResponseStreamEvent,
-  ResponsesResponse,
-} from '@tanstack/ai-openai-compatible'
-import type OpenAI_SDK from 'openai'
+import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type {
   ExternalTextProviderOptions,
@@ -75,9 +68,12 @@ type ResolveToolCapabilities<TModel extends string> =
  * OpenAI Text (Chat) Adapter
  *
  * Tree-shakeable adapter for OpenAI chat/text completion functionality.
- * Delegates implementation to {@link OpenAICompatibleResponsesTextAdapter} from
- * `@tanstack/ai-openai-compatible` and threads OpenAI-specific tool-capability typing
- * through the 5th generic of the base class.
+ * Delegates implementation to {@link OpenAIBaseResponsesTextAdapter} from
+ * `@tanstack/openai-base`. The base calls `openai.responses.create`
+ * directly; this subclass just hands it a configured client and overrides
+ * `mapOptionsToRequest` to route through OpenAI's full tool converter
+ * (supporting file_search, web_search, etc.) and to apply provider option
+ * validation.
  */
 export class OpenAITextAdapter<
   TModel extends OpenAIChatModel,
@@ -86,7 +82,7 @@ export class OpenAITextAdapter<
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
-> extends OpenAICompatibleResponsesTextAdapter<
+> extends OpenAIBaseResponsesTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
@@ -96,39 +92,8 @@ export class OpenAITextAdapter<
   readonly kind = 'text' as const
   readonly name = 'openai' as const
 
-  protected client: OpenAI
-
   constructor(config: OpenAITextConfig, model: TModel) {
-    super(model, 'openai')
-    this.client = new OpenAI(config)
-  }
-
-  // The override signatures use the local protocol types from
-  // `@tanstack/ai-openai-compatible` so we stay variance-compatible with the
-  // base. Inside the body we still call the openai SDK; casting at the SDK
-  // boundary (where we already own the runtime contract) is the cleanest
-  // place to land the two-type-name reality.
-
-  protected async callResponse(
-    params: ResponseCreateParamsNonStreaming,
-    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
-  ): Promise<ResponsesResponse> {
-    const response = await this.client.responses.create(
-      params as unknown as OpenAI_SDK.Responses.ResponseCreateParamsNonStreaming,
-      requestOptions,
-    )
-    return response as unknown as ResponsesResponse
-  }
-
-  protected async callResponseStream(
-    params: ResponseCreateParamsStreaming,
-    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
-  ): Promise<AsyncIterable<ResponseStreamEvent>> {
-    const stream = await this.client.responses.create(
-      params as unknown as OpenAI_SDK.Responses.ResponseCreateParamsStreaming,
-      requestOptions,
-    )
-    return stream as unknown as AsyncIterable<ResponseStreamEvent>
+    super(model, 'openai', new OpenAI(config))
   }
 
   /**

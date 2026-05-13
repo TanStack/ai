@@ -1,4 +1,4 @@
-import { makeStructuredOutputCompatible } from '@tanstack/ai-openai-compatible'
+import { makeStructuredOutputCompatible } from '@tanstack/openai-base'
 import { transformNullsToUndefined } from '@tanstack/ai-utils'
 
 export { transformNullsToUndefined }
@@ -62,7 +62,7 @@ function removeEmptyRequired(schema: Record<string, any>): Record<string, any> {
 /**
  * Recursively normalise object schemas so any `{ type: 'object' }` node
  * without `properties` gets an empty `properties: {}` object. The
- * ai-openai-compatible transformer only descends into objects that already have
+ * ai-openai-base transformer only descends into objects that already have
  * `properties` set, so a Zod `z.object({})` nested inside `properties`,
  * `items`, `additionalProperties`, or a combinator branch would otherwise
  * skip the strict-mode rewrite and fail Groq validation.
@@ -140,7 +140,7 @@ export function makeGroqStructuredOutputCompatible(
   schema: Record<string, any>,
   originalRequired: Array<string> = [],
 ): Record<string, any> {
-  // Recursively patch every `{ type: 'object' }` node so the ai-openai-compatible
+  // Recursively patch every `{ type: 'object' }` node so the ai-openai-base
   // transformer descends into nested empty objects too.
   const normalised = normalizeObjectSchemas(schema)
 

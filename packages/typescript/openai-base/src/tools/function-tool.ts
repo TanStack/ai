@@ -1,5 +1,5 @@
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
-import type { FunctionToolConfig } from '../types/tools'
+import type { FunctionTool as FunctionToolConfig } from 'openai/resources/responses/responses'
 import type { JSONSchema, Tool } from '@tanstack/ai'
 
 export type { FunctionToolConfig }

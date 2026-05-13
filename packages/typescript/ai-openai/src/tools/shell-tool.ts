@@ -1,11 +1,11 @@
-import { shellTool as baseShellTool } from '@tanstack/ai-openai-compatible'
+import { shellTool as baseShellTool } from '@tanstack/openai-base'
 import type { ProviderTool } from '@tanstack/ai'
 
 export {
   type ShellToolConfig,
   type ShellTool,
   convertShellToolToAdapterFormat,
-} from '@tanstack/ai-openai-compatible'
+} from '@tanstack/openai-base'
 
 export type OpenAIShellTool = ProviderTool<'openai', 'shell'>
 

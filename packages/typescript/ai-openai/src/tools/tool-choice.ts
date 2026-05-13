@@ -1,1 +1,1 @@
-export { type ToolChoice } from '@tanstack/ai-openai-compatible'
+export { type ToolChoice } from '@tanstack/openai-base'
