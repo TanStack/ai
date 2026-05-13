@@ -182,7 +182,10 @@ export function summarize<
  * Run non-streaming summarization
  */
 async function runSummarize(
-  options: SummarizeActivityOptions<SummarizeAdapter<string, Record<string, unknown>>, false>,
+  options: SummarizeActivityOptions<
+    SummarizeAdapter<string, Record<string, unknown>>,
+    false
+  >,
 ): Promise<SummarizationResult> {
   const { adapter, text, maxLength, style, focus, modelOptions } = options
   const model = adapter.model
@@ -252,7 +255,10 @@ async function runSummarize(
  * to non-streaming and yields the result as a single chunk.
  */
 async function* runStreamingSummarize(
-  options: SummarizeActivityOptions<SummarizeAdapter<string, Record<string, unknown>>, true>,
+  options: SummarizeActivityOptions<
+    SummarizeAdapter<string, Record<string, unknown>>,
+    true
+  >,
 ): AsyncIterable<StreamChunk> {
   const { adapter, text, maxLength, style, focus, modelOptions } = options
   const model = adapter.model
