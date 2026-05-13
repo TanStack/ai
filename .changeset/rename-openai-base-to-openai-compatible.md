@@ -8,7 +8,7 @@
 
 Rename `@tanstack/openai-base` → `@tanstack/openai-compatible`.
 
-The previous "base" name implied this package tracked OpenAI's product roadmap. In reality it implements two OpenAI-shaped *wire-format protocols* that multiple providers ship:
+The previous "base" name implied this package tracked OpenAI's product roadmap. In reality it implements two OpenAI-shaped _wire-format protocols_ that multiple providers ship:
 
 - **Chat Completions** (`/v1/chat/completions`) — natively implemented by OpenAI, Groq, Grok, OpenRouter, vLLM, SGLang, Together, etc.
 - **Responses** (`/v1/responses`) — OpenAI's reference implementation plus OpenRouter's beta routing implementation (which fans out to Anthropic, Google, and other underlying models).

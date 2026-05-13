@@ -3,8 +3,8 @@
 Shared protocol adapters for OpenAI-compatible providers in TanStack AI.
 
 > Renamed from `@tanstack/openai-base` in 0.3.0. The "base" name implied this package
-> tracked OpenAI's product roadmap; in fact it implements two OpenAI-shaped *wire
-> formats* that multiple providers ship — see below.
+> tracked OpenAI's product roadmap; in fact it implements two OpenAI-shaped _wire
+> formats_ that multiple providers ship — see below.
 
 ## What this package is
 
@@ -51,7 +51,7 @@ The distinction matters because it tells contributors where to add things:
 Every text adapter in TanStack AI — regardless of provider — emits
 [AG-UI](https://github.com/CopilotKit/ag-ui) events (`RUN_STARTED`,
 `TEXT_MESSAGE_*`, `TOOL_CALL_*`, `RUN_FINISHED`, …) as its output stream. That
-is the *universal* unification.
+is the _universal_ unification.
 
 Input protocols are different. The OpenAI-compatible family (covered by this
 package) has many implementers and warrants a shared base. Anthropic, Google
