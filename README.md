@@ -46,6 +46,7 @@ A powerful, type-safe AI SDK for building AI-powered applications.
 - Isomorphic type-safe tools with server/client execution
 - **Enhanced integration with TanStack Start** - Share implementations between AI tools and server functions
 - **Observability events** - Structured, typed events for text, tools, image, speech, transcription, and video ([docs](./docs/guides/observability.md))
+- **Cost tracking** - Per-request cost on `RUN_FINISHED` for providers that report it (currently [OpenRouter](./docs/adapters/openrouter.md#cost-tracking))
 
 ### <a href="https://tanstack.com/ai">Read the docs →</a>
 

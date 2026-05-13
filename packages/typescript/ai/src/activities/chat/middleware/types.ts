@@ -1,4 +1,10 @@
-import type { ModelMessage, StreamChunk, Tool, ToolCall } from '../../../types'
+import type {
+  ModelMessage,
+  StreamChunk,
+  Tool,
+  ToolCall,
+  UsageTotals,
+} from '../../../types'
 
 // ===========================
 // Middleware Context
@@ -221,14 +227,11 @@ export interface ToolPhaseCompleteInfo {
 // ===========================
 
 /**
- * Token usage statistics passed to the onUsage hook.
- * Extracted from the RUN_FINISHED chunk when usage data is present.
+ * Token usage statistics passed to the onUsage hook. Aliased to the
+ * canonical `UsageTotals` so this surface cannot drift from
+ * `RunFinishedEvent.usage`, which is where the runtime sources it from.
  */
-export interface UsageInfo {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
+export type UsageInfo = UsageTotals
 
 // ===========================
 // Terminal Hook Info
@@ -245,11 +248,7 @@ export interface FinishInfo {
   /** Final accumulated text content */
   content: string
   /** Final usage totals, if available */
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage?: UsageInfo
 }
 
 /**
