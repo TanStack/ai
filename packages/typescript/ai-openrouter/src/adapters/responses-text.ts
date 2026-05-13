@@ -259,6 +259,424 @@ export class OpenRouterResponsesTextAdapter<
     }
   }
 
+  /**
+   * Streamed structured output via OpenRouter's Responses API
+   * (`text.format: { type: 'json_schema', ... }` + `stream: true`).
+   *
+   * Mirrors {@link OpenAIBaseResponsesTextAdapter.structuredOutputStream}
+   * adapted to OpenRouter's SDK call surface
+   * (`orClient.beta.responses.send`) and to the camelCase usage shape on
+   * `response.completed` (`inputTokens` / `outputTokens` / `totalTokens`).
+   *
+   * Events flow through {@link normalizeStreamEvent} so this method reads
+   * the same canonical event shape as `processStreamChunks` (covering
+   * Speakeasy's UNKNOWN-with-`raw` fallback for events that fail strict
+   * per-variant validation upstream).
+   */
+  async *structuredOutputStream(
+    options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
+  ): AsyncIterable<StreamChunk> {
+    const { chatOptions, outputSchema } = options
+    const responsesRequest = this.mapOptionsToRequest(chatOptions)
+
+    const jsonSchema = this.makeStructuredOutputCompatible(
+      outputSchema,
+      outputSchema.required,
+    )
+
+    const timestamp = Date.now()
+    const aguiState = {
+      runId: generateId(this.name),
+      threadId: chatOptions.threadId ?? generateId(this.name),
+      messageId: generateId(this.name),
+      timestamp,
+      hasEmittedRunStarted: false,
+    }
+
+    let accumulatedContent = ''
+    let accumulatedReasoning = ''
+    let hasEmittedTextMessageStart = false
+    let reasoningMessageId: string | undefined
+    let stepId: string | undefined
+    let hasClosedReasoning = false
+    let model: string = chatOptions.model
+    let usage:
+      | {
+          inputTokens?: number
+          outputTokens?: number
+          totalTokens?: number
+        }
+      | undefined
+
+    const closeReasoning = function* (this: {
+      name: string
+    }): Generator<StreamChunk> {
+      if (reasoningMessageId && !hasClosedReasoning) {
+        hasClosedReasoning = true
+        yield {
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: reasoningMessageId,
+          model,
+          timestamp,
+        } satisfies StreamChunk
+        yield {
+          type: EventType.REASONING_END,
+          messageId: reasoningMessageId,
+          model,
+          timestamp,
+        } satisfies StreamChunk
+        if (stepId) {
+          yield {
+            type: EventType.STEP_FINISHED,
+            stepName: stepId,
+            stepId,
+            model,
+            timestamp,
+            content: accumulatedReasoning,
+          } satisfies StreamChunk
+        }
+      }
+    }.bind(this)
+
+    const openReasoning = function* (this: {
+      name: string
+    }): Generator<StreamChunk> {
+      if (reasoningMessageId) return
+      reasoningMessageId = generateId(this.name)
+      stepId = generateId(this.name)
+      yield {
+        type: EventType.REASONING_START,
+        messageId: reasoningMessageId,
+        model,
+        timestamp,
+      } satisfies StreamChunk
+      yield {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: reasoningMessageId,
+        role: 'reasoning' as const,
+        model,
+        timestamp,
+      } satisfies StreamChunk
+      yield {
+        type: EventType.STEP_STARTED,
+        stepName: stepId,
+        stepId,
+        model,
+        timestamp,
+        stepType: 'thinking',
+      } satisfies StreamChunk
+    }.bind(this)
+
+    try {
+      chatOptions.logger.request(
+        `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model },
+      )
+      const reqOptions = extractRequestOptions(chatOptions.request)
+      const rawStream = (await this.orClient.beta.responses.send(
+        {
+          responsesRequest: {
+            ...responsesRequest,
+            stream: true,
+            text: {
+              format: {
+                type: 'json_schema',
+                name: 'structured_output',
+                schema: jsonSchema,
+                strict: true,
+              },
+            } as ResponsesRequest['text'],
+          },
+        },
+        {
+          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.headers && { headers: reqOptions.headers }),
+        },
+      )) as AsyncIterable<StreamEvents>
+
+      for await (const rawEvent of rawStream) {
+        const chunk = normalizeStreamEvent(rawEvent)
+
+        if (!aguiState.hasEmittedRunStarted) {
+          aguiState.hasEmittedRunStarted = true
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: aguiState.runId,
+            threadId: aguiState.threadId,
+            model,
+            timestamp,
+          } satisfies StreamChunk
+        }
+
+        if (
+          chunk.type === 'response.created' ||
+          chunk.type === 'response.in_progress'
+        ) {
+          const r = chunk.response as { model?: string } | undefined
+          if (r?.model) model = r.model
+          continue
+        }
+
+        if (chunk.type === 'response.refusal.delta') {
+          const delta =
+            typeof (chunk as { delta?: unknown }).delta === 'string'
+              ? (chunk as { delta: string }).delta
+              : ''
+          yield {
+            type: EventType.RUN_ERROR,
+            runId: aguiState.runId,
+            model,
+            timestamp,
+            message: `Model refused: ${delta}`,
+            code: 'refusal',
+            error: { message: `Model refused: ${delta}`, code: 'refusal' },
+          } satisfies StreamChunk
+          return
+        }
+
+        if (
+          chunk.type === 'response.reasoning_text.delta' ||
+          chunk.type === 'response.reasoning_summary_text.delta'
+        ) {
+          const raw = (chunk as { delta?: unknown }).delta
+          const reasoningDelta = Array.isArray(raw)
+            ? raw.join('')
+            : typeof raw === 'string'
+              ? raw
+              : ''
+          if (!reasoningDelta) continue
+          yield* openReasoning()
+          // openReasoning() guarantees reasoningMessageId is set on first
+          // call; TS can't see through the generator side-effect.
+          const messageId = reasoningMessageId!
+          accumulatedReasoning += reasoningDelta
+          yield {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId,
+            delta: reasoningDelta,
+            model,
+            timestamp,
+          } satisfies StreamChunk
+          continue
+        }
+
+        if (chunk.type === 'response.output_text.delta') {
+          const raw = (chunk as { delta?: unknown }).delta
+          const textDelta = Array.isArray(raw)
+            ? raw.join('')
+            : typeof raw === 'string'
+              ? raw
+              : ''
+          if (!textDelta) continue
+
+          yield* closeReasoning()
+
+          if (!hasEmittedTextMessageStart) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model,
+              timestamp,
+              role: 'assistant',
+            } satisfies StreamChunk
+          }
+          accumulatedContent += textDelta
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: aguiState.messageId,
+            model,
+            timestamp,
+            delta: textDelta,
+            content: accumulatedContent,
+          } satisfies StreamChunk
+          continue
+        }
+
+        if (chunk.type === 'response.completed') {
+          const r = (chunk.response ?? {}) as {
+            model?: string
+            usage?: {
+              inputTokens?: number
+              outputTokens?: number
+              totalTokens?: number
+            } | null
+          }
+          if (r.model) model = r.model
+          if (r.usage) usage = r.usage
+          continue
+        }
+
+        if (
+          chunk.type === 'response.failed' ||
+          chunk.type === 'response.incomplete'
+        ) {
+          const r = (chunk.response ?? {}) as {
+            error?: { message?: string; code?: unknown } | null
+            incompleteDetails?: { reason?: string } | null
+          }
+          const message =
+            r.error?.message ||
+            r.incompleteDetails?.reason ||
+            (chunk.type === 'response.failed'
+              ? 'Response failed'
+              : 'Response ended incomplete')
+          const code =
+            normalizeCode(r.error?.code) ??
+            (r.incompleteDetails ? 'incomplete' : undefined)
+          yield {
+            type: EventType.RUN_ERROR,
+            runId: aguiState.runId,
+            model,
+            timestamp,
+            message,
+            ...(code !== undefined && { code }),
+            error: {
+              message,
+              ...(code !== undefined && { code }),
+            },
+          } satisfies StreamChunk
+          return
+        }
+
+        if (chunk.type === 'error') {
+          const code = normalizeCode(chunk.code)
+          const message = chunk.message ?? 'Responses API stream error'
+          yield {
+            type: EventType.RUN_ERROR,
+            runId: aguiState.runId,
+            model,
+            timestamp,
+            message,
+            ...(code !== undefined && { code }),
+            error: {
+              message,
+              ...(code !== undefined && { code }),
+            },
+          } satisfies StreamChunk
+          return
+        }
+      }
+
+      yield* closeReasoning()
+
+      if (hasEmittedTextMessageStart) {
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: aguiState.messageId,
+          model,
+          timestamp,
+        } satisfies StreamChunk
+      }
+
+      if (accumulatedContent.length === 0) {
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model,
+          timestamp,
+          message: `${this.name}.structuredOutputStream: response contained no content`,
+          code: 'empty-response',
+          error: {
+            message: `${this.name}.structuredOutputStream: response contained no content`,
+            code: 'empty-response',
+          },
+        } satisfies StreamChunk
+        return
+      }
+
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(accumulatedContent)
+      } catch {
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model,
+          timestamp,
+          message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
+          code: 'parse-error',
+          error: {
+            message: 'Failed to parse structured output as JSON',
+            code: 'parse-error',
+          },
+        } satisfies StreamChunk
+        return
+      }
+
+      const transformed = this.transformStructuredOutput(parsed)
+
+      yield {
+        type: EventType.CUSTOM,
+        name: 'structured-output.complete',
+        value: {
+          object: transformed,
+          raw: accumulatedContent,
+          ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
+        },
+        model,
+        timestamp,
+      } satisfies StreamChunk
+
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId: aguiState.runId,
+        threadId: aguiState.threadId,
+        model,
+        timestamp,
+        finishReason: 'stop',
+        ...(usage && {
+          usage: {
+            promptTokens: usage.inputTokens ?? 0,
+            completionTokens: usage.outputTokens ?? 0,
+            totalTokens: usage.totalTokens ?? 0,
+          },
+        }),
+      } satisfies StreamChunk
+    } catch (error: unknown) {
+      if (!aguiState.hasEmittedRunStarted) {
+        aguiState.hasEmittedRunStarted = true
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model,
+          timestamp,
+        } satisfies StreamChunk
+      }
+
+      // OpenRouter SDK raises a proprietary `RequestAbortedError` on
+      // caller-initiated abort. Map it (plus DOM `AbortError`) to
+      // `code: 'aborted'` so consumers can distinguish abort from a real
+      // upstream failure.
+      const errName =
+        error && typeof error === 'object'
+          ? ((error as { name?: unknown }).name ?? '')
+          : ''
+      const isAbort =
+        errName === 'AbortError' || errName === 'RequestAbortedError'
+      const errorPayload = toRunErrorPayload(
+        error,
+        `${this.name}.structuredOutputStream failed`,
+      )
+
+      yield {
+        type: EventType.RUN_ERROR,
+        runId: aguiState.runId,
+        model,
+        timestamp,
+        message: errorPayload.message,
+        code: isAbort ? 'aborted' : errorPayload.code,
+        error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
+      } satisfies StreamChunk
+
+      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+        error: errorPayload,
+        source: `${this.name}.structuredOutputStream`,
+      })
+    }
+  }
+
   protected makeStructuredOutputCompatible(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
