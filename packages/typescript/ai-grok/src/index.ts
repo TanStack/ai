@@ -11,9 +11,8 @@ export {
   type GrokTextProviderOptions,
 } from './adapters/text'
 
-// Summarize adapter - for text summarization
+// Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
 export {
-  GrokSummarizeAdapter,
   createGrokSummarize,
   grokSummarize,
   type GrokSummarizeConfig,

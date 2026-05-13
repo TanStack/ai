@@ -1,17 +1,16 @@
-import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
-import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { generateId } from '@tanstack/ai-utils'
+import { toRunErrorPayload } from '../error-payload'
+import { BaseSummarizeAdapter } from './adapter'
 import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
   TextOptions,
-} from '@tanstack/ai'
+} from '../../types'
 
 /**
- * Minimal interface for a text adapter that supports chatStream.
- * This allows the summarize adapter to work with any OpenAI-compatible
- * text adapter without tight coupling to a specific implementation.
+ * Minimal contract for a text adapter that supports `chatStream`. Lets
+ * `ChatStreamSummarizeAdapter` work with any text adapter without coupling
+ * to a specific implementation.
  */
 export interface ChatStreamCapable<TProviderOptions extends object> {
   chatStream: (
@@ -20,16 +19,10 @@ export interface ChatStreamCapable<TProviderOptions extends object> {
 }
 
 /**
- * OpenAI-Compatible Summarize Adapter
- *
- * A thin wrapper around a text adapter that adds summarization-specific prompting.
- * Delegates all API calls to the provided text adapter.
- *
- * Subclasses or instantiators provide a text adapter (or factory) at construction
- * time, allowing any OpenAI-compatible provider to get summarization for free by
- * reusing its text adapter.
+ * Summarize adapter that wraps any `ChatStreamCapable` text adapter and
+ * prompts it for summarization. Not tied to any wire format.
  */
-export class OpenAICompatibleSummarizeAdapter<
+export class ChatStreamSummarizeAdapter<
   TModel extends string,
   TProviderOptions extends object = Record<string, any>,
 > extends BaseSummarizeAdapter<TModel, TProviderOptions> {
@@ -40,7 +33,7 @@ export class OpenAICompatibleSummarizeAdapter<
   constructor(
     textAdapter: ChatStreamCapable<TProviderOptions>,
     model: TModel,
-    name: string = 'openai-compatible',
+    name: string = 'chat-stream-summarize',
   ) {
     super({}, model)
     this.name = name
@@ -51,7 +44,7 @@ export class OpenAICompatibleSummarizeAdapter<
     const systemPrompt = this.buildSummarizationPrompt(options)
 
     let summary = ''
-    const id = generateId(this.name)
+    const id = this.generateId()
     let model = options.model
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 

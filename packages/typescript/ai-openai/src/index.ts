@@ -11,9 +11,8 @@ export {
   type OpenAITextProviderOptions,
 } from './adapters/text'
 
-// Summarize adapter - for text summarization
+// Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
 export {
-  OpenAISummarizeAdapter,
   createOpenaiSummarize,
   openaiSummarize,
   type OpenAISummarizeConfig,

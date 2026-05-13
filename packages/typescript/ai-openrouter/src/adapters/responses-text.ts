@@ -102,21 +102,10 @@ export class OpenRouterResponsesTextAdapter<
   readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
 
-  /** OpenRouter SDK client. The base's `this.client` (an OpenAI client) is
-   *  unused because we override the SDK-call hooks below. */
   protected orClient: OpenRouter
 
   constructor(config: OpenRouterResponsesConfig, model: TModel) {
-    // The base needs an OpenAICompatibleClientConfig to construct an OpenAI
-    // client we never use. The OpenRouter SDK supports a Promise-returning
-    // apiKey getter; the OpenAI SDK's constructor here is a no-op for our
-    // purposes, so any string suffices.
-    const apiKey = typeof config.apiKey === 'string' ? config.apiKey : 'unused'
-    super(
-      { apiKey, baseURL: 'https://openrouter.ai/api/v1' },
-      model,
-      'openrouter-responses',
-    )
+    super(model, 'openrouter-responses')
     this.orClient = new OpenRouter(config)
   }
 
@@ -153,7 +142,10 @@ export class OpenRouterResponsesTextAdapter<
     // structurally so we don't need to depend on the SDK's class export.
     const stream = (await this.orClient.beta.responses.send(
       { responsesRequest: { ...responsesRequest, stream: true } },
-      { signal: requestOptions.signal ?? undefined },
+      {
+        signal: requestOptions.signal ?? undefined,
+        ...(requestOptions.headers && { headers: requestOptions.headers }),
+      },
     )) as unknown as AsyncIterable<StreamEvents>
     return adaptOpenRouterResponsesStreamEvents(stream)
   }
@@ -168,7 +160,10 @@ export class OpenRouterResponsesTextAdapter<
     >
     const result = await this.orClient.beta.responses.send(
       { responsesRequest: { ...responsesRequest, stream: false } },
-      { signal: requestOptions.signal ?? undefined },
+      {
+        signal: requestOptions.signal ?? undefined,
+        ...(requestOptions.headers && { headers: requestOptions.headers }),
+      },
     )
     return adaptOpenRouterResponsesResult(result)
   }
@@ -519,13 +514,21 @@ async function* adaptOpenRouterResponsesStreamEvents(
         break
       }
       case 'error': {
-        // Stringify code so provider codes (401/429/500/…) survive
-        // `toRunErrorPayload`, mirroring the chat-completions fix in
-        // commit 0171b18e.
+        // The base reads `chunk.error.code` directly into a string-typed
+        // RUN_ERROR.code slot (no `toRunErrorPayload` narrowing on this path),
+        // so coerce here. Typeof-narrow rather than `!= null` so objects /
+        // symbols / non-finite numbers fall through to undefined instead of
+        // shipping `"[object Object]"`.
+        const code =
+          typeof e.code === 'string'
+            ? e.code
+            : typeof e.code === 'number' && Number.isFinite(e.code)
+              ? String(e.code)
+              : undefined
         yield {
           type: 'error',
           message: e.message,
-          code: e.code != null ? String(e.code) : undefined,
+          code,
           param: e.param,
           sequence_number: e.sequenceNumber,
         } as unknown as ResponseStreamEvent
@@ -578,13 +581,18 @@ function toSnakeResponseResult(r: any): Record<string, any> {
       ? r.output.map((it: any) => toSnakeOutputItem(it))
       : r.output,
     ...(r.error && {
-      // Stringify provider error codes so they survive `toRunErrorPayload`'s
-      // string-only `code` filter — mirrors the top-level `'error'` event
-      // branch in `adaptOpenRouterResponsesStreamEvents` and the chat-
-      // completions fix in commit 0171b18e.
+      // Typeof-narrow the code (same rule as `normalizeCode` in
+      // `toRunErrorPayload`) — the base reads `chunk.response.error?.code`
+      // directly into a string slot, so object/symbol/NaN must fall through
+      // to undefined rather than ship `"[object Object]"`.
       error: {
         message: r.error.message,
-        code: r.error.code != null ? String(r.error.code) : undefined,
+        code:
+          typeof r.error.code === 'string'
+            ? r.error.code
+            : typeof r.error.code === 'number' && Number.isFinite(r.error.code)
+              ? String(r.error.code)
+              : undefined,
       },
     }),
   }

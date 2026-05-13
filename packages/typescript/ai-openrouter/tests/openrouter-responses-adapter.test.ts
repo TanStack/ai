@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { chat } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
@@ -194,19 +194,314 @@ describe('OpenRouter responses adapter — request shape', () => {
     expect(params.model).toBe('openai/gpt-4o-mini:thinking')
   })
 
-  it('rejects webSearchTool() with a clear error pointing at the chat adapter', async () => {
+  it('rejects webSearchTool() as RUN_ERROR pointing at the chat adapter', async () => {
     const adapter = createAdapter()
     const ws = webSearchTool() as unknown as Tool
-    await expect(async () => {
-      for await (const _ of adapter.chatStream({
-        model: 'openai/gpt-4o-mini' as any,
-        messages: [{ role: 'user', content: 'hi' }],
-        tools: [ws],
-        logger: testLogger,
-      })) {
-        // consume
-      }
-    }).rejects.toThrow(/openRouterText/)
+    const events: Array<StreamChunk> = []
+    for await (const evt of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [ws],
+      logger: testLogger,
+    })) {
+      events.push(evt)
+    }
+    const runError = events.find(
+      (e): e is Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> =>
+        e.type === EventType.RUN_ERROR,
+    )
+    expect(runError).toBeDefined()
+    expect(runError!.message).toMatch(/openRouterText/)
+  })
+
+  it('falls back audio URL → input_file (chat-completions audio input is base64-only)', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'audio',
+              source: {
+                type: 'url',
+                value: 'https://example.com/clip.mp3',
+              } as any,
+            } as any,
+          ],
+        },
+      ],
+    })) {
+      // consume
+    }
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    const userMsg = params.input.find((i: any) => i.role === 'user')
+    expect(userMsg).toBeDefined()
+    const audioPart = userMsg.content.find(
+      (p: any) => p.type === 'input_file',
+    )
+    expect(audioPart).toBeDefined()
+    expect(audioPart.fileUrl).toBe('https://example.com/clip.mp3')
+  })
+
+  it('builds fileData data URI for inline document parts', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: 'aGVsbG8=',
+                mimeType: 'application/pdf',
+              } as any,
+            } as any,
+          ],
+        },
+      ],
+    })) {
+      // consume
+    }
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    const userMsg = params.input.find((i: any) => i.role === 'user')
+    const docPart = userMsg.content.find((p: any) => p.type === 'input_file')
+    expect(docPart).toBeDefined()
+    expect(docPart.fileData).toBe('data:application/pdf;base64,aGVsbG8=')
+    // Survives the SDK's outbound Zod schema (key strip would drop fileData)
+    const serialized = ResponsesRequest$outboundSchema.parse(params)
+    expect(JSON.stringify(serialized)).toContain(
+      'data:application/pdf;base64,aGVsbG8=',
+    )
+  })
+
+  it('defaults image data-URI mimeType to application/octet-stream when omitted', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'data', value: 'aGVsbG8=' } as any,
+            } as any,
+          ],
+        },
+      ],
+    })) {
+      // consume
+    }
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    const userMsg = params.input.find((i: any) => i.role === 'user')
+    const imgPart = userMsg.content.find((p: any) => p.type === 'input_image')
+    expect(imgPart).toBeDefined()
+    expect(imgPart.imageUrl).toBe(
+      'data:application/octet-stream;base64,aGVsbG8=',
+    )
+  })
+
+  it('routes video parts as input_video with camelCase videoUrl that survives Zod', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'video',
+              source: { value: 'https://example.com/v.mp4' } as any,
+            } as any,
+          ],
+        },
+      ],
+    })) {
+      // consume
+    }
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    const userMsg = params.input.find((i: any) => i.role === 'user')
+    const videoPart = userMsg.content.find(
+      (p: any) => p.type === 'input_video',
+    )
+    expect(videoPart).toBeDefined()
+    expect(videoPart.videoUrl).toBe('https://example.com/v.mp4')
+    // The outbound schema would strip the camelCase videoUrl if the converter
+    // emitted snake_case (or any other key shape).
+    const serialized = ResponsesRequest$outboundSchema.parse(params)
+    expect(JSON.stringify(serialized)).toContain('https://example.com/v.mp4')
+  })
+
+  it('stringifies object-shaped assistant tool-call arguments for the SDK', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_obj',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                arguments: { location: 'Berlin' } as any,
+              },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_obj', content: '{"temp":72}' },
+      ],
+    })) {
+      // consume
+    }
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    const fnCall = params.input.find(
+      (i: any) => i.type === 'function_call' && i.callId === 'call_obj',
+    )
+    expect(fnCall).toBeDefined()
+    expect(typeof fnCall.arguments).toBe('string')
+    expect(JSON.parse(fnCall.arguments)).toEqual({ location: 'Berlin' })
+  })
+
+  it('extracts text from array-shaped tool message content rather than JSON-stringifying parts', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_arr',
+              type: 'function',
+              function: { name: 'lookup_weather', arguments: '{}' },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          toolCallId: 'call_arr',
+          content: [
+            { type: 'text', content: '{"temp":' } as any,
+            { type: 'text', content: '72}' } as any,
+          ] as any,
+        },
+      ],
+    })) {
+      // consume
+    }
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    const fcOutput = params.input.find(
+      (i: any) => i.type === 'function_call_output',
+    )
+    expect(fcOutput).toBeDefined()
+    expect(fcOutput.output).toBe('{"temp":72}')
+    expect(fcOutput.output).not.toContain('"type"')
+  })
+
+  it('throws on inline document data via chat-completions adapter (rejects base64 PDF inline)', async () => {
+    // Cross-adapter assertion: the chat-completions sibling must throw on
+    // inline document data so callers know to use the Responses adapter.
+    const { createOpenRouterText } = await import('../src/adapters/text')
+    const chatAdapter = createOpenRouterText('openai/gpt-4o-mini' as any, 'k')
+    const events: Array<StreamChunk> = []
+    for await (const evt of chatAdapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: { type: 'data', value: 'aGVsbG8=' } as any,
+            } as any,
+          ],
+        },
+      ],
+      logger: testLogger,
+    })) {
+      events.push(evt)
+    }
+    const runError = events.find(
+      (e): e is Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> =>
+        e.type === EventType.RUN_ERROR,
+    )
+    expect(runError).toBeDefined()
+    expect(runError!.message.toLowerCase()).toMatch(/inline.*document|document.*inline|responses adapter/)
   })
 })
 
@@ -403,6 +698,42 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const err = chunks.find((c) => c.type === 'RUN_ERROR') as any
     expect(err).toBeDefined()
     expect(err.error.code).toBe('429')
+  })
+
+  it('drops object-shaped error.code rather than shipping "[object Object]"', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.failed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          error: { message: 'malformed', code: { nested: 'oops' } as any },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const c of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(c)
+    }
+    const err = chunks.find((c) => c.type === 'RUN_ERROR') as any
+    expect(err).toBeDefined()
+    expect(err.message).toBe('malformed')
+    // Object-shaped code must fall through to undefined rather than being
+    // stringified as "[object Object]" — the typeof narrowing matches
+    // normalizeCode's contract in toRunErrorPayload.
+    expect(err.code).toBeUndefined()
+    expect(err.error.code).toBeUndefined()
   })
 
   it('stringifies non-string error.code on response.failed events', async () => {
@@ -616,6 +947,32 @@ describe('OpenRouter responses adapter — SDK constructor wiring', () => {
       // consume
     }
     const [, options] = mockSend.mock.calls[0]!
-    expect(options).toEqual({ signal: controller.signal })
+    expect(options.signal).toBe(controller.signal)
+  })
+
+  it('forwards caller-supplied request headers to the SDK call', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    const headers = { 'X-Trace-Id': 'trace-r1' }
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+      request: { headers } as any,
+    })) {
+      // consume
+    }
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options.headers).toEqual(headers)
   })
 })

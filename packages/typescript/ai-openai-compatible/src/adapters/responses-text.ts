@@ -2,7 +2,6 @@ import { EventType } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
-import { createOpenAICompatibleClient } from '../utils/client'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatible } from '../utils/schema-converter'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
@@ -20,34 +19,16 @@ import type {
   StreamChunk,
   TextOptions,
 } from '@tanstack/ai'
-import type { OpenAICompatibleClientConfig } from '../types/config'
 
 /**
- * OpenAI-compatible Responses API Text Adapter
- *
- * A generalized base class for providers that use the OpenAI Responses API
- * (`/v1/responses`). Providers like OpenAI (native), Azure OpenAI, and others
- * that implement the Responses API can extend this class and only need to:
- * - Set `baseURL` in the config
- * - Lock the generic type parameters to provider-specific types
- * - Override specific methods for quirks
- *
- * Key differences from the Chat Completions adapter:
- * - Uses `client.responses.create()` instead of `client.chat.completions.create()`
- * - Messages use `ResponseInput` format
- * - System prompts go in `instructions` field, not as array messages
- * - Streaming events are completely different (9+ event types vs simple delta chunks)
- * - Supports reasoning/thinking tokens via `response.reasoning_text.delta`
- * - Structured output uses `text.format` in the request (not `response_format`)
- * - Tool calls use `response.function_call_arguments.delta`
- * - Content parts are `input_text`, `input_image`, `input_file`
- *
- * All methods that build requests or process responses are `protected` so subclasses
- * can override them.
+ * Shared implementation of the OpenAI Responses wire format. Holds the
+ * stream-event accumulator + AG-UI lifecycle; subclasses provide the actual
+ * SDK calls via the abstract `callResponse*` hooks. The base never imports
+ * the OpenAI SDK at runtime — it only borrows the SDK's TypeScript shapes.
  */
-export class OpenAICompatibleResponsesTextAdapter<
+export abstract class OpenAICompatibleResponsesTextAdapter<
   TModel extends string,
-  TProviderOptions extends Record<string, any> = Record<string, any>,
+  TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
   TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
   TMessageMetadata extends DefaultMessageMetadataByModality =
     DefaultMessageMetadataByModality,
@@ -62,16 +43,9 @@ export class OpenAICompatibleResponsesTextAdapter<
   readonly kind = 'text' as const
   readonly name: string
 
-  protected client: OpenAI_SDK
-
-  constructor(
-    config: OpenAICompatibleClientConfig,
-    model: TModel,
-    name: string = 'openai-compatible-responses',
-  ) {
+  constructor(model: TModel, name: string = 'openai-compatible-responses') {
     super({}, model)
     this.name = name
-    this.client = createOpenAICompatibleClient(config)
   }
 
   async *chatStream(
@@ -83,9 +57,19 @@ export class OpenAICompatibleResponsesTextAdapter<
     // We assign our own indices as we encounter unique tool call IDs.
     const toolCallMetadata = new Map<
       string,
-      { index: number; name: string; started: boolean }
+      {
+        index: number
+        name: string
+        started: boolean
+        // Set once TOOL_CALL_END has been emitted (via args.done or the
+        // output_item.done backfill) so the two paths don't double-emit.
+        ended?: boolean
+        // Set when args.done arrives before TOOL_CALL_START could fire
+        // (output_item.added lacked a name). output_item.done picks these
+        // up to emit the missing END.
+        pendingArguments?: string
+      }
     >()
-    const requestParams = this.mapOptionsToRequest(options)
 
     // AG-UI lifecycle tracking
     const aguiState = {
@@ -96,6 +80,11 @@ export class OpenAICompatibleResponsesTextAdapter<
     }
 
     try {
+      // mapOptionsToRequest can throw on caller-side validation failures
+      // (empty user content, unsupported parts, webSearchTool() rejection in
+      // the OpenRouter override). Keep it inside the try so those failures
+      // surface as RUN_ERROR events instead of iterator throws.
+      const requestParams = this.mapOptionsToRequest(options)
       options.logger.request(
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
@@ -218,6 +207,16 @@ export class OpenAICompatibleResponsesTextAdapter<
         response satisfies OpenAI_SDK.Responses.Response,
       )
 
+      // Fail loud on empty content rather than letting it cascade into a
+      // confusing "Failed to parse JSON. Content: " error — the root cause
+      // (the model returned no text content for the structured request) is
+      // then visible in logs. Mirrors the chat-completions sibling.
+      if (rawText.length === 0) {
+        throw new Error(
+          `${this.name}.structuredOutput: response contained no content`,
+        )
+      }
+
       // Parse the JSON response
       let parsed: unknown
       try {
@@ -276,37 +275,25 @@ export class OpenAICompatibleResponsesTextAdapter<
   }
 
   /**
-   * Performs the non-streaming Responses API network call. The default uses
-   * the OpenAI SDK (`client.responses.create`), which covers any provider
-   * whose endpoint accepts the OpenAI SDK verbatim.
-   *
-   * Override in subclasses whose SDK has a different call shape — for
-   * example `@openrouter/sdk` exposes `client.beta.responses.send
-   * ({ responsesRequest })` with camelCase fields. The override is
-   * responsible for converting the params shape on the way in and returning
-   * an object structurally compatible with `OpenAI_SDK.Responses.Response`
-   * (the base only reads documented fields like `response.output[…]`).
+   * Performs the non-streaming Responses API network call. Subclasses
+   * implement against whatever SDK or HTTP client they bridge to. Must
+   * return a value structurally compatible with `Response` — the base reads
+   * documented fields like `response.output[...]`.
    */
-  protected async callResponse(
+  protected abstract callResponse(
     params: OpenAI_SDK.Responses.ResponseCreateParamsNonStreaming,
     requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<OpenAI_SDK.Responses.Response> {
-    return this.client.responses.create(params, requestOptions)
-  }
+  ): Promise<OpenAI_SDK.Responses.Response>
 
   /**
-   * Performs the streaming Responses API network call. Same pattern as
-   * {@link callResponse} — default uses the OpenAI SDK; override for
-   * providers whose SDK exposes a different streaming entry point. Returns
-   * an `AsyncIterable<ResponseStreamEvent>` because the base's
-   * {@link processStreamChunks} only needs structural iteration over events.
+   * Performs the streaming Responses API network call. Returns an
+   * `AsyncIterable<ResponseStreamEvent>`; the base's `processStreamChunks`
+   * only needs structural iteration over events.
    */
-  protected async callResponseStream(
+  protected abstract callResponseStream(
     params: OpenAI_SDK.Responses.ResponseCreateParamsStreaming,
     requestOptions: ReturnType<typeof extractRequestOptions>,
-  ): Promise<AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>> {
-    return this.client.responses.create(params, requestOptions)
-  }
+  ): Promise<AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>>
 
   /**
    * Extract text content from a non-streaming Responses API response.
@@ -317,17 +304,29 @@ export class OpenAICompatibleResponsesTextAdapter<
   ): string {
     let textContent = ''
     let refusal: string | undefined
+    let sawMessageItem = false
+    const observedItemTypes = new Set<string>()
 
     for (const item of response.output) {
+      observedItemTypes.add(item.type)
       if (item.type === 'message') {
+        sawMessageItem = true
         for (const part of item.content) {
-          if (part.type === 'output_text') {
-            textContent += part.text
+          // Cast off the discriminated union before the type discrimination
+          // so future SDK variants (e.g. `output_audio`, `output_image`) hit
+          // the explicit error path rather than being misreported as refusals
+          // when they get added to the union. Mirrors the streaming side's
+          // handleContentPart.
+          const partType = (part as { type: string }).type
+          if (partType === 'output_text') {
+            textContent += (part as { text?: string }).text ?? ''
+          } else if (partType === 'refusal') {
+            const refusalText = (part as { refusal?: string }).refusal
+            refusal = refusalText || refusal || 'Refused without explanation'
           } else {
-            // The Responses SDK currently models message content as
-            // `output_text | refusal`, so the only non-text branch is a
-            // refusal. Capture it so we can surface a distinct error below.
-            refusal = part.refusal || refusal || 'Refused without explanation'
+            throw new Error(
+              `${this.name}.extractTextFromResponse: unsupported message content part type "${partType}"`,
+            )
           }
         }
       }
@@ -340,6 +339,16 @@ export class OpenAICompatibleResponsesTextAdapter<
       const err = new Error(`Model refused to respond: ${refusal}`)
       ;(err as Error & { code?: string }).code = 'refusal'
       throw err
+    }
+
+    // Response had items but none carried message text (e.g. only
+    // function_call or reasoning items). Surface that explicitly so a
+    // downstream structured-output caller doesn't see a misleading
+    // "Failed to parse JSON. Content: " from an empty string.
+    if (!textContent && response.output.length > 0 && !sawMessageItem) {
+      throw new Error(
+        `${this.name}.extractTextFromResponse: response.output contained items of type(s) [${[...observedItemTypes].sort().join(', ')}] but no message text — the model returned a non-text response`,
+      )
     }
 
     return textContent
@@ -364,7 +373,13 @@ export class OpenAICompatibleResponsesTextAdapter<
     stream: AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>,
     toolCallMetadata: Map<
       string,
-      { index: number; name: string; started: boolean }
+      {
+        index: number
+        name: string
+        started: boolean
+        ended?: boolean
+        pendingArguments?: string
+      }
     >,
     options: TextOptions<TProviderOptions>,
     aguiState: {
@@ -724,6 +739,40 @@ export class OpenAICompatibleResponsesTextAdapter<
             continue
           }
 
+          // Upstreams that emit `content_part.done` without any preceding
+          // deltas (or `content_part.added`) still need a START event before
+          // CONTENT — otherwise consumers tracking start/end pairs see content
+          // without a start and never see an end. Emit the lifecycle opener
+          // for whichever stream this content_part belongs to before yielding
+          // the CONTENT chunk; the post-loop block emits the matching END.
+          if (
+            contentPart.type === 'output_text' &&
+            !hasEmittedTextMessageStart
+          ) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              role: 'assistant',
+            } satisfies StreamChunk
+          } else if (
+            contentPart.type === 'reasoning_text' &&
+            !hasEmittedStepStarted
+          ) {
+            hasEmittedStepStarted = true
+            stepId = generateId(this.name)
+            yield {
+              type: EventType.STEP_STARTED,
+              stepName: stepId,
+              stepId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              stepType: 'thinking',
+            } satisfies StreamChunk
+          }
+
           // Only emit if we haven't been streaming deltas (e.g., for non-streaming responses)
           const doneChunk = handleContentPart(contentPart)
           yield doneChunk
@@ -738,27 +787,35 @@ export class OpenAICompatibleResponsesTextAdapter<
           const item = chunk.item
           if (item.type === 'function_call' && item.id) {
             const existing = toolCallMetadata.get(item.id)
-            // Only emit TOOL_CALL_START on the FIRST output_item.added for
-            // an item id. A duplicate emission (which can happen on retried
-            // streams or replay) would violate AG-UI's start-once contract.
-            if (!existing?.started) {
-              if (!existing) {
-                toolCallMetadata.set(item.id, {
-                  index: chunk.output_index,
-                  name: item.name || '',
-                  started: false,
-                })
-              }
+            // Track the item as soon as we see it so subsequent arg deltas
+            // aren't logged as orphans, but only emit TOOL_CALL_START when
+            // both id AND name are populated. Emitting START with an empty
+            // name would propagate into TOOL_CALL_END (which reads the same
+            // metadata) and route the tool call to whatever name happens to
+            // match `''` downstream — a silent misroute.
+            if (!existing) {
+              toolCallMetadata.set(item.id, {
+                index: chunk.output_index,
+                name: item.name || '',
+                started: false,
+              })
+            } else if (!existing.name && item.name) {
+              // A later output_item.added for the same id finally carries
+              // the name. Update so the gated emission below can fire.
+              existing.name = item.name
+            }
+            const metadata = toolCallMetadata.get(item.id)!
+            if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
                 toolCallId: item.id,
-                toolCallName: item.name || '',
-                toolName: item.name || '',
+                toolCallName: metadata.name,
+                toolName: metadata.name,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.output_index,
               } satisfies StreamChunk
-              toolCallMetadata.get(item.id)!.started = true
+              metadata.started = true
             }
           }
         }
@@ -805,13 +862,19 @@ export class OpenAICompatibleResponsesTextAdapter<
 
           // Get the function name from metadata (captured in output_item.added)
           const metadata = toolCallMetadata.get(item_id)
-          // Skip TOOL_CALL_END for items whose start was never emitted (no
-          // matching `output_item.added`). Emitting END without START would
-          // produce an unbalanced AG-UI lifecycle event downstream consumers
-          // can't pair.
+          // If the matching START was never emitted (the upstream sent an
+          // `output_item.added` without a name and no later event has filled
+          // it in yet), defer END until `output_item.done` or
+          // `response.completed` can backfill the name. We stash the raw
+          // arguments so the late emission has them. Emitting END without
+          // START would produce an unbalanced AG-UI lifecycle event
+          // downstream consumers can't pair.
           if (!metadata?.started) {
+            if (metadata) {
+              metadata.pendingArguments = chunk.arguments
+            }
             options.logger.errors(
-              `${this.name}.processStreamChunks orphan function_call_arguments.done`,
+              `${this.name}.processStreamChunks deferring function_call_arguments.done — TOOL_CALL_START not yet emitted (waiting for name)`,
               {
                 source: `${this.name}.processStreamChunks`,
                 toolCallId: item_id,
@@ -820,7 +883,12 @@ export class OpenAICompatibleResponsesTextAdapter<
             )
             continue
           }
+          // The output_item.done backstop may have already emitted END (when
+          // it arrived before args.done with a populated item.arguments).
+          // Skip so we never produce a duplicate close for the same id.
+          if (metadata.ended) continue
           const name = metadata.name || ''
+          metadata.ended = true
 
           // Parse arguments. Surface parse failures via the logger so a
           // model emitting malformed JSON is debuggable instead of silently
@@ -859,7 +927,158 @@ export class OpenAICompatibleResponsesTextAdapter<
           } satisfies StreamChunk
         }
 
+        // `output_item.done` is the last point at which a function_call's
+        // name is guaranteed to be on the wire — it carries the fully-formed
+        // ResponseFunctionToolCall. Use it as a backstop to recover any
+        // tool call whose name was missing from `output_item.added` (and
+        // whose START + END therefore never fired).
+        if (chunk.type === 'response.output_item.done') {
+          const item = chunk.item
+          if (item.type === 'function_call' && item.id) {
+            const metadata = toolCallMetadata.get(item.id) ?? {
+              index: chunk.output_index,
+              name: item.name || '',
+              started: false,
+            }
+            if (!toolCallMetadata.has(item.id)) {
+              toolCallMetadata.set(item.id, metadata)
+            } else if (!metadata.name && item.name) {
+              metadata.name = item.name
+            }
+            // Emit gated START if we now have a name and never started.
+            if (!metadata.started && metadata.name) {
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: item.id,
+                toolCallName: metadata.name,
+                toolName: metadata.name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                index: metadata.index,
+              } satisfies StreamChunk
+              metadata.started = true
+            }
+            // Emit END if we have args (either from a previously-deferred
+            // args.done OR from item.arguments) and haven't already ended.
+            const rawArgs =
+              typeof item.arguments === 'string' && item.arguments.length > 0
+                ? item.arguments
+                : metadata.pendingArguments
+            if (metadata.started && !metadata.ended && rawArgs !== undefined) {
+              const name = metadata.name || ''
+              let parsedInput: unknown = {}
+              if (rawArgs) {
+                try {
+                  const parsed = JSON.parse(rawArgs)
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
+                } catch (parseError) {
+                  options.logger.errors(
+                    `${this.name}.processStreamChunks tool-args JSON parse failed (output_item.done backfill)`,
+                    {
+                      error: toRunErrorPayload(
+                        parseError,
+                        `tool ${name} (${item.id}) returned malformed JSON arguments`,
+                      ),
+                      source: `${this.name}.processStreamChunks`,
+                      toolCallId: item.id,
+                      toolName: name,
+                      rawArguments: rawArgs,
+                    },
+                  )
+                  parsedInput = {}
+                }
+              }
+              yield {
+                type: EventType.TOOL_CALL_END,
+                toolCallId: item.id,
+                toolCallName: name,
+                toolName: name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                input: parsedInput,
+              } satisfies StreamChunk
+              metadata.ended = true
+              metadata.pendingArguments = undefined
+            }
+          }
+        }
+
         if (chunk.type === 'response.completed') {
+          // Final backstop for function_call lifecycle: if a function_call
+          // appears in `response.output[]` but was never matched by an
+          // output_item.added/done with a name, recover the missing START
+          // (and END if args were pending). Without this, a tool call could
+          // be silently dropped from the AG-UI stream while `hasFunctionCalls`
+          // below still routes the run's finishReason to 'tool_calls' —
+          // leaving consumers waiting for tool results they never saw start.
+          for (const item of chunk.response.output) {
+            if (item.type !== 'function_call' || !item.id) continue
+            const metadata = toolCallMetadata.get(item.id) ?? {
+              index: 0,
+              name: item.name || '',
+              started: false,
+            }
+            if (!toolCallMetadata.has(item.id)) {
+              toolCallMetadata.set(item.id, metadata)
+            } else if (!metadata.name && item.name) {
+              metadata.name = item.name
+            }
+            if (!metadata.started && metadata.name) {
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: item.id,
+                toolCallName: metadata.name,
+                toolName: metadata.name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                index: metadata.index,
+              } satisfies StreamChunk
+              metadata.started = true
+            }
+            const rawArgs =
+              typeof item.arguments === 'string' && item.arguments.length > 0
+                ? item.arguments
+                : metadata.pendingArguments
+            if (metadata.started && !metadata.ended) {
+              const name = metadata.name || ''
+              let parsedInput: unknown = {}
+              if (rawArgs) {
+                try {
+                  const parsed = JSON.parse(rawArgs)
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
+                } catch (parseError) {
+                  options.logger.errors(
+                    `${this.name}.processStreamChunks tool-args JSON parse failed (response.completed backfill)`,
+                    {
+                      error: toRunErrorPayload(
+                        parseError,
+                        `tool ${name} (${item.id}) returned malformed JSON arguments`,
+                      ),
+                      source: `${this.name}.processStreamChunks`,
+                      toolCallId: item.id,
+                      toolName: name,
+                      rawArguments: rawArgs,
+                    },
+                  )
+                  parsedInput = {}
+                }
+              }
+              yield {
+                type: EventType.TOOL_CALL_END,
+                toolCallId: item.id,
+                toolCallName: name,
+                toolName: name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                input: parsedInput,
+              } satisfies StreamChunk
+              metadata.ended = true
+              metadata.pendingArguments = undefined
+            }
+          }
+
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
             yield {

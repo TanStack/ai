@@ -1,3 +1,4 @@
+import OpenAI from 'openai'
 import { OpenAICompatibleResponsesTextAdapter } from '@tanstack/ai-openai-compatible'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
@@ -88,8 +89,25 @@ export class OpenAITextAdapter<
   readonly kind = 'text' as const
   readonly name = 'openai' as const
 
+  protected client: OpenAI
+
   constructor(config: OpenAITextConfig, model: TModel) {
-    super(config, model, 'openai')
+    super(model, 'openai')
+    this.client = new OpenAI(config)
+  }
+
+  protected async callResponse(
+    params: OpenAI_SDK.Responses.ResponseCreateParamsNonStreaming,
+    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
+  ): Promise<OpenAI_SDK.Responses.Response> {
+    return this.client.responses.create(params, requestOptions)
+  }
+
+  protected async callResponseStream(
+    params: OpenAI_SDK.Responses.ResponseCreateParamsStreaming,
+    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
+  ): Promise<AsyncIterable<OpenAI_SDK.Responses.ResponseStreamEvent>> {
+    return this.client.responses.create(params, requestOptions)
   }
 
   /**

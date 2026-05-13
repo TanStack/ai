@@ -18,6 +18,17 @@ const ABORT_ERROR_NAMES = new Set([
   'RequestAbortedError',
 ])
 
+// HTTP status codes carried as numbers (e.g. `error.status = 429`) are a
+// common variant on SDK error classes; coerce so the resulting `code` field
+// is stable as a string for downstream consumers.
+function normalizeCode(codeField: unknown): string | undefined {
+  if (typeof codeField === 'string') return codeField
+  if (typeof codeField === 'number' && Number.isFinite(codeField)) {
+    return String(codeField)
+  }
+  return undefined
+}
+
 export function toRunErrorPayload(
   error: unknown,
   fallbackMessage = 'Unknown error occurred',
@@ -32,7 +43,7 @@ export function toRunErrorPayload(
     const codeField = (error as Error & { code?: unknown }).code
     return {
       message: error.message || fallbackMessage,
-      code: typeof codeField === 'string' ? codeField : undefined,
+      code: normalizeCode(codeField),
     }
   }
   if (typeof error === 'object' && error !== null) {
@@ -43,7 +54,7 @@ export function toRunErrorPayload(
         typeof messageField === 'string' && messageField.length > 0
           ? messageField
           : fallbackMessage,
-      code: typeof codeField === 'string' ? codeField : undefined,
+      code: normalizeCode(codeField),
     }
   }
   if (typeof error === 'string' && error.length > 0) {

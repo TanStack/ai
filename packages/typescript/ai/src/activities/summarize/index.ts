@@ -313,3 +313,7 @@ export type {
   AnySummarizeAdapter,
 } from './adapter'
 export { BaseSummarizeAdapter } from './adapter'
+export {
+  ChatStreamSummarizeAdapter,
+  type ChatStreamCapable,
+} from './chat-stream-wrapper'

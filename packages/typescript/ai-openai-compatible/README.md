@@ -13,7 +13,7 @@ the shared logic for talking to **any** server that speaks one of those wire
 formats. OpenAI is one such server. OpenRouter, Groq, Grok, vLLM, SGLang,
 Together, Ollama's compat layer, Fireworks, and others are too.
 
-The package holds two abstract classes:
+The package holds two shared base classes:
 
 - `OpenAICompatibleChatCompletionsTextAdapter`
 - `OpenAICompatibleResponsesTextAdapter`
@@ -94,19 +94,23 @@ because no compatible family exists.
 └── BaseTextAdapter  (abstract — emits AG-UI events)
     │
     ├── @tanstack/ai-openai-compatible::OpenAICompatibleChatCompletionsTextAdapter
-    │   ├── ai-openai (chat-completions side)
     │   ├── ai-openrouter
     │   ├── ai-groq
     │   └── ai-grok
     │
     ├── @tanstack/ai-openai-compatible::OpenAICompatibleResponsesTextAdapter
-    │   ├── ai-openai (primary text adapter)
+    │   ├── ai-openai (primary text adapter — Responses is OpenAI's preferred API)
     │   └── ai-openrouter (beta — routes to any underlying model)
     │
     ├── ai-anthropic::AnthropicTextAdapter   extends BaseTextAdapter directly
     ├── ai-gemini::GeminiTextAdapter         extends BaseTextAdapter directly
     └── ai-ollama::OllamaTextAdapter         extends BaseTextAdapter directly
 ```
+
+Note: `ai-openai` ships only the Responses-based adapter. For pure Chat
+Completions use cases without OpenAI-specific behaviour, use `ai-grok`
+(xAI's API is a direct OpenAI Chat Completions clone) or build a new
+provider package extending `OpenAICompatibleChatCompletionsTextAdapter`.
 
 ## Direct use
 

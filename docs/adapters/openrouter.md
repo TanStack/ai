@@ -35,16 +35,17 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { createOpenRouter, type OpenRouterConfig } from "@tanstack/ai-openrouter";
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
 
-const config: OpenRouterConfig = {
-  apiKey: process.env.OPENROUTER_API_KEY!,
-  baseURL: "https://openrouter.ai/api/v1", // Optional
-  httpReferer: "https://your-app.com", // Optional, for rankings
-  xTitle: "Your App Name", // Optional, for rankings
-};
-
-const adapter = createOpenRouter(config.apiKey, config);
+const adapter = createOpenRouterText(
+  "openai/gpt-5",
+  process.env.OPENROUTER_API_KEY!,
+  {
+    serverURL: "https://openrouter.ai/api/v1", // Optional
+    httpReferer: "https://your-app.com", // Optional, for rankings
+    appTitle: "Your App Name", // Optional, for rankings
+  },
+);
 ```
 
 ## Available Models
@@ -122,14 +123,13 @@ OpenRouter can automatically route requests to the best available provider:
 ```typescript
 const stream = chat({
   adapter: openRouterText("openrouter/auto"),
-  messages, 
-  providerOptions: {
+  messages,
+  modelOptions: {
     models: [
       "openai/gpt-4o",
       "anthropic/claude-3.5-sonnet",
       "google/gemini-pro",
     ],
-    route: "fallback", // Use fallback if primary fails
   },
 });
 ```

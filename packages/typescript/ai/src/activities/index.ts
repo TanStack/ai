@@ -60,6 +60,10 @@ export {
   type SummarizeAdapterConfig,
   type AnySummarizeAdapter,
 } from './summarize/adapter'
+export {
+  ChatStreamSummarizeAdapter,
+  type ChatStreamCapable,
+} from './summarize/chat-stream-wrapper'
 
 // ===========================
 // Image Activity

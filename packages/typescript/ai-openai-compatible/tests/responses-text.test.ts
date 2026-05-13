@@ -8,16 +8,28 @@ const testLogger = resolveDebugOption(false)
 // Declare mockCreate at module level
 let mockResponsesCreate: ReturnType<typeof vi.fn>
 
-// Mock the OpenAI SDK
-vi.mock('openai', () => {
-  return {
-    default: class {
-      responses = {
-        create: (...args: Array<unknown>) => mockResponsesCreate(...args),
-      }
-    },
+/**
+ * Concrete test subclass — the base is abstract, so tests need a class that
+ * implements `callResponse*`. Hooks delegate to `mockResponsesCreate` so
+ * each test can configure the SDK response without spinning up a real client.
+ */
+class TestResponsesAdapter extends OpenAICompatibleResponsesTextAdapter<string> {
+  constructor(_config: unknown, model: string, name?: string) {
+    super(model, name)
   }
-})
+  protected async callResponse(
+    params: any,
+    requestOptions: any,
+  ): Promise<any> {
+    return mockResponsesCreate(params, requestOptions)
+  }
+  protected async callResponseStream(
+    params: any,
+    requestOptions: any,
+  ): Promise<any> {
+    return mockResponsesCreate(params, requestOptions)
+  }
+}
 
 // Helper to create async iterable from chunks
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
@@ -70,7 +82,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
   describe('instantiation', () => {
     it('creates an adapter with default name', () => {
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -82,7 +94,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
     })
 
     it('creates an adapter with custom name', () => {
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
         'my-provider',
@@ -93,7 +105,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
     })
 
     it('creates an adapter with custom baseURL', () => {
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         {
           apiKey: 'test-key',
           baseURL: 'https://custom.api.example.com/v1',
@@ -138,7 +150,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -190,7 +202,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -253,7 +265,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -324,7 +336,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -392,7 +404,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -466,7 +478,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -550,7 +562,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -637,7 +649,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -763,7 +775,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -852,7 +864,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -888,6 +900,309 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       if (toolEnd?.type === 'TOOL_CALL_END') {
         expect(toolEnd.toolCallId).toBe('fc_internal_001')
       }
+    })
+
+    it('does not emit TOOL_CALL_START until the item carries a name (no empty-name misroute)', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-x',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        // First added event lacks a name — should NOT emit TOOL_CALL_START
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { type: 'function_call', id: 'call_late_name' },
+        },
+        // Second added event for the same id finally carries the name
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call_late_name',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call_late_name',
+          arguments: '{"location":"NYC"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-x',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call_late_name',
+                name: 'lookup_weather',
+                arguments: '{"location":"NYC"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      )
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+      const starts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
+      expect(starts.length).toBe(1)
+      if (starts[0]?.type === 'TOOL_CALL_START') {
+        expect(starts[0].toolName).toBe('lookup_weather')
+        expect(starts[0].toolCallName).toBe('lookup_weather')
+      }
+      const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+      expect(end).toBeDefined()
+      if (end?.type === 'TOOL_CALL_END') {
+        expect(end.toolName).toBe('lookup_weather')
+      }
+    })
+
+    it('backfills tool call via output_item.done when name was missing from output_item.added', async () => {
+      // Some upstreams send `output_item.added` with no `name`, then carry
+      // the full function_call item (including name and arguments) in
+      // `output_item.done`. Without a backfill, the tool call would be
+      // silently dropped from the AG-UI stream.
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-bf',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { type: 'function_call', id: 'fc_bf' },
+        },
+        // Orphan args deltas + done arrive before name is known.
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'fc_bf',
+          delta: '{"location":',
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_bf',
+          arguments: '{"location":"NYC"}',
+        },
+        // output_item.done finally carries the name + full arguments.
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_bf',
+            name: 'lookup_weather',
+            arguments: '{"location":"NYC"}',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-bf',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_bf',
+                name: 'lookup_weather',
+                arguments: '{"location":"NYC"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      )
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+      const starts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      if (starts[0]?.type === 'TOOL_CALL_START') {
+        expect(starts[0].toolName).toBe('lookup_weather')
+      }
+      if (ends[0]?.type === 'TOOL_CALL_END') {
+        expect(ends[0].toolName).toBe('lookup_weather')
+        expect(ends[0].input).toEqual({ location: 'NYC' })
+      }
+    })
+
+    it('backfills tool call from response.completed.output[] when name never arrived mid-stream', async () => {
+      // Defense-in-depth backstop: if neither output_item.added nor
+      // output_item.done carried the name (very off-spec upstream), the
+      // function_call item in response.completed.output[] still has it.
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-final',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { type: 'function_call', id: 'fc_final' },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_final',
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-final',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_final',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      )
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+      const starts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      if (ends[0]?.type === 'TOOL_CALL_END') {
+        expect(ends[0].toolName).toBe('lookup_weather')
+        expect(ends[0].input).toEqual({ location: 'Berlin' })
+      }
+    })
+
+    it('does not emit duplicate TOOL_CALL_END when output_item.done precedes args.done', async () => {
+      // Reverse ordering: output_item.done arrives with full arguments and
+      // emits START + END (sets ended=true), then a late args.done arrives
+      // for the same id. Without the metadata.ended guard, args.done would
+      // emit a second TOOL_CALL_END.
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rev',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_rev',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_rev',
+            name: 'lookup_weather',
+            arguments: '{"location":"Tokyo"}',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_rev',
+          arguments: '{"location":"Tokyo"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rev',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_rev',
+                name: 'lookup_weather',
+                arguments: '{"location":"Tokyo"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      )
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+      const starts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
     })
   })
 
@@ -926,7 +1241,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -992,7 +1307,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1011,6 +1326,54 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         (c) => c.type === 'TEXT_MESSAGE_CONTENT',
       )
       expect(contentChunks.length).toBe(2)
+    })
+
+    it('emits TEXT_MESSAGE_START before content when only content_part.done fires (no preceding deltas or added)', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-d',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        // No deltas, no content_part.added — only the done event.
+        {
+          type: 'response.content_part.done',
+          part: { type: 'output_text', text: 'whole message at once' },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-d',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 5, output_tokens: 3, total_tokens: 8 },
+          },
+        },
+      ]
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      )
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'hi' }],
+      })) {
+        chunks.push(chunk)
+      }
+      const types = chunks.map((c) => c.type)
+      const startIdx = types.indexOf('TEXT_MESSAGE_START')
+      const contentIdx = types.indexOf('TEXT_MESSAGE_CONTENT')
+      const endIdx = types.indexOf('TEXT_MESSAGE_END')
+      expect(startIdx).toBeGreaterThanOrEqual(0)
+      expect(contentIdx).toBeGreaterThan(startIdx)
+      expect(endIdx).toBeGreaterThan(contentIdx)
     })
   })
 
@@ -1048,7 +1411,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       mockResponsesCreate = vi.fn().mockResolvedValue(errorIterable)
 
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1075,7 +1438,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
         .fn()
         .mockRejectedValue(new Error('API key invalid'))
 
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1115,7 +1478,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1152,7 +1515,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1193,7 +1556,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1236,7 +1599,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       setupMockResponsesClient([], nonStreamResponse)
 
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1293,7 +1656,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       setupMockResponsesClient([], nonStreamResponse)
 
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1336,7 +1699,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
 
       setupMockResponsesClient([], nonStreamResponse)
 
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1357,6 +1720,99 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
           },
         }),
       ).rejects.toThrow('Failed to parse structured output as JSON')
+    })
+
+    it('fails loud when response has only message items with empty text', async () => {
+      const nonStreamResponse = {
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: '' }],
+          },
+        ],
+      }
+      setupMockResponsesClient([], nonStreamResponse)
+      const adapter = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      )
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'q' }],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        }),
+      ).rejects.toThrow('response contained no content')
+    })
+
+    it('fails loud when response.output has only non-message items (function_call, reasoning)', async () => {
+      const nonStreamResponse = {
+        output: [
+          {
+            type: 'function_call',
+            id: 'fc_1',
+            call_id: 'call_1',
+            name: 'do_thing',
+            arguments: '{}',
+          },
+        ],
+      }
+      setupMockResponsesClient([], nonStreamResponse)
+      const adapter = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      )
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'q' }],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        }),
+      ).rejects.toThrow(/function_call/)
+    })
+
+    it('throws on unknown message content_part type rather than misreporting as refusal', async () => {
+      const nonStreamResponse = {
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_audio', audio: 'base64data' }],
+          },
+        ],
+      }
+      setupMockResponsesClient([], nonStreamResponse)
+      const adapter = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      )
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'q' }],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        }),
+      ).rejects.toThrow(/unsupported message content part type "output_audio"/)
     })
   })
 
@@ -1388,7 +1844,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1459,7 +1915,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1510,7 +1966,7 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
       ]
 
       setupMockResponsesClient(streamChunks)
-      const adapter = new OpenAICompatibleResponsesTextAdapter(
+      const adapter = new TestResponsesAdapter(
         testConfig,
         'test-model',
       )
@@ -1572,12 +2028,14 @@ describe('OpenAICompatibleResponsesTextAdapter', () => {
   describe('subclassing', () => {
     it('allows subclassing with custom name', () => {
       class MyProviderAdapter extends OpenAICompatibleResponsesTextAdapter<string> {
-        constructor(apiKey: string, model: string) {
-          super(
-            { apiKey, baseURL: 'https://my-provider.com/v1' },
-            model,
-            'my-provider',
-          )
+        constructor(_apiKey: string, model: string) {
+          super(model, 'my-provider')
+        }
+        protected async callResponse(): Promise<any> {
+          throw new Error('not called in this test')
+        }
+        protected async callResponseStream(): Promise<any> {
+          throw new Error('not called in this test')
         }
       }
 

@@ -1,6 +1,8 @@
+import OpenAI from 'openai'
 import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/ai-openai-compatible'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { makeGroqStructuredOutputCompatible } from '../utils/schema-converter'
+import type OpenAI_SDK from 'openai'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type { ChatCompletionChunk } from '@tanstack/ai-openai-compatible'
 import type {
@@ -57,8 +59,25 @@ export class GroqTextAdapter<
   readonly kind = 'text' as const
   readonly name = 'groq' as const
 
+  protected client: OpenAI
+
   constructor(config: GroqTextConfig, model: TModel) {
-    super(withGroqDefaults(config), model, 'groq')
+    super(model, 'groq')
+    this.client = new OpenAI(withGroqDefaults(config))
+  }
+
+  protected async callChatCompletion(
+    params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
+  ): Promise<OpenAI_SDK.Chat.Completions.ChatCompletion> {
+    return this.client.chat.completions.create(params, requestOptions)
+  }
+
+  protected async callChatCompletionStream(
+    params: OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming,
+    requestOptions: { signal?: AbortSignal | null; headers?: HeadersInit },
+  ): Promise<AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>> {
+    return this.client.chat.completions.create(params, requestOptions)
   }
 
   protected override makeStructuredOutputCompatible(

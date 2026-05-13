@@ -1,11 +1,10 @@
 export { makeStructuredOutputCompatible } from './utils/schema-converter'
-export { createOpenAICompatibleClient } from './utils/client'
-export type { OpenAICompatibleClientConfig } from './types/config'
 export * from './tools/index'
 export { OpenAICompatibleChatCompletionsTextAdapter } from './adapters/chat-completions-text'
-// Re-export the OpenAI SDK types subclasses need when overriding the
-// `callChatCompletion*` / `processStreamChunks` hooks, so they don't need
-// to declare `openai` as a direct dependency.
+// Re-export the OpenAI SDK types subclasses need when implementing the
+// `callChatCompletion*` hooks. Type-only — `openai` is an optional peer in
+// this package, so consumers that use these types must declare `openai`
+// in their own deps (or devDeps if they only need types).
 export type {
   ChatCompletion,
   ChatCompletionChunk,
@@ -18,10 +17,7 @@ export {
   type ChatCompletionFunctionTool,
 } from './adapters/chat-completions-tool-converter'
 export { OpenAICompatibleResponsesTextAdapter } from './adapters/responses-text'
-// Re-export the OpenAI Responses SDK types subclasses need when overriding
-// the `callResponse*` / `processStreamChunks` / `extractTextFromResponse`
-// hooks, so subclass packages don't need to declare `openai` as a direct
-// dependency.
+// Type-only re-exports for subclasses implementing the `callResponse*` hooks.
 export type {
   Response as ResponsesResponse,
   ResponseCreateParams,
@@ -35,11 +31,3 @@ export {
   convertToolsToResponsesFormat,
   type ResponsesFunctionTool,
 } from './adapters/responses-tool-converter'
-export { OpenAICompatibleImageAdapter } from './adapters/image'
-export {
-  OpenAICompatibleSummarizeAdapter,
-  type ChatStreamCapable,
-} from './adapters/summarize'
-export { OpenAICompatibleTranscriptionAdapter } from './adapters/transcription'
-export { OpenAICompatibleTTSAdapter } from './adapters/tts'
-export { OpenAICompatibleVideoAdapter } from './adapters/video'

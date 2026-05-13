@@ -101,21 +101,10 @@ export class OpenRouterTextAdapter<
   readonly kind = 'text' as const
   readonly name = 'openrouter' as const
 
-  /** OpenRouter SDK client. The base's `this.client` (an OpenAI client) is
-   *  unused because we override the SDK-call hooks below. */
   protected orClient: OpenRouter
 
   constructor(config: OpenRouterConfig, model: TModel) {
-    // The base needs an OpenAICompatibleClientConfig to construct an OpenAI
-    // client we never use. The OpenRouter SDK supports a Promise-returning
-    // apiKey getter; the OpenAI SDK's constructor here is a no-op for our
-    // purposes, so any string suffices.
-    const apiKey = typeof config.apiKey === 'string' ? config.apiKey : 'unused'
-    super(
-      { apiKey, baseURL: 'https://openrouter.ai/api/v1' },
-      model,
-      'openrouter',
-    )
+    super(model, 'openrouter')
     this.orClient = new OpenRouter(config)
   }
 
@@ -132,7 +121,10 @@ export class OpenRouterTextAdapter<
     const chatRequest = toOpenRouterRequest(params, true)
     const stream = (await this.orClient.chat.send(
       { chatRequest: { ...chatRequest, stream: true } },
-      { signal: requestOptions.signal ?? undefined },
+      {
+        signal: requestOptions.signal ?? undefined,
+        ...(requestOptions.headers && { headers: requestOptions.headers }),
+      },
     )) as AsyncIterable<ChatStreamChunk>
     return adaptOpenRouterStreamChunks(stream)
   }
@@ -144,7 +136,10 @@ export class OpenRouterTextAdapter<
     const chatRequest = toOpenRouterRequest(params, false)
     const response = await this.orClient.chat.send(
       { chatRequest: { ...chatRequest, stream: false } },
-      { signal: requestOptions.signal ?? undefined },
+      {
+        signal: requestOptions.signal ?? undefined,
+        ...(requestOptions.headers && { headers: requestOptions.headers }),
+      },
     )
     // The base only reads `response.choices[0]?.message.content`. The SDK's
     // non-streaming response carries that under the same path.
@@ -163,13 +158,12 @@ export class OpenRouterTextAdapter<
   }
 
   protected override extractReasoning(
-    chunk: ChatCompletionChunk,
+    chunk: unknown,
   ): { text: string } | undefined {
     // The chunk-adapter stashes the raw reasoning deltas on a non-standard
     // field so we don't need to round-trip them through camelCase ↔
     // snake_case on the OpenAI Chat Completions chunk schema.
-    const reasoning = (chunk as unknown as { _reasoningText?: string })
-      ._reasoningText
+    const reasoning = (chunk as { _reasoningText?: string })._reasoningText
     return reasoning ? { text: reasoning } : undefined
   }
 
@@ -515,16 +509,14 @@ async function* adaptOpenRouterStreamChunks(
     }
 
     // Surface upstream errors so the base can route them to RUN_ERROR.
-    // Stringify code: OpenRouter's chunk error.code is numeric (401, 429,
-    // 500, …) but `toRunErrorPayload` drops non-string codes, which would
-    // silently lose provider error codes from the RUN_ERROR payload.
+    // `toRunErrorPayload` handles both string and finite-number codes; any
+    // other shape (object/array/symbol/NaN) falls through to undefined
+    // rather than serialising to "[object Object]".
     if ((chunk as any).error) {
       const errObj = (chunk as any).error
       throw Object.assign(
         new Error(errObj.message || 'OpenRouter stream error'),
-        {
-          code: errObj.code != null ? String(errObj.code) : undefined,
-        },
+        { code: errObj.code },
       )
     }
 

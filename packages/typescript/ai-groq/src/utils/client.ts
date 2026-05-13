@@ -1,7 +1,9 @@
 import { getApiKeyFromEnv } from '@tanstack/ai-utils'
-import type { OpenAICompatibleClientConfig } from '@tanstack/ai-openai-compatible'
+import type { ClientOptions } from 'openai'
 
-export interface GroqClientConfig extends OpenAICompatibleClientConfig {}
+export interface GroqClientConfig extends Omit<ClientOptions, 'apiKey'> {
+  apiKey: string
+}
 
 /**
  * Gets Groq API key from environment variables
@@ -20,11 +22,9 @@ export function getGroqApiKeyFromEnv(): string {
 /**
  * Returns a Groq client config with Groq's OpenAI-compatible base URL
  * applied when not already set. The Groq endpoint accepts the OpenAI SDK
- * verbatim, so the base adapter can drive it without a separate SDK.
+ * verbatim, so the adapter drives it via the OpenAI SDK with this baseURL.
  */
-export function withGroqDefaults(
-  config: GroqClientConfig,
-): OpenAICompatibleClientConfig {
+export function withGroqDefaults(config: GroqClientConfig): GroqClientConfig {
   return {
     ...config,
     baseURL: config.baseURL || 'https://api.groq.com/openai/v1',

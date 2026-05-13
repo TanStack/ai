@@ -34,17 +34,27 @@ describe('toRunErrorPayload', () => {
     )
   })
 
-  it('ignores non-string code fields (returns undefined)', () => {
+  it('coerces numeric code fields to strings', () => {
     expect(toRunErrorPayload({ message: 'x', code: 500 })).toEqual({
       message: 'x',
-      code: undefined,
+      code: '500',
     })
   })
 
-  it('ignores non-string code fields on Error instances too', () => {
-    const err = Object.assign(new Error('numeric code'), { code: 500 })
+  it('coerces numeric code fields on Error instances too', () => {
+    const err = Object.assign(new Error('http 429'), { code: 429 })
     expect(toRunErrorPayload(err)).toEqual({
-      message: 'numeric code',
+      message: 'http 429',
+      code: '429',
+    })
+  })
+
+  it('ignores non-finite or otherwise non-string/non-number codes', () => {
+    expect(
+      toRunErrorPayload({ message: 'nan', code: Number.NaN }),
+    ).toEqual({ message: 'nan', code: undefined })
+    expect(toRunErrorPayload({ message: 'sym', code: Symbol('x') })).toEqual({
+      message: 'sym',
       code: undefined,
     })
   })
