@@ -63,7 +63,7 @@ export {
 export {
   ChatStreamSummarizeAdapter,
   type ChatStreamCapable,
-} from './summarize/chat-stream-wrapper'
+} from './summarize/chat-stream-summarize'
 
 // ===========================
 // Image Activity
