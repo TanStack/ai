@@ -11,11 +11,7 @@ import { resolveDebugOption } from '../../logger/resolve'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { SummarizeAdapter } from './adapter'
-import type {
-  StreamChunk,
-  SummarizationOptions,
-  SummarizationResult,
-} from '../../types'
+import type { StreamChunk, SummarizationResult } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -205,7 +201,7 @@ async function runSummarize(
     inputLength,
   })
 
-  const summarizeOptions: SummarizationOptions<object> = {
+  const summarizeOptions = {
     model,
     text,
     maxLength,
@@ -264,7 +260,7 @@ async function* runStreamingSummarize(
     stream: true,
   })
 
-  const summarizeOptions: SummarizationOptions<object> = {
+  const summarizeOptions = {
     model,
     text,
     maxLength,
