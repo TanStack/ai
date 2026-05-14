@@ -175,3 +175,35 @@ Structured output options containing chat options and JSON schema
 `Promise`\<`StructuredOutputResult`\<`unknown`\>\>
 
 Promise with the raw data (validation is done in the chat function)
+
+***
+
+### structuredOutputStream()?
+
+```ts
+optional structuredOutputStream: (options) => AsyncIterable<AGUIEvent>;
+```
+
+Defined in: [packages/typescript/ai/src/activities/chat/adapter.ts:117](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/adapter.ts#L117)
+
+Stream structured output using the provider's native streaming structured
+output API (stream + response_format json_schema in a single request).
+
+Optional — adapters without native streaming JSON omit this method and the
+activity layer synthesizes a stream around the non-streaming
+`structuredOutput` call.
+
+Implementations must emit standard AG-UI lifecycle events (RUN_STARTED,
+TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
+`CUSTOM` event named `structured-output.complete` whose `value` is
+`{ object, raw, reasoning? }`.
+
+#### Parameters
+
+##### options
+
+`StructuredOutputOptions`\<`TProviderOptions`\>
+
+#### Returns
+
+`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
