@@ -1,5 +1,12 @@
 # @tanstack/ai-isolate-node
 
+## 0.1.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.1.11
+
 ## 0.1.10
 
 ### Patch Changes

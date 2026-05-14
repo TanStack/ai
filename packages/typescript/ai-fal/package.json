@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-fal",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "fal.ai adapter for TanStack AI",
   "author": "",
   "license": "MIT",
