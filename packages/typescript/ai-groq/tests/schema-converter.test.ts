@@ -65,7 +65,7 @@ describe('makeGroqStructuredOutputCompatible', () => {
 
   it('should normalise nested empty-object schemas in properties', () => {
     // Reproduces the bug where a nested `{ type: 'object' }` without
-    // `properties` slipped past the openai-base transformer because the
+    // `properties` slipped past the ai-openai-base transformer because the
     // ai-groq layer only normalised the top-level node.
     const schema = {
       type: 'object',
@@ -79,7 +79,7 @@ describe('makeGroqStructuredOutputCompatible', () => {
 
     expect(result.properties.child.type).toBe('object')
     expect(result.properties.child.properties).toEqual({})
-    // openai-base sets additionalProperties: false on every rewritten object
+    // ai-openai-base sets additionalProperties: false on every rewritten object
     expect(result.properties.child.additionalProperties).toBe(false)
   })
 

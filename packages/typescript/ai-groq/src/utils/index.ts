@@ -1,9 +1,9 @@
 export {
-  createGroqClient,
   getGroqApiKeyFromEnv,
-  generateId,
+  withGroqDefaults,
   type GroqClientConfig,
 } from './client'
+export { generateId } from '@tanstack/ai-utils'
 export {
   makeGroqStructuredOutputCompatible,
   transformNullsToUndefined,

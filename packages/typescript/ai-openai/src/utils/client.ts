@@ -1,7 +1,14 @@
 import { getApiKeyFromEnv } from '@tanstack/ai-utils'
-import type { OpenAICompatibleClientConfig } from '@tanstack/openai-base'
+import type { ClientOptions } from 'openai'
 
-export interface OpenAIClientConfig extends OpenAICompatibleClientConfig {}
+/**
+ * OpenAI client configuration. Pass through to `new OpenAI(...)`. `apiKey`
+ * is required so the OpenAI adapters don't need to handle a missing-key
+ * case at construction time.
+ */
+export interface OpenAIClientConfig extends Omit<ClientOptions, 'apiKey'> {
+  apiKey: string
+}
 
 /**
  * Gets OpenAI API key from environment variables

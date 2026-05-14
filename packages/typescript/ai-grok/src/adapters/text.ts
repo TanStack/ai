@@ -1,4 +1,5 @@
-import { OpenAICompatibleChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import OpenAI from 'openai'
+import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import type {
   GROK_CHAT_MODELS,
@@ -34,9 +35,9 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  * Tree-shakeable adapter for Grok chat/text completion functionality.
  * Uses OpenAI-compatible Chat Completions API (not Responses API).
  *
- * Delegates implementation to {@link OpenAICompatibleChatCompletionsTextAdapter}
- * from `@tanstack/openai-base` and threads Grok-specific tool-capability typing
- * through the 5th generic of the base class.
+ * Delegates implementation to {@link OpenAIBaseChatCompletionsTextAdapter}
+ * from `@tanstack/openai-base` and threads Grok-specific tool-capability
+ * typing through the 5th generic of the base class.
  */
 export class GrokTextAdapter<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
@@ -45,7 +46,7 @@ export class GrokTextAdapter<
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
-> extends OpenAICompatibleChatCompletionsTextAdapter<
+> extends OpenAIBaseChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
@@ -56,7 +57,7 @@ export class GrokTextAdapter<
   readonly name = 'grok' as const
 
   constructor(config: GrokTextConfig, model: TModel) {
-    super(withGrokDefaults(config), model, 'grok')
+    super(model, 'grok', new OpenAI(withGrokDefaults(config)))
   }
 }
 

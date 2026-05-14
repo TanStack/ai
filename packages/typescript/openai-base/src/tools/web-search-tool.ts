@@ -1,7 +1,7 @@
-import type OpenAI from 'openai'
+import type { WebSearchTool as WebSearchToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
-export type WebSearchToolConfig = OpenAI.Responses.WebSearchTool
+export type { WebSearchToolConfig }
 
 /** @deprecated Renamed to `WebSearchToolConfig`. Will be removed in a future release. */
 export type WebSearchTool = WebSearchToolConfig

@@ -1,5 +1,7 @@
 # @tanstack/openai-base
 
+> Renamed from `@tanstack/openai-base` in 0.3.0. See the [README](./README.md) for context.
+
 ## 0.2.1
 
 ### Patch Changes

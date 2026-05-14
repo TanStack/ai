@@ -1,7 +1,7 @@
-import type OpenAI from 'openai'
+import type { ComputerTool as ComputerUseToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
-export type ComputerUseToolConfig = OpenAI.Responses.ComputerTool
+export type { ComputerUseToolConfig }
 
 /** @deprecated Renamed to `ComputerUseToolConfig`. Will be removed in a future release. */
 export type ComputerUseTool = ComputerUseToolConfig

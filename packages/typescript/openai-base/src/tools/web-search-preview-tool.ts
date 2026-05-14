@@ -1,7 +1,7 @@
-import type OpenAI from 'openai'
+import type { WebSearchPreviewTool as WebSearchPreviewToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
-export type WebSearchPreviewToolConfig = OpenAI.Responses.WebSearchPreviewTool
+export type { WebSearchPreviewToolConfig }
 
 /** @deprecated Renamed to `WebSearchPreviewToolConfig`. Will be removed in a future release. */
 export type WebSearchPreviewTool = WebSearchPreviewToolConfig

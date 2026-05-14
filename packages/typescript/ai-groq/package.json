@@ -53,6 +53,6 @@
   "dependencies": {
     "@tanstack/ai-utils": "workspace:*",
     "@tanstack/openai-base": "workspace:*",
-    "groq-sdk": "^0.37.0"
+    "openai": "^6.9.1"
   }
 }

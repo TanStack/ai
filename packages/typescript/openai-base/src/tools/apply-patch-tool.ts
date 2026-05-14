@@ -1,7 +1,7 @@
-import type OpenAI from 'openai'
+import type { ApplyPatchTool as ApplyPatchToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
-export type ApplyPatchToolConfig = OpenAI.Responses.ApplyPatchTool
+export type { ApplyPatchToolConfig }
 
 /** @deprecated Renamed to `ApplyPatchToolConfig`. Will be removed in a future release. */
 export type ApplyPatchTool = ApplyPatchToolConfig

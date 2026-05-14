@@ -1,4 +1,5 @@
-import { OpenAICompatibleResponsesTextAdapter } from '@tanstack/openai-base'
+import OpenAI from 'openai'
+import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
@@ -9,7 +10,7 @@ import type {
   OpenAIChatModelToolCapabilitiesByName,
   OpenAIModelInputModalitiesByName,
 } from '../model-meta'
-import type OpenAI_SDK from 'openai'
+import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type {
   ExternalTextProviderOptions,
@@ -67,9 +68,12 @@ type ResolveToolCapabilities<TModel extends string> =
  * OpenAI Text (Chat) Adapter
  *
  * Tree-shakeable adapter for OpenAI chat/text completion functionality.
- * Delegates implementation to {@link OpenAICompatibleResponsesTextAdapter} from
- * `@tanstack/openai-base` and threads OpenAI-specific tool-capability typing
- * through the 5th generic of the base class.
+ * Delegates implementation to {@link OpenAIBaseResponsesTextAdapter} from
+ * `@tanstack/openai-base`. The base calls `openai.responses.create`
+ * directly; this subclass just hands it a configured client and overrides
+ * `mapOptionsToRequest` to route through OpenAI's full tool converter
+ * (supporting file_search, web_search, etc.) and to apply provider option
+ * validation.
  */
 export class OpenAITextAdapter<
   TModel extends OpenAIChatModel,
@@ -78,7 +82,7 @@ export class OpenAITextAdapter<
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
-> extends OpenAICompatibleResponsesTextAdapter<
+> extends OpenAIBaseResponsesTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
@@ -89,7 +93,7 @@ export class OpenAITextAdapter<
   readonly name = 'openai' as const
 
   constructor(config: OpenAITextConfig, model: TModel) {
-    super(config, model, 'openai')
+    super(model, 'openai', new OpenAI(config))
   }
 
   /**
@@ -100,7 +104,7 @@ export class OpenAITextAdapter<
    */
   protected override mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
-  ): Omit<OpenAI_SDK.Responses.ResponseCreateParams, 'stream'> {
+  ): Omit<ResponseCreateParams, 'stream'> {
     // The structural type the validator expects is broader than what
     // `TProviderOptions` is bound to per-model, so narrow via the internal
     // shape rather than re-exposing it on the public override signature.
@@ -125,10 +129,7 @@ export class OpenAITextAdapter<
     // previous override spread `...modelOptions` LAST and wrote
     // `temperature: options.temperature` unconditionally — re-introducing the
     // exact regression the base class's nullish-aware merge fixes.
-    const requestParams: Omit<
-      OpenAI_SDK.Responses.ResponseCreateParams,
-      'stream'
-    > = {
+    const requestParams: Omit<ResponseCreateParams, 'stream'> = {
       ...modelOptions,
       model: options.model,
       ...(options.temperature !== undefined && {

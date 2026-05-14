@@ -11,11 +11,7 @@ import { resolveDebugOption } from '../../logger/resolve'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { SummarizeAdapter } from './adapter'
-import type {
-  StreamChunk,
-  SummarizationOptions,
-  SummarizationResult,
-} from '../../types'
+import type { StreamChunk, SummarizationResult } from '../../types'
 
 // ===========================
 // Activity Kind
@@ -184,7 +180,7 @@ export function summarize<
 async function runSummarize(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, false>,
 ): Promise<SummarizationResult> {
-  const { adapter, text, maxLength, style, focus } = options
+  const { adapter, text, maxLength, style, focus, modelOptions } = options
   const model = adapter.model
   const requestId = createId('summarize')
   const inputLength = text.length
@@ -205,12 +201,13 @@ async function runSummarize(
     inputLength,
   })
 
-  const summarizeOptions: SummarizationOptions = {
+  const summarizeOptions = {
     model,
     text,
     maxLength,
     style,
     focus,
+    modelOptions,
     logger,
   }
 
@@ -253,7 +250,7 @@ async function runSummarize(
 async function* runStreamingSummarize(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, true>,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, text, maxLength, style, focus } = options
+  const { adapter, text, maxLength, style, focus, modelOptions } = options
   const model = adapter.model
   const logger: InternalLogger = resolveDebugOption(options.debug)
 
@@ -263,12 +260,13 @@ async function* runStreamingSummarize(
     stream: true,
   })
 
-  const summarizeOptions: SummarizationOptions = {
+  const summarizeOptions = {
     model,
     text,
     maxLength,
     style,
     focus,
+    modelOptions,
     logger,
   }
 
@@ -313,3 +311,8 @@ export type {
   AnySummarizeAdapter,
 } from './adapter'
 export { BaseSummarizeAdapter } from './adapter'
+export {
+  ChatStreamSummarizeAdapter,
+  type ChatStreamCapable,
+  type InferTextProviderOptions,
+} from './chat-stream-summarize'

@@ -1,7 +1,9 @@
-import type OpenAI from 'openai'
+import type { Tool as SDKTool } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
-export type ImageGenerationToolConfig = OpenAI.Responses.Tool.ImageGeneration
+type ImageGenerationToolConfig = SDKTool.ImageGeneration
+
+export type { ImageGenerationToolConfig }
 
 /** @deprecated Renamed to `ImageGenerationToolConfig`. Will be removed in a future release. */
 export type ImageGenerationTool = ImageGenerationToolConfig

@@ -1,7 +1,7 @@
-import type OpenAI from 'openai'
+import type { FunctionShellTool as ShellToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
-export type ShellToolConfig = OpenAI.Responses.FunctionShellTool
+export type { ShellToolConfig }
 
 /** @deprecated Renamed to `ShellToolConfig`. Will be removed in a future release. */
 export type ShellTool = ShellToolConfig

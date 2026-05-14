@@ -1,6 +1,7 @@
-import { OpenAICompatibleSummarizeAdapter } from '@tanstack/openai-base'
+import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import { OpenAITextAdapter } from './text'
+import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { OpenAIChatModel } from '../model-meta'
 import type { OpenAIClientConfig } from '../utils/client'
 
@@ -8,36 +9,6 @@ import type { OpenAIClientConfig } from '../utils/client'
  * Configuration for OpenAI summarize adapter
  */
 export interface OpenAISummarizeConfig extends OpenAIClientConfig {}
-
-/**
- * OpenAI-specific provider options for summarization
- */
-export interface OpenAISummarizeProviderOptions {
-  /** Temperature for response generation (0-2) */
-  temperature?: number
-  /** Maximum tokens in the response */
-  maxTokens?: number
-}
-
-/**
- * OpenAI Summarize Adapter
- *
- * A thin wrapper around the text adapter that adds summarization-specific prompting.
- * Delegates all API calls to the OpenAITextAdapter.
- */
-export class OpenAISummarizeAdapter<
-  TModel extends OpenAIChatModel,
-> extends OpenAICompatibleSummarizeAdapter<
-  TModel,
-  OpenAISummarizeProviderOptions
-> {
-  readonly kind = 'summarize' as const
-  readonly name = 'openai' as const
-
-  constructor(config: OpenAISummarizeConfig, model: TModel) {
-    super(new OpenAITextAdapter(config, model), model, 'openai')
-  }
-}
 
 /**
  * Creates an OpenAI summarize adapter with explicit API key.
@@ -57,8 +28,15 @@ export function createOpenaiSummarize<TModel extends OpenAIChatModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
-): OpenAISummarizeAdapter<TModel> {
-  return new OpenAISummarizeAdapter({ apiKey, ...config }, model)
+): ChatStreamSummarizeAdapter<
+  TModel,
+  InferTextProviderOptions<OpenAITextAdapter<TModel>>
+> {
+  return new ChatStreamSummarizeAdapter(
+    new OpenAITextAdapter({ apiKey, ...config }, model),
+    model,
+    'openai',
+  )
 }
 
 /**
@@ -88,7 +66,9 @@ export function createOpenaiSummarize<TModel extends OpenAIChatModel>(
 export function openaiSummarize<TModel extends OpenAIChatModel>(
   model: TModel,
   config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
-): OpenAISummarizeAdapter<TModel> {
-  const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiSummarize(model, apiKey, config)
+): ChatStreamSummarizeAdapter<
+  TModel,
+  InferTextProviderOptions<OpenAITextAdapter<TModel>>
+> {
+  return createOpenaiSummarize(model, getOpenAIApiKeyFromEnv(), config)
 }

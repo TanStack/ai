@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { OpenAICompatibleChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
+import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
+import type OpenAI from 'openai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
@@ -8,18 +9,32 @@ const testLogger = resolveDebugOption(false)
 // Declare mockCreate at module level
 let mockCreate: ReturnType<typeof vi.fn>
 
-// Mock the OpenAI SDK
-vi.mock('openai', () => {
+/** Build a stub OpenAI client whose `chat.completions.create` defers to the
+ *  module-level `mockCreate`. Reassigning `mockCreate` inside a test still
+ *  takes effect because the stub looks it up at call time. */
+function makeStubClient(): OpenAI {
   return {
-    default: class {
-      chat = {
-        completions: {
-          create: (...args: Array<unknown>) => mockCreate(...args),
-        },
-      }
+    chat: {
+      completions: {
+        create: (params: unknown, options: unknown) =>
+          mockCreate(params, options),
+      },
     },
+  } as unknown as OpenAI
+}
+
+/**
+ * Concrete test subclass. The base now calls the OpenAI SDK directly, so the
+ * subclass just supplies a stub client whose `chat.completions.create` routes
+ * into `mockCreate` for per-test setup. Constructor signature mirrors the
+ * pre-refactor `(config, model, name)` shape so existing call sites read
+ * naturally; `config` is ignored.
+ */
+class TestChatCompletionsAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
+  constructor(_config: unknown, model: string, name = 'openai-base') {
+    super(model, name, makeStubClient())
   }
-})
+}
 
 // Helper to create async iterable from chunks
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
@@ -61,7 +76,7 @@ const weatherTool: Tool = {
   description: 'Return the forecast for a location',
 }
 
-describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
+describe('OpenAIBaseChatCompletionsTextAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -72,19 +87,16 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
 
   describe('instantiation', () => {
     it('creates an adapter with default name', () => {
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
-      expect(adapter.name).toBe('openai-compatible')
+      expect(adapter.name).toBe('openai-base')
       expect(adapter.model).toBe('test-model')
     })
 
     it('creates an adapter with custom name', () => {
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
+      const adapter = new TestChatCompletionsAdapter(
         testConfig,
         'test-model',
         'my-provider',
@@ -95,7 +107,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
     })
 
     it('creates an adapter with custom baseURL', () => {
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
+      const adapter = new TestChatCompletionsAdapter(
         {
           apiKey: 'test-key',
           baseURL: 'https://custom.api.example.com/v1',
@@ -139,10 +151,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       ]
 
       setupMockSdkClient(streamChunks)
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -190,10 +199,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       ]
 
       setupMockSdkClient(streamChunks)
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -252,10 +258,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       ]
 
       setupMockSdkClient(streamChunks)
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -322,10 +325,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       ]
 
       setupMockSdkClient(streamChunks)
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -395,10 +395,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       ]
 
       setupMockSdkClient(streamChunks)
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -491,10 +488,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       ]
 
       setupMockSdkClient(streamChunks)
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -565,10 +559,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
 
       mockCreate = vi.fn().mockResolvedValue(errorIterable)
 
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -590,10 +581,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
     it('emits RUN_STARTED then RUN_ERROR when client.create throws', async () => {
       mockCreate = vi.fn().mockRejectedValue(new Error('API key invalid'))
 
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
 
       for await (const chunk of adapter.chatStream({
@@ -628,10 +616,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
 
       setupMockSdkClient([], nonStreamResponse)
 
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
 
       const result = await adapter.structuredOutput({
         chatOptions: {
@@ -677,10 +662,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
 
       setupMockSdkClient([], nonStreamResponse)
 
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
 
       const result = await adapter.structuredOutput({
         chatOptions: {
@@ -716,10 +698,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
 
       setupMockSdkClient([], nonStreamResponse)
 
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
 
       await expect(
         adapter.structuredOutput({
@@ -738,17 +717,113 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
         }),
       ).rejects.toThrow('Failed to parse structured output as JSON')
     })
+
+    it('throws a clear "no content" error when content is empty', async () => {
+      const nonStreamResponse = {
+        choices: [{ message: { content: '' } }],
+      }
+      setupMockSdkClient([], nonStreamResponse)
+
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+      // Empty content must surface as a distinct error rather than masquerade
+      // as a JSON-parse failure on an empty string.
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'Give me data' }],
+          },
+          outputSchema: { type: 'object' },
+        }),
+      ).rejects.toThrow('response contained no content')
+    })
+
+    it('throws a clear "no content" error when content is missing', async () => {
+      const nonStreamResponse = {
+        choices: [{ message: {} }],
+      }
+      setupMockSdkClient([], nonStreamResponse)
+
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'Give me data' }],
+          },
+          outputSchema: { type: 'object' },
+        }),
+      ).rejects.toThrow('response contained no content')
+    })
+  })
+
+  describe('drain-path tool args error handling', () => {
+    it('logs malformed JSON tool args via the logger when the stream ends without finish_reason', async () => {
+      // Simulates a truncated stream: tool call starts and accumulates
+      // malformed JSON, but no finish_reason chunk ever arrives. The drain
+      // block must still surface the parse failure rather than swallowing it.
+      const streamChunks = [
+        {
+          id: 'chatcmpl-drain',
+          model: 'test-model',
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_drain',
+                    type: 'function',
+                    function: {
+                      name: 'lookup_weather',
+                      arguments: '{"location":', // truncated — invalid JSON
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        },
+      ]
+
+      setupMockSdkClient(streamChunks)
+      const errorsSpy = vi.spyOn(testLogger, 'errors')
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+      try {
+        for await (const _ of adapter.chatStream({
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Weather?' }],
+          tools: [weatherTool],
+        })) {
+          // consume
+        }
+
+        const drainCall = errorsSpy.mock.calls.find((c) =>
+          String(c[0]).includes('(drain)'),
+        )
+        expect(drainCall).toBeDefined()
+        const ctx = drainCall![1] as Record<string, unknown>
+        expect(ctx.toolCallId).toBe('call_drain')
+        expect(ctx.toolName).toBe('lookup_weather')
+        expect(ctx.rawArguments).toBe('{"location":')
+      } finally {
+        errorsSpy.mockRestore()
+      }
+    })
   })
 
   describe('subclassing', () => {
     it('allows subclassing with custom name', () => {
-      class MyProviderAdapter extends OpenAICompatibleChatCompletionsTextAdapter<string> {
-        constructor(apiKey: string, model: string) {
-          super(
-            { apiKey, baseURL: 'https://my-provider.com/v1' },
-            model,
-            'my-provider',
-          )
+      class MyProviderAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
+        constructor(_apiKey: string, model: string) {
+          super(model, 'my-provider', makeStubClient())
         }
       }
 
@@ -776,10 +851,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       ]
 
       setupMockSdkClient(streamChunks)
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
 
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
@@ -817,10 +889,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       ]
 
       setupMockSdkClient(streamChunks)
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
 
       const chunks: Array<StreamChunk> = []
       for await (const chunk of adapter.chatStream({
@@ -848,10 +917,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
 
       setupMockSdkClient([], nonStreamResponse)
 
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
 
       await adapter.structuredOutput({
         chatOptions: {
@@ -888,10 +954,7 @@ describe('OpenAICompatibleChatCompletionsTextAdapter', () => {
       ]
 
       setupMockSdkClient(streamChunks)
-      const adapter = new OpenAICompatibleChatCompletionsTextAdapter(
-        testConfig,
-        'test-model',
-      )
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
 
       const controller = new AbortController()
       const chunks: Array<StreamChunk> = []

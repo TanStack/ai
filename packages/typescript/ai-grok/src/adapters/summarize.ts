@@ -1,7 +1,7 @@
-import { OpenAICompatibleSummarizeAdapter } from '@tanstack/openai-base'
+import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getGrokApiKeyFromEnv } from '../utils'
 import { GrokTextAdapter } from './text'
-import type { ChatStreamCapable } from '@tanstack/openai-base'
+import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { GROK_CHAT_MODELS } from '../model-meta'
 import type { GrokClientConfig } from '../utils'
 
@@ -10,47 +10,8 @@ import type { GrokClientConfig } from '../utils'
  */
 export interface GrokSummarizeConfig extends GrokClientConfig {}
 
-/**
- * Grok-specific provider options for summarization
- */
-export interface GrokSummarizeProviderOptions {
-  /** Temperature for response generation (0-2) */
-  temperature?: number
-  /** Maximum tokens in the response */
-  maxTokens?: number
-}
-
 /** Model type for Grok summarization */
 export type GrokSummarizeModel = (typeof GROK_CHAT_MODELS)[number]
-
-/**
- * Grok Summarize Adapter
- *
- * A thin wrapper around the text adapter that adds summarization-specific prompting.
- * Delegates all API calls to the GrokTextAdapter.
- */
-export class GrokSummarizeAdapter<
-  TModel extends GrokSummarizeModel,
-> extends OpenAICompatibleSummarizeAdapter<
-  TModel,
-  GrokSummarizeProviderOptions
-> {
-  readonly kind = 'summarize' as const
-  readonly name = 'grok' as const
-
-  constructor(config: GrokSummarizeConfig, model: TModel) {
-    // The text adapter accepts richer provider options than the summarize adapter needs,
-    // but we only pass basic options (model, messages, systemPrompts, etc.) at call time.
-    super(
-      new GrokTextAdapter(
-        config,
-        model,
-      ) as unknown as ChatStreamCapable<GrokSummarizeProviderOptions>,
-      model,
-      'grok',
-    )
-  }
-}
 
 /**
  * Creates a Grok summarize adapter with explicit API key.
@@ -70,8 +31,15 @@ export function createGrokSummarize<TModel extends GrokSummarizeModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<GrokSummarizeConfig, 'apiKey'>,
-): GrokSummarizeAdapter<TModel> {
-  return new GrokSummarizeAdapter({ apiKey, ...config }, model)
+): ChatStreamSummarizeAdapter<
+  TModel,
+  InferTextProviderOptions<GrokTextAdapter<TModel>>
+> {
+  return new ChatStreamSummarizeAdapter(
+    new GrokTextAdapter({ apiKey, ...config }, model),
+    model,
+    'grok',
+  )
 }
 
 /**
@@ -101,7 +69,9 @@ export function createGrokSummarize<TModel extends GrokSummarizeModel>(
 export function grokSummarize<TModel extends GrokSummarizeModel>(
   model: TModel,
   config?: Omit<GrokSummarizeConfig, 'apiKey'>,
-): GrokSummarizeAdapter<TModel> {
-  const apiKey = getGrokApiKeyFromEnv()
-  return createGrokSummarize(model, apiKey, config)
+): ChatStreamSummarizeAdapter<
+  TModel,
+  InferTextProviderOptions<GrokTextAdapter<TModel>>
+> {
+  return createGrokSummarize(model, getGrokApiKeyFromEnv(), config)
 }
