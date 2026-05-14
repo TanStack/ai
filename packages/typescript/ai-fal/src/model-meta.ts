@@ -51,8 +51,8 @@ export type FalModelImageSize<TModel extends string> =
       ? NonNullable<Exclude<FalModelInput<TModel>['image_size'], object>>
       : 'aspect_ratio' extends keyof EndpointTypeMap[TModel]['input']
         ? 'resolution' extends keyof EndpointTypeMap[TModel]['input']
-          ? `${NonNullable<FalModelInput<TModel>['aspect_ratio']>}_${NonNullable<FalModelInput<TModel>['resolution']>}`
-          : NonNullable<FalModelInput<TModel>['aspect_ratio']>
+          ? `${Extract<NonNullable<FalModelInput<TModel>['aspect_ratio']>, string>}_${Extract<NonNullable<FalModelInput<TModel>['resolution']>, string>}`
+          : Extract<NonNullable<FalModelInput<TModel>['aspect_ratio']>, string>
         : never
     : string
 
@@ -94,8 +94,8 @@ export type FalModelVideoSize<TModel extends string> =
   TModel extends keyof EndpointTypeMap
     ? 'aspect_ratio' extends keyof EndpointTypeMap[TModel]['input']
       ? 'resolution' extends keyof EndpointTypeMap[TModel]['input']
-        ? `${NonNullable<FalModelInput<TModel>['aspect_ratio']>}_${NonNullable<FalModelInput<TModel>['resolution']>}`
-        : NonNullable<FalModelInput<TModel>['aspect_ratio']>
+        ? `${Extract<NonNullable<FalModelInput<TModel>['aspect_ratio']>, string>}_${Extract<NonNullable<FalModelInput<TModel>['resolution']>, string>}`
+        : Extract<NonNullable<FalModelInput<TModel>['aspect_ratio']>, string>
       : never
     : string
 
