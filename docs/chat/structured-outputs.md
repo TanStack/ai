@@ -307,6 +307,44 @@ console.log(recommendation.currentPrice);
 console.log(recommendation.reason);
 ```
 
+### Streaming with tools that may pause
+
+When you combine `tools` + `outputSchema` + `stream: true`, the agent loop runs first — its events stream through, and only after all tools complete does the structured output stream emit `structured-output.complete`. Two pause states can interrupt that flow before the terminal event ever fires:
+
+| Event | Fires when | What you do |
+|-------|------------|-------------|
+| `approval-requested` | A server tool with `needsApproval: true` is queued — see [Tool Approval Flow](../tools/tool-approval) | Surface the approval prompt to the user; resume the conversation with their decision |
+| `tool-input-available` | A client tool is invoked — see [Client Tools](../tools/client-tools) | Execute the tool client-side, then resume with the result |
+
+Both are tagged `CUSTOM` variants of `StructuredOutputStream<T>` with typed `value` shapes — narrow on `chunk.name` the same way you narrow `structured-output.complete`:
+
+```typescript
+for await (const chunk of stream) {
+  if (chunk.type === "CUSTOM" && chunk.name === "structured-output.complete") {
+    // Happy path — tools all completed, structured output emitted.
+    return chunk.value.object; // typed as InferSchemaType<typeof schema>
+  } else if (chunk.type === "CUSTOM" && chunk.name === "approval-requested") {
+    // Pause — render approval UI. The structured output will NOT arrive in
+    // this run; you'll re-invoke chat() with the approval decision.
+    showApprovalPrompt({
+      toolCallId: chunk.value.toolCallId, // typed as string
+      toolName: chunk.value.toolName,
+      input: chunk.value.input,
+    });
+    break;
+  } else if (chunk.type === "CUSTOM" && chunk.name === "tool-input-available") {
+    // Pause — run the client tool, then re-invoke with the result.
+    const result = await runClientTool(chunk.value.toolName, chunk.value.input);
+    resumeWithToolResult(chunk.value.toolCallId, result);
+    break;
+  }
+}
+```
+
+The three tagged variants — `StructuredOutputCompleteEvent<T>`, `ApprovalRequestedEvent`, `ToolInputAvailableEvent` — are exported from `@tanstack/ai` if you need to annotate handler signatures explicitly.
+
+> **Note:** If your tools never need approval and aren't client tools, the only `CUSTOM` event you'll see is `structured-output.complete`. The pause-state handling above is only required when you wire those tool kinds into a streaming-structured-output call.
+
 ## Using Plain JSON Schema
 
 If you prefer not to use a schema library, you can pass a plain JSON Schema object:
