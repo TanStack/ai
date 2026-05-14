@@ -21,9 +21,7 @@ import type {
 export function useChat<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
->(
-  options: UseChatOptions<TTools, TSchema>,
-): UseChatReturn<TTools, TSchema> {
+>(options: UseChatOptions<TTools, TSchema>): UseChatReturn<TTools, TSchema> {
   const hookId = useId()
   const clientId = options.id || hookId
 
