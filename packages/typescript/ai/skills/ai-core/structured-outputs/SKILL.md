@@ -176,12 +176,12 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 
 **Adapter coverage for streaming:**
 
-| Adapter | `outputSchema` + `stream: true` |
-| --- | --- |
-| `@tanstack/ai-openai` | Native single-request stream (Responses API) |
-| `@tanstack/ai-openrouter` | Native single-request stream |
-| `@tanstack/ai-grok` | Native single-request stream (Chat Completions) |
-| `@tanstack/ai-groq` | Native single-request stream (Chat Completions) |
+| Adapter                                           | `outputSchema` + `stream: true`                                                               |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `@tanstack/ai-openai`                             | Native single-request stream (Responses API)                                                  |
+| `@tanstack/ai-openrouter`                         | Native single-request stream                                                                  |
+| `@tanstack/ai-grok`                               | Native single-request stream (Chat Completions)                                               |
+| `@tanstack/ai-groq`                               | Native single-request stream (Chat Completions)                                               |
 | All other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event |
 
 The consumer code is identical across providers — always read the final object off `structured-output.complete`. You only see incremental deltas when the adapter implements `structuredOutputStream` natively.
@@ -190,7 +190,7 @@ The consumer code is identical across providers — always read the final object
 
 ### HIGH: Parsing streaming JSON deltas yourself
 
-When using `chat({ outputSchema, stream: true })`, the `TEXT_MESSAGE_CONTENT` chunks contain *partial* JSON fragments — they are not valid JSON until the stream completes. Always read the validated object from the terminal `structured-output.complete` event using `isStructuredOutputCompleteEvent<T>()`. Validation runs once, on the complete payload.
+When using `chat({ outputSchema, stream: true })`, the `TEXT_MESSAGE_CONTENT` chunks contain _partial_ JSON fragments — they are not valid JSON until the stream completes. Always read the validated object from the terminal `structured-output.complete` event using `isStructuredOutputCompleteEvent<T>()`. Validation runs once, on the complete payload.
 
 ```typescript
 // WRONG -- partial JSON, throws SyntaxError mid-stream, no schema validation
@@ -213,7 +213,7 @@ for await (const chunk of stream) {
 }
 ```
 
-If you need progressive *parsed* state (e.g. show fields as they arrive), use a partial-JSON parser on the accumulated `raw` string at render time — but do NOT treat the result as schema-validated; only the terminal event is.
+If you need progressive _parsed_ state (e.g. show fields as they arrive), use a partial-JSON parser on the accumulated `raw` string at render time — but do NOT treat the result as schema-validated; only the terminal event is.
 
 Source: maintainer interview
 
