@@ -1,7 +1,4 @@
-import type {
-  FalModelVideoSize,
-  FalModelVideoSizeInput,
-} from '../model-meta'
+import type { FalModelVideoSize, FalModelVideoSizeInput } from '../model-meta'
 
 export function mapVideoSizeToFalFormat<TModel extends string>(
   size: FalModelVideoSize<TModel> | undefined,
