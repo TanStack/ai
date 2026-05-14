@@ -1894,9 +1894,7 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
   // Inputs may be UIMessages (from useChat) or ModelMessages (from server-side
   // callers). The agent-loop branch converts via TextEngine; the no-tools
   // branch must convert here so the adapter sees a uniform ModelMessage shape.
-  let finalMessages = convertMessagesToModelMessages(
-    textOptions.messages ?? [],
-  )
+  let finalMessages = convertMessagesToModelMessages(textOptions.messages ?? [])
 
   if (textOptions.tools?.length) {
     const engine = new TextEngine(
