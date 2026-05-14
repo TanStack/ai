@@ -397,6 +397,11 @@ export class OpenRouterResponsesTextAdapter<
       for await (const rawEvent of rawStream) {
         const chunk = normalizeStreamEvent(rawEvent)
 
+        chatOptions.logger.provider(
+          `provider=${this.name} type=${chunk.type}`,
+          { provider: this.name, type: chunk.type },
+        )
+
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
           yield {

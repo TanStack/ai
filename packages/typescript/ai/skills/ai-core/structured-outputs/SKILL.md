@@ -137,7 +137,7 @@ console.log(company.financials?.revenue)
 Pass `stream: true` alongside `outputSchema` to receive incremental JSON deltas while the model generates, plus a final validated typed object. Useful for streaming partial UI (progress views, typewriter previews, partially-filled forms).
 
 ```typescript
-import { chat, isStructuredOutputCompleteEvent } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
@@ -162,9 +162,11 @@ for await (const chunk of stream) {
     // Partial JSON text — drive progress UI only. Do NOT JSON.parse.
     raw += chunk.delta
   } else if (
-    isStructuredOutputCompleteEvent<z.infer<typeof PersonSchema>>(chunk)
+    chunk.type === 'CUSTOM' &&
+    chunk.name === 'structured-output.complete'
   ) {
-    // Terminal event. `chunk.value.object` is fully validated and typed.
+    // Terminal event. `chunk.value.object` is fully validated and typed
+    // against the schema you passed in — no helper or cast required.
     chunk.value.object.name // string
     chunk.value.object.age // number
     chunk.value.reasoning // string | undefined (thinking models only)
@@ -172,7 +174,7 @@ for await (const chunk of stream) {
 }
 ```
 
-The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-output.complete', value: { object: T, raw: string, reasoning?: string } }`. Use `isStructuredOutputCompleteEvent<T>()` to narrow it and obtain the typed `value.object`.
+The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-output.complete', value: { object: T, raw: string, reasoning?: string } }`. The return type of `chat({ outputSchema, stream: true })` carries `T` through to the terminal event, so a plain discriminated narrow (`chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete'`) is enough — no type guard helper needed.
 
 **Adapter coverage for streaming:**
 
@@ -190,7 +192,7 @@ The consumer code is identical across providers — always read the final object
 
 ### HIGH: Parsing streaming JSON deltas yourself
 
-When using `chat({ outputSchema, stream: true })`, the `TEXT_MESSAGE_CONTENT` chunks contain _partial_ JSON fragments — they are not valid JSON until the stream completes. Always read the validated object from the terminal `structured-output.complete` event using `isStructuredOutputCompleteEvent<T>()`. Validation runs once, on the complete payload.
+When using `chat({ outputSchema, stream: true })`, the `TEXT_MESSAGE_CONTENT` chunks contain _partial_ JSON fragments — they are not valid JSON until the stream completes. Always read the validated object from the terminal `structured-output.complete` event. Validation runs once, on the complete payload.
 
 ```typescript
 // WRONG -- partial JSON, throws SyntaxError mid-stream, no schema validation
@@ -201,13 +203,14 @@ for await (const chunk of stream) {
 }
 
 // CORRECT -- accumulate deltas only for UX progress; trust the terminal event
-import { isStructuredOutputCompleteEvent } from '@tanstack/ai'
-
 let raw = ''
 for await (const chunk of stream) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
     raw += chunk.delta // optional: render a "streaming JSON" preview
-  } else if (isStructuredOutputCompleteEvent<MySchema>(chunk)) {
+  } else if (
+    chunk.type === 'CUSTOM' &&
+    chunk.name === 'structured-output.complete'
+  ) {
     const result = chunk.value.object // ✅ typed and validated
   }
 }

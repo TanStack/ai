@@ -322,6 +322,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       )
 
       for await (const chunk of stream) {
+        const choiceForLog = chunk.choices[0]
+        chatOptions.logger.provider(
+          `provider=${this.name} finish_reason=${choiceForLog?.finish_reason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasUsage=${!!chunk.usage}`,
+          { provider: this.name, model: chunk.model },
+        )
+
         if (chunk.model) lastModel = chunk.model
 
         // Usage may arrive on a chunk with empty `choices` (OpenAI's

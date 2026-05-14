@@ -9,7 +9,7 @@ import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
-import { EventType, isStructuredOutputCompleteEvent } from '../../types'
+import { EventType } from '../../types'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
   MiddlewareAbortError,
@@ -39,6 +39,7 @@ import type {
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
+  StructuredOutputCompleteEvent,
   StructuredOutputStream,
   TextMessageContentEvent,
   TextOptions,
@@ -1878,13 +1879,38 @@ function runStreamingStructuredOutput<TSchema extends SchemaInput>(
     throw new Error('Failed to convert output schema to JSON Schema')
   }
 
-  return runStreamingStructuredOutputImpl(options, jsonSchema)
+  // The implementation generator yields the broader internal type
+  // (`StreamChunk | StructuredOutputCompleteEvent<T>`) so agent-loop
+  // CustomEvents can flow through; the public-facing type narrows to
+  // `Exclude<StreamChunk, CustomEvent> | StructuredOutputCompleteEvent<T>`
+  // which lets consumers narrow `chunk.value` cleanly. The widen→narrow
+  // is contained here so consumers see only the strict type.
+  return runStreamingStructuredOutputImpl(
+    options,
+    jsonSchema,
+  ) as StructuredOutputStream<InferSchemaType<TSchema>>
 }
+
+/**
+ * Internal generator return type — broader than the public
+ * `StructuredOutputStream<T>`. The public type pins three tagged `CUSTOM`
+ * events (`structured-output.complete`, `approval-requested`,
+ * `tool-input-available`) so consumers can narrow `chunk.value` cleanly by
+ * literal `name`. At runtime, tools can also emit arbitrary user-defined
+ * `CustomEvent`s through the `emitCustomEvent` context API; those flow
+ * through this generator with `name: string` and are widened out at the
+ * public boundary because keeping them would collapse the typed narrow back
+ * to `any`. The cast inside `runStreamingStructuredOutput` is where that
+ * widening happens.
+ */
+type StructuredOutputStreamInternal<T> = AsyncIterable<
+  StreamChunk | StructuredOutputCompleteEvent<T>
+>
 
 async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
   options: TextActivityOptions<AnyTextAdapter, TSchema, true>,
   jsonSchema: NonNullable<ReturnType<typeof convertSchemaToJsonSchema>>,
-): StructuredOutputStream<InferSchemaType<TSchema>> {
+): StructuredOutputStreamInternal<InferSchemaType<TSchema>> {
   const { adapter, outputSchema, middleware, context, debug, ...textOptions } =
     options
   const model = adapter.model
@@ -1996,8 +2022,15 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
       })
 
   for await (const chunk of stream) {
-    if (isStructuredOutputCompleteEvent<InferSchemaType<TSchema>>(chunk)) {
-      const { value } = chunk
+    if (
+      chunk.type === EventType.CUSTOM &&
+      chunk.name === 'structured-output.complete'
+    ) {
+      const value = chunk.value as {
+        object: unknown
+        raw: string
+        reasoning?: string
+      }
       if (isStandardSchema(outputSchema)) {
         try {
           const validated = parseWithStandardSchema<InferSchemaType<TSchema>>(

@@ -384,6 +384,12 @@ export class OpenRouterTextAdapter<
       )
 
       for await (const chunk of stream) {
+        const choiceForLog = chunk.choices[0]
+        chatOptions.logger.provider(
+          `provider=${this.name} finishReason=${choiceForLog?.finishReason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasUsage=${!!chunk.usage}`,
+          { provider: this.name, model: chunk.model },
+        )
+
         if (chunk.model) lastModel = chunk.model
         if (chunk.usage) lastUsage = chunk.usage
 

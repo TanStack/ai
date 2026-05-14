@@ -380,6 +380,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       )
 
       for await (const chunk of stream) {
+        chatOptions.logger.provider(
+          `provider=${this.name} type=${chunk.type}`,
+          { provider: this.name, type: chunk.type },
+        )
+
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
           yield {

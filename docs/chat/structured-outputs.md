@@ -187,7 +187,7 @@ console.log(company.employees[0].role);
 Pass `stream: true` alongside `outputSchema` to receive incremental JSON deltas while the model is still generating, plus a final validated, typed object. This is useful for showing partial UI (a progress view, a streaming form, a typewriter-style preview) without waiting for the full response.
 
 ```typescript
-import { chat, isStructuredOutputCompleteEvent } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
@@ -211,8 +211,12 @@ for await (const chunk of stream) {
   if (chunk.type === "TEXT_MESSAGE_CONTENT") {
     // Incremental, *partial* JSON text — useful for UX progress only.
     raw += chunk.delta;
-  } else if (isStructuredOutputCompleteEvent<z.infer<typeof PersonSchema>>(chunk)) {
-    // Terminal event — `chunk.value.object` is fully validated and typed.
+  } else if (
+    chunk.type === "CUSTOM" &&
+    chunk.name === "structured-output.complete"
+  ) {
+    // Terminal event — `chunk.value.object` is fully validated and typed
+    // against the schema you passed in. No helper or cast required.
     console.log(chunk.value.object.name); // string, schema-validated
     console.log(chunk.value.object.age);  // number
   }
@@ -236,7 +240,7 @@ for await (const chunk of stream) {
 }
 ```
 
-Use the `isStructuredOutputCompleteEvent<T>()` type guard to narrow the chunk and obtain a typed `value.object`.
+The return type of `chat({ outputSchema, stream: true })` carries the schema's inferred type `T` through to the terminal event, so a plain discriminated narrow — `chunk.type === "CUSTOM" && chunk.name === "structured-output.complete"` — gives you a fully-typed `chunk.value.object` with no helper or cast.
 
 ### Important: don't parse deltas yourself
 
