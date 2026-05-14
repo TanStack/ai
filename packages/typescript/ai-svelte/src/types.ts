@@ -21,11 +21,12 @@ export type { ChatRequestBody, MultimodalContent, UIMessage }
  * optional. Used to type the in-flight `partial` getter while a structured-
  * output stream is still arriving.
  */
-export type DeepPartial<T> = T extends ReadonlyArray<infer U>
-  ? Array<DeepPartial<U>>
-  : T extends object
-    ? { [K in keyof T]?: DeepPartial<T[K]> }
-    : T
+export type DeepPartial<T> =
+  T extends ReadonlyArray<infer U>
+    ? Array<DeepPartial<U>>
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T
 
 /**
  * Options for the createChat function.

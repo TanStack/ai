@@ -36,11 +36,11 @@ Both fields are typed against the schema with no helper or cast — each hook is
 
 Reactivity primitive per framework:
 
-| Framework | `partial` type | `final` type |
-|---|---|---|
-| React (`@tanstack/ai-react`) | `DeepPartial<T>` (plain state) | `T \| null` (plain state) |
-| Vue (`@tanstack/ai-vue`) | `Readonly<ShallowRef<DeepPartial<T>>>` | `Readonly<ShallowRef<T \| null>>` |
-| Solid (`@tanstack/ai-solid`) | `Accessor<DeepPartial<T>>` | `Accessor<T \| null>` |
+| Framework                      | `partial` type                                          | `final` type                                     |
+| ------------------------------ | ------------------------------------------------------- | ------------------------------------------------ |
+| React (`@tanstack/ai-react`)   | `DeepPartial<T>` (plain state)                          | `T \| null` (plain state)                        |
+| Vue (`@tanstack/ai-vue`)       | `Readonly<ShallowRef<DeepPartial<T>>>`                  | `Readonly<ShallowRef<T \| null>>`                |
+| Solid (`@tanstack/ai-solid`)   | `Accessor<DeepPartial<T>>`                              | `Accessor<T \| null>`                            |
 | Svelte (`@tanstack/ai-svelte`) | `readonly partial: DeepPartial<T>` (rune-backed getter) | `readonly final: T \| null` (rune-backed getter) |
 
 `DeepPartial<T>` is exported from each framework package for callers who want to annotate handlers explicitly.

@@ -22,11 +22,12 @@ export type { ChatRequestBody, MultimodalContent, UIMessage }
  * Used to type the in-flight `partial` value the composable exposes while a
  * structured output stream is still arriving.
  */
-export type DeepPartial<T> = T extends ReadonlyArray<infer U>
-  ? Array<DeepPartial<U>>
-  : T extends object
-    ? { [K in keyof T]?: DeepPartial<T[K]> }
-    : T
+export type DeepPartial<T> =
+  T extends ReadonlyArray<infer U>
+    ? Array<DeepPartial<U>>
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T
 
 /**
  * Options for the useChat composable.
@@ -87,9 +88,7 @@ export type UseChatReturn<
          * `TEXT_MESSAGE_CONTENT` deltas via `parsePartialJSON`. Resets on
          * every new run.
          */
-        partial: DeepReadonly<
-          ShallowRef<DeepPartial<InferSchemaType<TSchema>>>
-        >
+        partial: DeepReadonly<ShallowRef<DeepPartial<InferSchemaType<TSchema>>>>
         /**
          * Final, schema-validated structured output. `null` until the terminal
          * `structured-output.complete` event arrives. Resets on every new run.
@@ -98,9 +97,7 @@ export type UseChatReturn<
       }
     : Record<never, never>)
 
-interface BaseUseChatReturn<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
-> {
+interface BaseUseChatReturn<TTools extends ReadonlyArray<AnyClientTool> = any> {
   /**
    * Current messages in the conversation
    */

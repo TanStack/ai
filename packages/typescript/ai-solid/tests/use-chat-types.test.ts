@@ -7,11 +7,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { AnyClientTool } from '@tanstack/ai'
 import type { Accessor } from 'solid-js'
-import type {
-  DeepPartial,
-  UseChatOptions,
-  UseChatReturn,
-} from '../src/types'
+import type { DeepPartial, UseChatOptions, UseChatReturn } from '../src/types'
 
 type Person = { name: string; age: number; email: string }
 type PersonSchema = StandardJSONSchemaV1<Person, Person>
@@ -21,13 +17,17 @@ describe('useChat() return type (solid)', () => {
   describe('with outputSchema', () => {
     it('exposes typed partial + final accessors', () => {
       type R = UseChatReturn<NoTools, PersonSchema>
-      expectTypeOf<R['partial']>().toEqualTypeOf<Accessor<DeepPartial<Person>>>()
+      expectTypeOf<R['partial']>().toEqualTypeOf<
+        Accessor<DeepPartial<Person>>
+      >()
       expectTypeOf<R['final']>().toEqualTypeOf<Accessor<Person | null>>()
     })
 
     it('options accept outputSchema with the schema type', () => {
       type O = UseChatOptions<NoTools, PersonSchema>
-      expectTypeOf<O['outputSchema']>().toEqualTypeOf<PersonSchema | undefined>()
+      expectTypeOf<O['outputSchema']>().toEqualTypeOf<
+        PersonSchema | undefined
+      >()
     })
   })
 

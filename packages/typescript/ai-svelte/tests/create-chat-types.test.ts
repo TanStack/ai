@@ -26,7 +26,9 @@ describe('createChat() return type (svelte)', () => {
 
     it('options accept outputSchema with the schema type', () => {
       type O = CreateChatOptions<NoTools, PersonSchema>
-      expectTypeOf<O['outputSchema']>().toEqualTypeOf<PersonSchema | undefined>()
+      expectTypeOf<O['outputSchema']>().toEqualTypeOf<
+        PersonSchema | undefined
+      >()
     })
   })
 

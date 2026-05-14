@@ -7,11 +7,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { AnyClientTool } from '@tanstack/ai'
 import type { DeepReadonly, ShallowRef } from 'vue'
-import type {
-  DeepPartial,
-  UseChatOptions,
-  UseChatReturn,
-} from '../src/types'
+import type { DeepPartial, UseChatOptions, UseChatReturn } from '../src/types'
 
 type Person = { name: string; age: number; email: string }
 type PersonSchema = StandardJSONSchemaV1<Person, Person>
@@ -31,7 +27,9 @@ describe('useChat() return type (vue)', () => {
 
     it('options accept outputSchema with the schema type', () => {
       type O = UseChatOptions<NoTools, PersonSchema>
-      expectTypeOf<O['outputSchema']>().toEqualTypeOf<PersonSchema | undefined>()
+      expectTypeOf<O['outputSchema']>().toEqualTypeOf<
+        PersonSchema | undefined
+      >()
     })
   })
 
