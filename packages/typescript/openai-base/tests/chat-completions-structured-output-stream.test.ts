@@ -12,10 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import type OpenAI from 'openai'
 import type { JSONSchema, StreamChunk } from '@tanstack/ai'
-import {
-  resolveDebugOption,
-  type Logger,
-} from '@tanstack/ai/adapter-internals'
+import { resolveDebugOption, type Logger } from '@tanstack/ai/adapter-internals'
 
 let mockCreate: ReturnType<typeof vi.fn>
 
@@ -293,8 +290,9 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
       // InternalLogger; filter to only the provider-category messages.
       const providerCalls = (
         debugLogger.debug as ReturnType<typeof vi.fn>
-      ).mock.calls.filter(([msg]) =>
-        typeof msg === 'string' && msg.includes('tanstack-ai:provider'),
+      ).mock.calls.filter(
+        ([msg]) =>
+          typeof msg === 'string' && msg.includes('tanstack-ai:provider'),
       )
       expect(providerCalls.length).toBe(3)
     })

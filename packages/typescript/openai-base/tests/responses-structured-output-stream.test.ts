@@ -11,10 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type OpenAI from 'openai'
 import type { JSONSchema, StreamChunk } from '@tanstack/ai'
-import {
-  resolveDebugOption,
-  type Logger,
-} from '@tanstack/ai/adapter-internals'
+import { resolveDebugOption, type Logger } from '@tanstack/ai/adapter-internals'
 
 let mockCreate: ReturnType<typeof vi.fn>
 
@@ -58,7 +55,11 @@ function eventOutputTextDelta(delta: string) {
   return { type: 'response.output_text.delta', delta }
 }
 function eventCompleted(
-  usage: { input_tokens: number; output_tokens: number; total_tokens: number } = {
+  usage: {
+    input_tokens: number
+    output_tokens: number
+    total_tokens: number
+  } = {
     input_tokens: 10,
     output_tokens: 20,
     total_tokens: 30,
@@ -329,8 +330,9 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
 
       const providerCalls = (
         debugLogger.debug as ReturnType<typeof vi.fn>
-      ).mock.calls.filter(([msg]) =>
-        typeof msg === 'string' && msg.includes('tanstack-ai:provider'),
+      ).mock.calls.filter(
+        ([msg]) =>
+          typeof msg === 'string' && msg.includes('tanstack-ai:provider'),
       )
       expect(providerCalls.length).toBe(events.length)
     })
