@@ -2,6 +2,7 @@ export { createChat } from './create-chat.svelte'
 export type {
   CreateChatOptions,
   CreateChatReturn,
+  DeepPartial,
   UIMessage,
   ChatRequestBody,
 } from './types'

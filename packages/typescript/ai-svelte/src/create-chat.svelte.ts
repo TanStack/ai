@@ -1,9 +1,17 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { parsePartialJSON } from '@tanstack/ai'
 import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  InferSchemaType,
+  ModelMessage,
+  SchemaInput,
+  StreamChunk,
+} from '@tanstack/ai'
 import type {
   CreateChatOptions,
   CreateChatReturn,
+  DeepPartial,
   MultimodalContent,
   UIMessage,
 } from './types'
@@ -38,9 +46,12 @@ import type {
  * </div>
  * ```
  */
-export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
-  options: CreateChatOptions<TTools>,
-): CreateChatReturn<TTools> {
+export function createChat<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+>(
+  options: CreateChatOptions<TTools, TSchema>,
+): CreateChatReturn<TTools, TSchema> {
   // Generate a unique ID for this chat instance
   const clientId =
     options.id ||
@@ -55,6 +66,15 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
 
+  // Structured-output state. Runtime always tracks them — the conditional
+  // return type hides them when no `outputSchema` is supplied.
+  type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
+  type Final = InferSchemaType<NonNullable<TSchema>>
+  let partial = $state<Partial>({} as Partial)
+  let final = $state<Final | null>(null)
+  // Raw JSON accumulator — not reactive, just a local buffer.
+  let rawJson = ''
+
   // Create ChatClient instance.
   // Note: Svelte's createChat runs once per instance and `options` is captured
   // by reference. Callbacks are therefore frozen to whatever the caller passed
@@ -66,7 +86,28 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     initialMessages: options.initialMessages,
     body: options.body,
     onResponse: options.onResponse,
-    onChunk: options.onChunk,
+    onChunk: (chunk: StreamChunk) => {
+      if (options.outputSchema !== undefined) {
+        if (chunk.type === 'RUN_STARTED') {
+          rawJson = ''
+          partial = {} as Partial
+          final = null
+        } else if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
+          rawJson += chunk.delta
+          const progressive = parsePartialJSON(rawJson)
+          if (progressive && typeof progressive === 'object') {
+            partial = progressive as Partial
+          }
+        } else if (
+          chunk.type === 'CUSTOM' &&
+          chunk.name === 'structured-output.complete'
+        ) {
+          const value = chunk.value as { object: unknown }
+          final = value.object as Final
+        }
+      }
+      options.onChunk?.(chunk)
+    },
     onFinish: (message) => {
       options.onFinish?.(message)
     },
@@ -178,6 +219,12 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     get sessionGenerating() {
       return sessionGenerating
     },
+    get partial() {
+      return partial
+    },
+    get final() {
+      return final
+    },
     sendMessage,
     append,
     reload,
@@ -187,5 +234,5 @@ export function createChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     addToolResult,
     addToolApprovalResponse,
     updateBody,
-  }
+  } as unknown as CreateChatReturn<TTools, TSchema>
 }

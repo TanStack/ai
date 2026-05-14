@@ -1,4 +1,9 @@
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  InferSchemaType,
+  ModelMessage,
+  SchemaInput,
+} from '@tanstack/ai'
 import type {
   ChatClientOptions,
   ChatClientState,
@@ -10,6 +15,17 @@ import type {
 
 // Re-export types from ai-client
 export type { ChatRequestBody, MultimodalContent, UIMessage }
+
+/**
+ * Recursive partial — every property and every nested array element is
+ * optional. Used to type the in-flight `partial` getter while a structured-
+ * output stream is still arriving.
+ */
+export type DeepPartial<T> = T extends ReadonlyArray<infer U>
+  ? Array<DeepPartial<U>>
+  : T extends object
+    ? { [K in keyof T]?: DeepPartial<T[K]> }
+    : T
 
 /**
  * Options for the createChat function.
@@ -24,11 +40,17 @@ export type { ChatRequestBody, MultimodalContent, UIMessage }
  * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
  *
+ * When `outputSchema` is supplied, the return adds typed `partial` and `final`
+ * reactive getters. The schema is used purely for type inference; server-side
+ * validation still runs against the schema passed to `chat({ outputSchema })`
+ * on the server route.
+ *
  * Note: Connection and body changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
 export type CreateChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
 > = Omit<
   ChatClientOptions<TTools>,
   | 'onMessagesChange'
@@ -40,9 +62,39 @@ export type CreateChatOptions<
   | 'onSessionGeneratingChange'
 > & {
   live?: boolean
+  /**
+   * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
+   * Schema). Used to infer the shape of `partial` and `final`.
+   */
+  outputSchema?: TSchema
 }
 
-export interface CreateChatReturn<
+/**
+ * Discriminated return shape: when `outputSchema` is supplied, the return adds
+ * typed `partial` / `final` reactive getters; otherwise the return is
+ * unchanged.
+ */
+export type CreateChatReturn<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+> = BaseCreateChatReturn<TTools> &
+  (TSchema extends SchemaInput
+    ? {
+        /**
+         * Live progressively-parsed structured output (reactive getter).
+         * Resets on every new run.
+         */
+        readonly partial: DeepPartial<InferSchemaType<TSchema>>
+        /**
+         * Final, schema-validated structured output (reactive getter). `null`
+         * until the terminal `structured-output.complete` event arrives.
+         * Resets on every new run.
+         */
+        readonly final: InferSchemaType<TSchema> | null
+      }
+    : Record<never, never>)
+
+interface BaseCreateChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > {
   /**
