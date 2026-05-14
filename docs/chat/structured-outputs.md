@@ -411,44 +411,55 @@ console.log(recommendation.reason);
 
 ### Streaming with tools that may pause
 
-When you combine `tools` + `outputSchema` + `stream: true`, the agent loop runs first — its events stream through, and only after all tools complete does the structured output stream emit `structured-output.complete`. Two pause states can interrupt that flow before the terminal event ever fires:
+When you combine `tools` + `outputSchema` + `stream: true`, the agent loop runs first — its events stream through, and only after all tools complete does the structured output stream emit `structured-output.complete`. Two situations can interrupt that flow before the terminal event arrives:
 
-| Event | Fires when | What you do |
-|-------|------------|-------------|
-| `approval-requested` | A server tool with `needsApproval: true` is queued — see [Tool Approval Flow](../tools/tool-approval) | Surface the approval prompt to the user; resume the conversation with their decision |
-| `tool-input-available` | A client tool is invoked — see [Client Tools](../tools/client-tools) | Execute the tool client-side, then resume with the result |
+1. **A server tool with `needsApproval: true` is queued.** The agent loop pauses and the queued tool-call lands on the assistant message as a `ToolCallPart` with `state === "approval-requested"`. You respond by calling `addToolApprovalResponse({ id, approved })` from the hook return — same flow as in a normal chat. See [Tool Approval Flow](../tools/tool-approval) for the full pattern.
+2. **A client tool is invoked.** If you registered the tool with an `execute` function, the client runs it automatically and posts the result back — no extra code on your side. If you want to handle it manually, listen for `onToolCall` and respond with `addToolResult({ toolCallId, tool, output, state })`. See [Client Tools](../tools/client-tools) for details.
 
-Both are tagged `CUSTOM` variants of `StructuredOutputStream<T>` with typed `value` shapes. `useChat`'s managed `partial` / `final` cover the happy path, but pause states need explicit handling — drop into `onChunk` alongside the managed state to react to them:
+There's nothing structured-output-specific in either flow — both reuse the standard chat pause/resume APIs. The structured stream layers on top: once tools complete (or the user approves), the agent loop finishes, the structured-output stream takes over, `partial` fills in, and `final` snaps when `structured-output.complete` arrives. For example, an approval-gated tool inside a structured-output run looks like:
 
-```typescript
-const { sendMessage } = useChat({
-  connection: fetchServerSentEvents("/api/extract"),
-  onChunk: (chunk) => {
-    if (chunk.type !== "CUSTOM") return;
-
-    if (chunk.name === "structured-output.complete") {
-      // Happy path — tools all completed, structured output emitted.
-      setFinal(chunk.value.object as Person);
-    } else if (chunk.name === "approval-requested") {
-      // Pause — render approval UI. The structured output will NOT arrive
-      // in this run; you'll re-invoke after the user decides.
-      showApprovalPrompt({
-        toolCallId: chunk.value.toolCallId, // typed as string
-        toolName: chunk.value.toolName,
-        input: chunk.value.input,
-      });
-    } else if (chunk.name === "tool-input-available") {
-      // Pause — run the client tool, then resume with the result.
-      runClientTool(chunk.value.toolName, chunk.value.input)
-        .then((result) => resumeWithToolResult(chunk.value.toolCallId, result));
-    }
-  },
+```tsx
+const { messages, sendMessage, partial, final, addToolApprovalResponse } = useChat({
+  connection: fetchServerSentEvents("/api/recommend"),
+  outputSchema: RecommendationSchema,
+  tools: [sendEmail], // server tool with needsApproval: true
 });
+
+const last = messages.at(-1);
+
+return (
+  <>
+    {last?.parts.map((part, i) => {
+      // Surface approval prompts inline, the same way Tool Approval Flow shows it.
+      if (
+        part.type === "tool-call" &&
+        part.state === "approval-requested" &&
+        part.approval
+      ) {
+        return (
+          <ApprovalPrompt
+            key={i}
+            part={part}
+            onApprove={() =>
+              addToolApprovalResponse({ id: part.approval!.id, approved: true })
+            }
+            onDeny={() =>
+              addToolApprovalResponse({ id: part.approval!.id, approved: false })
+            }
+          />
+        );
+      }
+      if (part.type === "thinking") return <ReasoningView key={i} text={part.text} />;
+      if (part.type === "tool-call") return <ToolCallView key={i} part={part} />;
+      return null; // hide TextPart (raw JSON when outputSchema is set)
+    })}
+
+    <StructuredView data={final ?? partial} />
+  </>
+);
 ```
 
-The three tagged variants — `StructuredOutputCompleteEvent<T>`, `ApprovalRequestedEvent`, `ToolInputAvailableEvent` — are exported from `@tanstack/ai` if you need to annotate handler signatures explicitly. The same narrowing pattern works when you're iterating the stream directly with `for await` (see [Advanced: iterating the stream directly](#advanced-iterating-the-stream-directly)).
-
-> **Note:** If your tools never need approval and aren't client tools, the only `CUSTOM` event you'll see is `structured-output.complete`. The pause-state handling above is only required when you wire those tool kinds into a streaming-structured-output call.
+While the approval is pending, `partial` stays at its last value and `final` stays `null`. As soon as the user approves (or denies and the loop resumes), the agent loop continues, the structured stream runs, and `partial` / `final` populate.
 
 ## Using Plain JSON Schema
 
