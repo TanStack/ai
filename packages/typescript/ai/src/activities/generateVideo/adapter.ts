@@ -36,7 +36,10 @@ export interface VideoAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
-  TModelSizeByName extends Record<string, string> = Record<string, string>,
+  TModelSizeByName extends Record<string, string | undefined> = Record<
+    string,
+    string
+  >,
 > {
   /** Discriminator for adapter kind - used to determine API shape */
   readonly kind: 'video'
@@ -92,7 +95,10 @@ export abstract class BaseVideoAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
-  TModelSizeByName extends Record<string, string> = Record<string, string>,
+  TModelSizeByName extends Record<string, string | undefined> = Record<
+    string,
+    string
+  >,
 > implements VideoAdapter<
   TModel,
   TProviderOptions,

@@ -75,14 +75,14 @@ export const IMAGE_MODELS = [
 
 export const VIDEO_MODELS = [
   {
-    id: 'fal-ai/kling-video/v2.6/pro/text-to-video',
-    name: 'Kling 2.6 Pro (Text-to-Video)',
+    id: 'fal-ai/kling-video/v3/pro/text-to-video',
+    name: 'Kling 3 Pro (Text-to-Video)',
     description: 'High-quality text-to-video generation',
     mode: 'text-to-video' as const,
   },
   {
-    id: 'fal-ai/kling-video/v2.6/pro/image-to-video',
-    name: 'Kling 2.6 Pro (Image-to-Video)',
+    id: 'fal-ai/kling-video/v3/pro/image-to-video',
+    name: 'Kling 3 Pro (Image-to-Video)',
     description: 'Animate images with Kling',
     mode: 'image-to-video' as const,
   },
@@ -111,14 +111,14 @@ export const VIDEO_MODELS = [
     mode: 'image-to-video' as const,
   },
   {
-    id: 'fal-ai/ltx-2/text-to-video/fast',
-    name: 'LTX-2 Fast (Text-to-Video)',
+    id: 'fal-ai/ltx-2.3/text-to-video/fast',
+    name: 'LTX-2.3 Fast (Text-to-Video)',
     description: 'Fast text-to-video generation',
     mode: 'text-to-video' as const,
   },
   {
-    id: 'fal-ai/ltx-2/image-to-video/fast',
-    name: 'LTX-2 Fast (Image-to-Video)',
+    id: 'fal-ai/ltx-2.3/image-to-video/fast',
+    name: 'LTX-2.3 Fast (Image-to-Video)',
     description: 'Fast image-to-video animation',
     mode: 'image-to-video' as const,
   },
