@@ -83,8 +83,9 @@ The return type of `chat()` changes based on the `outputSchema` prop:
 
 | Configuration | Return Type |
 |--------------|-------------|
-| No `outputSchema` | `AsyncIterable<StreamChunk>` | 
+| No `outputSchema` | `AsyncIterable<StreamChunk>` |
 | With `outputSchema` | `Promise<InferSchemaType<TSchema>>` |
+| With `outputSchema` and `stream: true` | `StructuredOutputStream<InferSchemaType<TSchema>>` |
 
 When you provide an `outputSchema`, TanStack AI automatically infers the TypeScript type from your schema:
 
@@ -180,6 +181,80 @@ const company = await chat({
 console.log(company.headquarters.city);
 console.log(company.employees[0].role);
 ```
+
+## Streaming Structured Output
+
+Pass `stream: true` alongside `outputSchema` to receive incremental JSON deltas while the model is still generating, plus a final validated, typed object. This is useful for showing partial UI (a progress view, a streaming form, a typewriter-style preview) without waiting for the full response.
+
+```typescript
+import { chat, isStructuredOutputCompleteEvent } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email(),
+});
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [
+    { role: "user", content: "Extract: John Doe is 30, john@example.com" },
+  ],
+  outputSchema: PersonSchema,
+  stream: true,
+});
+
+let raw = "";
+for await (const chunk of stream) {
+  if (chunk.type === "TEXT_MESSAGE_CONTENT") {
+    // Incremental, *partial* JSON text — useful for UX progress only.
+    raw += chunk.delta;
+  } else if (isStructuredOutputCompleteEvent<z.infer<typeof PersonSchema>>(chunk)) {
+    // Terminal event — `chunk.value.object` is fully validated and typed.
+    console.log(chunk.value.object.name); // string, schema-validated
+    console.log(chunk.value.object.age);  // number
+  }
+}
+```
+
+### What you receive
+
+`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>` — an `AsyncIterable` over the standard `StreamChunk` lifecycle plus one terminal `CUSTOM` event named `structured-output.complete`:
+
+```typescript
+{
+  type: "CUSTOM",
+  name: "structured-output.complete",
+  value: {
+    object: T;        // validated, parsed, typed
+    raw: string;      // full accumulated JSON text
+    reasoning?: string; // present only for thinking/reasoning models
+  },
+  // ...standard event fields
+}
+```
+
+Use the `isStructuredOutputCompleteEvent<T>()` type guard to narrow the chunk and obtain a typed `value.object`.
+
+### Important: don't parse deltas yourself
+
+The `TEXT_MESSAGE_CONTENT` chunks contain *partial* JSON text — fragments that may not be valid JSON until the stream completes. Use them only to drive progress UI. Always read the final, validated object from the `structured-output.complete` event. Validation runs against your schema once, on the complete payload.
+
+### Adapter coverage
+
+Streaming structured output works with **every adapter**, but only some support a true single-request streaming wire format:
+
+| Adapter | Behavior with `outputSchema` + `stream: true` |
+|---------|-----------------------------------------------|
+| `@tanstack/ai-openai` | Native single-request stream (Responses API, `text.format: json_schema`) |
+| `@tanstack/ai-openrouter` | Native single-request stream (`response_format: json_schema`) |
+| `@tanstack/ai-grok` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
+| `@tanstack/ai-groq` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
+| Other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput` and emits the final object as one `structured-output.complete` event |
+
+The fallback path keeps the consumer code identical across providers — you always read the final object off `structured-output.complete` — but you won't see incremental deltas unless the adapter implements `structuredOutputStream` natively.
 
 ## Combining with Tools
 

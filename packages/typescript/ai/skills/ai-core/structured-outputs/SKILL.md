@@ -4,7 +4,9 @@ description: >
   Type-safe JSON schema responses from LLMs using outputSchema on chat().
   Supports Zod, ArkType, and Valibot schemas. The adapter handles
   provider-specific strategies transparently — never configure structured
-  output at the provider level. convertSchemaToJsonSchema() for manual
+  output at the provider level. Pass stream:true alongside outputSchema for
+  incremental JSON deltas + a terminal validated object via the
+  `structured-output.complete` event. convertSchemaToJsonSchema() for manual
   schema conversion.
 type: sub-skill
 library: tanstack-ai
@@ -45,6 +47,8 @@ const stream = chat({
 ```
 
 When `outputSchema` is provided, `chat()` returns `Promise<InferSchemaType<TSchema>>` instead of `AsyncIterable<StreamChunk>`. The result is fully typed based on the schema.
+
+Adding `stream: true` switches the return to `StructuredOutputStream<InferSchemaType<TSchema>>` — incremental JSON deltas plus a terminal validated object. See **Pattern 3** below.
 
 ## Core Patterns
 
@@ -128,7 +132,90 @@ console.log(company.employees[0].role)
 console.log(company.financials?.revenue)
 ```
 
+### Pattern 3: Streaming structured output
+
+Pass `stream: true` alongside `outputSchema` to receive incremental JSON deltas while the model generates, plus a final validated typed object. Useful for streaming partial UI (progress views, typewriter previews, partially-filled forms).
+
+```typescript
+import { chat, isStructuredOutputCompleteEvent } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email(),
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.2'),
+  messages: [
+    { role: 'user', content: 'Extract: John Doe is 30, john@example.com' },
+  ],
+  outputSchema: PersonSchema,
+  stream: true,
+})
+
+let raw = ''
+for await (const chunk of stream) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+    // Partial JSON text — drive progress UI only. Do NOT JSON.parse.
+    raw += chunk.delta
+  } else if (
+    isStructuredOutputCompleteEvent<z.infer<typeof PersonSchema>>(chunk)
+  ) {
+    // Terminal event. `chunk.value.object` is fully validated and typed.
+    chunk.value.object.name // string
+    chunk.value.object.age // number
+    chunk.value.reasoning // string | undefined (thinking models only)
+  }
+}
+```
+
+The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-output.complete', value: { object: T, raw: string, reasoning?: string } }`. Use `isStructuredOutputCompleteEvent<T>()` to narrow it and obtain the typed `value.object`.
+
+**Adapter coverage for streaming:**
+
+| Adapter | `outputSchema` + `stream: true` |
+| --- | --- |
+| `@tanstack/ai-openai` | Native single-request stream (Responses API) |
+| `@tanstack/ai-openrouter` | Native single-request stream |
+| `@tanstack/ai-grok` | Native single-request stream (Chat Completions) |
+| `@tanstack/ai-groq` | Native single-request stream (Chat Completions) |
+| All other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event |
+
+The consumer code is identical across providers — always read the final object off `structured-output.complete`. You only see incremental deltas when the adapter implements `structuredOutputStream` natively.
+
 ## Common Mistakes
+
+### HIGH: Parsing streaming JSON deltas yourself
+
+When using `chat({ outputSchema, stream: true })`, the `TEXT_MESSAGE_CONTENT` chunks contain *partial* JSON fragments — they are not valid JSON until the stream completes. Always read the validated object from the terminal `structured-output.complete` event using `isStructuredOutputCompleteEvent<T>()`. Validation runs once, on the complete payload.
+
+```typescript
+// WRONG -- partial JSON, throws SyntaxError mid-stream, no schema validation
+for await (const chunk of stream) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+    const obj = JSON.parse(chunk.delta) // ❌ partial, invalid
+  }
+}
+
+// CORRECT -- accumulate deltas only for UX progress; trust the terminal event
+import { isStructuredOutputCompleteEvent } from '@tanstack/ai'
+
+let raw = ''
+for await (const chunk of stream) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+    raw += chunk.delta // optional: render a "streaming JSON" preview
+  } else if (isStructuredOutputCompleteEvent<MySchema>(chunk)) {
+    const result = chunk.value.object // ✅ typed and validated
+  }
+}
+```
+
+If you need progressive *parsed* state (e.g. show fields as they arrive), use a partial-JSON parser on the accumulated `raw` string at render time — but do NOT treat the result as schema-validated; only the terminal event is.
+
+Source: maintainer interview
 
 ### HIGH: Trying to implement provider-specific structured output strategies
 
@@ -201,3 +288,4 @@ Source: maintainer interview
 ## Cross-References
 
 - See also: ai-core/adapter-configuration/SKILL.md -- Adapter handles structured output strategy transparently
+- See also: ai-core/chat-experience/SKILL.md -- Consuming `StreamChunk` events on the client (the streaming variant uses the same chunk model plus the terminal `structured-output.complete` custom event)
