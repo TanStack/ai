@@ -265,9 +265,42 @@ What the hook does for you:
 
 The `outputSchema` field is optional: if you omit it, `useChat`'s return type is unchanged, and `partial` / `final` aren't present.
 
-> **Going lower-level?** `useChat` still exposes `onChunk` if you want to observe individual chunks alongside the managed `partial` / `final` state (e.g. to render reasoning deltas, watch tool-call events, or trace the lifecycle). The two paths compose — internal partial/final tracking always runs first, then your `onChunk` callback fires with the same chunk.
+### Rendering reasoning and tool calls
 
-`useChat` examples for Vue, Solid, and Svelte follow the same shape — same `connection`, same `outputSchema`. See your framework's quick-start for the local idioms.
+Reasoning tokens and tool calls aren't on `partial` / `final` — they're already where they'd be in a normal chat: on `messages[…].parts`. The stream processor inside `useChat` routes each chunk type to its canonical part:
+
+| Chunk type | Where it lands |
+|---|---|
+| `REASONING_MESSAGE_CONTENT` | `ThinkingPart` on the assistant message |
+| `TOOL_CALL_START` / `_ARGS` / `_END` | `ToolCallPart` on the assistant message |
+| `TOOL_CALL_RESULT` | `ToolResultPart` on the tool message |
+| `TEXT_MESSAGE_CONTENT` | `TextPart` on the assistant message (this is the raw JSON when `outputSchema` is set — see below) |
+
+So render reasoning and tool calls the same way you'd render them in a normal chat UI:
+
+```tsx
+const last = messages.at(-1);
+
+return (
+  <>
+    {last?.parts.map((part, i) => {
+      if (part.type === "thinking") return <ReasoningView key={i} text={part.text} />;
+      if (part.type === "tool-call") return <ToolCallView key={i} part={part} />;
+      // Hide raw JSON text — the structured view below replaces it.
+      if (part.type === "text") return null;
+      return null;
+    })}
+
+    <StructuredView data={final ?? partial} />
+  </>
+);
+```
+
+> **Note:** When `outputSchema` is set, the assistant's `TextPart` contains the raw JSON the model produced (e.g. `{"name":"John","age":30,…}`). That's not meant to be shown to end users — the structured view powered by `partial` / `final` replaces it. Filter `text` parts out of your message renderer in this mode, as in the snippet above.
+
+> **Going lower-level?** `useChat` still exposes `onChunk` if you want to observe individual chunks alongside the managed `partial` / `final` state (e.g. to drive a custom progress UI). The two paths compose — internal partial/final tracking always runs first, then your `onChunk` callback fires with the same chunk.
+
+`useChat` (React, Vue, Solid) and `createChat` (Svelte) all accept the same `outputSchema` option and expose `partial` / `final` with the same semantics — only the reactivity primitive differs (React state, Vue `shallowRef`, Solid `Accessor`, Svelte reactive getter). See your framework's quick-start for the local idioms.
 
 ### What the stream contains
 
