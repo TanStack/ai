@@ -41,14 +41,14 @@ The other extension hooks (`extractReasoning`, `extractTextFromResponse`, `proce
 
 ## Provider adapters
 
-| Adapter | API | Reasoning surface |
-| --- | --- | --- |
-| `@tanstack/ai-openai` `openaiText` | Responses | `response.reasoning_text.delta` + `response.reasoning_summary_text.delta` (requires `reasoning.summary: 'auto'`) |
-| `@tanstack/ai-openai` `openaiChatCompletions` (new) | Chat Completions | reasoning emitted silently — Chat Completions has no `reasoning.summary` opt-in |
-| `@tanstack/ai-grok` `grokText` | Chat Completions | `delta.reasoning_content` (DeepSeek convention; not typed by OpenAI SDK) |
-| `@tanstack/ai-groq` `groqText` | Chat Completions | `delta.reasoning` (requires `reasoning_format: 'parsed'`; not typed by groq-sdk) |
-| `@tanstack/ai-openrouter` `openRouterText` | Chat Completions | `delta.reasoningDetails` (camelCase) |
-| `@tanstack/ai-openrouter` `openRouterResponsesText` (beta) | Responses (beta) | `response.reasoning_text.delta` + `response.reasoning_summary_text.delta` via `normalizeStreamEvent` |
+| Adapter                                                    | API              | Reasoning surface                                                                                                |
+| ---------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `@tanstack/ai-openai` `openaiText`                         | Responses        | `response.reasoning_text.delta` + `response.reasoning_summary_text.delta` (requires `reasoning.summary: 'auto'`) |
+| `@tanstack/ai-openai` `openaiChatCompletions` (new)        | Chat Completions | reasoning emitted silently — Chat Completions has no `reasoning.summary` opt-in                                  |
+| `@tanstack/ai-grok` `grokText`                             | Chat Completions | `delta.reasoning_content` (DeepSeek convention; not typed by OpenAI SDK)                                         |
+| `@tanstack/ai-groq` `groqText`                             | Chat Completions | `delta.reasoning` (requires `reasoning_format: 'parsed'`; not typed by groq-sdk)                                 |
+| `@tanstack/ai-openrouter` `openRouterText`                 | Chat Completions | `delta.reasoningDetails` (camelCase)                                                                             |
+| `@tanstack/ai-openrouter` `openRouterResponsesText` (beta) | Responses (beta) | `response.reasoning_text.delta` + `response.reasoning_summary_text.delta` via `normalizeStreamEvent`             |
 
 All six emit the contractual `REASONING_*` lifecycle (`REASONING_START` → `REASONING_MESSAGE_START` → `REASONING_MESSAGE_CONTENT` deltas → `REASONING_MESSAGE_END` → `REASONING_END`) and close it before `TEXT_MESSAGE_START`. Accumulated reasoning is also surfaced on `structured-output.complete.value.reasoning` for consumers that only subscribe to the terminal event. OpenRouter SDK's proprietary `RequestAbortedError` is mapped (alongside DOM `AbortError`) to `code: 'aborted'` in the two openrouter adapters.
 
