@@ -268,13 +268,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           messageId: reasoningMessageId,
           model: lastModel || chatOptions.model,
           timestamp,
-        } satisfies StreamChunk
+        }
         yield {
           type: EventType.REASONING_END,
           messageId: reasoningMessageId,
           model: lastModel || chatOptions.model,
           timestamp,
-        } satisfies StreamChunk
+        }
         if (stepId) {
           yield {
             type: EventType.STEP_FINISHED,
@@ -283,7 +283,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             model: lastModel || chatOptions.model,
             timestamp,
             content: accumulatedReasoning,
-          } satisfies StreamChunk
+          }
         }
       }
     }.bind(this)
@@ -341,7 +341,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             threadId: aguiState.threadId,
             model: chunk.model || chatOptions.model,
             timestamp,
-          } satisfies StreamChunk
+          }
         }
 
         // Reasoning (via the extractReasoning hook — same hook as chatStream).
@@ -355,14 +355,14 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               messageId: reasoningMessageId,
               model: chunk.model || chatOptions.model,
               timestamp,
-            } satisfies StreamChunk
+            }
             yield {
               type: EventType.REASONING_MESSAGE_START,
               messageId: reasoningMessageId,
               role: 'reasoning' as const,
               model: chunk.model || chatOptions.model,
               timestamp,
-            } satisfies StreamChunk
+            }
             yield {
               type: EventType.STEP_STARTED,
               stepName: stepId,
@@ -370,7 +370,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               model: chunk.model || chatOptions.model,
               timestamp,
               stepType: 'thinking',
-            } satisfies StreamChunk
+            }
           }
           accumulatedReasoning += reasoning.text
           yield {
@@ -379,7 +379,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             delta: reasoning.text,
             model: chunk.model || chatOptions.model,
             timestamp,
-          } satisfies StreamChunk
+          }
         }
 
         const choice = chunk.choices[0]
@@ -397,7 +397,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               model: chunk.model || chatOptions.model,
               timestamp,
               role: 'assistant',
-            } satisfies StreamChunk
+            }
           }
 
           accumulatedContent += deltaContent
@@ -409,7 +409,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             timestamp,
             delta: deltaContent,
             content: accumulatedContent,
-          } satisfies StreamChunk
+          }
         }
       }
 
@@ -424,7 +424,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           messageId: aguiState.messageId,
           model: lastModel || chatOptions.model,
           timestamp,
-        } satisfies StreamChunk
+        }
       }
 
       if (accumulatedContent.length === 0) {
@@ -439,7 +439,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             message: `${this.name}.structuredOutputStream: response contained no content`,
             code: 'empty-response',
           },
-        } satisfies StreamChunk
+        }
         return
       }
 
@@ -458,7 +458,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             message: 'Failed to parse structured output as JSON',
             code: 'parse-error',
           },
-        } satisfies StreamChunk
+        }
         return
       }
 
@@ -474,7 +474,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         },
         model: lastModel || chatOptions.model,
         timestamp,
-      } satisfies StreamChunk
+      }
 
       yield {
         type: EventType.RUN_FINISHED,
@@ -490,7 +490,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             totalTokens: lastUsage.total_tokens,
           },
         }),
-      } satisfies StreamChunk
+      }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
@@ -500,7 +500,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           threadId: aguiState.threadId,
           model: chatOptions.model,
           timestamp,
-        } satisfies StreamChunk
+        }
       }
 
       const isAbort = this.isAbortError(error)
@@ -517,7 +517,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         message: errorPayload.message,
         code: isAbort ? 'aborted' : errorPayload.code,
         error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
-      } satisfies StreamChunk
+      }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
         error: errorPayload,

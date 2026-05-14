@@ -20,9 +20,9 @@ type PersonSchema = StandardJSONSchemaV1<Person, Person>
 describe('chat() return type', () => {
   describe('with outputSchema', () => {
     it('stream: true → StructuredOutputStream<T>', () => {
-      expectTypeOf<
-        TextActivityResult<PersonSchema, true>
-      >().toEqualTypeOf<StructuredOutputStream<Person>>()
+      expectTypeOf<TextActivityResult<PersonSchema, true>>().toEqualTypeOf<
+        StructuredOutputStream<Person>
+      >()
     })
 
     it('stream: false → Promise<T>', () => {

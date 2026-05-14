@@ -305,13 +305,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           messageId: reasoningMessageId,
           model,
           timestamp,
-        } satisfies StreamChunk
+        }
         yield {
           type: EventType.REASONING_END,
           messageId: reasoningMessageId,
           model,
           timestamp,
-        } satisfies StreamChunk
+        }
         if (stepId) {
           yield {
             type: EventType.STEP_FINISHED,
@@ -320,7 +320,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             model,
             timestamp,
             content: accumulatedReasoning,
-          } satisfies StreamChunk
+          }
         }
       }
     }.bind(this)
@@ -336,14 +336,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         messageId: reasoningMessageId,
         model,
         timestamp,
-      } satisfies StreamChunk
+      }
       yield {
         type: EventType.REASONING_MESSAGE_START,
         messageId: reasoningMessageId,
         role: 'reasoning' as const,
         model,
         timestamp,
-      } satisfies StreamChunk
+      }
       yield {
         type: EventType.STEP_STARTED,
         stepName: stepId,
@@ -351,7 +351,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         model,
         timestamp,
         stepType: 'thinking',
-      } satisfies StreamChunk
+      }
     }.bind(this)
 
     try {
@@ -388,7 +388,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             threadId: aguiState.threadId,
             model,
             timestamp,
-          } satisfies StreamChunk
+          }
         }
 
         if (
@@ -414,7 +414,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             message: `Model refused: ${delta}`,
             code: 'refusal',
             error: { message: `Model refused: ${delta}`, code: 'refusal' },
-          } satisfies StreamChunk
+          }
           return
         }
 
@@ -440,7 +440,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             delta: reasoningDelta,
             model,
             timestamp,
-          } satisfies StreamChunk
+          }
           continue
         }
 
@@ -463,7 +463,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               model,
               timestamp,
               role: 'assistant',
-            } satisfies StreamChunk
+            }
           }
           accumulatedContent += textDelta
           yield {
@@ -473,7 +473,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             timestamp,
             delta: textDelta,
             content: accumulatedContent,
-          } satisfies StreamChunk
+          }
           continue
         }
 
@@ -500,7 +500,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             message,
             code: response?.error?.code,
             error: { message, code: response?.error?.code },
-          } satisfies StreamChunk
+          }
           return
         }
       }
@@ -513,7 +513,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           messageId: aguiState.messageId,
           model,
           timestamp,
-        } satisfies StreamChunk
+        }
       }
 
       if (accumulatedContent.length === 0) {
@@ -528,7 +528,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             message: `${this.name}.structuredOutputStream: response contained no content`,
             code: 'empty-response',
           },
-        } satisfies StreamChunk
+        }
         return
       }
 
@@ -547,7 +547,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             message: 'Failed to parse structured output as JSON',
             code: 'parse-error',
           },
-        } satisfies StreamChunk
+        }
         return
       }
 
@@ -563,7 +563,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         },
         model,
         timestamp,
-      } satisfies StreamChunk
+      }
 
       yield {
         type: EventType.RUN_FINISHED,
@@ -579,7 +579,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             totalTokens: usage.total_tokens,
           },
         }),
-      } satisfies StreamChunk
+      }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
@@ -589,7 +589,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           threadId: aguiState.threadId,
           model,
           timestamp,
-        } satisfies StreamChunk
+        }
       }
 
       const isAbort = this.isAbortError(error)
@@ -606,7 +606,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         message: errorPayload.message,
         code: isAbort ? 'aborted' : errorPayload.code,
         error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
-      } satisfies StreamChunk
+      }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
         error: errorPayload,

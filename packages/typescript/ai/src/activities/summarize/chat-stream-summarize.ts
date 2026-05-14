@@ -171,7 +171,7 @@ export class ChatStreamSummarizeAdapter<
             value: { id, model, summary, usage } satisfies SummarizationResult,
             model,
             timestamp: Date.now(),
-          } satisfies StreamChunk
+          }
         }
 
         yield chunk
