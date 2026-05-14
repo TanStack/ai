@@ -113,9 +113,9 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     switch (data.model) {
       // Text-to-video models
-      case 'fal-ai/kling-video/v2.6/pro/text-to-video': {
+      case 'fal-ai/kling-video/v3/pro/text-to-video': {
         return generateVideo({
-          adapter: falVideo('fal-ai/kling-video/v2.6/pro/text-to-video'),
+          adapter: falVideo('fal-ai/kling-video/v3/pro/text-to-video'),
           prompt: data.prompt,
           size: '16:9',
           modelOptions: {
@@ -145,19 +145,19 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
           },
         })
       }
-      case 'fal-ai/ltx-2/text-to-video/fast': {
+      case 'fal-ai/ltx-2.3/text-to-video/fast': {
         return generateVideo({
-          adapter: falVideo('fal-ai/ltx-2/text-to-video/fast'),
+          adapter: falVideo('fal-ai/ltx-2.3/text-to-video/fast'),
           prompt: data.prompt,
-          size: '2160p',
+          size: '16:9_2160p',
         })
       }
       // Image-to-video models
-      case 'fal-ai/kling-video/v2.6/pro/image-to-video': {
+      case 'fal-ai/kling-video/v3/pro/image-to-video': {
         if (!data.imageUrl)
           throw new Error('Image URL is required for image-to-video')
         return generateVideo({
-          adapter: falVideo('fal-ai/kling-video/v2.6/pro/image-to-video'),
+          adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
           prompt: data.prompt,
           modelOptions: {
             start_image_url: data.imageUrl,
@@ -193,13 +193,13 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
           },
         })
       }
-      case 'fal-ai/ltx-2/image-to-video/fast': {
+      case 'fal-ai/ltx-2.3/image-to-video/fast': {
         if (!data.imageUrl)
           throw new Error('Image URL is required for image-to-video')
         return generateVideo({
-          adapter: falVideo('fal-ai/ltx-2/image-to-video/fast'),
+          adapter: falVideo('fal-ai/ltx-2.3/image-to-video/fast'),
           prompt: data.prompt,
-          size: '2160p',
+          size: '16:9_2160p',
           modelOptions: {
             image_url: data.imageUrl,
           },
