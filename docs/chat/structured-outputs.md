@@ -184,48 +184,100 @@ console.log(company.employees[0].role);
 
 ## Streaming Structured Output
 
-Pass `stream: true` alongside `outputSchema` to receive incremental JSON deltas while the model is still generating, plus a final validated, typed object. This is useful for showing partial UI (a progress view, a streaming form, a typewriter-style preview) without waiting for the full response.
+Pass `stream: true` alongside `outputSchema` to receive incremental JSON deltas while the model is generating, plus a final validated, typed object. This is the path to take when you want a progressive UI — a streaming form, a typewriter-style preview, partial cards filling in field by field — instead of a single blocking await.
+
+You build it in two halves: a server route that runs `chat({ outputSchema, stream: true })` and pipes the result as Server-Sent Events, and a client that wires `useChat` to that endpoint and updates state as chunks arrive. The same flow as regular streaming chat (see [Streaming](./streaming)) — `outputSchema + stream: true` just adds one terminal event with the validated object.
+
+### Server endpoint
 
 ```typescript
-import { chat } from "@tanstack/ai";
+// app/api/extract-person/route.ts (or your framework's equivalent)
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
 const PersonSchema = z.object({
-  name: z.string(),
-  age: z.number(),
+  name: z.string().meta({ description: "The person's full name" }),
+  age: z.number().meta({ description: "The person's age in years" }),
   email: z.string().email(),
 });
 
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [
-    { role: "user", content: "Extract: John Doe is 30, john@example.com" },
-  ],
-  outputSchema: PersonSchema,
-  stream: true,
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
 
-let raw = "";
-for await (const chunk of stream) {
-  if (chunk.type === "TEXT_MESSAGE_CONTENT") {
-    // Incremental, *partial* JSON text — useful for UX progress only.
-    raw += chunk.delta;
-  } else if (
-    chunk.type === "CUSTOM" &&
-    chunk.name === "structured-output.complete"
-  ) {
-    // Terminal event — `chunk.value.object` is fully validated and typed
-    // against the schema you passed in. No helper or cast required.
-    console.log(chunk.value.object.name); // string, schema-validated
-    console.log(chunk.value.object.age);  // number
-  }
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    outputSchema: PersonSchema,
+    stream: true,
+  });
+
+  return toServerSentEventsResponse(stream);
 }
 ```
 
-### What you receive
+That's the entire server side. `chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<InferSchemaType<typeof PersonSchema>>` — the same kind of `AsyncIterable` that `toServerSentEventsResponse` accepts for any streaming chat endpoint. The schema travels in the request as JSON Schema, validation runs server-side after the stream completes, and the validated object is emitted as the terminal `structured-output.complete` event.
 
-`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>` — an `AsyncIterable` over the standard `StreamChunk` lifecycle plus one terminal `CUSTOM` event named `structured-output.complete`:
+### Client with `useChat`
+
+`useChat` consumes the SSE stream and forwards every chunk through its `onChunk` callback. Listen for `TEXT_MESSAGE_CONTENT` deltas (for progressive UI) and the terminal `CUSTOM` `structured-output.complete` event (for the validated object):
+
+```typescript
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { parsePartialJSON } from "@tanstack/ai";
+
+type Person = { name: string; age: number; email: string };
+
+function PersonExtractor() {
+  const [partial, setPartial] = useState<Partial<Person>>({});
+  const [final, setFinal] = useState<Person | null>(null);
+  let raw = "";
+
+  const { sendMessage, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/extract-person"),
+    onChunk: (chunk) => {
+      if (chunk.type === "TEXT_MESSAGE_CONTENT") {
+        // Accumulate JSON text and render whatever can be parsed so far.
+        raw += chunk.delta;
+        const progressive = parsePartialJSON(raw);
+        if (progressive && typeof progressive === "object") {
+          setPartial(progressive as Partial<Person>);
+        }
+      } else if (
+        chunk.type === "CUSTOM" &&
+        chunk.name === "structured-output.complete"
+      ) {
+        // Terminal event — `chunk.value.object` is the validated, typed payload.
+        setFinal(chunk.value.object as Person);
+      }
+    },
+  });
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); sendMessage("Extract: John Doe, 30, john@example.com"); }}>
+      <button disabled={isLoading}>Extract</button>
+      {/* `partial` fills in field by field as JSON streams in */}
+      <p>Name: {partial.name ?? "…"}</p>
+      <p>Age: {partial.age ?? "…"}</p>
+      <p>Email: {partial.email ?? "…"}</p>
+      {final && <pre>Validated: {JSON.stringify(final, null, 2)}</pre>}
+    </form>
+  );
+}
+```
+
+A few things this code is relying on:
+
+- **`parsePartialJSON`** (exported from `@tanstack/ai`) tolerates incomplete JSON and returns whatever shape it can infer from the prefix. It's exactly what you want for "render the object as it streams in." Don't use `JSON.parse` on the accumulating buffer — it will throw on every chunk until the stream completes.
+- **The validated object lives on the terminal event, not the deltas.** Validation runs once, on the complete payload, against the schema you passed to `chat()` on the server. The `TEXT_MESSAGE_CONTENT` chunks are unvalidated text — use them for progress UI, never as data.
+- **`chunk.value.object` on the terminal event is typed.** TanStack AI types `StructuredOutputStream<T>` so the discriminated narrow `chunk.type === "CUSTOM" && chunk.name === "structured-output.complete"` resolves `chunk.value` to `{ object: T; raw: string; reasoning?: string }` directly — no helper or cast needed when you parameterize `chat()` with a concrete schema and forward `T` to your client types.
+
+`useChat` examples for Vue, Solid, and Svelte follow the same shape — same `connection`, same `onChunk` signature. See your framework's quick-start for the local idioms.
+
+### What the stream contains
+
+`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>` — an `AsyncIterable` over the standard `StreamChunk` lifecycle plus a terminal `CUSTOM` event named `structured-output.complete`:
 
 ```typescript
 {
@@ -236,15 +288,9 @@ for await (const chunk of stream) {
     raw: string;      // full accumulated JSON text
     reasoning?: string; // present only for thinking/reasoning models
   },
-  // ...standard event fields
+  // ...standard event fields (timestamp, model, …)
 }
 ```
-
-The return type of `chat({ outputSchema, stream: true })` carries the schema's inferred type `T` through to the terminal event, so a plain discriminated narrow — `chunk.type === "CUSTOM" && chunk.name === "structured-output.complete"` — gives you a fully-typed `chunk.value.object` with no helper or cast.
-
-### Important: don't parse deltas yourself
-
-The `TEXT_MESSAGE_CONTENT` chunks contain *partial* JSON text — fragments that may not be valid JSON until the stream completes. Use them only to drive progress UI. Always read the final, validated object from the `structured-output.complete` event. Validation runs against your schema once, on the complete payload.
 
 ### Adapter coverage
 
@@ -259,6 +305,35 @@ Streaming structured output works with **every adapter**, but only some support 
 | Other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput` and emits the final object as one `structured-output.complete` event |
 
 The fallback path keeps the consumer code identical across providers — you always read the final object off `structured-output.complete` — but you won't see incremental deltas unless the adapter implements `structuredOutputStream` natively.
+
+### Advanced: iterating the stream directly
+
+When you don't need the SSE-over-HTTP boundary — Node scripts, CLIs, server endpoints that respond with a final JSON object instead of a stream, or tests — you can consume `chat({ outputSchema, stream: true })` as a plain async iterable:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const PersonSchema = z.object({ name: z.string(), age: z.number(), email: z.string().email() });
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "Extract: John Doe is 30, john@example.com" }],
+  outputSchema: PersonSchema,
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "CUSTOM" && chunk.name === "structured-output.complete") {
+    // Validated and typed against PersonSchema.
+    console.log(chunk.value.object.name);
+    console.log(chunk.value.object.age);
+  }
+}
+```
+
+This is the same `StructuredOutputStream<T>` the server endpoint above hands to `toServerSentEventsResponse`. Pick this shape when you're a single process end-to-end; use the server-endpoint-plus-`useChat` shape when there's a network in the middle.
 
 ## Combining with Tools
 
@@ -316,32 +391,35 @@ When you combine `tools` + `outputSchema` + `stream: true`, the agent loop runs 
 | `approval-requested` | A server tool with `needsApproval: true` is queued — see [Tool Approval Flow](../tools/tool-approval) | Surface the approval prompt to the user; resume the conversation with their decision |
 | `tool-input-available` | A client tool is invoked — see [Client Tools](../tools/client-tools) | Execute the tool client-side, then resume with the result |
 
-Both are tagged `CUSTOM` variants of `StructuredOutputStream<T>` with typed `value` shapes — narrow on `chunk.name` the same way you narrow `structured-output.complete`:
+Both are tagged `CUSTOM` variants of `StructuredOutputStream<T>` with typed `value` shapes. In `onChunk`, narrow on `chunk.name` the same way you narrow `structured-output.complete`:
 
 ```typescript
-for await (const chunk of stream) {
-  if (chunk.type === "CUSTOM" && chunk.name === "structured-output.complete") {
-    // Happy path — tools all completed, structured output emitted.
-    return chunk.value.object; // typed as InferSchemaType<typeof schema>
-  } else if (chunk.type === "CUSTOM" && chunk.name === "approval-requested") {
-    // Pause — render approval UI. The structured output will NOT arrive in
-    // this run; you'll re-invoke chat() with the approval decision.
-    showApprovalPrompt({
-      toolCallId: chunk.value.toolCallId, // typed as string
-      toolName: chunk.value.toolName,
-      input: chunk.value.input,
-    });
-    break;
-  } else if (chunk.type === "CUSTOM" && chunk.name === "tool-input-available") {
-    // Pause — run the client tool, then re-invoke with the result.
-    const result = await runClientTool(chunk.value.toolName, chunk.value.input);
-    resumeWithToolResult(chunk.value.toolCallId, result);
-    break;
-  }
-}
+const { sendMessage } = useChat({
+  connection: fetchServerSentEvents("/api/extract"),
+  onChunk: (chunk) => {
+    if (chunk.type !== "CUSTOM") return;
+
+    if (chunk.name === "structured-output.complete") {
+      // Happy path — tools all completed, structured output emitted.
+      setFinal(chunk.value.object as Person);
+    } else if (chunk.name === "approval-requested") {
+      // Pause — render approval UI. The structured output will NOT arrive
+      // in this run; you'll re-invoke after the user decides.
+      showApprovalPrompt({
+        toolCallId: chunk.value.toolCallId, // typed as string
+        toolName: chunk.value.toolName,
+        input: chunk.value.input,
+      });
+    } else if (chunk.name === "tool-input-available") {
+      // Pause — run the client tool, then resume with the result.
+      runClientTool(chunk.value.toolName, chunk.value.input)
+        .then((result) => resumeWithToolResult(chunk.value.toolCallId, result));
+    }
+  },
+});
 ```
 
-The three tagged variants — `StructuredOutputCompleteEvent<T>`, `ApprovalRequestedEvent`, `ToolInputAvailableEvent` — are exported from `@tanstack/ai` if you need to annotate handler signatures explicitly.
+The three tagged variants — `StructuredOutputCompleteEvent<T>`, `ApprovalRequestedEvent`, `ToolInputAvailableEvent` — are exported from `@tanstack/ai` if you need to annotate handler signatures explicitly. The same narrowing pattern works when you're iterating the stream directly with `for await` (see [Advanced: iterating the stream directly](#advanced-iterating-the-stream-directly)).
 
 > **Note:** If your tools never need approval and aren't client tools, the only `CUSTOM` event you'll see is `structured-output.complete`. The pause-state handling above is only required when you wire those tool kinds into a streaming-structured-output call.
 
