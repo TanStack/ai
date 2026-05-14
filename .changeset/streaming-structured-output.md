@@ -5,6 +5,7 @@
 '@tanstack/ai-grok': minor
 '@tanstack/ai-groq': minor
 '@tanstack/ai-openrouter': minor
+'@tanstack/ai-react': minor
 '@tanstack/ai-anthropic': patch
 '@tanstack/ai-gemini': patch
 '@tanstack/ai-ollama': patch
@@ -20,6 +21,17 @@ Streaming structured output across the OpenAI-compatible providers, an OpenAI Ch
 - `fallbackStructuredOutputStream` in the activity layer is the single source of truth for adapters that don't implement `structuredOutputStream` natively; `BaseTextAdapter` no longer ships a default.
 - `ChatStreamSummarizeAdapter.summarizeStream` accumulates summary text and emits a terminal `CUSTOM` `generation:result` event before the final `RUN_FINISHED`. Fixes `useSummarize` never populating `result` over streaming connections (the client only sets `result` on that specific CUSTOM event).
 - `SummarizationOptions` is now generic in `TProviderOptions` and `modelOptions` is plumbed through end-to-end (previously silently dropped by `runSummarize` / `runStreamingSummarize`).
+
+## React — `@tanstack/ai-react`
+
+`useChat` now accepts an `outputSchema` option mirroring `chat({ outputSchema })`. When supplied, the hook's return adds two managed fields:
+
+- `partial: DeepPartial<InferSchemaType<typeof outputSchema>>` — the live progressive object, updated from `TEXT_MESSAGE_CONTENT` deltas via `parsePartialJSON`. Resets on every new run.
+- `final: InferSchemaType<typeof outputSchema> | null` — the validated terminal payload from the `structured-output.complete` event. `null` until the run completes.
+
+Both fields are typed against the schema with no helper or cast — `useChat<TTools, TSchema>` infers `TSchema` from the passed-in schema and conditionally adds the fields to the return type via a discriminated `UseChatReturn<TTools, TSchema>`. Without `outputSchema`, the return type is unchanged. Works the same for streaming and non-streaming endpoints — for non-streaming, `partial` stays `{}` and `final` snaps when the single terminal event arrives.
+
+`DeepPartial<T>` is exported from `@tanstack/ai-react` for callers who want to annotate handlers explicitly.
 
 ## Base — `@tanstack/openai-base`
 

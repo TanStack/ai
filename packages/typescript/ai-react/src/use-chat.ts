@@ -1,18 +1,29 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { parsePartialJSON } from '@tanstack/ai'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  InferSchemaType,
+  ModelMessage,
+  SchemaInput,
+  StreamChunk,
+} from '@tanstack/ai'
 import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
 
 import type {
+  DeepPartial,
   MultimodalContent,
   UIMessage,
   UseChatOptions,
   UseChatReturn,
 } from './types'
 
-export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
-  options: UseChatOptions<TTools>,
-): UseChatReturn<TTools> {
+export function useChat<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+>(
+  options: UseChatOptions<TTools, TSchema>,
+): UseChatReturn<TTools, TSchema> {
   const hookId = useId()
   const clientId = options.id || hookId
 
@@ -27,6 +38,19 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     useState<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = useState(false)
 
+  // Structured-output state. Only meaningful when `outputSchema` is supplied;
+  // when it isn't, these stay at their initial values and are hidden from the
+  // return type by the conditional in UseChatReturn. Runtime always tracks
+  // them — the type system gates visibility, not the runtime.
+  type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
+  type Final = InferSchemaType<NonNullable<TSchema>>
+  const [partial, setPartial] = useState<Partial>({} as Partial)
+  const [final, setFinal] = useState<Final | null>(null)
+  // Raw JSON accumulator for parsePartialJSON. Ref instead of state — partial
+  // JSON parsing happens synchronously inside the chunk handler; we don't want
+  // a re-render per delta solely to track the buffer.
+  const rawJsonRef = useRef('')
+
   // Track current messages in a ref to preserve them when client is recreated
   const messagesRef = useRef<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
@@ -38,7 +62,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
-  const optionsRef = useRef<UseChatOptions<TTools>>(options)
+  const optionsRef = useRef<UseChatOptions<TTools, TSchema>>(options)
   optionsRef.current = options
 
   // Create ChatClient instance with callbacks to sync state
@@ -62,7 +86,32 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       // Capturing the function reference directly would freeze it to whatever
       // the parent passed on the first render.
       onResponse: (response) => optionsRef.current.onResponse?.(response),
-      onChunk: (chunk) => optionsRef.current.onChunk?.(chunk),
+      onChunk: (chunk: StreamChunk) => {
+        // Internal structured-output tracking — runs before the user callback
+        // so user code observes the same state the hook does. Only active when
+        // a schema is supplied; otherwise the branches are no-ops.
+        if (optionsRef.current.outputSchema !== undefined) {
+          if (chunk.type === 'RUN_STARTED') {
+            // New run — reset both views.
+            rawJsonRef.current = ''
+            setPartial({} as Partial)
+            setFinal(null)
+          } else if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
+            rawJsonRef.current += chunk.delta
+            const progressive = parsePartialJSON(rawJsonRef.current)
+            if (progressive && typeof progressive === 'object') {
+              setPartial(progressive as Partial)
+            }
+          } else if (
+            chunk.type === 'CUSTOM' &&
+            chunk.name === 'structured-output.complete'
+          ) {
+            const value = chunk.value as { object: unknown }
+            setFinal(value.object as Final)
+          }
+        }
+        optionsRef.current.onChunk?.(chunk)
+      },
       onFinish: (message: UIMessage<TTools>) => {
         optionsRef.current.onFinish?.(message)
       },
@@ -195,6 +244,10 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     [client],
   )
 
+  // partial / final are runtime-tracked unconditionally; the conditional
+  // return type (UseChatReturn<TTools, TSchema>) hides them from callers that
+  // didn't supply `outputSchema`. The `as` cast is the seam between the
+  // unconditional runtime shape and the schema-discriminated public shape.
   return {
     messages,
     sendMessage,
@@ -211,5 +264,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     clear,
     addToolResult,
     addToolApprovalResponse,
-  }
+    partial,
+    final,
+  } as unknown as UseChatReturn<TTools, TSchema>
 }

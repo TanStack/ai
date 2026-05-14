@@ -220,44 +220,33 @@ That's the entire server side. `chat({ outputSchema, stream: true })` returns a 
 
 ### Client with `useChat`
 
-`useChat` consumes the SSE stream and forwards every chunk through its `onChunk` callback. Listen for `TEXT_MESSAGE_CONTENT` deltas (for progressive UI) and the terminal `CUSTOM` `structured-output.complete` event (for the validated object):
+Pass the same schema to `useChat` and the hook tracks the progressive object and the validated terminal object for you — `partial` updates as JSON streams in, `final` snaps when `structured-output.complete` arrives. No external state, no `onChunk` ceremony, no `parsePartialJSON` calls:
 
-```typescript
-import { useState } from "react";
+```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { parsePartialJSON } from "@tanstack/ai";
+import { z } from "zod";
 
-type Person = { name: string; age: number; email: string };
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email(),
+});
 
 function PersonExtractor() {
-  const [partial, setPartial] = useState<Partial<Person>>({});
-  const [final, setFinal] = useState<Person | null>(null);
-  let raw = "";
-
-  const { sendMessage, isLoading } = useChat({
+  const { sendMessage, isLoading, partial, final } = useChat({
     connection: fetchServerSentEvents("/api/extract-person"),
-    onChunk: (chunk) => {
-      if (chunk.type === "TEXT_MESSAGE_CONTENT") {
-        // Accumulate JSON text and render whatever can be parsed so far.
-        raw += chunk.delta;
-        const progressive = parsePartialJSON(raw);
-        if (progressive && typeof progressive === "object") {
-          setPartial(progressive as Partial<Person>);
-        }
-      } else if (
-        chunk.type === "CUSTOM" &&
-        chunk.name === "structured-output.complete"
-      ) {
-        // Terminal event — `chunk.value.object` is the validated, typed payload.
-        setFinal(chunk.value.object as Person);
-      }
-    },
+    outputSchema: PersonSchema,
   });
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); sendMessage("Extract: John Doe, 30, john@example.com"); }}>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        sendMessage("Extract: John Doe, 30, john@example.com");
+      }}
+    >
       <button disabled={isLoading}>Extract</button>
-      {/* `partial` fills in field by field as JSON streams in */}
+      {/* `partial` fills in field by field as JSON streams in. */}
       <p>Name: {partial.name ?? "…"}</p>
       <p>Age: {partial.age ?? "…"}</p>
       <p>Email: {partial.email ?? "…"}</p>
@@ -267,13 +256,18 @@ function PersonExtractor() {
 }
 ```
 
-A few things this code is relying on:
+What the hook does for you:
 
-- **`parsePartialJSON`** (exported from `@tanstack/ai`) tolerates incomplete JSON and returns whatever shape it can infer from the prefix. It's exactly what you want for "render the object as it streams in." Don't use `JSON.parse` on the accumulating buffer — it will throw on every chunk until the stream completes.
-- **The validated object lives on the terminal event, not the deltas.** Validation runs once, on the complete payload, against the schema you passed to `chat()` on the server. The `TEXT_MESSAGE_CONTENT` chunks are unvalidated text — use them for progress UI, never as data.
-- **`chunk.value.object` on the terminal event is typed.** TanStack AI types `StructuredOutputStream<T>` so the discriminated narrow `chunk.type === "CUSTOM" && chunk.name === "structured-output.complete"` resolves `chunk.value` to `{ object: T; raw: string; reasoning?: string }` directly — no helper or cast needed when you parameterize `chat()` with a concrete schema and forward `T` to your client types.
+- **`partial`** is `DeepPartial<z.infer<typeof PersonSchema>>` — every property optional, every nested array element optional. Updated from `TEXT_MESSAGE_CONTENT` deltas via `parsePartialJSON`. Resets on every new `sendMessage` / `reload`.
+- **`final`** is `z.infer<typeof PersonSchema> | null` — the validated terminal payload from the `structured-output.complete` event. `null` until the run completes successfully.
+- **`outputSchema`** is used purely for client-side **type inference**. Validation still runs on the server against the schema you pass to `chat({ outputSchema })` on the server route.
+- This same hook shape works for **non-streaming structured output too**. If your server returns a single `structured-output.complete` event (the fallback path for adapters that don't natively stream), `partial` stays `{}` and `final` populates when the event arrives — same consumer code.
 
-`useChat` examples for Vue, Solid, and Svelte follow the same shape — same `connection`, same `onChunk` signature. See your framework's quick-start for the local idioms.
+The `outputSchema` field is optional: if you omit it, `useChat`'s return type is unchanged, and `partial` / `final` aren't present.
+
+> **Going lower-level?** `useChat` still exposes `onChunk` if you want to observe individual chunks alongside the managed `partial` / `final` state (e.g. to render reasoning deltas, watch tool-call events, or trace the lifecycle). The two paths compose — internal partial/final tracking always runs first, then your `onChunk` callback fires with the same chunk.
+
+`useChat` examples for Vue, Solid, and Svelte follow the same shape — same `connection`, same `outputSchema`. See your framework's quick-start for the local idioms.
 
 ### What the stream contains
 
@@ -391,7 +385,7 @@ When you combine `tools` + `outputSchema` + `stream: true`, the agent loop runs 
 | `approval-requested` | A server tool with `needsApproval: true` is queued — see [Tool Approval Flow](../tools/tool-approval) | Surface the approval prompt to the user; resume the conversation with their decision |
 | `tool-input-available` | A client tool is invoked — see [Client Tools](../tools/client-tools) | Execute the tool client-side, then resume with the result |
 
-Both are tagged `CUSTOM` variants of `StructuredOutputStream<T>` with typed `value` shapes. In `onChunk`, narrow on `chunk.name` the same way you narrow `structured-output.complete`:
+Both are tagged `CUSTOM` variants of `StructuredOutputStream<T>` with typed `value` shapes. `useChat`'s managed `partial` / `final` cover the happy path, but pause states need explicit handling — drop into `onChunk` alongside the managed state to react to them:
 
 ```typescript
 const { sendMessage } = useChat({
