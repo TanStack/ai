@@ -29,12 +29,11 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         })
       }
       case 'xai/grok-imagine-image': {
-        // NOTE: Newer models are untyped (at the moment)
         return generateImage({
           adapter: falImage('xai/grok-imagine-image'),
           prompt: data.prompt,
           numberOfImages: 1,
-          size: '16:9',
+          size: '16:9_4K',
         })
       }
       case 'fal-ai/flux-2/klein/9b': {
@@ -115,11 +114,10 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
     switch (data.model) {
       // Text-to-video models
       case 'fal-ai/kling-video/v2.6/pro/text-to-video': {
-        // NOTE newer models are untyped
         return generateVideo({
           adapter: falVideo('fal-ai/kling-video/v2.6/pro/text-to-video'),
           prompt: data.prompt,
-          size: '16:9_1080p',
+          size: '16:9',
           modelOptions: {
             duration: '5',
           },
@@ -143,7 +141,7 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
           prompt: data.prompt,
           size: '16:9_720p',
           modelOptions: {
-            duration: '5',
+            duration: 5,
           },
         })
       }
@@ -191,7 +189,7 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
           size: '16:9_720p',
           modelOptions: {
             image_url: data.imageUrl,
-            duration: '5',
+            duration: 5,
           },
         })
       }
