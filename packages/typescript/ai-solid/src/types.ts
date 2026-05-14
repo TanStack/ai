@@ -1,4 +1,9 @@
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  InferSchemaType,
+  ModelMessage,
+  SchemaInput,
+} from '@tanstack/ai'
 import type {
   ChatClientOptions,
   ChatClientState,
@@ -13,6 +18,18 @@ import type { Accessor } from 'solid-js'
 export type { ChatRequestBody, MultimodalContent, UIMessage }
 
 /**
+ * Recursive partial — every property and every nested array element is optional.
+ * Used to type the in-flight `partial` accessor while a structured-output
+ * stream is still arriving.
+ */
+export type DeepPartial<T> =
+  T extends ReadonlyArray<infer U>
+    ? Array<DeepPartial<U>>
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T
+
+/**
  * Options for the useChat hook.
  *
  * This extends ChatClientOptions but omits the state change callbacks that are
@@ -25,26 +42,58 @@ export type { ChatRequestBody, MultimodalContent, UIMessage }
  * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
  *
+ * When `outputSchema` is supplied, the hook returns typed `partial` and `final`
+ * accessors. The schema is used purely for type inference; server-side
+ * validation still runs against the schema passed to `chat({ outputSchema })`
+ * on the server route.
+ *
  * Note: Connection and body changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
-export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
-  Omit<
-    ChatClientOptions<TTools>,
-    | 'onMessagesChange'
-    | 'onLoadingChange'
-    | 'onErrorChange'
-    | 'onStatusChange'
-    | 'onSubscriptionChange'
-    | 'onConnectionStatusChange'
-    | 'onSessionGeneratingChange'
-  > & {
-    live?: boolean
-  }
-
-export interface UseChatReturn<
+export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
-> {
+  TSchema extends SchemaInput | undefined = undefined,
+> = Omit<
+  ChatClientOptions<TTools>,
+  | 'onMessagesChange'
+  | 'onLoadingChange'
+  | 'onErrorChange'
+  | 'onStatusChange'
+  | 'onSubscriptionChange'
+  | 'onConnectionStatusChange'
+  | 'onSessionGeneratingChange'
+> & {
+  live?: boolean
+  /**
+   * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
+   * Schema). Used to infer the shape of `partial` and `final`.
+   */
+  outputSchema?: TSchema
+}
+
+/**
+ * Discriminated return shape: when `outputSchema` is supplied, the hook adds
+ * typed `partial` / `final` accessors; otherwise the return is unchanged.
+ */
+export type UseChatReturn<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+> = BaseUseChatReturn<TTools> &
+  (TSchema extends SchemaInput
+    ? {
+        /**
+         * Live progressively-parsed structured output. Resets on every new run.
+         */
+        partial: Accessor<DeepPartial<InferSchemaType<TSchema>>>
+        /**
+         * Final, schema-validated structured output. `null` until the terminal
+         * `structured-output.complete` event arrives. Resets on every new run.
+         */
+        final: Accessor<InferSchemaType<TSchema> | null>
+      }
+    : Record<never, never>)
+
+interface BaseUseChatReturn<TTools extends ReadonlyArray<AnyClientTool> = any> {
   /**
    * Current messages in the conversation
    */

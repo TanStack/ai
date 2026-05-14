@@ -1,17 +1,31 @@
 import { ChatClient } from '@tanstack/ai-client'
+import { parsePartialJSON } from '@tanstack/ai'
 import { onScopeDispose, readonly, shallowRef, useId, watch } from 'vue'
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  InferSchemaType,
+  ModelMessage,
+  SchemaInput,
+  StreamChunk,
+} from '@tanstack/ai'
 import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
 import type {
+  DeepPartial,
   MultimodalContent,
   UIMessage,
   UseChatOptions,
   UseChatReturn,
 } from './types'
 
-export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
-  options: UseChatOptions<TTools> = {} as UseChatOptions<TTools>,
-): UseChatReturn<TTools> {
+export function useChat<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+>(
+  options: UseChatOptions<TTools, TSchema> = {} as UseChatOptions<
+    TTools,
+    TSchema
+  >,
+): UseChatReturn<TTools, TSchema> {
   const hookId = useId() // Available in Vue 3.5+
   const clientId = options.id || hookId
 
@@ -24,6 +38,16 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   const isSubscribed = shallowRef(false)
   const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
   const sessionGenerating = shallowRef(false)
+
+  // Structured-output state. Runtime always tracks them — the conditional
+  // return type hides them from callers that didn't supply `outputSchema`.
+  type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
+  type Final = InferSchemaType<NonNullable<TSchema>>
+  const partial = shallowRef<Partial>({} as Partial)
+  const final = shallowRef<Final | null>(null)
+  // Raw JSON accumulator — synchronous inside onChunk; no need to re-render
+  // every delta solely to track the buffer.
+  let rawJson = ''
 
   // Create ChatClient instance with callbacks to sync state.
   // Every user-provided callback is wrapped so the LATEST `options.xxx` value
@@ -38,7 +62,30 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     initialMessages: options.initialMessages,
     body: options.body,
     onResponse: (response) => options.onResponse?.(response),
-    onChunk: (chunk) => options.onChunk?.(chunk),
+    onChunk: (chunk: StreamChunk) => {
+      // Internal structured-output tracking — runs before the user callback
+      // so user code observes the same state. No-op when no schema is set.
+      if (options.outputSchema !== undefined) {
+        if (chunk.type === 'RUN_STARTED') {
+          rawJson = ''
+          partial.value = {} as Partial
+          final.value = null
+        } else if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
+          rawJson += chunk.delta
+          const progressive = parsePartialJSON(rawJson)
+          if (progressive && typeof progressive === 'object') {
+            partial.value = progressive as Partial
+          }
+        } else if (
+          chunk.type === 'CUSTOM' &&
+          chunk.name === 'structured-output.complete'
+        ) {
+          const value = chunk.value as { object: unknown }
+          final.value = value.object as Final
+        }
+      }
+      options.onChunk?.(chunk)
+    },
     onFinish: (message) => {
       options.onFinish?.(message)
     },
@@ -147,6 +194,9 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     await client.addToolApprovalResponse(response)
   }
 
+  // partial / final are runtime-tracked unconditionally; the conditional
+  // return type (UseChatReturn<TTools, TSchema>) hides them from callers that
+  // didn't supply `outputSchema`.
   return {
     messages: readonly(messages),
     sendMessage,
@@ -163,5 +213,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     clear,
     addToolResult,
     addToolApprovalResponse,
-  }
+    partial: readonly(partial),
+    final: readonly(final),
+  } as unknown as UseChatReturn<TTools, TSchema>
 }

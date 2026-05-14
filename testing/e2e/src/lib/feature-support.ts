@@ -16,7 +16,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -26,10 +25,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini']),
-  'multi-turn-reasoning': new Set(['anthropic']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
@@ -38,7 +35,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -48,7 +44,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -57,7 +52,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   'tool-approval': new Set([
@@ -67,7 +61,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -77,7 +70,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   'structured-output': new Set([
     'openai',
@@ -87,8 +79,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
+  // Streaming structured output: only providers with native streaming JSON
+  // schema support are listed here. Other providers fall back to the
+  // activity-layer `fallbackStructuredOutputStream` (which wraps the
+  // non-streaming `structuredOutput`) but aren't exercised by E2E yet.
+  'structured-output-stream': new Set(['openai', 'groq', 'grok', 'openrouter']),
   'agentic-structured': new Set([
     'openai',
     'anthropic',
@@ -97,7 +93,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'groq',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   'multimodal-image': new Set([
     'openai',
@@ -105,7 +100,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   'multimodal-structured': new Set([
     'openai',
@@ -113,7 +107,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'gemini',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   summarize: new Set([
     'openai',
@@ -122,7 +115,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -131,22 +123,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'grok',
     'openrouter',
-    'openrouter-responses',
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
-  // ElevenLabs TTS (/v1/text-to-speech/{voice_id}) and STT (/v1/speech-to-text)
-  // are mocked via local mounts in global-setup.ts (aimock 1.17 covers
-  // /v1/sound-generation + /v1/music/* but not these two routes yet).
-  tts: new Set(['openai', 'grok', 'elevenlabs']),
-  transcription: new Set(['openai', 'grok', 'elevenlabs']),
+  tts: new Set(['openai', 'grok']),
+  transcription: new Set(['openai', 'grok']),
   'video-gen': new Set(['openai']),
-  // Music generation: Gemini Lyria (generateContent with AUDIO modality)
-  // and ElevenLabs music_v1 (/v1/music/*) — both natively mocked by aimock
-  // 1.17+.
-  'audio-gen': new Set(['gemini', 'elevenlabs']),
-  // ElevenLabs sound-generation (/v1/sound-generation), aimock 1.17+.
-  'sound-effects': new Set(['elevenlabs']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

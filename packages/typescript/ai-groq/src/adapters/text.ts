@@ -3,7 +3,6 @@ import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { makeGroqStructuredOutputCompatible } from '../utils/schema-converter'
 import type { Modality, TextOptions } from '@tanstack/ai'
-import type { ChatCompletionChunk } from 'openai/resources/chat/completions/completions'
 import type {
   GROQ_CHAT_MODELS,
   GroqChatModelToolCapabilitiesByName,
@@ -70,7 +69,7 @@ export class GroqTextAdapter<
   }
 
   protected override async *processStreamChunks(
-    stream: AsyncIterable<ChatCompletionChunk>,
+    stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
     options: TextOptions,
     aguiState: {
       runId: string
@@ -85,6 +84,26 @@ export class GroqTextAdapter<
       aguiState,
     )
   }
+
+  /**
+   * Surfaces Groq's reasoning deltas during streaming structured output.
+   * Groq emits `delta.reasoning` (or legacy `delta.reasoning_content`) on
+   * reasoning models when the caller sets `reasoning_format: 'parsed'` in
+   * modelOptions. The base's chatStream and structuredOutputStream both
+   * route reasoning through this hook.
+   */
+  protected override extractReasoning(
+    chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
+  ): { text: string } | undefined {
+    const delta = chunk.choices[0]?.delta as
+      | { reasoning?: unknown; reasoning_content?: unknown }
+      | undefined
+    const raw = delta?.reasoning ?? delta?.reasoning_content
+    if (typeof raw === 'string' && raw.length > 0) {
+      return { text: raw }
+    }
+    return undefined
+  }
 }
 
 /**
@@ -93,11 +112,11 @@ export class GroqTextAdapter<
  * the documented location.
  */
 async function* promoteGroqUsage(
-  stream: AsyncIterable<ChatCompletionChunk>,
-): AsyncIterable<ChatCompletionChunk> {
+  stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
+): AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk> {
   for await (const chunk of stream) {
     const groqChunk = chunk as typeof chunk & {
-      x_groq?: { usage?: ChatCompletionChunk['usage'] }
+      x_groq?: { usage?: OpenAI.Chat.Completions.ChatCompletionChunk['usage'] }
     }
     if (!chunk.usage && groqChunk.x_groq?.usage) {
       yield { ...chunk, usage: groqChunk.x_groq.usage }

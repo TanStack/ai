@@ -100,6 +100,23 @@ export interface TextAdapter<
   structuredOutput: (
     options: StructuredOutputOptions<TProviderOptions>,
   ) => Promise<StructuredOutputResult<unknown>>
+
+  /**
+   * Stream structured output using the provider's native streaming structured
+   * output API (stream + response_format json_schema in a single request).
+   *
+   * Optional — adapters without native streaming JSON omit this method and the
+   * activity layer synthesizes a stream around the non-streaming
+   * `structuredOutput` call.
+   *
+   * Implementations must emit standard AG-UI lifecycle events (RUN_STARTED,
+   * TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
+   * `CUSTOM` event named `structured-output.complete` whose `value` is
+   * `{ object, raw, reasoning? }`.
+   */
+  structuredOutputStream?: (
+    options: StructuredOutputOptions<TProviderOptions>,
+  ) => AsyncIterable<StreamChunk>
 }
 
 /**

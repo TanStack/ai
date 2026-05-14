@@ -1,5 +1,6 @@
 export { useChat } from './use-chat'
 export type {
+  DeepPartial,
   UseChatOptions,
   UseChatReturn,
   UIMessage,
