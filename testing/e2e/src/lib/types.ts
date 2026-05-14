@@ -1,4 +1,4 @@
-export type Mode = 'sse' | 'http-stream' | 'fetcher'
+export type Mode = 'sse' | 'http-stream' | 'fetcher' | 'json'
 
 export type Provider =
   | 'openai'

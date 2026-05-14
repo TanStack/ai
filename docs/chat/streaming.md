@@ -55,6 +55,8 @@ export async function POST(request: Request) {
 }
 ```
 
+> **Running on Expo, React Native, or another runtime that can't emit `ReadableStream` responses?** See [React Native & Expo](./non-streaming-runtimes) for the `toJSONResponse` + `fetchJSON` fallback pair.
+
 ## Client-Side Streaming
 
 The `useChat` hook automatically handles streaming:

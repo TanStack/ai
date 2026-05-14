@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   toServerSentEventsStream,
   toServerSentEventsResponse,
+  toJSONResponse,
 } from '../src/stream-to-response'
 import { EventType } from '../src/types'
 import type { StreamChunk } from '../src/types'
@@ -869,5 +870,149 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     expect((parsedChunks[0] as any)?.delta).toBe(
       'Hello 世界! 🌍 Special chars: <>&"\'\n\t',
     )
+  })
+})
+
+describe('toJSONResponse', () => {
+  it('drains the stream and returns a JSON-array Response', async () => {
+    const chunks: Array<Record<string, unknown>> = [
+      {
+        type: 'RUN_STARTED',
+        runId: 'r1',
+        model: 'test',
+        timestamp: 1,
+      },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'm1',
+        model: 'test',
+        timestamp: 2,
+        delta: 'Hello',
+        content: 'Hello',
+      },
+      {
+        type: 'RUN_FINISHED',
+        runId: 'r1',
+        model: 'test',
+        timestamp: 3,
+      },
+    ]
+    const response = await toJSONResponse(createMockStream(chunks))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('application/json')
+    expect(await response.json()).toEqual(chunks)
+  })
+
+  it('defers to caller-provided headers and preserves extra init', async () => {
+    const response = await toJSONResponse(createMockStream([]), {
+      status: 201,
+      headers: { 'X-Custom': '1' },
+    })
+
+    expect(response.status).toBe(201)
+    expect(response.headers.get('X-Custom')).toBe('1')
+    expect(response.headers.get('Content-Type')).toBe('application/json')
+  })
+
+  it('does not override an explicit Content-Type', async () => {
+    const response = await toJSONResponse(createMockStream([]), {
+      headers: { 'Content-Type': 'application/vnd.tanstack-ai+json' },
+    })
+
+    expect(response.headers.get('Content-Type')).toBe(
+      'application/vnd.tanstack-ai+json',
+    )
+  })
+
+  it('does not abort the supplied controller when the stream drains successfully', async () => {
+    const abortController = new AbortController()
+    const abortSpy = vi.spyOn(abortController, 'abort')
+
+    const chunks: Array<Record<string, unknown>> = [
+      { type: 'RUN_STARTED', runId: 'r1', model: 'test', timestamp: 1 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'm1',
+        model: 'test',
+        timestamp: 2,
+        delta: 'ok',
+        content: 'ok',
+      },
+      { type: 'RUN_FINISHED', runId: 'r1', model: 'test', timestamp: 3 },
+    ]
+
+    const response = await toJSONResponse(createMockStream(chunks), {
+      abortController,
+    })
+
+    expect(await response.json()).toEqual(chunks)
+    expect(abortSpy).not.toHaveBeenCalled()
+    expect(abortController.signal.aborted).toBe(false)
+  })
+
+  it('aborts the supplied controller and rethrows if the upstream errors', async () => {
+    const abortController = new AbortController()
+    const abortSpy = vi.spyOn(abortController, 'abort')
+    async function* failing(): AsyncGenerator<StreamChunk> {
+      yield {
+        type: 'RUN_STARTED',
+        runId: 'r1',
+        model: 'test',
+        timestamp: 1,
+      } as StreamChunk
+      throw new Error('upstream failure')
+    }
+
+    await expect(
+      toJSONResponse(failing(), { abortController }),
+    ).rejects.toThrow('upstream failure')
+    expect(abortSpy).toHaveBeenCalledOnce()
+  })
+
+  it('throws immediately without draining when abortController is pre-aborted', async () => {
+    const abortController = new AbortController()
+    abortController.abort()
+
+    let pulled = 0
+    async function* infinite(): AsyncGenerator<StreamChunk> {
+      while (true) {
+        pulled++
+        yield {
+          type: 'RUN_STARTED',
+          runId: 'r1',
+          model: 'test',
+          timestamp: 1,
+        } as StreamChunk
+      }
+    }
+
+    await expect(
+      toJSONResponse(infinite(), { abortController }),
+    ).rejects.toThrow()
+    expect(pulled).toBe(0)
+  })
+
+  it('stops draining and throws when aborted mid-stream', async () => {
+    const abortController = new AbortController()
+    let pulled = 0
+    async function* slow(): AsyncGenerator<StreamChunk> {
+      while (true) {
+        pulled++
+        yield {
+          type: 'RUN_STARTED',
+          runId: `r${pulled}`,
+          model: 'test',
+          timestamp: pulled,
+        } as StreamChunk
+        if (pulled === 2) abortController.abort()
+        // Let the microtask queue flush so the signal is observed next iter.
+        await Promise.resolve()
+      }
+    }
+
+    await expect(toJSONResponse(slow(), { abortController })).rejects.toThrow()
+    // Bounded: should not have pulled an unbounded number of items after abort.
+    expect(pulled).toBeLessThan(10)
   })
 })

@@ -427,6 +427,108 @@ export function fetchHttpStream(
 }
 
 /**
+ * Create a JSON-array connection adapter for server runtimes that cannot
+ * stream `ReadableStream` responses (e.g. Expo's `@expo/server`, certain
+ * edge proxies). Pair with `toJSONResponse(stream)` on the server: the
+ * server drains the chat stream fully, JSON-serialises the collected
+ * chunks into an array, and this adapter fetches the array and replays
+ * each chunk one-by-one into the normal client pipeline.
+ *
+ * Trade-off: you lose incremental rendering — the UI sees every chunk
+ * only after the request resolves. Use SSE/HTTP-stream adapters when the
+ * runtime supports them.
+ *
+ * @param url - The API endpoint URL (or a function that returns the URL)
+ * @param options - Fetch options (headers, credentials, body, etc.) or a function that returns options (can be async)
+ * @returns A connection adapter for JSON-array responses
+ *
+ * @example
+ * ```typescript
+ * // Expo / RN client that hits an Expo API route returning toJSONResponse(stream)
+ * const connection = fetchJSON('/api/chat')
+ *
+ * const client = new ChatClient({ connection })
+ * ```
+ */
+export function fetchJSON(
+  url: string | (() => string),
+  options:
+    | FetchConnectionOptions
+    | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
+): ConnectConnectionAdapter {
+  return {
+    async *connect(messages, data, abortSignal) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions =
+        typeof options === 'function' ? await options() : options
+
+      const requestHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...mergeHeaders(resolvedOptions.headers),
+      }
+
+      const requestBody = {
+        messages,
+        data,
+        ...resolvedOptions.body,
+      }
+
+      const fetchClient = resolvedOptions.fetchClient ?? fetch
+      const response = await fetchClient(resolvedUrl, {
+        method: 'POST',
+        headers: requestHeaders,
+        body: JSON.stringify(requestBody),
+        credentials: resolvedOptions.credentials || 'same-origin',
+        signal: abortSignal || resolvedOptions.signal,
+      })
+
+      if (!response.ok) {
+        // Surface the response body so upstream diagnostic info (e.g. an
+        // OpenAI/Anthropic rate-limit JSON, a gateway HTML error page) isn't
+        // hidden behind a generic "status 500" message.
+        let bodySnippet = ''
+        try {
+          const text = await response.text()
+          bodySnippet = text.length > 500 ? `${text.slice(0, 500)}…` : text
+        } catch {
+          // body unreadable, fall through with status only
+        }
+        throw new Error(
+          `HTTP error! status: ${response.status} ${response.statusText}${
+            bodySnippet ? ` — ${bodySnippet}` : ''
+          }`,
+        )
+      }
+
+      // Wrap JSON parsing so a non-JSON body (e.g. HTML gateway error page)
+      // produces an actionable error instead of "Unexpected token < in JSON".
+      let payload: unknown
+      try {
+        payload = await response.json()
+      } catch (err) {
+        const cause = err instanceof Error ? err.message : String(err)
+        throw new Error(
+          `fetchJSON: failed to parse response body as JSON from ${resolvedUrl} (status ${response.status}): ${cause}`,
+          { cause: err },
+        )
+      }
+      if (!Array.isArray(payload)) {
+        throw new Error(
+          'fetchJSON: expected response body to be a JSON array of StreamChunks. Did you forget to use `toJSONResponse(stream)` on the server?',
+        )
+      }
+      for (const chunk of payload) {
+        // Honor late aborts: the payload is fully buffered, so the consumer
+        // may have torn down before we drained — bail rather than push more
+        // chunks into an abandoned pipeline.
+        if (abortSignal?.aborted) return
+        yield chunk as StreamChunk
+      }
+    },
+  }
+}
+
+/**
  * Create a direct stream connection adapter (for server functions or direct streams)
  *
  * @param streamFactory - A function that returns an async iterable of StreamChunks

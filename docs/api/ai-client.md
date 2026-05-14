@@ -166,6 +166,22 @@ import { fetchHttpStream } from "@tanstack/ai-client";
 const adapter = fetchHttpStream("/api/chat");
 ```
 
+### `fetchJSON(url, options?)`
+
+Creates a connection adapter for non-streaming runtimes — pair with [`toJSONResponse`](./ai#tojsonresponsestream-init) on the server. The adapter POSTs `{ messages, data }`, expects a `StreamChunk[]` JSON body, and replays each chunk into the normal `ChatClient` pipeline.
+
+```typescript
+import { fetchJSON } from "@tanstack/ai-client";
+
+const adapter = fetchJSON("/api/chat", {
+  headers: {
+    Authorization: "Bearer token",
+  },
+});
+```
+
+Use this on Expo / React Native / edge proxies that can't emit `ReadableStream` responses. Trade-off: no incremental rendering — the UI sees every chunk at once when the request resolves. Full walkthrough: [React Native & Expo](../chat/non-streaming-runtimes).
+
 ### `stream(connectFn)`
 
 Creates a custom connection adapter.

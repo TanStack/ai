@@ -191,6 +191,32 @@ return toServerSentEventsResponse(stream);
 
 A `Response` object suitable for HTTP endpoints with SSE headers (`Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`).
 
+## `toJSONResponse(stream, init?)`
+
+Drains the whole stream, then returns a JSON-array `Response` containing every `StreamChunk`. For runtimes that can't emit `ReadableStream` bodies (Expo's `@expo/server`, some edge proxies). Pair with [`fetchJSON`](./ai-client#fetchjsonurl-options) on the client.
+
+```typescript
+import { chat, toJSONResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [...],
+});
+return toJSONResponse(stream);
+```
+
+### Parameters
+
+- `stream` - Async iterable of `StreamChunk`
+- `init?` - Optional ResponseInit options (including `abortController`). Caller-provided headers are preserved; `Content-Type` defaults to `application/json`.
+
+### Returns
+
+A `Promise<Response>` with the stringified `StreamChunk[]` as the body. If the upstream stream throws mid-drain, a provided `abortController` is aborted and the error propagates.
+
+> **Trade-off:** no incremental rendering — the UI sees every chunk at once when the request resolves. Use SSE / HTTP-stream responses when the runtime supports them. See [React Native & Expo](../chat/non-streaming-runtimes) for the full walkthrough.
+
 ## `maxIterations(count)`
 
 Creates an agent loop strategy that limits iterations.

@@ -513,6 +513,13 @@ function ChatPage() {
               </select>
             </div>
             <Link
+              to="/tanchat-json"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
+              title="Drains the stream and returns JSON. For runtimes that can't emit ReadableStream responses (Expo, certain edge proxies)."
+            >
+              JSON mode
+            </Link>
+            <Link
               to="/generations/image"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
             >

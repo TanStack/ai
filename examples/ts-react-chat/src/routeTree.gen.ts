@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TanchatJsonRouteImport } from './routes/tanchat-json'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as IndexRouteImport } from './routes/index'
@@ -20,6 +21,7 @@ import { Route as GenerationsSpeechRouteImport } from './routes/generations.spee
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
 import { Route as GenerationsAudioRouteImport } from './routes/generations.audio'
 import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
+import { Route as ApiTanchatJsonRouteImport } from './routes/api.tanchat-json'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
@@ -31,6 +33,11 @@ import { Route as ApiGenerateSpeechRouteImport } from './routes/api.generate.spe
 import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.image'
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 
+const TanchatJsonRoute = TanchatJsonRouteImport.update({
+  id: '/tanchat-json',
+  path: '/tanchat-json',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RealtimeRoute = RealtimeRouteImport.update({
   id: '/realtime',
   path: '/realtime',
@@ -88,6 +95,11 @@ const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   path: '/api/transcribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTanchatJsonRoute = ApiTanchatJsonRouteImport.update({
+  id: '/api/tanchat-json',
+  path: '/api/tanchat-json',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTanchatRoute = ApiTanchatRouteImport.update({
   id: '/api/tanchat',
   path: '/api/tanchat',
@@ -143,10 +155,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
   '/realtime': typeof RealtimeRoute
+  '/tanchat-json': typeof TanchatJsonRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
+  '/api/tanchat-json': typeof ApiTanchatJsonRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
@@ -166,10 +180,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
   '/realtime': typeof RealtimeRoute
+  '/tanchat-json': typeof TanchatJsonRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
+  '/api/tanchat-json': typeof ApiTanchatJsonRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
@@ -190,10 +206,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/image-gen': typeof ImageGenRoute
   '/realtime': typeof RealtimeRoute
+  '/tanchat-json': typeof TanchatJsonRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
+  '/api/tanchat-json': typeof ApiTanchatJsonRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
@@ -215,10 +233,12 @@ export interface FileRouteTypes {
     | '/'
     | '/image-gen'
     | '/realtime'
+    | '/tanchat-json'
     | '/api/image-gen'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
+    | '/api/tanchat-json'
     | '/api/transcribe'
     | '/generations/audio'
     | '/generations/image'
@@ -238,10 +258,12 @@ export interface FileRouteTypes {
     | '/'
     | '/image-gen'
     | '/realtime'
+    | '/tanchat-json'
     | '/api/image-gen'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
+    | '/api/tanchat-json'
     | '/api/transcribe'
     | '/generations/audio'
     | '/generations/image'
@@ -261,10 +283,12 @@ export interface FileRouteTypes {
     | '/'
     | '/image-gen'
     | '/realtime'
+    | '/tanchat-json'
     | '/api/image-gen'
     | '/api/structured-output'
     | '/api/summarize'
     | '/api/tanchat'
+    | '/api/tanchat-json'
     | '/api/transcribe'
     | '/generations/audio'
     | '/generations/image'
@@ -285,10 +309,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ImageGenRoute: typeof ImageGenRoute
   RealtimeRoute: typeof RealtimeRoute
+  TanchatJsonRoute: typeof TanchatJsonRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
+  ApiTanchatJsonRoute: typeof ApiTanchatJsonRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   GenerationsAudioRoute: typeof GenerationsAudioRoute
   GenerationsImageRoute: typeof GenerationsImageRoute
@@ -307,6 +333,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tanchat-json': {
+      id: '/tanchat-json'
+      path: '/tanchat-json'
+      fullPath: '/tanchat-json'
+      preLoaderRoute: typeof TanchatJsonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/realtime': {
       id: '/realtime'
       path: '/realtime'
@@ -382,6 +415,13 @@ declare module '@tanstack/react-router' {
       path: '/api/transcribe'
       fullPath: '/api/transcribe'
       preLoaderRoute: typeof ApiTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tanchat-json': {
+      id: '/api/tanchat-json'
+      path: '/api/tanchat-json'
+      fullPath: '/api/tanchat-json'
+      preLoaderRoute: typeof ApiTanchatJsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tanchat': {
@@ -461,10 +501,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ImageGenRoute: ImageGenRoute,
   RealtimeRoute: RealtimeRoute,
+  TanchatJsonRoute: TanchatJsonRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTanchatRoute: ApiTanchatRoute,
+  ApiTanchatJsonRoute: ApiTanchatJsonRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
   GenerationsAudioRoute: GenerationsAudioRoute,
   GenerationsImageRoute: GenerationsImageRoute,

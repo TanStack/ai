@@ -97,6 +97,10 @@
           "to": "chat/connection-adapters"
         },
         {
+          "label": "React Native & Expo",
+          "to": "chat/non-streaming-runtimes"
+        },
+        {
           "label": "Structured Outputs",
           "to": "chat/structured-outputs"
         },

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import {
   fetchHttpStream,
+  fetchJSON,
   fetchServerSentEvents,
   normalizeConnectionAdapter,
   rpcStream,
@@ -1025,6 +1026,326 @@ describe('connection-adapters', () => {
         expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
         data,
       )
+    })
+  })
+
+  describe('fetchJSON', () => {
+    const jsonOk = (payload: unknown, init: ResponseInit = { status: 200 }) =>
+      ({
+        ok: (init.status ?? 200) >= 200 && (init.status ?? 200) < 300,
+        status: init.status ?? 200,
+        statusText: init.statusText ?? 'OK',
+        json: async () => payload,
+        text: async () =>
+          typeof payload === 'string' ? payload : JSON.stringify(payload),
+      }) as unknown as Response
+
+    const errorResponse = (
+      body: string,
+      init: ResponseInit = { status: 500, statusText: 'Internal Server Error' },
+    ) =>
+      ({
+        ok: false,
+        status: init.status ?? 500,
+        statusText: init.statusText ?? 'Internal Server Error',
+        text: async () => body,
+        json: async () => {
+          throw new SyntaxError('Unexpected token < in JSON at position 0')
+        },
+      }) as unknown as Response
+
+    it('drains a JSON array body into chunks', async () => {
+      const payload = [
+        asChunk({
+          type: 'RUN_STARTED',
+          runId: 'r1',
+          model: 'test',
+          timestamp: 1,
+        }),
+        asChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'm1',
+          model: 'test',
+          timestamp: 2,
+          delta: 'Hi',
+          content: 'Hi',
+        }),
+        asChunk({
+          type: 'RUN_FINISHED',
+          runId: 'r1',
+          model: 'test',
+          timestamp: 3,
+        }),
+      ]
+      fetchMock.mockResolvedValue(jsonOk(payload))
+
+      const adapter = fetchJSON('/api/chat')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect([
+        { role: 'user', content: 'Hi' },
+      ])) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toEqual(payload)
+    })
+
+    it('throws on a non-2xx response', async () => {
+      fetchMock.mockResolvedValue(
+        jsonOk(null, { status: 500, statusText: 'Internal Server Error' }),
+      )
+
+      const adapter = fetchJSON('/api/chat')
+
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'x' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(/500/)
+    })
+
+    it('throws a descriptive error when response body is not an array', async () => {
+      fetchMock.mockResolvedValue(jsonOk({ message: 'not an array' }))
+
+      const adapter = fetchJSON('/api/chat')
+
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'x' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(/toJSONResponse/)
+    })
+
+    it('resolves url-as-function at call time', async () => {
+      fetchMock.mockResolvedValue(jsonOk([]))
+
+      const getUrl = vi.fn(() => '/api/dynamic')
+      const adapter = fetchJSON(getUrl)
+      for await (const _ of adapter.connect([{ role: 'user', content: 'x' }])) {
+        // drain
+      }
+
+      expect(getUrl).toHaveBeenCalledOnce()
+      expect(fetchMock).toHaveBeenCalledWith('/api/dynamic', expect.any(Object))
+    })
+
+    it('resolves options-as-async-function at call time', async () => {
+      fetchMock.mockResolvedValue(jsonOk([]))
+
+      const getOptions = vi.fn(
+        async () =>
+          ({
+            headers: { 'X-Custom': 'yes' },
+            body: { runId: 'abc' },
+          }) as const,
+      )
+      const adapter = fetchJSON('/api/chat', getOptions)
+      for await (const _ of adapter.connect([{ role: 'user', content: 'x' }])) {
+        // drain
+      }
+
+      expect(getOptions).toHaveBeenCalledOnce()
+      const [, init] = fetchMock.mock.calls[0]!
+      expect(init.headers).toMatchObject({ 'X-Custom': 'yes' })
+      const parsed = JSON.parse(init.body as string) as {
+        runId?: string
+      }
+      expect(parsed.runId).toBe('abc')
+    })
+
+    it('merges options.body into the POST body', async () => {
+      fetchMock.mockResolvedValue(jsonOk([]))
+
+      const adapter = fetchJSON('/api/chat', { body: { extra: 42 } })
+      for await (const _ of adapter.connect([{ role: 'user', content: 'x' }], {
+        sessionId: 'sess',
+      })) {
+        // drain
+      }
+
+      const [, init] = fetchMock.mock.calls[0]!
+      const body = JSON.parse(init.body as string) as Record<string, unknown>
+      expect(body).toMatchObject({
+        messages: expect.any(Array),
+        data: { sessionId: 'sess' },
+        extra: 42,
+      })
+    })
+
+    it('honors a custom fetchClient override', async () => {
+      const customFetch = vi.fn().mockResolvedValue(jsonOk([]))
+
+      const adapter = fetchJSON('/api/chat', { fetchClient: customFetch })
+      for await (const _ of adapter.connect([{ role: 'user', content: 'x' }])) {
+        // drain
+      }
+
+      expect(customFetch).toHaveBeenCalledOnce()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('propagates the abortSignal to fetch', async () => {
+      fetchMock.mockResolvedValue(jsonOk([]))
+      const controller = new AbortController()
+
+      const adapter = fetchJSON('/api/chat')
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'x' }],
+        undefined,
+        controller.signal,
+      )) {
+        // drain
+      }
+
+      const [, init] = fetchMock.mock.calls[0]!
+      expect(init.signal).toBe(controller.signal)
+    })
+
+    it('stops yielding chunks once the abortSignal fires mid-replay', async () => {
+      const payload = [
+        asChunk({ type: 'RUN_STARTED', runId: 'r1', model: 't', timestamp: 1 }),
+        asChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'm1',
+          model: 't',
+          timestamp: 2,
+          delta: 'A',
+          content: 'A',
+        }),
+        asChunk({
+          type: 'TEXT_MESSAGE_CONTENT',
+          messageId: 'm1',
+          model: 't',
+          timestamp: 3,
+          delta: 'B',
+          content: 'B',
+        }),
+        asChunk({
+          type: 'RUN_FINISHED',
+          runId: 'r1',
+          model: 't',
+          timestamp: 4,
+        }),
+      ]
+      fetchMock.mockResolvedValue(jsonOk(payload))
+
+      const controller = new AbortController()
+      const adapter = fetchJSON('/api/chat')
+      const seen: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'x' }],
+        undefined,
+        controller.signal,
+      )) {
+        seen.push(chunk)
+        if (seen.length === 2) controller.abort()
+      }
+
+      // Two chunks consumed before abort, then loop bails — last two never
+      // surface to the consumer.
+      expect(seen).toHaveLength(2)
+      expect(seen[0]).toMatchObject({ type: 'RUN_STARTED' })
+      expect(seen[1]).toMatchObject({ type: 'TEXT_MESSAGE_CONTENT' })
+    })
+
+    it('throws a descriptive error when the response body is not JSON', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => {
+          throw new SyntaxError('Unexpected token < in JSON at position 0')
+        },
+      } as unknown as Response)
+
+      const adapter = fetchJSON('/api/chat')
+
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'x' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(/failed to parse response body as JSON/)
+    })
+
+    it('includes the response body snippet in the HTTP error message', async () => {
+      const errorBody = JSON.stringify({
+        error: {
+          type: 'rate_limit_error',
+          message: 'Rate limit exceeded for upstream',
+        },
+      })
+      fetchMock.mockResolvedValue(
+        errorResponse(errorBody, {
+          status: 429,
+          statusText: 'Too Many Requests',
+        }),
+      )
+
+      const adapter = fetchJSON('/api/chat')
+
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'x' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(/429.*rate_limit_error/)
+    })
+
+    it('truncates oversized response bodies in the HTTP error message', async () => {
+      const long = 'x'.repeat(2000)
+      fetchMock.mockResolvedValue(
+        errorResponse(long, { status: 502, statusText: 'Bad Gateway' }),
+      )
+
+      const adapter = fetchJSON('/api/chat')
+
+      let captured: Error | undefined
+      try {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'x' },
+        ])) {
+          // drain
+        }
+      } catch (err) {
+        captured = err as Error
+      }
+
+      expect(captured).toBeDefined()
+      // 500-char snippet plus a single ellipsis character — keeps logs sane.
+      expect(captured!.message).toMatch(/502/)
+      expect(captured!.message).toContain('…')
+      expect(captured!.message.length).toBeLessThan(700)
+    })
+
+    it('falls back to status-only when the error body is unreadable', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+        text: async () => {
+          throw new Error('body stream already read')
+        },
+        json: async () => {
+          throw new Error('not reached')
+        },
+      } as unknown as Response)
+
+      const adapter = fetchJSON('/api/chat')
+
+      await expect(async () => {
+        for await (const _ of adapter.connect([
+          { role: 'user', content: 'x' },
+        ])) {
+          // drain
+        }
+      }).rejects.toThrow(/503 Service Unavailable/)
     })
   })
 })
