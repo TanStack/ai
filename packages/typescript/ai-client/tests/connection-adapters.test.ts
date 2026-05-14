@@ -903,6 +903,7 @@ describe('connection-adapters', () => {
     })
 
     it('should synthesize RUN_ERROR when wrapped connect stream throws', async () => {
+      // eslint-disable-next-line require-yield
       const base = stream(async function* () {
         throw new Error('connect exploded')
       })

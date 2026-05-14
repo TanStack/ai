@@ -20,14 +20,17 @@ import type {
 // Chunk factory
 // ============================================================================
 
-/** Escape hatch for tests that deliberately construct off-spec chunks (e.g.
- *  to exercise deprecated-field handling or malformed input). Prefer the
- *  strictly-typed `ev.*` builders below for normal cases. */
-export function chunk(
-  type: string,
-  fields: Record<string, unknown> = {},
-): StreamChunk {
-  return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
+/** Builds a typed StreamChunk by event type. Narrows the return to the
+ *  matching variant via `Extract`, so callers get the right shape and TS
+ *  catches missing required fields. Pass `EventType.X` for `type`. */
+export function chunk<T extends StreamChunk['type']>(
+  type: T,
+  fields?: Record<string, unknown>,
+): Extract<StreamChunk, { type: T }> {
+  return { type, timestamp: Date.now(), ...fields } as Extract<
+    StreamChunk,
+    { type: T }
+  >
 }
 
 // ============================================================================

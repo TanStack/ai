@@ -1,8 +1,10 @@
-import { type Mock, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   StreamProcessor,
   createReplayStream,
 } from '../src/activities/chat/stream/processor'
+import { EventType } from '../src/types'
+import type { Mock } from 'vitest'
 import type { StreamProcessorEvents } from '../src/activities/chat/stream/processor'
 import type { ChunkStrategy } from '../src/activities/chat/stream/types'
 import type {
@@ -16,12 +18,16 @@ import type {
 // Helpers
 // ============================================================================
 
-/** Create a typed StreamChunk with minimal boilerplate. */
-function chunk(
-  type: string,
-  fields: Record<string, unknown> = {},
-): StreamChunk {
-  return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
+/** Create a typed StreamChunk by event type. Narrows the return to the
+ *  matching variant via `Extract`. */
+function chunk<T extends StreamChunk['type']>(
+  type: T,
+  fields?: Record<string, unknown>,
+): Extract<StreamChunk, { type: T }> {
+  return { type, timestamp: Date.now(), ...fields } as Extract<
+    StreamChunk,
+    { type: T }
+  >
 }
 
 /** Create an async iterable from a list of chunks. */
@@ -36,27 +42,27 @@ async function* streamOf(
 /** Shorthand for common event sequences. */
 const ev = {
   runStarted: (runId = 'run-1', threadId = 'thread-1') =>
-    chunk('RUN_STARTED', { runId, threadId }),
+    chunk(EventType.RUN_STARTED, { runId, threadId }),
   textStart: (messageId = 'msg-1') =>
-    chunk('TEXT_MESSAGE_START', { messageId, role: 'assistant' as const }),
+    chunk(EventType.TEXT_MESSAGE_START, { messageId, role: 'assistant' as const }),
   textContent: (delta: string, messageId = 'msg-1') =>
-    chunk('TEXT_MESSAGE_CONTENT', { messageId, delta }),
-  textEnd: (messageId = 'msg-1') => chunk('TEXT_MESSAGE_END', { messageId }),
+    chunk(EventType.TEXT_MESSAGE_CONTENT, { messageId, delta }),
+  textEnd: (messageId = 'msg-1') => chunk(EventType.TEXT_MESSAGE_END, { messageId }),
   toolStart: (toolCallId: string, toolCallName: string, index?: number) =>
-    chunk('TOOL_CALL_START', {
+    chunk(EventType.TOOL_CALL_START, {
       toolCallId,
       toolCallName,
       toolName: toolCallName,
       ...(index !== undefined ? { index } : {}),
     }),
   toolArgs: (toolCallId: string, delta: string) =>
-    chunk('TOOL_CALL_ARGS', { toolCallId, delta }),
+    chunk(EventType.TOOL_CALL_ARGS, { toolCallId, delta }),
   toolEnd: (
     toolCallId: string,
     toolCallName: string,
     opts?: { input?: unknown; result?: string },
   ) =>
-    chunk('TOOL_CALL_END', {
+    chunk(EventType.TOOL_CALL_END, {
       toolCallId,
       toolCallName,
       toolName: toolCallName,
@@ -71,14 +77,14 @@ const ev = {
       | null = 'stop',
     runId = 'run-1',
     threadId = 'thread-1',
-  ) => chunk('RUN_FINISHED', { runId, threadId, finishReason }),
+  ) => chunk(EventType.RUN_FINISHED, { runId, threadId, finishReason }),
   runError: (message: string, runId = 'run-1') =>
-    chunk('RUN_ERROR', { message, runId, error: { message } }),
+    chunk(EventType.RUN_ERROR, { message, runId, error: { message } }),
   stepStarted: (stepId = 'step-1', stepType = 'thinking') =>
-    chunk('STEP_STARTED', { stepId, stepType }),
+    chunk(EventType.STEP_STARTED, { stepId, stepType }),
   stepFinished: (delta: string, stepId = 'step-1') =>
-    chunk('STEP_FINISHED', { stepId, delta }),
-  custom: (name: string, value?: unknown) => chunk('CUSTOM', { name, value }),
+    chunk(EventType.STEP_FINISHED, { stepId, delta }),
+  custom: (name: string, value?: unknown) => chunk(EventType.CUSTOM, { name, value }),
 }
 
 /** Events object with vi.fn() mocks for assertions. */
@@ -1651,19 +1657,19 @@ describe('StreamProcessor', () => {
 
       // These should not create any messages
       processor.processChunk(
-        chunk('RUN_STARTED', { runId: 'run-1', threadId: 'thread-1' }),
+        chunk(EventType.RUN_STARTED, { runId: 'run-1', threadId: 'thread-1' }),
       )
-      processor.processChunk(chunk('TEXT_MESSAGE_END', { messageId: 'msg-1' }))
+      processor.processChunk(chunk(EventType.TEXT_MESSAGE_END, { messageId: 'msg-1' }))
       processor.processChunk(
-        chunk('STEP_STARTED', { stepName: 'step-1', stepId: 'step-1' }),
+        chunk(EventType.STEP_STARTED, { stepName: 'step-1', stepId: 'step-1' }),
       )
       processor.processChunk(
-        chunk('STATE_SNAPSHOT', {
+        chunk(EventType.STATE_SNAPSHOT, {
           snapshot: { key: 'val' },
           state: { key: 'val' },
         }),
       )
-      processor.processChunk(chunk('STATE_DELTA', { delta: [{ key: 'val' }] }))
+      processor.processChunk(chunk(EventType.STATE_DELTA, { delta: [{ key: 'val' }] }))
 
       // No messages created (none of these are content-bearing)
       expect(processor.getMessages()).toHaveLength(0)
@@ -2525,7 +2531,7 @@ describe('StreamProcessor', () => {
       ]
 
       processor.processChunk({
-        type: 'MESSAGES_SNAPSHOT',
+        type: EventType.MESSAGES_SNAPSHOT,
         messages: snapshotMessages,
         timestamp: Date.now(),
       } as StreamChunk)
@@ -2548,17 +2554,18 @@ describe('StreamProcessor', () => {
 
       // Snapshot replaces all messages
       processor.processChunk({
-        type: 'MESSAGES_SNAPSHOT',
+        type: EventType.MESSAGES_SNAPSHOT,
+        // AG-UI Message shape; processor reinterprets as UIMessage at runtime
+        // (see processor.ts handleMessagesSnapshotEvent)
         messages: [
           {
             id: 'snap-1',
             role: 'assistant',
-            parts: [{ type: 'text', content: 'Snapshot content' }],
-            createdAt: new Date(),
+            content: 'Snapshot content',
           },
         ],
         timestamp: Date.now(),
-      } as unknown as StreamChunk)
+      })
 
       const messages = processor.getMessages()
       expect(messages).toHaveLength(1)
@@ -2692,17 +2699,17 @@ describe('StreamProcessor', () => {
 
       // MESSAGES_SNAPSHOT replaces everything (e.g., on reconnection)
       processor.processChunk({
-        type: 'MESSAGES_SNAPSHOT',
+        type: EventType.MESSAGES_SNAPSHOT,
+        // AG-UI Message shape; processor reinterprets as UIMessage at runtime
         messages: [
           {
             id: 'snap-user',
             role: 'user',
-            parts: [{ type: 'text', content: 'Hello' }],
-            createdAt: new Date(),
+            content: 'Hello',
           },
         ],
         timestamp: Date.now(),
-      } as unknown as StreamChunk)
+      })
 
       // Verify old messages are replaced
       const messagesAfterSnapshot = processor.getMessages()
@@ -3022,7 +3029,7 @@ describe('StreamProcessor', () => {
       ]
 
       processor.processChunk({
-        type: 'MESSAGES_SNAPSHOT',
+        type: EventType.MESSAGES_SNAPSHOT,
         messages: snapshotMessages,
         timestamp: Date.now(),
       } as StreamChunk)
@@ -3075,29 +3082,29 @@ describe('StreamProcessor', () => {
 
       processor.processChunk(ev.runStarted())
       processor.processChunk(ev.textStart())
-      processor.processChunk(chunk('REASONING_START', { messageId: 'r-1' }))
+      processor.processChunk(chunk(EventType.REASONING_START, { messageId: 'r-1' }))
       processor.processChunk(
-        chunk('REASONING_MESSAGE_START', {
+        chunk(EventType.REASONING_MESSAGE_START, {
           messageId: 'r-1',
           role: 'reasoning',
         }),
       )
       processor.processChunk(
-        chunk('REASONING_MESSAGE_CONTENT', {
+        chunk(EventType.REASONING_MESSAGE_CONTENT, {
           messageId: 'r-1',
           delta: 'Let me think',
         }),
       )
       processor.processChunk(
-        chunk('REASONING_MESSAGE_CONTENT', {
+        chunk(EventType.REASONING_MESSAGE_CONTENT, {
           messageId: 'r-1',
           delta: ' about this...',
         }),
       )
       processor.processChunk(
-        chunk('REASONING_MESSAGE_END', { messageId: 'r-1' }),
+        chunk(EventType.REASONING_MESSAGE_END, { messageId: 'r-1' }),
       )
-      processor.processChunk(chunk('REASONING_END', { messageId: 'r-1' }))
+      processor.processChunk(chunk(EventType.REASONING_END, { messageId: 'r-1' }))
 
       // Should fire onThinkingUpdate with accumulated content
       expect(events.onThinkingUpdate).toHaveBeenCalledTimes(2)
@@ -3121,23 +3128,23 @@ describe('StreamProcessor', () => {
 
       processor.processChunk(ev.runStarted())
       processor.processChunk(ev.textStart())
-      processor.processChunk(chunk('REASONING_START', { messageId: 'r-1' }))
+      processor.processChunk(chunk(EventType.REASONING_START, { messageId: 'r-1' }))
       processor.processChunk(
-        chunk('REASONING_MESSAGE_START', {
+        chunk(EventType.REASONING_MESSAGE_START, {
           messageId: 'r-1',
           role: 'reasoning',
         }),
       )
       processor.processChunk(
-        chunk('REASONING_MESSAGE_CONTENT', {
+        chunk(EventType.REASONING_MESSAGE_CONTENT, {
           messageId: 'r-1',
           delta: 'Thinking...',
         }),
       )
       processor.processChunk(
-        chunk('REASONING_MESSAGE_END', { messageId: 'r-1' }),
+        chunk(EventType.REASONING_MESSAGE_END, { messageId: 'r-1' }),
       )
-      processor.processChunk(chunk('REASONING_END', { messageId: 'r-1' }))
+      processor.processChunk(chunk(EventType.REASONING_END, { messageId: 'r-1' }))
       processor.processChunk(ev.textContent('Answer'))
       processor.processChunk(ev.textEnd())
       processor.processChunk(ev.runFinished())
@@ -3161,22 +3168,22 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor()
 
       processor.processChunk(ev.runStarted())
-      processor.processChunk(chunk('REASONING_START', { messageId: 'r-1' }))
+      processor.processChunk(chunk(EventType.REASONING_START, { messageId: 'r-1' }))
       processor.processChunk(
-        chunk('REASONING_MESSAGE_START', {
+        chunk(EventType.REASONING_MESSAGE_START, {
           messageId: 'r-1',
           role: 'reasoning',
         }),
       )
       processor.processChunk(ev.stepStarted('step-1'))
       processor.processChunk(
-        chunk('REASONING_MESSAGE_CONTENT', {
+        chunk(EventType.REASONING_MESSAGE_CONTENT, {
           messageId: 'r-1',
           delta: 'Thinking...',
         }),
       )
       processor.processChunk(
-        chunk('STEP_FINISHED', {
+        chunk(EventType.STEP_FINISHED, {
           stepName: 'step-1',
           stepId: 'step-1',
           content: 'Thinking...',
@@ -3200,23 +3207,23 @@ describe('StreamProcessor', () => {
 
       // REASONING events before TEXT_MESSAGE_START — should not crash
       processor.processChunk(ev.runStarted())
-      processor.processChunk(chunk('REASONING_START', { messageId: 'r-1' }))
+      processor.processChunk(chunk(EventType.REASONING_START, { messageId: 'r-1' }))
       processor.processChunk(
-        chunk('REASONING_MESSAGE_START', {
+        chunk(EventType.REASONING_MESSAGE_START, {
           messageId: 'r-1',
           role: 'reasoning',
         }),
       )
       processor.processChunk(
-        chunk('REASONING_MESSAGE_CONTENT', {
+        chunk(EventType.REASONING_MESSAGE_CONTENT, {
           messageId: 'r-1',
           delta: 'thinking',
         }),
       )
       processor.processChunk(
-        chunk('REASONING_MESSAGE_END', { messageId: 'r-1' }),
+        chunk(EventType.REASONING_MESSAGE_END, { messageId: 'r-1' }),
       )
-      processor.processChunk(chunk('REASONING_END', { messageId: 'r-1' }))
+      processor.processChunk(chunk(EventType.REASONING_END, { messageId: 'r-1' }))
 
       // Should not throw, onThinkingUpdate should still fire since
       // ensureAssistantMessage creates one
@@ -3230,17 +3237,17 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.textStart())
 
       // These are no-ops but should not throw
-      processor.processChunk(chunk('REASONING_START', { messageId: 'r-1' }))
+      processor.processChunk(chunk(EventType.REASONING_START, { messageId: 'r-1' }))
       processor.processChunk(
-        chunk('REASONING_MESSAGE_START', {
+        chunk(EventType.REASONING_MESSAGE_START, {
           messageId: 'r-1',
           role: 'reasoning',
         }),
       )
       processor.processChunk(
-        chunk('REASONING_MESSAGE_END', { messageId: 'r-1' }),
+        chunk(EventType.REASONING_MESSAGE_END, { messageId: 'r-1' }),
       )
-      processor.processChunk(chunk('REASONING_END', { messageId: 'r-1' }))
+      processor.processChunk(chunk(EventType.REASONING_END, { messageId: 'r-1' }))
 
       // No crash = success
       expect(processor.getMessages()).toBeDefined()
@@ -3264,7 +3271,7 @@ describe('StreamProcessor', () => {
         }),
       )
       processor.processChunk(
-        chunk('TOOL_CALL_RESULT', {
+        chunk(EventType.TOOL_CALL_RESULT, {
           messageId: 'tool-result-1',
           toolCallId: 'tc-1',
           content: '{"temp": 72}',

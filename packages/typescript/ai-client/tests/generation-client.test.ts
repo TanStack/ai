@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { GenerationClient } from '../src/generation-client'
 import type { StreamChunk } from '@tanstack/ai'
@@ -244,20 +244,20 @@ describe('GenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } as unknown as StreamChunk,
+        } ,
         {
           type: EventType.CUSTOM,
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
-        } as unknown as StreamChunk,
+        } ,
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } as unknown as StreamChunk,
+        } ,
       ]
 
       const connection = createMockConnection(chunks)
