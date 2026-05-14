@@ -1599,41 +1599,36 @@ export function chat<
   // output. Without an explicit `stream: true`, schema-bearing calls run the
   // agent loop and resolve to a typed Promise<InferSchemaType<TSchema>>.
   if (outputSchema && stream === true) {
-    return runStreamingStructuredOutput(
-      options as unknown as TextActivityOptions<
-        AnyTextAdapter,
-        SchemaInput,
-        true
-      >,
-    ) as TextActivityResult<TSchema, TStream>
+    return runStreamingStructuredOutput({
+      ...options,
+      outputSchema,
+      stream,
+    }) as TextActivityResult<TSchema, TStream>
   }
 
   // If outputSchema is provided, run agentic structured output (Promise<T>)
   if (outputSchema) {
-    return runAgenticStructuredOutput(
-      options as unknown as TextActivityOptions<
-        AnyTextAdapter,
-        SchemaInput,
-        boolean
-      >,
-    ) as TextActivityResult<TSchema, TStream>
+    return runAgenticStructuredOutput({
+      ...options,
+      outputSchema,
+    }) as TextActivityResult<TSchema, TStream>
   }
 
   // If stream is explicitly false, run non-streaming text
   if (stream === false) {
-    return runNonStreamingText(
-      options as unknown as TextActivityOptions<
-        AnyTextAdapter,
-        undefined,
-        false
-      >,
-    ) as TextActivityResult<TSchema, TStream>
+    return runNonStreamingText({
+      ...options,
+      outputSchema: undefined,
+      stream,
+    }) as TextActivityResult<TSchema, TStream>
   }
 
   // Otherwise, run streaming text (default)
-  return runStreamingText(
-    options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
-  ) as TextActivityResult<TSchema, TStream>
+  return runStreamingText({
+    ...options,
+    outputSchema: undefined,
+    stream,
+  }) as TextActivityResult<TSchema, TStream>
 }
 
 /**
@@ -1900,17 +1895,14 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
   // callers). The agent-loop branch converts via TextEngine; the no-tools
   // branch must convert here so the adapter sees a uniform ModelMessage shape.
   let finalMessages = convertMessagesToModelMessages(
-    (textOptions.messages ?? []) as Array<any>,
+    textOptions.messages ?? [],
   )
 
   if (textOptions.tools?.length) {
     const engine = new TextEngine(
       {
         adapter,
-        params: { ...textOptions, model, logger } as TextOptions<
-          Record<string, unknown>,
-          Record<string, unknown>
-        >,
+        params: { ...textOptions, model, logger, messages: finalMessages },
         middleware,
         context,
       },
