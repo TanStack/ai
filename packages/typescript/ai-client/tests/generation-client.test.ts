@@ -244,20 +244,20 @@ describe('GenerationClient', () => {
           runId: 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-        } ,
+        },
         {
           type: EventType.CUSTOM,
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
-        } ,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
           finishReason: 'stop',
           timestamp: Date.now(),
-        } ,
+        },
       ]
 
       const connection = createMockConnection(chunks)
