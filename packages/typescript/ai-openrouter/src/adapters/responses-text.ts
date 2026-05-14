@@ -318,13 +318,13 @@ export class OpenRouterResponsesTextAdapter<
           messageId: reasoningMessageId,
           model,
           timestamp,
-        } satisfies StreamChunk
+        }
         yield {
           type: EventType.REASONING_END,
           messageId: reasoningMessageId,
           model,
           timestamp,
-        } satisfies StreamChunk
+        }
         if (stepId) {
           yield {
             type: EventType.STEP_FINISHED,
@@ -333,7 +333,7 @@ export class OpenRouterResponsesTextAdapter<
             model,
             timestamp,
             content: accumulatedReasoning,
-          } satisfies StreamChunk
+          }
         }
       }
     }.bind(this)
@@ -349,14 +349,14 @@ export class OpenRouterResponsesTextAdapter<
         messageId: reasoningMessageId,
         model,
         timestamp,
-      } satisfies StreamChunk
+      }
       yield {
         type: EventType.REASONING_MESSAGE_START,
         messageId: reasoningMessageId,
         role: 'reasoning' as const,
         model,
         timestamp,
-      } satisfies StreamChunk
+      }
       yield {
         type: EventType.STEP_STARTED,
         stepName: stepId,
@@ -364,7 +364,7 @@ export class OpenRouterResponsesTextAdapter<
         model,
         timestamp,
         stepType: 'thinking',
-      } satisfies StreamChunk
+      }
     }.bind(this)
 
     try {
@@ -373,7 +373,7 @@ export class OpenRouterResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const rawStream = (await this.orClient.beta.responses.send(
+      const rawStream = await this.orClient.beta.responses.send(
         {
           responsesRequest: {
             ...responsesRequest,
@@ -385,14 +385,14 @@ export class OpenRouterResponsesTextAdapter<
                 schema: jsonSchema,
                 strict: true,
               },
-            } as ResponsesRequest['text'],
+            },
           },
         },
         {
           signal: reqOptions.signal ?? undefined,
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
-      )) as AsyncIterable<StreamEvents>
+      )
 
       for await (const rawEvent of rawStream) {
         const chunk = normalizeStreamEvent(rawEvent)
@@ -405,23 +405,19 @@ export class OpenRouterResponsesTextAdapter<
             threadId: aguiState.threadId,
             model,
             timestamp,
-          } satisfies StreamChunk
+          }
         }
 
         if (
           chunk.type === 'response.created' ||
           chunk.type === 'response.in_progress'
         ) {
-          const r = chunk.response as { model?: string } | undefined
-          if (r?.model) model = r.model
+          if (chunk.response?.model) model = chunk.response.model
           continue
         }
 
         if (chunk.type === 'response.refusal.delta') {
-          const delta =
-            typeof (chunk as { delta?: unknown }).delta === 'string'
-              ? (chunk as { delta: string }).delta
-              : ''
+          const delta = typeof chunk.delta === 'string' ? chunk.delta : ''
           yield {
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
@@ -430,7 +426,7 @@ export class OpenRouterResponsesTextAdapter<
             message: `Model refused: ${delta}`,
             code: 'refusal',
             error: { message: `Model refused: ${delta}`, code: 'refusal' },
-          } satisfies StreamChunk
+          }
           return
         }
 
@@ -438,11 +434,10 @@ export class OpenRouterResponsesTextAdapter<
           chunk.type === 'response.reasoning_text.delta' ||
           chunk.type === 'response.reasoning_summary_text.delta'
         ) {
-          const raw = (chunk as { delta?: unknown }).delta
-          const reasoningDelta = Array.isArray(raw)
-            ? raw.join('')
-            : typeof raw === 'string'
-              ? raw
+          const reasoningDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
               : ''
           if (!reasoningDelta) continue
           yield* openReasoning()
@@ -456,16 +451,15 @@ export class OpenRouterResponsesTextAdapter<
             delta: reasoningDelta,
             model,
             timestamp,
-          } satisfies StreamChunk
+          }
           continue
         }
 
         if (chunk.type === 'response.output_text.delta') {
-          const raw = (chunk as { delta?: unknown }).delta
-          const textDelta = Array.isArray(raw)
-            ? raw.join('')
-            : typeof raw === 'string'
-              ? raw
+          const textDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
               : ''
           if (!textDelta) continue
 
@@ -479,7 +473,7 @@ export class OpenRouterResponsesTextAdapter<
               model,
               timestamp,
               role: 'assistant',
-            } satisfies StreamChunk
+            }
           }
           accumulatedContent += textDelta
           yield {
@@ -489,21 +483,13 @@ export class OpenRouterResponsesTextAdapter<
             timestamp,
             delta: textDelta,
             content: accumulatedContent,
-          } satisfies StreamChunk
+          }
           continue
         }
 
         if (chunk.type === 'response.completed') {
-          const r = (chunk.response ?? {}) as {
-            model?: string
-            usage?: {
-              inputTokens?: number
-              outputTokens?: number
-              totalTokens?: number
-            } | null
-          }
-          if (r.model) model = r.model
-          if (r.usage) usage = r.usage
+          if (chunk.response?.model) model = chunk.response.model
+          if (chunk.response?.usage) usage = chunk.response.usage
           continue
         }
 
@@ -511,19 +497,15 @@ export class OpenRouterResponsesTextAdapter<
           chunk.type === 'response.failed' ||
           chunk.type === 'response.incomplete'
         ) {
-          const r = (chunk.response ?? {}) as {
-            error?: { message?: string; code?: unknown } | null
-            incompleteDetails?: { reason?: string } | null
-          }
           const message =
-            r.error?.message ||
-            r.incompleteDetails?.reason ||
+            chunk.response?.error?.message ||
+            chunk.response?.incompleteDetails?.reason ||
             (chunk.type === 'response.failed'
               ? 'Response failed'
               : 'Response ended incomplete')
           const code =
-            normalizeCode(r.error?.code) ??
-            (r.incompleteDetails ? 'incomplete' : undefined)
+            normalizeCode(chunk.response?.error?.code) ??
+            (chunk.response?.incompleteDetails ? 'incomplete' : undefined)
           yield {
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
@@ -535,7 +517,7 @@ export class OpenRouterResponsesTextAdapter<
               message,
               ...(code !== undefined && { code }),
             },
-          } satisfies StreamChunk
+          }
           return
         }
 
@@ -553,7 +535,7 @@ export class OpenRouterResponsesTextAdapter<
               message,
               ...(code !== undefined && { code }),
             },
-          } satisfies StreamChunk
+          }
           return
         }
       }
@@ -566,7 +548,7 @@ export class OpenRouterResponsesTextAdapter<
           messageId: aguiState.messageId,
           model,
           timestamp,
-        } satisfies StreamChunk
+        }
       }
 
       if (accumulatedContent.length === 0) {
@@ -581,7 +563,7 @@ export class OpenRouterResponsesTextAdapter<
             message: `${this.name}.structuredOutputStream: response contained no content`,
             code: 'empty-response',
           },
-        } satisfies StreamChunk
+        }
         return
       }
 
@@ -600,7 +582,7 @@ export class OpenRouterResponsesTextAdapter<
             message: 'Failed to parse structured output as JSON',
             code: 'parse-error',
           },
-        } satisfies StreamChunk
+        }
         return
       }
 
@@ -616,7 +598,7 @@ export class OpenRouterResponsesTextAdapter<
         },
         model,
         timestamp,
-      } satisfies StreamChunk
+      }
 
       yield {
         type: EventType.RUN_FINISHED,
@@ -632,7 +614,7 @@ export class OpenRouterResponsesTextAdapter<
             totalTokens: usage.totalTokens ?? 0,
           },
         }),
-      } satisfies StreamChunk
+      }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
@@ -642,7 +624,7 @@ export class OpenRouterResponsesTextAdapter<
           threadId: aguiState.threadId,
           model,
           timestamp,
-        } satisfies StreamChunk
+        }
       }
 
       // OpenRouter SDK raises a proprietary `RequestAbortedError` on
@@ -668,7 +650,7 @@ export class OpenRouterResponsesTextAdapter<
         message: errorPayload.message,
         code: isAbort ? 'aborted' : errorPayload.code,
         error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
-      } satisfies StreamChunk
+      }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
         error: errorPayload,

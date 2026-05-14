@@ -29,7 +29,7 @@ import type {
   ClientToolRequest,
   ToolResult,
 } from './tools/tool-calls'
-import type { AnyTextAdapter } from './adapter'
+import type { AnyTextAdapter, StructuredOutputOptions } from './adapter'
 import type {
   AgentLoopStrategy,
   ConstrainedModelMessage,
@@ -39,7 +39,6 @@ import type {
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
-  StructuredOutputCompleteEvent,
   StructuredOutputStream,
   TextMessageContentEvent,
   TextOptions,
@@ -1776,7 +1775,7 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
  */
 async function* fallbackStructuredOutputStream(
   adapter: AnyTextAdapter,
-  options: { chatOptions: TextOptions<any, any>; outputSchema: any },
+  options: StructuredOutputOptions<Record<string, unknown>>,
 ): AsyncIterable<StreamChunk> {
   const { chatOptions } = options
   const runId = chatOptions.runId ?? `mock-${Date.now()}`
@@ -1791,7 +1790,7 @@ async function* fallbackStructuredOutputStream(
     threadId,
     model,
     timestamp,
-  } satisfies StreamChunk
+  }
 
   let result: { data: unknown; rawText: string }
   try {
@@ -1805,7 +1804,7 @@ async function* fallbackStructuredOutputStream(
       timestamp,
       message,
       error: { message },
-    } satisfies StreamChunk
+    }
     return
   }
 
@@ -1815,7 +1814,7 @@ async function* fallbackStructuredOutputStream(
     role: 'assistant',
     model,
     timestamp,
-  } satisfies StreamChunk
+  }
 
   yield {
     type: EventType.TEXT_MESSAGE_CONTENT,
@@ -1823,14 +1822,14 @@ async function* fallbackStructuredOutputStream(
     delta: result.rawText,
     model,
     timestamp,
-  } satisfies StreamChunk
+  }
 
   yield {
     type: EventType.TEXT_MESSAGE_END,
     messageId,
     model,
     timestamp,
-  } satisfies StreamChunk
+  }
 
   yield {
     type: EventType.CUSTOM,
@@ -1838,7 +1837,7 @@ async function* fallbackStructuredOutputStream(
     value: { object: result.data, raw: result.rawText },
     model,
     timestamp,
-  } satisfies StreamChunk
+  }
 
   yield {
     type: EventType.RUN_FINISHED,
@@ -1847,7 +1846,7 @@ async function* fallbackStructuredOutputStream(
     model,
     timestamp,
     finishReason: 'stop',
-  } satisfies StreamChunk
+  }
 }
 
 /**
@@ -1953,7 +1952,7 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
         message,
         code: 'agent-loop-failed',
         error: { message, code: 'agent-loop-failed' },
-      } satisfies StreamChunk
+      }
       return
     }
 
@@ -1970,12 +1969,10 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
     ...structuredTextOptions
   } = textOptions
 
-  const providerName =
-    (adapter as { provider?: string }).provider ?? adapter.name
   logger.request(
-    `activity=chat-structured-stream provider=${providerName} model=${model} messages=${finalMessages.length}`,
+    `activity=chat-structured-stream provider=${adapter.name} model=${model} messages=${finalMessages.length}`,
     {
-      provider: providerName,
+      provider: adapter.name,
       model,
       messageCount: finalMessages.length,
     },
@@ -2026,7 +2023,7 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
               raw: value.raw,
               ...(value.reasoning ? { reasoning: value.reasoning } : {}),
             },
-          } satisfies StructuredOutputCompleteEvent<InferSchemaType<TSchema>>
+          }
           continue
         } catch (err) {
           const message = (err as Error).message || 'Schema validation failed'
@@ -2052,13 +2049,11 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
               code: 'schema-validation',
               ...(value.reasoning ? { reasoning: value.reasoning } : {}),
             },
-          } satisfies StreamChunk
+          }
           return
         }
       }
-      yield chunk satisfies StructuredOutputCompleteEvent<
-        InferSchemaType<TSchema>
-      >
+      yield chunk
       continue
     }
     yield chunk

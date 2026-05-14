@@ -325,13 +325,13 @@ export class OpenRouterTextAdapter<
           messageId: reasoningMessageId,
           model: lastModel || chatOptions.model,
           timestamp,
-        } satisfies StreamChunk
+        }
         yield {
           type: EventType.REASONING_END,
           messageId: reasoningMessageId,
           model: lastModel || chatOptions.model,
           timestamp,
-        } satisfies StreamChunk
+        }
         if (stepId) {
           yield {
             type: EventType.STEP_FINISHED,
@@ -340,7 +340,7 @@ export class OpenRouterTextAdapter<
             model: lastModel || chatOptions.model,
             timestamp,
             content: accumulatedReasoning,
-          } satisfies StreamChunk
+          }
         }
       }
     }.bind(this)
@@ -361,7 +361,7 @@ export class OpenRouterTextAdapter<
       )
 
       const reqOptions = extractRequestOptions(chatOptions.request)
-      const stream = (await this.orClient.chat.send(
+      const stream = await this.orClient.chat.send(
         {
           chatRequest: {
             ...cleanParams,
@@ -381,7 +381,7 @@ export class OpenRouterTextAdapter<
           signal: reqOptions.signal ?? undefined,
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
-      )) as AsyncIterable<ChatStreamChunk>
+      )
 
       for await (const chunk of stream) {
         if (chunk.model) lastModel = chunk.model
@@ -395,7 +395,7 @@ export class OpenRouterTextAdapter<
             threadId: aguiState.threadId,
             model: chunk.model || chatOptions.model,
             timestamp,
-          } satisfies StreamChunk
+          }
         }
 
         const reasoningText = extractReasoningText(chunk)
@@ -408,14 +408,14 @@ export class OpenRouterTextAdapter<
               messageId: reasoningMessageId,
               model: chunk.model || chatOptions.model,
               timestamp,
-            } satisfies StreamChunk
+            }
             yield {
               type: EventType.REASONING_MESSAGE_START,
               messageId: reasoningMessageId,
               role: 'reasoning' as const,
               model: chunk.model || chatOptions.model,
               timestamp,
-            } satisfies StreamChunk
+            }
             yield {
               type: EventType.STEP_STARTED,
               stepName: stepId,
@@ -423,7 +423,7 @@ export class OpenRouterTextAdapter<
               model: chunk.model || chatOptions.model,
               timestamp,
               stepType: 'thinking',
-            } satisfies StreamChunk
+            }
           }
           accumulatedReasoning += reasoningText
           yield {
@@ -432,7 +432,7 @@ export class OpenRouterTextAdapter<
             delta: reasoningText,
             model: chunk.model || chatOptions.model,
             timestamp,
-          } satisfies StreamChunk
+          }
         }
 
         const choice = chunk.choices[0]
@@ -450,7 +450,7 @@ export class OpenRouterTextAdapter<
               model: chunk.model || chatOptions.model,
               timestamp,
               role: 'assistant',
-            } satisfies StreamChunk
+            }
           }
 
           accumulatedContent += deltaContent
@@ -462,7 +462,7 @@ export class OpenRouterTextAdapter<
             timestamp,
             delta: deltaContent,
             content: accumulatedContent,
-          } satisfies StreamChunk
+          }
         }
       }
 
@@ -474,7 +474,7 @@ export class OpenRouterTextAdapter<
           messageId: aguiState.messageId,
           model: lastModel || chatOptions.model,
           timestamp,
-        } satisfies StreamChunk
+        }
       }
 
       if (accumulatedContent.length === 0) {
@@ -489,7 +489,7 @@ export class OpenRouterTextAdapter<
             message: `${this.name}.structuredOutputStream: response contained no content`,
             code: 'empty-response',
           },
-        } satisfies StreamChunk
+        }
         return
       }
 
@@ -508,7 +508,7 @@ export class OpenRouterTextAdapter<
             message: 'Failed to parse structured output as JSON',
             code: 'parse-error',
           },
-        } satisfies StreamChunk
+        }
         return
       }
 
@@ -524,7 +524,7 @@ export class OpenRouterTextAdapter<
         },
         model: lastModel || chatOptions.model,
         timestamp,
-      } satisfies StreamChunk
+      }
 
       yield {
         type: EventType.RUN_FINISHED,
@@ -540,7 +540,7 @@ export class OpenRouterTextAdapter<
             totalTokens: lastUsage.totalTokens,
           },
         }),
-      } satisfies StreamChunk
+      }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
@@ -550,7 +550,7 @@ export class OpenRouterTextAdapter<
           threadId: aguiState.threadId,
           model: chatOptions.model,
           timestamp,
-        } satisfies StreamChunk
+        }
       }
 
       // OpenRouter SDK raises a proprietary `RequestAbortedError` on
@@ -576,7 +576,7 @@ export class OpenRouterTextAdapter<
         message: errorPayload.message,
         code: isAbort ? 'aborted' : errorPayload.code,
         error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
-      } satisfies StreamChunk
+      }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
         error: errorPayload,
