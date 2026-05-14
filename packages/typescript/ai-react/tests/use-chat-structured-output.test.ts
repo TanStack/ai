@@ -121,16 +121,8 @@ describe('useChat({ outputSchema }) — runtime', () => {
       async *connect() {
         const chunks =
           call === 0
-            ? buildStructuredStream(
-                JSON.stringify(personA),
-                personA,
-                'run-a',
-              )
-            : buildStructuredStream(
-                JSON.stringify(personB),
-                personB,
-                'run-b',
-              )
+            ? buildStructuredStream(JSON.stringify(personA), personA, 'run-a')
+            : buildStructuredStream(JSON.stringify(personB), personB, 'run-b')
         call++
         for (const chunk of chunks) yield chunk
       },
@@ -242,8 +234,6 @@ describe('useChat() without outputSchema — runtime', () => {
     expect(
       (result.current as unknown as { partial?: unknown }).partial,
     ).toEqual({})
-    expect(
-      (result.current as unknown as { final?: unknown }).final,
-    ).toBeNull()
+    expect((result.current as unknown as { final?: unknown }).final).toBeNull()
   })
 })

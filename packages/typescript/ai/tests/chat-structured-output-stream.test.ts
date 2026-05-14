@@ -41,12 +41,8 @@ const validPerson: Person = {
  * test wire just the behaviour it needs.
  */
 function makeAdapter(opts: {
-  structuredOutputStream?: (
-    o: unknown,
-  ) => AsyncIterable<StreamChunk>
-  structuredOutput?: (
-    o: unknown,
-  ) => Promise<{ data: unknown; rawText: string }>
+  structuredOutputStream?: (o: unknown) => AsyncIterable<StreamChunk>
+  structuredOutput?: (o: unknown) => Promise<{ data: unknown; rawText: string }>
 }): AnyTextAdapter {
   return {
     kind: 'text' as const,
@@ -68,7 +64,10 @@ function makeAdapter(opts: {
     chatStream: () => (async function* () {})(),
     structuredOutput:
       (opts.structuredOutput as AnyTextAdapter['structuredOutput']) ??
-      (async () => ({ data: validPerson, rawText: JSON.stringify(validPerson) })),
+      (async () => ({
+        data: validPerson,
+        rawText: JSON.stringify(validPerson),
+      })),
     ...(opts.structuredOutputStream
       ? {
           structuredOutputStream:
@@ -217,8 +216,7 @@ describe('chat({ outputSchema, stream: true })', () => {
     })
 
     it('forwards `reasoning` through schema validation', async () => {
-      const reasoning =
-        'Reading the prompt… extracting name, age, email… done.'
+      const reasoning = 'Reading the prompt… extracting name, age, email… done.'
       const adapter = makeAdapter({
         structuredOutputStream: () =>
           (async function* () {
