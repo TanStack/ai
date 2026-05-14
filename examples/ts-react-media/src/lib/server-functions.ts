@@ -149,7 +149,7 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
         return generateVideo({
           adapter: falVideo('fal-ai/ltx-2/text-to-video/fast'),
           prompt: data.prompt,
-          size: '16:9_2160p',
+          size: '2160p',
         })
       }
       // Image-to-video models
@@ -199,7 +199,7 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
         return generateVideo({
           adapter: falVideo('fal-ai/ltx-2/image-to-video/fast'),
           prompt: data.prompt,
-          size: '16:9_2160p',
+          size: '2160p',
           modelOptions: {
             image_url: data.imageUrl,
           },

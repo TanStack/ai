@@ -34,7 +34,10 @@ export interface ImageAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
-  TModelSizeByName extends Record<string, string> = Record<string, string>,
+  TModelSizeByName extends Record<string, string | undefined> = Record<
+    string,
+    string
+  >,
 > {
   /** Discriminator for adapter kind - used by generate() to determine API shape */
   readonly kind: 'image'
@@ -76,7 +79,10 @@ export abstract class BaseImageAdapter<
   TModel extends string = string,
   TProviderOptions extends object = Record<string, unknown>,
   TModelProviderOptionsByName extends Record<string, any> = Record<string, any>,
-  TModelSizeByName extends Record<string, string> = Record<string, string>,
+  TModelSizeByName extends Record<string, string | undefined> = Record<
+    string,
+    string
+  >,
 > implements ImageAdapter<
   TModel,
   TProviderOptions,

@@ -53,7 +53,7 @@ export type FalModelImageSize<TModel extends string> =
         ? 'resolution' extends keyof EndpointTypeMap[TModel]['input']
           ? `${Extract<NonNullable<FalModelInput<TModel>['aspect_ratio']>, string>}_${Extract<NonNullable<FalModelInput<TModel>['resolution']>, string>}`
           : Extract<NonNullable<FalModelInput<TModel>['aspect_ratio']>, string>
-        : string
+        : undefined
     : string
 
 export type FalModelImageSizeInput<TModel extends string> =
@@ -65,7 +65,9 @@ export type FalModelImageSizeInput<TModel extends string> =
             resolution: FalModelInput<TModel>['resolution']
           }
         : { aspect_ratio: NonNullable<FalModelInput<TModel>['aspect_ratio']> }
-      : { image_size: FalModelImageSize<TModel> }
+      : 'image_size' extends keyof EndpointTypeMap[TModel]['input']
+        ? { image_size: FalModelImageSize<TModel> }
+        : never
     : { image_size: string }
 
 /**
@@ -85,9 +87,10 @@ export type FalImageProviderOptions<TModel extends string> = Omit<
  * Extract the video size type supported by a specific fal model.
  * Video models typically use aspect_ratio and/or resolution fields.
  *
- * Follows the same pattern as FalModelImageSize:
  * - aspect_ratio + resolution → "16:9_720p"
  * - aspect_ratio only → "16:9"
+ * - resolution only → "720p"
+ * - neither → undefined (the model takes no size param)
  * - unknown models → string
  */
 export type FalModelVideoSize<TModel extends string> =
@@ -96,7 +99,9 @@ export type FalModelVideoSize<TModel extends string> =
       ? 'resolution' extends keyof EndpointTypeMap[TModel]['input']
         ? `${Extract<NonNullable<FalModelInput<TModel>['aspect_ratio']>, string>}_${Extract<NonNullable<FalModelInput<TModel>['resolution']>, string>}`
         : Extract<NonNullable<FalModelInput<TModel>['aspect_ratio']>, string>
-      : string
+      : 'resolution' extends keyof EndpointTypeMap[TModel]['input']
+        ? Extract<NonNullable<FalModelInput<TModel>['resolution']>, string>
+        : undefined
     : string
 
 export type FalModelVideoSizeInput<TModel extends string> =
@@ -108,8 +113,10 @@ export type FalModelVideoSizeInput<TModel extends string> =
             resolution: FalModelInput<TModel>['resolution']
           }
         : { aspect_ratio: NonNullable<FalModelInput<TModel>['aspect_ratio']> }
-      : { aspect_ratio: string }
-    : { aspect_ratio: string }
+      : 'resolution' extends keyof EndpointTypeMap[TModel]['input']
+        ? { resolution: NonNullable<FalModelInput<TModel>['resolution']> }
+        : never
+    : { aspect_ratio?: string; resolution?: string }
 
 /**
  * Provider options for video generation, excluding fields TanStack AI handles.

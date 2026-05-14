@@ -1217,7 +1217,7 @@ export interface SummarizationResult {
  */
 export interface ImageGenerationOptions<
   TProviderOptions extends object = object,
-  TSize extends string = string,
+  TSize extends string | undefined = string,
 > {
   /** The model to use for image generation */
   model: string
@@ -1347,7 +1347,7 @@ export interface AudioGenerationResult {
  */
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
-  TSize extends string = string,
+  TSize extends string | undefined = string,
 > {
   /** The model to use for video generation */
   model: string

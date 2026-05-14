@@ -7,11 +7,18 @@ export function mapVideoSizeToFalFormat<TModel extends string>(
 
   // "16:9_720p" → { aspect_ratio, resolution }
   // "16:9"      → { aspect_ratio }
-  const match = (size as string).match(/^(\d+:\d+)(?:_(.+))?$/)
-  if (!match) return undefined
+  // "720p"      → { resolution }
+  if (size.includes('_')) {
+    const [aspect_ratio, resolution] = size.split('_')
+    return {
+      aspect_ratio,
+      resolution,
+    } as unknown as FalModelVideoSizeInput<TModel>
+  }
 
-  return {
-    aspect_ratio: match[1],
-    ...(match[2] && { resolution: match[2] }),
-  } as unknown as FalModelVideoSizeInput<TModel>
+  if (size.includes(':')) {
+    return { aspect_ratio: size } as unknown as FalModelVideoSizeInput<TModel>
+  }
+
+  return { resolution: size } as unknown as FalModelVideoSizeInput<TModel>
 }
