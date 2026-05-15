@@ -1,51 +1,23 @@
-import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { validateTextProviderOptions } from '../text/text-provider-options'
-import { convertToolsToProviderFormat } from '../tools'
-import {
-  createGrokClient,
-  generateId,
-  getGrokApiKeyFromEnv,
-  makeGrokStructuredOutputCompatible,
-  transformNullsToUndefined,
-} from '../utils'
+import OpenAI from 'openai'
+import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import type {
   GROK_CHAT_MODELS,
   GrokChatModelToolCapabilitiesByName,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
-import type {
-  StructuredOutputOptions,
-  StructuredOutputResult,
-} from '@tanstack/ai/adapters'
-import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type OpenAI_SDK from 'openai'
-import type {
-  ContentPart,
-  Modality,
-  ModelMessage,
-  StreamChunk,
-  TextOptions,
-} from '@tanstack/ai'
-import type {
-  ExternalTextProviderOptions as GrokTextProviderOptions,
-  InternalTextProviderOptions,
-} from '../text/text-provider-options'
-import type {
-  GrokImageMetadata,
-  GrokMessageMetadataByModality,
-} from '../message-types'
+import type { Modality } from '@tanstack/ai'
+import type { GrokMessageMetadataByModality } from '../message-types'
 import type { GrokClientConfig } from '../utils'
 
+/**
+ * Resolve tool capabilities for a specific Grok model.
+ */
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GrokChatModelToolCapabilitiesByName
     ? NonNullable<GrokChatModelToolCapabilitiesByName[TModel]>
     : readonly []
-
-/** Cast an event object to StreamChunk. Adapters construct events with string
- *  literal types which are structurally compatible with the EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 /**
  * Configuration for Grok text adapter
@@ -62,6 +34,10 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  *
  * Tree-shakeable adapter for Grok chat/text completion functionality.
  * Uses OpenAI-compatible Chat Completions API (not Responses API).
+ *
+ * Delegates implementation to {@link OpenAIBaseChatCompletionsTextAdapter}
+ * from `@tanstack/openai-base` and threads Grok-specific tool-capability
+ * typing through the 5th generic of the base class.
  */
 export class GrokTextAdapter<
   TModel extends (typeof GROK_CHAT_MODELS)[number],
@@ -70,7 +46,7 @@ export class GrokTextAdapter<
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
-> extends BaseTextAdapter<
+> extends OpenAIBaseChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
@@ -80,532 +56,28 @@ export class GrokTextAdapter<
   readonly kind = 'text' as const
   readonly name = 'grok' as const
 
-  private client: OpenAI_SDK
-
   constructor(config: GrokTextConfig, model: TModel) {
-    super({}, model)
-    this.client = createGrokClient(config)
-  }
-
-  async *chatStream(
-    options: TextOptions<GrokTextProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
-    const requestParams = this.mapTextOptionsToGrok(options)
-    const timestamp = Date.now()
-    const { logger } = options
-
-    // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
-    const aguiState = {
-      runId: options.runId ?? generateId(this.name),
-      threadId: options.threadId ?? generateId(this.name),
-      messageId: generateId(this.name),
-      timestamp,
-      hasEmittedRunStarted: false,
-    }
-
-    try {
-      logger.request(
-        `activity=chat provider=grok model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
-        { provider: 'grok', model: this.model },
-      )
-      const stream = await this.client.chat.completions.create({
-        ...requestParams,
-        stream: true,
-      })
-
-      yield* this.processGrokStreamChunks(stream, options, aguiState, logger)
-    } catch (error: unknown) {
-      const err = error as Error & { code?: string }
-
-      // Emit RUN_STARTED if not yet emitted
-      if (!aguiState.hasEmittedRunStarted) {
-        aguiState.hasEmittedRunStarted = true
-        yield asChunk({
-          type: 'RUN_STARTED',
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
-          model: options.model,
-          timestamp,
-        })
-      }
-
-      // Emit AG-UI RUN_ERROR
-      yield asChunk({
-        type: 'RUN_ERROR',
-        runId: aguiState.runId,
-        model: options.model,
-        timestamp,
-        message: err.message || 'Unknown error',
-        code: err.code,
-        error: {
-          message: err.message || 'Unknown error',
-          code: err.code,
-        },
-      })
-
-      logger.errors('grok.chatStream fatal', {
-        error,
-        source: 'grok.chatStream',
-      })
-    }
+    super(model, 'grok', new OpenAI(withGrokDefaults(config)))
   }
 
   /**
-   * Generate structured output using Grok's JSON Schema response format.
-   * Uses stream: false to get the complete response in one call.
-   *
-   * Grok has strict requirements for structured output (via OpenAI-compatible API):
-   * - All properties must be in the `required` array
-   * - Optional fields should have null added to their type union
-   * - additionalProperties must be false for all objects
-   *
-   * The outputSchema is already JSON Schema (converted in the ai layer).
-   * We apply Grok-specific transformations for structured output compatibility.
+   * Surfaces xAI reasoning deltas on Grok reasoning models. The DeepSeek-style
+   * convention puts the chain-of-thought on `delta.reasoning_content`; some
+   * Grok variants also populate `delta.reasoning`. Reading both keeps
+   * reasoning flowing through the base's REASONING_* lifecycle for both
+   * `chatStream` and `structuredOutputStream`.
    */
-  async structuredOutput(
-    options: StructuredOutputOptions<GrokTextProviderOptions>,
-  ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, outputSchema } = options
-    const requestParams = this.mapTextOptionsToGrok(chatOptions)
-    const { logger } = chatOptions
-
-    // Apply Grok-specific transformations for structured output compatibility
-    const jsonSchema = makeGrokStructuredOutputCompatible(
-      outputSchema,
-      outputSchema.required || [],
-    )
-
-    try {
-      logger.request(
-        `activity=chat provider=grok model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
-        { provider: 'grok', model: this.model },
-      )
-      const response = await this.client.chat.completions.create({
-        ...requestParams,
-        stream: false,
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'structured_output',
-            schema: jsonSchema,
-            strict: true,
-          },
-        },
-      })
-
-      // Extract text content from the response
-      const rawText = response.choices[0]?.message.content || ''
-
-      // Parse the JSON response
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(rawText)
-      } catch {
-        throw new Error(
-          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
-        )
-      }
-
-      // Transform null values to undefined to match original Zod schema expectations
-      // Grok returns null for optional fields we made nullable in the schema
-      const transformed = transformNullsToUndefined(parsed)
-
-      return {
-        data: transformed,
-        rawText,
-      }
-    } catch (error: unknown) {
-      logger.errors('grok.structuredOutput fatal', {
-        error,
-        source: 'grok.structuredOutput',
-      })
-      throw error
-    }
-  }
-
-  private async *processGrokStreamChunks(
-    stream: AsyncIterable<OpenAI_SDK.Chat.Completions.ChatCompletionChunk>,
-    options: TextOptions,
-    aguiState: {
-      runId: string
-      threadId: string
-      messageId: string
-      timestamp: number
-      hasEmittedRunStarted: boolean
-    },
-    logger: InternalLogger,
-  ): AsyncIterable<StreamChunk> {
-    let accumulatedContent = ''
-    const timestamp = aguiState.timestamp
-    let hasEmittedTextMessageStart = false
-
-    // Track tool calls being streamed (arguments come in chunks)
-    const toolCallsInProgress = new Map<
-      number,
-      {
-        id: string
-        name: string
-        arguments: string
-        started: boolean // Track if TOOL_CALL_START has been emitted
-      }
-    >()
-
-    try {
-      for await (const chunk of stream) {
-        logger.provider(`provider=grok`, { chunk })
-        const choice = chunk.choices[0]
-
-        if (!choice) continue
-
-        // Emit RUN_STARTED on first chunk
-        if (!aguiState.hasEmittedRunStarted) {
-          aguiState.hasEmittedRunStarted = true
-          yield asChunk({
-            type: 'RUN_STARTED',
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model: chunk.model || options.model,
-            timestamp,
-          })
-        }
-
-        const delta = choice.delta
-        const deltaContent = delta.content
-        const deltaToolCalls = delta.tool_calls
-
-        // Handle content delta
-        if (deltaContent) {
-          // Emit TEXT_MESSAGE_START on first text content
-          if (!hasEmittedTextMessageStart) {
-            hasEmittedTextMessageStart = true
-            yield asChunk({
-              type: 'TEXT_MESSAGE_START',
-              messageId: aguiState.messageId,
-              model: chunk.model || options.model,
-              timestamp,
-              role: 'assistant',
-            })
-          }
-
-          accumulatedContent += deltaContent
-
-          // Emit AG-UI TEXT_MESSAGE_CONTENT
-          yield asChunk({
-            type: 'TEXT_MESSAGE_CONTENT',
-            messageId: aguiState.messageId,
-            model: chunk.model || options.model,
-            timestamp,
-            delta: deltaContent,
-            content: accumulatedContent,
-          })
-        }
-
-        // Handle tool calls - they come in as deltas
-        if (deltaToolCalls) {
-          for (const toolCallDelta of deltaToolCalls) {
-            const index = toolCallDelta.index
-
-            // Initialize or update the tool call in progress
-            if (!toolCallsInProgress.has(index)) {
-              toolCallsInProgress.set(index, {
-                id: toolCallDelta.id || '',
-                name: toolCallDelta.function?.name || '',
-                arguments: '',
-                started: false,
-              })
-            }
-
-            const toolCall = toolCallsInProgress.get(index)!
-
-            // Update with any new data from the delta
-            if (toolCallDelta.id) {
-              toolCall.id = toolCallDelta.id
-            }
-            if (toolCallDelta.function?.name) {
-              toolCall.name = toolCallDelta.function.name
-            }
-            if (toolCallDelta.function?.arguments) {
-              toolCall.arguments += toolCallDelta.function.arguments
-            }
-
-            // Emit TOOL_CALL_START when we have id and name
-            if (toolCall.id && toolCall.name && !toolCall.started) {
-              toolCall.started = true
-              yield asChunk({
-                type: 'TOOL_CALL_START',
-                toolCallId: toolCall.id,
-                toolCallName: toolCall.name,
-                toolName: toolCall.name,
-                model: chunk.model || options.model,
-                timestamp,
-                index,
-              })
-            }
-
-            // Emit TOOL_CALL_ARGS for argument deltas
-            if (toolCallDelta.function?.arguments && toolCall.started) {
-              yield asChunk({
-                type: 'TOOL_CALL_ARGS',
-                toolCallId: toolCall.id,
-                model: chunk.model || options.model,
-                timestamp,
-                delta: toolCallDelta.function.arguments,
-              })
-            }
-          }
-        }
-
-        // Handle finish reason
-        if (choice.finish_reason) {
-          // Emit all completed tool calls
-          if (
-            choice.finish_reason === 'tool_calls' ||
-            toolCallsInProgress.size > 0
-          ) {
-            for (const [, toolCall] of toolCallsInProgress) {
-              // Parse arguments for TOOL_CALL_END
-              let parsedInput: unknown = {}
-              try {
-                parsedInput = toolCall.arguments
-                  ? JSON.parse(toolCall.arguments)
-                  : {}
-              } catch {
-                parsedInput = {}
-              }
-
-              // Emit AG-UI TOOL_CALL_END
-              yield asChunk({
-                type: 'TOOL_CALL_END',
-                toolCallId: toolCall.id,
-                toolCallName: toolCall.name,
-                toolName: toolCall.name,
-                model: chunk.model || options.model,
-                timestamp,
-                input: parsedInput,
-              })
-            }
-          }
-
-          const computedFinishReason =
-            choice.finish_reason === 'tool_calls' ||
-            toolCallsInProgress.size > 0
-              ? 'tool_calls'
-              : 'stop'
-
-          // Emit TEXT_MESSAGE_END if we had text content
-          if (hasEmittedTextMessageStart) {
-            yield asChunk({
-              type: 'TEXT_MESSAGE_END',
-              messageId: aguiState.messageId,
-              model: chunk.model || options.model,
-              timestamp,
-            })
-          }
-
-          // Emit AG-UI RUN_FINISHED
-          yield asChunk({
-            type: 'RUN_FINISHED',
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model: chunk.model || options.model,
-            timestamp,
-            usage: chunk.usage
-              ? {
-                  promptTokens: chunk.usage.prompt_tokens || 0,
-                  completionTokens: chunk.usage.completion_tokens || 0,
-                  totalTokens: chunk.usage.total_tokens || 0,
-                }
-              : undefined,
-            finishReason: computedFinishReason,
-          })
-        }
-      }
-    } catch (error: unknown) {
-      const err = error as Error & { code?: string }
-      logger.errors('grok stream ended with error', {
-        error,
-        source: 'grok.processGrokStreamChunks',
-      })
-
-      // Emit AG-UI RUN_ERROR
-      yield asChunk({
-        type: 'RUN_ERROR',
-        runId: aguiState.runId,
-        model: options.model,
-        timestamp,
-        message: err.message || 'Unknown error occurred',
-        code: err.code,
-        error: {
-          message: err.message || 'Unknown error occurred',
-          code: err.code,
-        },
-      })
-    }
-  }
-
-  /**
-   * Maps common options to Grok-specific Chat Completions format
-   */
-  private mapTextOptionsToGrok(
-    options: TextOptions,
-  ): OpenAI_SDK.Chat.Completions.ChatCompletionCreateParamsStreaming {
-    const modelOptions = options.modelOptions as
-      | Omit<
-          InternalTextProviderOptions,
-          'max_tokens' | 'tools' | 'temperature' | 'input' | 'top_p'
-        >
+  protected override extractReasoning(
+    chunk: OpenAI.Chat.Completions.ChatCompletionChunk,
+  ): { text: string } | undefined {
+    const delta = chunk.choices[0]?.delta as
+      | { reasoning?: unknown; reasoning_content?: unknown }
       | undefined
-
-    if (modelOptions) {
-      validateTextProviderOptions({
-        ...modelOptions,
-        model: options.model,
-      })
+    const raw = delta?.reasoning_content ?? delta?.reasoning
+    if (typeof raw === 'string' && raw.length > 0) {
+      return { text: raw }
     }
-
-    const tools = options.tools
-      ? convertToolsToProviderFormat(options.tools)
-      : undefined
-
-    // Build messages array with system prompts
-    const messages: Array<OpenAI_SDK.Chat.Completions.ChatCompletionMessageParam> =
-      []
-
-    // Add system prompts first
-    if (options.systemPrompts && options.systemPrompts.length > 0) {
-      messages.push({
-        role: 'system',
-        content: options.systemPrompts.join('\n'),
-      })
-    }
-
-    // Convert messages
-    for (const message of options.messages) {
-      messages.push(this.convertMessageToGrok(message))
-    }
-
-    return {
-      model: options.model,
-      messages,
-      temperature: options.temperature,
-      max_tokens: options.maxTokens,
-      top_p: options.topP,
-      tools: tools as Array<OpenAI_SDK.Chat.Completions.ChatCompletionTool>,
-      stream: true,
-      stream_options: { include_usage: true },
-    }
-  }
-
-  private convertMessageToGrok(
-    message: ModelMessage,
-  ): OpenAI_SDK.Chat.Completions.ChatCompletionMessageParam {
-    // Handle tool messages
-    if (message.role === 'tool') {
-      return {
-        role: 'tool',
-        tool_call_id: message.toolCallId || '',
-        content:
-          typeof message.content === 'string'
-            ? message.content
-            : JSON.stringify(message.content),
-      }
-    }
-
-    // Handle assistant messages
-    if (message.role === 'assistant') {
-      const toolCalls = message.toolCalls?.map((tc) => ({
-        id: tc.id,
-        type: 'function' as const,
-        function: {
-          name: tc.function.name,
-          arguments:
-            typeof tc.function.arguments === 'string'
-              ? tc.function.arguments
-              : JSON.stringify(tc.function.arguments),
-        },
-      }))
-
-      return {
-        role: 'assistant',
-        content: this.extractTextContent(message.content),
-        ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
-      }
-    }
-
-    // Handle user messages - support multimodal content
-    const contentParts = this.normalizeContent(message.content)
-
-    // If only text, use simple string format
-    if (contentParts.length === 1 && contentParts[0]?.type === 'text') {
-      return {
-        role: 'user',
-        content: contentParts[0].content,
-      }
-    }
-
-    // Otherwise, use array format for multimodal
-    const parts: Array<OpenAI_SDK.Chat.Completions.ChatCompletionContentPart> =
-      []
-    for (const part of contentParts) {
-      if (part.type === 'text') {
-        parts.push({ type: 'text', text: part.content })
-      } else if (part.type === 'image') {
-        const imageMetadata = part.metadata as GrokImageMetadata | undefined
-        // For base64 data, construct a data URI using the mimeType from source
-        const imageValue = part.source.value
-        const imageUrl =
-          part.source.type === 'data' && !imageValue.startsWith('data:')
-            ? `data:${part.source.mimeType};base64,${imageValue}`
-            : imageValue
-        parts.push({
-          type: 'image_url',
-          image_url: {
-            url: imageUrl,
-            detail: imageMetadata?.detail || 'auto',
-          },
-        })
-      }
-    }
-
-    return {
-      role: 'user',
-      content: parts.length > 0 ? parts : '',
-    }
-  }
-
-  /**
-   * Normalizes message content to an array of ContentPart.
-   * Handles backward compatibility with string content.
-   */
-  private normalizeContent(
-    content: string | null | Array<ContentPart>,
-  ): Array<ContentPart> {
-    if (content === null) {
-      return []
-    }
-    if (typeof content === 'string') {
-      return [{ type: 'text', content: content }]
-    }
-    return content
-  }
-
-  /**
-   * Extracts text content from a content value that may be string, null, or ContentPart array.
-   */
-  private extractTextContent(
-    content: string | null | Array<ContentPart>,
-  ): string {
-    if (content === null) {
-      return ''
-    }
-    if (typeof content === 'string') {
-      return content
-    }
-    // It's an array of ContentPart
-    return content
-      .filter((p) => p.type === 'text')
-      .map((p) => p.content)
-      .join('')
+    return undefined
   }
 }
 

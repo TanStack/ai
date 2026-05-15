@@ -3,6 +3,7 @@ import {
   toServerSentEventsStream,
   toServerSentEventsResponse,
 } from '../src/stream-to-response'
+import { EventType } from '../src/types'
 import type { StreamChunk } from '../src/types'
 
 // Helper to create mock async iterable
@@ -228,13 +229,13 @@ describe('toServerSentEventsStream', () => {
   it('should handle stream errors and send error chunk', async () => {
     async function* errorStream(): AsyncGenerator<StreamChunk> {
       yield {
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: 'msg-1',
         model: 'test',
         timestamp: Date.now(),
         delta: 'Test',
         content: 'Test',
-      } as unknown as StreamChunk
+      }
       throw new Error('Stream error')
     }
 

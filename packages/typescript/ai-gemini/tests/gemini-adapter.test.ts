@@ -8,7 +8,7 @@ import {
   type SafetySetting,
 } from '@google/genai'
 import { GeminiTextAdapter } from '../src/adapters/text'
-import { GeminiSummarizeAdapter } from '../src/adapters/summarize'
+import { createGeminiSummarize } from '../src/adapters/summarize'
 import type { GeminiTextProviderOptions } from '../src/adapters/text'
 import type { Schema } from '@google/genai'
 
@@ -53,7 +53,7 @@ vi.mock('@google/genai', async () => {
 const createTextAdapter = () =>
   new GeminiTextAdapter({ apiKey: 'test-key' }, 'gemini-2.5-pro')
 const createSummarizeAdapter = () =>
-  new GeminiSummarizeAdapter('test-key', 'gemini-2.0-flash')
+  createGeminiSummarize('test-key', 'gemini-2.0-flash')
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
@@ -502,10 +502,11 @@ describe('GeminiAdapter through AI', () => {
     expect(textParts[0].text).toBe("what's a good electric guitar?")
   })
 
-  it('preserves thoughtSignature in functionCall parts when sending history back to Gemini', async () => {
+  it('reads Part-level thoughtSignature from Gemini 3.x streaming response', async () => {
     const thoughtSig = 'base64-encoded-thought-signature-xyz'
 
-    // First stream: model returns a function call with a thoughtSignature (thinking model)
+    // Gemini 3.x emits thoughtSignature at the Part level, as a sibling of
+    // functionCall (per @google/genai Part type), not nested inside functionCall.
     const firstStream = [
       {
         candidates: [
@@ -513,11 +514,11 @@ describe('GeminiAdapter through AI', () => {
             content: {
               parts: [
                 {
+                  thoughtSignature: thoughtSig,
                   functionCall: {
                     id: 'fc_001',
                     name: 'sum_tool',
                     args: { numbers: [1, 2, 5] },
-                    thoughtSignature: thoughtSig,
                   },
                 },
               ],
@@ -533,7 +534,6 @@ describe('GeminiAdapter through AI', () => {
       },
     ]
 
-    // Second stream: model returns the final answer
     const secondStream = [
       {
         candidates: [
@@ -587,8 +587,92 @@ describe('GeminiAdapter through AI', () => {
     const functionCallPart = modelTurn.parts.find((p: any) => p.functionCall)
     expect(functionCallPart).toBeDefined()
     expect(functionCallPart.functionCall.name).toBe('sum_tool')
-    // The thoughtSignature must be preserved in the model turn's functionCall
-    expect(functionCallPart.functionCall.thoughtSignature).toBe(thoughtSig)
+    // thoughtSignature must be at the Part level, NOT nested in functionCall
+    expect(functionCallPart.thoughtSignature).toBe(thoughtSig)
+    expect(functionCallPart.functionCall.thoughtSignature).toBeUndefined()
+  })
+
+  it('ignores thoughtSignature nested inside functionCall (not part of @google/genai Part type)', async () => {
+    // The @google/genai SDK has never typed thoughtSignature on FunctionCall;
+    // it only exists on Part. A nested value should be ignored.
+    const firstStream = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    id: 'fc_nested',
+                    name: 'sum_tool',
+                    args: { numbers: [3, 4] },
+                    thoughtSignature: 'should-be-ignored',
+                  },
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
+      },
+    ]
+
+    const secondStream = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'The sum is 7.' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 20,
+          candidatesTokenCount: 5,
+          totalTokenCount: 25,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy
+      .mockResolvedValueOnce(createStream(firstStream))
+      .mockResolvedValueOnce(createStream(secondStream))
+
+    const adapter = createTextAdapter()
+
+    const sumTool: Tool = {
+      name: 'sum_tool',
+      description: 'Sums an array of numbers.',
+      execute: async (input: any) => ({
+        result: input.numbers.reduce((a: number, b: number) => a + b, 0),
+      }),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      tools: [sumTool],
+      messages: [{ role: 'user', content: 'What is 3 + 4?' }],
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+
+    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]
+    const modelTurn = secondPayload.contents.find(
+      (c: any) => c.role === 'model',
+    )
+    expect(modelTurn).toBeDefined()
+
+    const functionCallPart = modelTurn.parts.find((p: any) => p.functionCall)
+    expect(functionCallPart).toBeDefined()
+    // No thoughtSignature should be emitted since none was at Part level
+    expect(functionCallPart.thoughtSignature).toBeUndefined()
+    expect(functionCallPart.functionCall.thoughtSignature).toBeUndefined()
   })
 
   it('uses function name (not toolCallId) in functionResponse and preserves the call id', async () => {
@@ -671,15 +755,26 @@ describe('GeminiAdapter through AI', () => {
     expect(funcResponsePart.functionResponse.id).toBe('fc_001')
   })
 
-  it('uses summarize function with models API', async () => {
+  it('routes summarize() through the gemini chat-stream path', async () => {
     const summaryText = 'Short and sweet.'
-    mocks.generateContentSpy.mockResolvedValueOnce({
-      text: summaryText,
-      usageMetadata: {
-        promptTokenCount: 10,
-        candidatesTokenCount: 5,
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: summaryText }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
       },
-    })
+    ]
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream(streamChunks),
+    )
 
     const adapter = createSummarizeAdapter()
     const result = await summarize({
@@ -689,10 +784,13 @@ describe('GeminiAdapter through AI', () => {
       style: 'paragraph',
     })
 
-    expect(mocks.generateContentSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.generateContentSpy.mock.calls[0]
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
     expect(payload.model).toBe('gemini-2.0-flash')
-    expect(payload.config.systemInstruction).toContain('summarizes text')
+    expect(payload.config.systemInstruction).toContain(
+      'professional summarizer',
+    )
+    expect(payload.config.systemInstruction).toContain('paragraph format')
     expect(payload.config.systemInstruction).toContain('123 tokens')
     expect(result.summary).toBe(summaryText)
   })

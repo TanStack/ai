@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { toolDefinition } from '../src/activities/chat/tools/tool-definition'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
+import { EventType } from '../src/types'
 import type { StreamChunk } from '../src/types'
-import { z } from 'zod'
 
-/** Cast a plain object to StreamChunk for test convenience. */
-const sc = (obj: Record<string, unknown>) => obj as unknown as StreamChunk
+/** Identity helper for inline StreamChunk literals — gives TS a target
+ *  type so the literal narrows to the right variant by `type`. */
+const sc = <T extends StreamChunk>(chunk: T): T => chunk
 
 describe('Custom Events Integration', () => {
   it('should emit custom events from tool execution context', async () => {
@@ -67,8 +69,9 @@ describe('Custom Events Integration', () => {
     // Simulate tool call sequence
     processor.processChunk(
       sc({
-        type: 'TOOL_CALL_START',
+        type: EventType.TOOL_CALL_START,
         toolCallId: 'tc-1',
+        toolCallName: 'testTool',
         toolName: 'testTool',
         timestamp: Date.now(),
         index: 0,
@@ -77,7 +80,7 @@ describe('Custom Events Integration', () => {
 
     processor.processChunk(
       sc({
-        type: 'TOOL_CALL_ARGS',
+        type: EventType.TOOL_CALL_ARGS,
         toolCallId: 'tc-1',
         timestamp: Date.now(),
         delta: '{"message": "Hello World"}',
@@ -86,7 +89,7 @@ describe('Custom Events Integration', () => {
 
     processor.processChunk(
       sc({
-        type: 'TOOL_CALL_END',
+        type: EventType.TOOL_CALL_END,
         toolCallId: 'tc-1',
         toolName: 'testTool',
         timestamp: Date.now(),
@@ -103,7 +106,7 @@ describe('Custom Events Integration', () => {
           // This simulates the real behavior where emitCustomEvent creates CUSTOM stream chunks
           processor.processChunk(
             sc({
-              type: 'CUSTOM',
+              type: EventType.CUSTOM,
               name: eventName,
               value: { ...data, toolCallId: 'tc-1' },
               timestamp: Date.now(),
@@ -171,7 +174,7 @@ describe('Custom Events Integration', () => {
     // Emit custom event without toolCallId
     processor.processChunk(
       sc({
-        type: 'CUSTOM',
+        type: EventType.CUSTOM,
         name: 'system:status',
         value: { status: 'ready', version: '1.0.0' },
         timestamp: Date.now(),
@@ -210,7 +213,7 @@ describe('Custom Events Integration', () => {
     // System event: tool-input-available
     processor.processChunk(
       sc({
-        type: 'CUSTOM',
+        type: EventType.CUSTOM,
         name: 'tool-input-available',
         value: {
           toolCallId: 'tc-1',
@@ -224,7 +227,7 @@ describe('Custom Events Integration', () => {
     // System event: approval-requested
     processor.processChunk(
       sc({
-        type: 'CUSTOM',
+        type: EventType.CUSTOM,
         name: 'approval-requested',
         value: {
           toolCallId: 'tc-2',
@@ -239,7 +242,7 @@ describe('Custom Events Integration', () => {
     // Custom event (should be forwarded)
     processor.processChunk(
       sc({
-        type: 'CUSTOM',
+        type: EventType.CUSTOM,
         name: 'user:custom-event',
         value: { message: 'This should be forwarded' },
         timestamp: Date.now(),

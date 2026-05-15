@@ -1,3 +1,4 @@
+import { EventType } from '@tanstack/ai'
 import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
 import type { WorkflowConnectionAdapter } from './workflow-client'
 
@@ -189,17 +190,18 @@ export function normalizeConnectionAdapter(
         // synthesize RUN_FINISHED so request-scoped consumers can complete.
         if (!abortSignal?.aborted && !hasTerminalEvent) {
           push({
-            type: 'RUN_FINISHED',
+            type: EventType.RUN_FINISHED,
             runId: `run-${Date.now()}`,
+            threadId: `thread-${Date.now()}`,
             model: 'connect-wrapper',
             timestamp: Date.now(),
             finishReason: 'stop',
-          } as unknown as StreamChunk)
+          })
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
           push({
-            type: 'RUN_ERROR',
+            type: EventType.RUN_ERROR,
             timestamp: Date.now(),
             message:
               err instanceof Error ? err.message : 'Unknown error in connect()',
@@ -209,7 +211,7 @@ export function normalizeConnectionAdapter(
                   ? err.message
                   : 'Unknown error in connect()',
             },
-          } as unknown as StreamChunk)
+          })
         }
         throw err
       }

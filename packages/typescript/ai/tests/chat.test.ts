@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { chat, createChatOptions } from '../src/activities/chat/index'
+import { EventType } from '../src/types'
 import type { StreamChunk, Tool } from '../src/types'
 import {
   chunk,
@@ -1385,7 +1386,7 @@ describe('chat()', () => {
         iterations: [
           [
             ev.runStarted(),
-            chunk('TOOL_CALL_START', {
+            chunk(EventType.TOOL_CALL_START, {
               toolCallId: 'call_1',
               toolName: 'getInventory',
             }),

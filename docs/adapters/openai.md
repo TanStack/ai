@@ -35,6 +35,50 @@ const stream = chat({
 });
 ```
 
+## Chat Completions API
+
+`@tanstack/ai-openai` ships two text adapters that hit different OpenAI endpoints. `openaiText` (default) calls the Responses API (`/v1/responses`). `openaiChatCompletions` calls the older Chat Completions API (`/v1/chat/completions`).
+
+Pick whichever fits your wire format and feature needs:
+
+| | `openaiText` (Responses) | `openaiChatCompletions` (Chat Completions) |
+|---|---|---|
+| Endpoint | `/v1/responses` | `/v1/chat/completions` |
+| Reasoning summaries | Yes — set `modelOptions.reasoning.summary: 'auto'` to surface reasoning text via `REASONING_*` events | No — reasoning tokens are still consumed but cannot be exposed |
+| Wire-format compatibility | OpenAI-only | Matches the older de-facto industry shape (Grok, Groq, OpenRouter, many local model servers) |
+| Structured output streaming | `text.format: { type: 'json_schema', strict: true }` + `stream: true` | `response_format: { type: 'json_schema', strict: true }` + `stream: true` |
+
+Use `openaiText` when you want reasoning-summary streaming or OpenAI-specific Responses features. Use `openaiChatCompletions` when you're migrating off a Chat-Completions-style provider, share request-building code with other Chat-Completions adapters in your stack, or want the more battle-tested wire format.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiChatCompletions } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiChatCompletions("gpt-5.2"),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+With an explicit API key:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createOpenaiChatCompletions } from "@tanstack/ai-openai";
+
+const adapter = createOpenaiChatCompletions("gpt-5.2", {
+  apiKey: process.env.OPENAI_API_KEY!,
+  // organization, baseURL, headers — all optional
+});
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+Both adapters work identically with [Structured Outputs](../chat/structured-outputs) — including `stream: true` — and accept the same `modelOptions` (temperature, top_p, max_tokens, stop, …). The reasoning section below applies to `openaiText`; `openaiChatCompletions` accepts `modelOptions.reasoning.effort` but cannot stream summary text.
+
 ## Basic Usage - Custom API Key
 
 ```typescript
@@ -288,6 +332,26 @@ Creates an OpenAI chat adapter with an explicit API key.
 - `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** An OpenAI chat adapter instance.
+
+### `openaiChatCompletions(model)`
+
+Creates an OpenAI chat adapter that targets `/v1/chat/completions` instead of the Responses API. See [Chat Completions API](#chat-completions-api) for when to use this over `openaiText`.
+
+**Returns:** An OpenAI chat adapter instance using the Chat Completions wire format.
+
+### `createOpenaiChatCompletions(model, config)`
+
+Creates an OpenAI chat-completions adapter with an explicit API key.
+
+**Parameters:**
+
+- `model` - OpenAI model id (e.g. `"gpt-5.2"`, `"gpt-4o-mini"`)
+- `config.apiKey` - Your OpenAI API key
+- `config.organization?` - Organization ID (optional)
+- `config.baseURL?` - Custom base URL (optional)
+- `config.headers?` - Additional headers (optional)
+
+**Returns:** An OpenAI chat adapter instance using the Chat Completions wire format.
 
 ### `openaiSummarize(config?)`
 

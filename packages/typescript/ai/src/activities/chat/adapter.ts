@@ -54,6 +54,7 @@ export interface StructuredOutputResult<T = unknown> {
  * - TInputModalities: Supported input modalities for this model (already resolved)
  * - TMessageMetadata: Metadata types for content parts (already resolved)
  * - TToolCapabilities: Tuple of tool-kind strings supported by this model, resolved from `supports.tools`
+ * - TToolCallMetadata: Metadata type that round-trips with tool calls (e.g. Gemini's `thoughtSignature`)
  */
 export interface TextAdapter<
   TModel extends string,
@@ -61,6 +62,7 @@ export interface TextAdapter<
   TInputModalities extends ReadonlyArray<Modality>,
   TMessageMetadataByModality extends DefaultMessageMetadataByModality,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TToolCallMetadata = unknown,
 > {
   /** Discriminator for adapter kind */
   readonly kind: 'text'
@@ -77,6 +79,7 @@ export interface TextAdapter<
     inputModalities: TInputModalities
     messageMetadataByModality: TMessageMetadataByModality
     toolCapabilities: TToolCapabilities
+    toolCallMetadata: TToolCallMetadata
   }
 
   /**
@@ -97,13 +100,30 @@ export interface TextAdapter<
   structuredOutput: (
     options: StructuredOutputOptions<TProviderOptions>,
   ) => Promise<StructuredOutputResult<unknown>>
+
+  /**
+   * Stream structured output using the provider's native streaming structured
+   * output API (stream + response_format json_schema in a single request).
+   *
+   * Optional — adapters without native streaming JSON omit this method and the
+   * activity layer synthesizes a stream around the non-streaming
+   * `structuredOutput` call.
+   *
+   * Implementations must emit standard AG-UI lifecycle events (RUN_STARTED,
+   * TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
+   * `CUSTOM` event named `structured-output.complete` whose `value` is
+   * `{ object, raw, reasoning? }`.
+   */
+  structuredOutputStream?: (
+    options: StructuredOutputOptions<TProviderOptions>,
+  ) => AsyncIterable<StreamChunk>
 }
 
 /**
  * A TextAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyTextAdapter = TextAdapter<any, any, any, any, any>
+export type AnyTextAdapter = TextAdapter<any, any, any, any, any, any>
 
 /**
  * Abstract base class for text adapters.
@@ -117,12 +137,14 @@ export abstract class BaseTextAdapter<
   TInputModalities extends ReadonlyArray<Modality>,
   TMessageMetadataByModality extends DefaultMessageMetadataByModality,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TToolCallMetadata = unknown,
 > implements TextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   TMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  TToolCallMetadata
 > {
   readonly kind = 'text' as const
   abstract readonly name: string
@@ -134,6 +156,7 @@ export abstract class BaseTextAdapter<
     inputModalities: TInputModalities
     messageMetadataByModality: TMessageMetadataByModality
     toolCapabilities: TToolCapabilities
+    toolCallMetadata: TToolCallMetadata
   }
 
   protected config: TextAdapterConfig

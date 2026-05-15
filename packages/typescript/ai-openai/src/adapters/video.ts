@@ -1,17 +1,14 @@
+import OpenAI from 'openai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
-import { createOpenAIClient, getOpenAIApiKeyFromEnv } from '../utils/client'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
+import { arrayBufferToBase64 } from '@tanstack/ai-utils'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   toApiSeconds,
   validateVideoSeconds,
   validateVideoSize,
 } from '../video/video-provider-options'
 import type { VideoModel } from 'openai/resources'
-import type { OpenAIVideoModel } from '../model-meta'
-import type {
-  OpenAIVideoModelProviderOptionsByName,
-  OpenAIVideoModelSizeByName,
-  OpenAIVideoProviderOptions,
-} from '../video/video-provider-options'
 import type {
   VideoGenerationOptions,
   VideoJobResult,
@@ -19,7 +16,30 @@ import type {
   VideoUrlResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIVideoModel } from '../model-meta'
+import type {
+  OpenAIVideoModelProviderOptionsByName,
+  OpenAIVideoModelSizeByName,
+  OpenAIVideoProviderOptions,
+} from '../video/video-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
+
+/**
+ * Threshold for emitting a "this download will probably OOM serverless
+ * runtimes" warning. Anything larger than this (in bytes) gets surfaced via
+ * console.warn — workers and small isolates routinely run out of memory once
+ * a downloaded video is base64-encoded.
+ */
+const LARGE_MEDIA_BUFFER_BYTES = 10 * 1024 * 1024
+
+function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
+  if (byteLength <= LARGE_MEDIA_BUFFER_BYTES) return
+  console.warn(
+    `[openai.${source}] downloaded ${(byteLength / 1024 / 1024).toFixed(1)} MiB into memory before base64 encoding. ` +
+      `Workers/serverless runtimes commonly run out of memory above ~10 MiB. ` +
+      `Consider streaming the video through a CDN or your own storage layer instead.`,
+  )
+}
 
 /**
  * Configuration for OpenAI video adapter.
@@ -52,72 +72,53 @@ export class OpenAIVideoAdapter<
 > {
   readonly name = 'openai' as const
 
-  private client: OpenAI_SDK
+  protected client: OpenAI
+  protected clientConfig: OpenAIVideoConfig
 
   constructor(config: OpenAIVideoConfig, model: TModel) {
     super(config, model)
-    this.client = createOpenAIClient(config)
+    this.clientConfig = config
+    this.client = new OpenAI(config)
   }
 
-  /**
-   * Create a new video generation job.
-   *
-   * API: POST /v1/videos
-   * Docs: https://platform.openai.com/docs/api-reference/videos/create
-   *
-   * @experimental Video generation is an experimental feature and may change.
-   *
-   * @example
-   * ```ts
-   * const { jobId } = await adapter.createVideoJob({
-   *   model: 'sora-2',
-   *   prompt: 'A cat chasing a dog in a sunny park',
-   *   size: '1280x720',
-   *   duration: 8  // seconds: 4, 8, or 12
-   * })
-   * ```
-   */
   async createVideoJob(
     options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
   ): Promise<VideoJobResult> {
-    const { model, size, duration, modelOptions, logger } = options
+    const { model, size, duration, modelOptions } = options
 
-    logger.request(
-      `activity=generateVideo provider=openai model=${this.model}`,
-      {
-        provider: 'openai',
-        model: this.model,
-      },
-    )
+    validateVideoSize(model, size)
+    const seconds = duration ?? modelOptions?.seconds
+    validateVideoSeconds(model, seconds)
+
+    const request: OpenAI_SDK.Videos.VideoCreateParams = {
+      model: model as VideoModel,
+      prompt: options.prompt,
+    }
+    if (size) {
+      request.size = size as OpenAI_SDK.Videos.VideoCreateParams['size']
+    } else if (modelOptions?.size) {
+      request.size = modelOptions.size
+    }
+    if (seconds !== undefined) {
+      request.seconds = toApiSeconds(seconds)
+    }
 
     try {
-      // Validate inputs
-      validateVideoSize(model, size)
-      // Duration maps to 'seconds' in the API
-      const seconds = duration ?? modelOptions?.seconds
-      validateVideoSeconds(model, seconds)
-
-      // Build request
-      const request = this.buildRequest(options)
-
-      // POST /v1/videos
-      // Cast to any because the videos API may not be in SDK types yet
-      const client = this.client
-      const response = await client.videos.create(request)
-
-      return {
-        jobId: response.id,
-        model,
-      }
+      options.logger.request(
+        `activity=video.create provider=${this.name} model=${model} size=${request.size ?? 'default'} seconds=${request.seconds ?? 'default'}`,
+        { provider: this.name, model },
+      )
+      const videosClient = this.getVideosClient()
+      const response = await videosClient.create(request)
+      return { jobId: response.id, model }
     } catch (error: any) {
-      logger.errors('openai.createVideoJob fatal', {
-        error,
-        source: 'openai.createVideoJob',
+      options.logger.errors(`${this.name}.createVideoJob fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.createVideoJob failed`),
+        source: `${this.name}.createVideoJob`,
       })
-      // Fallback for when the videos API is not available
       if (error?.message?.includes('videos') || error?.code === 'invalid_api') {
         throw new Error(
-          `Video generation API is not available. The Sora API may require special access. ` +
+          `Video generation API is not available. The API may require special access. ` +
             `Original error: ${error.message}`,
         )
       }
@@ -126,29 +127,32 @@ export class OpenAIVideoAdapter<
   }
 
   /**
-   * Get the current status of a video generation job.
-   *
-   * API: GET /v1/videos/{video_id}
-   * Docs: https://platform.openai.com/docs/api-reference/videos/get
-   *
-   * @experimental Video generation is an experimental feature and may change.
-   *
-   * @example
-   * ```ts
-   * const status = await adapter.getVideoStatus(jobId)
-   * if (status.status === 'completed') {
-   *   console.log('Video is ready!')
-   * } else if (status.status === 'processing') {
-   *   console.log(`Progress: ${status.progress}%`)
-   * }
-   * ```
+   * The video API on the OpenAI SDK is still experimental and shipped on some
+   * SDK versions but not others; access through `videosClient` lets us treat
+   * the path uniformly even when the SDK lacks first-class typings here.
    */
+  private getVideosClient(): {
+    create: (req: Record<string, any>) => Promise<{ id: string }>
+    retrieve: (id: string) => Promise<{
+      id: string
+      status: string
+      progress?: number
+      url?: string
+      expires_at?: number
+      error?: { message?: string }
+    }>
+    downloadContent?: (id: string) => Promise<Response>
+    content?: (id: string) => Promise<unknown>
+    getContent?: (id: string) => Promise<unknown>
+    download?: (id: string) => Promise<unknown>
+  } {
+    return (this.client as { videos: any }).videos
+  }
+
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
     try {
-      // GET /v1/videos/{video_id}
-      const client = this.client
-      const response = await client.videos.retrieve(jobId)
-
+      const videosClient = this.getVideosClient()
+      const response = await videosClient.retrieve(jobId)
       return {
         jobId,
         status: this.mapStatus(response.status),
@@ -157,88 +161,64 @@ export class OpenAIVideoAdapter<
       }
     } catch (error: any) {
       if (error.status === 404) {
-        return {
-          jobId,
-          status: 'failed',
-          error: 'Job not found',
-        }
+        return { jobId, status: 'failed', error: 'Job not found' }
       }
       throw error
     }
   }
 
-  /**
-   * Get the URL to download/view the generated video.
-   *
-   * API: GET /v1/videos/{video_id}/content
-   * Docs: https://platform.openai.com/docs/api-reference/videos/content
-   *
-   * @experimental Video generation is an experimental feature and may change.
-   *
-   * @example
-   * ```ts
-   * const { url, expiresAt } = await adapter.getVideoUrl(jobId)
-   * console.log('Video URL:', url)
-   * console.log('Expires at:', expiresAt)
-   * ```
-   */
   async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
     try {
-      // GET /v1/videos/{video_id}/content
-      // The SDK may not have a .content() method, so we try multiple approaches
-      const client = this.client as any
+      const videosClient = this.getVideosClient()
+
+      // Prefer retrieve() because many openai-compatible backends (and the
+      // aimock test harness) return the URL directly on the video resource
+      // and do not implement a separate /content endpoint.
+      const videoInfo = await videosClient.retrieve(jobId)
+      if (videoInfo.url) {
+        return {
+          jobId,
+          url: videoInfo.url,
+          expiresAt: videoInfo.expires_at
+            ? new Date(videoInfo.expires_at)
+            : undefined,
+        }
+      }
+
+      // SDK download fall-through: try the various possible method names.
+      if (typeof videosClient.downloadContent === 'function') {
+        const contentResponse = await videosClient.downloadContent(jobId)
+        const videoBlob = await contentResponse.blob()
+        const buffer = await videoBlob.arrayBuffer()
+        warnIfLargeMediaBuffer(buffer.byteLength, 'video.downloadContent')
+        const base64 = arrayBufferToBase64(buffer)
+        const mimeType =
+          contentResponse.headers.get('content-type') || 'video/mp4'
+        return {
+          jobId,
+          url: `data:${mimeType};base64,${base64}`,
+          expiresAt: undefined,
+        }
+      }
 
       let response: any
-
-      // Try different possible method names
-      if (typeof client.videos?.content === 'function') {
-        response = await client.videos.content(jobId)
-      } else if (typeof client.videos?.getContent === 'function') {
-        response = await client.videos.getContent(jobId)
-      } else if (typeof client.videos?.download === 'function') {
-        response = await client.videos.download(jobId)
+      if (typeof videosClient.content === 'function') {
+        response = await videosClient.content(jobId)
+      } else if (typeof videosClient.getContent === 'function') {
+        response = await videosClient.getContent(jobId)
+      } else if (typeof videosClient.download === 'function') {
+        response = await videosClient.download(jobId)
       } else {
-        // Fallback: check if retrieve returns the URL directly
-        const videoInfo = await client.videos.retrieve(jobId)
-        if (videoInfo.url) {
-          return {
-            jobId,
-            url: videoInfo.url,
-            expiresAt: videoInfo.expires_at
-              ? new Date(videoInfo.expires_at)
-              : undefined,
-          }
-        }
-
-        // Last resort: The /content endpoint returns raw binary video data, not JSON.
-        // We need to construct a URL that the client can use to fetch the video.
-        // The URL needs to include auth, so we'll create a signed URL or return
-        // a proxy endpoint.
-
-        // For now, return a URL that goes through our API to proxy the request
-        // since the raw endpoint requires auth headers that browsers can't send.
-        // The video element can't add Authorization headers, so we need a workaround.
-
-        // Option 1: Return the direct URL (only works if OpenAI supports query param auth)
-        // Option 2: Return a blob URL after fetching (memory intensive)
-        // Option 3: Return a proxy URL through our server
-
-        // Let's try fetching and returning a data URL for now
-        const baseUrl = this.config.baseUrl || 'https://api.openai.com/v1'
-        const apiKey = this.config.apiKey
+        // Last resort: raw fetch with auth header.
+        const baseUrl = this.clientConfig.baseURL || 'https://api.openai.com/v1'
+        const apiKey = this.clientConfig.apiKey
 
         const contentResponse = await fetch(
           `${baseUrl}/videos/${jobId}/content`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-            },
-          },
+          { method: 'GET', headers: { Authorization: `Bearer ${apiKey}` } },
         )
 
         if (!contentResponse.ok) {
-          // Try to parse error as JSON, but it might be binary
           const contentType = contentResponse.headers.get('content-type')
           if (contentType?.includes('application/json')) {
             const errorData = await contentResponse.json().catch(() => ({}))
@@ -252,26 +232,49 @@ export class OpenAIVideoAdapter<
           )
         }
 
-        // The response is the raw video file - convert to base64 data URL
         const videoBlob = await contentResponse.blob()
         const buffer = await videoBlob.arrayBuffer()
-        const base64 = Buffer.from(buffer).toString('base64')
+        warnIfLargeMediaBuffer(buffer.byteLength, 'video.fetch')
+        const base64 = arrayBufferToBase64(buffer)
         const mimeType =
           contentResponse.headers.get('content-type') || 'video/mp4'
-
         return {
           jobId,
           url: `data:${mimeType};base64,${base64}`,
-          expiresAt: undefined, // Data URLs don't expire
+          expiresAt: undefined,
         }
       }
 
+      // The fall-through SDK methods produce a Blob-ish or fetch-`Response`-ish
+      // object. Read as bytes + wrap in a data URL so callers see a playable
+      // URL instead of an endpoint URL.
+      const fallthroughBlob =
+        typeof response?.blob === 'function'
+          ? await response.blob()
+          : response instanceof Blob
+            ? response
+            : null
+      if (!fallthroughBlob) {
+        throw new Error(
+          `Video content download via SDK fall-through returned an unexpected shape (no blob()).`,
+        )
+      }
+      const fallthroughBuffer = await fallthroughBlob.arrayBuffer()
+      warnIfLargeMediaBuffer(
+        fallthroughBuffer.byteLength,
+        'video.sdkFallthrough',
+      )
+      const fallthroughBase64 = arrayBufferToBase64(fallthroughBuffer)
+      const fallthroughMime =
+        (typeof response?.headers?.get === 'function'
+          ? response.headers.get('content-type')
+          : undefined) ||
+        fallthroughBlob.type ||
+        'video/mp4'
       return {
         jobId,
-        url: response.url,
-        expiresAt: response.expires_at
-          ? new Date(response.expires_at)
-          : undefined,
+        url: `data:${fallthroughMime};base64,${fallthroughBase64}`,
+        expiresAt: undefined,
       }
     } catch (error: any) {
       if (error.status === 404) {
@@ -286,35 +289,7 @@ export class OpenAIVideoAdapter<
     }
   }
 
-  private buildRequest(
-    options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
-  ): OpenAI_SDK.Videos.VideoCreateParams {
-    const { model, prompt, size, duration, modelOptions } = options
-
-    const request: OpenAI_SDK.Videos.VideoCreateParams = {
-      model: model as VideoModel,
-      prompt,
-    }
-
-    // Add size/resolution
-    // Supported: '1280x720', '720x1280', '1792x1024', '1024x1792'
-    if (size) {
-      request.size = size as OpenAI_SDK.Videos.VideoCreateParams['size']
-    } else if (modelOptions?.size) {
-      request.size = modelOptions.size
-    }
-
-    // Add seconds (duration)
-    // Supported: '4', '8', or '12' - yes, the API wants strings
-    const seconds = duration ?? modelOptions?.seconds
-    if (seconds !== undefined) {
-      request.seconds = toApiSeconds(seconds)
-    }
-
-    return request
-  }
-
-  private mapStatus(
+  protected mapStatus(
     apiStatus: string,
   ): 'pending' | 'processing' | 'completed' | 'failed' {
     switch (apiStatus) {

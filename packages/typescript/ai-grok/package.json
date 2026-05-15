@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-grok",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Grok (xAI) adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -44,14 +44,15 @@
     "adapter"
   ],
   "dependencies": {
+    "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/openai-base": "workspace:*",
     "openai": "^6.9.1"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7",
-    "zod": "^4.2.0"
+    "vite": "^7.2.7"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

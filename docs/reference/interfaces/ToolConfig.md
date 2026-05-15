@@ -5,7 +5,7 @@ title: ToolConfig
 
 # Interface: ToolConfig
 
-Defined in: [packages/typescript/ai/src/types.ts:535](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L535)
+Defined in: [packages/typescript/ai/src/types.ts:540](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L540)
 
 ## Indexable
 

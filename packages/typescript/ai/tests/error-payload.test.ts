@@ -34,17 +34,28 @@ describe('toRunErrorPayload', () => {
     )
   })
 
-  it('ignores non-string code fields (returns undefined)', () => {
+  it('coerces numeric code fields to strings', () => {
     expect(toRunErrorPayload({ message: 'x', code: 500 })).toEqual({
       message: 'x',
-      code: undefined,
+      code: '500',
     })
   })
 
-  it('ignores non-string code fields on Error instances too', () => {
-    const err = Object.assign(new Error('numeric code'), { code: 500 })
+  it('coerces numeric code fields on Error instances too', () => {
+    const err = Object.assign(new Error('http 429'), { code: 429 })
     expect(toRunErrorPayload(err)).toEqual({
-      message: 'numeric code',
+      message: 'http 429',
+      code: '429',
+    })
+  })
+
+  it('ignores non-finite or otherwise non-string/non-number codes', () => {
+    expect(toRunErrorPayload({ message: 'nan', code: Number.NaN })).toEqual({
+      message: 'nan',
+      code: undefined,
+    })
+    expect(toRunErrorPayload({ message: 'sym', code: Symbol('x') })).toEqual({
+      message: 'sym',
       code: undefined,
     })
   })
@@ -72,5 +83,50 @@ describe('toRunErrorPayload', () => {
     const payload = toRunErrorPayload(err)
     expect(payload).toEqual({ message: 'leaky', code: undefined })
     expect(payload).not.toHaveProperty('request')
+  })
+
+  describe('abort normalization', () => {
+    it('normalizes DOM AbortError to code: aborted', () => {
+      const err = new Error('The operation was aborted')
+      err.name = 'AbortError'
+      expect(toRunErrorPayload(err)).toEqual({
+        message: 'Request aborted',
+        code: 'aborted',
+      })
+    })
+
+    it('normalizes OpenAI APIUserAbortError', () => {
+      const err = new Error('Request was aborted.')
+      err.name = 'APIUserAbortError'
+      expect(toRunErrorPayload(err)).toEqual({
+        message: 'Request aborted',
+        code: 'aborted',
+      })
+    })
+
+    it('normalizes OpenRouter RequestAbortedError', () => {
+      const err = new Error('Request aborted by client: AbortError: ...')
+      err.name = 'RequestAbortedError'
+      expect(toRunErrorPayload(err)).toEqual({
+        message: 'Request aborted',
+        code: 'aborted',
+      })
+    })
+
+    it('normalizes abort-named plain objects (non-Error throws)', () => {
+      const obj = { name: 'AbortError', message: 'whatever' }
+      expect(toRunErrorPayload(obj)).toEqual({
+        message: 'Request aborted',
+        code: 'aborted',
+      })
+    })
+
+    it('does not normalize errors with similar-looking names', () => {
+      const err = Object.assign(new Error('hi'), { name: 'NotAbortError' })
+      expect(toRunErrorPayload(err)).toEqual({
+        message: 'hi',
+        code: undefined,
+      })
+    })
   })
 })

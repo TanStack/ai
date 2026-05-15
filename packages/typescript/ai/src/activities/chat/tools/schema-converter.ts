@@ -254,6 +254,20 @@ export function convertSchemaToJsonSchema(
     return result as JSONSchema
   }
 
+  // Detect Standard Schema validators (Zod, ArkType, Valibot, …) that don't
+  // expose a `~standard.jsonSchema` converter. These would otherwise fall
+  // through to the JSONSchema pass-through below and ship `{ '~standard': … }`
+  // straight to the LLM provider, producing an opaque downstream error. Fail
+  // fast with actionable guidance instead.
+  if (isStandardSchema(schema)) {
+    throw new Error(
+      'Schema is a Standard Schema validator but does not expose a JSON Schema ' +
+        'converter on `~standard.jsonSchema`. Use Zod v4.2+, ArkType v2.1.28+, ' +
+        'or wrap a Valibot schema with `toStandardJsonSchema()` from ' +
+        '`@valibot/to-json-schema` before passing it as `outputSchema`.',
+    )
+  }
+
   // If it's not a Standard JSON Schema, assume it's already a JSONSchema and pass through
   // Still apply structured output transformation if requested
 

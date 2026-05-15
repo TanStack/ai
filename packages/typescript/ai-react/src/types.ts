@@ -1,4 +1,9 @@
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
+import type {
+  AnyClientTool,
+  InferSchemaType,
+  ModelMessage,
+  SchemaInput,
+} from '@tanstack/ai'
 import type {
   ChatClientOptions,
   ChatClientState,
@@ -10,6 +15,18 @@ import type {
 
 // Re-export types from ai-client
 export type { ChatRequestBody, MultimodalContent, UIMessage }
+
+/**
+ * Recursive partial — every property and every nested array element is optional.
+ * Used to type the in-flight `partial` value the hook exposes while a structured
+ * output stream is still arriving (the JSON has shape but is incomplete).
+ */
+export type DeepPartial<T> =
+  T extends ReadonlyArray<infer U>
+    ? Array<DeepPartial<U>>
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T
 
 /**
  * Options for the useChat hook.
@@ -24,30 +41,71 @@ export type { ChatRequestBody, MultimodalContent, UIMessage }
  * All other callbacks (onResponse, onChunk, onFinish, onError) are
  * passed through to the underlying ChatClient and can be used for side effects.
  *
+ * When `outputSchema` is supplied, the hook returns a typed `partial` (live
+ * progressive object, updated from `TEXT_MESSAGE_CONTENT` deltas via
+ * `parsePartialJSON`) and `final` (validated terminal payload from the
+ * `structured-output.complete` event). The schema is used purely for type
+ * inference on the client — server-side validation still runs against the
+ * schema you pass to `chat({ outputSchema })` on the server route.
+ *
  * Note: Connection and body changes will recreate the ChatClient instance.
  * To update these options, remount the component or use a key prop.
  */
-export type UseChatOptions<TTools extends ReadonlyArray<AnyClientTool> = any> =
-  Omit<
-    ChatClientOptions<TTools>,
-    | 'onMessagesChange'
-    | 'onLoadingChange'
-    | 'onErrorChange'
-    | 'onStatusChange'
-    | 'onSubscriptionChange'
-    | 'onConnectionStatusChange'
-    | 'onSessionGeneratingChange'
-  > & {
-    /**
-     * Opt into mount-time live subscription behavior.
-     * When enabled, the hook subscribes on mount and unsubscribes on unmount.
-     */
-    live?: boolean
-  }
-
-export interface UseChatReturn<
+export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
-> {
+  TSchema extends SchemaInput | undefined = undefined,
+> = Omit<
+  ChatClientOptions<TTools>,
+  | 'onMessagesChange'
+  | 'onLoadingChange'
+  | 'onErrorChange'
+  | 'onStatusChange'
+  | 'onSubscriptionChange'
+  | 'onConnectionStatusChange'
+  | 'onSessionGeneratingChange'
+> & {
+  /**
+   * Opt into mount-time live subscription behavior.
+   * When enabled, the hook subscribes on mount and unsubscribes on unmount.
+   */
+  live?: boolean
+  /**
+   * Standard-schema-compatible schema (Zod, Valibot, ArkType, or a plain JSON
+   * Schema). Used to infer the shape of `partial` and `final` in the return.
+   * The schema is **not** sent to the server — server-side validation runs
+   * against the schema passed to `chat({ outputSchema })` on the server route.
+   */
+  outputSchema?: TSchema
+}
+
+/**
+ * Discriminated return shape: when `outputSchema` is supplied, the hook adds
+ * typed `partial` / `final` fields; when it is omitted (default), the return
+ * is unchanged.
+ */
+export type UseChatReturn<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+> = BaseUseChatReturn<TTools> &
+  (TSchema extends SchemaInput
+    ? {
+        /**
+         * Live, progressively-parsed structured output. Updated from
+         * `TEXT_MESSAGE_CONTENT` deltas via `parsePartialJSON` while the stream
+         * is still arriving, and snapped to the validated payload when
+         * `structured-output.complete` fires. Resets on every new run
+         * (`sendMessage` / `reload`).
+         */
+        partial: DeepPartial<InferSchemaType<TSchema>>
+        /**
+         * Final, schema-validated structured output. `null` until the terminal
+         * `structured-output.complete` event arrives. Resets on every new run.
+         */
+        final: InferSchemaType<TSchema> | null
+      }
+    : Record<never, never>)
+
+interface BaseUseChatReturn<TTools extends ReadonlyArray<AnyClientTool> = any> {
   /**
    * Current messages in the conversation
    */

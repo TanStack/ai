@@ -1,5 +1,3 @@
-import type { FunctionTool } from '../tools/function-tool'
-
 /**
  * Grok Text Provider Options
  *
@@ -52,26 +50,6 @@ export interface GrokTextProviderOptions extends GrokBaseOptions {
 }
 
 /**
- * Internal options interface for validation
- * Used internally by the adapter
- */
-export interface InternalTextProviderOptions extends GrokTextProviderOptions {
-  model: string
-  stream?: boolean
-  tools?: Array<FunctionTool>
-}
-
-/**
  * External provider options (what users pass in)
  */
 export type ExternalTextProviderOptions = GrokTextProviderOptions
-
-/**
- * Validates text provider options
- */
-export function validateTextProviderOptions(
-  _options: InternalTextProviderOptions,
-): void {
-  // Basic validation can be added here if needed
-  // For now, Grok API will handle validation
-}

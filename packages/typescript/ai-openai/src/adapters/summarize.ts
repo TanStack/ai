@@ -1,158 +1,14 @@
-import { BaseSummarizeAdapter } from '@tanstack/ai/adapters'
+import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import { OpenAITextAdapter } from './text'
+import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { OpenAIChatModel } from '../model-meta'
-import type {
-  StreamChunk,
-  SummarizationOptions,
-  SummarizationResult,
-} from '@tanstack/ai'
 import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI summarize adapter
  */
 export interface OpenAISummarizeConfig extends OpenAIClientConfig {}
-
-/**
- * OpenAI-specific provider options for summarization
- */
-export interface OpenAISummarizeProviderOptions {
-  /** Temperature for response generation (0-2) */
-  temperature?: number
-  /** Maximum tokens in the response */
-  maxTokens?: number
-}
-
-/**
- * OpenAI Summarize Adapter
- *
- * A thin wrapper around the text adapter that adds summarization-specific prompting.
- * Delegates all API calls to the OpenAITextAdapter.
- */
-export class OpenAISummarizeAdapter<
-  TModel extends OpenAIChatModel,
-> extends BaseSummarizeAdapter<TModel, OpenAISummarizeProviderOptions> {
-  readonly kind = 'summarize' as const
-  readonly name = 'openai' as const
-
-  private textAdapter: OpenAITextAdapter<TModel>
-
-  constructor(config: OpenAISummarizeConfig, model: TModel) {
-    super({}, model)
-    this.textAdapter = new OpenAITextAdapter(config, model)
-  }
-
-  async summarize(options: SummarizationOptions): Promise<SummarizationResult> {
-    const { logger } = options
-    const systemPrompt = this.buildSummarizationPrompt(options)
-
-    logger.request(`activity=summarize provider=openai`, {
-      provider: 'openai',
-      model: options.model,
-    })
-
-    // Use the text adapter's streaming and collect the result
-    let summary = ''
-    const id = ''
-    let model = options.model
-    let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
-
-    try {
-      for await (const chunk of this.textAdapter.chatStream({
-        model: options.model,
-        messages: [{ role: 'user', content: options.text }],
-        systemPrompts: [systemPrompt],
-        maxTokens: options.maxLength,
-        temperature: 0.3,
-        logger,
-      })) {
-        // AG-UI TEXT_MESSAGE_CONTENT event
-        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-          if (chunk.content) {
-            summary = chunk.content
-          } else {
-            summary += chunk.delta
-          }
-          model = chunk.model || model
-        }
-        // AG-UI RUN_FINISHED event
-        if (chunk.type === 'RUN_FINISHED') {
-          if (chunk.usage) {
-            usage = chunk.usage
-          }
-        }
-      }
-    } catch (error) {
-      logger.errors('openai.summarize fatal', {
-        error,
-        source: 'openai.summarize',
-      })
-      throw error
-    }
-
-    return { id, model, summary, usage }
-  }
-
-  async *summarizeStream(
-    options: SummarizationOptions,
-  ): AsyncIterable<StreamChunk> {
-    const { logger } = options
-    const systemPrompt = this.buildSummarizationPrompt(options)
-
-    logger.request(`activity=summarize provider=openai`, {
-      provider: 'openai',
-      model: options.model,
-      stream: true,
-    })
-
-    try {
-      // Delegate directly to the text adapter's streaming
-      yield* this.textAdapter.chatStream({
-        model: options.model,
-        messages: [{ role: 'user', content: options.text }],
-        systemPrompts: [systemPrompt],
-        maxTokens: options.maxLength,
-        temperature: 0.3,
-        logger,
-      })
-    } catch (error) {
-      logger.errors('openai.summarize fatal', {
-        error,
-        source: 'openai.summarize',
-      })
-      throw error
-    }
-  }
-
-  private buildSummarizationPrompt(options: SummarizationOptions): string {
-    let prompt = 'You are a professional summarizer. '
-
-    switch (options.style) {
-      case 'bullet-points':
-        prompt += 'Provide a summary in bullet point format. '
-        break
-      case 'paragraph':
-        prompt += 'Provide a summary in paragraph format. '
-        break
-      case 'concise':
-        prompt += 'Provide a very concise summary in 1-2 sentences. '
-        break
-      default:
-        prompt += 'Provide a clear and concise summary. '
-    }
-
-    if (options.focus && options.focus.length > 0) {
-      prompt += `Focus on the following aspects: ${options.focus.join(', ')}. `
-    }
-
-    if (options.maxLength) {
-      prompt += `Keep the summary under ${options.maxLength} tokens. `
-    }
-
-    return prompt
-  }
-}
 
 /**
  * Creates an OpenAI summarize adapter with explicit API key.
@@ -172,8 +28,15 @@ export function createOpenaiSummarize<TModel extends OpenAIChatModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
-): OpenAISummarizeAdapter<TModel> {
-  return new OpenAISummarizeAdapter({ apiKey, ...config }, model)
+): ChatStreamSummarizeAdapter<
+  TModel,
+  InferTextProviderOptions<OpenAITextAdapter<TModel>>
+> {
+  return new ChatStreamSummarizeAdapter(
+    new OpenAITextAdapter({ apiKey, ...config }, model),
+    model,
+    'openai',
+  )
 }
 
 /**
@@ -203,7 +66,9 @@ export function createOpenaiSummarize<TModel extends OpenAIChatModel>(
 export function openaiSummarize<TModel extends OpenAIChatModel>(
   model: TModel,
   config?: Omit<OpenAISummarizeConfig, 'apiKey'>,
-): OpenAISummarizeAdapter<TModel> {
-  const apiKey = getOpenAIApiKeyFromEnv()
-  return createOpenaiSummarize(model, apiKey, config)
+): ChatStreamSummarizeAdapter<
+  TModel,
+  InferTextProviderOptions<OpenAITextAdapter<TModel>>
+> {
+  return createOpenaiSummarize(model, getOpenAIApiKeyFromEnv(), config)
 }

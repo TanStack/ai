@@ -1,14 +1,21 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { stripToSpec } from '../src/strip-to-spec-middleware'
+import { EventType } from '../src/types'
 import type { StreamChunk } from '../src/types'
 
-function makeChunk(type: string, fields: Record<string, unknown>): StreamChunk {
-  return { type, timestamp: Date.now(), ...fields } as unknown as StreamChunk
+function makeChunk<T extends StreamChunk['type']>(
+  type: T,
+  fields: Record<string, unknown>,
+): Extract<StreamChunk, { type: T }> {
+  return { type, timestamp: Date.now(), ...fields } as Extract<
+    StreamChunk,
+    { type: T }
+  >
 }
 
 describe('stripToSpec', () => {
   it('strips deprecated nested error from RUN_ERROR, keeps flat message/code', () => {
-    const chunk = makeChunk('RUN_ERROR', {
+    const chunk = makeChunk(EventType.RUN_ERROR, {
       message: 'Something went wrong',
       code: 'INTERNAL_ERROR',
       error: { message: 'Something went wrong' },
@@ -22,12 +29,12 @@ describe('stripToSpec', () => {
   })
 
   it('passes through all other events unchanged', () => {
-    const chunk = makeChunk('TOOL_CALL_START', {
+    const chunk = makeChunk(EventType.TOOL_CALL_START, {
       toolCallId: 'tc-1',
       toolCallName: 'getTodos',
       toolName: 'getTodos',
       index: 0,
-      providerMetadata: { foo: 'bar' },
+      metadata: { foo: 'bar' },
       model: 'gpt-4o',
     })
     const result = stripToSpec(chunk)
@@ -35,7 +42,7 @@ describe('stripToSpec', () => {
   })
 
   it('keeps model, content, finishReason, usage, result, etc.', () => {
-    const chunk = makeChunk('RUN_FINISHED', {
+    const chunk = makeChunk(EventType.RUN_FINISHED, {
       runId: 'run-1',
       threadId: 'thread-1',
       model: 'gpt-4o',
@@ -49,7 +56,7 @@ describe('stripToSpec', () => {
   })
 
   it('keeps toolName, stepId, and other deprecated aliases (passthrough)', () => {
-    const chunk = makeChunk('TOOL_CALL_END', {
+    const chunk = makeChunk(EventType.TOOL_CALL_END, {
       toolCallId: 'tc-1',
       toolCallName: 'getTodos',
       toolName: 'getTodos',

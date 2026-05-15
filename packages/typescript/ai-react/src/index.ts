@@ -1,6 +1,7 @@
 export { useChat } from './use-chat'
 export { useRealtimeChat } from './use-realtime-chat'
 export type {
+  DeepPartial,
   UseChatOptions,
   UseChatReturn,
   UIMessage,

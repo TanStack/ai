@@ -77,7 +77,10 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   }
 
   private buildInput(
-    options: ImageGenerationOptions<FalImageProviderOptions<TModel>, string>,
+    options: ImageGenerationOptions<
+      FalImageProviderOptions<TModel>,
+      FalModelImageSize<TModel>
+    >,
   ): FalModelInput<TModel> {
     const sizeParams = mapSizeToFalFormat(options.size)
     const input = {

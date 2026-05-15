@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { chat } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ChatRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterText } from '../src/adapters/text'
@@ -10,12 +10,19 @@ import type { StreamChunk, Tool } from '@tanstack/ai'
 const testLogger = resolveDebugOption(false)
 // Declare mockSend at module level
 let mockSend: any
+// Captures the most recent OpenRouter SDK constructor config so tests can
+// assert that app-attribution headers (httpReferer, appTitle, etc.) actually
+// reach the SDK rather than being silently dropped by the adapter.
+let lastOpenRouterConfig: any
 
 // Mock the SDK with a class defined inline
 // eslint-disable-next-line @typescript-eslint/require-await
 vi.mock('@openrouter/sdk', async () => {
   return {
     OpenRouter: class {
+      constructor(config?: unknown) {
+        lastOpenRouterConfig = config
+      }
       chat = {
         send: (...args: Array<unknown>) => mockSend(...args),
       }
@@ -372,6 +379,52 @@ describe('OpenRouter adapter option mapping', () => {
       type: 'image_url',
       imageUrl: { url: 'https://example.com/image.jpg' },
     })
+  })
+
+  it('defaults base64 image data URIs to application/octet-stream when mimeType is missing', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', content: 'see image' },
+            {
+              type: 'image',
+              // The TS type requires `mimeType` on data sources, but at
+              // runtime a JS caller (or a cast) can still elide it. Cast
+              // to bypass the type check so the adapter's defensive
+              // default — `application/octet-stream` — is exercised; the
+              // alternative is a literal `data:undefined;base64,...` URI
+              // that the upstream rejects.
+              source: { type: 'data', value: 'aGVsbG8=' } as any,
+            },
+          ],
+        },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    const imagePart = params.messages[0].content.find(
+      (p: any) => p.type === 'image_url',
+    )
+    expect(imagePart).toBeDefined()
+    expect(imagePart.imageUrl.url).toBe(
+      'data:application/octet-stream;base64,aGVsbG8=',
+    )
+    expect(imagePart.imageUrl.url).not.toContain('undefined')
   })
 
   it('yields error chunk on SDK error', async () => {
@@ -789,6 +842,41 @@ describe('OpenRouter AG-UI event emission', () => {
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
       expect(runErrorChunk.error?.message).toBe('Rate limit exceeded')
+      // Provider error codes arrive as numbers (429, 500, etc.). The chunk
+      // adapter passes the raw value through and `toRunErrorPayload` coerces
+      // finite numbers via `String(...)`.
+      expect(runErrorChunk.error?.code).toBe('429')
+    }
+  })
+
+  it('drops object-shaped error.code rather than shipping "[object Object]"', async () => {
+    // A misbehaving upstream sending an object as `error.code` previously
+    // surfaced as `code: "[object Object]"` in RUN_ERROR because the chunk
+    // adapter pre-stringified anything non-null. The current code path passes
+    // the raw value through; `toRunErrorPayload`'s typeof gate drops it.
+    const streamChunks = [
+      {
+        id: 'chatcmpl-bad',
+        model: 'openai/gpt-4o-mini',
+        choices: [] as Array<unknown>,
+        error: { message: 'weird', code: { nested: 'oops' } },
+      },
+    ]
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+    const runErr = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runErr).toBeDefined()
+    if (runErr?.type === 'RUN_ERROR') {
+      expect(runErr.error?.message).toBe('weird')
+      expect(runErr.error?.code).toBeUndefined()
     }
   })
 
@@ -1151,6 +1239,9 @@ describe('OpenRouter structured output', () => {
 
     const adapter = createAdapter()
 
+    // The shared base re-throws the underlying error rather than wrapping it
+    // with a "Structured output generation failed:" prefix — the prefix only
+    // existed in the pre-migration OpenRouter adapter.
     await expect(
       adapter.structuredOutput({
         chatOptions: {
@@ -1160,10 +1251,10 @@ describe('OpenRouter structured output', () => {
         },
         outputSchema: { type: 'object' },
       }),
-    ).rejects.toThrow('Structured output generation failed: Server error')
+    ).rejects.toThrow('Server error')
   })
 
-  it('handles empty content gracefully', async () => {
+  it('throws a clear "no content" error when the response is empty', async () => {
     const nonStreamResponse = {
       choices: [
         {
@@ -1177,6 +1268,9 @@ describe('OpenRouter structured output', () => {
     setupMockSdkClient([], nonStreamResponse)
     const adapter = createAdapter()
 
+    // Empty content must surface as a distinct error so the actual failure
+    // mode (the model returned no content) is visible in logs rather than
+    // being masked by a misleading JSON-parse error on an empty string.
     await expect(
       adapter.structuredOutput({
         chatOptions: {
@@ -1186,7 +1280,7 @@ describe('OpenRouter structured output', () => {
         },
         outputSchema: { type: 'object' },
       }),
-    ).rejects.toThrow('Structured output response contained no content')
+    ).rejects.toThrow('response contained no content')
   })
 })
 
@@ -1662,5 +1756,479 @@ describe('OpenRouter STEP event consistency', () => {
 
     expect(stepStarted).toHaveLength(1)
     expect(stepFinished).toHaveLength(1)
+  })
+
+  it('emits the spec REASONING_* lifecycle alongside the legacy STEP_* events', async () => {
+    // The base now exposes both the legacy STEP_STARTED/STEP_FINISHED pair
+    // (kept for backwards compatibility with consumers built against the
+    // pre-spec stream) AND the spec REASONING_START / REASONING_MESSAGE_* /
+    // REASONING_END events. Dropping any of the REASONING_* events would
+    // silently break consumers that migrated to the new shape.
+    const streamChunks = [
+      {
+        id: 'r-1',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: {
+              reasoningDetails: [
+                { type: 'reasoning.text', text: 'Thinking...' },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'r-1',
+        model: 'openai/o1-preview',
+        choices: [
+          {
+            delta: {
+              reasoningDetails: [{ type: 'reasoning.text', text: ' done.' }],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'r-1',
+        model: 'openai/o1-preview',
+        choices: [{ delta: { content: 'Final answer.' }, finishReason: null }],
+      },
+      {
+        id: 'r-1',
+        model: 'openai/o1-preview',
+        choices: [{ delta: {}, finishReason: 'stop' }],
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/o1-preview',
+      messages: [{ role: 'user', content: 'q' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+    const types = chunks.map((c) => c.type)
+    const reasoningStart = types.indexOf(EventType.REASONING_START)
+    const reasoningMessageStart = types.indexOf(
+      EventType.REASONING_MESSAGE_START,
+    )
+    const reasoningMessageContent = types.indexOf(
+      EventType.REASONING_MESSAGE_CONTENT,
+    )
+    const reasoningMessageEnd = types.indexOf(EventType.REASONING_MESSAGE_END)
+    const reasoningEnd = types.indexOf(EventType.REASONING_END)
+    expect(reasoningStart).toBeGreaterThanOrEqual(0)
+    expect(reasoningMessageStart).toBeGreaterThan(reasoningStart)
+    expect(reasoningMessageContent).toBeGreaterThan(reasoningMessageStart)
+    expect(reasoningMessageEnd).toBeGreaterThan(reasoningMessageContent)
+    expect(reasoningEnd).toBeGreaterThan(reasoningMessageEnd)
+
+    // Joining REASONING_MESSAGE_CONTENT deltas reproduces the full reasoning
+    // text — the migration leaves the new-spec event shape semantically
+    // equivalent to the legacy STEP_FINISHED accumulator without losing data.
+    const reasoningDeltas = chunks
+      .filter(
+        (c): c is Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }> =>
+          c.type === 'REASONING_MESSAGE_CONTENT',
+      )
+      .map((c) => c.delta)
+      .join('')
+    expect(reasoningDeltas).toBe('Thinking... done.')
+  })
+})
+
+describe('OpenRouter SDK constructor wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    lastOpenRouterConfig = undefined
+  })
+
+  it('forwards app-attribution headers (httpReferer, appTitle) to the SDK constructor', () => {
+    void createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      httpReferer: 'https://app.example.com',
+      appTitle: 'TestApp',
+    } as any)
+    expect(lastOpenRouterConfig).toBeDefined()
+    expect(lastOpenRouterConfig.apiKey).toBe('test-key')
+    expect(lastOpenRouterConfig.httpReferer).toBe('https://app.example.com')
+    expect(lastOpenRouterConfig.appTitle).toBe('TestApp')
+  })
+
+  it('forwards serverURL overrides to the SDK constructor', () => {
+    void createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      serverURL: 'https://custom.example.com/api/v1',
+    } as any)
+    expect(lastOpenRouterConfig.serverURL).toBe(
+      'https://custom.example.com/api/v1',
+    )
+  })
+})
+
+describe('OpenRouter stream_options conversion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('converts include_usage to includeUsage so the SDK preserves it', async () => {
+    const streamChunks = [
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      },
+    ]
+    setupMockSdkClient(streamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    // The SDK's outbound Zod schema strips unknown keys. Without the
+    // include_usage → includeUsage rename, the camelCase key would survive
+    // here but the wire-format serialisation would drop it entirely.
+    expect(params.streamOptions).toBeDefined()
+    expect(params.streamOptions.includeUsage).toBe(true)
+    expect(params.streamOptions).not.toHaveProperty('include_usage')
+
+    const serialized = ChatRequest$outboundSchema.parse(params)
+    expect((serialized as any).stream_options).toEqual({ include_usage: true })
+  })
+
+  it('propagates the abort signal to the SDK call', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+    const controller = new AbortController()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+      request: { signal: controller.signal } as any,
+    })) {
+      // consume
+    }
+
+    // The second argument to the SDK call must carry the signal so
+    // user-initiated aborts actually reach the SDK rather than letting the
+    // request continue burning tokens silently.
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options.signal).toBe(controller.signal)
+  })
+
+  it('forwards caller-supplied request headers to the SDK call', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+    const headers = {
+      'X-Trace-Id': 'trace-123',
+      'X-End-User': 'user-abc',
+    }
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+      request: { headers } as any,
+    })) {
+      // consume
+    }
+
+    // Custom tracing / end-user identifiers passed via options.request.headers
+    // must reach the SDK — otherwise observability tags are silently dropped
+    // only for OpenRouter while other providers preserve them.
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options.headers).toEqual(headers)
+  })
+
+  it('maps RequestAbortedError from the SDK to RUN_ERROR with code: aborted', async () => {
+    const abortErr = Object.assign(new Error('Request aborted by client'), {
+      name: 'RequestAbortedError',
+    })
+    mockSend = vi.fn().mockRejectedValueOnce(abortErr)
+    const adapter = createAdapter()
+    const chunks: Array<StreamChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runErr = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runErr).toBeDefined()
+    if (runErr?.type === 'RUN_ERROR') {
+      expect(runErr.error?.code).toBe('aborted')
+      expect(runErr.error?.message).toBe('Request aborted')
+    }
+  })
+})
+
+describe('OpenRouter convertMessage fail-loud guards', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('surfaces empty user-message guard as RUN_ERROR (no paid request)', async () => {
+    setupMockSdkClient([])
+    const adapter = createAdapter()
+
+    // mapOptionsToRequest runs inside chatStream's try block, so the
+    // fail-loud guard surfaces as a RUN_ERROR event instead of an iterator
+    // throw — uniform error contract for callers, and we still never make a
+    // paid request with an empty user message.
+    const events: Array<StreamChunk> = []
+    for await (const evt of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: '' }],
+      logger: testLogger,
+    })) {
+      events.push(evt)
+    }
+    const runError = events.find(
+      (e): e is Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> =>
+        e.type === EventType.RUN_ERROR,
+    )
+    expect(runError).toBeDefined()
+    expect(runError!.message).toMatch(/empty text content/i)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('surfaces unsupported content-part guard as RUN_ERROR (no paid request)', async () => {
+    setupMockSdkClient([])
+    const adapter = createAdapter()
+
+    const events: Array<StreamChunk> = []
+    for await (const evt of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'mystery-type' as any, content: 'x' } as any],
+        },
+      ],
+      logger: testLogger,
+    })) {
+      events.push(evt)
+    }
+    const runError = events.find(
+      (e): e is Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> =>
+        e.type === EventType.RUN_ERROR,
+    )
+    expect(runError).toBeDefined()
+    expect(runError!.message).toMatch(/unsupported content part/i)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('stringifies object-shaped assistant toolCalls.function.arguments', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                // Object args from a prior parsed turn — SDK expects string.
+                arguments: { location: 'Berlin' } as any,
+              },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '{"temp":72}' },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const assistantMsg = rawParams.chatRequest.messages.find(
+      (m: any) => m.role === 'assistant',
+    )
+    expect(assistantMsg).toBeDefined()
+    const args = assistantMsg.toolCalls[0].function.arguments
+    expect(typeof args).toBe('string')
+    expect(JSON.parse(args)).toEqual({ location: 'Berlin' })
+  })
+
+  it('extracts text from array-shaped assistant content instead of JSON-stringifying parts', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        { role: 'user', content: 'first' },
+        {
+          role: 'assistant',
+          // Multi-part assistant content from a prior turn. The base extracts
+          // joined text; the OpenRouter override must do the same instead of
+          // JSON-stringifying the parts into the next-turn prompt.
+          content: [
+            { type: 'text', content: 'hello ' },
+            { type: 'text', content: 'world' },
+          ],
+        },
+        { role: 'user', content: 'second' },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const assistantMsg = rawParams.chatRequest.messages.find(
+      (m: any) => m.role === 'assistant',
+    )
+    expect(assistantMsg).toBeDefined()
+    expect(assistantMsg.content).toBe('hello world')
+  })
+
+  it('extracts text from array-shaped tool message content instead of JSON-stringifying parts', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          toolCallId: 'call_1',
+          // Structured tool result content. The adapter must extract the
+          // text rather than JSON-stringifying the parts; otherwise the
+          // model would see the literal `[{"type":"text","content":"..."}]`
+          // shape on its next turn instead of the actual tool output.
+          content: [
+            { type: 'text', content: '{"temp":' },
+            { type: 'text', content: '72}' },
+          ],
+        },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const toolMsg = rawParams.chatRequest.messages.find(
+      (m: any) => m.role === 'tool',
+    )
+    expect(toolMsg).toBeDefined()
+    expect(toolMsg.content).toBe('{"temp":72}')
+    expect(toolMsg.content).not.toContain('"type":"text"')
+  })
+
+  it('emits content: null (not undefined) for assistant messages with only tool calls', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '{"temp":72}' },
+      ],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const assistantMsg = rawParams.chatRequest.messages.find(
+      (m: any) => m.role === 'assistant',
+    )
+    expect(assistantMsg).toBeDefined()
+    // Strictly null — the OpenAI Chat Completions contract documents `null`
+    // for tool-call-only assistant messages, and the SDK's Zod schema may
+    // strip `undefined` entirely.
+    expect(assistantMsg.content).toBeNull()
   })
 })
