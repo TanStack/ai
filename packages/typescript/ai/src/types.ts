@@ -1,4 +1,7 @@
-import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
+import type {
+  StandardJSONSchemaV1,
+  StandardSchemaV1,
+} from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type {
   BaseEvent as AGUIBaseEvent,
@@ -91,25 +94,42 @@ export interface JSONSchema {
 }
 
 /**
- * Union type for schema input - can be any Standard JSON Schema compliant schema or a plain JSONSchema object.
+ * Union type for schema input - can be any Standard Schema compliant validator,
+ * any Standard JSON Schema compliant schema, or a plain JSONSchema object.
  *
- * Standard JSON Schema compliant libraries include:
+ * Standard JSON Schema compliant libraries (carry the JSON-schema converter):
  * - Zod v4.2+ (natively supports StandardJSONSchemaV1)
  * - ArkType v2.1.28+ (natively supports StandardJSONSchemaV1)
  * - Valibot v1.2+ (via `toStandardJsonSchema()` from `@valibot/to-json-schema`)
  *
+ * StandardSchemaV1 covers libraries whose published types only expose the
+ * validator surface — Zod's core `$ZodType['~standard']` is currently typed
+ * as `StandardSchemaV1.Props` even though the runtime attaches the
+ * `jsonSchema` converter, so this branch is what makes `InferSchemaType`
+ * recover the inferred type for callers using `z.ZodType<T>`.
+ *
  * @see https://standardschema.dev/json-schema
  */
 
-export type SchemaInput = StandardJSONSchemaV1<any, any> | JSONSchema
+export type SchemaInput =
+  | StandardJSONSchemaV1<any, any>
+  | StandardSchemaV1<any, any>
+  | JSONSchema
 
 /**
  * Infer the TypeScript type from a schema.
  * For Standard JSON Schema compliant schemas, extracts the input type.
- * For plain JSONSchema, returns `any` since we can't infer types from JSON Schema at compile time.
+ * For Standard Schema validators (e.g. Zod's `~standard` surface), extracts
+ * the input type from the `StandardSchemaV1` shape.
+ * For plain JSONSchema, returns `unknown` since we can't infer types from
+ * JSON Schema at compile time.
  */
 export type InferSchemaType<T> =
-  T extends StandardJSONSchemaV1<infer TInput, unknown> ? TInput : unknown
+  T extends StandardJSONSchemaV1<infer TInput, unknown>
+    ? TInput
+    : T extends StandardSchemaV1<infer TInput, unknown>
+      ? TInput
+      : unknown
 
 export interface ToolCall<TMetadata = unknown> {
   id: string

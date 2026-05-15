@@ -7,9 +7,14 @@
  */
 
 import { describe, expectTypeOf, it } from 'vitest'
+import { z } from 'zod'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { TextActivityResult } from '../src/activities/chat'
-import type { StreamChunk, StructuredOutputStream } from '../src/types'
+import type {
+  InferSchemaType,
+  StreamChunk,
+  StructuredOutputStream,
+} from '../src/types'
 
 type Person = { name: string }
 
@@ -37,6 +42,39 @@ describe('chat() return type', () => {
       // is false, so the conditional falls through to `Promise<T>`.
       expectTypeOf<TextActivityResult<PersonSchema>>().toEqualTypeOf<
         Promise<Person>
+      >()
+    })
+  })
+
+  describe('with Zod outputSchema (regression guard for #562)', () => {
+    // A real Zod schema — the failure mode #562 describes is that Zod's
+    // `~standard` is typed as `StandardSchemaV1.Props` (no `jsonSchema`
+    // converter), so the JSONSchema-only branch of `InferSchemaType` falls
+    // through and the result type collapses to `unknown`. Pinning these
+    // expectations against `typeof zodSchema` is what would have caught it.
+    const zodSchema = z.object({ greeting: z.string() })
+    type ZodSchema = typeof zodSchema
+    type ZodPerson = { greeting: string }
+
+    it('InferSchemaType recovers the Zod input shape', () => {
+      expectTypeOf<InferSchemaType<ZodSchema>>().toEqualTypeOf<ZodPerson>()
+    })
+
+    it('stream: false → Promise<T>', () => {
+      expectTypeOf<TextActivityResult<ZodSchema, false>>().toEqualTypeOf<
+        Promise<ZodPerson>
+      >()
+    })
+
+    it('stream: true → StructuredOutputStream<T>', () => {
+      expectTypeOf<TextActivityResult<ZodSchema, true>>().toEqualTypeOf<
+        StructuredOutputStream<ZodPerson>
+      >()
+    })
+
+    it('default stream (boolean) → Promise<T>', () => {
+      expectTypeOf<TextActivityResult<ZodSchema>>().toEqualTypeOf<
+        Promise<ZodPerson>
       >()
     })
   })
