@@ -263,6 +263,132 @@ describe('engine durability — resume after restart (replay)', () => {
     expect(finished.output.result).toBe('ONE')
   })
 
+  it('emits workflow_version_mismatch when the workflow source changed', async () => {
+    // Two workflows that share name + input/output shape but differ in
+    // body. We start a run with v1, drop the live handle (forcing the
+    // resume to take the replay path), then resume against v2.
+    const echo = defineAgent({
+      name: 'echo',
+      input: z.object({ msg: z.string() }),
+      output: z.object({ echoed: z.string() }),
+      run: async ({ input }) => ({ echoed: input.msg.toUpperCase() }),
+    })
+
+    const v1 = defineWorkflow({
+      name: 'drifting-wf',
+      input: z.object({ msg: z.string() }),
+      output: z.object({ result: z.string() }),
+      state: z.object({}).default({}),
+      agents: { echo },
+      run: async function* ({ input, agents }) {
+        const d = yield* approve({ title: 'go?' })
+        if (!d.approved) return { result: 'denied' }
+        const r = yield* agents.echo({ msg: input.msg })
+        return { result: r.echoed }
+      },
+    })
+
+    const v2 = defineWorkflow({
+      name: 'drifting-wf',
+      input: z.object({ msg: z.string() }),
+      output: z.object({ result: z.string() }),
+      state: z.object({}).default({}),
+      agents: { echo },
+      // Body differs — different fingerprint.
+      run: async function* ({ input, agents }) {
+        const d = yield* approve({ title: 'go?' })
+        if (!d.approved) return { result: 'rejected' } // changed text
+        const r = yield* agents.echo({ msg: input.msg })
+        return { result: `[v2] ${r.echoed}` }
+      },
+    })
+
+    const store = inMemoryRunStore()
+    const phase1 = await collect(
+      runWorkflow({
+        workflow: v1 as any,
+        input: { msg: 'hi' },
+        runStore: store,
+      }),
+    )
+    const runId = findRunId(phase1)
+
+    // Force replay path.
+    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
+      _id,
+    ) => undefined
+
+    const phase2 = await collect(
+      runWorkflow({
+        workflow: v2 as any,
+        runId,
+        approval: { approvalId: 'a1', approved: true },
+        runStore: store,
+      }),
+    )
+
+    const errEvent = phase2.find((e) => e.type === 'RUN_ERROR') as {
+      code?: string
+      message?: string
+    }
+    expect(errEvent?.code).toBe('workflow_version_mismatch')
+    expect(errEvent?.message).toContain('Workflow source changed')
+
+    // No RUN_FINISHED should fire — we refused to drive a generator
+    // against a log whose positional indices might not match.
+    expect(phase2.map((e) => e.type)).not.toContain('RUN_FINISHED')
+  })
+
+  it('allows resume when the workflow source is unchanged', async () => {
+    // Sanity: the fingerprint check should NOT fire false positives
+    // when the same definition is used across phases.
+    const echo = defineAgent({
+      name: 'echo',
+      input: z.object({ msg: z.string() }),
+      output: z.object({ echoed: z.string() }),
+      run: async ({ input }) => ({ echoed: input.msg.toUpperCase() }),
+    })
+
+    const wf = defineWorkflow({
+      name: 'stable-wf',
+      input: z.object({ msg: z.string() }),
+      output: z.object({ result: z.string() }),
+      state: z.object({}).default({}),
+      agents: { echo },
+      run: async function* ({ input, agents }) {
+        const d = yield* approve({ title: 'go?' })
+        if (!d.approved) return { result: 'denied' }
+        const r = yield* agents.echo({ msg: input.msg })
+        return { result: r.echoed }
+      },
+    })
+
+    const store = inMemoryRunStore()
+    const phase1 = await collect(
+      runWorkflow({
+        workflow: wf as any,
+        input: { msg: 'hi' },
+        runStore: store,
+      }),
+    )
+    const runId = findRunId(phase1)
+    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
+      _id,
+    ) => undefined
+
+    const phase2 = await collect(
+      runWorkflow({
+        workflow: wf as any,
+        runId,
+        approval: { approvalId: 'a1', approved: true },
+        runStore: store,
+      }),
+    )
+
+    expect(phase2.map((e) => e.type)).toContain('RUN_FINISHED')
+    expect(phase2.find((e) => e.type === 'RUN_ERROR')).toBeUndefined()
+  })
+
   it('emits run_lost when neither live handle nor persisted state exists', async () => {
     const wf = defineWorkflow({
       name: 'never-existed',

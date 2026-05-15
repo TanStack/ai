@@ -176,6 +176,16 @@ export interface RunState<
   runId: string
   status: RunStatus
   workflowName: string
+  /**
+   * Stable hash of the workflow's source (definition + agents). Computed
+   * once at run start, persisted with state, and compared on every
+   * replay-from-store resume. A mismatch means the deployed workflow's
+   * code drifted since the run was started — the engine refuses resume
+   * with `RUN_ERROR { code: 'workflow_version_mismatch' }` rather than
+   * blindly driving a fresh generator through a log whose positional
+   * indices may not line up.
+   */
+  fingerprint?: string
   input: TInput
   state: TState
   output?: TOutput

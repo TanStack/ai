@@ -1,5 +1,6 @@
 import { bindAgents } from '../primitives/bind-agents'
 import { diffState, snapshotState } from './state-diff'
+import { fingerprintWorkflow } from './fingerprint'
 import {
   approvalRequestedEvent,
   runErrorEvent,
@@ -148,6 +149,7 @@ async function* startRun(
     runId,
     status: 'running',
     workflowName: options.workflow.name,
+    fingerprint: fingerprintWorkflow(options.workflow),
     input: options.input,
     state,
     createdAt: Date.now(),
@@ -242,6 +244,25 @@ async function* resumeRun(
       runId,
       message: `Run ${runId} not found (expired or never existed)`,
       code: 'run_lost',
+    })
+    return
+  }
+
+  // Workflow source fingerprint guard: if the deployed code drifted
+  // since this run was started, refuse resume with a clear error. The
+  // operator's recovery options are drain-then-deploy (refuse new runs
+  // until in-flight ones finish) or, for irrecoverable runs, mark the
+  // run errored manually. A future `patched()` escape hatch (Temporal
+  // style) is documented as a v2 follow-up but not implemented here.
+  const currentFingerprint = fingerprintWorkflow(options.workflow)
+  if (
+    persistedRunState.fingerprint &&
+    persistedRunState.fingerprint !== currentFingerprint
+  ) {
+    yield runErrorEvent({
+      runId,
+      message: `Workflow source changed since run ${runId} was started (fingerprint ${persistedRunState.fingerprint} -> ${currentFingerprint}). Refusing resume.`,
+      code: 'workflow_version_mismatch',
     })
     return
   }
