@@ -165,6 +165,23 @@
       ]
     },
     {
+      "label": "Memory",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "memory/overview"
+        },
+        {
+          "label": "Quickstart",
+          "to": "memory/quickstart"
+        },
+        {
+          "label": "Custom Adapter",
+          "to": "memory/custom-adapter"
+        }
+      ]
+    },
+    {
       "label": "Advanced",
       "children": [
         {

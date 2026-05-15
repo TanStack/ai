@@ -19,7 +19,6 @@ const config = defineConfig({
         'tests/',
         '**/*.test.ts',
         '**/*.config.ts',
-        '**/types.ts',
       ],
       include: ['src/**/*.ts'],
     },
@@ -29,14 +28,7 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: [
-      './src/index.ts',
-      './src/activities/index.ts',
-      './src/middlewares/index.ts',
-      './src/middlewares/otel.ts',
-      './src/memory/index.ts',
-      './src/adapter-internals.ts',
-    ],
+    entry: ['./src/index.ts'],
     srcDir: './src',
     cjs: false,
   }),

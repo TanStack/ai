@@ -37,6 +37,9 @@
     "packages/typescript/ai-client": {
       "ignoreDependencies": ["@standard-schema/spec"]
     },
+    "packages/typescript/ai-memory": {
+      "ignoreDependencies": ["ioredis", "redis"]
+    },
     "packages/typescript/ai-react-ui": {
       "ignoreDependencies": ["react-dom"]
     },

@@ -619,6 +619,68 @@ export interface VideoUsageEvent extends BaseEventContext {
   usage: TokenUsage
 }
 
+// ---------------------------------------------------------------------------
+// Memory events
+// ---------------------------------------------------------------------------
+
+export type MemoryScopeLite = {
+  tenantId?: string
+  userId?: string
+  sessionId?: string
+  threadId?: string
+  namespace?: string
+}
+
+export type MemoryKindLite =
+  | 'message'
+  | 'summary'
+  | 'fact'
+  | 'preference'
+  | 'tool-result'
+
+export type MemoryRoleLite = 'user' | 'assistant' | 'system' | 'tool'
+
+export interface MemoryRetrieveStartedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  query: string
+  topK: number
+  minScore: number
+  embedderUsed: boolean
+}
+
+export interface MemoryRetrieveCompletedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  hits: Array<{
+    id: string
+    kind: MemoryKindLite
+    score: number
+    preview: string
+  }>
+  durationMs: number
+}
+
+export interface MemoryPersistStartedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  records: Array<{
+    id: string
+    kind: MemoryKindLite
+    role?: MemoryRoleLite
+    preview: string
+  }>
+}
+
+export interface MemoryPersistCompletedEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  recordIds: Array<string>
+  durationMs: number
+}
+
+export interface MemoryErrorEvent extends BaseEventContext {
+  scope: MemoryScopeLite
+  phase: 'retrieve' | 'persist' | 'extract'
+  error: { name: string; message: string }
+}
+
 // ===========================
 // Client Events
 // ===========================
@@ -734,6 +796,13 @@ export interface AIDevtoolsEventMap {
   'client:messages:cleared': ClientMessagesClearedEvent
   'client:reloaded': ClientReloadedEvent
   'client:stopped': ClientStoppedEvent
+
+  // Memory events
+  'memory:retrieve:started': MemoryRetrieveStartedEvent
+  'memory:retrieve:completed': MemoryRetrieveCompletedEvent
+  'memory:persist:started': MemoryPersistStartedEvent
+  'memory:persist:completed': MemoryPersistCompletedEvent
+  'memory:error': MemoryErrorEvent
 }
 
 class AiEventClient extends EventClient<AIDevtoolsEventMap> {

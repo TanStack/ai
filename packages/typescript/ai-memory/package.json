@@ -1,0 +1,71 @@
+{
+  "name": "@tanstack/ai-memory",
+  "version": "0.0.0",
+  "description": "Pluggable memory adapters for TanStack AI memoryMiddleware",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/typescript/ai-memory"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./adapters/in-memory": {
+      "types": "./dist/esm/adapters/in-memory.d.ts",
+      "import": "./dist/esm/adapters/in-memory.js"
+    },
+    "./adapters/redis": {
+      "types": "./dist/esm/adapters/redis.d.ts",
+      "import": "./dist/esm/adapters/redis.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "skills"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "eslint ./src --fix",
+    "test:build": "publint --strict",
+    "test:eslint": "eslint ./src",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "memory",
+    "redis",
+    "rag"
+  ],
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "ioredis": ">=5.0.0",
+    "redis": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    },
+    "redis": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "ioredis-mock": "^8.9.0",
+    "redis": "^4.7.0"
+  }
+}
