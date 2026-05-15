@@ -42,7 +42,7 @@ export type { DeleteReason, RunState, RunStatus, RunStore } from './types'
 
 // ===== Errors =====
 export { SchemaValidationError } from './engine/invoke-agent'
-export { LogConflictError } from './types'
+export { LogConflictError, StepTimeoutError } from './types'
 
 // ===== Public types =====
 export type {

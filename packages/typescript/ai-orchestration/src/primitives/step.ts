@@ -9,6 +9,20 @@ export interface StepOptions {
   /** Retry policy for this step. Overrides the workflow-level
    *  `defaultStepRetry` if both are set. */
   retry?: StepRetryOptions
+  /**
+   * Per-attempt timeout in ms. The engine aborts the attempt's
+   * AbortSignal (passed to fn via `ctx.signal`) when the timer fires;
+   * if fn doesn't bail in response, the engine throws a
+   * `StepTimeoutError` regardless. Each retry attempt gets a fresh
+   * timeout — wall-clock budget is `maxAttempts * timeout + sum(backoffs)`.
+   *
+   * Caveat: not all side effects are safe to time out. Aborting a
+   * non-idempotent operation mid-flight can leave external state in
+   * an inconsistent place. Use `ctx.id` as an idempotency key when
+   * the target system supports it, or wrap the step in a server-side
+   * compensation pattern.
+   */
+  timeout?: number
 }
 
 /**
@@ -56,6 +70,7 @@ export function* step<T>(
     name,
     fn: fn as (ctx: StepContext) => unknown | Promise<unknown>,
     retry: options?.retry,
+    timeout: options?.timeout,
   }
   return (yield descriptor) as unknown as T
 }

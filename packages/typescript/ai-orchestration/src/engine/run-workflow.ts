@@ -1,5 +1,5 @@
 import { bindAgents } from '../primitives/bind-agents'
-import { LogConflictError } from '../types'
+import { LogConflictError, StepTimeoutError } from '../types'
 import { diffState, snapshotState } from './state-diff'
 import { fingerprintWorkflow } from './fingerprint'
 import {
@@ -982,16 +982,74 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           const attemptStart = Date.now()
+
+          // Per-attempt AbortController. Aborts on:
+          //   - the run's overall AbortController (Ctrl+C / stop)
+          //   - the step's timeout firing (if set)
+          const attemptController = new AbortController()
+          const onParentAbort = () => attemptController.abort()
+          abortController.signal.addEventListener('abort', onParentAbort, {
+            once: true,
+          })
+          let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+          if (descriptor.timeout && descriptor.timeout > 0) {
+            timeoutHandle = setTimeout(
+              () => attemptController.abort(),
+              descriptor.timeout,
+            )
+          }
+
           try {
-            stepResult = await descriptor.fn({ id: ctxId, attempt })
+            const fnPromise = Promise.resolve(
+              descriptor.fn({
+                id: ctxId,
+                attempt,
+                signal: attemptController.signal,
+              }),
+            )
+            // Race the user fn against a timeout-driven rejection so
+            // unresponsive code (e.g., a fetch that ignores the
+            // AbortSignal) still surfaces as a StepTimeoutError
+            // rather than hanging forever.
+            stepResult = descriptor.timeout
+              ? await Promise.race([
+                  fnPromise,
+                  new Promise<never>((_, reject) => {
+                    attemptController.signal.addEventListener(
+                      'abort',
+                      () => {
+                        if (
+                          abortController.signal.aborted &&
+                          !timeoutHandle
+                        ) {
+                          // Aborted by run-level cancel, not by timeout.
+                          reject(new Error('Workflow aborted'))
+                          return
+                        }
+                        reject(
+                          new StepTimeoutError(
+                            descriptor.name,
+                            descriptor.timeout!,
+                          ),
+                        )
+                      },
+                      { once: true },
+                    )
+                  }),
+                ])
+              : await fnPromise
             attempts.push({
               startedAt: attemptStart,
               finishedAt: Date.now(),
               result: stepResult,
             })
             succeeded = true
+            if (timeoutHandle) clearTimeout(timeoutHandle)
+            abortController.signal.removeEventListener('abort', onParentAbort)
             break
           } catch (err) {
+            if (timeoutHandle) clearTimeout(timeoutHandle)
+            abortController.signal.removeEventListener('abort', onParentAbort)
             lastError = err
             attempts.push({
               startedAt: attemptStart,

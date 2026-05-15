@@ -160,6 +160,15 @@ export interface StepContext {
   /** Current attempt number (1-indexed). Useful for retry-aware step
    *  fns that want to e.g. widen a timeout on later attempts. */
   attempt: number
+  /**
+   * Per-attempt AbortSignal. Aborts when:
+   *   - the step's `timeout` (if any) elapses for the current attempt
+   *   - the run as a whole is aborted (Ctrl+C / WorkflowClient.stop)
+   * Wire it into your fetch/axios/db client so timeouts and run-level
+   * cancels actually halt the in-flight work instead of letting it
+   * burn through.
+   */
+  signal: AbortSignal
 }
 
 /**
@@ -204,6 +213,13 @@ export type StepDescriptor =
       name: string
       fn: (ctx: StepContext) => unknown | Promise<unknown>
       retry?: StepRetryOptions
+      /** Per-attempt timeout in ms. When set, the engine wraps each
+       *  attempt with an AbortController that fires after this many
+       *  ms; the AbortSignal is on `ctx.signal`. A timeout surfaces as
+       *  a `StepTimeoutError` thrown from the yield. Use the retry
+       *  policy's `shouldRetry` to decide whether timeouts should
+       *  retry — by default they do, up to `maxAttempts`. */
+      timeout?: number
     }
   | { kind: 'now' }
   | { kind: 'uuid' }
@@ -416,6 +432,22 @@ export interface StepRecord {
   /** Recorded per-attempt detail for steps with a retry policy. The
    *  terminal entry's outcome lives on `result` / `error`. */
   attempts?: ReadonlyArray<StepAttempt>
+}
+
+/**
+ * Thrown when a `step()` with `{ timeout }` exceeds its wall-clock
+ * budget on a given attempt. Subject to the retry policy — the retry
+ * loop sees this like any other thrown error and either retries
+ * (default) or surfaces it to user code (via `shouldRetry`).
+ */
+export class StepTimeoutError extends Error {
+  readonly name = 'StepTimeoutError'
+  constructor(
+    public readonly stepName: string,
+    public readonly timeoutMs: number,
+  ) {
+    super(`Step "${stepName}" exceeded ${timeoutMs}ms timeout.`)
+  }
 }
 
 /**
