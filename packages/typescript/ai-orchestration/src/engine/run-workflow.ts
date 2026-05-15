@@ -131,7 +131,7 @@ async function* startRun(
     createdAt: Date.now(),
     updatedAt: Date.now(),
   }
-  await options.runStore.set(runId, runState)
+  await options.runStore.setRunState(runId, runState)
 
   yield runStartedEvent({ runId, threadId: options.threadId })
   yield stateSnapshotEvent({ snapshot: state })
@@ -191,7 +191,7 @@ async function* resumeRun(
   }
 
   live.runState = { ...live.runState, status: 'running', updatedAt: Date.now() }
-  await options.runStore.set(runId, live.runState)
+  await options.runStore.setRunState(runId, live.runState)
 
   yield runStartedEvent({ runId, threadId: options.threadId })
 
@@ -393,7 +393,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
           updatedAt: Date.now(),
         }
         live.pendingApprovalStepId = stepId
-        await runStore.set(runId, live.runState)
+        await runStore.setRunState(runId, live.runState)
 
         // SSE stream ends here; runWorkflow continues after client posts approval.
         return
@@ -411,9 +411,9 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       output: finalOutput,
       updatedAt: Date.now(),
     }
-    await runStore.set(runId, live.runState)
+    await runStore.setRunState(runId, live.runState)
     yield runFinishedEvent({ runId, threadId, output: finalOutput })
-    await runStore.delete(runId, 'finished')
+    await runStore.deleteRun(runId, 'finished')
   } catch (err) {
     if (abortController.signal.aborted) {
       yield runErrorEvent({
@@ -421,7 +421,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         message: 'Workflow aborted',
         code: 'aborted',
       })
-      await runStore.delete(runId, 'aborted')
+      await runStore.deleteRun(runId, 'aborted')
       return
     }
     yield runErrorEvent({
@@ -429,6 +429,6 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       message: errorMessage(err),
       code: 'error',
     })
-    await runStore.delete(runId, 'error')
+    await runStore.deleteRun(runId, 'error')
   }
 }

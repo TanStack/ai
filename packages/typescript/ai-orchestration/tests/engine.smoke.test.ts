@@ -138,7 +138,7 @@ describe('engine smoke', () => {
       (e) => (e as { type: string }).type === 'RUN_STARTED',
     ) as { runId: string }
     expect(runStarted.runId).toBeTruthy()
-    const runState = await store.get(runStarted.runId)
+    const runState = await store.getRunState(runStarted.runId)
     expect(runState).toBeDefined()
     expect(runState!.status).toBe('paused')
     expect(runState!.pendingApproval?.title).toBe('go?')

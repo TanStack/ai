@@ -186,15 +186,157 @@ export interface RunState<
 }
 
 // ==========================================
+// Step log
+// ==========================================
+
+/**
+ * Discriminator for entries in a run's step log.
+ *
+ * The engine appends one StepRecord per checkpoint boundary in the workflow.
+ * Replay short-circuits each yield by reading the recorded record at the
+ * matching positional index. Adapter authors persisting this enum should
+ * treat unknown kinds as opaque (forward-compat for primitives added in
+ * later releases).
+ *
+ * Today (durability v1 in-progress): the engine produces `agent`,
+ * `approval`, and `nested-workflow`. Subsequent commits add `step`, `sleep`,
+ * `now`, `uuid`, and (when approval is generalized) `signal`.
+ */
+export type StepKind =
+  | 'agent'
+  | 'approval'
+  | 'nested-workflow'
+  | 'step'
+  | 'sleep'
+  | 'now'
+  | 'uuid'
+  | 'signal'
+
+/** One attempt of a step, including retries. The terminal attempt is the
+ *  one whose result/error becomes the StepRecord's result/error. */
+export interface StepAttempt {
+  startedAt: number
+  finishedAt: number
+  /** Set when the attempt succeeded. */
+  result?: unknown
+  /** Set when the attempt threw. */
+  error?: { name: string; message: string; stack?: string }
+}
+
+/**
+ * Persisted record of a single checkpoint in a run. Append-only — once
+ * written at a given (runId, index) it must not be mutated. Step results
+ * are the authoritative truth for replay; if state diverges from what
+ * replaying the log would produce, log wins.
+ */
+export interface StepRecord {
+  /** Positional index in the run's log, starting at 0. */
+  index: number
+  /** What kind of step produced this record. */
+  kind: StepKind
+  /** Step identity used for UI / debugging: agent name, `step()` name,
+   *  signal name, etc. */
+  name: string
+  /**
+   * Producer ID — populated for entries created from external signals
+   * (approval, generic signal). Engine uses it to dedupe idempotent
+   * retries of the same signal delivery: a second `appendStep` call with
+   * the same `signalId` at the same index returns the existing record
+   * instead of throwing LogConflictError.
+   */
+  signalId?: string
+  /** Set when the step succeeded. `undefined` for void-returning kinds. */
+  result?: unknown
+  /** Set when the step failed and the user did not catch the throw. */
+  error?: { name: string; message: string; stack?: string }
+  startedAt: number
+  finishedAt?: number
+  /** Recorded per-attempt detail for steps with a retry policy. The
+   *  terminal entry's outcome lives on `result` / `error`. */
+  attempts?: ReadonlyArray<StepAttempt>
+}
+
+/**
+ * Thrown by `RunStore.appendStep` when another writer has already
+ * committed a record at the requested index. The engine catches it,
+ * re-reads the log, and either:
+ *  - returns the conflicting record to the caller (idempotent — same
+ *    signalId means it was a retry of the same delivery), or
+ *  - surfaces `RUN_ERROR { code: 'signal_lost', winner }` (a genuinely
+ *    different writer won the race).
+ *
+ * Store implementations must throw this exact class so the engine can
+ * distinguish CAS failure from other store errors.
+ */
+export class LogConflictError extends Error {
+  readonly name = 'LogConflictError'
+  constructor(
+    public readonly runId: string,
+    public readonly attemptedIndex: number,
+    /** The record already at that index, if the store can cheaply
+     *  surface it. Optional — engine will read it back if absent. */
+    public readonly existing?: StepRecord,
+  ) {
+    super(
+      `Log conflict for run ${runId} at index ${attemptedIndex}: another writer has already committed.`,
+    )
+  }
+}
+
+// ==========================================
 // RunStore
 // ==========================================
 
 export type DeleteReason = 'finished' | 'error' | 'aborted'
 
+/**
+ * Pluggable backing store for orchestration runs.
+ *
+ * Two concerns, kept deliberately separate:
+ *
+ * - **State** (`getRunState` / `setRunState` / `deleteRun`) is the
+ *   *materialized view*. Holds the current snapshot — status, input,
+ *   user-defined state, output, error, pause info. Written on each
+ *   meaningful transition. Low frequency, snapshot writes. If state is
+ *   missing or torn after a crash, the engine reconstructs it by
+ *   replaying the log.
+ *
+ * - **Step log** (`appendStep` / `getSteps`) is the *authoritative
+ *   source of truth*. Append-only. Each entry records one checkpoint
+ *   boundary in the run (agent invocation, approval, side-effecting
+ *   step, …). High frequency, conditional writes.
+ *
+ * `appendStep` is optimistic-CAS: writers pass the implicit
+ * `expectedNextIndex`, and the store must reject the append (by throwing
+ * `LogConflictError`) if a record already exists at that index. The
+ * conditional check and the insert must be a single atomic operation on
+ * the backing system (Postgres `INSERT ... WHERE NOT EXISTS`, DynamoDB
+ * `ConditionExpression`, Redis `WATCH`/multi, SQLite, …). Backends that
+ * can't enforce atomic CAS are unsuitable for multi-instance
+ * deployments.
+ *
+ * No transactional contract is required *between* state and log writes —
+ * the engine writes log entries before any state mutation that depends
+ * on them, and replay guarantees state correctness from the log alone.
+ */
 export interface RunStore {
-  get: (runId: string) => Promise<RunState | undefined>
-  set: (runId: string, state: RunState) => Promise<void>
-  delete: (runId: string, reason: DeleteReason) => Promise<void>
+  // ── state (snapshot) ───────────────────────────────────────────────
+  getRunState: (runId: string) => Promise<RunState | undefined>
+  setRunState: (runId: string, state: RunState) => Promise<void>
+  deleteRun: (runId: string, reason: DeleteReason) => Promise<void>
+
+  // ── step log (append-only, CAS) ────────────────────────────────────
+  /**
+   * Append `record` at `expectedNextIndex`. Throws `LogConflictError` if
+   * another writer has already committed at that index. Must be atomic.
+   */
+  appendStep: (
+    runId: string,
+    expectedNextIndex: number,
+    record: StepRecord,
+  ) => Promise<void>
+  /** Read every record for `runId`, ordered by `index` ascending. */
+  getSteps: (runId: string) => Promise<ReadonlyArray<StepRecord>>
 }
 
 // ==========================================
