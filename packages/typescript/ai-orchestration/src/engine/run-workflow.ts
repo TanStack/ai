@@ -264,7 +264,11 @@ async function* startRun(
     runId,
     status: 'running',
     workflowName: options.workflow.name,
+    workflowVersion: options.workflow.version,
     fingerprint,
+    startingPatches: options.workflow.patches
+      ? [...options.workflow.patches]
+      : undefined,
     input: options.input,
     state,
     createdAt: Date.now(),
@@ -499,20 +503,40 @@ async function* resumeRun(
     return
   }
 
-  // Workflow source fingerprint guard: if the deployed code drifted
-  // since this run was started, refuse resume with a clear error. The
-  // operator's recovery options are drain-then-deploy (refuse new runs
-  // until in-flight ones finish) or, for irrecoverable runs, mark the
-  // run errored manually. A future `patched()` escape hatch (Temporal
-  // style) is documented as a v2 follow-up but not implemented here.
+  // Workflow source fingerprint guard. Two modes:
+  //
+  //   Strict mode (no workflow.patches declared):
+  //     The fingerprint covers the workflow's full source. Any drift
+  //     refuses resume with workflow_version_mismatch. Recovery is
+  //     drain-then-deploy.
+  //
+  //   Patch-versioned mode (workflow.patches declared):
+  //     The fingerprint covers only name + sorted patch list. The
+  //     run's recorded startingPatches must be a SUBSET of the
+  //     current workflow's patches — we can add patches across
+  //     deploys without invalidating in-flight runs, but we can't
+  //     remove patches (a run started with patch X gating its old
+  //     path would lose the path entirely on resume).
   const currentFingerprint = fingerprintWorkflow(options.workflow)
-  if (
+  if (options.workflow.patches !== undefined) {
+    const currentSet = new Set(options.workflow.patches)
+    const runPatches = persistedRunState.startingPatches ?? []
+    const missing = runPatches.filter((p) => !currentSet.has(p))
+    if (missing.length > 0) {
+      yield runErrorEvent({
+        runId,
+        message: `Workflow lost patches ${missing.join(', ')} since run ${runId} was started. Patches can be added across deploys, not removed while runs are in flight.`,
+        code: 'workflow_patches_removed',
+      })
+      return
+    }
+  } else if (
     persistedRunState.fingerprint &&
     persistedRunState.fingerprint !== currentFingerprint
   ) {
     yield runErrorEvent({
       runId,
-      message: `Workflow source changed since run ${runId} was started (fingerprint ${persistedRunState.fingerprint} -> ${currentFingerprint}). Refusing resume.`,
+      message: `Workflow source changed since run ${runId} was started (fingerprint ${persistedRunState.fingerprint} -> ${currentFingerprint}). Refusing resume. Declare \`patches\` on the workflow to opt into patch-versioned migration.`,
       code: 'workflow_version_mismatch',
     })
     return
@@ -803,59 +827,58 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       // resume stream sees the closure (the original STEP_STARTED was
       // emitted on the SSE response that paused, which this consumer
       // didn't necessarily see).
-      if (!seedConsumed) {
+      //
+      // If the post-replay descriptor isn't a pause kind, the seed is
+      // for a LATER descriptor — typically because deterministic
+      // primitives (patched, now, uuid) don't write to the log, so
+      // they re-yield on replay even though we have a seed waiting.
+      // Fall through to normal live dispatch; the seed stays
+      // unconsumed until we hit the actual pause descriptor.
+      if (
+        !seedConsumed &&
+        (descriptor.kind === 'approval' || descriptor.kind === 'signal')
+      ) {
         seedConsumed = true
-        if (descriptor.kind === 'approval' || descriptor.kind === 'signal') {
-          const sigName =
-            descriptor.kind === 'approval' ? 'approval' : descriptor.name
-          yield stepStartedEvent({
-            stepId,
-            stepName: sigName,
-            stepType: descriptor.kind === 'approval' ? 'approval' : 'signal',
-          })
-          const outcome = await tryAppendStep(runStore, runId, logLength, {
-            index: logLength,
-            kind: descriptor.kind === 'approval' ? 'approval' : 'signal',
-            name: sigName,
-            signalId: args.seedSignalId,
-            result: args.seedValue,
-            startedAt: Date.now(),
-            finishedAt: Date.now(),
-          })
-          if (outcome.kind === 'lost') {
-            yield runErrorEvent({
-              runId,
-              message: `Signal lost at index ${logLength}: another delivery (signalId="${outcome.existing.signalId ?? ''}") won the race.`,
-              code: 'signal_lost',
-            })
-            return
-          }
-          // For 'idempotent', the existing record's result becomes the
-          // value sent into the generator instead of our incoming
-          // seedValue — this is the retry-dedup path. Both callers
-          // observe the same downstream behavior.
-          const seedResult =
-            outcome.kind === 'idempotent'
-              ? outcome.existing.result
-              : args.seedValue
-          logLength++
-          yield stepFinishedEvent({
-            stepId,
-            stepName: sigName,
-            content: seedResult,
-          })
-          nextValue = seedResult
-          continue
-        }
-        // Descriptor isn't a pause-kind despite us having a seed —
-        // shouldn't happen. Surface as a hard error so the issue is
-        // visible.
-        yield runErrorEvent({
-          runId,
-          message: `Resume seed delivered but pending descriptor was '${descriptor.kind}', not 'approval' or 'signal'`,
-          code: 'resume_mismatch',
+        const sigName =
+          descriptor.kind === 'approval' ? 'approval' : descriptor.name
+        yield stepStartedEvent({
+          stepId,
+          stepName: sigName,
+          stepType: descriptor.kind === 'approval' ? 'approval' : 'signal',
         })
-        return
+        const outcome = await tryAppendStep(runStore, runId, logLength, {
+          index: logLength,
+          kind: descriptor.kind === 'approval' ? 'approval' : 'signal',
+          name: sigName,
+          signalId: args.seedSignalId,
+          result: args.seedValue,
+          startedAt: Date.now(),
+          finishedAt: Date.now(),
+        })
+        if (outcome.kind === 'lost') {
+          yield runErrorEvent({
+            runId,
+            message: `Signal lost at index ${logLength}: another delivery (signalId="${outcome.existing.signalId ?? ''}") won the race.`,
+            code: 'signal_lost',
+          })
+          return
+        }
+        // For 'idempotent', the existing record's result becomes the
+        // value sent into the generator instead of our incoming
+        // seedValue — this is the retry-dedup path. Both callers
+        // observe the same downstream behavior.
+        const seedResult =
+          outcome.kind === 'idempotent'
+            ? outcome.existing.result
+            : args.seedValue
+        logLength++
+        yield stepFinishedEvent({
+          stepId,
+          stepName: sigName,
+          content: seedResult,
+        })
+        nextValue = seedResult
+        continue
       }
 
       // ---- agent ----
@@ -1065,6 +1088,18 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
           finishedAt: value,
         })
         logLength++
+        nextValue = value
+        continue
+      }
+
+      // ---- patched (Temporal-style migration flag) ----
+      //
+      // Deterministic from the run's persisted startingPatches — we
+      // don't need a log entry (replay produces the same value). The
+      // engine just answers the boolean and continues.
+      if (descriptor.kind === 'patched') {
+        const patchSet = live.runState.startingPatches ?? []
+        const value = patchSet.includes(descriptor.name)
         nextValue = value
         continue
       }

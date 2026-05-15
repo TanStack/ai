@@ -27,6 +27,19 @@ import type { AgentMap, AnyWorkflowDefinition } from '../types'
  * collision attacks.
  */
 export function fingerprintWorkflow(workflow: AnyWorkflowDefinition): string {
+  // Patch-versioned mode: workflows that declare `patches` opt out of
+  // the strict source-hash fingerprint. The fingerprint then covers
+  // only the compatibility surface (name + sorted patch list), so
+  // code-body changes don't trigger workflow_version_mismatch. The
+  // patches-subset check on resume (see run-workflow.ts) enforces
+  // that the run's recorded patches are a subset of the current
+  // workflow's patches — i.e., we can ADD patches across deploys but
+  // not REMOVE them while runs are in flight.
+  if (workflow.patches !== undefined) {
+    const sorted = [...workflow.patches].sort().join(',')
+    return fnv1a64(`patch-versioned:${workflow.name}:${sorted}`)
+  }
+
   const seen = new WeakSet<AnyWorkflowDefinition>()
   const parts: Array<string> = []
   collectWorkflow(workflow, parts, seen)

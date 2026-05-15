@@ -96,10 +96,28 @@ export interface WorkflowDefinition<
   __kind: 'workflow'
   name: string
   description?: string
+  /**
+   * Caller-supplied version identifier. Hosts running multiple
+   * workflow versions side-by-side use this with
+   * `selectWorkflowVersion` to route resume calls to the version a
+   * given run was started under.
+   */
+  version?: string
   inputSchema?: TInputSchema
   outputSchema?: TOutputSchema
   stateSchema?: TStateSchema
   agents: TAgents
+  /**
+   * Migration patch list. Each entry is a string name that user code
+   * gates on via `yield* patched(name)`. Declaring `patches` switches
+   * this workflow into the lighter "patch-versioned" fingerprint
+   * mode: code-body changes no longer trigger
+   * `workflow_version_mismatch`; instead the engine checks that the
+   * run's recorded patches are a subset of the current workflow's
+   * patches. Workflows without `patches` get the strict source-hash
+   * fingerprint (unchanged).
+   */
+  patches?: ReadonlyArray<string>
   initialize?: (args: {
     input: TInputSchema extends SchemaInput
       ? InferSchema<TInputSchema>
@@ -190,6 +208,22 @@ export type StepDescriptor =
   | { kind: 'now' }
   | { kind: 'uuid' }
   | {
+      /** Temporal-style mid-flight migration flag. Returns `true` for
+       *  runs that were started under a workflow version that declared
+       *  this patch, `false` for runs started before the patch was
+       *  added. Used to branch user code between old and new behavior
+       *  without breaking in-flight runs:
+       *
+       *      if (yield* patched('add-cache')) {
+       *        yield* step('read-cache', readCache)
+       *      } else {
+       *        // old path — no cache
+       *      }
+       */
+      kind: 'patched'
+      name: string
+    }
+  | {
       /** Generic durable pause: the run yields a named signal, the
        *  engine persists `waitingFor`, the SSE closes, and the host
        *  resumes the run by delivering a payload for `name`. Builds the
@@ -250,6 +284,13 @@ export interface RunState<
   status: RunStatus
   workflowName: string
   /**
+   * Caller-supplied version identifier (e.g. 'v1', '2026-05-15') copied
+   * from the workflow definition at run start. Hosts use this with
+   * `selectWorkflowVersion` to route resume calls to the right
+   * registered version when running multiple versions side-by-side.
+   */
+  workflowVersion?: string
+  /**
    * Stable hash of the workflow's source (definition + agents). Computed
    * once at run start, persisted with state, and compared on every
    * replay-from-store resume. A mismatch means the deployed workflow's
@@ -257,8 +298,19 @@ export interface RunState<
    * with `RUN_ERROR { code: 'workflow_version_mismatch' }` rather than
    * blindly driving a fresh generator through a log whose positional
    * indices may not line up.
+   *
+   * For workflows that declared `patches` the fingerprint uses a
+   * lighter scheme (name + sorted patches) so code-body changes don't
+   * invalidate in-flight runs; compatibility is enforced by the
+   * `startingPatches ⊆ current patches` check on resume.
    */
   fingerprint?: string
+  /**
+   * Patches the workflow declared at the moment this run was started.
+   * `yield* patched(name)` returns `startingPatches.includes(name)`.
+   * Persisted so the answer stays stable across replays.
+   */
+  startingPatches?: ReadonlyArray<string>
   input: TInput
   state: TState
   output?: TOutput
@@ -320,6 +372,7 @@ export type StepKind =
   | 'now'
   | 'uuid'
   | 'signal'
+  | 'patched'
 
 /** One attempt of a step, including retries. The terminal attempt is the
  *  one whose result/error becomes the StepRecord's result/error. */

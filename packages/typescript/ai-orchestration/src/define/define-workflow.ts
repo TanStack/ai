@@ -16,6 +16,13 @@ export interface DefineWorkflowConfig<
 > {
   name: string
   description?: string
+  /** Caller-supplied version identifier — e.g. 'v1', '2026-05-15'.
+   *  Used with `selectWorkflowVersion` for cross-version routing. */
+  version?: string
+  /** Migration patch names. Pairs with `yield* patched(name)` calls
+   *  in user code. Declaring this switches the workflow to a lighter
+   *  fingerprint that tolerates code-body changes. */
+  patches?: ReadonlyArray<string>
   input?: TInputSchema
   output?: TOutputSchema
   state?: TStateSchema
@@ -66,6 +73,8 @@ export function defineWorkflow<
     __kind: 'workflow',
     name: config.name,
     description: config.description,
+    version: config.version,
+    patches: config.patches,
     inputSchema: config.input,
     outputSchema: config.output,
     stateSchema: config.state,
