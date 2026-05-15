@@ -22,6 +22,12 @@ export interface UseWorkflowReturn<
   TState = unknown,
 > extends WorkflowClientState<TState, TOutput> {
   approve: (approved: boolean, feedback?: string) => Promise<void>
+  attach: (runId: string) => Promise<void>
+  signal: (
+    name: string,
+    payload: unknown,
+    options?: { signalId?: string },
+  ) => Promise<void>
   start: (input: TInput) => Promise<void>
   stop: () => void
 }
@@ -67,12 +73,21 @@ export function useWorkflow<
       client.approve(approved, feedback),
     [client],
   )
+  const attach = useCallback((runId: string) => client.attach(runId), [client])
+  const signal = useCallback(
+    (
+      name: string,
+      payload: unknown,
+      options?: { signalId?: string },
+    ) => client.signal(name, payload, options),
+    [client],
+  )
   const start = useCallback((input: TInput) => client.start(input), [client])
   const stop = useCallback(() => {
     client.stop()
   }, [client])
 
-  return { ...state, approve, start, stop }
+  return { ...state, approve, attach, signal, start, stop }
 }
 
 /** Alias — same hook, different vocabulary. Orchestrators are workflows. */

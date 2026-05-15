@@ -3,6 +3,7 @@ import { diffState, snapshotState } from './state-diff'
 import { fingerprintWorkflow } from './fingerprint'
 import {
   approvalRequestedEvent,
+  customEvent,
   runErrorEvent,
   runFinishedEvent,
   runStartedEvent,
@@ -30,7 +31,8 @@ export interface RunWorkflowOptions {
   workflow: AnyWorkflowDefinition
   runStore: InMemoryRunStore
   /** First-call: provide `input`. Resume-call: provide `runId` + either
-   *  `approval` (legacy) or `signalDelivery` (generic). */
+   *  `approval` (legacy) or `signalDelivery` (generic). Attach-call:
+   *  provide `runId` + `attach: true`. */
   input?: unknown
   runId?: string
   approval?: ApprovalResult
@@ -43,6 +45,20 @@ export interface RunWorkflowOptions {
    * '__approval' signal.
    */
   signalDelivery?: SignalResult
+  /**
+   * Attach to an existing run (Q7). Synthesizes RUN_STARTED +
+   * STATE_SNAPSHOT + STEPS_SNAPSHOT from the persisted log so a fresh
+   * subscriber (browser tab refresh, shared link, mobile reconnect)
+   * can rebuild its UI from scratch. After the snapshot:
+   *   - paused runs: emit run.paused and end the stream
+   *   - finished/errored runs: emit RUN_FINISHED/RUN_ERROR and end
+   *   - in-process running runs: tail the live event stream (the host
+   *     ran the original start/resume on the same node)
+   *   - cross-node running runs: emit a final status hint and end —
+   *     hosts that need cross-node tailing wire the publisher hook
+   *     and subscribe to it themselves
+   */
+  attach?: boolean
   /** Optional: external abort signal. */
   signal?: AbortSignal
   /** Optional: thread ID for client-side correlation. */
@@ -131,13 +147,17 @@ function buildInitialState(
 export async function* runWorkflow(
   options: RunWorkflowOptions,
 ): AsyncIterable<StreamChunk> {
+  if (options.runId && options.attach) {
+    yield* attachRun(options)
+    return
+  }
   if (options.runId && (options.approval || options.signalDelivery)) {
     yield* resumeRun(options)
     return
   }
   if (options.input === undefined) {
     throw new Error(
-      'runWorkflow: either `input` or `runId` + `approval`/`signalDelivery` must be provided',
+      'runWorkflow: provide `input` (start), `runId` + `approval`/`signalDelivery` (resume), or `runId` + `attach: true` (attach)',
     )
   }
   yield* startRun(options as RunWorkflowOptions & { input: unknown })
@@ -209,6 +229,133 @@ async function* startRun(
     seedValue: undefined,
     replayLog: [],
     workflow: options.workflow,
+  })
+}
+
+/**
+ * Read-only subscribe to an existing run (Q7).
+ *
+ * Emits a synthetic snapshot package — RUN_STARTED + STATE_SNAPSHOT +
+ * `steps-snapshot` (CUSTOM with all completed step records) — so a
+ * fresh subscriber can rebuild its UI without needing per-token
+ * streaming history. After the snapshot:
+ *   - finished/errored runs emit the terminal event and end.
+ *   - paused runs emit `run.paused` and end (host watches the store
+ *     or publisher hook for the wake).
+ *   - in-process running runs tail live SSE chunks via the publisher
+ *     hook (only attempted when the publisher is provided).
+ *   - cross-node running runs emit a status hint and end.
+ *
+ * Per-token streaming history (TEXT_MESSAGE_CONTENT deltas inside an
+ * agent step) is not persisted; on attach mid-step, the client sees
+ * STEP_STARTED with no prior tokens and then live tokens from the
+ * attach point onward (or, more typically, the run finishes between
+ * the snapshot emit and the publisher subscription and the client
+ * sees STEP_FINISHED in the snapshot's STEPS_SNAPSHOT).
+ */
+async function* attachRun(
+  options: RunWorkflowOptions,
+): AsyncIterable<StreamChunk> {
+  const runId = options.runId!
+  const persistedRunState = await options.runStore.getRunState(runId)
+  if (!persistedRunState) {
+    yield runErrorEvent({
+      runId,
+      message: `Run ${runId} not found (expired or never existed)`,
+      code: 'run_lost',
+    })
+    return
+  }
+
+  // Surface RUN_STARTED so clients always see a consistent stream
+  // opener, regardless of whether they're starting / resuming /
+  // attaching. The runId on the event matches the persisted one.
+  yield runStartedEvent({ runId, threadId: options.threadId })
+  yield stateSnapshotEvent({ snapshot: persistedRunState.state })
+
+  // STEPS_SNAPSHOT is a single CUSTOM event carrying all completed
+  // step records so the client can rebuild its WorkflowTimeline from
+  // scratch. The 'steps-snapshot' name is the wire-format key.
+  const steps = await options.runStore.getSteps(runId)
+  yield customEvent({
+    name: 'steps-snapshot',
+    value: {
+      steps: steps.map((r) => ({
+        index: r.index,
+        kind: r.kind,
+        name: r.name,
+        result: r.result,
+        error: r.error,
+        startedAt: r.startedAt,
+        finishedAt: r.finishedAt,
+      })),
+    },
+  })
+
+  if (persistedRunState.status === 'finished') {
+    yield runFinishedEvent({
+      runId,
+      threadId: options.threadId,
+      output: persistedRunState.output,
+    })
+    return
+  }
+  if (
+    persistedRunState.status === 'error' ||
+    persistedRunState.status === 'aborted'
+  ) {
+    yield runErrorEvent({
+      runId,
+      message:
+        persistedRunState.error?.message ??
+        `Run ${runId} ended with status ${persistedRunState.status}`,
+      code:
+        persistedRunState.status === 'aborted' ? 'aborted' : 'error',
+    })
+    return
+  }
+  if (persistedRunState.status === 'paused') {
+    // Re-emit the pause notice so the attaching client knows what to
+    // wake the run with. The originating SSE response already emitted
+    // this on the prior connection — this subscriber didn't see that.
+    yield customEvent({
+      name: 'run.paused',
+      value: {
+        runId,
+        signalName:
+          persistedRunState.waitingFor?.signalName ??
+          (persistedRunState.pendingApproval ? '__approval' : 'unknown'),
+        deadline: persistedRunState.waitingFor?.deadline,
+        kind: persistedRunState.pendingApproval
+          ? 'approval'
+          : persistedRunState.waitingFor?.signalName === '__timer'
+            ? 'sleep'
+            : 'signal',
+        meta:
+          persistedRunState.waitingFor?.meta ??
+          (persistedRunState.pendingApproval
+            ? {
+                title: persistedRunState.pendingApproval.title,
+                description: persistedRunState.pendingApproval.description,
+              }
+            : undefined),
+      },
+    })
+    return
+  }
+
+  // status === 'running'. We can only tail if the executing generator
+  // lives in this process. Cross-node attach lands when the publisher
+  // hook is wired (Q7 step 7) — for v1 single-node, the snapshot
+  // above is the useful payload and we end the stream.
+  yield customEvent({
+    name: 'run.current-status',
+    value: {
+      runId,
+      status: 'running',
+      note:
+        'Run is executing on another node (or this process is read-only). Wire the publisher hook to tail live events.',
+    },
   })
 }
 

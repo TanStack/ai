@@ -24,8 +24,16 @@ export interface WorkflowStep {
   startedAt: number
   stepId: string
   stepName: string
-  stepType?: 'agent' | 'approval' | 'nested-workflow'
+  stepType?: 'agent' | 'approval' | 'nested-workflow' | 'step' | 'signal'
   status: 'failed' | 'finished' | 'running'
+}
+
+/** Generic signal waiting on the server side, surfaced for attach /
+ *  resume UIs that aren't approval-shaped. */
+export interface WorkflowSignalWait {
+  signalName: string
+  deadline?: number
+  meta?: Record<string, unknown>
 }
 
 export interface WorkflowClientState<TState = unknown, TOutput = unknown> {
@@ -35,6 +43,10 @@ export interface WorkflowClientState<TState = unknown, TOutput = unknown> {
   error: WorkflowError | null
   output: TOutput | null
   pendingApproval: WorkflowApproval | null
+  /** Non-approval signal the run is currently waiting on. Surfaces when
+   *  user code yields `waitForSignal(name)` or `sleep(...)`. Mutually
+   *  exclusive with `pendingApproval` in practice. */
+  pendingSignal: WorkflowSignalWait | null
   runId: string | null
   state: TState | null
   status: WorkflowStatus
@@ -67,6 +79,7 @@ const initialState: WorkflowClientState = {
   error: null,
   output: null,
   pendingApproval: null,
+  pendingSignal: null,
   runId: null,
   state: null,
   status: 'idle',
@@ -132,6 +145,50 @@ export class WorkflowClient<
     await this.consumeStream(workflowStream)
   }
 
+  /**
+   * Attach to an existing run by `runId`. Resets local state and reads
+   * the server's snapshot (state + completed steps + pending pause) so
+   * the UI can rebuild from scratch. Used for browser tab refresh,
+   * shared run links, and reconnect after a network drop.
+   */
+  async attach(runId: string): Promise<void> {
+    this.setState({
+      ...(initialState as WorkflowClientState<TState, TOutput>),
+      runId,
+      status: 'running',
+    })
+    const workflowStream = this.openStream({ attach: true, runId })
+    await this.consumeStream(workflowStream)
+  }
+
+  /**
+   * Generic signal delivery — wakes a run paused on
+   * `waitForSignal(name)`. `signalId` is an idempotency token the
+   * caller is responsible for picking (typically a UUID derived from
+   * the upstream event identifier).
+   */
+  async signal(
+    name: string,
+    payload: unknown,
+    options?: { signalId?: string },
+  ): Promise<void> {
+    if (!this.clientState.runId) throw new Error('No run in progress')
+    const runId = this.clientState.runId
+    const signalId =
+      options?.signalId ??
+      globalThis.crypto.randomUUID()
+    this.setState({
+      pendingApproval: null,
+      pendingSignal: null,
+      status: 'running',
+    })
+    const workflowStream = this.openStream({
+      runId,
+      signal: { signalId, name, payload },
+    })
+    await this.consumeStream(workflowStream)
+  }
+
   stop(): void {
     if (!this.clientState.runId) return
     this.openStream({
@@ -167,6 +224,48 @@ export class WorkflowClient<
             },
             status: 'paused',
           })
+        } else if (name === 'steps-snapshot') {
+          // Attach response: rebuild the steps array from the
+          // persisted log. Each entry has a synthetic stepId derived
+          // from its index so subsequent STEP_FINISHED events (if any
+          // are tailed live after the snapshot) can match by stepId.
+          const stepRecords = value.steps as Array<{
+            index: number
+            kind: WorkflowStep['stepType']
+            name: string
+            result?: unknown
+            error?: { message: string }
+            startedAt: number
+            finishedAt?: number
+          }>
+          const steps: Array<WorkflowStep> = stepRecords.map((r) => ({
+            startedAt: r.startedAt,
+            finishedAt: r.finishedAt,
+            status: r.error ? 'failed' : 'finished',
+            stepId: `snapshot:${r.index}`,
+            stepName: r.name,
+            stepType: r.kind,
+            result: r.error ? { error: r.error } : r.result,
+          }))
+          this.setState({ steps })
+        } else if (name === 'run.paused') {
+          // The run is waiting for a signal. For the '__approval'
+          // signal we already populated pendingApproval; for anything
+          // else, surface as pendingSignal so a UI can render a
+          // generic "waiting on X" affordance.
+          const signalName = value.signalName as string
+          if (signalName === '__approval') {
+            // approval-requested already handled above; ignore.
+          } else {
+            this.setState({
+              pendingSignal: {
+                signalName,
+                deadline: value.deadline as number | undefined,
+                meta: value.meta as Record<string, unknown> | undefined,
+              },
+              status: 'paused',
+            })
+          }
         } else {
           this.opts.onCustomEvent?.(name, value)
         }
