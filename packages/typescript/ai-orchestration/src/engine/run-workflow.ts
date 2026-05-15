@@ -1,4 +1,5 @@
 import { bindAgents } from '../primitives/bind-agents'
+import { LogConflictError } from '../types'
 import { diffState, snapshotState } from './state-diff'
 import { fingerprintWorkflow } from './fingerprint'
 import {
@@ -680,7 +681,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
             feedback: (seed as ApprovalResult | undefined)?.feedback,
           }
         : seed
-      await appendStep(runStore, runId, logLength, {
+      const inMemAppend = await tryAppendStep(runStore, runId, logLength, {
         index: logLength,
         kind: isApproval ? 'approval' : 'signal',
         name: waitingFor?.signalName ?? 'approval',
@@ -689,6 +690,19 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         startedAt: Date.now(),
         finishedAt: Date.now(),
       })
+      if (inMemAppend.kind === 'lost') {
+        // Another delivery won the race — this caller's signal had no
+        // effect. Surface so the host knows to either retry with a
+        // different signalId or stand down.
+        yield runErrorEvent({
+          runId,
+          message: `Signal lost at index ${logLength}: another delivery (signalId="${inMemAppend.existing.signalId ?? ''}") won the race.`,
+          code: 'signal_lost',
+        })
+        return
+      }
+      // Idempotent: same signalId, the prior delivery's record stands.
+      // We still emit STEP_FINISHED so the caller sees a coherent end.
       logLength++
       yield stepFinishedEvent({
         stepId: pendingApprovalStepId,
@@ -773,52 +787,46 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       // didn't necessarily see).
       if (!seedConsumed) {
         seedConsumed = true
-        if (descriptor.kind === 'approval') {
+        if (descriptor.kind === 'approval' || descriptor.kind === 'signal') {
+          const sigName =
+            descriptor.kind === 'approval' ? 'approval' : descriptor.name
           yield stepStartedEvent({
             stepId,
-            stepName: 'approval',
-            stepType: 'approval',
+            stepName: sigName,
+            stepType: descriptor.kind === 'approval' ? 'approval' : 'signal',
           })
-          await appendStep(runStore, runId, logLength, {
+          const outcome = await tryAppendStep(runStore, runId, logLength, {
             index: logLength,
-            kind: 'approval',
-            name: 'approval',
+            kind: descriptor.kind === 'approval' ? 'approval' : 'signal',
+            name: sigName,
             signalId: args.seedSignalId,
             result: args.seedValue,
             startedAt: Date.now(),
             finishedAt: Date.now(),
           })
+          if (outcome.kind === 'lost') {
+            yield runErrorEvent({
+              runId,
+              message: `Signal lost at index ${logLength}: another delivery (signalId="${outcome.existing.signalId ?? ''}") won the race.`,
+              code: 'signal_lost',
+            })
+            return
+          }
+          // For 'idempotent', the existing record's result becomes the
+          // value sent into the generator instead of our incoming
+          // seedValue — this is the retry-dedup path. Both callers
+          // observe the same downstream behavior.
+          const seedResult =
+            outcome.kind === 'idempotent'
+              ? outcome.existing.result
+              : args.seedValue
           logLength++
           yield stepFinishedEvent({
             stepId,
-            stepName: 'approval',
-            content: args.seedValue,
+            stepName: sigName,
+            content: seedResult,
           })
-          nextValue = args.seedValue
-          continue
-        }
-        if (descriptor.kind === 'signal') {
-          yield stepStartedEvent({
-            stepId,
-            stepName: descriptor.name,
-            stepType: 'signal',
-          })
-          await appendStep(runStore, runId, logLength, {
-            index: logLength,
-            kind: 'signal',
-            name: descriptor.name,
-            signalId: args.seedSignalId,
-            result: args.seedValue,
-            startedAt: Date.now(),
-            finishedAt: Date.now(),
-          })
-          logLength++
-          yield stepFinishedEvent({
-            stepId,
-            stepName: descriptor.name,
-            content: args.seedValue,
-          })
-          nextValue = args.seedValue
+          nextValue = seedResult
           continue
         }
         // Descriptor isn't a pause-kind despite us having a seed —
@@ -1168,11 +1176,60 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
 }
 
 /**
- * Append a step record. If the store throws `LogConflictError`, we
- * surface a `RUN_ERROR` because true CAS conflicts can only happen when
- * another writer raced us — and v1 doesn't have signal-delivery races
- * yet (those land in step 5). For now any conflict is a logic bug, not
- * a recoverable race.
+ * Outcome of a `tryAppendStep` attempt under optimistic CAS.
+ *
+ * - `appended`  — the write went through; caller continues normally.
+ * - `idempotent` — another writer already committed a record with the
+ *   *same* signalId at this index. The append is treated as a no-op:
+ *   the existing record is authoritative and the caller should use
+ *   its `result`/`error` (typical retry scenario — same client
+ *   posting twice, host webhook redelivery).
+ * - `lost` — another writer committed a record with a *different*
+ *   signalId. The caller's signal lost the race; the engine surfaces
+ *   `RUN_ERROR { code: 'signal_lost' }` so the loser knows their
+ *   delivery did not take effect.
+ */
+type AppendOutcome =
+  | { kind: 'appended' }
+  | { kind: 'idempotent'; existing: StepRecord }
+  | { kind: 'lost'; existing: StepRecord }
+
+/**
+ * Append a step record under optimistic CAS, classifying conflicts.
+ *
+ * Non-`LogConflictError` errors from the store rethrow — those are
+ * infrastructure failures, not concurrency races, and the caller's
+ * try/catch in driveLoop maps them to `RUN_ERROR` via the standard
+ * path.
+ */
+async function tryAppendStep(
+  runStore: InMemoryRunStore,
+  runId: string,
+  expectedNextIndex: number,
+  record: StepRecord,
+): Promise<AppendOutcome> {
+  try {
+    await runStore.appendStep(runId, expectedNextIndex, record)
+    return { kind: 'appended' }
+  } catch (err) {
+    if (err instanceof LogConflictError && err.existing) {
+      const existing = err.existing
+      if (record.signalId && existing.signalId === record.signalId) {
+        return { kind: 'idempotent', existing }
+      }
+      return { kind: 'lost', existing }
+    }
+    throw err
+  }
+}
+
+/**
+ * Append-or-fail for non-signal step records (agent, nested-workflow,
+ * step, now, uuid). These records have no signalId, so the CAS
+ * conflict path can never reach 'idempotent' — any conflict is a
+ * genuine multi-writer race, which under the v1 contract is a
+ * programmer error (the engine is the only writer for its run). We
+ * throw to let the driveLoop's outer try/catch surface RUN_ERROR.
  */
 async function appendStep(
   runStore: InMemoryRunStore,
@@ -1180,5 +1237,15 @@ async function appendStep(
   expectedNextIndex: number,
   record: StepRecord,
 ): Promise<void> {
-  await runStore.appendStep(runId, expectedNextIndex, record)
+  const outcome = await tryAppendStep(
+    runStore,
+    runId,
+    expectedNextIndex,
+    record,
+  )
+  if (outcome.kind !== 'appended') {
+    throw new Error(
+      `Log CAS conflict at index ${expectedNextIndex} on ${record.kind}/${record.name} — another writer committed first. Multi-instance writes on a single run are not supported in v1.`,
+    )
+  }
 }
