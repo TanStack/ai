@@ -48,6 +48,12 @@ export interface DefineOrchestratorConfig<
   /**
    * Routing decision generator. Returns `{ done: true, output }` to finish,
    * or `{ agent: 'name', input: {...} }` to dispatch to a declared agent.
+   *
+   * `lastResult` is the typed output of the agent dispatched on the previous
+   * turn (or `undefined` on turn 0). The router uses it to fold an agent's
+   * structured output into workflow `state` — without it the engine has no
+   * channel for the dispatched agent's return value, leaving the router blind
+   * to its own decisions and prone to infinite-loop on stateless triage.
    */
   router: (args: {
     input: TInputSchema extends SchemaInput
@@ -58,6 +64,7 @@ export interface DefineOrchestratorConfig<
       : Record<string, unknown>
     agents: BoundAgents<TAgents>
     turn: number
+    lastResult: unknown
   }) => StepGenerator<RouterDecision<TAgents, TOutputSchema>>
 }
 
@@ -86,12 +93,14 @@ export function defineOrchestrator<
     initialize: config.initialize,
     // eslint-disable-next-line @typescript-eslint/require-await
     run: async function* (args) {
+      let lastResult: unknown = undefined
       for (let turn = 0; turn < maxTurns; turn++) {
         const decision = yield* config.router({
           input: args.input as any,
           state: args.state as any,
           agents: args.agents,
           turn,
+          lastResult,
         })
 
         if (decision.done) {
@@ -105,8 +114,7 @@ export function defineOrchestrator<
             `Orchestrator "${config.name}": router returned unknown agent "${agentName}"`,
           )
         }
-        // Discard agent return value; orchestrator routes again next turn.
-        yield* boundAgent(decision.input)
+        lastResult = yield* boundAgent(decision.input)
       }
 
       throw new Error(

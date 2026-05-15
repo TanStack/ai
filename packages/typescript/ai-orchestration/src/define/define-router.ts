@@ -55,6 +55,8 @@ export function defineRouter<
       ? InferSchema<TStateSchema>
       : Record<string, unknown>
     turn: number
+    /** Typed output of the agent dispatched on the previous turn (undefined on turn 0). */
+    lastResult: unknown
   }) => StepGenerator<RouterDecision<TAgents, TOutputSchema>>,
 ) {
   return router

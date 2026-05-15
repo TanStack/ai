@@ -4,6 +4,12 @@ export interface WorkflowRequestParams {
   approval?: ApprovalResult
   input?: unknown
   runId?: string
+  /**
+   * `true` when the client invoked `WorkflowClient.stop()` — the route
+   * handler should look up the live run by `runId` and abort it instead of
+   * starting a new workflow.
+   */
+  abort?: boolean
 }
 
 interface RawBody {
@@ -22,6 +28,10 @@ interface RawBody {
  * ```typescript
  * POST: async ({ request }) => {
  *   const params = await parseWorkflowRequest(request)
+ *   if (params.abort && params.runId) {
+ *     runStore.getLive(params.runId)?.abortController.abort()
+ *     return new Response(null, { status: 204 })
+ *   }
  *   const stream = runWorkflow({ workflow, runStore, ...params })
  *   return toServerSentEventsResponse(stream)
  * }
@@ -35,5 +45,6 @@ export async function parseWorkflowRequest(
     approval: body.approval,
     input: body.input,
     runId: body.runId,
+    abort: body.abort,
   }
 }

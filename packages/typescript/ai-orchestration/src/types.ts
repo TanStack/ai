@@ -1,5 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
-import type { StreamChunk } from '@tanstack/ai'
+import type { StreamChunk, StructuredOutputStream } from '@tanstack/ai'
 
 // ==========================================
 // Standard Schema helpers
@@ -21,6 +21,13 @@ export type AgentRunArgs<TInput> = {
 
 export type AgentRunResult<TOutput> =
   | AsyncIterable<StreamChunk>
+  // `chat({ outputSchema, stream: true })` returns `StructuredOutputStream<T>`,
+  // whose element union (`StructuredOutputCompleteEvent`, `ApprovalRequestedEvent`,
+  // `ToolInputAvailableEvent`) is a structural subset of `StreamChunk` but
+  // doesn't unify with it under TS's discriminated-union check. Listing it
+  // explicitly lets agents return `chat({...stream:true})` directly without
+  // any cast — the engine's shape-(a) path iterates it the same way.
+  | StructuredOutputStream<TOutput>
   | Promise<TOutput>
   | { stream: AsyncIterable<StreamChunk>; output: Promise<TOutput> }
 
