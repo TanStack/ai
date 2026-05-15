@@ -19,6 +19,7 @@ import type {
   LiveRun,
   RunState,
   StepDescriptor,
+  StepRecord,
   WorkflowRunArgs,
 } from '../types'
 import type { InMemoryRunStore } from '../run-store/in-memory'
@@ -77,16 +78,43 @@ function errorMessage(err: unknown): string {
 }
 
 /**
- * Run a workflow to completion or pause point (start or resume). Returns an
- * AsyncIterable of StreamChunk that the caller pipes to SSE.
+ * Reconstruct the initial state for a workflow. Used both on start (fresh
+ * run) and on replay-from-store resume (recover state from scratch by
+ * re-running `initialize` + re-applying user-code mutations via replay).
+ *
+ * Replay determinism relies on this returning the same shape every time
+ * for a given input — `initialize` should be pure given its arguments.
+ */
+function buildInitialState(
+  workflow: AnyWorkflowDefinition,
+  input: unknown,
+): Record<string, unknown> {
+  const initial = workflow.initialize
+    ? workflow.initialize({ input: input as never })
+    : {}
+  return mergeStateDefaults(workflow, initial as Record<string, unknown>)
+}
+
+/**
+ * Run a workflow to completion or pause point (start or resume). Returns
+ * an AsyncIterable of StreamChunk that the caller pipes to SSE.
  *
  * - Start call: provide `workflow`, `input`, and `runStore`.
  * - Resume call: provide `workflow`, `runId`, `approval`, and `runStore`.
  *
- * Pause semantics: when the user code yields an `approval` descriptor, the
- * engine emits `approval-requested`, persists run state, stores the live
- * generator handle in `runStore.setLive`, then ends the stream. The client
- * resumes by calling `runWorkflow` again with `runId` and `approval`.
+ * Pause semantics: when the user code yields an `approval` descriptor,
+ * the engine emits `approval-requested`, persists run state, stores the
+ * live generator handle in `runStore.setLive`, then ends the stream. The
+ * client resumes by calling `runWorkflow` again with `runId` and
+ * `approval`.
+ *
+ * Durability: every completed step (`agent`, `nested-workflow`,
+ * `approval`) is appended to the run's step log via `runStore.appendStep`
+ * *before* the corresponding `STEP_FINISHED` is emitted (Q6: at-most-once
+ * observable). On resume, if the live generator is gone (process
+ * restart, multi-instance routing), the engine reconstructs by reading
+ * the log and replaying user code, short-circuiting each yielded
+ * descriptor with its recorded result.
  */
 export async function* runWorkflow(
   options: RunWorkflowOptions,
@@ -114,13 +142,7 @@ async function* startRun(
     })
   }
 
-  const initialState = options.workflow.initialize
-    ? options.workflow.initialize({ input: options.input as any })
-    : {}
-  const state = mergeStateDefaults(
-    options.workflow,
-    initialState as Record<string, unknown>,
-  )
+  const state = buildInitialState(options.workflow, options.input)
 
   const runState: RunState = {
     runId,
@@ -172,6 +194,8 @@ async function* startRun(
     outputSink: options.outputSink,
     abortController,
     seedValue: undefined,
+    replayLog: [],
+    workflow: options.workflow,
   })
 }
 
@@ -180,8 +204,40 @@ async function* resumeRun(
 ): AsyncIterable<StreamChunk> {
   const runId = options.runId!
   const approval = options.approval!
-  const live = options.runStore.getLive(runId)
-  if (!live) {
+
+  // Fast path: live generator still in process (same node, no restart).
+  const inMemory = options.runStore.getLive(runId)
+  if (inMemory) {
+    inMemory.runState = {
+      ...inMemory.runState,
+      status: 'running',
+      updatedAt: Date.now(),
+    }
+    await options.runStore.setRunState(runId, inMemory.runState)
+
+    yield runStartedEvent({ runId, threadId: options.threadId })
+
+    yield* driveLoop({
+      live: inMemory,
+      runId,
+      state: inMemory.runState.state as Record<string, unknown>,
+      runStore: options.runStore,
+      threadId: options.threadId,
+      outputSink: options.outputSink,
+      abortController: inMemory.abortController,
+      seedValue: approval,
+      replayLog: [],
+      workflow: options.workflow,
+    })
+    return
+  }
+
+  // Replay path: live generator is gone (process restart, multi-node
+  // routing). Reconstruct by loading state + log from the store, re-
+  // running the workflow from scratch, short-circuiting each yielded
+  // step with its recorded log entry.
+  const persistedRunState = await options.runStore.getRunState(runId)
+  if (!persistedRunState) {
     yield runErrorEvent({
       runId,
       message: `Run ${runId} not found (expired or never existed)`,
@@ -190,7 +246,47 @@ async function* resumeRun(
     return
   }
 
-  live.runState = { ...live.runState, status: 'running', updatedAt: Date.now() }
+  const replayLog = await options.runStore.getSteps(runId)
+
+  // Rebuild fresh state. The persisted snapshot would otherwise compound
+  // with the re-execution of user-code state mutations — replay restores
+  // state authoritatively by re-running the workflow from initial state
+  // against the log. Determinism contract: `initialize` is pure.
+  const state = buildInitialState(options.workflow, persistedRunState.input)
+
+  const abortController = new AbortController()
+  if (options.signal) {
+    options.signal.addEventListener('abort', () => abortController.abort(), {
+      once: true,
+    })
+  }
+
+  const live: LiveRun = {
+    runState: { ...persistedRunState, status: 'running', updatedAt: Date.now() },
+    generator: undefined as unknown as LiveRun['generator'],
+    abortController,
+    approvalResolver: undefined,
+    pendingEvents: [],
+  }
+
+  const args: WorkflowRunArgs<unknown, unknown, AgentMap> = {
+    input: persistedRunState.input,
+    state,
+    agents: bindAgents(options.workflow.agents),
+    emit: (name, value) => {
+      live.pendingEvents.push({
+        type: 'CUSTOM',
+        timestamp: Date.now(),
+        name,
+        value,
+      } as StreamChunk)
+    },
+    signal: abortController.signal,
+  }
+
+  const generator = options.workflow.run(args as any)
+  live.generator = generator
+  options.runStore.setLive(runId, live)
   await options.runStore.setRunState(runId, live.runState)
 
   yield runStartedEvent({ runId, threadId: options.threadId })
@@ -198,12 +294,14 @@ async function* resumeRun(
   yield* driveLoop({
     live,
     runId,
-    state: live.runState.state as Record<string, unknown>,
+    state,
     runStore: options.runStore,
     threadId: options.threadId,
     outputSink: options.outputSink,
-    abortController: live.abortController,
+    abortController,
     seedValue: approval,
+    replayLog,
+    workflow: options.workflow,
   })
 }
 
@@ -216,14 +314,44 @@ interface DriveLoopArgs {
   threadId?: string
   outputSink?: (output: unknown) => void
   abortController: AbortController
-  /** First value sent into `generator.next(...)`. `undefined` for start, `ApprovalResult` for resume. */
+  /**
+   * Value to send into the *post-replay* `generator.next(...)`. For start,
+   * undefined. For resume, the `approval` (or, in later milestones, the
+   * signal payload). Replay itself ignores it; it's consumed exactly once
+   * to satisfy the descriptor that was awaiting when the run paused.
+   */
   seedValue: unknown
+  /**
+   * Recorded step results from a prior run instance. Empty for fresh
+   * starts and in-memory resumes. Non-empty for replay-after-restart:
+   * each entry short-circuits the next yielded descriptor without
+   * dispatching the work again. Entries are positionally indexed
+   * (cursor 0 = first yield).
+   */
+  replayLog: ReadonlyArray<StepRecord>
+  workflow: AnyWorkflowDefinition
 }
 
 /**
- * Shared dispatch loop for both start and resume paths. Drives the generator,
- * dispatches descriptor kinds, emits state deltas, and finalizes the run on
+ * Shared dispatch loop for start, resume-from-memory, and resume-from-
+ * replay paths. Drives the generator, dispatches descriptor kinds,
+ * persists step results, emits state deltas, and finalizes the run on
  * done / error / abort / pause.
+ *
+ * Replay phase (silent fast-forward):
+ *   For the first `replayLog.length` yields, return the recorded result
+ *   without dispatching or emitting client-facing events. State
+ *   mutations during user code re-execute and are tracked locally so
+ *   the next live-mode mutation diff is correct.
+ *
+ * Live phase:
+ *   The next yielded descriptor is what was awaiting at pause time (for
+ *   resume) or the first step (for start). The seed value, if any, is
+ *   consumed exactly once as the result for that descriptor — typically
+ *   an approval — and the engine appends a fresh log entry capturing
+ *   it. Subsequent yields dispatch normally; each completed step is
+ *   appended to the log before its STEP_FINISHED event reaches the
+ *   client (at-most-once observable).
  */
 async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
   const {
@@ -234,39 +362,80 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
     threadId,
     outputSink,
     abortController,
+    replayLog,
   } = args
 
   let prevState = snapshotState(state)
-  let nextValue: unknown = args.seedValue
+  // Track an outstanding approval pause that was emitted in a *prior*
+  // SSE response (the run paused, the stream ended). On the in-memory
+  // resume path we close that dangling STEP_STARTED by emitting a
+  // matching STEP_FINISHED below; on the replay path it's already gone
+  // (we built a fresh LiveRun) so this is undefined and we emit a fresh
+  // pair on the consumed approval.
+  const pendingApprovalStepId = live.pendingApprovalStepId
+  live.pendingApprovalStepId = undefined
+
+  // Differentiate the three entry conditions so the initial
+  // generator.next() arg and the seed-consumption flag are set right:
+  //
+  //   start path           — generator hasn't yielded yet, no seed
+  //                          → next(undefined), seedConsumed=true
+  //   in-memory resume     — generator yielded the approval before the
+  //                          last SSE closed; seed is the result for
+  //                          *that* outstanding yield
+  //                          → next(seed), seedConsumed=true
+  //   replay resume        — fresh generator; replay drives it forward
+  //                          step-by-step; seed gets consumed when we
+  //                          reach the descriptor that has no log entry
+  //                          → next(undefined), seedConsumed=false
+  const isInMemoryResume = !!pendingApprovalStepId
+  const hasSeed = args.seedValue !== undefined
+  let nextValue: unknown = isInMemoryResume ? args.seedValue : undefined
+  let seedConsumed = !hasSeed || isInMemoryResume
+  let replayCursor = 0
+  // Tracks the next position in the persisted log we'll append to. Starts
+  // at `replayLog.length` because we never overwrite replayed entries.
+  let logLength = replayLog.length
   let finalOutput: unknown = undefined
 
   try {
-    // If we're resuming from an approval pause, finalize the approval step
-    // that was left dangling at STEP_STARTED before the SSE closed.
-    if (live.pendingApprovalStepId) {
+    if (pendingApprovalStepId && replayLog.length === 0) {
+      // In-memory resume: the previous run handler already emitted
+      // STEP_STARTED for this approval before the SSE closed; close it
+      // out now with the actual approval payload.
       const approvalResult = args.seedValue as ApprovalResult | undefined
       yield stepFinishedEvent({
-        stepId: live.pendingApprovalStepId,
+        stepId: pendingApprovalStepId,
         stepName: 'approval',
         content: {
           approved: approvalResult?.approved ?? false,
           feedback: approvalResult?.feedback,
         },
       })
-      live.pendingApprovalStepId = undefined
     }
 
     for (;;) {
-      // Drain any custom events queued by emit() before advancing the generator.
-      while (live.pendingEvents.length > 0) yield live.pendingEvents.shift()!
+      const isReplaying = replayCursor < replayLog.length
+
+      // Drain custom events only in live mode — events emitted during
+      // replay are recorded in pendingEvents but never reach the wire,
+      // since the original run already emitted them.
+      if (!isReplaying) {
+        while (live.pendingEvents.length > 0) yield live.pendingEvents.shift()!
+      } else {
+        // Discard pending events accumulated during the prior generator
+        // step — they were already emitted on the original run.
+        live.pendingEvents.length = 0
+      }
 
       const result = await live.generator.next(nextValue as StepDescriptor)
 
-      // Diff state that may have mutated during the user's generator step.
+      // Track state diffs every iteration so the local prevState stays in
+      // sync, but only emit STATE_DELTA in live mode.
       const delta = diffState(prevState, state)
       if (delta.length > 0) {
-        yield stateDeltaEvent({ delta })
         prevState = snapshotState(state)
+        if (!isReplaying) yield stateDeltaEvent({ delta })
       }
 
       if (result.done) {
@@ -275,10 +444,62 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       }
 
       const descriptor: StepDescriptor = result.value
+
+      // Replay short-circuit: log entry exists for this position.
+      if (replayCursor < replayLog.length) {
+        nextValue = replayLog[replayCursor]!.result
+        replayCursor++
+        continue
+      }
+
       const stepId = generateId('step')
+
+      // Post-replay seed delivery: the seed value (typically an approval
+      // payload) is the result for the descriptor that was awaiting when
+      // the run originally paused. Record it as a fresh log entry and
+      // emit a synthetic STEP_STARTED+STEP_FINISHED pair so the consumer
+      // of this resume stream sees the approval closure (the original
+      // STEP_STARTED was emitted on the SSE response that paused, which
+      // this consumer didn't necessarily see).
+      if (!seedConsumed) {
+        seedConsumed = true
+        if (descriptor.kind === 'approval') {
+          yield stepStartedEvent({
+            stepId,
+            stepName: 'approval',
+            stepType: 'approval',
+          })
+          await appendStep(runStore, runId, logLength, {
+            index: logLength,
+            kind: 'approval',
+            name: 'approval',
+            result: args.seedValue,
+            startedAt: Date.now(),
+            finishedAt: Date.now(),
+          })
+          logLength++
+          yield stepFinishedEvent({
+            stepId,
+            stepName: 'approval',
+            content: args.seedValue,
+          })
+          nextValue = args.seedValue
+          continue
+        }
+        // Descriptor isn't an approval despite us having a seed —
+        // shouldn't happen with the v1 contract (resume implies
+        // approval). Surface as a hard error so the issue is visible.
+        yield runErrorEvent({
+          runId,
+          message: `Resume seed delivered but pending descriptor was '${descriptor.kind}', not 'approval'`,
+          code: 'resume_mismatch',
+        })
+        return
+      }
 
       // ---- agent ----
       if (descriptor.kind === 'agent') {
+        const startedAt = Date.now()
         yield stepStartedEvent({
           stepId,
           stepName: descriptor.name,
@@ -305,6 +526,18 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         try {
           stepResult = await output
         } catch (err) {
+          // Persist the failure before reporting it. Replay will see the
+          // error record and re-raise it into user code, matching the
+          // original throw path.
+          await appendStep(runStore, runId, logLength, {
+            index: logLength,
+            kind: 'agent',
+            name: descriptor.name,
+            error: serializeError(err),
+            startedAt,
+            finishedAt: Date.now(),
+          })
+          logLength++
           yield stepFinishedEvent({
             stepId,
             stepName: descriptor.name,
@@ -319,6 +552,15 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
           continue
         }
 
+        await appendStep(runStore, runId, logLength, {
+          index: logLength,
+          kind: 'agent',
+          name: descriptor.name,
+          result: stepResult,
+          startedAt,
+          finishedAt: Date.now(),
+        })
+        logLength++
         yield stepFinishedEvent({
           stepId,
           stepName: descriptor.name,
@@ -330,6 +572,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
 
       // ---- nested-workflow ----
       if (descriptor.kind === 'nested-workflow') {
+        const startedAt = Date.now()
         yield stepStartedEvent({
           stepId,
           stepName: descriptor.name,
@@ -354,6 +597,15 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
           yield chunk
         }
 
+        await appendStep(runStore, runId, logLength, {
+          index: logLength,
+          kind: 'nested-workflow',
+          name: descriptor.name,
+          result: nestedOutput,
+          startedAt,
+          finishedAt: Date.now(),
+        })
+        logLength++
         yield stepFinishedEvent({
           stepId,
           stepName: descriptor.name,
@@ -363,7 +615,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         continue
       }
 
-      // ---- approval (exhaustive last branch) ----
+      // ---- approval (pause) ----
       {
         const approvalDescriptor = descriptor
         const approvalId = generateId('approval')
@@ -395,13 +647,13 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         live.pendingApprovalStepId = stepId
         await runStore.setRunState(runId, live.runState)
 
-        // SSE stream ends here; runWorkflow continues after client posts approval.
+        // SSE stream ends; runWorkflow continues after client posts
+        // approval. The approval result is appended to the log on the
+        // resume side (when the seed is consumed).
         return
       }
     }
 
-    // Notify the parent before we delete our store entry so the output is
-    // accessible across the store-delete boundary.
     outputSink?.(finalOutput)
 
     live.runState = {
@@ -431,4 +683,20 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
     })
     await runStore.deleteRun(runId, 'error')
   }
+}
+
+/**
+ * Append a step record. If the store throws `LogConflictError`, we
+ * surface a `RUN_ERROR` because true CAS conflicts can only happen when
+ * another writer raced us — and v1 doesn't have signal-delivery races
+ * yet (those land in step 5). For now any conflict is a logic bug, not
+ * a recoverable race.
+ */
+async function appendStep(
+  runStore: InMemoryRunStore,
+  runId: string,
+  expectedNextIndex: number,
+  record: StepRecord,
+): Promise<void> {
+  await runStore.appendStep(runId, expectedNextIndex, record)
 }
