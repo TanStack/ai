@@ -69,6 +69,19 @@ export interface RunWorkflowOptions {
    * output across the store-delete boundary.
    */
   outputSink?: (output: unknown) => void
+  /**
+   * Optional event publisher hook (Q7). Called once per event emitted
+   * by the engine, before the event is yielded to the SSE consumer.
+   * Hosts wire this to a fan-out transport (Redis pub/sub, NATS,
+   * EventBridge, etc.) so attached subscribers on *other* nodes can
+   * tail live events. Errors thrown by `publish` are caught and
+   * logged but do not break the run — the SSE consumer still gets
+   * the event.
+   *
+   * Single-node deployments can ignore this. Multi-node deployments
+   * use it as the seam where the library doesn't ship transport.
+   */
+  publish?: (runId: string, event: StreamChunk) => void | Promise<void>
 }
 
 // ----- helpers -----
@@ -147,20 +160,42 @@ function buildInitialState(
 export async function* runWorkflow(
   options: RunWorkflowOptions,
 ): AsyncIterable<StreamChunk> {
-  if (options.runId && options.attach) {
-    yield* attachRun(options)
-    return
+  // Inner generator does the actual work; the outer wrapper intercepts
+  // every event so the publisher hook (Q7) sees every emission before
+  // the SSE consumer does. We track the runId as it emerges from
+  // RUN_STARTED so the publish callback always carries the right key
+  // (start-paths don't know the runId at construction time).
+  async function* inner(): AsyncIterable<StreamChunk> {
+    if (options.runId && options.attach) {
+      yield* attachRun(options)
+      return
+    }
+    if (options.runId && (options.approval || options.signalDelivery)) {
+      yield* resumeRun(options)
+      return
+    }
+    if (options.input === undefined) {
+      throw new Error(
+        'runWorkflow: provide `input` (start), `runId` + `approval`/`signalDelivery` (resume), or `runId` + `attach: true` (attach)',
+      )
+    }
+    yield* startRun(options as RunWorkflowOptions & { input: unknown })
   }
-  if (options.runId && (options.approval || options.signalDelivery)) {
-    yield* resumeRun(options)
-    return
+
+  let knownRunId = options.runId
+  for await (const event of inner()) {
+    if (event.type === 'RUN_STARTED' && !knownRunId) {
+      knownRunId = (event as unknown as { runId: string }).runId
+    }
+    if (options.publish && knownRunId) {
+      try {
+        await options.publish(knownRunId, event)
+      } catch {
+        // Swallow — a misbehaving publisher must not break the run.
+      }
+    }
+    yield event
   }
-  if (options.input === undefined) {
-    throw new Error(
-      'runWorkflow: provide `input` (start), `runId` + `approval`/`signalDelivery` (resume), or `runId` + `attach: true` (attach)',
-    )
-  }
-  yield* startRun(options as RunWorkflowOptions & { input: unknown })
 }
 
 async function* startRun(
