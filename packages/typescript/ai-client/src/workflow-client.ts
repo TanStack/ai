@@ -136,12 +136,25 @@ export class WorkflowClient<
     await this.consumeStream(workflowStream)
   }
 
-  async start(input: TInput): Promise<void> {
+  /**
+   * Start a new run. `runId` is optional — when omitted the client
+   * library generates one with `crypto.randomUUID()` so the request is
+   * idempotent against double-submits and network retries. The server's
+   * idempotency check (Q8) compares fingerprints on collision and either
+   * serves the existing run as an attach snapshot or rejects with
+   * `run_id_conflict`.
+   */
+  async start(
+    input: TInput,
+    options?: { runId?: string },
+  ): Promise<void> {
+    const runId = options?.runId ?? `run_${globalThis.crypto.randomUUID()}`
     this.setState({
       ...(initialState as WorkflowClientState<TState, TOutput>),
+      runId,
       status: 'running',
     })
-    const workflowStream = this.openStream({ input })
+    const workflowStream = this.openStream({ input, runId })
     await this.consumeStream(workflowStream)
   }
 

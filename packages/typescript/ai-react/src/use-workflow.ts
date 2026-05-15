@@ -28,7 +28,7 @@ export interface UseWorkflowReturn<
     payload: unknown,
     options?: { signalId?: string },
   ) => Promise<void>
-  start: (input: TInput) => Promise<void>
+  start: (input: TInput, options?: { runId?: string }) => Promise<void>
   stop: () => void
 }
 
@@ -82,7 +82,11 @@ export function useWorkflow<
     ) => client.signal(name, payload, options),
     [client],
   )
-  const start = useCallback((input: TInput) => client.start(input), [client])
+  const start = useCallback(
+    (input: TInput, options?: { runId?: string }) =>
+      client.start(input, options),
+    [client],
+  )
   const stop = useCallback(() => {
     client.stop()
   }, [client])

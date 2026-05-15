@@ -202,6 +202,36 @@ async function* startRun(
   options: RunWorkflowOptions & { input: unknown },
 ): AsyncIterable<StreamChunk> {
   const runId = options.runId ?? generateId('run')
+  const fingerprint = fingerprintWorkflow(options.workflow)
+
+  // Idempotency check (Q8): if the client provided a runId and a run
+  // already exists with that id, either treat this call as a retry (the
+  // fingerprint matches → the original start succeeded; we deliver an
+  // attach snapshot so the caller sees the run as it stands), or reject
+  // with RUN_ID_CONFLICT (the fingerprint doesn't match — most likely a
+  // collision rather than a true retry). Generated runIds skip this
+  // check because their probabilistic collision rate is negligible and
+  // the cost (one store read per fresh start) isn't worth paying.
+  if (options.runId) {
+    const existing = await options.runStore.getRunState(runId)
+    if (existing) {
+      if (existing.fingerprint && existing.fingerprint !== fingerprint) {
+        yield runErrorEvent({
+          runId,
+          message: `Run id "${runId}" already exists with a different workflow fingerprint. Generate a fresh runId or use \`attach: true\` to read the existing run.`,
+          code: 'run_id_conflict',
+        })
+        return
+      }
+      // Same runId, same fingerprint → idempotent retry. Serve the
+      // current state via the attach path so callers always get a
+      // consistent envelope of events regardless of whether they hit
+      // a fresh start or a retry.
+      yield* attachRun({ ...options, attach: true })
+      return
+    }
+  }
+
   const abortController = new AbortController()
   if (options.signal) {
     options.signal.addEventListener('abort', () => abortController.abort(), {
@@ -215,7 +245,7 @@ async function* startRun(
     runId,
     status: 'running',
     workflowName: options.workflow.name,
-    fingerprint: fingerprintWorkflow(options.workflow),
+    fingerprint,
     input: options.input,
     state,
     createdAt: Date.now(),
@@ -429,6 +459,7 @@ async function* resumeRun(
       outputSink: options.outputSink,
       abortController: inMemory.abortController,
       seedValue: seedPayload,
+      seedSignalId: options.signalDelivery?.signalId,
       replayLog: [],
       workflow: options.workflow,
     })
@@ -522,6 +553,7 @@ async function* resumeRun(
     outputSink: options.outputSink,
     abortController,
     seedValue: seedPayload,
+    seedSignalId: options.signalDelivery?.signalId,
     replayLog,
     workflow: options.workflow,
   })
@@ -543,6 +575,11 @@ interface DriveLoopArgs {
    * to satisfy the descriptor that was awaiting when the run paused.
    */
   seedValue: unknown
+  /** Idempotency token for the seed delivery (Q8). Recorded on the
+   *  resulting approval/signal step record so a subsequent retry with
+   *  the same signalId can be deduped to the existing entry (CAS-on-
+   *  conflict handling lands in step 9). */
+  seedSignalId?: string
   /**
    * Recorded step results from a prior run instance. Empty for fresh
    * starts and in-memory resumes. Non-empty for replay-after-restart:
@@ -628,18 +665,35 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       // payload into the original {approved, feedback} envelope so
       // existing UI consumers don't break; for generic signals we
       // forward the payload as-is.
+      //
+      // Persist the resolved signal/approval to the log *before*
+      // emitting STEP_FINISHED (Q6: at-most-once observable). This is
+      // what lets a future attach call replay through the resolved
+      // pause; without it, the in-memory fast-path silently skipped
+      // the log append and the next replay would re-enter the pause.
       const waitingFor = live.runState.waitingFor
       const seed = args.seedValue
       const isApproval = !waitingFor || waitingFor.signalName === 'approval'
+      const content = isApproval
+        ? {
+            approved: (seed as ApprovalResult | undefined)?.approved ?? false,
+            feedback: (seed as ApprovalResult | undefined)?.feedback,
+          }
+        : seed
+      await appendStep(runStore, runId, logLength, {
+        index: logLength,
+        kind: isApproval ? 'approval' : 'signal',
+        name: waitingFor?.signalName ?? 'approval',
+        signalId: args.seedSignalId,
+        result: isApproval ? seed : content,
+        startedAt: Date.now(),
+        finishedAt: Date.now(),
+      })
+      logLength++
       yield stepFinishedEvent({
         stepId: pendingApprovalStepId,
         stepName: waitingFor?.signalName ?? 'approval',
-        content: isApproval
-          ? {
-              approved: (seed as ApprovalResult | undefined)?.approved ?? false,
-              feedback: (seed as ApprovalResult | undefined)?.feedback,
-            }
-          : seed,
+        content,
       })
     }
 
@@ -729,6 +783,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
             index: logLength,
             kind: 'approval',
             name: 'approval',
+            signalId: args.seedSignalId,
             result: args.seedValue,
             startedAt: Date.now(),
             finishedAt: Date.now(),
@@ -752,6 +807,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
             index: logLength,
             kind: 'signal',
             name: descriptor.name,
+            signalId: args.seedSignalId,
             result: args.seedValue,
             startedAt: Date.now(),
             finishedAt: Date.now(),
