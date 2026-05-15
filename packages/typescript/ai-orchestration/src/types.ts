@@ -107,6 +107,9 @@ export interface WorkflowDefinition<
   }) => TStateSchema extends SchemaInput
     ? Partial<InferSchema<TStateSchema>>
     : Record<string, unknown>
+  /** Fallback retry policy for `step()` calls that don't carry their
+   *  own `{ retry }` option. */
+  defaultStepRetry?: StepRetryOptions
   run: (
     args: WorkflowRunArgs<
       TInputSchema extends SchemaInput ? InferSchema<TInputSchema> : unknown,
@@ -136,6 +139,37 @@ export type AnyWorkflowDefinition = WorkflowDefinition<any, any, any, any>
 export interface StepContext {
   /** Deterministic step ID. Stable across replays. */
   id: string
+  /** Current attempt number (1-indexed). Useful for retry-aware step
+   *  fns that want to e.g. widen a timeout on later attempts. */
+  attempt: number
+}
+
+/**
+ * Per-step retry policy (step 10). When set on a `step()` call (or via
+ * the workflow's `defaultStepRetry`), the engine retries the step's
+ * `fn` until it succeeds or `maxAttempts` is exhausted. Backoff
+ * between attempts uses an in-process timer — durable across yields
+ * but not across process restart, an acceptable v1 limitation.
+ */
+export interface StepRetryOptions {
+  /** Maximum total attempts including the first try. Must be >= 1. */
+  maxAttempts: number
+  /**
+   * Backoff strategy between attempts.
+   *   - `'exponential'`  — `baseMs * 2^(attempt-1)` ms.
+   *   - `'fixed'`        — always `baseMs`.
+   *   - `(attempt) => ms` — custom function.
+   * Default: `'exponential'`.
+   */
+  backoff?: 'exponential' | 'fixed' | ((attempt: number) => number)
+  /** Base delay in ms for built-in backoff strategies. Default: 500. */
+  baseMs?: number
+  /**
+   * Predicate to decide whether a given error should be retried. If
+   * absent, every thrown error is retried until attempts are
+   * exhausted. Return `false` to abort retries early.
+   */
+  shouldRetry?: (err: unknown, attempt: number) => boolean
 }
 
 export type StepDescriptor =
@@ -151,6 +185,7 @@ export type StepDescriptor =
       kind: 'step'
       name: string
       fn: (ctx: StepContext) => unknown | Promise<unknown>
+      retry?: StepRetryOptions
     }
   | { kind: 'now' }
   | { kind: 'uuid' }

@@ -2,7 +2,14 @@ import type {
   StepContext,
   StepDescriptor,
   StepGenerator,
+  StepRetryOptions,
 } from '../types'
+
+export interface StepOptions {
+  /** Retry policy for this step. Overrides the workflow-level
+   *  `defaultStepRetry` if both are set. */
+  retry?: StepRetryOptions
+}
 
 /**
  * Yieldable durable side-effect.
@@ -42,11 +49,13 @@ import type {
 export function* step<T>(
   name: string,
   fn: (ctx: StepContext) => T | Promise<T>,
+  options?: StepOptions,
 ): StepGenerator<T> {
   const descriptor: StepDescriptor = {
     kind: 'step',
     name,
     fn: fn as (ctx: StepContext) => unknown | Promise<unknown>,
+    retry: options?.retry,
   }
   return (yield descriptor) as unknown as T
 }

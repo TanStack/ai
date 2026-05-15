@@ -19,6 +19,7 @@ export { retry } from './primitives/retry'
 export type { RetryOptions } from './primitives/retry'
 export { sleep, sleepUntil, TIMER_SIGNAL_NAME } from './primitives/sleep'
 export { step } from './primitives/step'
+export type { StepOptions } from './primitives/step'
 export { uuid } from './primitives/uuid'
 export { waitForSignal } from './primitives/wait-for-signal'
 export type { WaitForSignalOptions } from './primitives/wait-for-signal'
@@ -54,11 +55,13 @@ export type {
   InferSchema,
   SchemaInput,
   SignalResult,
+  StepAttempt,
   StepContext,
   StepDescriptor,
   StepGenerator,
   StepKind,
   StepRecord,
+  StepRetryOptions,
   WorkflowDefinition,
   WorkflowRunArgs,
 } from './types'

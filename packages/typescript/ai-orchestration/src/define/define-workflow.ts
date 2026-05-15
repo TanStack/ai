@@ -3,6 +3,7 @@ import type {
   InferSchema,
   SchemaInput,
   StepDescriptor,
+  StepRetryOptions,
   WorkflowDefinition,
   WorkflowRunArgs,
 } from '../types'
@@ -26,6 +27,13 @@ export interface DefineWorkflowConfig<
   }) => TStateSchema extends SchemaInput
     ? Partial<InferSchema<TStateSchema>>
     : Record<string, unknown>
+  /**
+   * Default retry policy applied to every `step()` call in this
+   * workflow that doesn't carry its own `{ retry }` option. Useful for
+   * coarse-grained policies like "retry transient errors up to 3 times
+   * with exponential backoff" without repeating it at every site.
+   */
+  defaultStepRetry?: StepRetryOptions
   run: (
     args: WorkflowRunArgs<
       TInputSchema extends SchemaInput ? InferSchema<TInputSchema> : unknown,
@@ -63,6 +71,7 @@ export function defineWorkflow<
     stateSchema: config.state,
     agents: config.agents,
     initialize: config.initialize,
+    defaultStepRetry: config.defaultStepRetry,
     run: config.run,
   }
 }

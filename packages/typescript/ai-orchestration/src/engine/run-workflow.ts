@@ -24,6 +24,7 @@ import type {
   SignalResult,
   StepDescriptor,
   StepRecord,
+  StepRetryOptions,
   WorkflowRunArgs,
 } from '../types'
 import type { InMemoryRunStore } from '../run-store/in-memory'
@@ -117,6 +118,23 @@ function serializeError(err: unknown): {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
+}
+
+/**
+ * Compute the wait between retry attempts. `attempt` is the *just-
+ * failed* attempt number (1-indexed), so the next attempt happens
+ * after `delay(attempt)` ms.
+ */
+function computeBackoffMs(
+  policy: StepRetryOptions | undefined,
+  attempt: number,
+): number {
+  if (!policy) return 0
+  const base = policy.baseMs ?? 500
+  if (typeof policy.backoff === 'function') return policy.backoff(attempt)
+  if (policy.backoff === 'fixed') return base
+  // Default: exponential. attempt=1 -> base, attempt=2 -> base*2, …
+  return base * 2 ** (attempt - 1)
 }
 
 /**
@@ -918,7 +936,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
 
       // ---- step (durable side-effect) ----
       if (descriptor.kind === 'step') {
-        const startedAt = Date.now()
+        const overallStart = Date.now()
         yield stepStartedEvent({
           stepId,
           stepName: descriptor.name,
@@ -926,32 +944,87 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         })
 
         const ctxId = `${runId}:step-${logLength}`
+        const retryPolicy =
+          descriptor.retry ?? args.workflow.defaultStepRetry
+        const maxAttempts = Math.max(1, retryPolicy?.maxAttempts ?? 1)
+        const attempts: Array<{
+          startedAt: number
+          finishedAt: number
+          error?: { name: string; message: string; stack?: string }
+          result?: unknown
+        }> = []
+        let lastError: unknown
         let stepResult: unknown
-        try {
-          stepResult = await descriptor.fn({ id: ctxId })
-        } catch (err) {
+        let succeeded = false
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          const attemptStart = Date.now()
+          try {
+            stepResult = await descriptor.fn({ id: ctxId, attempt })
+            attempts.push({
+              startedAt: attemptStart,
+              finishedAt: Date.now(),
+              result: stepResult,
+            })
+            succeeded = true
+            break
+          } catch (err) {
+            lastError = err
+            attempts.push({
+              startedAt: attemptStart,
+              finishedAt: Date.now(),
+              error: serializeError(err),
+            })
+            const shouldRetry =
+              attempt < maxAttempts &&
+              (retryPolicy?.shouldRetry?.(err, attempt) ?? true)
+            if (!shouldRetry) break
+            // In-process backoff. Durable across yields, not durable
+            // across process restart — an acceptable v1 limitation
+            // documented in the design doc. Long-tail retries that
+            // need full durability should use `yield* sleep(...)` in
+            // user code instead.
+            const delayMs = computeBackoffMs(retryPolicy, attempt)
+            if (delayMs > 0) {
+              await new Promise<void>((resolve) => {
+                const t = setTimeout(resolve, delayMs)
+                // Abort cleanly if the run is cancelled mid-backoff.
+                abortController.signal.addEventListener(
+                  'abort',
+                  () => {
+                    clearTimeout(t)
+                    resolve()
+                  },
+                  { once: true },
+                )
+              })
+              if (abortController.signal.aborted) break
+            }
+          }
+        }
+
+        if (!succeeded) {
           await appendStep(runStore, runId, logLength, {
             index: logLength,
             kind: 'step',
             name: descriptor.name,
-            error: serializeError(err),
-            startedAt,
+            error: serializeError(lastError),
+            attempts,
+            startedAt: overallStart,
             finishedAt: Date.now(),
           })
           logLength++
           yield stepFinishedEvent({
             stepId,
             stepName: descriptor.name,
-            content: { error: serializeError(err) },
+            content: { error: serializeError(lastError) },
           })
           nextValue = undefined
-          const thrown = await live.generator.throw(err)
+          const thrown = await live.generator.throw(lastError)
           if (thrown.done) {
             finalOutput = thrown.value
             break
           }
-          // generator.throw already advanced to the next yield — stash
-          // its result for the next iteration so we don't double-advance.
           pendingResult = thrown
           continue
         }
@@ -961,7 +1034,8 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
           kind: 'step',
           name: descriptor.name,
           result: stepResult,
-          startedAt,
+          attempts: attempts.length > 1 ? attempts : undefined,
+          startedAt: overallStart,
           finishedAt: Date.now(),
         })
         logLength++
