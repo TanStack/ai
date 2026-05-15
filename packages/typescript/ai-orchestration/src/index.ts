@@ -32,6 +32,13 @@ export type { RunWorkflowOptions } from './engine/run-workflow'
 export { parseWorkflowRequest } from './server'
 export type { WorkflowRequestParams } from './server'
 
+// ===== Cross-version registry =====
+export {
+  createWorkflowRegistry,
+  selectWorkflowVersion,
+} from './registry/select-version'
+export type { WorkflowRegistry } from './registry/select-version'
+
 // ===== Run store =====
 export { inMemoryRunStore } from './run-store/in-memory'
 export type {
