@@ -31,7 +31,9 @@ interface CodeBlockProps {
  * HTML happens).
  */
 export function CodeBlock(props: CodeBlockProps) {
-  const lang = normalizeLang(props.lang ?? inferLangFromFilename(props.filename))
+  const lang = normalizeLang(
+    props.lang ?? inferLangFromFilename(props.filename),
+  )
   const [html, setHtml] = useState<string | null>(null)
   const [errored, setErrored] = useState(false)
 

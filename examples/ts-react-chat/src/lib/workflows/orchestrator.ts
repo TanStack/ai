@@ -144,7 +144,7 @@ const coderAgent = defineAgent({
       outputSchema: FilePatch,
       stream: true,
       systemPrompts: [
-        'Generate a unified-diff-style patch for the given file based on the spec. Use a markdown code block in the `patch` field. The patch body MUST be valid source for the file\'s language (inferred from the extension — `.ts`/`.tsx` → TypeScript, `.js` → JavaScript, `.py` → Python, etc.). Do not switch languages or frameworks; match the conventions already implied by the file path.',
+        "Generate a unified-diff-style patch for the given file based on the spec. Use a markdown code block in the `patch` field. The patch body MUST be valid source for the file's language (inferred from the extension — `.ts`/`.tsx` → TypeScript, `.js` → JavaScript, `.py` → Python, etc.). Do not switch languages or frameworks; match the conventions already implied by the file path.",
       ],
       messages: [
         {
