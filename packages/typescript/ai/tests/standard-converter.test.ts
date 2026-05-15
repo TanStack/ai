@@ -555,6 +555,28 @@ describe('convertSchemaToJsonSchema', () => {
       expect(zodResult).not.toBe(zodSchema)
     })
   })
+
+  describe('Standard Schema validator without jsonSchema converter', () => {
+    // Regression guard for #562: widening `SchemaInput` to also accept
+    // `StandardSchemaV1<any, any>` means a validator-only schema (no
+    // `~standard.jsonSchema`) now type-checks. Without the runtime guard
+    // this would fall through and ship `{ '~standard': … }` to the LLM —
+    // throw a clear, actionable error instead.
+    it('should throw an actionable error pointing at the missing converter', () => {
+      const validatorOnlySchema = {
+        '~standard': {
+          version: 1 as const,
+          vendor: 'fake',
+          validate: (value: unknown) => ({ value }),
+          types: undefined,
+        },
+      }
+
+      expect(() => convertSchemaToJsonSchema(validatorOnlySchema)).toThrow(
+        /does not expose a JSON Schema converter/i,
+      )
+    })
+  })
 })
 
 describe('isStandardJSONSchema', () => {
