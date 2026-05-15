@@ -72,6 +72,7 @@ export type {
   WorkflowClientState,
   WorkflowConnectionAdapter,
   WorkflowError,
+  WorkflowSignalWait,
   WorkflowStatus,
   WorkflowStep,
 } from './workflow-client'

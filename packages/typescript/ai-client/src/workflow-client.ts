@@ -204,9 +204,19 @@ export class WorkflowClient<
 
   stop(): void {
     if (!this.clientState.runId) return
-    this.openStream({
+    // openStream returns an AsyncIterable whose underlying request
+    // doesn't fire until something pulls from the generator. Without
+    // explicitly draining it, the abort POST never leaves the client
+    // and the server keeps running. We don't `await` — stop is
+    // fire-and-forget by contract — but we do consume the stream so
+    // the request actually goes out.
+    void this.consumeStream(this.openStream({
       abort: true,
       runId: this.clientState.runId,
+    })).catch(() => {
+      // Network failures on the abort post are non-fatal — the local
+      // state already reflects 'aborted'. A misbehaving abort request
+      // should not throw an unhandled rejection.
     })
     this.setState({ status: 'aborted' })
   }

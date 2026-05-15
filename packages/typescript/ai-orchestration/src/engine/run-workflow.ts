@@ -96,13 +96,32 @@ function mergeStateDefaults(
   workflow: AnyWorkflowDefinition,
   initial: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (workflow.stateSchema) {
-    const validated = workflow.stateSchema['~standard'].validate(initial)
-    if (!(validated instanceof Promise) && !validated.issues) {
-      return validated.value as Record<string, unknown>
-    }
+  if (!workflow.stateSchema) return initial
+  const validated = workflow.stateSchema['~standard'].validate(initial)
+  // Async validation isn't supported on this code path — making it
+  // async would mean every run-start became async-deep, which is
+  // out of scope for v1. We fail loud rather than silently bypassing
+  // the schema (the prior behavior was to silently return `initial`
+  // unvalidated, which masked both async schemas and validation
+  // failures).
+  if (validated instanceof Promise) {
+    throw new Error(
+      `Workflow "${workflow.name}" state schema validates asynchronously, which is not supported. State schemas must validate synchronously.`,
+    )
   }
-  return initial
+  if (validated.issues) {
+    const summary = (validated.issues as ReadonlyArray<unknown>)
+      .map((iss) => {
+        const issue = iss as { message?: string; path?: ReadonlyArray<unknown> }
+        const where = issue.path?.length ? ` at ${issue.path.join('.')}` : ''
+        return `${issue.message ?? 'invalid'}${where}`
+      })
+      .join('; ')
+    throw new Error(
+      `Workflow "${workflow.name}" initial state failed schema validation: ${summary}`,
+    )
+  }
+  return validated.value as Record<string, unknown>
 }
 
 function serializeError(err: unknown): {
@@ -234,10 +253,23 @@ async function* startRun(
   if (options.runId) {
     const existing = await options.runStore.getRunState(runId)
     if (existing) {
-      if (existing.fingerprint && existing.fingerprint !== fingerprint) {
+      // Three-way fingerprint check:
+      //   - Both fingerprints present and match → idempotent retry.
+      //   - Both fingerprints present and differ → run_id_conflict.
+      //   - Persisted fingerprint missing (legacy run pre-fingerprint
+      //     era, or store implementation that drops the field) → we
+      //     can't prove equality, so treat as a conflict to fail loud
+      //     rather than silently serving a possibly-incompatible
+      //     attach snapshot. Operators who genuinely need to attach
+      //     to a legacy run should use the explicit `attach: true`
+      //     path instead, which is documented as the read-only
+      //     surface.
+      if (!existing.fingerprint || existing.fingerprint !== fingerprint) {
         yield runErrorEvent({
           runId,
-          message: `Run id "${runId}" already exists with a different workflow fingerprint. Generate a fresh runId or use \`attach: true\` to read the existing run.`,
+          message: existing.fingerprint
+            ? `Run id "${runId}" already exists with a different workflow fingerprint (${existing.fingerprint} vs ${fingerprint}). Generate a fresh runId or use \`attach: true\` to read the existing run.`
+            : `Run id "${runId}" already exists but its persisted state has no fingerprint (legacy or torn write); cannot verify workflow identity. Use \`attach: true\` explicitly or generate a fresh runId.`,
           code: 'run_id_conflict',
         })
         return
@@ -315,8 +347,10 @@ async function* startRun(
     outputSink: options.outputSink,
     abortController,
     seedValue: undefined,
+    hasSeed: false,
     replayLog: [],
     workflow: options.workflow,
+    publish: options.publish,
   })
 }
 
@@ -460,6 +494,13 @@ async function* resumeRun(
     options.signalDelivery !== undefined
       ? options.signalDelivery.payload
       : options.approval
+  // A resume call IS a seed delivery, even when the payload is
+  // intentionally `undefined` (timer wakes, void-returning signals).
+  // Bucketing this by "did the caller supply a delivery?" rather than
+  // "is the payload truthy?" is what prevents sleep wakes from
+  // silently re-pausing on the replay path.
+  const hasSeed =
+    options.signalDelivery !== undefined || options.approval !== undefined
 
   // Fast path: live generator still in process (same node, no restart).
   const inMemory = options.runStore.getLive(runId)
@@ -482,9 +523,11 @@ async function* resumeRun(
       outputSink: options.outputSink,
       abortController: inMemory.abortController,
       seedValue: seedPayload,
+      hasSeed,
       seedSignalId: options.signalDelivery?.signalId,
       replayLog: [],
       workflow: options.workflow,
+      publish: options.publish,
     })
     return
   }
@@ -596,9 +639,11 @@ async function* resumeRun(
     outputSink: options.outputSink,
     abortController,
     seedValue: seedPayload,
+    hasSeed,
     seedSignalId: options.signalDelivery?.signalId,
     replayLog,
     workflow: options.workflow,
+    publish: options.publish,
   })
 }
 
@@ -611,6 +656,11 @@ interface DriveLoopArgs {
   threadId?: string
   outputSink?: (output: unknown) => void
   abortController: AbortController
+  /** Publisher hook plumbed from the top-level runWorkflow call, so
+   *  nested workflows can fan out events to the same transport under
+   *  their own runId. Without this, attached subscribers on other
+   *  nodes never see nested-run events. */
+  publish?: (runId: string, event: StreamChunk) => void | Promise<void>
   /**
    * Value to send into the *post-replay* `generator.next(...)`. For start,
    * undefined. For resume, the `approval` (or, in later milestones, the
@@ -618,6 +668,15 @@ interface DriveLoopArgs {
    * to satisfy the descriptor that was awaiting when the run paused.
    */
   seedValue: unknown
+  /**
+   * Whether a seed is being delivered on this call. Distinguishes
+   * "resume call with `payload: undefined`" (a valid delivery for
+   * void-returning signals like sleep / `waitForSignal<void>`) from
+   * "start call with no seed at all". Set when the caller's options
+   * provide `signalDelivery` or `approval`; checking `seedValue !==
+   * undefined` is wrong because `undefined` is a legitimate payload.
+   */
+  hasSeed: boolean
   /** Idempotency token for the seed delivery (Q8). Recorded on the
    *  resulting approval/signal step record so a subsequent retry with
    *  the same signalId can be deduped to the existing entry (CAS-on-
@@ -691,9 +750,13 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
   //                          reach the descriptor that has no log entry
   //                          → next(undefined), seedConsumed=false
   const isInMemoryResume = !!pendingApprovalStepId
-  const hasSeed = args.seedValue !== undefined
   let nextValue: unknown = isInMemoryResume ? args.seedValue : undefined
-  let seedConsumed = !hasSeed || isInMemoryResume
+  // seedConsumed flips false when the caller supplied a real delivery
+  // (signalDelivery / approval) AND we still need to apply it to the
+  // post-replay pause descriptor. The in-memory fast path consumes the
+  // seed implicitly via the dangling-step closure block below, so it
+  // starts already-consumed.
+  let seedConsumed = !args.hasSeed || isInMemoryResume
   let replayCursor = 0
   // Tracks the next position in the persisted log we'll append to. Starts
   // at `replayLog.length` because we never overwrite replayed entries.
@@ -738,7 +801,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         // different signalId or stand down.
         yield runErrorEvent({
           runId,
-          message: `Signal lost at index ${logLength}: another delivery (signalId="${inMemAppend.existing.signalId ?? ''}") won the race.`,
+          message: `Signal lost at index ${logLength}: another delivery won the race (winning signalId: ${inMemAppend.existing.signalId ?? '(unsigned)'}).`,
           code: 'signal_lost',
         })
         return
@@ -858,7 +921,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         if (outcome.kind === 'lost') {
           yield runErrorEvent({
             runId,
-            message: `Signal lost at index ${logLength}: another delivery (signalId="${outcome.existing.signalId ?? ''}") won the race.`,
+            message: `Signal lost at index ${logLength}: another delivery won the race (winning signalId: ${outcome.existing.signalId ?? '(unsigned)'}).`,
             code: 'signal_lost',
           })
           return
@@ -1152,12 +1215,27 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
 
       // ---- patched (Temporal-style migration flag) ----
       //
-      // Deterministic from the run's persisted startingPatches — we
-      // don't need a log entry (replay produces the same value). The
-      // engine just answers the boolean and continues.
+      // The value is deterministic from the run's persisted
+      // startingPatches, but the engine still appends a log entry to
+      // keep positional replay aligned. Without the entry the replay
+      // short-circuit (which is positional) would see N records for
+      // N+M yields and silently feed the next-positional record's
+      // result back into a `patched` yield — corrupting the boolean.
+      // The entry is tiny and never user-visible (no STEP_STARTED /
+      // STEP_FINISHED), so it doesn't clutter the UI.
       if (descriptor.kind === 'patched') {
         const patchSet = live.runState.startingPatches ?? []
         const value = patchSet.includes(descriptor.name)
+        const ts = Date.now()
+        await appendStep(runStore, runId, logLength, {
+          index: logLength,
+          kind: 'patched',
+          name: descriptor.name,
+          result: value,
+          startedAt: ts,
+          finishedAt: ts,
+        })
+        logLength++
         nextValue = value
         continue
       }
@@ -1196,6 +1274,13 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
           input: descriptor.input,
           runStore,
           signal: abortController.signal,
+          // Propagate the parent's publisher so attached subscribers
+          // on other nodes see the nested run's events fanned out
+          // under the *nested* run's id. The parent's own publisher
+          // wrapper will also re-publish these chunks under the
+          // parent runId as they bubble up — fine, subscribers
+          // filter by runId.
+          publish: args.publish,
           outputSink: (o) => {
             nestedOutput = o
           },
@@ -1381,7 +1466,27 @@ async function tryAppendStep(
   } catch (err) {
     if (err instanceof LogConflictError && err.existing) {
       const existing = err.existing
-      if (record.signalId && existing.signalId === record.signalId) {
+      // Idempotent classification:
+      //
+      //   (a) Same explicit signalId on both records — host retried a
+      //       generic signal delivery; treat as a no-op.
+      //   (b) Both records lack a signalId AND share the same kind +
+      //       name — typically a legacy `approve()` retry (the legacy
+      //       primitive doesn't carry a signalId). Without this case
+      //       every approval retry collapses to 'lost', defeating
+      //       idempotency for the most common pause kind. The kind+
+      //       name check prevents misclassifying an agent CAS conflict
+      //       (which would be a real multi-writer race) as idempotent.
+      const explicitSignalMatch =
+        record.signalId !== undefined &&
+        existing.signalId === record.signalId
+      const implicitApprovalRetry =
+        record.signalId === undefined &&
+        existing.signalId === undefined &&
+        record.kind === existing.kind &&
+        record.kind === 'approval' &&
+        record.name === existing.name
+      if (explicitSignalMatch || implicitApprovalRetry) {
         return { kind: 'idempotent', existing }
       }
       return { kind: 'lost', existing }
