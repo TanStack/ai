@@ -4,7 +4,7 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 **Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures. Tests run in parallel with per-test `X-Test-Id` isolation.
 
-**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter, elevenlabs (audio-only)
+**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter
 
 ## What's tested
 
@@ -12,26 +12,27 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 Each test iterates over supported providers using `providersFor('feature')`:
 
-| Feature               | Providers | Spec file                             |
-| --------------------- | --------- | ------------------------------------- |
-| chat                  | 7         | `tests/chat.spec.ts`                  |
-| one-shot-text         | 7         | `tests/one-shot-text.spec.ts`         |
-| multi-turn            | 7         | `tests/multi-turn.spec.ts`            |
-| structured-output     | 7         | `tests/structured-output.spec.ts`     |
-| tool-calling          | 7         | `tests/tool-calling.spec.ts`          |
-| parallel-tool-calls   | 6         | `tests/parallel-tool-calls.spec.ts`   |
-| tool-approval         | 6         | `tests/tool-approval.spec.ts`         |
-| text-tool-text        | 6         | `tests/text-tool-text.spec.ts`        |
-| agentic-structured    | 7         | `tests/agentic-structured.spec.ts`    |
-| reasoning             | 3         | `tests/reasoning.spec.ts`             |
-| multimodal-image      | 5         | `tests/multimodal-image.spec.ts`      |
-| multimodal-structured | 5         | `tests/multimodal-structured.spec.ts` |
-| summarize             | 6         | `tests/summarize.spec.ts`             |
-| summarize-stream      | 6         | `tests/summarize-stream.spec.ts`      |
-| image-gen             | 7         | `tests/image-gen.spec.ts`             |
-| tts                   | 3         | `tests/tts.spec.ts`                   |
-| transcription         | 3         | `tests/transcription.spec.ts`         |
-| audio-gen             | 1         | `tests/audio-gen.spec.ts`             |
+| Feature                  | Providers | Spec file                                |
+| ------------------------ | --------- | ---------------------------------------- |
+| chat                     | 7         | `tests/chat.spec.ts`                     |
+| one-shot-text            | 7         | `tests/one-shot-text.spec.ts`            |
+| multi-turn               | 7         | `tests/multi-turn.spec.ts`               |
+| structured-output        | 7         | `tests/structured-output.spec.ts`        |
+| structured-output-stream | 4         | `tests/structured-output-stream.spec.ts` |
+| tool-calling             | 7         | `tests/tool-calling.spec.ts`             |
+| parallel-tool-calls      | 6         | `tests/parallel-tool-calls.spec.ts`      |
+| tool-approval            | 6         | `tests/tool-approval.spec.ts`            |
+| text-tool-text           | 6         | `tests/text-tool-text.spec.ts`           |
+| agentic-structured       | 7         | `tests/agentic-structured.spec.ts`       |
+| reasoning                | 3         | `tests/reasoning.spec.ts`                |
+| multimodal-image         | 5         | `tests/multimodal-image.spec.ts`         |
+| multimodal-structured    | 5         | `tests/multimodal-structured.spec.ts`    |
+| summarize                | 6         | `tests/summarize.spec.ts`                |
+| summarize-stream         | 6         | `tests/summarize-stream.spec.ts`         |
+| image-gen                | 7         | `tests/image-gen.spec.ts`                |
+| tts                      | 3         | `tests/tts.spec.ts`                      |
+| transcription            | 3         | `tests/transcription.spec.ts`            |
+| audio-gen                | 1         | `tests/audio-gen.spec.ts`                |
 
 ### Tools-test page
 
@@ -78,10 +79,9 @@ pnpm --filter @tanstack/ai-e2e test:e2e -- tests/tools-test/
 ## 2. Recording a New Fixture
 
 ```bash
-# 1. Set your API keys (only the ones you need for the fixture you're recording)
+# 1. Set your API keys
 export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-ant-...
-export ELEVENLABS_API_KEY=sk_...   # needed for elevenlabs audio-gen recordings
 
 # 2. Start the app in record mode
 pnpm --filter @tanstack/ai-e2e record
@@ -93,35 +93,6 @@ pnpm --filter @tanstack/ai-e2e record
 # 5. Find it in testing/e2e/fixtures/recorded/
 
 # 6. Stop the dev server (Ctrl+C)
-```
-
-### 2a. Recording ElevenLabs music
-
-aimock 1.17+ has native handlers for `/v1/music/*` and `/v1/sound-generation`,
-so music + SFX requests can be recorded. (TTS `/v1/text-to-speech/{voice_id}`
-and STT `/v1/speech-to-text` are still served by local synthetic mounts in
-`global-setup.ts` — aimock has no native handler for those yet.)
-
-```bash
-# 1. Real ElevenLabs key
-export ELEVENLABS_API_KEY=sk_...
-
-# 2. Record mode
-pnpm --filter @tanstack/ai-e2e record
-
-# 3. Open http://localhost:3010/elevenlabs/audio-gen
-
-# 4. Pick "Music", type the exact prompt the spec uses:
-#    "an upbeat lo-fi beat for the guitar store"
-#    Click Generate. Wait for completion (music_v1 minimum is ~10s of audio).
-
-# 5. The fixture lands in fixtures/recorded/ as a JSON file with the captured
-#    base64 MP3. Move it into fixtures/audio-gen/ so global-setup.ts loads it
-#    on the next test run:
-mv fixtures/recorded/elevenlabs-music-*.json fixtures/audio-gen/music.json
-
-# 6. Drop the programmatic `mock.onMusic(...)` line in global-setup.ts — the
-#    JSON fixture takes over.
 ```
 
 ## 3. Organizing the Recorded Fixture
@@ -153,7 +124,7 @@ Clean up the fixture:
 }
 ```
 
-Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`.
+Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[structured-stream]`, `[structured-stream-abort]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`.
 
 ## 4. Writing a Test
 

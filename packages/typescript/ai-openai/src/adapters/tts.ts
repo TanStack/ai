@@ -1,22 +1,17 @@
+import OpenAI from 'openai'
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
-import {
-  createOpenAIClient,
-  generateId,
-  getOpenAIApiKeyFromEnv,
-} from '../utils/client'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
+import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   validateAudioInput,
   validateInstructions,
   validateSpeed,
 } from '../audio/audio-provider-options'
-import type { OpenAITTSModel } from '../model-meta'
-import type {
-  OpenAITTSFormat,
-  OpenAITTSProviderOptions,
-  OpenAITTSVoice,
-} from '../audio/tts-provider-options'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAITTSModel } from '../model-meta'
+import type { OpenAITTSProviderOptions } from '../audio/tts-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
 
 /**
@@ -40,58 +35,62 @@ export class OpenAITTSAdapter<
 > extends BaseTTSAdapter<TModel, OpenAITTSProviderOptions> {
   readonly name = 'openai' as const
 
-  private client: OpenAI_SDK
+  protected client: OpenAI
 
   constructor(config: OpenAITTSConfig, model: TModel) {
-    super(model, config)
-    this.client = createOpenAIClient(config)
+    super(model, {})
+    this.client = new OpenAI(config)
   }
 
   async generateSpeech(
     options: TTSOptions<OpenAITTSProviderOptions>,
   ): Promise<TTSResult> {
-    const { logger } = options
     const { model, text, voice, format, speed, modelOptions } = options
 
-    logger.request(`activity=generateSpeech provider=openai model=${model}`, {
-      provider: 'openai',
-      model,
-    })
-
-    // Validate inputs using existing validators
-    const audioOptions = {
-      input: text,
-      model,
-      voice: voice as OpenAITTSVoice,
-      speed,
-      response_format: format as OpenAITTSFormat,
-      ...modelOptions,
+    validateAudioInput({ input: text, model: this.model, voice: 'alloy' })
+    if (speed !== undefined) {
+      validateSpeed({ speed, model: this.model, input: '', voice: 'alloy' })
+    }
+    if (modelOptions) {
+      validateInstructions({
+        ...modelOptions,
+        model,
+        input: '',
+        voice: 'alloy',
+      })
     }
 
-    validateAudioInput(audioOptions)
-    validateSpeed(audioOptions)
-    validateInstructions(audioOptions)
-
-    // Build request
     const request: OpenAI_SDK.Audio.SpeechCreateParams = {
       model,
       input: text,
-      voice: voice || 'alloy',
+      voice: (voice || 'alloy') as OpenAI_SDK.Audio.SpeechCreateParams['voice'],
       response_format: format,
       speed,
       ...modelOptions,
     }
 
     try {
-      // Call OpenAI API
+      options.logger.request(
+        `activity=tts provider=${this.name} model=${model} format=${request.response_format ?? 'default'} voice=${request.voice}`,
+        { provider: this.name, model },
+      )
       const response = await this.client.audio.speech.create(request)
 
-      // Convert response to base64
+      // Convert response to base64. Buffer is Node-only; use atob fallback in
+      // browser/edge runtimes where the SDK can run.
       const arrayBuffer = await response.arrayBuffer()
-      const base64 = Buffer.from(arrayBuffer).toString('base64')
+      const base64 = arrayBufferToBase64(arrayBuffer)
 
-      const outputFormat = format || 'mp3'
-      const contentType = this.getContentType(outputFormat)
+      const outputFormat = (request.response_format as string) || 'mp3'
+      const contentTypes: Record<string, string> = {
+        mp3: 'audio/mpeg',
+        opus: 'audio/opus',
+        aac: 'audio/aac',
+        flac: 'audio/flac',
+        wav: 'audio/wav',
+        pcm: 'audio/pcm',
+      }
+      const contentType = contentTypes[outputFormat] || 'audio/mpeg'
 
       return {
         id: generateId(this.name),
@@ -100,25 +99,15 @@ export class OpenAITTSAdapter<
         format: outputFormat,
         contentType,
       }
-    } catch (error) {
-      logger.errors('openai.generateSpeech fatal', {
-        error,
-        source: 'openai.generateSpeech',
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      options.logger.errors(`${this.name}.generateSpeech fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.generateSpeech failed`),
+        source: `${this.name}.generateSpeech`,
       })
       throw error
     }
-  }
-
-  private getContentType(format: string): string {
-    const contentTypes: Record<string, string> = {
-      mp3: 'audio/mpeg',
-      opus: 'audio/opus',
-      aac: 'audio/aac',
-      flac: 'audio/flac',
-      wav: 'audio/wav',
-      pcm: 'audio/pcm',
-    }
-    return contentTypes[format] || 'audio/mpeg'
   }
 }
 

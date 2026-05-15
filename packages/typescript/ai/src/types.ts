@@ -1,4 +1,7 @@
-import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
+import type {
+  StandardJSONSchemaV1,
+  StandardSchemaV1,
+} from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
 import type {
   BaseEvent as AGUIBaseEvent,
@@ -91,35 +94,54 @@ export interface JSONSchema {
 }
 
 /**
- * Union type for schema input - can be any Standard JSON Schema compliant schema or a plain JSONSchema object.
+ * Union type for schema input - can be any Standard Schema compliant validator,
+ * any Standard JSON Schema compliant schema, or a plain JSONSchema object.
  *
- * Standard JSON Schema compliant libraries include:
+ * Standard JSON Schema compliant libraries (carry the JSON-schema converter):
  * - Zod v4.2+ (natively supports StandardJSONSchemaV1)
  * - ArkType v2.1.28+ (natively supports StandardJSONSchemaV1)
  * - Valibot v1.2+ (via `toStandardJsonSchema()` from `@valibot/to-json-schema`)
  *
+ * StandardSchemaV1 covers libraries whose published types only expose the
+ * validator surface — Zod's core `$ZodType['~standard']` is currently typed
+ * as `StandardSchemaV1.Props` even though the runtime attaches the
+ * `jsonSchema` converter, so this branch is what makes `InferSchemaType`
+ * recover the inferred type for callers using `z.ZodType<T>`.
+ *
  * @see https://standardschema.dev/json-schema
  */
 
-export type SchemaInput = StandardJSONSchemaV1<any, any> | JSONSchema
+export type SchemaInput =
+  | StandardJSONSchemaV1<any, any>
+  | StandardSchemaV1<any, any>
+  | JSONSchema
 
 /**
  * Infer the TypeScript type from a schema.
  * For Standard JSON Schema compliant schemas, extracts the input type.
- * For plain JSONSchema, returns `any` since we can't infer types from JSON Schema at compile time.
+ * For Standard Schema validators (e.g. Zod's `~standard` surface), extracts
+ * the input type from the `StandardSchemaV1` shape.
+ * For plain JSONSchema, returns `unknown` since we can't infer types from
+ * JSON Schema at compile time.
  */
 export type InferSchemaType<T> =
-  T extends StandardJSONSchemaV1<infer TInput, unknown> ? TInput : unknown
+  T extends StandardJSONSchemaV1<infer TInput, unknown>
+    ? TInput
+    : T extends StandardSchemaV1<infer TInput, unknown>
+      ? TInput
+      : unknown
 
-export interface ToolCall {
+export interface ToolCall<TMetadata = unknown> {
   id: string
   type: 'function'
   function: {
     name: string
     arguments: string // JSON string
   }
-  /** Provider-specific metadata to carry through the tool call lifecycle */
-  providerMetadata?: Record<string, unknown>
+  /** Provider-specific metadata to carry through the tool call lifecycle.
+   * Typed per-adapter via `TToolCallMetadata`. For example,
+   * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
+  metadata?: TMetadata
 }
 
 // ============================================================================
@@ -309,7 +331,7 @@ export interface TextPart<TMetadata = unknown> {
   metadata?: TMetadata
 }
 
-export interface ToolCallPart {
+export interface ToolCallPart<TMetadata = unknown> {
   type: 'tool-call'
   id: string
   name: string
@@ -323,6 +345,9 @@ export interface ToolCallPart {
   }
   /** Tool execution output (for client tools or after approval) */
   output?: any
+  /** Provider-specific metadata that round-trips with the tool call.
+   * Typed per-adapter via `TToolCallMetadata`. */
+  metadata?: TMetadata
 }
 
 export interface ToolResultPart {
@@ -903,7 +928,7 @@ export interface TextMessageEndEvent extends AGUITextMessageEndEvent {
  * Emitted when a tool call starts.
  *
  * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
- * TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `providerMetadata?`
+ * TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
  */
 export interface ToolCallStartEvent extends AGUIToolCallStartEvent {
   /** Model identifier for multi-model support */
@@ -915,8 +940,11 @@ export interface ToolCallStartEvent extends AGUIToolCallStartEvent {
   toolName: string
   /** Index for parallel tool calls */
   index?: number
-  /** Provider-specific metadata to carry into the ToolCall */
-  providerMetadata?: Record<string, unknown>
+  /** Provider-specific metadata to carry into the ToolCall.
+   * Untyped at the event layer because events flow through a discriminated
+   * union that does not survive generics; adapters cast it to their typed
+   * `TToolCallMetadata` shape when emitting. */
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -1060,6 +1088,106 @@ export interface CustomEvent extends AGUICustomEvent {
   model?: string
 }
 
+/**
+ * Final event of a streaming structured-output run. Carries the validated
+ * `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
+ * the `raw` JSON text that produced it, and — for thinking/reasoning models —
+ * the accumulated reasoning text. Adapters emit this with `T = unknown`; the
+ * chat orchestrator narrows to the schema's inferred type after validation.
+ *
+ * `reasoning` is `undefined` when the model produced none (most non-thinking
+ * models) and when the underlying adapter doesn't expose reasoning streams.
+ *
+ * `name` is a string literal so consumers can narrow directly:
+ *
+ * ```ts
+ * if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
+ *   chunk.value.object // typed as T
+ * }
+ * ```
+ */
+export interface StructuredOutputCompleteEvent<T = unknown> extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
+  name: 'structured-output.complete'
+  value: { object: T; raw: string; reasoning?: string }
+}
+
+/**
+ * Emitted when a server tool requires approval before execution. The agent
+ * loop yields this and pauses — `structured-output.complete` will not fire
+ * for that run. The shape is fixed by the orchestrator's tool-approval flow
+ * (see `buildApprovalChunks` in `activities/chat/index.ts`).
+ */
+export interface ApprovalRequestedEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
+  name: 'approval-requested'
+  value: {
+    toolCallId: string
+    toolName: string
+    input: unknown
+    approval: { id: string; needsApproval: true }
+  }
+}
+
+/**
+ * Emitted when a client tool is invoked. The agent loop yields this and
+ * pauses to let the caller run the tool client-side — `structured-output.complete`
+ * will not fire for that run. Shape fixed by `buildClientToolChunks` in
+ * `activities/chat/index.ts`.
+ */
+export interface ToolInputAvailableEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
+  name: 'tool-input-available'
+  value: {
+    toolCallId: string
+    toolName: string
+    input: unknown
+  }
+}
+
+/**
+ * Public type for streams returned by `chat({ outputSchema, stream: true })`.
+ *
+ * Yields all standard `StreamChunk` lifecycle events plus the three tagged
+ * `CUSTOM` events the orchestrator can emit through this path:
+ * - `structured-output.complete` — terminal event with typed `value.object: T`
+ * - `approval-requested` — server tool needs approval (pauses the run)
+ * - `tool-input-available` — client tool invocation (pauses the run)
+ *
+ * Each variant has a literal `name`, so a single discriminated narrow gives
+ * you a typed `value` with no helper or cast:
+ *
+ * ```ts
+ * for await (const chunk of stream) {
+ *   if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
+ *     chunk.value.object // typed as T
+ *   } else if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
+ *     chunk.value.toolCallId // typed as string
+ *   }
+ * }
+ * ```
+ *
+ * Caveat: tools can emit arbitrary user-defined custom events via the
+ * `emitCustomEvent(name, value)` context API. Those flow through this stream
+ * at runtime but are intentionally absent from this type — including a bare
+ * `CustomEvent` (whose `value: any` would poison the union) would collapse
+ * `chunk.value` back to `any` after the narrow. If you rely on
+ * `emitCustomEvent` plus `outputSchema + stream: true`, branch on `CUSTOM`
+ * outside the literal-`name` narrows or cast explicitly.
+ */
+export type StructuredOutputStream<T = unknown> = AsyncIterable<
+  | Exclude<StreamChunk, CustomEvent>
+  | StructuredOutputCompleteEvent<T>
+  | ApprovalRequestedEvent
+  | ToolInputAvailableEvent
+>
+
 // ============================================================================
 // AG-UI Reasoning Event Interfaces
 // ============================================================================
@@ -1182,12 +1310,16 @@ export interface TextCompletionChunk {
   }
 }
 
-export interface SummarizationOptions {
+export interface SummarizationOptions<
+  TProviderOptions extends object = Record<string, unknown>,
+> {
   model: string
   text: string
   maxLength?: number
   style?: 'bullet-points' | 'paragraph' | 'concise'
   focus?: Array<string>
+  /** Provider-specific options forwarded by the summarize() activity. */
+  modelOptions?: TProviderOptions
   /**
    * Internal logger threaded from the summarize() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -1216,7 +1348,7 @@ export interface SummarizationResult {
  */
 export interface ImageGenerationOptions<
   TProviderOptions extends object = object,
-  TSize extends string = string,
+  TSize extends string | undefined = string,
 > {
   /** The model to use for image generation */
   model: string
@@ -1346,7 +1478,7 @@ export interface AudioGenerationResult {
  */
 export interface VideoGenerationOptions<
   TProviderOptions extends object = object,
-  TSize extends string = string,
+  TSize extends string | undefined = string,
 > {
   /** The model to use for video generation */
   model: string

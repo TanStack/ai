@@ -5,7 +5,7 @@ title: UIMessage
 
 # Interface: UIMessage
 
-Defined in: [packages/typescript/ai/src/types.ts:354](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L354)
+Defined in: [packages/typescript/ai/src/types.ts:362](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L362)
 
 UIMessage - Domain-specific message format optimized for building chat UIs
 Contains parts that can be text, tool calls, or tool results
@@ -18,7 +18,7 @@ Contains parts that can be text, tool calls, or tool results
 optional createdAt: Date;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:358](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L358)
+Defined in: [packages/typescript/ai/src/types.ts:366](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L366)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [packages/typescript/ai/src/types.ts:358](https://github.com/TanStac
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:355](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L355)
+Defined in: [packages/typescript/ai/src/types.ts:363](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L363)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [packages/typescript/ai/src/types.ts:355](https://github.com/TanStac
 parts: MessagePart[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:357](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L357)
+Defined in: [packages/typescript/ai/src/types.ts:365](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L365)
 
 ***
 
@@ -48,4 +48,4 @@ Defined in: [packages/typescript/ai/src/types.ts:357](https://github.com/TanStac
 role: "user" | "assistant" | "system";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:356](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L356)
+Defined in: [packages/typescript/ai/src/types.ts:364](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L364)

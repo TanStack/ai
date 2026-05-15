@@ -1,19 +1,12 @@
+import OpenAI from 'openai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import {
-  createOpenAIClient,
-  generateId,
-  getOpenAIApiKeyFromEnv,
-} from '../utils/client'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
+import { generateId } from '@tanstack/ai-utils'
+import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   validateImageSize,
   validateNumberOfImages,
   validatePrompt,
-} from '../image/image-provider-options'
-import type { OpenAIImageModel } from '../model-meta'
-import type {
-  OpenAIImageModelProviderOptionsByName,
-  OpenAIImageModelSizeByName,
-  OpenAIImageProviderOptions,
 } from '../image/image-provider-options'
 import type {
   GeneratedImage,
@@ -21,6 +14,12 @@ import type {
   ImageGenerationResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIImageModel } from '../model-meta'
+import type {
+  OpenAIImageModelProviderOptionsByName,
+  OpenAIImageModelSizeByName,
+  OpenAIImageProviderOptions,
+} from '../image/image-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
 
 /**
@@ -50,94 +49,73 @@ export class OpenAIImageAdapter<
   readonly kind = 'image' as const
   readonly name = 'openai' as const
 
-  private client: OpenAI_SDK
+  protected client: OpenAI
 
   constructor(config: OpenAIImageConfig, model: TModel) {
     super(model, {})
-    this.client = createOpenAIClient(config)
+    this.client = new OpenAI(config)
   }
 
   async generateImages(
     options: ImageGenerationOptions<OpenAIImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, logger } = options
+    const { model, prompt, numberOfImages, size, modelOptions } = options
 
-    logger.request(
-      `activity=generateImage provider=openai model=${this.model}`,
-      {
-        provider: 'openai',
-        model: this.model,
-      },
-    )
+    validatePrompt({ prompt, model })
+    validateImageSize(model, size)
+    validateNumberOfImages(model, numberOfImages)
+
+    const request: OpenAI_SDK.Images.ImageGenerateParams = {
+      model,
+      prompt,
+      n: numberOfImages ?? 1,
+      size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
+      ...modelOptions,
+    }
 
     try {
-      // Validate inputs
-      validatePrompt({ prompt, model })
-      validateImageSize(model, size)
-      validateNumberOfImages(model, numberOfImages)
-
-      // Build request based on model type
-      const request = this.buildRequest(options)
-
+      options.logger.request(
+        `activity=image provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'}`,
+        { provider: this.name, model },
+      )
       const response = await this.client.images.generate({
         ...request,
         stream: false,
       })
 
-      return this.transformResponse(model, response)
-    } catch (error) {
-      logger.errors('openai.generateImage fatal', {
-        error,
-        source: 'openai.generateImage',
+      const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
+        (item): Array<GeneratedImage> => {
+          const revisedPrompt = item.revised_prompt
+          if (item.b64_json) {
+            return [{ b64Json: item.b64_json, revisedPrompt }]
+          }
+          if (item.url) {
+            return [{ url: item.url, revisedPrompt }]
+          }
+          return []
+        },
+      )
+
+      return {
+        id: generateId(this.name),
+        model,
+        images,
+        usage: response.usage
+          ? {
+              inputTokens: response.usage.input_tokens,
+              outputTokens: response.usage.output_tokens,
+              totalTokens: response.usage.total_tokens,
+            }
+          : undefined,
+      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      options.logger.errors(`${this.name}.generateImages fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.generateImages failed`),
+        source: `${this.name}.generateImages`,
       })
       throw error
-    }
-  }
-
-  private buildRequest(
-    options: ImageGenerationOptions<OpenAIImageProviderOptions>,
-  ): OpenAI_SDK.Images.ImageGenerateParams {
-    const { model, prompt, numberOfImages, size, modelOptions } = options
-
-    // Spread modelOptions FIRST so explicit args (model, prompt, n, size) win
-    // and user-supplied modelOptions cannot silently override them.
-    return {
-      ...modelOptions,
-      model,
-      prompt,
-      n: numberOfImages ?? 1,
-      size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
-    }
-  }
-
-  private transformResponse(
-    model: string,
-    response: OpenAI_SDK.Images.ImagesResponse,
-  ): ImageGenerationResult {
-    const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
-      (item): Array<GeneratedImage> => {
-        const revisedPrompt = item.revised_prompt
-        if (item.b64_json) {
-          return [{ b64Json: item.b64_json, revisedPrompt }]
-        }
-        if (item.url) {
-          return [{ url: item.url, revisedPrompt }]
-        }
-        return []
-      },
-    )
-
-    return {
-      id: generateId(this.name),
-      model,
-      images,
-      usage: response.usage
-        ? {
-            inputTokens: response.usage.input_tokens,
-            outputTokens: response.usage.output_tokens,
-            totalTokens: response.usage.total_tokens,
-          }
-        : undefined,
     }
   }
 }

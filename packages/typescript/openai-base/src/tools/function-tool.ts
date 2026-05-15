@@ -1,0 +1,44 @@
+import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import type { FunctionTool as FunctionToolConfig } from 'openai/resources/responses/responses'
+import type { JSONSchema, Tool } from '@tanstack/ai'
+
+export type { FunctionToolConfig }
+
+/** @deprecated Renamed to `FunctionToolConfig`. Will be removed in a future release. */
+export type FunctionTool = FunctionToolConfig
+
+/**
+ * Converts a standard Tool to OpenAI FunctionTool format.
+ *
+ * Tool schemas are already converted to JSON Schema in the ai layer.
+ * We apply OpenAI-specific transformations for strict mode:
+ * - All properties in required array
+ * - Optional fields made nullable
+ * - additionalProperties: false
+ *
+ * This enables strict mode for all tools automatically.
+ */
+export function convertFunctionToolToAdapterFormat(
+  tool: Tool,
+): FunctionToolConfig {
+  const inputSchema = (tool.inputSchema ?? {
+    type: 'object',
+    properties: {},
+    required: [],
+  }) as JSONSchema
+
+  const jsonSchema = makeStructuredOutputCompatible(
+    inputSchema,
+    inputSchema.required || [],
+  )
+
+  jsonSchema.additionalProperties = false
+
+  return {
+    type: 'function',
+    name: tool.name,
+    description: tool.description,
+    parameters: jsonSchema,
+    strict: true,
+  } satisfies FunctionToolConfig
+}

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-ollama",
-  "version": "0.6.11",
+  "version": "0.6.14",
   "description": "Ollama adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -41,6 +41,7 @@
     "adapter"
   ],
   "dependencies": {
+    "@tanstack/ai-utils": "workspace:*",
     "ollama": "^0.6.3"
   },
   "peerDependencies": {

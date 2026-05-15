@@ -11,6 +11,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createModel, extendAdapter } from '../src/extend-adapter'
 import { BaseTextAdapter } from '../src/activities/chat/adapter'
 import { chat } from '../src/activities/chat'
+import { EventType } from '../src/types'
 import type { StreamChunk, TextOptions } from '../src/types'
 import type {
   StructuredOutputOptions,
@@ -91,20 +92,21 @@ class MockTextAdapter<TModel extends MockModel> extends BaseTextAdapter<
     _options: TextOptions<ResolveProviderOptions<TModel>>,
   ): AsyncIterable<StreamChunk> {
     yield {
-      type: 'TEXT_MESSAGE_CONTENT',
+      type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: 'mock-id',
       timestamp: Date.now(),
       delta: 'Hello',
       content: 'Hello',
       model: this.model,
-    } as unknown as StreamChunk
+    }
     yield {
-      type: 'RUN_FINISHED',
+      type: EventType.RUN_FINISHED,
       runId: 'mock-id',
+      threadId: 'mock-thread',
       timestamp: Date.now(),
       finishReason: 'stop',
       model: this.model,
-    } as unknown as StreamChunk
+    }
   }
   /* eslint-enable @typescript-eslint/require-await */
 

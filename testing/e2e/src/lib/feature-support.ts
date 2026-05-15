@@ -27,7 +27,6 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter',
   ]),
   reasoning: new Set(['openai', 'anthropic', 'gemini']),
-  'multi-turn-reasoning': new Set(['anthropic']),
   'multi-turn': new Set([
     'openai',
     'anthropic',
@@ -81,6 +80,11 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
   ]),
+  // Streaming structured output: only providers with native streaming JSON
+  // schema support are listed here. Other providers fall back to the
+  // activity-layer `fallbackStructuredOutputStream` (which wraps the
+  // non-streaming `structuredOutput`) but aren't exercised by E2E yet.
+  'structured-output-stream': new Set(['openai', 'groq', 'grok', 'openrouter']),
   'agentic-structured': new Set([
     'openai',
     'anthropic',
@@ -122,18 +126,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   'image-gen': new Set(['openai', 'grok']),
-  // ElevenLabs TTS (/v1/text-to-speech/{voice_id}) and STT (/v1/speech-to-text)
-  // are mocked via local mounts in global-setup.ts (aimock 1.17 covers
-  // /v1/sound-generation + /v1/music/* but not these two routes yet).
-  tts: new Set(['openai', 'grok', 'elevenlabs']),
-  transcription: new Set(['openai', 'grok', 'elevenlabs']),
+  tts: new Set(['openai', 'grok']),
+  transcription: new Set(['openai', 'grok']),
   'video-gen': new Set(['openai']),
-  // Music generation: Gemini Lyria (generateContent with AUDIO modality)
-  // and ElevenLabs music_v1 (/v1/music/*) — both natively mocked by aimock
-  // 1.17+.
-  'audio-gen': new Set(['gemini', 'elevenlabs']),
-  // ElevenLabs sound-generation (/v1/sound-generation), aimock 1.17+.
-  'sound-effects': new Set(['elevenlabs']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

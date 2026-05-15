@@ -18,6 +18,13 @@ interface ChatUIProps {
   }) => Promise<void>
   showImageInput?: boolean
   onStop?: () => void
+  /** When the streaming structured-output CUSTOM event lands, the page
+   *  exposes the parsed object here so e2e tests can assert that the event
+   *  reached the client (not just that the JSON text was rendered). */
+  structuredObject?: unknown
+  /** Number of TEXT_MESSAGE_CONTENT chunks observed. Used by streaming e2e
+   *  tests to verify the response actually streamed in multiple deltas. */
+  contentDeltaCount?: number
 }
 
 export function ChatUI({
@@ -28,6 +35,8 @@ export function ChatUI({
   addToolApprovalResponse,
   showImageInput,
   onStop,
+  structuredObject,
+  contentDeltaCount,
 }: ChatUIProps) {
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
@@ -46,6 +55,20 @@ export function ChatUI({
 
   return (
     <div className="flex flex-col h-[calc(100vh-60px)]">
+      {structuredObject != null && (
+        <div
+          data-testid="structured-output-complete"
+          data-structured-output={JSON.stringify(structuredObject)}
+          hidden
+        />
+      )}
+      {contentDeltaCount != null && (
+        <div
+          data-testid="content-delta-count"
+          data-count={String(contentDeltaCount)}
+          hidden
+        />
+      )}
       <div
         ref={messagesRef}
         data-testid="message-list"

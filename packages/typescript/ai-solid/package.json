@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-solid",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Solid hooks for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -47,6 +47,7 @@
   },
   "devDependencies": {
     "@solidjs/testing-library": "^0.8.10",
+    "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
     "@vitest/coverage-v8": "4.0.14",

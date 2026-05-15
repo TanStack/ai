@@ -6,7 +6,10 @@ import { createGeminiChat } from '@tanstack/ai-gemini'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
-import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import {
+  createOpenRouterResponsesText,
+  createOpenRouterText,
+} from '@tanstack/ai-openrouter'
 import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
@@ -21,6 +24,7 @@ const defaultModels: Record<Provider, string> = {
   groq: 'llama-3.3-70b-versatile',
   grok: 'grok-3',
   openrouter: 'openai/gpt-4o',
+  'openrouter-responses': 'openai/gpt-4o',
   // ElevenLabs has no chat/text model — the support matrix already filters
   // it out of text features, but we still need an entry to satisfy the
   // Record<Provider, …> constraint.
@@ -108,6 +112,26 @@ export function createTextAdapter(
           serverURL: openaiUrl,
           httpClient,
         }),
+      })
+    },
+    'openrouter-responses': () => {
+      // Same X-Test-Id injection rationale as the chat-completions factory
+      // above. The beta Responses endpoint uses the same SDK base URL +
+      // HTTPClient surface.
+      const httpClient = new HTTPClient()
+      if (testId) {
+        httpClient.addHook('beforeRequest', (req) => {
+          const next = new Request(req)
+          next.headers.set('X-Test-Id', testId)
+          return next
+        })
+      }
+      return createChatOptions({
+        adapter: createOpenRouterResponsesText(
+          model as 'openai/gpt-4o',
+          DUMMY_KEY,
+          { serverURL: openaiUrl, httpClient },
+        ),
       })
     },
     elevenlabs: () => {

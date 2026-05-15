@@ -11,13 +11,12 @@ export {
   type AnthropicTextProviderOptions,
 } from './adapters/text'
 
-// Summarize adapter - for text summarization
+// Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
 export {
-  AnthropicSummarizeAdapter,
   anthropicSummarize,
   createAnthropicSummarize,
   type AnthropicSummarizeConfig,
-  type AnthropicSummarizeProviderOptions,
+  type AnthropicSummarizeModel,
 } from './adapters/summarize'
 // ============================================================================
 // Type Exports

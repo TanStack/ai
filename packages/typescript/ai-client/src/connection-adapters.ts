@@ -1,4 +1,4 @@
-import { uiMessagesToWire } from '@tanstack/ai'
+import { EventType, uiMessagesToWire } from '@tanstack/ai'
 import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
 
 function generateRunId(prefix: string): string {
@@ -220,20 +220,20 @@ export function normalizeConnectionAdapter(
         // Reuse the caller's threadId/runId so client-side activeRunIds tracking matches.
         if (!abortSignal?.aborted && !hasTerminalEvent) {
           push({
-            type: 'RUN_FINISHED',
-            threadId: runContext?.threadId,
+            type: EventType.RUN_FINISHED,
+            threadId: runContext?.threadId ?? `thread-${Date.now()}`,
             runId: runContext?.runId ?? `run-${Date.now()}`,
             model: 'connect-wrapper',
             timestamp: Date.now(),
             finishReason: 'stop',
-          } as unknown as StreamChunk)
+          })
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
           push({
-            type: 'RUN_ERROR',
-            threadId: runContext?.threadId,
-            runId: runContext?.runId,
+            type: EventType.RUN_ERROR,
+            threadId: runContext?.threadId ?? `thread-${Date.now()}`,
+            runId: runContext?.runId ?? `run-${Date.now()}`,
             timestamp: Date.now(),
             message:
               err instanceof Error ? err.message : 'Unknown error in connect()',
@@ -243,7 +243,7 @@ export function normalizeConnectionAdapter(
                   ? err.message
                   : 'Unknown error in connect()',
             },
-          } as unknown as StreamChunk)
+          })
         }
         throw err
       }

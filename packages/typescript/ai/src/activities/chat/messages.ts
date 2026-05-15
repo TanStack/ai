@@ -178,6 +178,10 @@ interface AssistantSegment {
     id: string
     type: 'function'
     function: { name: string; arguments: string }
+    /** Provider-specific metadata that round-trips with the tool call.
+     * Untyped at this framework layer; adapters narrow it via their
+     * `TToolCallMetadata` generic. */
+    metadata?: unknown
   }>
 }
 
@@ -248,6 +252,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
               name: part.name,
               arguments: part.arguments,
             },
+            ...(part.metadata !== undefined && { metadata: part.metadata }),
           })
         }
         break
@@ -402,6 +407,7 @@ export function modelMessageToUIMessage(
         name: toolCall.function.name,
         arguments: toolCall.function.arguments,
         state: 'input-complete', // Model messages have complete arguments
+        ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
       })
     }
   }

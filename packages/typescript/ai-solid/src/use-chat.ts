@@ -7,18 +7,32 @@ import {
 } from 'solid-js'
 
 import { ChatClient } from '@tanstack/ai-client'
+import { parsePartialJSON } from '@tanstack/ai'
 import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
-import type { AnyClientTool, ModelMessage } from '@tanstack/ai'
 import type {
+  AnyClientTool,
+  InferSchemaType,
+  ModelMessage,
+  SchemaInput,
+  StreamChunk,
+} from '@tanstack/ai'
+import type {
+  DeepPartial,
   MultimodalContent,
   UIMessage,
   UseChatOptions,
   UseChatReturn,
 } from './types'
 
-export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
-  options: UseChatOptions<TTools> = {} as UseChatOptions<TTools>,
-): UseChatReturn<TTools> {
+export function useChat<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+>(
+  options: UseChatOptions<TTools, TSchema> = {} as UseChatOptions<
+    TTools,
+    TSchema
+  >,
+): UseChatReturn<TTools, TSchema> {
   const hookId = createUniqueId()
   const clientId = options.id || hookId
 
@@ -32,6 +46,15 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
   const [connectionStatus, setConnectionStatus] =
     createSignal<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = createSignal(false)
+
+  // Structured-output state. Runtime always tracks them — the conditional
+  // return type hides them from callers that didn't supply `outputSchema`.
+  type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
+  type Final = InferSchemaType<NonNullable<TSchema>>
+  const [partial, setPartial] = createSignal<Partial>({} as Partial)
+  const [final, setFinal] = createSignal<Final | null>(null)
+  // Raw JSON accumulator — kept outside the signal to avoid extra re-runs.
+  let rawJson = ''
 
   // Create ChatClient instance with callbacks to sync state.
   // Every user-provided callback is wrapped so the LATEST `options.xxx` value
@@ -47,7 +70,28 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       body: options.body,
       forwardedProps: options.forwardedProps,
       onResponse: (response) => options.onResponse?.(response),
-      onChunk: (chunk) => options.onChunk?.(chunk),
+      onChunk: (chunk: StreamChunk) => {
+        if (options.outputSchema !== undefined) {
+          if (chunk.type === 'RUN_STARTED') {
+            rawJson = ''
+            setPartial({} as Partial)
+            setFinal(null)
+          } else if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
+            rawJson += chunk.delta
+            const progressive = parsePartialJSON(rawJson)
+            if (progressive && typeof progressive === 'object') {
+              setPartial(() => progressive as Partial)
+            }
+          } else if (
+            chunk.type === 'CUSTOM' &&
+            chunk.name === 'structured-output.complete'
+          ) {
+            const value = chunk.value as { object: unknown }
+            setFinal(() => value.object as Final)
+          }
+        }
+        options.onChunk?.(chunk)
+      },
       onFinish: (message) => {
         options.onFinish?.(message)
       },
@@ -174,6 +218,8 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     await client().addToolApprovalResponse(response)
   }
 
+  // partial / final are runtime-tracked unconditionally; the conditional
+  // return type hides them when no `outputSchema` is supplied.
   return {
     messages,
     sendMessage,
@@ -190,5 +236,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     clear,
     addToolResult,
     addToolApprovalResponse,
-  }
+    partial,
+    final,
+  } as unknown as UseChatReturn<TTools, TSchema>
 }

@@ -8,6 +8,7 @@ import {
 import type { Feature, Provider } from '@/lib/types'
 import { createTextAdapter } from '@/lib/providers'
 import { featureConfigs } from '@/lib/features'
+import { guitarRecommendationSchema } from '@/lib/schemas'
 
 export const Route = createFileRoute('/api/chat')({
   server: {
@@ -51,17 +52,34 @@ export const Route = createFileRoute('/api/chat')({
         )
 
         try {
-          const stream = chat({
-            ...adapterOptions,
-            tools: config.tools,
-            modelOptions: config.modelOptions,
-            systemPrompts: ['You are a helpful assistant for a guitar store.'],
-            agentLoopStrategy: maxIterations(5),
-            messages: params.messages,
-            threadId: params.threadId,
-            runId: params.runId,
-            abortController,
-          })
+          const stream =
+            feature === 'structured-output-stream'
+              ? chat({
+                  ...adapterOptions,
+                  modelOptions: config.modelOptions,
+                  systemPrompts: [
+                    'You are a helpful assistant for a guitar store.',
+                  ],
+                  messages: params.messages,
+                  threadId: params.threadId,
+                  runId: params.runId,
+                  outputSchema: guitarRecommendationSchema,
+                  stream: true,
+                  abortController,
+                })
+              : chat({
+                  ...adapterOptions,
+                  tools: config.tools,
+                  modelOptions: config.modelOptions,
+                  systemPrompts: [
+                    'You are a helpful assistant for a guitar store.',
+                  ],
+                  agentLoopStrategy: maxIterations(5),
+                  messages: params.messages,
+                  threadId: params.threadId,
+                  runId: params.runId,
+                  abortController,
+                })
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {

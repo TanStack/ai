@@ -180,7 +180,7 @@ RUN_FINISHED event from the stream
 ### getToolCalls()
 
 ```ts
-getToolCalls(): ToolCall[];
+getToolCalls(): ToolCall<unknown>[];
 ```
 
 Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-calls.ts:151](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-calls.ts#L151)
@@ -189,7 +189,7 @@ Get all complete tool calls (filtered for valid ID and name)
 
 #### Returns
 
-[`ToolCall`](../interfaces/ToolCall.md)[]
+[`ToolCall`](../interfaces/ToolCall.md)\<`unknown`\>[]
 
 ***
 

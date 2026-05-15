@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { EventType } from '@tanstack/ai'
 import {
   fetchHttpStream,
   fetchServerSentEvents,
@@ -7,10 +8,6 @@ import {
   stream,
 } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai'
-
-/** Cast an event object to StreamChunk for type compatibility with EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
 
 describe('connection-adapters', () => {
   let originalFetch: typeof fetch
@@ -63,7 +60,7 @@ describe('connection-adapters', () => {
 
       expect(chunks).toHaveLength(1)
       expect(chunks[0]).toMatchObject({
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: 'msg-1',
         delta: 'Hello',
       })
@@ -820,14 +817,14 @@ describe('connection-adapters', () => {
   describe('stream', () => {
     it('should delegate to stream factory', async () => {
       const streamFactory = vi.fn().mockImplementation(function* () {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        })
+        }
       })
 
       const adapter = stream(streamFactory)
@@ -845,13 +842,14 @@ describe('connection-adapters', () => {
 
     it('should pass data to stream factory', async () => {
       const streamFactory = vi.fn().mockImplementation(function* () {
-        yield asChunk({
-          type: 'RUN_FINISHED',
+        yield {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        })
+        }
       })
 
       const adapter = stream(streamFactory)
@@ -905,14 +903,14 @@ describe('connection-adapters', () => {
 
     it('should synthesize RUN_FINISHED when wrapped connect stream has no terminal event', async () => {
       const base = stream(async function* () {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hi',
           content: 'Hi',
-        })
+        }
       })
 
       const adapter = normalizeConnectionAdapter(base)
@@ -936,6 +934,7 @@ describe('connection-adapters', () => {
     })
 
     it('should synthesize RUN_ERROR when wrapped connect stream throws', async () => {
+      // eslint-disable-next-line require-yield
       const base = stream(async function* () {
         throw new Error('connect exploded')
       })
@@ -964,13 +963,14 @@ describe('connection-adapters', () => {
 
     it('should not synthesize duplicate RUN_ERROR when stream already emitted one before throwing', async () => {
       const base = stream(async function* () {
-        yield asChunk({
-          type: 'RUN_ERROR',
+        yield {
+          type: EventType.RUN_ERROR,
+          message: 'already failed',
           timestamp: Date.now(),
           error: {
             message: 'already failed',
           },
-        })
+        }
         throw new Error('connect exploded')
       })
 
@@ -1003,14 +1003,14 @@ describe('connection-adapters', () => {
   describe('rpcStream', () => {
     it('should delegate to RPC call', async () => {
       const rpcCall = vi.fn().mockImplementation(function* () {
-        yield asChunk({
-          type: 'TEXT_MESSAGE_CONTENT',
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hello',
           content: 'Hello',
-        })
+        }
       })
 
       const adapter = rpcStream(rpcCall)
@@ -1025,20 +1025,21 @@ describe('connection-adapters', () => {
       expect(rpcCall).toHaveBeenCalled()
       expect(chunks).toHaveLength(1)
       expect(chunks[0]).toMatchObject({
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: EventType.TEXT_MESSAGE_CONTENT,
         delta: 'Hello',
       })
     })
 
     it('should pass messages and data to RPC call', async () => {
       const rpcCall = vi.fn().mockImplementation(function* () {
-        yield asChunk({
-          type: 'RUN_FINISHED',
+        yield {
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
+          threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
           finishReason: 'stop',
-        })
+        }
       })
 
       const adapter = rpcStream(rpcCall)

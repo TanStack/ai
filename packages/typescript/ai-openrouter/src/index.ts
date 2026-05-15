@@ -11,13 +11,21 @@ export {
   type OpenRouterTextModelOptions,
 } from './adapters/text'
 
-// Summarize adapter - for text summarization
+// Responses (beta) adapter - for the OpenRouter beta Responses API
 export {
-  OpenRouterSummarizeAdapter,
+  OpenRouterResponsesTextAdapter,
+  createOpenRouterResponsesText,
+  openRouterResponsesText,
+  type OpenRouterResponsesConfig,
+  type OpenRouterResponsesTextProviderOptions,
+} from './adapters/responses-text'
+
+// Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
+export {
   createOpenRouterSummarize,
   openRouterSummarize,
   type OpenRouterSummarizeConfig,
-  type OpenRouterSummarizeProviderOptions,
+  type OpenRouterTextModels as OpenRouterSummarizeModel,
 } from './adapters/summarize'
 
 // Image adapter - for image generation

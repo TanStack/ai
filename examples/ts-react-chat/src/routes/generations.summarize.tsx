@@ -4,6 +4,7 @@ import { useSummarize } from '@tanstack/ai-react'
 import type { UseSummarizeReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { summarizeFn, summarizeStreamFn } from '../lib/server-fns'
+import type { StreamChunk } from '@tanstack/ai'
 
 const SAMPLE_TEXT = `Artificial intelligence (AI) has rapidly transformed from a niche academic pursuit into one of the most influential technologies of the 21st century. The development of large language models, in particular, has demonstrated capabilities that were previously thought to be decades away. These models can generate human-like text, translate languages, write code, and even engage in complex reasoning tasks.
 
@@ -11,14 +12,44 @@ The implications of this technology are far-reaching. In healthcare, AI systems 
 
 However, the rapid advancement of AI also raises significant concerns. Issues of bias in training data, the environmental cost of training large models, the potential for misuse in generating disinformation, and the impact on employment are all active areas of debate. Researchers and policymakers are working to develop frameworks for responsible AI development that balance innovation with safety and ethical considerations.`
 
+const MODELS: Array<{ value: string; label: string }> = [
+  { value: 'gpt-4o-mini', label: 'GPT-4o Mini (fast, cheap)' },
+  { value: 'gpt-4o', label: 'GPT-4o' },
+  { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+  { value: 'gpt-5', label: 'GPT-5' },
+  { value: 'gpt-5.1', label: 'GPT-5.1' },
+  { value: 'gpt-5.2', label: 'GPT-5.2 (frontier)' },
+]
+
+// Accumulate TEXT_MESSAGE_CONTENT deltas (or the absolute `content`) from a
+// streaming chunk so we can render the summary token-by-token instead of
+// waiting for the terminal `generation:result` event.
+function consumeStreamingChunk(
+  chunk: StreamChunk,
+  prev: string,
+): string | undefined {
+  if (chunk.type !== 'TEXT_MESSAGE_CONTENT') return undefined
+  const c = chunk as StreamChunk & { content?: string; delta?: string }
+  if (typeof c.content === 'string' && c.content.length > 0) return c.content
+  if (typeof c.delta === 'string' && c.delta.length > 0) return prev + c.delta
+  return undefined
+}
+
 function StreamingSummarize() {
   const [text, setText] = useState('')
   const [style, setStyle] = useState<'concise' | 'bullet-points' | 'paragraph'>(
     'concise',
   )
+  const [model, setModel] = useState<string>(MODELS[0].value)
+  const [streamingText, setStreamingText] = useState('')
 
+  // The connect adapter merges `body` into every request payload; the API
+  // route reads `model` from `body.data` to pick the openaiSummarize variant.
   const hookReturn = useSummarize({
     connection: fetchServerSentEvents('/api/summarize'),
+    body: { model },
+    onChunk: (chunk) =>
+      setStreamingText((prev) => consumeStreamingChunk(chunk, prev) ?? prev),
   })
 
   return (
@@ -28,6 +59,10 @@ function StreamingSummarize() {
       setText={setText}
       style={style}
       setStyle={setStyle}
+      model={model}
+      setModel={setModel}
+      streamingText={streamingText}
+      onBeforeGenerate={() => setStreamingText('')}
     />
   )
 }
@@ -37,9 +72,14 @@ function DirectSummarize() {
   const [style, setStyle] = useState<'concise' | 'bullet-points' | 'paragraph'>(
     'concise',
   )
+  const [model, setModel] = useState<string>(MODELS[0].value)
 
+  // Fetcher path: GenerationClient passes `input` straight to the fetcher
+  // (no `body` merge), so we inject `model` into the payload here. Direct
+  // mode is non-streaming — the result appears all at once when the
+  // server-fn resolves.
   const hookReturn = useSummarize({
-    fetcher: (input) => summarizeFn({ data: input }),
+    fetcher: (input) => summarizeFn({ data: { ...input, model } }),
   })
 
   return (
@@ -49,6 +89,8 @@ function DirectSummarize() {
       setText={setText}
       style={style}
       setStyle={setStyle}
+      model={model}
+      setModel={setModel}
     />
   )
 }
@@ -58,9 +100,15 @@ function ServerFnSummarize() {
   const [style, setStyle] = useState<'concise' | 'bullet-points' | 'paragraph'>(
     'concise',
   )
+  const [model, setModel] = useState<string>(MODELS[0].value)
+  const [streamingText, setStreamingText] = useState('')
 
+  // The server-fn returns an SSE Response; GenerationClient parses it and
+  // routes chunks through `onChunk` exactly like the connect-adapter path.
   const hookReturn = useSummarize({
-    fetcher: (input) => summarizeStreamFn({ data: input }),
+    fetcher: (input) => summarizeStreamFn({ data: { ...input, model } }),
+    onChunk: (chunk) =>
+      setStreamingText((prev) => consumeStreamingChunk(chunk, prev) ?? prev),
   })
 
   return (
@@ -70,6 +118,10 @@ function ServerFnSummarize() {
       setText={setText}
       style={style}
       setStyle={setStyle}
+      model={model}
+      setModel={setModel}
+      streamingText={streamingText}
+      onBeforeGenerate={() => setStreamingText('')}
     />
   )
 }
@@ -79,6 +131,10 @@ function SummarizeUI({
   setText,
   style,
   setStyle,
+  model,
+  setModel,
+  streamingText,
+  onBeforeGenerate,
   generate,
   result,
   isLoading,
@@ -89,11 +145,31 @@ function SummarizeUI({
   setText: (v: string) => void
   style: 'concise' | 'bullet-points' | 'paragraph'
   setStyle: (v: 'concise' | 'bullet-points' | 'paragraph') => void
+  model: string
+  setModel: (v: string) => void
+  /** Token-by-token accumulated text from streaming chunks (undefined in
+   *  direct/non-streaming mode). */
+  streamingText?: string
+  /** Called just before `generate()` so streaming variants can clear local
+   *  accumulator state. */
+  onBeforeGenerate?: () => void
 }) {
   const handleSummarize = () => {
     if (!text.trim()) return
-    generate({ text: text.trim(), style, maxLength: 200 })
+    onBeforeGenerate?.()
+    // Intentionally no `maxLength` — for the OpenAI Responses API,
+    // `maxLength` is mapped to `max_output_tokens`, which on GPT-5.x
+    // reasoning models is the budget for BOTH hidden reasoning AND visible
+    // output. A tight cap (e.g. 200) gets the whole budget consumed by
+    // reasoning, leaving the response truncated with `finishReason: 'length'`
+    // and no visible summary. The selected `style` already drives length.
+    generate({ text: text.trim(), style })
   }
+
+  // Prefer the live streaming text while generating, fall back to the final
+  // result once the run completes. Direct mode never has streamingText so it
+  // jumps straight to result.
+  const displaySummary = streamingText || result?.summary || ''
 
   return (
     <div className="space-y-6">
@@ -115,6 +191,22 @@ function SummarizeUI({
           rows={8}
           disabled={isLoading}
         />
+      </div>
+
+      <div className="space-y-3">
+        <label className="text-sm text-gray-400">Model</label>
+        <select
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          disabled={isLoading}
+          className="w-full rounded-lg border border-orange-500/20 bg-gray-800/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+        >
+          {MODELS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="space-y-3">
@@ -160,10 +252,17 @@ function SummarizeUI({
         </div>
       )}
 
-      {result && (
+      {displaySummary && (
         <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
-          <p className="text-sm text-gray-400 mb-3">Summary</p>
-          <p className="text-white whitespace-pre-wrap">{result.summary}</p>
+          <p className="text-sm text-gray-400 mb-3">
+            Summary
+            {isLoading && streamingText && (
+              <span className="ml-2 text-orange-400 animate-pulse">
+                streaming…
+              </span>
+            )}
+          </p>
+          <p className="text-white whitespace-pre-wrap">{displaySummary}</p>
         </div>
       )}
     </div>

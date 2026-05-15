@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import type { Feature, Mode, Provider } from '@/lib/types'
@@ -11,7 +12,6 @@ import { ImageGenUI } from '@/components/ImageGenUI'
 import { TTSUI } from '@/components/TTSUI'
 import { TranscriptionUI } from '@/components/TranscriptionUI'
 import { VideoGenUI } from '@/components/VideoGenUI'
-import { AudioGenUI } from '@/components/AudioGenUI'
 
 export const Route = createFileRoute('/$provider/$feature')({
   component: FeaturePage,
@@ -33,8 +33,6 @@ const MEDIA_FEATURES = new Set<Feature>([
   'tts',
   'transcription',
   'video-gen',
-  'audio-gen',
-  'sound-effects',
 ])
 
 const addToCartClient = addToCartToolDef.client((args) => ({
@@ -120,17 +118,6 @@ function MediaFeature({
           aimockPort={aimockPort}
         />
       )
-    case 'audio-gen':
-    case 'sound-effects':
-      return (
-        <AudioGenUI
-          provider={provider}
-          mode={mode}
-          testId={testId}
-          aimockPort={aimockPort}
-          feature={feature}
-        />
-      )
     default:
       return <NotSupported provider={provider} feature={feature} />
   }
@@ -151,17 +138,38 @@ function ChatFeature({
 
   const { testId, aimockPort } = Route.useSearch()
 
+  // Tracks streaming-structured-output observability for e2e tests:
+  // - structuredObject: captured from the terminal CUSTOM event
+  // - contentDeltaCount: incremented per TEXT_MESSAGE_CONTENT chunk so tests
+  //   can verify the response actually streamed (rather than silently
+  //   collapsing to a single synthetic delta)
+  const [structuredObject, setStructuredObject] = useState<unknown>(null)
+  const [contentDeltaCount, setContentDeltaCount] = useState(0)
+
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
       connection: fetchServerSentEvents('/api/chat'),
       tools,
       body: { provider, feature, testId, aimockPort },
+      onCustomEvent: (eventType, data) => {
+        if (eventType === 'structured-output.complete') {
+          const value = data as { object: unknown; raw: string } | undefined
+          setStructuredObject(value?.object ?? null)
+        }
+      },
+      onChunk: (chunk) => {
+        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+          setContentDeltaCount((n) => n + 1)
+        }
+      },
     })
 
   return (
     <ChatUI
       messages={messages}
       isLoading={isLoading}
+      structuredObject={structuredObject}
+      contentDeltaCount={contentDeltaCount}
       onSendMessage={(text) => {
         sendMessage(text)
       }}

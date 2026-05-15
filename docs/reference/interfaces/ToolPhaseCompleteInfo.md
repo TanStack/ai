@@ -117,7 +117,7 @@ toolName: string;
 ### toolCalls
 
 ```ts
-toolCalls: ToolCall[];
+toolCalls: ToolCall<unknown>[];
 ```
 
 Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:196](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L196)

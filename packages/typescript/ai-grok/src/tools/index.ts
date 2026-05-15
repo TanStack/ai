@@ -1,5 +1,5 @@
 export {
-  convertFunctionToolToAdapterFormat,
-  type FunctionTool,
-} from './function-tool'
-export { convertToolsToProviderFormat } from './tool-converter'
+  type ChatCompletionFunctionTool as FunctionTool,
+  convertFunctionToolToChatCompletionsFormat as convertFunctionToolToAdapterFormat,
+  convertToolsToChatCompletionsFormat as convertToolsToProviderFormat,
+} from '@tanstack/openai-base'

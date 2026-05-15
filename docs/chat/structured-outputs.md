@@ -83,8 +83,9 @@ The return type of `chat()` changes based on the `outputSchema` prop:
 
 | Configuration | Return Type |
 |--------------|-------------|
-| No `outputSchema` | `AsyncIterable<StreamChunk>` | 
+| No `outputSchema` | `AsyncIterable<StreamChunk>` |
 | With `outputSchema` | `Promise<InferSchemaType<TSchema>>` |
+| With `outputSchema` and `stream: true` | `StructuredOutputStream<InferSchemaType<TSchema>>` |
 
 When you provide an `outputSchema`, TanStack AI automatically infers the TypeScript type from your schema:
 
@@ -181,6 +182,186 @@ console.log(company.headquarters.city);
 console.log(company.employees[0].role);
 ```
 
+## Streaming Structured Output
+
+Pass `stream: true` alongside `outputSchema` to receive incremental JSON deltas while the model is generating, plus a final validated, typed object. This is the path to take when you want a progressive UI — a streaming form, a typewriter-style preview, partial cards filling in field by field — instead of a single blocking await.
+
+You build it in two halves: a server route that runs `chat({ outputSchema, stream: true })` and pipes the result as Server-Sent Events, and a client that wires `useChat` to that endpoint and updates state as chunks arrive. The same flow as regular streaming chat (see [Streaming](./streaming)) — `outputSchema + stream: true` just adds one terminal event with the validated object.
+
+### Server endpoint
+
+```typescript
+// app/api/extract-person/route.ts (or your framework's equivalent)
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const PersonSchema = z.object({
+  name: z.string().meta({ description: "The person's full name" }),
+  age: z.number().meta({ description: "The person's age in years" }),
+  email: z.string().email(),
+});
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.2"),
+    messages,
+    outputSchema: PersonSchema,
+    stream: true,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+That's the entire server side. `chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<InferSchemaType<typeof PersonSchema>>` — the same kind of `AsyncIterable` that `toServerSentEventsResponse` accepts for any streaming chat endpoint. The schema travels in the request as JSON Schema, validation runs server-side after the stream completes, and the validated object is emitted as the terminal `structured-output.complete` event.
+
+### Client with `useChat`
+
+Pass the same schema to `useChat` and the hook tracks the progressive object and the validated terminal object for you — `partial` updates as JSON streams in, `final` snaps when `structured-output.complete` arrives. No external state, no `onChunk` ceremony, no `parsePartialJSON` calls:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { z } from "zod";
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email(),
+});
+
+function PersonExtractor() {
+  const { sendMessage, isLoading, partial, final } = useChat({
+    connection: fetchServerSentEvents("/api/extract-person"),
+    outputSchema: PersonSchema,
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        sendMessage("Extract: John Doe, 30, john@example.com");
+      }}
+    >
+      <button disabled={isLoading}>Extract</button>
+      {/* `partial` fills in field by field as JSON streams in. */}
+      <p>Name: {partial.name ?? "…"}</p>
+      <p>Age: {partial.age ?? "…"}</p>
+      <p>Email: {partial.email ?? "…"}</p>
+      {final && <pre>Validated: {JSON.stringify(final, null, 2)}</pre>}
+    </form>
+  );
+}
+```
+
+What the hook does for you:
+
+- **`partial`** is `DeepPartial<z.infer<typeof PersonSchema>>` — every property optional, every nested array element optional. Updated from `TEXT_MESSAGE_CONTENT` deltas via `parsePartialJSON`. Resets on every new `sendMessage` / `reload`.
+- **`final`** is `z.infer<typeof PersonSchema> | null` — the validated terminal payload from the `structured-output.complete` event. `null` until the run completes successfully.
+- **`outputSchema`** is used purely for client-side **type inference**. Validation still runs on the server against the schema you pass to `chat({ outputSchema })` on the server route.
+- This same hook shape works for **non-streaming structured output too**. If your server returns a single `structured-output.complete` event (the fallback path for adapters that don't natively stream), `partial` stays `{}` and `final` populates when the event arrives — same consumer code.
+
+The `outputSchema` field is optional: if you omit it, `useChat`'s return type is unchanged, and `partial` / `final` aren't present.
+
+### Rendering reasoning and tool calls
+
+Reasoning tokens and tool calls aren't on `partial` / `final` — they're already where they'd be in a normal chat: on `messages[…].parts`. The stream processor inside `useChat` routes each chunk type to its canonical part:
+
+| Chunk type | Where it lands |
+|---|---|
+| `REASONING_MESSAGE_CONTENT` | `ThinkingPart` on the assistant message |
+| `TOOL_CALL_START` / `_ARGS` / `_END` | `ToolCallPart` on the assistant message |
+| `TOOL_CALL_RESULT` | `ToolResultPart` on the tool message |
+| `TEXT_MESSAGE_CONTENT` | `TextPart` on the assistant message (this is the raw JSON when `outputSchema` is set — see below) |
+
+So render reasoning and tool calls the same way you'd render them in a normal chat UI:
+
+```tsx
+const last = messages.at(-1);
+
+return (
+  <>
+    {last?.parts.map((part, i) => {
+      if (part.type === "thinking") return <ReasoningView key={i} text={part.text} />;
+      if (part.type === "tool-call") return <ToolCallView key={i} part={part} />;
+      // Hide raw JSON text — the structured view below replaces it.
+      if (part.type === "text") return null;
+      return null;
+    })}
+
+    <StructuredView data={final ?? partial} />
+  </>
+);
+```
+
+> **Note:** When `outputSchema` is set, the assistant's `TextPart` contains the raw JSON the model produced (e.g. `{"name":"John","age":30,…}`). That's not meant to be shown to end users — the structured view powered by `partial` / `final` replaces it. Filter `text` parts out of your message renderer in this mode, as in the snippet above.
+
+> **Going lower-level?** `useChat` still exposes `onChunk` if you want to observe individual chunks alongside the managed `partial` / `final` state (e.g. to drive a custom progress UI). The two paths compose — internal partial/final tracking always runs first, then your `onChunk` callback fires with the same chunk.
+
+`useChat` (React, Vue, Solid) and `createChat` (Svelte) all accept the same `outputSchema` option and expose `partial` / `final` with the same semantics — only the reactivity primitive differs (React state, Vue `shallowRef`, Solid `Accessor`, Svelte reactive getter). See your framework's quick-start for the local idioms.
+
+### What the stream contains
+
+`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>` — an `AsyncIterable` over the standard `StreamChunk` lifecycle plus a terminal `CUSTOM` event named `structured-output.complete`:
+
+```typescript
+{
+  type: "CUSTOM",
+  name: "structured-output.complete",
+  value: {
+    object: T;        // validated, parsed, typed
+    raw: string;      // full accumulated JSON text
+    reasoning?: string; // present only for thinking/reasoning models
+  },
+  // ...standard event fields (timestamp, model, …)
+}
+```
+
+### Adapter coverage
+
+Streaming structured output works with **every adapter**, but only some support a true single-request streaming wire format:
+
+| Adapter | Behavior with `outputSchema` + `stream: true` |
+|---------|-----------------------------------------------|
+| `@tanstack/ai-openai` | Native single-request stream (Responses API, `text.format: json_schema`) |
+| `@tanstack/ai-openrouter` | Native single-request stream (`response_format: json_schema`) |
+| `@tanstack/ai-grok` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
+| `@tanstack/ai-groq` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
+| Other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput` and emits the final object as one `structured-output.complete` event |
+
+The fallback path keeps the consumer code identical across providers — you always read the final object off `structured-output.complete` — but you won't see incremental deltas unless the adapter implements `structuredOutputStream` natively.
+
+### Advanced: iterating the stream directly
+
+When you don't need the SSE-over-HTTP boundary — Node scripts, CLIs, server endpoints that respond with a final JSON object instead of a stream, or tests — you can consume `chat({ outputSchema, stream: true })` as a plain async iterable:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const PersonSchema = z.object({ name: z.string(), age: z.number(), email: z.string().email() });
+
+const stream = chat({
+  adapter: openaiText("gpt-5.2"),
+  messages: [{ role: "user", content: "Extract: John Doe is 30, john@example.com" }],
+  outputSchema: PersonSchema,
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "CUSTOM" && chunk.name === "structured-output.complete") {
+    // Validated and typed against PersonSchema.
+    console.log(chunk.value.object.name);
+    console.log(chunk.value.object.age);
+  }
+}
+```
+
+This is the same `StructuredOutputStream<T>` the server endpoint above hands to `toServerSentEventsResponse`. Pick this shape when you're a single process end-to-end; use the server-endpoint-plus-`useChat` shape when there's a network in the middle.
+
 ## Combining with Tools
 
 Structured outputs work seamlessly with the agentic tool loop. When both `outputSchema` and `tools` are provided, TanStack AI will:
@@ -227,6 +408,58 @@ console.log(recommendation.productName);
 console.log(recommendation.currentPrice);
 console.log(recommendation.reason);
 ```
+
+### Streaming with tools that may pause
+
+When you combine `tools` + `outputSchema` + `stream: true`, the agent loop runs first — its events stream through, and only after all tools complete does the structured output stream emit `structured-output.complete`. Two situations can interrupt that flow before the terminal event arrives:
+
+1. **A server tool with `needsApproval: true` is queued.** The agent loop pauses and the queued tool-call lands on the assistant message as a `ToolCallPart` with `state === "approval-requested"`. You respond by calling `addToolApprovalResponse({ id, approved })` from the hook return — same flow as in a normal chat. See [Tool Approval Flow](../tools/tool-approval) for the full pattern.
+2. **A client tool is invoked.** If you registered the tool with an `execute` function, the client runs it automatically and posts the result back — no extra code on your side. If you want to handle it manually, listen for `onToolCall` and respond with `addToolResult({ toolCallId, tool, output, state })`. See [Client Tools](../tools/client-tools) for details.
+
+There's nothing structured-output-specific in either flow — both reuse the standard chat pause/resume APIs. The structured stream layers on top: once tools complete (or the user approves), the agent loop finishes, the structured-output stream takes over, `partial` fills in, and `final` snaps when `structured-output.complete` arrives. For example, an approval-gated tool inside a structured-output run looks like:
+
+```tsx
+const { messages, sendMessage, partial, final, addToolApprovalResponse } = useChat({
+  connection: fetchServerSentEvents("/api/recommend"),
+  outputSchema: RecommendationSchema,
+  tools: [sendEmail], // server tool with needsApproval: true
+});
+
+const last = messages.at(-1);
+
+return (
+  <>
+    {last?.parts.map((part, i) => {
+      // Surface approval prompts inline, the same way Tool Approval Flow shows it.
+      if (
+        part.type === "tool-call" &&
+        part.state === "approval-requested" &&
+        part.approval
+      ) {
+        return (
+          <ApprovalPrompt
+            key={i}
+            part={part}
+            onApprove={() =>
+              addToolApprovalResponse({ id: part.approval!.id, approved: true })
+            }
+            onDeny={() =>
+              addToolApprovalResponse({ id: part.approval!.id, approved: false })
+            }
+          />
+        );
+      }
+      if (part.type === "thinking") return <ReasoningView key={i} text={part.text} />;
+      if (part.type === "tool-call") return <ToolCallView key={i} part={part} />;
+      return null; // hide TextPart (raw JSON when outputSchema is set)
+    })}
+
+    <StructuredView data={final ?? partial} />
+  </>
+);
+```
+
+While the approval is pending, `partial` stays at its last value and `final` stays `null`. As soon as the user approves (or denies and the loop resumes), the agent loop continues, the structured stream runs, and `partial` / `final` populate.
 
 ## Using Plain JSON Schema
 

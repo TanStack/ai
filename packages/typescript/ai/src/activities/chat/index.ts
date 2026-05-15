@@ -9,6 +9,7 @@ import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import { EventType } from '../../types'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import {
   MiddlewareAbortError,
@@ -28,7 +29,7 @@ import type {
   ClientToolRequest,
   ToolResult,
 } from './tools/tool-calls'
-import type { AnyTextAdapter } from './adapter'
+import type { AnyTextAdapter, StructuredOutputOptions } from './adapter'
 import type {
   AgentLoopStrategy,
   ConstrainedModelMessage,
@@ -38,6 +39,8 @@ import type {
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
+  StructuredOutputCompleteEvent,
+  StructuredOutputStream,
   TextMessageContentEvent,
   TextOptions,
   Tool,
@@ -238,16 +241,28 @@ export function createChatOptions<
 
 /**
  * Result type for the text activity.
- * - If outputSchema is provided: Promise<InferSchemaType<TSchema>>
- * - If stream is false: Promise<string>
- * - Otherwise (stream is true, default): AsyncIterable<StreamChunk>
+ * - If outputSchema is provided AND stream is explicitly true:
+ *   StructuredOutputStream<InferSchemaType<TSchema>> — yields raw JSON deltas
+ *   via TEXT_MESSAGE_CONTENT plus a terminal StructuredOutputCompleteEvent
+ *   carrying the validated object.
+ * - If outputSchema is provided without explicit stream:true:
+ *   Promise<InferSchemaType<TSchema>>.
+ * - If stream is explicitly false (no schema): Promise<string>.
+ * - Otherwise (default): AsyncIterable<StreamChunk>.
+ *
+ * `[TStream] extends [true]` is used (not `TStream extends true`) so that the
+ * default `boolean` value of `TStream` does *not* match the streaming branch.
+ * Without this, plain `chat({ outputSchema })` would type as a stream while
+ * the runtime returns a Promise — see issue #526.
  */
 export type TextActivityResult<
   TSchema extends SchemaInput | undefined,
-  TStream extends boolean = true,
+  TStream extends boolean = boolean,
 > = TSchema extends SchemaInput
-  ? Promise<InferSchemaType<TSchema>>
-  : TStream extends false
+  ? [TStream] extends [true]
+    ? StructuredOutputStream<InferSchemaType<TSchema>>
+    : Promise<InferSchemaType<TSchema>>
+  : [TStream] extends [false]
     ? Promise<string>
     : AsyncIterable<StreamChunk>
 
@@ -1599,38 +1614,46 @@ class TextEngine<
 export function chat<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined = undefined,
-  TStream extends boolean = true,
+  TStream extends boolean = boolean,
 >(
   options: TextActivityOptions<TAdapter, TSchema, TStream>,
 ): TextActivityResult<TSchema, TStream> {
   const { outputSchema, stream } = options
 
-  // If outputSchema is provided, run agentic structured output
+  // outputSchema + stream:true is the only branch that streams structured
+  // output. Without an explicit `stream: true`, schema-bearing calls run the
+  // agent loop and resolve to a typed Promise<InferSchemaType<TSchema>>.
+  if (outputSchema && stream === true) {
+    return runStreamingStructuredOutput({
+      ...options,
+      outputSchema,
+      stream,
+    }) as TextActivityResult<TSchema, TStream>
+  }
+
+  // If outputSchema is provided, run agentic structured output (Promise<T>)
   if (outputSchema) {
-    return runAgenticStructuredOutput(
-      options as unknown as TextActivityOptions<
-        AnyTextAdapter,
-        SchemaInput,
-        boolean
-      >,
-    ) as TextActivityResult<TSchema, TStream>
+    return runAgenticStructuredOutput({
+      ...options,
+      outputSchema,
+    }) as TextActivityResult<TSchema, TStream>
   }
 
   // If stream is explicitly false, run non-streaming text
   if (stream === false) {
-    return runNonStreamingText(
-      options as unknown as TextActivityOptions<
-        AnyTextAdapter,
-        undefined,
-        false
-      >,
-    ) as TextActivityResult<TSchema, TStream>
+    return runNonStreamingText({
+      ...options,
+      outputSchema: undefined,
+      stream,
+    }) as TextActivityResult<TSchema, TStream>
   }
 
   // Otherwise, run streaming text (default)
-  return runStreamingText(
-    options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
-  ) as TextActivityResult<TSchema, TStream>
+  return runStreamingText({
+    ...options,
+    outputSchema: undefined,
+    stream,
+  }) as TextActivityResult<TSchema, TStream>
 }
 
 /**
@@ -1763,6 +1786,325 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
 
   // For plain JSON Schema, return the data as-is
   return result.data as InferSchemaType<TSchema>
+}
+
+/**
+ * Synthesize a streaming structured-output stream by wrapping a non-streaming
+ * `structuredOutput` call. Used when an adapter doesn't implement
+ * `structuredOutputStream` natively.
+ */
+async function* fallbackStructuredOutputStream(
+  adapter: AnyTextAdapter,
+  options: StructuredOutputOptions<Record<string, unknown>>,
+): AsyncIterable<StreamChunk> {
+  const { chatOptions } = options
+  const runId = chatOptions.runId ?? `mock-${Date.now()}`
+  const threadId = chatOptions.threadId ?? `mock-${Date.now()}`
+  const messageId = `mock-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const model = chatOptions.model
+  const timestamp = Date.now()
+
+  yield {
+    type: EventType.RUN_STARTED,
+    runId,
+    threadId,
+    model,
+    timestamp,
+  }
+
+  let result: { data: unknown; rawText: string }
+  try {
+    result = await adapter.structuredOutput(options)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    yield {
+      type: EventType.RUN_ERROR,
+      runId,
+      model,
+      timestamp,
+      message,
+      error: { message },
+    }
+    return
+  }
+
+  yield {
+    type: EventType.TEXT_MESSAGE_START,
+    messageId,
+    role: 'assistant',
+    model,
+    timestamp,
+  }
+
+  yield {
+    type: EventType.TEXT_MESSAGE_CONTENT,
+    messageId,
+    delta: result.rawText,
+    model,
+    timestamp,
+  }
+
+  yield {
+    type: EventType.TEXT_MESSAGE_END,
+    messageId,
+    model,
+    timestamp,
+  }
+
+  yield {
+    type: EventType.CUSTOM,
+    name: 'structured-output.complete',
+    value: { object: result.data, raw: result.rawText },
+    model,
+    timestamp,
+  }
+
+  yield {
+    type: EventType.RUN_FINISHED,
+    runId,
+    threadId,
+    model,
+    timestamp,
+    finishReason: 'stop',
+  }
+}
+
+/**
+ * Run streaming structured output:
+ * - Without tools: call adapter.structuredOutputStream directly (single
+ *   provider request emitting JSON deltas + a final CUSTOM event).
+ * - With tools: run the agent loop, yield its non-terminal chunks, then call
+ *   structuredOutputStream on the final messages so the structured stream's
+ *   own RUN_STARTED/RUN_FINISHED bracket the run.
+ *
+ * Validates the parsed object against the original Standard Schema (if
+ * applicable) when forwarding the final `structured-output.complete` event.
+ *
+ * Pre-flight validation (missing schema, unconvertible schema) throws
+ * synchronously at call time rather than as a yielded RUN_ERROR mid-stream —
+ * those are programmer errors, not runtime conditions.
+ */
+function runStreamingStructuredOutput<TSchema extends SchemaInput>(
+  options: TextActivityOptions<AnyTextAdapter, TSchema, true>,
+): StructuredOutputStream<InferSchemaType<TSchema>> {
+  const { outputSchema } = options
+
+  if (!outputSchema) {
+    throw new Error('outputSchema is required for streaming structured output')
+  }
+
+  // forStructuredOutput strict-converts the schema once at the activity
+  // boundary. Adapters can re-convert if their wire format diverges, but the
+  // default flow hands them a strict-ready schema.
+  const jsonSchema = convertSchemaToJsonSchema(outputSchema, {
+    forStructuredOutput: true,
+  })
+  if (!jsonSchema) {
+    throw new Error('Failed to convert output schema to JSON Schema')
+  }
+
+  // The implementation generator yields the broader internal type
+  // (`StreamChunk | StructuredOutputCompleteEvent<T>`) so agent-loop
+  // CustomEvents can flow through; the public-facing type narrows to
+  // `Exclude<StreamChunk, CustomEvent> | StructuredOutputCompleteEvent<T>`
+  // which lets consumers narrow `chunk.value` cleanly. The widen→narrow
+  // is contained here so consumers see only the strict type.
+  return runStreamingStructuredOutputImpl(
+    options,
+    jsonSchema,
+  ) as StructuredOutputStream<InferSchemaType<TSchema>>
+}
+
+/**
+ * Internal generator return type — broader than the public
+ * `StructuredOutputStream<T>`. The public type pins three tagged `CUSTOM`
+ * events (`structured-output.complete`, `approval-requested`,
+ * `tool-input-available`) so consumers can narrow `chunk.value` cleanly by
+ * literal `name`. At runtime, tools can also emit arbitrary user-defined
+ * `CustomEvent`s through the `emitCustomEvent` context API; those flow
+ * through this generator with `name: string` and are widened out at the
+ * public boundary because keeping them would collapse the typed narrow back
+ * to `any`. The cast inside `runStreamingStructuredOutput` is where that
+ * widening happens.
+ */
+type StructuredOutputStreamInternal<T> = AsyncIterable<
+  StreamChunk | StructuredOutputCompleteEvent<T>
+>
+
+async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
+  options: TextActivityOptions<AnyTextAdapter, TSchema, true>,
+  jsonSchema: NonNullable<ReturnType<typeof convertSchemaToJsonSchema>>,
+): StructuredOutputStreamInternal<InferSchemaType<TSchema>> {
+  const { adapter, outputSchema, middleware, context, debug, ...textOptions } =
+    options
+  const model = adapter.model
+  const logger = resolveDebugOption(debug)
+  const runId = textOptions.runId
+
+  // Inputs may be UIMessages (from useChat) or ModelMessages (from server-side
+  // callers). The agent-loop branch converts via TextEngine; the no-tools
+  // branch must convert here so the adapter sees a uniform ModelMessage shape.
+  let finalMessages = convertMessagesToModelMessages(textOptions.messages ?? [])
+
+  if (textOptions.tools?.length) {
+    const engine = new TextEngine(
+      {
+        adapter,
+        params: { ...textOptions, model, logger, messages: finalMessages },
+        middleware,
+        context,
+      },
+      logger,
+    )
+
+    // The structured-output stream emits its own RUN_STARTED + RUN_FINISHED
+    // pair to bracket the run — drop both from the engine's output so
+    // consumers see exactly one terminal lifecycle pair.
+    let agentLoopErrored = false
+    try {
+      for await (const chunk of engine.run()) {
+        if (chunk.type === 'RUN_STARTED' || chunk.type === 'RUN_FINISHED') {
+          continue
+        }
+        if (chunk.type === 'RUN_ERROR') {
+          // The engine yielded RUN_ERROR without throwing (provider error mid
+          // agent loop). Forward it once and short-circuit before invoking
+          // structuredOutputStream — otherwise consumers would see a confusing
+          // RUN_ERROR → RUN_STARTED → structured-output.complete sequence and
+          // we would bill another provider call after a failed run.
+          agentLoopErrored = true
+          yield chunk
+          continue
+        }
+        yield chunk
+      }
+    } catch (engineError) {
+      const message = (engineError as Error).message || 'Agent loop failed'
+      logger.errors('runStreamingStructuredOutput agent loop failed', {
+        error: engineError,
+        source: 'runStreamingStructuredOutput',
+      })
+      yield {
+        type: EventType.RUN_ERROR,
+        runId,
+        model,
+        timestamp: Date.now(),
+        message,
+        code: 'agent-loop-failed',
+        error: { message, code: 'agent-loop-failed' },
+      }
+      return
+    }
+
+    if (agentLoopErrored) {
+      return
+    }
+
+    finalMessages = engine.getMessages()
+  }
+
+  const {
+    tools: _tools,
+    agentLoopStrategy: _als,
+    ...structuredTextOptions
+  } = textOptions
+
+  logger.request(
+    `activity=chat-structured-stream provider=${adapter.name} model=${model} messages=${finalMessages.length}`,
+    {
+      provider: adapter.name,
+      model,
+      messageCount: finalMessages.length,
+    },
+  )
+
+  // Adapters consume the abort signal via `chatOptions.request?.signal` and
+  // pass it to the underlying network call. Without this, aborting the SSE
+  // response never cancels the upstream provider request and a terminal
+  // structured-output.complete event still gets yielded after stop.
+  const structuredChatOptions = {
+    ...structuredTextOptions,
+    model,
+    messages: finalMessages,
+    logger,
+    request: textOptions.abortController
+      ? { signal: textOptions.abortController.signal }
+      : undefined,
+  }
+
+  // Adapters that don't implement structuredOutputStream natively fall back
+  // to wrapping the non-streaming `structuredOutput` — `fallbackStructuredOutputStream`
+  // synthesizes the AG-UI lifecycle events around it.
+  const stream = adapter.structuredOutputStream
+    ? adapter.structuredOutputStream({
+        chatOptions: structuredChatOptions,
+        outputSchema: jsonSchema,
+      })
+    : fallbackStructuredOutputStream(adapter, {
+        chatOptions: structuredChatOptions,
+        outputSchema: jsonSchema,
+      })
+
+  for await (const chunk of stream) {
+    if (
+      chunk.type === EventType.CUSTOM &&
+      chunk.name === 'structured-output.complete'
+    ) {
+      const value = chunk.value as {
+        object: unknown
+        raw: string
+        reasoning?: string
+      }
+      if (isStandardSchema(outputSchema)) {
+        try {
+          const validated = parseWithStandardSchema<InferSchemaType<TSchema>>(
+            outputSchema,
+            value.object,
+          )
+          yield {
+            ...chunk,
+            // Forward `reasoning` through schema validation so consumers that
+            // only listen for the terminal event don't lose chain-of-thought.
+            value: {
+              object: validated,
+              raw: value.raw,
+              ...(value.reasoning ? { reasoning: value.reasoning } : {}),
+            },
+          }
+          continue
+        } catch (err) {
+          const message = (err as Error).message || 'Schema validation failed'
+          logger.errors(
+            'runStreamingStructuredOutput schema validation failed',
+            {
+              error: err,
+              source: 'runStreamingStructuredOutput',
+              // Include reasoning in error meta so post-mortems can recover
+              // what the model thought through before producing invalid JSON.
+              ...(value.reasoning ? { reasoning: value.reasoning } : {}),
+            },
+          )
+          yield {
+            type: EventType.RUN_ERROR,
+            runId,
+            model: chunk.model ?? model,
+            timestamp: chunk.timestamp ?? Date.now(),
+            message,
+            code: 'schema-validation',
+            error: {
+              message,
+              code: 'schema-validation',
+              ...(value.reasoning ? { reasoning: value.reasoning } : {}),
+            },
+          }
+          return
+        }
+      }
+      yield chunk
+      continue
+    }
+    yield chunk
+  }
 }
 
 // Re-export adapter types
