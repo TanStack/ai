@@ -14,6 +14,7 @@ import type {
   AnthropicModelInputModalitiesByName,
 } from '../model-meta'
 import type {
+  NonStreamingChatResult,
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
@@ -184,6 +185,118 @@ export class AnthropicTextAdapter<
           code: err.code || String(err.status),
         },
       }
+    }
+  }
+
+  /**
+   * Wire-level non-streaming chat — sends `stream: false` to Anthropic
+   * and returns the single JSON response (issue #557). Mirrors `chatStream`
+   * for tools / interleaved-thinking / betas, then maps the
+   * `MessageCreateParamsNonStreaming` response shape to NonStreamingChatResult.
+   */
+  async chatNonStreaming(
+    options: TextOptions<TProviderOptions>,
+  ): Promise<NonStreamingChatResult> {
+    const { logger } = options
+    try {
+      const requestParams = this.mapCommonOptionsToAnthropic(options)
+
+      // Mirror chatStream: interleaved-thinking is only available on the
+      // beta endpoint when `thinking.budget_tokens > 0` is set.
+      const modelOptions = options.modelOptions as
+        | InternalTextProviderOptions
+        | undefined
+      const useInterleavedThinking =
+        modelOptions?.thinking?.type === 'enabled' &&
+        typeof modelOptions.thinking.budget_tokens === 'number' &&
+        modelOptions.thinking.budget_tokens > 0
+      const betas: Array<AnthropicBeta> | undefined = useInterleavedThinking
+        ? ['interleaved-thinking-2025-05-14']
+        : undefined
+
+      logger.request(
+        `activity=chat provider=anthropic model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=false`,
+        { provider: 'anthropic', model: this.model },
+      )
+
+      const response = await this.client.beta.messages.create(
+        { ...requestParams, stream: false, ...(betas && { betas }) },
+        {
+          signal: options.request?.signal,
+          headers: options.request?.headers,
+        },
+      )
+
+      let content = ''
+      let reasoning = ''
+      const toolCalls: NonStreamingChatResult['toolCalls'] = []
+
+      for (const block of response.content) {
+        switch (block.type) {
+          case 'text':
+            content += block.text
+            break
+          case 'thinking':
+            // `thinking.signature` is needed to round-trip into the next
+            // turn but the public `chat({stream:false})` return drops it;
+            // the streaming path keeps signatures via the message thread.
+            if (typeof block.thinking === 'string') reasoning += block.thinking
+            break
+          case 'tool_use':
+            toolCalls.push({
+              id: block.id,
+              type: 'function' as const,
+              function: {
+                name: block.name,
+                // Anthropic returns parsed input objects; normalise to a
+                // JSON string to match the streaming TOOL_CALL_END shape
+                // and the OpenAI/OpenRouter wire conventions.
+                arguments: JSON.stringify(block.input ?? {}),
+              },
+            })
+            break
+        }
+      }
+
+      // Anthropic stop_reason values: 'end_turn' | 'max_tokens' |
+      // 'stop_sequence' | 'tool_use' | 'pause_turn' | 'refusal'.
+      // Map to the streaming finishReason vocabulary so the dispatch loop
+      // recognises 'tool_calls' regardless of provider.
+      const finishReason: NonStreamingChatResult['finishReason'] = (() => {
+        switch (response.stop_reason) {
+          case 'tool_use':
+            return 'tool_calls'
+          case 'max_tokens':
+            return 'length'
+          case 'refusal':
+            return 'content_filter'
+          case 'end_turn':
+          case 'stop_sequence':
+            return 'stop'
+          default:
+            return response.stop_reason ?? undefined
+        }
+      })()
+
+      const usage = {
+        promptTokens: response.usage.input_tokens,
+        completionTokens: response.usage.output_tokens,
+        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+      }
+
+      return {
+        content,
+        ...(reasoning ? { reasoning } : {}),
+        ...(toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(finishReason ? { finishReason } : {}),
+        usage,
+      }
+    } catch (error: unknown) {
+      logger.errors('anthropic.chatNonStreaming fatal', {
+        error,
+        source: 'anthropic.chatNonStreaming',
+      })
+      throw error
     }
   }
 

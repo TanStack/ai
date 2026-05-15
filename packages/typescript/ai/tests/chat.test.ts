@@ -181,6 +181,192 @@ describe('chat()', () => {
   })
 
   // ==========================================================================
+  // Wire-level non-streaming via adapter.chatNonStreaming() — issue #557
+  // ==========================================================================
+  describe('wire-level non-streaming (adapter.chatNonStreaming)', () => {
+    it('routes through adapter.chatNonStreaming and never opens a stream when set', async () => {
+      const { adapter, calls, chatCalls } = createMockAdapter({
+        chatIterations: [{ content: 'Hello world!', finishReason: 'stop' }],
+      })
+
+      const result = await chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        stream: false,
+      })
+
+      expect(result).toBe('Hello world!')
+      expect(chatCalls).toHaveLength(1)
+      // chatStream must not be touched — that's the whole point of #557.
+      expect(calls).toHaveLength(0)
+    })
+
+    it('drives a non-streaming agent loop across multiple turns when tools fire', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ temp: 72 })
+
+      const { adapter, chatCalls, calls } = createMockAdapter({
+        chatIterations: [
+          // Turn 1: model asks for the tool
+          {
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: {
+                  name: 'getWeather',
+                  arguments: '{"city":"NYC"}',
+                },
+              },
+            ],
+            finishReason: 'tool_calls',
+          },
+          // Turn 2: model produces final text
+          { content: '72F in NYC', finishReason: 'stop' },
+        ],
+      })
+
+      const result = await chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Weather in NYC?' }],
+        tools: [serverTool('getWeather', executeSpy)],
+        stream: false,
+      })
+
+      expect(result).toBe('72F in NYC')
+      expect(executeSpy).toHaveBeenCalledTimes(1)
+      expect(chatCalls).toHaveLength(2)
+      expect(calls).toHaveLength(0)
+
+      // Turn 2 must see the assistant tool_calls turn + tool result appended.
+      const turn2Messages = chatCalls[1]!.messages as Array<{
+        role: string
+        content: unknown
+        toolCalls?: unknown
+        toolCallId?: string
+      }>
+      expect(turn2Messages.map((m) => m.role)).toEqual([
+        'user',
+        'assistant',
+        'tool',
+      ])
+      expect(turn2Messages[1]!.toolCalls).toBeDefined()
+      expect(turn2Messages[2]!.toolCallId).toBe('call_1')
+    })
+
+    it('honors agentLoopStrategy in the non-streaming loop', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ ok: true })
+
+      const { adapter, chatCalls } = createMockAdapter({
+        // Every turn requests the tool — without a cap this would spin
+        // forever. We expect the loop to bail after maxIterations(2).
+        chatFn: async () => ({
+          content: '',
+          toolCalls: [
+            {
+              id: 'call_x',
+              type: 'function',
+              function: { name: 'noop', arguments: '{}' },
+            },
+          ],
+          finishReason: 'tool_calls',
+        }),
+      })
+
+      const result = await chat({
+        adapter,
+        messages: [{ role: 'user', content: 'go' }],
+        tools: [serverTool('noop', executeSpy)],
+        stream: false,
+        agentLoopStrategy: ({ iterationCount }) => iterationCount < 2,
+      })
+
+      expect(chatCalls).toHaveLength(2)
+      // No final-turn content was ever produced.
+      expect(result).toBe('')
+    })
+
+    it('surfaces an error when a non-streaming tool requires approval', async () => {
+      const { adapter } = createMockAdapter({
+        chatIterations: [
+          {
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_a',
+                type: 'function',
+                function: { name: 'addToCart', arguments: '{}' },
+              },
+            ],
+            finishReason: 'tool_calls',
+          },
+        ],
+      })
+
+      const approvalTool: Tool = {
+        name: 'addToCart',
+        description: 'add to cart',
+        execute: () => ({ ok: true }),
+        needsApproval: true,
+      }
+
+      await expect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'cart please' }],
+          tools: [approvalTool],
+          stream: false,
+        }),
+      ).rejects.toThrow(/approval/i)
+    })
+
+    it('falls back to chatStream + streamToText when adapter omits chatNonStreaming', async () => {
+      // Build an adapter that satisfies the public surface but omits the
+      // optional chatNonStreaming method — out-of-tree adapters look like
+      // this until they migrate.
+      const calls: Array<unknown> = []
+      const adapter = {
+        kind: 'text' as const,
+        name: 'legacy-mock',
+        model: 'legacy-model' as const,
+        '~types': {
+          providerOptions: {} as Record<string, unknown>,
+          inputModalities: ['text'] as readonly ['text'],
+          messageMetadataByModality: {
+            text: undefined as unknown,
+            image: undefined as unknown,
+            audio: undefined as unknown,
+            video: undefined as unknown,
+            document: undefined as unknown,
+          },
+          toolCapabilities: [] as ReadonlyArray<string>,
+          toolCallMetadata: undefined as unknown,
+        },
+        chatStream: (opts: unknown) => {
+          calls.push(opts)
+          return (async function* () {
+            yield ev.runStarted()
+            yield ev.textStart()
+            yield ev.textContent('hello from stream')
+            yield ev.textEnd()
+            yield ev.runFinished('stop')
+          })()
+        },
+        structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+      }
+
+      const result = await chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        stream: false,
+      })
+
+      expect(result).toBe('hello from stream')
+      expect(calls).toHaveLength(1)
+    })
+  })
+
+  // ==========================================================================
   // Server tool execution
   // ==========================================================================
   describe('server tool execution', () => {

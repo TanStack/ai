@@ -1661,18 +1661,173 @@ async function* runStreamingText(
 }
 
 /**
- * Run non-streaming text - collects all content and returns as a string.
- * Runs the full agentic loop (if tools are provided) but returns collected text.
+ * Run non-streaming text — `chat({ stream: false })`.
+ *
+ * If the adapter implements `chatNonStreaming()` (in-tree: openai, grok,
+ * groq, openrouter, anthropic, gemini, ollama, …), this drives a wire-level
+ * non-streaming agent loop: call `adapter.chatNonStreaming()`, execute any
+ * returned tool calls, append the results, repeat until `finishReason !==
+ * 'tool_calls'` or the agent-loop strategy stops. The wire request carries
+ * `stream: false` and the response is a single JSON body — eliminating the
+ * SSE pitfalls that issue #557 hit (proxy-idle truncations on long
+ * reasoning turns, awkward fixture reassembly).
+ *
+ * If the adapter does NOT implement `chatNonStreaming()` (out-of-tree
+ * adapters), this falls back to the legacy behaviour — drain `chatStream`
+ * via `streamToText`. That keeps backwards compat for adapters that
+ * haven't migrated, at the cost of still streaming on the wire.
+ *
+ * Behaviour notes when on the wire-level path:
+ *  - Middleware is intentionally not invoked here, matching the silence of
+ *    the `adapter.structuredOutput` call inside `runAgenticStructuredOutput`.
+ *  - Approval-required tools and pure client tools cannot round-trip
+ *    through a `Promise<string>`; if the model requests one, the loop
+ *    surfaces an error so the caller knows to switch to streaming.
  */
-function runNonStreamingText(
+async function runNonStreamingText(
   options: TextActivityOptions<AnyTextAdapter, undefined, false>,
 ): Promise<string> {
-  // Run the streaming text and collect all text using streamToText
-  const stream = runStreamingText(
-    options as unknown as TextActivityOptions<AnyTextAdapter, undefined, true>,
+  const {
+    adapter,
+    middleware: _middleware,
+    context: _context,
+    debug,
+    messages: rawMessages = [],
+    tools: rawTools,
+    agentLoopStrategy,
+    abortController,
+    ...rest
+  } = options
+
+  // Fallback for adapters that haven't implemented chatNonStreaming yet:
+  // preserve the pre-#557 behaviour of stream-then-concatenate. Out-of-tree
+  // adapters keep working unchanged.
+  const chatNonStreaming = adapter.chatNonStreaming?.bind(adapter)
+  if (!chatNonStreaming) {
+    return streamToText(
+      runStreamingText(
+        options as unknown as TextActivityOptions<
+          AnyTextAdapter,
+          undefined,
+          true
+        >,
+      ),
+    )
+  }
+  const logger = resolveDebugOption(debug)
+  const model = adapter.model
+
+  // Convert UIMessage / ConstrainedModelMessage input to ModelMessage. The
+  // streaming engine does this in its constructor; mirror it here so the
+  // adapter sees the same shape across paths.
+  const messages: Array<ModelMessage> = convertMessagesToModelMessages(
+    rawMessages as Array<any>,
   )
 
-  return streamToText(stream)
+  // Build tools-with-JSON-schema once. This matches what TextEngine.streamModelResponse
+  // sends to the adapter, so the wire payload is identical apart from `stream: false`.
+  const tools: Array<Tool> = (rawTools ?? []) as Array<Tool>
+  const toolsWithJsonSchemas = tools.map((tool) => ({
+    ...tool,
+    inputSchema: tool.inputSchema
+      ? convertSchemaToJsonSchema(tool.inputSchema)
+      : undefined,
+    outputSchema: tool.outputSchema
+      ? convertSchemaToJsonSchema(tool.outputSchema)
+      : undefined,
+  }))
+
+  const strategy: AgentLoopStrategy =
+    agentLoopStrategy ?? maxIterationsStrategy(5)
+
+  const effectiveRequest = abortController
+    ? { signal: abortController.signal }
+    : undefined
+
+  const baseChatOptions = {
+    ...rest,
+    model,
+    logger,
+    request: effectiveRequest,
+  } as TextOptions<Record<string, any>>
+
+  let accumulatedContent = ''
+  let iterationCount = 0
+  let lastFinishReason: string | null = null
+
+  while (
+    strategy({ iterationCount, messages, finishReason: lastFinishReason })
+  ) {
+    const result = await chatNonStreaming({
+      ...baseChatOptions,
+      messages,
+      tools: toolsWithJsonSchemas,
+    })
+
+    if (result.content) {
+      accumulatedContent += result.content
+    }
+
+    lastFinishReason = result.finishReason ?? null
+    iterationCount++
+
+    const toolCalls = result.toolCalls ?? []
+    if (
+      result.finishReason !== 'tool_calls' ||
+      toolCalls.length === 0 ||
+      tools.length === 0
+    ) {
+      return accumulatedContent
+    }
+
+    // Append the assistant turn that requested the tool calls before
+    // executing them, so the next chatNonStreaming() call sees the same
+    // conversation shape the streaming path produces.
+    messages.push({
+      role: 'assistant',
+      content: result.content || null,
+      toolCalls,
+      ...(result.reasoning
+        ? { thinking: [{ content: result.reasoning }] }
+        : {}),
+    })
+
+    // Execute server-side tools. Reuses the same generator the streaming
+    // engine drives in `processToolCalls`, with no middleware hooks /
+    // custom-event factory — non-streaming callers don't get those signals.
+    // We discard yielded CustomEvents and only consume the return value.
+    const generator = executeToolCalls(toolCalls, tools)
+    let next = await generator.next()
+    while (!next.done) {
+      next = await generator.next()
+    }
+    const executionResult: {
+      results: Array<ToolResult>
+      needsApproval: Array<ApprovalRequest>
+      needsClientExecution: Array<ClientToolRequest>
+    } = next.value
+
+    if (
+      executionResult.needsApproval.length > 0 ||
+      executionResult.needsClientExecution.length > 0
+    ) {
+      // Approval and client-side tools require an interactive transport.
+      // Fail loud so callers don't silently lose tool results.
+      throw new Error(
+        'chat({ stream: false }) cannot service tools that require approval or client-side execution. Use chat({ stream: true }) and consume the AG-UI events to handle these flows.',
+      )
+    }
+
+    for (const toolResult of executionResult.results) {
+      messages.push({
+        role: 'tool',
+        content: JSON.stringify(toolResult.result),
+        toolCallId: toolResult.toolCallId,
+      })
+    }
+  }
+
+  return accumulatedContent
 }
 
 /**
@@ -2089,5 +2244,6 @@ export type {
   TextAdapterConfig,
   StructuredOutputOptions,
   StructuredOutputResult,
+  NonStreamingChatResult,
 } from './adapter'
 export { BaseTextAdapter } from './adapter'

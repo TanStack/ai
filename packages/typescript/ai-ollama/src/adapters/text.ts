@@ -10,6 +10,7 @@ import type {
   OllamaChatModelOptionsByName,
 } from '../model-meta'
 import type {
+  NonStreamingChatResult,
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
@@ -159,6 +160,76 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       logger.errors('ollama.chatStream fatal', {
         error,
         source: 'ollama.chatStream',
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Wire-level non-streaming chat — sends `stream: false` to Ollama
+   * (issue #557). Mirrors `chatStream` for option mapping and tool/format
+   * conversion, then maps Ollama's `ChatResponse` shape to NonStreamingChatResult.
+   */
+  async chatNonStreaming(
+    options: TextOptions<ResolveModelOptions<TModel>>,
+  ): Promise<NonStreamingChatResult> {
+    const { logger } = options
+    const mappedOptions = this.mapCommonOptionsToOllama(options)
+
+    try {
+      logger.request(
+        `activity=chat provider=ollama model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=false`,
+        { provider: 'ollama', model: this.model },
+      )
+
+      const response = await this.client.chat({
+        ...mappedOptions,
+        stream: false,
+      })
+
+      const message = response.message
+      const content = message.content
+      const reasoning = (message as { thinking?: string }).thinking
+
+      const toolCalls = message.tool_calls?.map((tc, idx) => ({
+        // Ollama tool calls don't carry IDs — synthesise one matching the
+        // streaming side's convention so subsequent turns can correlate
+        // tool results back to calls.
+        id: `${this.name}-tool-${Date.now()}-${idx}`,
+        type: 'function' as const,
+        function: {
+          name: tc.function.name,
+          // Ollama returns parsed argument objects; normalise to a JSON
+          // string to match TOOL_CALL_END / OpenAI conventions so the
+          // dispatch layer's tool executor can JSON.parse them uniformly.
+          arguments: JSON.stringify(tc.function.arguments),
+        },
+      }))
+
+      const finishReason: NonStreamingChatResult['finishReason'] =
+        toolCalls && toolCalls.length > 0
+          ? 'tool_calls'
+          : response.done_reason === 'length'
+            ? 'length'
+            : 'stop'
+
+      const usage = {
+        promptTokens: response.prompt_eval_count,
+        completionTokens: response.eval_count,
+        totalTokens: response.prompt_eval_count + response.eval_count,
+      }
+
+      return {
+        content,
+        ...(reasoning ? { reasoning } : {}),
+        ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+        finishReason,
+        usage,
+      }
+    } catch (error: unknown) {
+      logger.errors('ollama.chatNonStreaming fatal', {
+        error,
+        source: 'ollama.chatNonStreaming',
       })
       throw error
     }

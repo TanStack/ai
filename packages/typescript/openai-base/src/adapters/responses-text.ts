@@ -7,6 +7,7 @@ import { makeStructuredOutputCompatible } from '../utils/schema-converter'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import type OpenAI from 'openai'
 import type {
+  NonStreamingChatResult,
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
@@ -160,6 +161,136 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    * The outputSchema is already JSON Schema (converted in the ai layer).
    * We apply provider-specific transformations for structured output compatibility.
    */
+  /**
+   * Wire-level non-streaming chat — sends `stream: false` to the Responses
+   * endpoint and returns the single JSON response. Used by
+   * `chat({ stream: false })` to avoid SSE proxy-idle / fixture-reassembly
+   * pitfalls (issue #557).
+   *
+   * Mirrors `structuredOutput`'s sanitisation and error handling, then
+   * extracts content / tool calls / reasoning / usage from the typed
+   * `Response` so the dispatch-layer agent loop can keep iterating without
+   * touching the wire format.
+   */
+  async chatNonStreaming(
+    options: TextOptions<TProviderOptions>,
+  ): Promise<NonStreamingChatResult> {
+    try {
+      const requestParams = this.mapOptionsToRequest(options)
+      const {
+        stream: _stream,
+        stream_options: _streamOptions,
+        ...cleanParams
+      } = requestParams as Record<string, unknown>
+      void _stream
+      void _streamOptions
+
+      options.logger.request(
+        `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=false`,
+        { provider: this.name, model: this.model },
+      )
+
+      const response: Response = await this.client.responses.create(
+        {
+          ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
+          stream: false,
+        },
+        extractRequestOptions(options.request),
+      )
+
+      let content = ''
+      let reasoning = ''
+      const toolCalls: NonStreamingChatResult['toolCalls'] = []
+
+      for (const item of response.output) {
+        if (item.type === 'message') {
+          for (const part of item.content) {
+            const partType = (part as { type: string }).type
+            if (partType === 'output_text') {
+              content += (part as { text?: string }).text ?? ''
+            } else if (partType === 'refusal') {
+              const refusalText = (part as { refusal?: string }).refusal
+              const err = new Error(
+                `Model refused to respond: ${refusalText || 'Refused without explanation'}`,
+              )
+              ;(err as Error & { code?: string }).code = 'refusal'
+              throw err
+            }
+            // Other part types (output_audio, output_image, etc.) are not
+            // surfaced through chat() — callers asking for non-streaming
+            // text get the text-only slice, matching streaming behaviour.
+          }
+        } else if (item.type === 'function_call') {
+          // Responses API function calls carry the call_id, name, and a
+          // complete arguments string in non-streaming mode.
+          const fc = item as {
+            type: 'function_call'
+            call_id?: string
+            id?: string
+            name: string
+            arguments: string
+          }
+          toolCalls.push({
+            id: fc.call_id ?? fc.id ?? '',
+            type: 'function' as const,
+            function: { name: fc.name, arguments: fc.arguments },
+          })
+        } else if (item.type === 'reasoning') {
+          // Reasoning items contain summary[].text and/or content[].text
+          // depending on whether `reasoning.summary` was requested.
+          const reasoningItem = item as {
+            type: 'reasoning'
+            summary?: Array<{ type: string; text?: string }>
+            content?: Array<{ type: string; text?: string }>
+          }
+          for (const s of reasoningItem.summary ?? []) {
+            if (s.text) reasoning += s.text
+          }
+          for (const c of reasoningItem.content ?? []) {
+            if (c.text) reasoning += c.text
+          }
+        }
+      }
+
+      // Mirror the streaming finish-reason mapping (line ~1084) so a tool
+      // call response surfaces as `tool_calls` regardless of how the
+      // Responses API reports `incomplete_details`.
+      const incompleteReason = response.incomplete_details?.reason
+      const finishReason: NonStreamingChatResult['finishReason'] =
+        toolCalls.length > 0
+          ? 'tool_calls'
+          : incompleteReason === 'max_output_tokens'
+            ? 'length'
+            : incompleteReason === 'content_filter'
+              ? 'content_filter'
+              : 'stop'
+
+      const usage = response.usage
+        ? {
+            promptTokens: response.usage.input_tokens || 0,
+            completionTokens: response.usage.output_tokens || 0,
+            totalTokens: response.usage.total_tokens || 0,
+          }
+        : undefined
+
+      return {
+        content,
+        ...(reasoning ? { reasoning } : {}),
+        ...(toolCalls.length > 0 ? { toolCalls } : {}),
+        finishReason,
+        ...(usage ? { usage } : {}),
+      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      options.logger.errors(`${this.name}.chatNonStreaming fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.chatNonStreaming failed`),
+        source: `${this.name}.chatNonStreaming`,
+      })
+      throw error
+    }
+  }
+
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {

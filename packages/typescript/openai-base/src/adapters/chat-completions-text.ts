@@ -7,6 +7,7 @@ import { makeStructuredOutputCompatible } from '../utils/schema-converter'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
 import type {
+  NonStreamingChatResult,
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
@@ -124,6 +125,109 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         source: `${this.name}.chatStream`,
       })
     }
+  }
+
+  /**
+   * Wire-level non-streaming chat — sends `stream: false` to the Chat
+   * Completions endpoint and returns the single JSON response. Used by
+   * `chat({ stream: false })` to avoid the proxy-idle/SSE-reassembly
+   * pitfalls of stream-then-concatenate. See issue #557.
+   *
+   * Mirrors `chatStream` request mapping (so the wire payload is identical
+   * apart from the stream flag) and `structuredOutput` error handling
+   * (sanitised payload, fail-loud on caller-side validation).
+   */
+  async chatNonStreaming(
+    options: TextOptions<TProviderOptions>,
+  ): Promise<NonStreamingChatResult> {
+    try {
+      const requestParams = this.mapOptionsToRequest(options)
+      const {
+        stream_options: _streamOptions,
+        stream: _stream,
+        ...cleanParams
+      } = requestParams as any
+      void _streamOptions
+      void _stream
+
+      options.logger.request(
+        `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=false`,
+        { provider: this.name, model: this.model },
+      )
+
+      const response = await this.client.chat.completions.create(
+        { ...cleanParams, stream: false },
+        extractRequestOptions(options.request),
+      )
+
+      const choice = response.choices[0]
+      const message = choice?.message
+
+      const content =
+        typeof message?.content === 'string' ? message.content : ''
+
+      const toolCalls = message?.tool_calls
+        ?.filter(
+          (tc): tc is typeof tc & { type: 'function' } =>
+            tc.type === 'function',
+        )
+        .map((tc) => ({
+          id: tc.id,
+          type: 'function' as const,
+          function: {
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          },
+        }))
+
+      const reasoning = this.extractReasoningFromMessage(message)
+
+      const finishReason: NonStreamingChatResult['finishReason'] = (() => {
+        switch (choice?.finish_reason) {
+          case 'stop':
+          case 'length':
+          case 'content_filter':
+          case 'tool_calls':
+            return choice.finish_reason
+          default:
+            return choice?.finish_reason ?? undefined
+        }
+      })()
+
+      const usage = response.usage
+        ? {
+            promptTokens: response.usage.prompt_tokens,
+            completionTokens: response.usage.completion_tokens,
+            totalTokens: response.usage.total_tokens,
+          }
+        : undefined
+
+      return {
+        content,
+        ...(reasoning ? { reasoning } : {}),
+        ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(finishReason ? { finishReason } : {}),
+        ...(usage ? { usage } : {}),
+      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      options.logger.errors(`${this.name}.chatNonStreaming fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.chatNonStreaming failed`),
+        source: `${this.name}.chatNonStreaming`,
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Extract reasoning content from a non-streaming response message.
+   * Default returns undefined — base OpenAI Chat Completions has no
+   * reasoning field. Subclasses (e.g., Grok with `reasoning_content`)
+   * override to surface it. Mirrors the streaming `extractReasoning` hook.
+   */
+  protected extractReasoningFromMessage(_message: unknown): string | undefined {
+    return undefined
   }
 
   /**

@@ -40,6 +40,7 @@ export {
   type TextAdapterConfig,
   type StructuredOutputOptions,
   type StructuredOutputResult,
+  type NonStreamingChatResult,
 } from './chat/adapter'
 
 // ===========================
