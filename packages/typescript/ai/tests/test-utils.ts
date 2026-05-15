@@ -152,9 +152,47 @@ export function createMockAdapter(options: {
   /** Array of chunk sequences: chatStream returns iterations[0] on first call, iterations[1] on second, etc. */
   iterations?: Array<Array<StreamChunk>>
   structuredOutput?: (opts: any) => Promise<{ data: unknown; rawText: string }>
+  /**
+   * Override `adapter.chat()` for non-streaming tests. If omitted the
+   * BaseTextAdapter default (drains chatStream) applies — which is fine
+   * for tests that only care that *some* chat() impl runs.
+   */
+  chatFn?: (opts: any) => Promise<{
+    content: string
+    reasoning?: string
+    toolCalls?: Array<{
+      id: string
+      type: 'function'
+      function: { name: string; arguments: string }
+    }>
+    finishReason?: string
+    usage?: {
+      promptTokens?: number
+      completionTokens?: number
+      totalTokens?: number
+    }
+  }>
+  /** Array of chat() responses: chatFn returns chatIterations[0] on first call, etc. */
+  chatIterations?: Array<{
+    content: string
+    reasoning?: string
+    toolCalls?: Array<{
+      id: string
+      type: 'function'
+      function: { name: string; arguments: string }
+    }>
+    finishReason?: string
+    usage?: {
+      promptTokens?: number
+      completionTokens?: number
+      totalTokens?: number
+    }
+  }>
 }) {
   const calls: Array<Record<string, unknown>> = []
+  const chatCalls: Array<Record<string, unknown>> = []
   let callIndex = 0
+  let chatCallIndex = 0
 
   const adapter: AnyTextAdapter = {
     kind: 'text' as const,
@@ -190,11 +228,112 @@ export function createMockAdapter(options: {
 
       return (async function* () {})()
     },
+    chatNonStreaming: async (opts: any) => {
+      chatCalls.push(opts)
+
+      if (options.chatFn) {
+        return options.chatFn(opts)
+      }
+
+      if (options.chatIterations) {
+        const result = options.chatIterations[chatCallIndex] || {
+          content: '',
+        }
+        chatCallIndex++
+        return result
+      }
+
+      // Default: drain the mock's chatStream and reassemble — mirrors the
+      // legacy stream-then-concatenate behaviour so existing tests that
+      // configure `iterations` (stream chunks) keep working when invoked
+      // through the non-streaming path.
+      let content = ''
+      let reasoning = ''
+      const toolCallsByIndex = new Map<
+        number,
+        { id: string; name: string; args: string }
+      >()
+      let nextIndex = 0
+      let finishReason: string | undefined
+      let usage:
+        | {
+            promptTokens?: number
+            completionTokens?: number
+            totalTokens?: number
+          }
+        | undefined
+
+      for await (const chunk of adapter.chatStream(opts)) {
+        switch (chunk.type) {
+          case 'TEXT_MESSAGE_CONTENT': {
+            const e = chunk as { delta?: string }
+            if (e.delta) content += e.delta
+            break
+          }
+          case 'REASONING_MESSAGE_CONTENT': {
+            const e = chunk as { delta?: string }
+            if (e.delta) reasoning += e.delta
+            break
+          }
+          case 'TOOL_CALL_START': {
+            const e = chunk as {
+              toolCallId: string
+              toolCallName?: string
+              toolName?: string
+              index?: number
+            }
+            const index = e.index ?? nextIndex++
+            toolCallsByIndex.set(index, {
+              id: e.toolCallId,
+              name: e.toolCallName ?? e.toolName ?? '',
+              args: '',
+            })
+            break
+          }
+          case 'TOOL_CALL_ARGS': {
+            const e = chunk as { toolCallId: string; delta?: string }
+            for (const tc of toolCallsByIndex.values()) {
+              if (tc.id === e.toolCallId) {
+                tc.args += e.delta ?? ''
+                break
+              }
+            }
+            break
+          }
+          case 'RUN_FINISHED': {
+            const e = chunk as {
+              finishReason?: string
+              usage?: typeof usage
+            }
+            if (e.finishReason) finishReason = e.finishReason
+            if (e.usage) usage = e.usage
+            break
+          }
+        }
+      }
+
+      const toolCalls =
+        toolCallsByIndex.size > 0
+          ? Array.from(toolCallsByIndex.values()).map((tc) => ({
+              id: tc.id,
+              type: 'function' as const,
+              function: { name: tc.name, arguments: tc.args },
+            }))
+          : undefined
+
+      return {
+        content,
+        ...(reasoning ? { reasoning } : {}),
+        ...(toolCalls ? { toolCalls } : {}),
+        ...(finishReason ? { finishReason } : {}),
+        ...(usage ? { usage } : {}),
+      }
+    },
     structuredOutput:
       options.structuredOutput ?? (async () => ({ data: {}, rawText: '{}' })),
   }
 
-  return { adapter, calls }
+  return { adapter, calls, chatCalls }
 }
 
 // ============================================================================

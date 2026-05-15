@@ -39,6 +39,8 @@ const mockAdapter = {
     toolCallMetadata: undefined as unknown,
   },
   chatStream: async function* () {},
+  // chatNonStreaming is now optional on the adapter interface — leave it
+  // off so the satisfies check exercises the fallback typing path.
   structuredOutput: async () => ({ data: {}, rawText: '{}' }),
 } satisfies MockAdapter
 

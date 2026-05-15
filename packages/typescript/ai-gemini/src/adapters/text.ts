@@ -14,6 +14,7 @@ import type {
   GeminiModelInputModalitiesByName,
 } from '../model-meta'
 import type {
+  NonStreamingChatResult,
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
@@ -151,6 +152,110 @@ export class GeminiTextAdapter<
               : 'An unknown error occurred during the chat stream.',
         },
       }
+    }
+  }
+
+  /**
+   * Wire-level non-streaming chat — sends a single `generateContent` request
+   * to Gemini (issue #557). Mirrors `chatStream` for option mapping, then
+   * extracts content / function calls / reasoning / usage from the typed
+   * `GenerateContentResponse`.
+   */
+  async chatNonStreaming(
+    options: TextOptions<GeminiTextProviderOptions>,
+  ): Promise<NonStreamingChatResult<GeminiToolCallMetadata>> {
+    const { logger } = options
+    const mappedOptions = this.mapCommonOptionsToGemini(options)
+
+    try {
+      logger.request(
+        `activity=chat provider=gemini model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=false`,
+        { provider: 'gemini', model: this.model },
+      )
+
+      const response = await this.client.models.generateContent(mappedOptions)
+
+      let content = ''
+      let reasoning = ''
+      const toolCalls: NonStreamingChatResult<GeminiToolCallMetadata>['toolCalls'] =
+        []
+      let toolIndex = 0
+
+      const candidate = response.candidates?.[0]
+      if (candidate?.content?.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.functionCall) {
+            const fc = part.functionCall
+            const id = fc.id || `${fc.name}_${Date.now()}_${toolIndex++}`
+            const args = fc.args ?? {}
+            toolCalls.push({
+              id,
+              type: 'function' as const,
+              function: {
+                name: fc.name || '',
+                arguments:
+                  typeof args === 'string' ? args : JSON.stringify(args),
+              },
+              // Gemini's thoughtSignature lives at the part level. Carry it
+              // forward so subsequent turns can replay it (matches the
+              // streaming side's TOOL_CALL_START metadata).
+              ...(part.thoughtSignature
+                ? { metadata: { thoughtSignature: part.thoughtSignature } }
+                : {}),
+            })
+          } else if (part.thought) {
+            // `part.thought === true` flags reasoning content; the actual
+            // thinking text is in `part.text` on the same part.
+            if (part.text) reasoning += part.text
+          } else if (part.text) {
+            content += part.text
+          }
+        }
+      }
+
+      // Map Gemini FinishReason → streaming finishReason vocabulary.
+      const finishReason: NonStreamingChatResult['finishReason'] = (() => {
+        const r = candidate?.finishReason
+        if (!r) return undefined
+        if (toolCalls.length > 0) return 'tool_calls'
+        switch (r) {
+          case FinishReason.STOP:
+            return 'stop'
+          case FinishReason.MAX_TOKENS:
+            return 'length'
+          case FinishReason.SAFETY:
+          case FinishReason.PROHIBITED_CONTENT:
+          case FinishReason.SPII:
+          case FinishReason.IMAGE_SAFETY:
+          case FinishReason.BLOCKLIST:
+            return 'content_filter'
+          default:
+            return String(r)
+        }
+      })()
+
+      const usageMeta = response.usageMetadata
+      const usage = usageMeta
+        ? {
+            promptTokens: usageMeta.promptTokenCount ?? 0,
+            completionTokens: usageMeta.candidatesTokenCount ?? 0,
+            totalTokens: usageMeta.totalTokenCount ?? 0,
+          }
+        : undefined
+
+      return {
+        content,
+        ...(reasoning ? { reasoning } : {}),
+        ...(toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(finishReason ? { finishReason } : {}),
+        ...(usage ? { usage } : {}),
+      }
+    } catch (error) {
+      logger.errors('gemini.chatNonStreaming fatal', {
+        error,
+        source: 'gemini.chatNonStreaming',
+      })
+      throw error
     }
   }
 

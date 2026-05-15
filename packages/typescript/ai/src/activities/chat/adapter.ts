@@ -4,6 +4,7 @@ import type {
   Modality,
   StreamChunk,
   TextOptions,
+  ToolCall,
 } from '../../types'
 
 /**
@@ -40,6 +41,45 @@ export interface StructuredOutputResult<T = unknown> {
   data: T
   /** The raw text response from the model before parsing */
   rawText: string
+}
+
+/**
+ * Result from a wire-level non-streaming chat call (`adapter.chat()`).
+ *
+ * Returned by adapters that send `stream: false` on the wire and receive a
+ * single JSON response. The dispatch layer (`runNonStreamingText`) uses this
+ * shape to drive a non-streaming agent loop: keep calling `adapter.chat()`,
+ * execute any returned tool calls, append the tool results, and call again
+ * until `finishReason !== 'tool_calls'` or the agent loop strategy stops.
+ */
+export interface NonStreamingChatResult<TToolCallMetadata = unknown> {
+  /** Concatenated assistant text content. May be empty when only tool calls fired. */
+  content: string
+  /**
+   * Reasoning / thinking content if the provider returned it (Claude
+   * extended thinking, OpenRouter reasoningDetails, etc.). Captured on the
+   * result for completeness; the public `chat({stream:false})` return value
+   * stays content-only to preserve the existing `Promise<string>` contract.
+   */
+  reasoning?: string
+  /**
+   * Tool calls the model wants to execute. Empty / undefined when the turn
+   * is terminal. Argument strings stay as JSON strings to match the
+   * streaming `TOOL_CALL_END` shape — the tool executor parses them.
+   */
+  toolCalls?: Array<ToolCall<TToolCallMetadata>>
+  /**
+   * Finish reason normalised to the set used by the streaming
+   * RUN_FINISHED event. The dispatch loop uses `'tool_calls'` to decide
+   * whether to continue.
+   */
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | string
+  /** Token usage if the provider returned it. */
+  usage?: {
+    promptTokens?: number
+    completionTokens?: number
+    totalTokens?: number
+  }
 }
 
 /**
@@ -88,6 +128,25 @@ export interface TextAdapter<
   chatStream: (
     options: TextOptions<TProviderOptions>,
   ) => AsyncIterable<StreamChunk>
+
+  /**
+   * Optional: generate a single text completion in one round-trip with
+   * `stream: false` on the wire. When an adapter implements this, the
+   * dispatch layer (`chat({ stream: false })`) routes through it instead
+   * of stream-then-concatenate — see issue #557.
+   *
+   * Adapters that omit this method keep the legacy behaviour:
+   * `runNonStreamingText` drains `chatStream` and concatenates text. That
+   * preserves API stability for out-of-tree adapters at the cost of still
+   * sending an SSE wire request when the caller asked for non-streaming.
+   *
+   * Named `chatNonStreaming` (rather than `chat`) so it doesn't collide
+   * with the public top-level `chat()` activity function exported from
+   * `@tanstack/ai`.
+   */
+  chatNonStreaming?: (
+    options: TextOptions<TProviderOptions>,
+  ) => Promise<NonStreamingChatResult<TToolCallMetadata>>
 
   /**
    * Generate structured output using the provider's native structured output API.
@@ -169,6 +228,16 @@ export abstract class BaseTextAdapter<
   abstract chatStream(
     options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk>
+
+  /**
+   * Optional wire-level non-streaming chat. Override on subclasses to send
+   * `stream: false` directly to the provider — see {@link TextAdapter.chatNonStreaming}.
+   * When omitted, `chat({ stream: false })` falls back to draining
+   * `chatStream` (legacy behaviour).
+   */
+  chatNonStreaming?(
+    options: TextOptions<TProviderOptions>,
+  ): Promise<NonStreamingChatResult<TToolCallMetadata>>
 
   /**
    * Generate structured output using the provider's native structured output API.

@@ -16,6 +16,7 @@ import type {
   ChatStreamChunk,
 } from '@openrouter/sdk/models'
 import type {
+  NonStreamingChatResult,
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
@@ -176,6 +177,103 @@ export class OpenRouterTextAdapter<
         error: errorPayload,
         source: `${this.name}.chatStream`,
       })
+    }
+  }
+
+  /**
+   * Wire-level non-streaming chat — sends `stream: false` to OpenRouter
+   * and returns the single JSON response. The original repro for issue
+   * #557 was an OpenRouter user (Grok 4.3) whose long reasoning phase was
+   * truncated by a 30s socket-idle proxy timeout on the SSE stream;
+   * `chat()` sidesteps that class of failure.
+   *
+   * Mirrors `structuredOutput` minus the `responseFormat` enforcement.
+   */
+  async chatNonStreaming(
+    options: TextOptions<ResolveProviderOptions<TModel>>,
+  ): Promise<NonStreamingChatResult> {
+    const chatRequest = this.mapOptionsToRequest(options)
+
+    try {
+      const { streamOptions: _streamOptions, ...cleanParams } = chatRequest
+      void _streamOptions
+
+      options.logger.request(
+        `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=false`,
+        { provider: this.name, model: this.model },
+      )
+
+      const reqOptions = extractRequestOptions(options.request)
+      const response = await this.orClient.chat.send(
+        {
+          chatRequest: {
+            ...cleanParams,
+            stream: false,
+          },
+        },
+        {
+          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.headers && { headers: reqOptions.headers }),
+        },
+      )
+
+      const choice = response.choices[0]
+      const message = choice?.message
+
+      const content =
+        typeof message?.content === 'string' ? message.content : ''
+
+      // OpenRouter exposes reasoning as either `message.reasoning` (string)
+      // or `message.reasoningDetails` (array of detail objects). Concatenate
+      // any text payloads we find — the public `Promise<string>` return
+      // value drops it, but the result object surfaces it for observability.
+      let reasoning = ''
+      const reasoningStr = (message as { reasoning?: string } | undefined)
+        ?.reasoning
+      if (typeof reasoningStr === 'string') reasoning += reasoningStr
+      const reasoningDetails = (
+        message as { reasoningDetails?: Array<{ text?: string }> } | undefined
+      )?.reasoningDetails
+      if (Array.isArray(reasoningDetails)) {
+        for (const detail of reasoningDetails) {
+          if (typeof detail.text === 'string') reasoning += detail.text
+        }
+      }
+
+      const toolCalls = message?.toolCalls?.map((tc) => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: {
+          name: tc.function.name,
+          arguments: tc.function.arguments,
+        },
+      }))
+
+      const finishReason = choice?.finishReason ?? undefined
+
+      const usage = response.usage
+        ? {
+            promptTokens: response.usage.promptTokens,
+            completionTokens: response.usage.completionTokens,
+            totalTokens: response.usage.totalTokens,
+          }
+        : undefined
+
+      return {
+        content,
+        ...(reasoning ? { reasoning } : {}),
+        ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(finishReason ? { finishReason } : {}),
+        ...(usage ? { usage } : {}),
+      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      options.logger.errors(`${this.name}.chatNonStreaming fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.chatNonStreaming failed`),
+        source: `${this.name}.chatNonStreaming`,
+      })
+      throw error
     }
   }
 
