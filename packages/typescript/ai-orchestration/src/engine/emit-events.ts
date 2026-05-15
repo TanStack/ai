@@ -49,7 +49,7 @@ export function runErrorEvent(args: {
 export function stepStartedEvent(args: {
   stepId: string
   stepName: string
-  stepType?: 'agent' | 'approval' | 'nested-workflow'
+  stepType?: 'agent' | 'approval' | 'nested-workflow' | 'step' | 'signal'
 }): StreamChunk {
   return {
     type: 'STEP_STARTED',

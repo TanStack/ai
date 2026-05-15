@@ -14,8 +14,11 @@ export type { DefineWorkflowConfig } from './define/define-workflow'
 // ===== Generator primitives =====
 export { approve } from './primitives/approve'
 export type { ApproveOptions } from './primitives/approve'
+export { now } from './primitives/now'
 export { retry } from './primitives/retry'
 export type { RetryOptions } from './primitives/retry'
+export { step } from './primitives/step'
+export { uuid } from './primitives/uuid'
 export { fail, succeed } from './result'
 
 // ===== Server-side run =====
@@ -34,6 +37,7 @@ export type { DeleteReason, RunState, RunStatus, RunStore } from './types'
 
 // ===== Errors =====
 export { SchemaValidationError } from './engine/invoke-agent'
+export { LogConflictError } from './types'
 
 // ===== Public types =====
 export type {
@@ -46,8 +50,11 @@ export type {
   EmitFn,
   InferSchema,
   SchemaInput,
+  StepContext,
   StepDescriptor,
   StepGenerator,
+  StepKind,
+  StepRecord,
   WorkflowDefinition,
   WorkflowRunArgs,
 } from './types'

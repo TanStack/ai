@@ -435,6 +435,12 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       })
     }
 
+    // `pendingResult` is set by the error path: `generator.throw()`
+    // already advances the generator to the next yield, so we must NOT
+    // call `.next()` again in the next loop iteration. Stashing the
+    // throw's return value here lets the next iteration use it directly.
+    let pendingResult: IteratorResult<StepDescriptor, unknown> | null = null
+
     for (;;) {
       const isReplaying = replayCursor < replayLog.length
 
@@ -449,7 +455,9 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         live.pendingEvents.length = 0
       }
 
-      const result = await live.generator.next(nextValue as StepDescriptor)
+      const result =
+        pendingResult ?? (await live.generator.next(nextValue as StepDescriptor))
+      pendingResult = null
 
       // Track state diffs every iteration so the local prevState stays in
       // sync, but only emit STATE_DELTA in live mode.
@@ -466,10 +474,29 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
 
       const descriptor: StepDescriptor = result.value
 
-      // Replay short-circuit: log entry exists for this position.
+      // Replay short-circuit: log entry exists for this position. For
+      // successful records we simply hand the result back to the
+      // generator. For records that captured a throw, we reconstruct
+      // the Error and re-throw it into the generator so user-side
+      // try/catch logic replays identically — the engine treats the
+      // generator-resume in the next iteration as a thrown result via
+      // `pendingResult` to avoid the double-advance bug.
       if (replayCursor < replayLog.length) {
-        nextValue = replayLog[replayCursor]!.result
+        const record = replayLog[replayCursor]!
         replayCursor++
+        if (record.error) {
+          const err = new Error(record.error.message)
+          err.name = record.error.name
+          if (record.error.stack) err.stack = record.error.stack
+          const thrown = await live.generator.throw(err)
+          if (thrown.done) {
+            finalOutput = thrown.value
+            break
+          }
+          pendingResult = thrown
+          continue
+        }
+        nextValue = record.result
         continue
       }
 
@@ -570,6 +597,9 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
             finalOutput = thrown.value
             break
           }
+          // generator.throw already advanced to the next yield — stash
+          // its result for the next iteration so we don't double-advance.
+          pendingResult = thrown
           continue
         }
 
@@ -588,6 +618,104 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
           content: stepResult,
         })
         nextValue = stepResult
+        continue
+      }
+
+      // ---- step (durable side-effect) ----
+      if (descriptor.kind === 'step') {
+        const startedAt = Date.now()
+        yield stepStartedEvent({
+          stepId,
+          stepName: descriptor.name,
+          stepType: 'step',
+        })
+
+        const ctxId = `${runId}:step-${logLength}`
+        let stepResult: unknown
+        try {
+          stepResult = await descriptor.fn({ id: ctxId })
+        } catch (err) {
+          await appendStep(runStore, runId, logLength, {
+            index: logLength,
+            kind: 'step',
+            name: descriptor.name,
+            error: serializeError(err),
+            startedAt,
+            finishedAt: Date.now(),
+          })
+          logLength++
+          yield stepFinishedEvent({
+            stepId,
+            stepName: descriptor.name,
+            content: { error: serializeError(err) },
+          })
+          nextValue = undefined
+          const thrown = await live.generator.throw(err)
+          if (thrown.done) {
+            finalOutput = thrown.value
+            break
+          }
+          // generator.throw already advanced to the next yield — stash
+          // its result for the next iteration so we don't double-advance.
+          pendingResult = thrown
+          continue
+        }
+
+        await appendStep(runStore, runId, logLength, {
+          index: logLength,
+          kind: 'step',
+          name: descriptor.name,
+          result: stepResult,
+          startedAt,
+          finishedAt: Date.now(),
+        })
+        logLength++
+        yield stepFinishedEvent({
+          stepId,
+          stepName: descriptor.name,
+          content: stepResult,
+        })
+        nextValue = stepResult
+        continue
+      }
+
+      // ---- now / uuid (durable deterministic values) ----
+      //
+      // These don't emit STEP_STARTED/STEP_FINISHED — they're cheap
+      // primitives whose only purpose is to capture a side-effecting
+      // value once and replay it. Cluttering the WorkflowTimeline UI
+      // with a "running 'now'" entry would be noise.
+      if (descriptor.kind === 'now') {
+        const value = Date.now()
+        await appendStep(runStore, runId, logLength, {
+          index: logLength,
+          kind: 'now',
+          name: 'now',
+          result: value,
+          startedAt: value,
+          finishedAt: value,
+        })
+        logLength++
+        nextValue = value
+        continue
+      }
+
+      if (descriptor.kind === 'uuid') {
+        // `globalThis.crypto.randomUUID()` is the cross-runtime form
+        // (Node 19+, modern browsers, Deno, Bun). Fingerprint check
+        // already guards against missing-API drift across deploys.
+        const value = globalThis.crypto.randomUUID()
+        const ts = Date.now()
+        await appendStep(runStore, runId, logLength, {
+          index: logLength,
+          kind: 'uuid',
+          name: 'uuid',
+          result: value,
+          startedAt: ts,
+          finishedAt: ts,
+        })
+        logLength++
+        nextValue = value
         continue
       }
 

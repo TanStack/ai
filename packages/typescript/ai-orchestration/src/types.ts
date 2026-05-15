@@ -128,6 +128,16 @@ export type AnyWorkflowDefinition = WorkflowDefinition<any, any, any, any>
 // Step descriptors
 // ==========================================
 
+/** Context handed to a `step()` function. The deterministic `id` is the
+ *  one to use as an idempotency key against external systems — it stays
+ *  the same across replays of the same step, so e.g. a retried
+ *  `step('charge', ctx => stripe.charges.create({...}, {idempotencyKey: ctx.id}))`
+ *  won't double-charge if the engine replays the step. */
+export interface StepContext {
+  /** Deterministic step ID. Stable across replays. */
+  id: string
+}
+
 export type StepDescriptor =
   | { kind: 'agent'; name: string; input: unknown; agent: AnyAgentDefinition }
   | {
@@ -137,6 +147,13 @@ export type StepDescriptor =
       workflow: AnyWorkflowDefinition
     }
   | { kind: 'approval'; title: string; description?: string }
+  | {
+      kind: 'step'
+      name: string
+      fn: (ctx: StepContext) => unknown | Promise<unknown>
+    }
+  | { kind: 'now' }
+  | { kind: 'uuid' }
 
 // TNext is `any` so a generator with TReturn=A can `yield*` another generator
 // with TReturn=B without TS rejecting the delegation. The engine sends the
