@@ -19,6 +19,7 @@ import type {
   ApprovalResult,
   LiveRun,
   RunState,
+  SignalResult,
   StepDescriptor,
   StepRecord,
   WorkflowRunArgs,
@@ -28,10 +29,20 @@ import type { InMemoryRunStore } from '../run-store/in-memory'
 export interface RunWorkflowOptions {
   workflow: AnyWorkflowDefinition
   runStore: InMemoryRunStore
-  /** First-call: provide `input`. Resume-call: provide `runId` + `approval`. */
+  /** First-call: provide `input`. Resume-call: provide `runId` + either
+   *  `approval` (legacy) or `signalDelivery` (generic). */
   input?: unknown
   runId?: string
   approval?: ApprovalResult
+  /**
+   * Generic signal delivery (Q5). Resumes a run paused on
+   * `waitForSignal(name)` by delivering `payload` as the yield's value.
+   * `signalId` is the host's idempotency token for this delivery. When
+   * both `approval` and `signalDelivery` are provided, `signalDelivery`
+   * wins — `approval` is retained as a typed wrapper for the
+   * '__approval' signal.
+   */
+  signalDelivery?: SignalResult
   /** Optional: external abort signal. */
   signal?: AbortSignal
   /** Optional: thread ID for client-side correlation. */
@@ -120,13 +131,13 @@ function buildInitialState(
 export async function* runWorkflow(
   options: RunWorkflowOptions,
 ): AsyncIterable<StreamChunk> {
-  if (options.runId && options.approval) {
+  if (options.runId && (options.approval || options.signalDelivery)) {
     yield* resumeRun(options)
     return
   }
   if (options.input === undefined) {
     throw new Error(
-      'runWorkflow: either `input` or both `runId` and `approval` must be provided',
+      'runWorkflow: either `input` or `runId` + `approval`/`signalDelivery` must be provided',
     )
   }
   yield* startRun(options as RunWorkflowOptions & { input: unknown })
@@ -205,7 +216,15 @@ async function* resumeRun(
   options: RunWorkflowOptions,
 ): AsyncIterable<StreamChunk> {
   const runId = options.runId!
-  const approval = options.approval!
+  // `signalDelivery` is the generic path (Q5); `approval` remains as a
+  // typed shorthand for the '__approval' descriptor that today's
+  // `approve()` primitive yields. Either one resolves the pending pause
+  // — they're never both meaningful, and signalDelivery wins when both
+  // are passed (callers are migrating from one to the other).
+  const seedPayload: unknown =
+    options.signalDelivery !== undefined
+      ? options.signalDelivery.payload
+      : options.approval
 
   // Fast path: live generator still in process (same node, no restart).
   const inMemory = options.runStore.getLive(runId)
@@ -227,7 +246,7 @@ async function* resumeRun(
       threadId: options.threadId,
       outputSink: options.outputSink,
       abortController: inMemory.abortController,
-      seedValue: approval,
+      seedValue: seedPayload,
       replayLog: [],
       workflow: options.workflow,
     })
@@ -320,7 +339,7 @@ async function* resumeRun(
     threadId: options.threadId,
     outputSink: options.outputSink,
     abortController,
-    seedValue: approval,
+    seedValue: seedPayload,
     replayLog,
     workflow: options.workflow,
   })
@@ -422,16 +441,23 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
   try {
     if (pendingApprovalStepId && replayLog.length === 0) {
       // In-memory resume: the previous run handler already emitted
-      // STEP_STARTED for this approval before the SSE closed; close it
-      // out now with the actual approval payload.
-      const approvalResult = args.seedValue as ApprovalResult | undefined
+      // STEP_STARTED for this pause before the SSE closed; close it
+      // out now. For the legacy 'approval' descriptor we marshal the
+      // payload into the original {approved, feedback} envelope so
+      // existing UI consumers don't break; for generic signals we
+      // forward the payload as-is.
+      const waitingFor = live.runState.waitingFor
+      const seed = args.seedValue
+      const isApproval = !waitingFor || waitingFor.signalName === 'approval'
       yield stepFinishedEvent({
         stepId: pendingApprovalStepId,
-        stepName: 'approval',
-        content: {
-          approved: approvalResult?.approved ?? false,
-          feedback: approvalResult?.feedback,
-        },
+        stepName: waitingFor?.signalName ?? 'approval',
+        content: isApproval
+          ? {
+              approved: (seed as ApprovalResult | undefined)?.approved ?? false,
+              feedback: (seed as ApprovalResult | undefined)?.feedback,
+            }
+          : seed,
       })
     }
 
@@ -502,13 +528,13 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
 
       const stepId = generateId('step')
 
-      // Post-replay seed delivery: the seed value (typically an approval
-      // payload) is the result for the descriptor that was awaiting when
-      // the run originally paused. Record it as a fresh log entry and
-      // emit a synthetic STEP_STARTED+STEP_FINISHED pair so the consumer
-      // of this resume stream sees the approval closure (the original
-      // STEP_STARTED was emitted on the SSE response that paused, which
-      // this consumer didn't necessarily see).
+      // Post-replay seed delivery: the seed value is the result for
+      // the descriptor that was awaiting when the run originally
+      // paused. Record it as a fresh log entry and emit synthetic
+      // STEP_STARTED+STEP_FINISHED events so the consumer of this
+      // resume stream sees the closure (the original STEP_STARTED was
+      // emitted on the SSE response that paused, which this consumer
+      // didn't necessarily see).
       if (!seedConsumed) {
         seedConsumed = true
         if (descriptor.kind === 'approval') {
@@ -534,12 +560,35 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
           nextValue = args.seedValue
           continue
         }
-        // Descriptor isn't an approval despite us having a seed —
-        // shouldn't happen with the v1 contract (resume implies
-        // approval). Surface as a hard error so the issue is visible.
+        if (descriptor.kind === 'signal') {
+          yield stepStartedEvent({
+            stepId,
+            stepName: descriptor.name,
+            stepType: 'signal',
+          })
+          await appendStep(runStore, runId, logLength, {
+            index: logLength,
+            kind: 'signal',
+            name: descriptor.name,
+            result: args.seedValue,
+            startedAt: Date.now(),
+            finishedAt: Date.now(),
+          })
+          logLength++
+          yield stepFinishedEvent({
+            stepId,
+            stepName: descriptor.name,
+            content: args.seedValue,
+          })
+          nextValue = args.seedValue
+          continue
+        }
+        // Descriptor isn't a pause-kind despite us having a seed —
+        // shouldn't happen. Surface as a hard error so the issue is
+        // visible.
         yield runErrorEvent({
           runId,
-          message: `Resume seed delivered but pending descriptor was '${descriptor.kind}', not 'approval'`,
+          message: `Resume seed delivered but pending descriptor was '${descriptor.kind}', not 'approval' or 'signal'`,
           code: 'resume_mismatch',
         })
         return
@@ -762,6 +811,52 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         })
         nextValue = nestedOutput
         continue
+      }
+
+      // ---- signal (generic durable pause) ----
+      if (descriptor.kind === 'signal') {
+        yield stepStartedEvent({
+          stepId,
+          stepName: descriptor.name,
+          stepType: 'signal',
+        })
+
+        // Custom event for the push-discovery channel (Q5 iii): the
+        // originating SSE consumer learns of the pause and can register
+        // a wakeup callback in its scheduler without waiting on a store
+        // poll.
+        live.pendingEvents.push({
+          type: 'CUSTOM',
+          timestamp: Date.now(),
+          name: 'run.paused',
+          value: {
+            runId,
+            signalName: descriptor.name,
+            deadline: descriptor.deadline,
+            kind: descriptor.name === '__timer' ? 'sleep' : 'signal',
+            meta: descriptor.meta,
+          },
+        } as StreamChunk)
+        while (live.pendingEvents.length > 0) yield live.pendingEvents.shift()!
+
+        live.runState = {
+          ...live.runState,
+          status: 'paused',
+          state,
+          waitingFor: {
+            signalName: descriptor.name,
+            deadline: descriptor.deadline,
+            meta: descriptor.meta,
+          },
+          updatedAt: Date.now(),
+        }
+        // Reuse pendingApprovalStepId as the generic "I'm paused at
+        // step X" marker so the in-memory resume path can close out
+        // the dangling STEP_STARTED. (Naming a holdover from v1 —
+        // generalizing the field name belongs to a separate refactor.)
+        live.pendingApprovalStepId = stepId
+        await runStore.setRunState(runId, live.runState)
+        return
       }
 
       // ---- approval (pause) ----

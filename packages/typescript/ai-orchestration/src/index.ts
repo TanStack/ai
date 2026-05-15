@@ -17,8 +17,11 @@ export type { ApproveOptions } from './primitives/approve'
 export { now } from './primitives/now'
 export { retry } from './primitives/retry'
 export type { RetryOptions } from './primitives/retry'
+export { sleep, sleepUntil, TIMER_SIGNAL_NAME } from './primitives/sleep'
 export { step } from './primitives/step'
 export { uuid } from './primitives/uuid'
+export { waitForSignal } from './primitives/wait-for-signal'
+export type { WaitForSignalOptions } from './primitives/wait-for-signal'
 export { fail, succeed } from './result'
 
 // ===== Server-side run =====
@@ -50,6 +53,7 @@ export type {
   EmitFn,
   InferSchema,
   SchemaInput,
+  SignalResult,
   StepContext,
   StepDescriptor,
   StepGenerator,

@@ -154,6 +154,27 @@ export type StepDescriptor =
     }
   | { kind: 'now' }
   | { kind: 'uuid' }
+  | {
+      /** Generic durable pause: the run yields a named signal, the
+       *  engine persists `waitingFor`, the SSE closes, and the host
+       *  resumes the run by delivering a payload for `name`. Builds the
+       *  foundation that typed wrappers like `sleep`, `sleepUntil`, and
+       *  arbitrary user-defined signals sit on top of. */
+      kind: 'signal'
+      /** Symbolic name (e.g. `'__timer'`, `'webhook-received'`). The
+       *  '__' prefix is reserved for engine-defined signals; user
+       *  signals should use plain names. */
+      name: string
+      /** Wake deadline in UTC ms. The engine surfaces this on
+       *  `waitingFor.deadline` so hosts can build time-driven indexes
+       *  (cron, scheduled jobs) over the persisted state. A signal
+       *  delivered after the deadline still resumes the run normally —
+       *  past-deadline behavior is "wake now". */
+      deadline?: number
+      /** Free-form metadata the host or UI may render — e.g. a title
+       *  for a queued human-review signal. Opaque to the engine. */
+      meta?: Record<string, unknown>
+    }
 
 // TNext is `any` so a generator with TReturn=A can `yield*` another generator
 // with TReturn=B without TS rejecting the delegation. The engine sends the
@@ -208,8 +229,34 @@ export interface RunState<
   output?: TOutput
   error?: { name: string; message: string; stack?: string }
   pendingApproval?: { approvalId: string; title: string; description?: string }
+  /**
+   * Signal-pause descriptor (Q5 push/pull discovery channel — the
+   * "pull" side). When the engine pauses on a `waitForSignal`, this
+   * field is set so an out-of-process worker (cron, message-bus
+   * consumer) can independently discover the pending wake by querying
+   * the store. Hosts typically build indexes on
+   * `(waitingFor.signalName, waitingFor.deadline)` for time-driven and
+   * signal-driven wake jobs respectively.
+   */
+  waitingFor?: {
+    signalName: string
+    deadline?: number
+    meta?: Record<string, unknown>
+  }
   createdAt: number
   updatedAt: number
+}
+
+/**
+ * Delivered to a paused signal-wait. The `signalId` is the host's
+ * idempotency token for this delivery — the engine persists it on the
+ * resulting step record and rejects duplicate deliveries (same
+ * signalId, same step index) by returning the recorded payload (the
+ * full idempotency contract lands with the CAS-and-runId story).
+ */
+export interface SignalResult<TPayload = unknown> {
+  signalId: string
+  payload: TPayload
 }
 
 // ==========================================
