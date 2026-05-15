@@ -14,6 +14,10 @@ export const Route = createFileRoute('/api/orchestration')({
     handlers: {
       POST: async ({ request }) => {
         const params = await parseWorkflowRequest(request)
+        if (params.abort && params.runId) {
+          runStore.getLive(params.runId)?.abortController.abort()
+          return new Response(null, { status: 204 })
+        }
         const stream = runWorkflow({
           runStore,
           workflow: featureOrchestrator,

@@ -5,7 +5,12 @@ interface Draft {
   paragraphs?: Array<string>
 }
 
-export function DraftPreview(props: { draft: unknown; phase?: string }) {
+export function DraftPreview(props: {
+  draft: unknown
+  phase?: string
+  /** When true the draft is being assembled from a live structured-output stream. */
+  streaming?: boolean
+}) {
   const draft = (
     props.draft && typeof props.draft === 'object' ? props.draft : null
   ) as Draft | null
@@ -27,7 +32,14 @@ export function DraftPreview(props: { draft: unknown; phase?: string }) {
   return (
     <aside className="relative">
       <div className="flex items-baseline justify-between border-b border-bone pb-3 mb-4">
-        <span className="label-mono text-bone">Draft Preview</span>
+        <div className="flex items-baseline gap-3">
+          <span className="label-mono text-bone">Draft Preview</span>
+          {props.streaming && (
+            <span className="label-mono text-citron anim-citron-pulse">
+              ◉ streaming
+            </span>
+          )}
+        </div>
         <span className="label-mono text-taupe tabular">
           {hasContent
             ? `${(draft.paragraphs?.length ?? 0).toString().padStart(2, '0')} ¶`
@@ -74,22 +86,28 @@ export function DraftPreview(props: { draft: unknown; phase?: string }) {
                   {draft.title}
                 </h2>
               )}
-              {draft.paragraphs?.map((p, i) => (
-                <p
-                  key={i}
-                  className={`mb-3.5 text-[14px] leading-[1.55] text-ink ${
-                    i === 0
-                      ? 'first-letter:float-left first-letter:text-5xl first-letter:font-bold first-letter:leading-[0.85] first-letter:mr-2 first-letter:text-rust'
-                      : ''
-                  }`}
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontVariationSettings: "'opsz' 14, 'SOFT' 100, 'WONK' 0",
-                  }}
-                >
-                  {p}
-                </p>
-              ))}
+              {draft.paragraphs?.map((p, i) => {
+                const isLast = i === (draft.paragraphs?.length ?? 0) - 1
+                return (
+                  <p
+                    key={i}
+                    className={`mb-3.5 text-[14px] leading-[1.55] text-ink ${
+                      i === 0
+                        ? 'first-letter:float-left first-letter:text-5xl first-letter:font-bold first-letter:leading-[0.85] first-letter:mr-2 first-letter:text-rust'
+                        : ''
+                    }`}
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontVariationSettings: "'opsz' 14, 'SOFT' 100, 'WONK' 0",
+                    }}
+                  >
+                    {p}
+                    {props.streaming && isLast && (
+                      <span className="anim-blink text-rust ml-0.5">▌</span>
+                    )}
+                  </p>
+                )
+              })}
             </>
           )}
         </div>

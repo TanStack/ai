@@ -58,6 +58,7 @@ const writer = defineAgent({
     chat({
       adapter: openaiText('gpt-4o-mini'),
       outputSchema: Draft,
+      stream: true,
       systemPrompts: [
         'You are a non-fiction writer. Produce a factual three-paragraph article on the topic. Reply only with valid JSON matching the schema.',
       ],
@@ -74,6 +75,7 @@ function reviewerFor(role: 'legal' | 'skeptic') {
       chat({
         adapter: openaiText('gpt-4o-mini'),
         outputSchema: Review,
+        stream: true,
         systemPrompts: [
           role === 'legal'
             ? 'You are a legal reviewer. Flag any compliance issues. Verdict "block" if issues, otherwise "pass".'
@@ -100,6 +102,7 @@ const editor = defineAgent({
     chat({
       adapter: openaiText('gpt-4o-mini'),
       outputSchema: Draft,
+      stream: true,
       systemPrompts: [
         'You are an editor. Polish the draft, addressing the reviewer notes. Reply with the polished JSON.',
       ],

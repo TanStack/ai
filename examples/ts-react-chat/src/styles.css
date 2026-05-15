@@ -213,3 +213,24 @@
     width: 100%;
   }
 }
+
+/* ===== shiki ============================================================
+   Style the CodeBlock wrapper so shiki's emitted <pre> picks up the project
+   monospace font, has consistent padding/margins inside the patch container,
+   and scrolls horizontally for long diff lines without breaking the layout.
+   ====================================================================== */
+.shiki-wrap pre.shiki {
+  margin: 0;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  tab-size: 2;
+}
+.shiki-wrap pre.shiki code {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}

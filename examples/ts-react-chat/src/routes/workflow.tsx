@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { parsePartialJSON } from '@tanstack/ai'
 import { fetchWorkflowEvents, useWorkflow } from '@tanstack/ai-react'
 import { ArticleModal } from '@/components/ArticleModal'
 import { DraftPreview } from '@/components/DraftPreview'
@@ -10,6 +11,12 @@ interface ArticleState {
   phase?: string
   draft?: { title: string; paragraphs: Array<string> }
 }
+
+// Steps whose streaming JSON payload is shaped like a Draft. While they're
+// running we partial-parse `currentText` so the DraftPreview pane fills in
+// live, paragraph by paragraph, instead of snapping in only after the agent
+// finishes.
+const DRAFT_PRODUCING_STEPS = new Set(['writer', 'editor'])
 
 export const Route = createFileRoute('/workflow')({
   component: WorkflowPage,
@@ -30,6 +37,18 @@ function WorkflowPage() {
   const finalResult = (
     wf.status === 'finished' ? wf.output : null
   ) as ArticleOutput | null
+
+  // Live draft assembled from the streaming structured-output JSON deltas of
+  // the active writer/editor step. Falls back to the committed `state.draft`
+  // when no draft-producing step is mid-flight.
+  const liveDraft = useMemo(() => {
+    const stepName = wf.currentStep?.stepName
+    if (!stepName || !DRAFT_PRODUCING_STEPS.has(stepName)) return undefined
+    return parsePartialJSON(wf.currentText) as
+      | { title?: string; paragraphs?: Array<string> }
+      | undefined
+  }, [wf.currentStep, wf.currentText])
+  const isStreamingDraft = liveDraft !== undefined
 
   // Auto-open the modal when the workflow finalizes successfully. Local
   // dismiss state lets the user close it; re-running re-opens.
@@ -83,7 +102,11 @@ function WorkflowPage() {
           currentText={wf.currentText}
         />
         <div className="flex flex-col gap-10 lg:sticky lg:top-8 lg:self-start">
-          <DraftPreview draft={wf.state?.draft} phase={wf.state?.phase} />
+          <DraftPreview
+            draft={liveDraft ?? wf.state?.draft}
+            phase={wf.state?.phase}
+            streaming={isStreamingDraft}
+          />
           <details className="group">
             <summary className="cursor-pointer label-mono text-taupe hover:text-citron transition-colors flex items-center gap-2 list-none">
               <span className="text-citron group-open:rotate-90 transition-transform inline-block">
