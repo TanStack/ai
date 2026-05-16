@@ -1,5 +1,50 @@
 # @tanstack/ai
 
+## 0.18.0
+
+### Minor Changes
+
+- **Breaking:** AG-UI client-to-server compliance. ([#511](https://github.com/TanStack/ai/pull/511))
+
+  `@tanstack/ai-client` now POSTs an AG-UI `RunAgentInput` request body and `@tanstack/ai` server endpoints must use the new `chatParamsFromRequestBody` + `mergeAgentTools` helpers. Upgrade both packages together.
+
+  Highlights:
+  - **Wire format**: `{threadId, runId, state, messages, tools, context, forwardedProps}` (per AG-UI 0.0.52 `RunAgentInputSchema`) instead of `{messages, data}`.
+  - **New server helpers** exported from `@tanstack/ai`: `chatParamsFromRequestBody`, `mergeAgentTools`.
+  - **`chat()` accepts `threadId`, `runId`, `parentRunId`** as optional fields for AG-UI run correlation.
+  - **`ChatClient` accepts `threadId`** option; auto-generates and persists per session if omitted; fresh `runId` per send.
+  - **Client tools auto-advertised** to the server via `RunAgentInput.tools`.
+  - **Foreign AG-UI clients** can hit a TanStack server: `developer` collapses to `system`, `reasoning`/`activity` drop.
+
+  See `docs/migration/ag-ui-compliance.md` for full migration steps.
+
+### Patch Changes
+
+- fix(ai): infer Zod-typed `outputSchema` instead of collapsing to `unknown` ([#563](https://github.com/TanStack/ai/pull/563))
+
+  `chat({ outputSchema: zodSchema })` previously returned `Promise<unknown>` (and
+  `StructuredOutputCompleteEvent<T>` resolved with `T = unknown`) because
+  `InferSchemaType` only matched `StandardJSONSchemaV1`. Zod's core `$ZodType`
+  declares `~standard` as `StandardSchemaV1.Props` — without a type-level
+  `jsonSchema` converter — so Zod schemas (and any other library that exposes
+  only the Standard Schema validator surface to the type checker) fell through
+  to `unknown`, forcing callers to either cast or run a redundant `schema.parse()`.
+
+  `SchemaInput` now also accepts `StandardSchemaV1<any, any>`, and
+  `InferSchemaType` recovers the input type from that branch when the
+  JSON-schema branch doesn't match. The runtime path is unchanged for Zod /
+  ArkType / Valibot (`convertSchemaToJsonSchema` still detects the runtime
+  `~standard.jsonSchema` converter); only the static types are widened.
+
+  `convertSchemaToJsonSchema` now throws an actionable error when given a
+  Standard Schema validator that lacks a JSON-schema converter, instead of
+  silently shipping the raw `{ '~standard': ... }` object to the LLM provider.
+
+  Closes #562
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.3.2
+
 ## 0.17.0
 
 ### Minor Changes
