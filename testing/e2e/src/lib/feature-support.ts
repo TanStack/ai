@@ -129,6 +129,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
   tts: new Set(['openai', 'grok']),
   transcription: new Set(['openai', 'grok']),
   'video-gen': new Set(['openai']),
+  // Only Gemini currently surfaces a first-class stateful conversation API via
+  // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).
+  'stateful-interactions': new Set(['gemini']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

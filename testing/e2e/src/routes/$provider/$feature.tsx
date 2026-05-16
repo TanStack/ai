@@ -1,5 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import type { Feature, Mode, Provider } from '@/lib/types'
@@ -138,23 +138,34 @@ function ChatFeature({
 
   const { testId, aimockPort } = Route.useSearch()
 
-  // Tracks streaming-structured-output observability for e2e tests:
-  // - structuredObject: captured from the terminal CUSTOM event
-  // - contentDeltaCount: incremented per TEXT_MESSAGE_CONTENT chunk so tests
-  //   can verify the response actually streamed (rather than silently
-  //   collapsing to a single synthetic delta)
   const [structuredObject, setStructuredObject] = useState<unknown>(null)
   const [contentDeltaCount, setContentDeltaCount] = useState(0)
+  const [interactionId, setInteractionId] = useState<string | undefined>(
+    undefined,
+  )
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
       connection: fetchServerSentEvents('/api/chat'),
       tools,
-      body: { provider, feature, testId, aimockPort },
+      body: {
+        provider,
+        feature,
+        testId,
+        aimockPort,
+        previousInteractionId: interactionId,
+      },
       onCustomEvent: (eventType, data) => {
         if (eventType === 'structured-output.complete') {
           const value = data as { object: unknown; raw: string } | undefined
           setStructuredObject(value?.object ?? null)
+        } else if (
+          eventType === 'gemini.interactionId' &&
+          data &&
+          typeof (data as { interactionId?: unknown }).interactionId ===
+            'string'
+        ) {
+          setInteractionId((data as { interactionId: string }).interactionId)
         }
       },
       onChunk: (chunk) => {
@@ -165,43 +176,50 @@ function ChatFeature({
     })
 
   return (
-    <ChatUI
-      messages={messages}
-      isLoading={isLoading}
-      structuredObject={structuredObject}
-      contentDeltaCount={contentDeltaCount}
-      onSendMessage={(text) => {
-        sendMessage(text)
-      }}
-      onSendMessageWithImage={
-        showImageInput
-          ? (text, file) => {
-              const reader = new FileReader()
-              reader.onload = () => {
-                const base64 = (reader.result as string).split(',')[1]
-                sendMessage({
-                  content: [
-                    { type: 'text', content: text },
-                    {
-                      type: 'image',
-                      source: {
-                        type: 'data',
-                        value: base64,
-                        mimeType: file.type,
+    <>
+      {interactionId && (
+        <div data-testid="gemini-interaction-id" hidden>
+          {interactionId}
+        </div>
+      )}
+      <ChatUI
+        messages={messages}
+        isLoading={isLoading}
+        structuredObject={structuredObject}
+        contentDeltaCount={contentDeltaCount}
+        onSendMessage={(text) => {
+          sendMessage(text)
+        }}
+        onSendMessageWithImage={
+          showImageInput
+            ? (text, file) => {
+                const reader = new FileReader()
+                reader.onload = () => {
+                  const base64 = (reader.result as string).split(',')[1]
+                  sendMessage({
+                    content: [
+                      { type: 'text', content: text },
+                      {
+                        type: 'image',
+                        source: {
+                          type: 'data',
+                          value: base64,
+                          mimeType: file.type,
+                        },
                       },
-                    },
-                  ],
-                })
+                    ],
+                  })
+                }
+                reader.readAsDataURL(file)
               }
-              reader.readAsDataURL(file)
-            }
-          : undefined
-      }
-      addToolApprovalResponse={
-        needsApproval ? addToolApprovalResponse : undefined
-      }
-      showImageInput={showImageInput}
-      onStop={stop}
-    />
+            : undefined
+        }
+        addToolApprovalResponse={
+          needsApproval ? addToolApprovalResponse : undefined
+        }
+        showImageInput={showImageInput}
+        onStop={stop}
+      />
+    </>
   )
 }

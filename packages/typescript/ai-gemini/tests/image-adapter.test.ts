@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { generateImage } from '@tanstack/ai'
 import { GeminiImageAdapter, createGeminiImage } from '../src/adapters/image'
 import {
   parseNativeImageSize,
@@ -8,8 +8,6 @@ import {
   validateNumberOfImages,
   validatePrompt,
 } from '../src/image/image-provider-options'
-
-const testLogger = resolveDebugOption(false)
 
 describe('Gemini Image Adapter', () => {
   describe('createGeminiImage', () => {
@@ -190,12 +188,11 @@ describe('Gemini Image Adapter', () => {
         },
       }
 
-      const result = await adapter.generateImages({
-        model: 'imagen-3.0-generate-002',
+      const result = await generateImage({
+        adapter,
         prompt: 'A cat wearing a hat',
         numberOfImages: 1,
         size: '1024x1024',
-        logger: testLogger,
       })
 
       expect(mockGenerateImages).toHaveBeenCalledWith({
@@ -233,16 +230,14 @@ describe('Gemini Image Adapter', () => {
         },
       }
 
-      const result1 = await adapter.generateImages({
-        model: 'imagen-3.0-generate-002',
+      const result1 = await generateImage({
+        adapter,
         prompt: 'Test prompt',
-        logger: testLogger,
       })
 
-      const result2 = await adapter.generateImages({
-        model: 'imagen-3.0-generate-002',
+      const result2 = await generateImage({
+        adapter,
         prompt: 'Test prompt',
-        logger: testLogger,
       })
 
       expect(result1.id).not.toBe(result2.id)
@@ -284,11 +279,10 @@ describe('Gemini Image Adapter', () => {
         },
       }
 
-      const result = await adapter.generateImages({
-        model: 'gemini-3.1-flash-image-preview',
+      const result = await generateImage({
+        adapter,
         prompt: 'A futuristic city',
         size: '16:9_4K',
-        logger: testLogger,
       })
 
       expect(mockGenerateContent).toHaveBeenCalledWith({
@@ -342,10 +336,9 @@ describe('Gemini Image Adapter', () => {
         },
       }
 
-      const result = await adapter.generateImages({
-        model: 'gemini-3.1-flash-image-preview',
+      const result = await generateImage({
+        adapter,
         prompt: 'A simple sketch',
-        logger: testLogger,
       })
 
       expect(mockGenerateContent).toHaveBeenCalledWith({
@@ -390,10 +383,9 @@ describe('Gemini Image Adapter', () => {
       }
 
       await expect(
-        adapter.generateImages({
-          model: 'gemini-3.1-flash-image-preview',
+        generateImage({
+          adapter,
           prompt: 'A test prompt',
-          logger: testLogger,
         }),
       ).rejects.toThrow(/returned no images/)
     })
@@ -426,10 +418,9 @@ describe('Gemini Image Adapter', () => {
       }
 
       await expect(
-        adapter.generateImages({
-          model: 'gemini-3.1-flash-image-preview',
+        generateImage({
+          adapter,
           prompt: 'A test prompt',
-          logger: testLogger,
         }),
       ).rejects.toThrow(/I cannot generate that image/)
     })
@@ -464,14 +455,13 @@ describe('Gemini Image Adapter', () => {
         },
       }
 
-      await adapter.generateImages({
-        model: 'gemini-3.1-flash-image-preview',
+      await generateImage({
+        adapter,
         prompt: 'A simple sketch',
         modelOptions: {
           // User tries to strip IMAGE from modalities — must be ignored.
           responseModalities: ['TEXT'],
         } as unknown as never,
-        logger: testLogger,
       })
 
       const args = mockGenerateContent.mock.calls[0]![0]
@@ -515,11 +505,10 @@ describe('Gemini Image Adapter', () => {
         },
       }
 
-      const result = await adapter.generateImages({
-        model: 'gemini-3.1-flash-image-preview',
+      const result = await generateImage({
+        adapter,
         prompt: 'A futuristic city',
         numberOfImages: 3,
-        logger: testLogger,
       })
 
       expect(mockGenerateContent).toHaveBeenCalledWith({
@@ -567,11 +556,10 @@ describe('Gemini Image Adapter', () => {
         },
       }
 
-      await adapter.generateImages({
-        model: 'gemini-3.1-flash-image-preview',
+      await generateImage({
+        adapter,
         prompt: 'A simple sketch',
         numberOfImages: 1,
-        logger: testLogger,
       })
 
       expect(mockGenerateContent).toHaveBeenCalledWith({
@@ -614,10 +602,9 @@ describe('Gemini Image Adapter', () => {
         },
       }
 
-      await adapter.generateImages({
-        model: 'gemini-3.1-flash-image-preview',
+      await generateImage({
+        adapter,
         prompt: 'A simple sketch',
-        logger: testLogger,
       })
 
       expect(mockGenerateContent).toHaveBeenCalledWith({
