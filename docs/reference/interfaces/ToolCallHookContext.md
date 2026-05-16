@@ -5,7 +5,7 @@ title: ToolCallHookContext
 
 # Interface: ToolCallHookContext
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:123](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L123)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:134](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L134)
 
 Context provided to tool call hooks (onBeforeToolCall / onAfterToolCall).
 
@@ -17,7 +17,7 @@ Context provided to tool call hooks (onBeforeToolCall / onAfterToolCall).
 args: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:129](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L129)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:140](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L140)
 
 Parsed arguments for the tool call
 
@@ -31,7 +31,7 @@ tool:
   | undefined;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:127](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L127)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:138](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L138)
 
 The resolved tool definition, if found
 
@@ -43,7 +43,7 @@ The resolved tool definition, if found
 toolCall: ToolCall;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:125](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L125)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:136](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L136)
 
 The tool call being executed
 
@@ -55,7 +55,7 @@ The tool call being executed
 toolCallId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:133](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L133)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:144](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L144)
 
 ID of the tool call
 
@@ -67,6 +67,6 @@ ID of the tool call
 toolName: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:131](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L131)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:142](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L142)
 
 Name of the tool

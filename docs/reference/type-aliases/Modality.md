@@ -9,7 +9,7 @@ title: Modality
 type Modality = "text" | "image" | "audio" | "video" | "document";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:139](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L139)
+Defined in: [packages/typescript/ai/src/types.ts:159](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L159)
 
 Supported input modality types for multimodal content.
 - 'text': Plain text content

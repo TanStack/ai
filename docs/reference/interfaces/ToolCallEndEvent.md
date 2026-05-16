@@ -5,7 +5,7 @@ title: ToolCallEndEvent
 
 # Interface: ToolCallEndEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:938](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L938)
+Defined in: [packages/typescript/ai/src/types.ts:969](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L969)
 
 Emitted when a tool call completes.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`,
 optional input: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:949](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L949)
+Defined in: [packages/typescript/ai/src/types.ts:980](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L980)
 
 Final parsed input arguments (TanStack AI internal)
 
@@ -42,7 +42,7 @@ Final parsed input arguments (TanStack AI internal)
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:940](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L940)
+Defined in: [packages/typescript/ai/src/types.ts:971](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L971)
 
 Model identifier for multi-model support
 
@@ -54,7 +54,7 @@ Model identifier for multi-model support
 optional result: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:951](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L951)
+Defined in: [packages/typescript/ai/src/types.ts:982](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L982)
 
 Tool execution result (TanStack AI internal)
 
@@ -66,7 +66,7 @@ Tool execution result (TanStack AI internal)
 optional toolCallName: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:942](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L942)
+Defined in: [packages/typescript/ai/src/types.ts:973](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L973)
 
 Name of the tool that completed
 
@@ -78,7 +78,7 @@ Name of the tool that completed
 optional toolName: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:947](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L947)
+Defined in: [packages/typescript/ai/src/types.ts:978](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L978)
 
 #### Deprecated
 

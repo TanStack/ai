@@ -5,7 +5,7 @@ title: StructuredOutputCompleteEvent
 
 # Interface: StructuredOutputCompleteEvent\<T\>
 
-Defined in: [packages/typescript/ai/src/types.ts:1078](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1078)
+Defined in: [packages/typescript/ai/src/types.ts:1109](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1109)
 
 Final event of a streaming structured-output run. Carries the validated
 `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
@@ -52,7 +52,7 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 name: "structured-output.complete";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1082](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1082)
+Defined in: [packages/typescript/ai/src/types.ts:1113](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1113)
 
 ***
 
@@ -62,7 +62,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1082](https://github.com/TanSta
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1083](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1083)
+Defined in: [packages/typescript/ai/src/types.ts:1114](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1114)
 
 #### object
 
