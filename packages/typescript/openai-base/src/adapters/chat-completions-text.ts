@@ -106,6 +106,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp: Date.now(),
+          parentRunId: options.parentRunId,
         }
       }
 
@@ -347,6 +348,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             threadId: aguiState.threadId,
             model: chunk.model || chatOptions.model,
             timestamp,
+            parentRunId: chatOptions.parentRunId,
           }
         }
 
@@ -506,6 +508,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           threadId: aguiState.threadId,
           model: chatOptions.model,
           timestamp,
+          parentRunId: chatOptions.parentRunId,
         }
       }
 
@@ -669,6 +672,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp: Date.now(),
+            parentRunId: options.parentRunId,
           }
         }
 

@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   chat,
+  chatParamsFromRequestBody,
   createChatOptions,
   maxIterations,
+  mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -75,6 +77,18 @@ const addToCartToolServer = addToCartToolDef.server((args, context) => {
   }
 })
 
+const serverTools = [
+  getGuitars, // Server tool
+  recommendGuitarToolDef, // No server execute - client will handle
+  addToCartToolServer,
+  addToWishListToolDef,
+  getPersonalGuitarPreferenceToolDef,
+  // Lazy tools - discovered on demand
+  compareGuitars,
+  calculateFinancing,
+  searchGuitars,
+]
+
 const loggingMiddleware: ChatMiddleware = {
   name: 'logging',
   onConfig(ctx, config) {
@@ -122,13 +136,27 @@ export const Route = createFileRoute('/api/tanchat')({
 
         const abortController = new AbortController()
 
-        const body = await request.json()
-        const { messages, data } = body
+        let params
+        try {
+          params = await chatParamsFromRequestBody(await request.json())
+        } catch (error) {
+          return new Response(
+            error instanceof Error ? error.message : 'Bad request',
+            { status: 400 },
+          )
+        }
 
-        // Extract provider and model from data
-        const provider: Provider = data?.provider || 'openai'
-        const model: string = data?.model || 'gpt-4o'
-        const conversationId: string | undefined = data?.conversationId
+        // Extract provider and model from forwardedProps (sent by the client).
+        // Provider must be allowlisted against adapterConfig (validated below)
+        // to avoid SSRF/runtime crashes from arbitrary client-supplied strings.
+        const requestedProvider =
+          typeof params.forwardedProps.provider === 'string'
+            ? params.forwardedProps.provider
+            : 'openai'
+        const model: string =
+          typeof params.forwardedProps.model === 'string'
+            ? params.forwardedProps.model
+            : 'gpt-4o'
 
         // Pre-define typed adapter configurations with full type inference
         // Model is passed to the adapter factory function for type-safe autocomplete
@@ -144,7 +172,9 @@ export const Route = createFileRoute('/api/tanchat')({
             }),
           openrouter: () =>
             createChatOptions({
-              adapter: openRouterText('openai/gpt-5.1'),
+              adapter: openRouterText(
+                (model || 'openai/gpt-5.1') as 'openai/gpt-5.1',
+              ),
               modelOptions: {
                 reasoning: {
                   effort: 'medium',
@@ -188,31 +218,26 @@ export const Route = createFileRoute('/api/tanchat')({
         }
 
         try {
+          // Allowlist provider against adapterConfig keys; fall back to openai.
+          const provider: Provider =
+            requestedProvider in adapterConfig
+              ? (requestedProvider as Provider)
+              : 'openai'
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
 
-          // Note: We cast to AsyncIterable<StreamChunk> because all chat adapters
-          // return streams, but TypeScript sees a union of all possible return types
+          const mergedTools = mergeAgentTools(serverTools, params.tools)
+
           const stream = chat({
             ...options,
-
-            tools: [
-              getGuitars, // Server tool
-              recommendGuitarToolDef, // No server execute - client will handle
-              addToCartToolServer,
-              addToWishListToolDef,
-              getPersonalGuitarPreferenceToolDef,
-              // Lazy tools - discovered on demand
-              compareGuitars,
-              calculateFinancing,
-              searchGuitars,
-            ],
+            tools: Object.values(mergedTools),
             middleware: [loggingMiddleware],
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
-            messages,
+            messages: params.messages,
+            threadId: params.threadId,
+            runId: params.runId,
             abortController,
-            conversationId,
           })
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {

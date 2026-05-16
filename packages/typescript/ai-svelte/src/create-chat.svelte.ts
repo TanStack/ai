@@ -85,6 +85,7 @@ export function createChat<
     id: clientId,
     initialMessages: options.initialMessages,
     body: options.body,
+    forwardedProps: options.forwardedProps,
     onResponse: options.onResponse,
     onChunk: (chunk: StreamChunk) => {
       if (options.outputSchema !== undefined) {
@@ -191,8 +192,16 @@ export function createChat<
     await client.addToolApprovalResponse(response)
   }
 
+  /**
+   * @deprecated Use `updateForwardedProps` instead.
+   * Both populate the same wire payload.
+   */
   const updateBody = (newBody: Record<string, any>) => {
     client.updateOptions({ body: newBody })
+  }
+
+  const updateForwardedProps = (newForwardedProps: Record<string, any>) => {
+    client.updateOptions({ forwardedProps: newForwardedProps })
   }
 
   // Return the chat interface with reactive getters
@@ -234,5 +243,6 @@ export function createChat<
     addToolResult,
     addToolApprovalResponse,
     updateBody,
+    updateForwardedProps,
   } as unknown as CreateChatReturn<TTools, TSchema>
 }

@@ -15,6 +15,7 @@ packages:
   - 'packages/typescript/ai-code-mode/models-eval'
   - 'examples/*'
   - 'testing/*'
+  - 'codemods'
 
 allowBuilds:
   # Vite + every transitive bundler-step needs the platform-specific binary.

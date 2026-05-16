@@ -61,7 +61,9 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `tools?` - Array of client tool implementations (with `.client()` method)
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
-- `body?` - Additional body parameters to send (reactive -- changes are synced automatically via `watch`)
+- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (reactive -- changes are synced automatically via `watch`)
+- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire (reactive)
 - `live?` - Enable live subscription mode (auto-subscribes/unsubscribes)
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received

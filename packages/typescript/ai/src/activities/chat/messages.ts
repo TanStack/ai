@@ -63,15 +63,55 @@ function getTextContent(content: string | null | Array<ContentPart>): string {
 export function convertMessagesToModelMessages(
   messages: Array<UIMessage | ModelMessage>,
 ): Array<ModelMessage> {
+  // Pre-pass: collect toolCallIds already represented in anchor UIMessage parts.
+  // Fan-out tool messages whose toolCallId matches an anchored ToolResultPart
+  // are AG-UI duplicates and must be dropped to avoid double-feeding the LLM.
+  const anchoredToolCallIds = new Set<string>()
+  for (const msg of messages) {
+    if ('parts' in msg) {
+      for (const part of msg.parts) {
+        if (part.type === 'tool-result') {
+          anchoredToolCallIds.add(part.toolCallId)
+        }
+      }
+    }
+  }
+
   const modelMessages: Array<ModelMessage> = []
   for (const msg of messages) {
     if ('parts' in msg) {
-      // UIMessage - convert to ModelMessages
+      // UIMessage anchor — existing fan-out path
       modelMessages.push(...uiMessageToModelMessages(msg))
-    } else {
-      // Already ModelMessage
-      modelMessages.push(msg)
+      continue
     }
+
+    const role = (msg as { role: string }).role
+
+    // AG-UI tool fan-out duplicate — drop if anchor already covers it
+    if (
+      role === 'tool' &&
+      msg.toolCallId &&
+      anchoredToolCallIds.has(msg.toolCallId)
+    ) {
+      continue
+    }
+
+    // AG-UI reasoning and activity — no ModelMessage equivalent today
+    if (role === 'reasoning' || role === 'activity') {
+      continue
+    }
+
+    // AG-UI developer — collapse to system
+    if (role === 'developer') {
+      modelMessages.push({
+        role: 'system' as ModelMessage['role'],
+        content: (msg as { content: string }).content,
+      } as ModelMessage)
+      continue
+    }
+
+    // Already a ModelMessage (user, assistant, system, tool with no anchor) — pass through
+    modelMessages.push(msg)
   }
   return modelMessages
 }

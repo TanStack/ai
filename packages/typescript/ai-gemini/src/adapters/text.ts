@@ -271,6 +271,7 @@ export class GeminiTextAdapter<
           threadId,
           model,
           timestamp: Date.now(),
+          parentRunId: options.parentRunId,
         }
       }
 

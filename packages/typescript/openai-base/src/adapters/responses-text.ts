@@ -128,6 +128,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp: Date.now(),
+          parentRunId: options.parentRunId,
         }
       }
 
@@ -393,6 +394,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             threadId: aguiState.threadId,
             model,
             timestamp,
+            parentRunId: chatOptions.parentRunId,
           }
         }
 
@@ -594,6 +596,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           threadId: aguiState.threadId,
           model,
           timestamp,
+          parentRunId: chatOptions.parentRunId,
         }
       }
 
@@ -785,6 +788,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
+            parentRunId: options.parentRunId,
           }
         }
 

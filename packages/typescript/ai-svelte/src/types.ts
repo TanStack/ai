@@ -183,9 +183,15 @@ interface BaseCreateChatReturn<
    */
   readonly sessionGenerating: boolean
   /**
-   * Update the body sent with requests (e.g., for changing model selection)
+   * @deprecated Use `updateForwardedProps` instead. Both populate the
+   * same wire payload; `updateBody` is retained for backward compatibility.
    */
   updateBody: (body: Record<string, any>) => void
+  /**
+   * Update the AG-UI `forwardedProps` sent with requests (e.g., for
+   * changing model selection or other client-driven options).
+   */
+  updateForwardedProps: (forwardedProps: Record<string, any>) => void
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client

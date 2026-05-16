@@ -658,6 +658,7 @@ export class AnthropicTextAdapter<
             threadId,
             model,
             timestamp: Date.now(),
+            parentRunId: options.parentRunId,
           }
         }
 

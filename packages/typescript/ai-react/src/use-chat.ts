@@ -80,6 +80,7 @@ export function useChat<
       id: clientId,
       initialMessages: messagesToUse,
       body: optionsRef.current.body,
+      forwardedProps: optionsRef.current.forwardedProps,
       // Wrap every callback so the latest options are read at call time.
       // Capturing the function reference directly would freeze it to whatever
       // the parent passed on the first render.
@@ -144,11 +145,17 @@ export function useChat<
     })
   }, [clientId])
 
-  // Sync body changes to the client
-  // This allows dynamic body values (like model selection) to be updated without recreating the client
+  // Sync body / forwardedProps changes to the client.
+  // This allows dynamic values (like model selection) to be updated
+  // without recreating the client. Both fields populate the same
+  // wire payload; `forwardedProps` is preferred and `body` is
+  // deprecated but still supported.
   useEffect(() => {
-    client.updateOptions({ body: options.body })
-  }, [client, options.body])
+    client.updateOptions({
+      body: options.body,
+      forwardedProps: options.forwardedProps,
+    })
+  }, [client, options.body, options.forwardedProps])
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also

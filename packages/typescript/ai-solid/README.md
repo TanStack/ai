@@ -71,7 +71,10 @@ interface UseChatOptions {
   // Configuration
   initialMessages?: UIMessage[] // Starting messages
   id?: string // Unique chat ID
-  body?: Record<string, any> // Extra data to send
+  threadId?: string // AG-UI thread ID (auto-generated if omitted)
+  forwardedProps?: Record<string, any> // Forwarded to AG-UI RunAgentInput.forwardedProps
+  /** @deprecated Use `forwardedProps` instead. */
+  body?: Record<string, any>
 
   // Callbacks
   onResponse?: (response?: Response) => void
@@ -256,7 +259,7 @@ const chat = useChat({
       'X-Custom-Header': 'value',
     },
   }),
-  body: {
+  forwardedProps: {
     userId: '123',
     sessionId: 'abc',
   },

@@ -749,8 +749,14 @@ export interface TextOptions<
    */
   outputSchema?: SchemaInput
   /**
-   * Conversation ID for correlating client and server-side devtools events.
-   * When provided, server-side events will be linked to the client conversation in devtools.
+   * @deprecated Use `threadId` instead. `conversationId` is the legacy
+   * pre-AG-UI name for the same concept (a stable per-conversation
+   * identifier used to correlate client/server devtools events). When
+   * `conversationId` is omitted, the runtime falls back to `threadId`
+   * automatically, so most callers can simply pass `threadId` (or rely
+   * on `chatParamsFromRequest`, which surfaces it on `params`).
+   *
+   * Will be removed in a future major release.
    */
   conversationId?: string
   /**
@@ -786,6 +792,11 @@ export interface TextOptions<
    * If not provided, a unique ID will be generated.
    */
   runId?: string
+  /**
+   * Parent run ID for AG-UI protocol nested run correlation.
+   * Surfaced for observability/middleware; not consumed by the LLM call.
+   */
+  parentRunId?: string
 }
 
 // ============================================================================

@@ -15,7 +15,8 @@
     "packages/typescript/ai-openai/src/audio/audio-provider-options.ts",
     "packages/typescript/ai-openai/src/audio/transcribe-provider-options.ts",
     "packages/typescript/ai-openai/src/image/image-provider-options.ts",
-    "packages/typescript/ai-devtools/src/production.ts"
+    "packages/typescript/ai-devtools/src/production.ts",
+    "codemods/**/__testfixtures__/**"
   ],
   "ignoreExportsUsedInFile": true,
   "workspaces": {

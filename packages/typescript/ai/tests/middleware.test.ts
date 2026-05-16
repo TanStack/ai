@@ -1236,34 +1236,73 @@ describe('chat() middleware', () => {
   })
 
   // ==========================================================================
-  // conversationId propagation
+  // threadId / conversationId propagation
   // ==========================================================================
-  describe('conversationId', () => {
-    it('should propagate conversationId to middleware context', async () => {
-      let capturedConvId: string | undefined
-
+  describe('threadId / conversationId', () => {
+    const runChatWithMiddleware = async (params: {
+      threadId?: string
+      conversationId?: string
+    }): Promise<{
+      ctxThreadId: string | undefined
+      ctxConvId: string | undefined
+    }> => {
+      let ctxThreadId: string | undefined
+      let ctxConvId: string | undefined
       const { adapter } = createMockAdapter({
         iterations: [
           [ev.runStarted(), ev.textContent('hi'), ev.runFinished('stop')],
         ],
       })
-
       const middleware: ChatMiddleware = {
         name: 'test',
         onStart: (ctx) => {
-          capturedConvId = ctx.conversationId
+          ctxThreadId = ctx.threadId
+          ctxConvId = ctx.conversationId
         },
       }
-
       const stream = chat({
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
-        conversationId: 'conv-42',
+        ...params,
       })
       await collectChunks(stream as AsyncIterable<StreamChunk>)
+      return { ctxThreadId, ctxConvId }
+    }
 
-      expect(capturedConvId).toBe('conv-42')
+    it('uses caller-provided threadId for both ctx.threadId and ctx.conversationId (legacy alias)', async () => {
+      const { ctxThreadId, ctxConvId } = await runChatWithMiddleware({
+        threadId: 'thread-7',
+      })
+      expect(ctxThreadId).toBe('thread-7')
+      expect(ctxConvId).toBe('thread-7')
+    })
+
+    it('routes legacy `conversationId` option into threadId resolution', async () => {
+      const { ctxThreadId, ctxConvId } = await runChatWithMiddleware({
+        conversationId: 'conv-42',
+      })
+      // Legacy `conversationId` is an alias for `threadId` — both fields
+      // on the middleware ctx resolve to the same value.
+      expect(ctxThreadId).toBe('conv-42')
+      expect(ctxConvId).toBe('conv-42')
+    })
+
+    it('explicit threadId wins when both are passed', async () => {
+      const { ctxThreadId, ctxConvId } = await runChatWithMiddleware({
+        threadId: 'thread-canonical',
+        conversationId: 'conv-legacy',
+      })
+      expect(ctxThreadId).toBe('thread-canonical')
+      expect(ctxConvId).toBe('thread-canonical')
+    })
+
+    it('auto-generates a threadId when neither is provided', async () => {
+      const { ctxThreadId, ctxConvId } = await runChatWithMiddleware({})
+      expect(ctxThreadId).toMatch(/^thread/)
+      // ctx.conversationId mirrors threadId for backward compat with
+      // middleware that hasn't been migrated yet.
+      expect(ctxConvId).toBe(ctxThreadId)
     })
   })
 

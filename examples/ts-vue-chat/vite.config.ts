@@ -2,7 +2,13 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
-import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequestBody,
+  maxIterations,
+  mergeAgentTools,
+  toServerSentEventsStream,
+} from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -196,10 +202,23 @@ export default defineConfig({
             body += chunk
           }
 
+          let params
           try {
-            const { messages, data } = JSON.parse(body)
-            const provider: Provider = data?.provider || 'openai'
-            const model: string | undefined = data?.model
+            params = await chatParamsFromRequestBody(JSON.parse(body))
+          } catch (error) {
+            res.statusCode = 400
+            res.end(error instanceof Error ? error.message : 'Bad request')
+            return
+          }
+
+          try {
+            const fp = params.forwardedProps as Record<string, unknown>
+            const provider: Provider =
+              typeof fp.provider === 'string'
+                ? (fp.provider as Provider)
+                : 'openai'
+            const model: string | undefined =
+              typeof fp.model === 'string' ? fp.model : undefined
 
             let adapter
 
@@ -231,18 +250,18 @@ export default defineConfig({
 
             const abortController = new AbortController()
 
+            const serverTools = Object.fromEntries(
+              [getGuitars, addToCartToolServer].map((t) => [t.name, t]),
+            )
+
             const stream = chat({
               adapter,
-              tools: [
-                getGuitars,
-                recommendGuitarToolDef,
-                addToCartToolServer,
-                addToWishListToolDef,
-                getPersonalGuitarPreferenceToolDef,
-              ],
+              tools: Object.values(mergeAgentTools(serverTools, params.tools)),
               systemPrompts: [SYSTEM_PROMPT],
               agentLoopStrategy: maxIterations(20),
-              messages,
+              messages: params.messages,
+              threadId: params.threadId,
+              runId: params.runId,
               abortController,
             })
 

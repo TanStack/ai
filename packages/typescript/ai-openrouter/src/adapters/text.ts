@@ -159,6 +159,7 @@ export class OpenRouterTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp: Date.now(),
+          parentRunId: options.parentRunId,
         }
       }
 
@@ -401,6 +402,7 @@ export class OpenRouterTextAdapter<
             threadId: aguiState.threadId,
             model: chunk.model || chatOptions.model,
             timestamp,
+            parentRunId: chatOptions.parentRunId,
           }
         }
 
@@ -556,6 +558,7 @@ export class OpenRouterTextAdapter<
           threadId: aguiState.threadId,
           model: chatOptions.model,
           timestamp,
+          parentRunId: chatOptions.parentRunId,
         }
       }
 
@@ -712,6 +715,7 @@ export class OpenRouterTextAdapter<
             threadId: aguiState.threadId,
             model: chunk.model || options.model,
             timestamp: Date.now(),
+            parentRunId: options.parentRunId,
           }
         }
 

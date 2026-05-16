@@ -61,6 +61,7 @@ export function useChat<
     id: clientId,
     initialMessages: options.initialMessages,
     body: options.body,
+    forwardedProps: options.forwardedProps,
     onResponse: (response) => options.onResponse?.(response),
     onChunk: (chunk: StreamChunk) => {
       // Internal structured-output tracking — runs before the user callback
@@ -119,12 +120,16 @@ export function useChat<
     },
   })
 
-  // Sync body changes to the client
-  // This allows dynamic body values (like model selection) to be updated without recreating the client
+  // Sync body / forwardedProps changes to the client.
+  // Both populate the same wire payload; `forwardedProps` is preferred
+  // and `body` is deprecated but still supported.
   watch(
-    () => options.body,
-    (newBody) => {
-      client.updateOptions({ body: newBody })
+    () => [options.body, options.forwardedProps] as const,
+    ([newBody, newForwardedProps]) => {
+      client.updateOptions({
+        body: newBody,
+        forwardedProps: newForwardedProps,
+      })
     },
   )
 
