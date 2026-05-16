@@ -18,7 +18,7 @@ Created once per chat() invocation and shared across all hooks.
 abort: (reason?) => void;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:42](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L42)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:53](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L53)
 
 Abort the chat run with a reason
 
@@ -40,7 +40,7 @@ Abort the chat run with a reason
 accumulatedContent: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:86](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L86)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:97](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L97)
 
 Accumulated text content for the current iteration
 
@@ -52,7 +52,7 @@ Accumulated text content for the current iteration
 chunkIndex: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:38](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L38)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:49](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L49)
 
 Running count of chunks yielded so far
 
@@ -64,21 +64,25 @@ Running count of chunks yielded so far
 context: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:44](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L44)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L55)
 
 Opaque user-provided value from chat() options
 
 ***
 
-### conversationId?
+### ~~conversationId?~~
 
 ```ts
 optional conversationId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:32](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L32)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:43](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L43)
 
-Conversation identifier, if provided by the caller
+#### Deprecated
+
+Use `threadId` instead. Retained as an alias of
+`threadId` so middleware written before the AG-UI rename keeps
+working unchanged. Will be removed in a future major release.
 
 ***
 
@@ -88,7 +92,7 @@ Conversation identifier, if provided by the caller
 createId: (prefix) => string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:93](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L93)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:104](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L104)
 
 Generate a unique ID with the given prefix
 
@@ -110,7 +114,7 @@ Generate a unique ID with the given prefix
 currentMessageId: string | null;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:84](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L84)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:95](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L95)
 
 Current assistant message ID (changes per iteration)
 
@@ -122,7 +126,7 @@ Current assistant message ID (changes per iteration)
 defer: (promise) => void;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:50](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L50)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L61)
 
 Defer a non-blocking side-effect promise.
 Deferred promises do not block streaming and are awaited
@@ -146,7 +150,7 @@ after the terminal hook (onFinish/onAbort/onError).
 hasTools: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:79](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L79)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:90](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L90)
 
 Whether tools are configured
 
@@ -158,7 +162,7 @@ Whether tools are configured
 iteration: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:36](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L36)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:47](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L47)
 
 Current agent loop iteration (0-indexed)
 
@@ -170,7 +174,7 @@ Current agent loop iteration (0-indexed)
 messageCount: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L77)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:88](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L88)
 
 Number of messages at the start of the request
 
@@ -185,7 +189,7 @@ messages: readonly ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:91](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L91)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:102](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L102)
 
 Current messages array (read-only view)
 
@@ -197,7 +201,7 @@ Current messages array (read-only view)
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:57](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L57)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L68)
 
 Model identifier (e.g., 'gpt-4o')
 
@@ -209,7 +213,7 @@ Model identifier (e.g., 'gpt-4o')
 optional modelOptions: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:72](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L72)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:83](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L83)
 
 Provider-specific model options
 
@@ -221,7 +225,7 @@ Provider-specific model options
 optional options: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L70)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:81](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L81)
 
 Flattened generation options (temperature, topP, maxTokens, metadata)
 
@@ -233,7 +237,7 @@ Flattened generation options (temperature, topP, maxTokens, metadata)
 phase: ChatMiddlewarePhase;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:34](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L34)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:45](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L45)
 
 Current lifecycle phase
 
@@ -245,7 +249,7 @@ Current lifecycle phase
 provider: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L55)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:66](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L66)
 
 Provider name (e.g., 'openai', 'anthropic')
 
@@ -269,7 +273,7 @@ Unique identifier for this chat request
 optional signal: AbortSignal;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:40](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L40)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:51](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L51)
 
 Abort signal from the chat request
 
@@ -281,7 +285,7 @@ Abort signal from the chat request
 source: "client" | "server";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:59](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L59)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L70)
 
 Source of the chat invocation — always 'server' for server-side chat
 
@@ -305,7 +309,7 @@ Unique identifier for this stream
 streaming: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L61)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:72](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L72)
 
 Whether the chat is streaming
 
@@ -317,9 +321,24 @@ Whether the chat is streaming
 systemPrompts: string[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:66](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L66)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:77](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L77)
 
 System prompts configured for this chat
+
+***
+
+### threadId
+
+```ts
+threadId: string;
+```
+
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:37](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L37)
+
+AG-UI thread identifier — a stable per-conversation ID used to
+correlate client and server devtools events. Resolves to the
+caller-provided `threadId` (or legacy `conversationId`), or an
+auto-generated value when neither is supplied.
 
 ***
 
@@ -329,6 +348,6 @@ System prompts configured for this chat
 optional toolNames: string[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L68)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:79](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L79)
 
 Names of configured tools, if any

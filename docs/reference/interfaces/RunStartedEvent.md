@@ -5,7 +5,7 @@ title: RunStartedEvent
 
 # Interface: RunStartedEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:818](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L818)
+Defined in: [packages/typescript/ai/src/types.ts:849](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L849)
 
 Emitted when a run starts.
 This is the first event in any streaming response.
@@ -31,6 +31,6 @@ TanStack AI adds: `model?`
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:820](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L820)
+Defined in: [packages/typescript/ai/src/types.ts:851](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L851)
 
 Model identifier for multi-model support

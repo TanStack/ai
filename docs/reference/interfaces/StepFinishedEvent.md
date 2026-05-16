@@ -5,7 +5,7 @@ title: StepFinishedEvent
 
 # Interface: StepFinishedEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:989](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L989)
+Defined in: [packages/typescript/ai/src/types.ts:1020](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1020)
 
 Emitted when a thinking/reasoning step finishes.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `stepId?` (deprecated alias), `delta?`, `content?`
 optional content: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1000](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1000)
+Defined in: [packages/typescript/ai/src/types.ts:1031](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1031)
 
 Full accumulated thinking content (TanStack AI internal)
 
@@ -42,7 +42,7 @@ Full accumulated thinking content (TanStack AI internal)
 optional delta: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:998](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L998)
+Defined in: [packages/typescript/ai/src/types.ts:1029](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1029)
 
 Incremental thinking content (TanStack AI internal)
 
@@ -54,7 +54,7 @@ Incremental thinking content (TanStack AI internal)
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:991](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L991)
+Defined in: [packages/typescript/ai/src/types.ts:1022](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1022)
 
 Model identifier for multi-model support
 
@@ -66,7 +66,7 @@ Model identifier for multi-model support
 optional signature: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1002](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1002)
+Defined in: [packages/typescript/ai/src/types.ts:1033](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1033)
 
 Provider signature for the thinking block
 
@@ -78,7 +78,7 @@ Provider signature for the thinking block
 optional stepId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:996](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L996)
+Defined in: [packages/typescript/ai/src/types.ts:1027](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1027)
 
 #### Deprecated
 

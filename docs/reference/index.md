@@ -180,6 +180,7 @@ title: "@tanstack/ai"
 - [StructuredOutputStream](type-aliases/StructuredOutputStream.md)
 - [ToolCallState](type-aliases/ToolCallState.md)
 - [ToolResultState](type-aliases/ToolResultState.md)
+- [WireMessage](type-aliases/WireMessage.md)
 
 ## Variables
 
@@ -188,6 +189,8 @@ title: "@tanstack/ai"
 ## Functions
 
 - [chat](functions/chat.md)
+- [chatParamsFromRequest](functions/chatParamsFromRequest.md)
+- [chatParamsFromRequestBody](functions/chatParamsFromRequestBody.md)
 - [combineStrategies](functions/combineStrategies.md)
 - [convertMessagesToModelMessages](functions/convertMessagesToModelMessages.md)
 - [convertSchemaToJsonSchema](functions/convertSchemaToJsonSchema.md)
@@ -212,6 +215,7 @@ title: "@tanstack/ai"
 - [generateVideo](functions/generateVideo.md)
 - [getVideoJobStatus](functions/getVideoJobStatus.md)
 - [maxIterations](functions/maxIterations.md)
+- [mergeAgentTools](functions/mergeAgentTools.md)
 - [modelMessagesToUIMessages](functions/modelMessagesToUIMessages.md)
 - [modelMessageToUIMessage](functions/modelMessageToUIMessage.md)
 - [normalizeToUIMessage](functions/normalizeToUIMessage.md)
@@ -224,5 +228,6 @@ title: "@tanstack/ai"
 - [toolDefinition](functions/toolDefinition.md)
 - [toServerSentEventsResponse](functions/toServerSentEventsResponse.md)
 - [toServerSentEventsStream](functions/toServerSentEventsStream.md)
+- [uiMessagesToWire](functions/uiMessagesToWire.md)
 - [uiMessageToModelMessages](functions/uiMessageToModelMessages.md)
 - [untilFinishReason](functions/untilFinishReason.md)

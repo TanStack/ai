@@ -5,7 +5,7 @@ title: ToolPhaseCompleteInfo
 
 # Interface: ToolPhaseCompleteInfo
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:194](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L194)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:205](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L205)
 
 Aggregate information passed to onToolPhaseComplete after all tool calls
 in an iteration have been processed.
@@ -18,7 +18,7 @@ in an iteration have been processed.
 needsApproval: object[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:205](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L205)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:216](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L216)
 
 Tools that need user approval
 
@@ -54,7 +54,7 @@ toolName: string;
 needsClientExecution: object[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:212](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L212)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:223](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L223)
 
 Tools that need client-side execution
 
@@ -84,7 +84,7 @@ toolName: string;
 results: object[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:198](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L198)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:209](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L209)
 
 Completed tool results
 
@@ -120,6 +120,6 @@ toolName: string;
 toolCalls: ToolCall<unknown>[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:196](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L196)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:207](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L207)
 
 Tool calls that were assigned to the assistant message

@@ -5,7 +5,7 @@ title: ChatMiddlewareConfig
 
 # Interface: ChatMiddlewareConfig
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:105](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L105)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:116](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L116)
 
 Chat configuration that middleware can observe or transform.
 This is a subset of the chat engine's effective configuration
@@ -19,7 +19,7 @@ that middleware is allowed to modify.
 optional maxTokens: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:111](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L111)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:122](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L122)
 
 ***
 
@@ -32,7 +32,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:106](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L106)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:117](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L117)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:106]
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:112](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L112)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:123](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L123)
 
 ***
 
@@ -52,7 +52,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:112]
 optional modelOptions: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:113](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L113)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:124](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L124)
 
 ***
 
@@ -62,7 +62,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:113]
 systemPrompts: string[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:107](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L107)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:118](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L118)
 
 ***
 
@@ -72,7 +72,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:107]
 optional temperature: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:109](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L109)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:120](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L120)
 
 ***
 
@@ -82,7 +82,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:109]
 tools: Tool<SchemaInput, SchemaInput, string>[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:108](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L108)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:119](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L119)
 
 ***
 
@@ -92,4 +92,4 @@ Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:108]
 optional topP: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:110](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L110)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:121](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L121)
