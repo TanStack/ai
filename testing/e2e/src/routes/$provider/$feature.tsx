@@ -165,9 +165,7 @@ function ChatFeature({
           typeof (data as { interactionId?: unknown }).interactionId ===
             'string'
         ) {
-          setInteractionId(
-            (data as { interactionId: string }).interactionId,
-          )
+          setInteractionId((data as { interactionId: string }).interactionId)
         }
       },
       onChunk: (chunk) => {
