@@ -12,7 +12,12 @@ export function getPerplexityApiKeyFromEnv(): string {
         ? process.env
         : undefined
 
-  const key = env?.PERPLEXITY_API_KEY || env?.PPLX_API_KEY
+  const key = [env?.PERPLEXITY_API_KEY, env?.PPLX_API_KEY]
+    .find(
+      (value): value is string =>
+        typeof value === 'string' && value.trim().length > 0,
+    )
+    ?.trim()
 
   if (!key) {
     throw new Error(

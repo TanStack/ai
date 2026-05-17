@@ -24,6 +24,11 @@ describe('createPerplexityChatClient', () => {
     expect(client.apiKey).toBe('explicit')
   })
 
+  it('falls back to env when explicit apiKey is blank', () => {
+    const client = createPerplexityChatClient({ apiKey: '   ' })
+    expect(client.apiKey).toBe('test-key')
+  })
+
   it('falls back to PPLX_API_KEY when PERPLEXITY_API_KEY is not set', () => {
     delete process.env.PERPLEXITY_API_KEY
     process.env.PPLX_API_KEY = 'fallback'

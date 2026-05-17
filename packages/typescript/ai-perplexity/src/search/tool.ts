@@ -34,6 +34,14 @@ export function perplexitySearchTool(
     defaultMaxResults,
     ...clientConfig
   } = config
+  if (
+    defaultMaxResults !== undefined &&
+    (!Number.isInteger(defaultMaxResults) ||
+      defaultMaxResults < 1 ||
+      defaultMaxResults > 20)
+  ) {
+    throw new Error('defaultMaxResults must be an integer between 1 and 20.')
+  }
 
   // Lazily construct the client so missing API keys don't blow up at import
   // time (e.g. on bundlers that statically evaluate module top-level).

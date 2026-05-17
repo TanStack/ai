@@ -2,11 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { perplexitySearchTool } from '../src/search/tool'
 
 describe('perplexitySearchTool', () => {
+  const ORIGINAL_PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY
+
   beforeEach(() => {
     process.env.PERPLEXITY_API_KEY = 'test-key'
   })
 
   afterEach(() => {
+    if (ORIGINAL_PERPLEXITY_API_KEY === undefined) {
+      delete process.env.PERPLEXITY_API_KEY
+    } else {
+      process.env.PERPLEXITY_API_KEY = ORIGINAL_PERPLEXITY_API_KEY
+    }
     vi.restoreAllMocks()
   })
 
@@ -99,6 +106,18 @@ describe('perplexitySearchTool', () => {
       search_recency_filter: 'week',
       search_after_date_filter: '1/1/2026',
     })
+  })
+
+  it('throws when defaultMaxResults is outside the allowed range', () => {
+    expect(() => perplexitySearchTool({ defaultMaxResults: 0 })).toThrow(
+      /integer between 1 and 20/i,
+    )
+    expect(() => perplexitySearchTool({ defaultMaxResults: 21 })).toThrow(
+      /integer between 1 and 20/i,
+    )
+    expect(() => perplexitySearchTool({ defaultMaxResults: 1.5 })).toThrow(
+      /integer between 1 and 20/i,
+    )
   })
 
   it('honors custom name and description overrides', () => {

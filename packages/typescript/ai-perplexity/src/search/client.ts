@@ -57,7 +57,13 @@ export class PerplexitySearchClient {
   private readonly fetchImpl: typeof fetch
 
   constructor(config: PerplexitySearchClientConfig = {}) {
-    this.apiKey = config.apiKey ?? getPerplexityApiKeyFromEnv()
+    const { apiKey } = config
+    const resolvedApiKey =
+      typeof apiKey === 'string' && apiKey.trim().length > 0
+        ? apiKey
+        : getPerplexityApiKeyFromEnv()
+
+    this.apiKey = resolvedApiKey
     this.baseURL = (config.baseURL ?? DEFAULT_BASE_URL).replace(/\/$/, '')
     this.fetchImpl = config.fetch ?? globalThis.fetch
   }
@@ -66,13 +72,15 @@ export class PerplexitySearchClient {
     request: PerplexitySearchRequest,
     init: { signal?: AbortSignal } = {},
   ): Promise<PerplexitySearchResponse> {
-    if (!request.query || typeof request.query !== 'string') {
+    const query = typeof request.query === 'string' ? request.query.trim() : ''
+    if (query.length === 0) {
       throw new Error('PerplexitySearchClient.search requires a non-empty `query`.')
     }
     validateDomainFilter(request.search_domain_filter)
 
-    const body: Record<string, unknown> = { query: request.query }
-    if (request.max_results !== undefined) body.max_results = request.max_results
+    const body: Record<string, unknown> = { query }
+    if (request.max_results !== undefined)
+      body.max_results = clampMaxResults(request.max_results)
     if (request.max_tokens_per_page !== undefined)
       body.max_tokens_per_page = request.max_tokens_per_page
     if (request.search_domain_filter)
@@ -117,6 +125,13 @@ export class PerplexitySearchClient {
         : [],
     }
   }
+}
+
+function clampMaxResults(maxResults: number): number {
+  if (!Number.isFinite(maxResults)) {
+    throw new Error('max_results must be a finite number.')
+  }
+  return Math.min(20, Math.max(1, Math.trunc(maxResults)))
 }
 
 function validateDomainFilter(filter: Array<string> | undefined): void {

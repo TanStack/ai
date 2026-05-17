@@ -63,6 +63,19 @@ describe('PerplexitySearchClient', () => {
     })
   })
 
+  it('falls back to env when explicit apiKey is blank', async () => {
+    const fetchMock = makeFetchMock({ results: [] })
+    const client = new PerplexitySearchClient({
+      apiKey: '   ',
+      fetch: fetchMock as any,
+    })
+
+    await client.search({ query: 'q' })
+
+    const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer test-key')
+  })
+
   it('forwards optional filters in the request body', async () => {
     const fetchMock = makeFetchMock({ results: [] })
     const client = new PerplexitySearchClient({ fetch: fetchMock as any })
@@ -110,8 +123,48 @@ describe('PerplexitySearchClient', () => {
     ).rejects.toThrow(/non-empty `query`/i)
   })
 
+  it('throws when query is whitespace only', async () => {
+    const fetchMock = makeFetchMock({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    await expect(client.search({ query: '   ' })).rejects.toThrow(
+      /non-empty `query`/i,
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('trims query and clamps max_results before forwarding', async () => {
+    const fetchMock = makeFetchMock({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    await client.search({ query: '  mars rover  ', max_results: 99 })
+
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string)
+    expect(body).toEqual({
+      query: 'mars rover',
+      max_results: 20,
+    })
+  })
+
+  it('clamps max_results to the minimum before forwarding', async () => {
+    const fetchMock = makeFetchMock({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    await client.search({ query: 'q', max_results: 0 })
+
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string)
+    expect(body.max_results).toBe(1)
+  })
+
   it('falls back to PPLX_API_KEY when PERPLEXITY_API_KEY is not set', async () => {
     delete process.env.PERPLEXITY_API_KEY
+    process.env.PPLX_API_KEY = 'fallback-key'
+    const fetchMock = makeFetchMock({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    await client.search({ query: 'q' })
+    const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer fallback-key')
+  })
+
+  it('ignores whitespace-only PERPLEXITY_API_KEY when PPLX_API_KEY is set', async () => {
+    process.env.PERPLEXITY_API_KEY = '   '
     process.env.PPLX_API_KEY = 'fallback-key'
     const fetchMock = makeFetchMock({ results: [] })
     const client = new PerplexitySearchClient({ fetch: fetchMock as any })

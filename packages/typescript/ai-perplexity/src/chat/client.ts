@@ -34,9 +34,14 @@ export function createPerplexityChatClient(
   config: PerplexityChatClientConfig = {},
 ): OpenAI {
   const { apiKey, baseURL, ...rest } = config
+  const resolvedApiKey =
+    typeof apiKey === 'string' && apiKey.trim().length > 0
+      ? apiKey
+      : getPerplexityApiKeyFromEnv()
+
   return new OpenAI({
     ...rest,
-    apiKey: apiKey ?? getPerplexityApiKeyFromEnv(),
+    apiKey: resolvedApiKey,
     baseURL: baseURL ?? DEFAULT_BASE_URL,
   })
 }
