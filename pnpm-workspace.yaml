@@ -1,6 +1,8 @@
 cleanupUnusedCatalogs: true
 linkWorkspacePackages: true
 preferWorkspacePackages: true
+blockExoticSubdeps: true
+trustPolicy: 'no-downgrade'
 
 # pnpm v11 dropped support for these fields in package.json — they must live
 # here. See https://github.com/pnpm/pnpm/releases/tag/v11.0.0.
