@@ -53,15 +53,28 @@ export type {
   RealtimeStateChangeCallback,
 } from './realtime-types'
 export {
-  fetchServerSentEvents,
   fetchHttpStream,
-  stream,
+  fetchServerSentEvents,
+  fetchWorkflowEvents,
   rpcStream,
+  stream,
   type ConnectConnectionAdapter,
   type ConnectionAdapter,
   type FetchConnectionOptions,
+  type FetchWorkflowEventsOptions,
   type SubscribeConnectionAdapter,
 } from './connection-adapters'
+
+export { WorkflowClient } from './workflow-client'
+export type {
+  WorkflowApproval,
+  WorkflowClientOptions,
+  WorkflowClientState,
+  WorkflowConnectionAdapter,
+  WorkflowError,
+  WorkflowStatus,
+  WorkflowStep,
+} from './workflow-client'
 
 // Re-export message converters from @tanstack/ai
 export {

@@ -1,15 +1,236 @@
 @import 'tailwindcss';
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,200..900,0..100,0..1;1,9..144,200..900,0..100,0..1&family=JetBrains+Mono:ital,wght@0,200..800;1,200..800&display=swap');
 
-body {
-  @apply m-0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
-    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@theme {
+  /* Editorial-brutalist palette: warm ink ground, bone cream type, single citron accent. */
+  --color-ink: #14110e;
+  --color-ink-soft: #1d1916;
+  --color-ink-line: #2a2520;
+  --color-cream: #f4ebe0;
+  --color-cream-soft: #ece1d2;
+  --color-bone: #e8dfd1;
+  --color-taupe: #93887a;
+  --color-taupe-deep: #6a5f53;
+  --color-citron: #ffce00;
+  --color-citron-deep: #d8ad00;
+  --color-rust: #c84b1c;
+  --color-moss: #a8b86b;
+
+  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --font-mono:
+    'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
 }
 
-code {
-  font-family:
-    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+@layer base {
+  html,
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-bone);
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+  }
+
+  body {
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-image:
+      radial-gradient(
+        ellipse 1200px 600px at 50% -10%,
+        rgba(255, 206, 0, 0.04),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 800px 400px at 100% 100%,
+        rgba(200, 75, 28, 0.03),
+        transparent 60%
+      );
+    min-height: 100dvh;
+  }
+
+  /* Subtle paper grain via SVG noise filter — sits under content. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.06;
+    mix-blend-mode: overlay;
+    z-index: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.6'/></svg>");
+  }
+
+  ::selection {
+    background-color: var(--color-citron);
+    color: var(--color-ink);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-ink-line);
+    border-radius: 0;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-taupe-deep);
+  }
+}
+
+/* ---------- Fraunces utility shorthands ---------- */
+.font-display-tight {
+  font-family: var(--font-display);
+  font-variation-settings:
+    'opsz' 144,
+    'SOFT' 30,
+    'WONK' 1;
+  letter-spacing: -0.025em;
+}
+
+.font-display-soft {
+  font-family: var(--font-display);
+  font-variation-settings:
+    'opsz' 24,
+    'SOFT' 100,
+    'WONK' 0;
+}
+
+.font-display-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-variation-settings:
+    'opsz' 144,
+    'SOFT' 80,
+    'WONK' 1;
+}
+
+/* ---------- Decorative rules ---------- */
+.rule-thick {
+  border: 0;
+  height: 4px;
+  background-color: var(--color-bone);
+}
+.rule-double {
+  border: 0;
+  height: 9px;
+  border-top: 1px solid var(--color-bone);
+  border-bottom: 1px solid var(--color-bone);
+}
+.rule-hair {
+  border: 0;
+  height: 1px;
+  background-color: var(--color-ink-line);
+}
+
+/* ---------- Tape / hazard band ---------- */
+.tape-citron {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--color-citron) 0 14px,
+    var(--color-ink) 14px 22px
+  );
+}
+
+/* ---------- Mono utilities ---------- */
+.label-mono {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Animations ---------- */
+@keyframes log-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.anim-log-in {
+  animation: log-fade-in 360ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
+}
+
+@keyframes citron-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.anim-citron-pulse {
+  animation: citron-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.anim-blink {
+  animation: blink 1s steps(1, end) infinite;
+}
+
+@keyframes slip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px) rotate(-0.4deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) rotate(-0.4deg);
+  }
+}
+.anim-slip-in {
+  animation: slip-in 420ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
+}
+
+@keyframes type-in {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+/* ===== shiki ============================================================
+   Style the CodeBlock wrapper so shiki's emitted <pre> picks up the project
+   monospace font, has consistent padding/margins inside the patch container,
+   and scrolls horizontally for long diff lines without breaking the layout.
+   ====================================================================== */
+.shiki-wrap pre.shiki {
+  margin: 0;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  tab-size: 2;
+}
+.shiki-wrap pre.shiki code {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }

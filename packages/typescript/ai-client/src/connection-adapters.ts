@@ -1,5 +1,6 @@
 import { EventType, uiMessagesToWire } from '@tanstack/ai'
 import type { ModelMessage, StreamChunk, UIMessage } from '@tanstack/ai'
+import type { WorkflowConnectionAdapter } from './workflow-client'
 
 function generateRunId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -571,6 +572,84 @@ export function rpcStream(
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
       yield* rpcCall(messages, data)
+    },
+  }
+}
+
+/**
+ * Options for the workflow fetch-based SSE connection adapter.
+ */
+export interface FetchWorkflowEventsOptions {
+  body?: Record<string, unknown>
+  credentials?: RequestCredentials
+  fetchClient?: typeof globalThis.fetch
+  headers?: Record<string, string> | Headers
+  signal?: AbortSignal
+}
+
+/**
+ * Create a Server-Sent Events connection adapter for workflow runs.
+ * Mirrors `fetchServerSentEvents` but typed for workflow body shape
+ * (input / runId / approval) instead of chat messages.
+ *
+ * @example
+ * ```typescript
+ * useWorkflow({ connection: fetchWorkflowEvents('/api/workflow') })
+ * ```
+ */
+export function fetchWorkflowEvents(
+  url: string | (() => string),
+  options:
+    | FetchWorkflowEventsOptions
+    | (() =>
+        | FetchWorkflowEventsOptions
+        | Promise<FetchWorkflowEventsOptions>) = {},
+): WorkflowConnectionAdapter {
+  return {
+    async *connect(body, abortSignal) {
+      const resolvedUrl = typeof url === 'function' ? url() : url
+      const resolvedOptions =
+        typeof options === 'function' ? await options() : options
+
+      const requestHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...mergeHeaders(resolvedOptions.headers),
+      }
+
+      const requestBody: Record<string, unknown> = {
+        ...(typeof body === 'object' && body !== null
+          ? (body as Record<string, unknown>)
+          : {}),
+        ...resolvedOptions.body,
+      }
+
+      const fetchClient = resolvedOptions.fetchClient ?? fetch
+      const response = await fetchClient(resolvedUrl, {
+        body: JSON.stringify(requestBody),
+        credentials: resolvedOptions.credentials ?? 'same-origin',
+        headers: requestHeaders,
+        method: 'POST',
+        signal: abortSignal ?? resolvedOptions.signal,
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('Response body is not readable')
+      }
+
+      for await (const line of readStreamLines(reader, abortSignal)) {
+        const data = line.startsWith('data: ') ? line.slice(6) : line
+        if (!data) continue
+        try {
+          yield JSON.parse(data)
+        } catch {
+          // skip malformed lines
+        }
+      }
     },
   }
 }
