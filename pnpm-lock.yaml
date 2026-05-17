@@ -1387,6 +1387,22 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
+  packages/typescript/ai-perplexity:
+    dependencies:
+      openai:
+        specifier: ^6.9.1
+        version: 6.10.0(ws@8.19.0)(zod@4.3.6)
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:^
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(vitest@4.1.4)
+      vite:
+        specifier: ^7.2.7
+        version: 7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/typescript/ai-preact:
     dependencies:
       '@tanstack/ai':
@@ -16941,7 +16957,7 @@ snapshots:
       cheerio: 1.1.2
       exsolve: 1.0.8
       pathe: 2.0.3
-      srvx: 0.11.2
+      srvx: 0.11.15
       tinyglobby: 0.2.16
       ufo: 1.6.3
       vite: 7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
@@ -16971,7 +16987,7 @@ snapshots:
       cheerio: 1.1.2
       exsolve: 1.0.8
       pathe: 2.0.3
-      srvx: 0.11.2
+      srvx: 0.11.15
       tinyglobby: 0.2.16
       ufo: 1.6.3
       vite: 7.2.7(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
@@ -17001,7 +17017,7 @@ snapshots:
       cheerio: 1.1.2
       exsolve: 1.0.8
       pathe: 2.0.3
-      srvx: 0.11.2
+      srvx: 0.11.15
       tinyglobby: 0.2.16
       ufo: 1.6.3
       vite: 7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
@@ -17859,7 +17875,7 @@ snapshots:
       '@vue/shared': 3.5.25
       estree-walker: 2.0.2
       magic-string: 0.30.21
-      postcss: 8.5.6
+      postcss: 8.5.9
       source-map-js: 1.2.1
 
   '@vue/compiler-ssr@3.5.25':
@@ -23908,8 +23924,8 @@ snapshots:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
-      postcss: 8.5.6
-      rollup: 4.57.1
+      postcss: 8.5.9
+      rollup: 4.60.1
       tinyglobby: 0.2.16
     optionalDependencies:
       '@types/node': 24.10.3
@@ -23939,12 +23955,12 @@ snapshots:
 
   vite@7.3.1(@types/node@24.10.3)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2):
     dependencies:
-      esbuild: 0.27.3
-      fdir: 6.5.0(picomatch@4.0.3)
-      picomatch: 4.0.3
-      postcss: 8.5.6
-      rollup: 4.57.1
-      tinyglobby: 0.2.15
+      esbuild: 0.27.7
+      fdir: 6.5.0(picomatch@4.0.4)
+      picomatch: 4.0.4
+      postcss: 8.5.9
+      rollup: 4.60.1
+      tinyglobby: 0.2.16
     optionalDependencies:
       '@types/node': 24.10.3
       fsevents: 2.3.3
@@ -24316,7 +24332,7 @@ snapshots:
       '@poppinss/colors': 4.1.6
       '@poppinss/dumper': 0.6.5
       '@speed-highlight/core': 1.2.12
-      cookie-es: 2.0.0
+      cookie-es: 2.0.1
       youch-core: 0.3.3
 
   zimmerframe@1.1.4: {}
