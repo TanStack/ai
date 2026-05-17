@@ -5,6 +5,7 @@ import {
   toolsToBindings,
 } from './bindings/tool-to-binding'
 import { stripTypeScript } from './strip-typescript'
+import { warnIfBindingsExposeSecrets } from './validate-bindings'
 import type { ServerTool, ToolExecutionContext } from '@tanstack/ai'
 import type {
   CodeModeTool,
@@ -93,6 +94,7 @@ export function createCodeModeTool(
     timeout = 30000,
     memoryLimit = 128,
     getSkillBindings,
+    onSecretParameter,
   } = config
 
   // Validate tools
@@ -102,6 +104,15 @@ export function createCodeModeTool(
 
   // Transform tools to bindings with external_ prefix (static bindings)
   const staticBindings = toolsToBindings(tools, 'external_')
+
+  // Shared across static + dynamic (skill) binding scans so a given
+  // (toolName, paramPath) pair surfaces at most once per code-mode instance.
+  const secretDedupCache = new Set<string>()
+
+  warnIfBindingsExposeSecrets(Object.values(staticBindings), {
+    handler: onSecretParameter,
+    dedupCache: secretDedupCache,
+  })
 
   // Create the tool definition
   const definition = toolDefinition({
@@ -159,6 +170,17 @@ export function createCodeModeTool(
 
         // Step 2: Get dynamic skill bindings if available
         const skillBindings = getSkillBindings ? await getSkillBindings() : {}
+
+        // Scan dynamic bindings too — their schemas are equally in-scope for
+        // the same exfiltration threat. Dedup cache prevents repeat warnings
+        // when the same binding reappears across executions.
+        const skillBindingValues = Object.values(skillBindings)
+        if (skillBindingValues.length > 0) {
+          warnIfBindingsExposeSecrets(skillBindingValues, {
+            handler: onSecretParameter,
+            dedupCache: secretDedupCache,
+          })
+        }
 
         // Step 3: Merge static and dynamic bindings, then wrap with event awareness
         const allBindings = { ...staticBindings, ...skillBindings }
