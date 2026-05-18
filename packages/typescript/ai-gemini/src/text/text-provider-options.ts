@@ -218,28 +218,29 @@ Cyclic references are unrolled to a limited degree and, as such, may only be use
 
 export interface GeminiThinkingOptions {
   /**
-   * Config for thinking features. An error will be returned if this field is set for models that don't support thinking.
+   * Config for thinking features. An error will be returned if this field is
+   * set for models that don't support thinking.
+   *
+   * All fields are optional so the same shape can be used for both budget-based
+   * thinking (Gemini 2.x: `includeThoughts` + `thinkingBudget`) and the newer
+   * level-based thinking (Gemini 3.x: `thinkingLevel`). The adapter reads
+   * whichever fields are present at runtime.
    */
   thinkingConfig?: {
     /**
-     * Indicates whether to include thoughts in the response. If true, thoughts are returned only when available.
+     * Indicates whether to include thoughts in the response. If true, thoughts
+     * are returned only when available.
      */
-    includeThoughts: boolean
+    includeThoughts?: boolean
 
     /**
      * The number of thoughts tokens that the model should generate.
      */
     thinkingBudget?: number
-  }
-}
 
-export interface GeminiThinkingAdvancedOptions {
-  /**
-   * Config for thinking features. An error will be returned if this field is set for models that don't support thinking.
-   */
-  thinkingConfig?: {
     /**
-     * The level of thoughts tokens that the model should generate.
+     * The level of thoughts tokens that the model should generate
+     * (Gemini 3.x and later).
      */
     thinkingLevel?: keyof typeof ThinkingLevel
   }
@@ -250,5 +251,4 @@ export type ExternalTextProviderOptions = GeminiToolConfigOptions &
   GeminiCommonConfigOptions &
   GeminiCachedContentOptions &
   GeminiThinkingOptions &
-  GeminiThinkingAdvancedOptions &
   GeminiStructuredOutputOptions

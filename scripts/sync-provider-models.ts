@@ -123,9 +123,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     capabilities: ['batch_api', 'caching', 'function_calling', 'structured_output', 'thinking'],
     tools: ['code_execution', 'file_search', 'google_search', 'url_context'],`,
     referenceSatisfies:
-      'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions>',
+      'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions>',
     referenceProviderOptionsEntry:
-      'GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions & GeminiThinkingAdvancedOptions',
+      'GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions',
     hasBothNameAndId: false,
     providerOptionsIsMappedType: false,
     skipPatterns: [
