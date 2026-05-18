@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type OpenAI from 'openai'
+import { EventType } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
 const testLogger = resolveDebugOption(false)
 
 // Declare mockCreate at module level
-let mockResponsesCreate: ReturnType<typeof vi.fn>
+let mockResponsesCreate: ReturnType<typeof vi.fn<(...args: Array<any>) => any>>
 
 /** Build a stub OpenAI client whose `responses.create` defers to the
  *  module-level `mockResponsesCreate`. Reassigning the mock inside a test
@@ -275,14 +276,14 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(eventTypes[0]).toBe('RUN_STARTED')
 
       // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
-      const textStartIndex = eventTypes.indexOf('TEXT_MESSAGE_START')
-      const textContentIndex = eventTypes.indexOf('TEXT_MESSAGE_CONTENT')
+      const textStartIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+      const textContentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
       expect(textStartIndex).toBeGreaterThan(-1)
       expect(textContentIndex).toBeGreaterThan(textStartIndex)
 
       // Should have TEXT_MESSAGE_END before RUN_FINISHED
-      const textEndIndex = eventTypes.indexOf('TEXT_MESSAGE_END')
-      const runFinishedIndex = eventTypes.indexOf('RUN_FINISHED')
+      const textEndIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+      const runFinishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
       expect(textEndIndex).toBeGreaterThan(-1)
       expect(runFinishedIndex).toBeGreaterThan(textEndIndex)
 
@@ -475,7 +476,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const eventTypes = chunks.map((c) => c.type)
 
       // Should have STEP_STARTED for reasoning
-      const stepStartIndex = eventTypes.indexOf('STEP_STARTED')
+      const stepStartIndex = eventTypes.indexOf(EventType.STEP_STARTED)
       expect(stepStartIndex).toBeGreaterThan(-1)
 
       const stepStart = chunks[stepStartIndex]
@@ -1213,8 +1214,8 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(eventTypes).toContain('TEXT_MESSAGE_CONTENT')
 
       // TEXT_MESSAGE_START should be before TEXT_MESSAGE_CONTENT
-      const startIdx = eventTypes.indexOf('TEXT_MESSAGE_START')
-      const contentIdx = eventTypes.indexOf('TEXT_MESSAGE_CONTENT')
+      const startIdx = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+      const contentIdx = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
       expect(startIdx).toBeLessThan(contentIdx)
     })
 
@@ -1315,9 +1316,9 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         chunks.push(chunk)
       }
       const types = chunks.map((c) => c.type)
-      const startIdx = types.indexOf('TEXT_MESSAGE_START')
-      const contentIdx = types.indexOf('TEXT_MESSAGE_CONTENT')
-      const endIdx = types.indexOf('TEXT_MESSAGE_END')
+      const startIdx = types.indexOf(EventType.TEXT_MESSAGE_START)
+      const contentIdx = types.indexOf(EventType.TEXT_MESSAGE_CONTENT)
+      const endIdx = types.indexOf(EventType.TEXT_MESSAGE_END)
       expect(startIdx).toBeGreaterThanOrEqual(0)
       expect(contentIdx).toBeGreaterThan(startIdx)
       expect(endIdx).toBeGreaterThan(contentIdx)
@@ -1373,7 +1374,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
       expect(runErrorChunk).toBeDefined()
       if (runErrorChunk?.type === 'RUN_ERROR') {
-        expect(runErrorChunk.error.message).toBe('Stream interrupted')
+        expect(runErrorChunk.error!.message).toBe('Stream interrupted')
       }
     })
 
@@ -1398,7 +1399,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(chunks[0]?.type).toBe('RUN_STARTED')
       expect(chunks[1]?.type).toBe('RUN_ERROR')
       if (chunks[1]?.type === 'RUN_ERROR') {
-        expect(chunks[1].error.message).toBe('API key invalid')
+        expect(chunks[1].error!.message).toBe('API key invalid')
       }
     })
 
@@ -1433,7 +1434,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
       expect(errorChunk).toBeDefined()
       if (errorChunk?.type === 'RUN_ERROR') {
-        expect(errorChunk.error.message).toBe('Content policy violation')
+        expect(errorChunk.error!.message).toBe('Content policy violation')
       }
     })
 
@@ -1468,7 +1469,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(errorChunks.length).toBeGreaterThan(0)
       const incompleteError = errorChunks.find(
         (c) =>
-          c.type === 'RUN_ERROR' && c.error.message === 'max_output_tokens',
+          c.type === 'RUN_ERROR' && c.error!.message === 'max_output_tokens',
       )
       expect(incompleteError).toBeDefined()
     })
@@ -1504,11 +1505,11 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       const errorChunk = chunks.find(
         (c) =>
-          c.type === 'RUN_ERROR' && c.error.message === 'Rate limit exceeded',
+          c.type === 'RUN_ERROR' && c.error!.message === 'Rate limit exceeded',
       )
       expect(errorChunk).toBeDefined()
       if (errorChunk?.type === 'RUN_ERROR') {
-        expect(errorChunk.error.code).toBe('rate_limit')
+        expect(errorChunk.error!.code).toBe('rate_limit')
       }
     })
   })
@@ -1775,7 +1776,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       }
 
       expect(mockResponsesCreate).toHaveBeenCalledTimes(1)
-      const [payload] = mockResponsesCreate.mock.calls[0]
+      const [payload] = mockResponsesCreate.mock.calls[0]!
 
       // Verify Responses API field names
       expect(payload).toMatchObject({
@@ -1837,7 +1838,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         chunks.push(chunk)
       }
 
-      const [payload] = mockResponsesCreate.mock.calls[0]
+      const [payload] = mockResponsesCreate.mock.calls[0]!
       expect(payload.input).toEqual([
         {
           type: 'message',
@@ -1905,7 +1906,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         chunks.push(chunk)
       }
 
-      const [payload] = mockResponsesCreate.mock.calls[0]
+      const [payload] = mockResponsesCreate.mock.calls[0]!
       // Should have function_call, message, and function_call_output
       expect(payload.input).toEqual(
         expect.arrayContaining([

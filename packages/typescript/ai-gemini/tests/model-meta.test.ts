@@ -12,14 +12,24 @@ import type {
   GeminiCommonConfigOptions,
   GeminiCachedContentOptions,
 } from '../src/text/text-provider-options'
+import type { GeminiMessageMetadataByModality } from '../src/message-types'
 import type {
   AudioPart,
   ConstrainedModelMessage,
   DocumentPart,
   ImagePart,
+  Modality,
   TextPart,
   VideoPart,
 } from '@tanstack/ai'
+
+/**
+ * Helper type to construct InputModalitiesTypes from modalities array and metadata.
+ */
+type MakeInputModalitiesTypes<TModalities extends ReadonlyArray<Modality>> = {
+  inputModalities: TModalities
+  messageMetadataByModality: GeminiMessageMetadataByModality
+}
 
 /**
  * Type assertion tests for Gemini model provider options.
@@ -53,7 +63,7 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
 
       // Verify specific properties exist
-      expectTypeOf<Options>().toHaveProperty('generationConfig')
+      expectTypeOf<Options>().toHaveProperty('stopSequences')
       expectTypeOf<Options>().toHaveProperty('safetySettings')
       expectTypeOf<Options>().toHaveProperty('toolConfig')
       expectTypeOf<Options>().toHaveProperty('cachedContent')
@@ -75,7 +85,7 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
 
       // Verify specific properties exist
-      expectTypeOf<Options>().toHaveProperty('generationConfig')
+      expectTypeOf<Options>().toHaveProperty('stopSequences')
       expectTypeOf<Options>().toHaveProperty('safetySettings')
       expectTypeOf<Options>().toHaveProperty('toolConfig')
       expectTypeOf<Options>().toHaveProperty('cachedContent')
@@ -167,7 +177,7 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
 
       // Verify specific properties exist
-      expectTypeOf<Options>().toHaveProperty('generationConfig')
+      expectTypeOf<Options>().toHaveProperty('stopSequences')
       expectTypeOf<Options>().toHaveProperty('safetySettings')
       expectTypeOf<Options>().toHaveProperty('toolConfig')
       expectTypeOf<Options>().toHaveProperty('cachedContent')
@@ -235,7 +245,7 @@ describe('Gemini Model Provider Options Type Assertions', () => {
 
       // The generationConfig should include thinkingConfig from GeminiCommonConfigOptions
       // which intersects with GeminiThinkingOptions
-      expectTypeOf<Options>().toHaveProperty('generationConfig')
+      expectTypeOf<Options>().toHaveProperty('stopSequences')
     })
 
     it('structured output options should have responseMimeType and responseSchema', () => {
@@ -436,88 +446,95 @@ describe('Gemini Model Provider Options Type Assertions', () => {
  * - gemini-2.0-flash (and lite)
  */
 describe('Gemini Model Input Modality Type Assertions', () => {
-  // Helper type for creating a user message with specific content
+  // Helper types using provider-specific metadata.
+  type GeminiTextPart = TextPart<GeminiMessageMetadataByModality['text']>
+  type GeminiImagePart = ImagePart<GeminiMessageMetadataByModality['image']>
+  type GeminiAudioPart = AudioPart<GeminiMessageMetadataByModality['audio']>
+  type GeminiVideoPart = VideoPart<GeminiMessageMetadataByModality['video']>
+  type GeminiDocumentPart = DocumentPart<
+    GeminiMessageMetadataByModality['document']
+  >
   type MessageWithContent<T> = { role: 'user'; content: Array<T> }
 
   // ===== Full Multimodal Models (text + image + audio + video + document) =====
 
   describe('gemini-3-pro-preview (full multimodal)', () => {
     type Modalities = GeminiModelInputModalitiesByName['gemini-3-pro-preview']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow all content part types', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiAudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiVideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().toExtend<Message>()
     })
   })
 
   describe('gemini-3-flash-preview (full multimodal)', () => {
     type Modalities = GeminiModelInputModalitiesByName['gemini-3-flash-preview']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow all content part types', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiAudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiVideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().toExtend<Message>()
     })
   })
 
   describe('gemini-2.5-pro (full multimodal)', () => {
     type Modalities = GeminiModelInputModalitiesByName['gemini-2.5-pro']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow all content part types', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiAudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiVideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().toExtend<Message>()
     })
   })
 
   describe('gemini-3.1-flash-lite-preview (full multimodal)', () => {
     type Modalities =
       GeminiModelInputModalitiesByName['gemini-3.1-flash-lite-preview']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow all content part types', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiAudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiVideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().toExtend<Message>()
     })
   })
 
   describe('gemini-2.5-flash-lite (full multimodal)', () => {
     type Modalities = GeminiModelInputModalitiesByName['gemini-2.5-flash-lite']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow all content part types', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiAudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiVideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().toExtend<Message>()
     })
   })
 
   describe('gemini-2.5-flash-lite-preview-09-2025 (full multimodal)', () => {
     type Modalities =
       GeminiModelInputModalitiesByName['gemini-2.5-flash-lite-preview-09-2025']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow all content part types', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiAudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiVideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().toExtend<Message>()
     })
   })
 
@@ -525,66 +542,66 @@ describe('Gemini Model Input Modality Type Assertions', () => {
 
   describe('gemini-2.5-flash (no document)', () => {
     type Modalities = GeminiModelInputModalitiesByName['gemini-2.5-flash']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, AudioPart, and VideoPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiAudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiVideoPart>>().toExtend<Message>()
     })
 
     it('should NOT allow DocumentPart', () => {
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().not.toExtend<Message>()
     })
   })
 
   describe('gemini-2.5-flash-preview-09-2025 (no document)', () => {
     type Modalities =
       GeminiModelInputModalitiesByName['gemini-2.5-flash-preview-09-2025']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, AudioPart, and VideoPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiAudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiVideoPart>>().toExtend<Message>()
     })
 
     it('should NOT allow DocumentPart', () => {
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().not.toExtend<Message>()
     })
   })
 
   describe('gemini-2.0-flash (no document)', () => {
     type Modalities = GeminiModelInputModalitiesByName['gemini-2.0-flash']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, AudioPart, and VideoPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiAudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiVideoPart>>().toExtend<Message>()
     })
 
     it('should NOT allow DocumentPart', () => {
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().not.toExtend<Message>()
     })
   })
 
   describe('gemini-2.0-flash-lite (no document)', () => {
     type Modalities = GeminiModelInputModalitiesByName['gemini-2.0-flash-lite']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, AudioPart, and VideoPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AudioPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiImagePart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiAudioPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiVideoPart>>().toExtend<Message>()
     })
 
     it('should NOT allow DocumentPart', () => {
-      expectTypeOf<MessageWithContent<DocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().not.toExtend<Message>()
     })
   })
 })

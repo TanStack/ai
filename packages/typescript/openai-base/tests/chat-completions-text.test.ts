@@ -1,26 +1,48 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
-import type OpenAI from 'openai'
+import OpenAI from 'openai'
+import { EventType } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
 const testLogger = resolveDebugOption(false)
 
-// Declare mockCreate at module level
-let mockCreate: ReturnType<typeof vi.fn>
+/**
+ * Signature of the OpenAI SDK's `chat.completions.create`. We could mirror
+ * the SDK type directly via `OpenAI.Chat.Completions['create']`, but the
+ * union of streaming / non-streaming overloads is awkward to instantiate
+ * with `mockImplementation`. A narrowed signature that accepts the request
+ * params + request options and returns `unknown` is enough for the test —
+ * actual return shapes are validated by the AG-UI events emitted from the
+ * adapter, not by SDK type structural checks.
+ */
+type MockChatCompletionCreate = (
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParams,
+  options?: OpenAI.RequestOptions,
+) => unknown
 
-/** Build a stub OpenAI client whose `chat.completions.create` defers to the
- *  module-level `mockCreate`. Reassigning `mockCreate` inside a test still
- *  takes effect because the stub looks it up at call time. */
+// Declare mockCreate at module level
+let mockCreate: ReturnType<typeof vi.fn<MockChatCompletionCreate>>
+
+/**
+ * Build a real `OpenAI` SDK client and monkey-patch its
+ * `chat.completions.create` to forward to the module-level `mockCreate`.
+ * Going through a real `new OpenAI(...)` instance keeps the field type
+ * exactly `OpenAI` — no `as unknown as OpenAI` cast — and still lets tests
+ * reassign `mockCreate` between cases because the patched method looks it
+ * up at call time.
+ */
 function makeStubClient(): OpenAI {
-  return {
-    chat: {
-      completions: {
-        create: (params: unknown, options: unknown) =>
-          mockCreate(params, options),
-      },
-    },
-  } as unknown as OpenAI
+  const client = new OpenAI({ apiKey: 'test-api-key' })
+  // Monkey-patch the overloaded `create` method. The SDK's overload
+  // union makes a plain function assignment incompatible, so we pin the
+  // patched function to the inherited method's exact type — narrowing,
+  // not widening, and no `any` involved.
+  client.chat.completions.create = ((
+    params: OpenAI.Chat.Completions.ChatCompletionCreateParams,
+    options?: OpenAI.RequestOptions,
+  ) => mockCreate(params, options)) as typeof client.chat.completions.create
+  return client
 }
 
 /**
@@ -276,14 +298,14 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       expect(eventTypes[0]).toBe('RUN_STARTED')
 
       // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
-      const textStartIndex = eventTypes.indexOf('TEXT_MESSAGE_START')
-      const textContentIndex = eventTypes.indexOf('TEXT_MESSAGE_CONTENT')
+      const textStartIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+      const textContentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
       expect(textStartIndex).toBeGreaterThan(-1)
       expect(textContentIndex).toBeGreaterThan(textStartIndex)
 
       // Should have TEXT_MESSAGE_END before RUN_FINISHED
-      const textEndIndex = eventTypes.indexOf('TEXT_MESSAGE_END')
-      const runFinishedIndex = eventTypes.indexOf('RUN_FINISHED')
+      const textEndIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+      const runFinishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
       expect(textEndIndex).toBeGreaterThan(-1)
       expect(runFinishedIndex).toBeGreaterThan(textEndIndex)
 
@@ -574,7 +596,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
       expect(runErrorChunk).toBeDefined()
       if (runErrorChunk?.type === 'RUN_ERROR') {
-        expect(runErrorChunk.error.message).toBe('Stream interrupted')
+        expect(runErrorChunk.error!.message).toBe('Stream interrupted')
       }
     })
 
@@ -597,7 +619,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       expect(chunks[0]?.type).toBe('RUN_STARTED')
       expect(chunks[1]?.type).toBe('RUN_ERROR')
       if (chunks[1]?.type === 'RUN_ERROR') {
-        expect(chunks[1].error.message).toBe('API key invalid')
+        expect(chunks[1].error!.message).toBe('API key invalid')
       }
     })
   })
@@ -680,9 +702,12 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
         },
       })
 
+      // `result.data` is typed as `unknown` from the schema-less call;
+      // narrow it to the shape this test produces.
+      const data = result.data as { name?: string; nickname?: string }
       // null should be transformed to undefined
-      expect((result.data as any).name).toBe('Alice')
-      expect((result.data as any).nickname).toBeUndefined()
+      expect(data.name).toBe('Alice')
+      expect(data.nickname).toBeUndefined()
     })
 
     it('throws on invalid JSON response', async () => {
@@ -933,7 +958,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       })
 
       // Structured output call should NOT have stream_options
-      const callArgs = mockCreate.mock.calls[0]?.[0]
+      const callArgs = mockCreate.mock.calls[0]![0]
       expect(callArgs.stream).toBe(false)
       expect(callArgs.stream_options).toBeUndefined()
     })
@@ -971,12 +996,12 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       }
 
       // Verify second argument contains headers and signal
-      const requestOptions = mockCreate.mock.calls[0]?.[1]
+      const requestOptions = mockCreate.mock.calls[0]![1]
       expect(requestOptions).toBeDefined()
-      expect(requestOptions.headers).toEqual({
+      expect(requestOptions!.headers).toEqual({
         'X-Custom-Header': 'test-value',
       })
-      expect(requestOptions.signal).toBe(controller.signal)
+      expect(requestOptions!.signal).toBe(controller.signal)
     })
   })
 })

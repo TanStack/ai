@@ -180,7 +180,7 @@ describe('useChat({ outputSchema }) — runtime', () => {
       ([c]) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
     )
     expect(completeCalls.length).toBe(1)
-    expect(completeCalls[0][0].value).toEqual({ object: person, raw: json })
+    expect(completeCalls[0]![0].value).toEqual({ object: person, raw: json })
 
     const deltaCalls = onChunk.mock.calls.filter(
       ([c]) => c.type === 'TEXT_MESSAGE_CONTENT',
@@ -227,13 +227,17 @@ describe('useChat() without outputSchema — runtime', () => {
     await waitFor(() => {
       expect(result.current.messages.length).toBeGreaterThan(0)
     })
-    // The return object doesn't expose partial/final at the type level — and
-    // the runtime branch in onChunk is gated on `outputSchema !== undefined`
-    // so the internal state never updates. (Runtime access is the only way
-    // to verify the no-op branch.)
-    expect(
-      (result.current as unknown as { partial?: unknown }).partial,
-    ).toEqual({})
-    expect((result.current as unknown as { final?: unknown }).final).toBeNull()
+    // The return object doesn't expose `partial`/`final` at the type level
+    // (the discriminated `UseChatReturn` only adds them when `outputSchema` is
+    // supplied), and the runtime branch in onChunk is gated on
+    // `outputSchema !== undefined` so the internal state never updates.
+    // Runtime access is the only way to verify the no-op branch. TS cannot
+    // express "this object happens to also carry these fields at runtime
+    // even though the type says it doesn't", so a single bridge cast to
+    // `unknown` is the minimum legal escape.
+    const runtimeView: { partial?: unknown; final?: unknown } =
+      result.current as unknown as { partial?: unknown; final?: unknown }
+    expect(runtimeView.partial).toEqual({})
+    expect(runtimeView.final).toBeNull()
   })
 })

@@ -12,6 +12,7 @@ import {
   createGroqText as _realCreateGroqText,
   groqText as _realGroqText,
 } from '../src/adapters/text'
+import { EventType } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
 // Test helper: a silent logger for test chatStream calls.
@@ -471,7 +472,7 @@ describe('Groq AG-UI event emission', () => {
     const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
-      expect(runErrorChunk.error.message).toBe('Stream interrupted')
+      expect(runErrorChunk.error!.message).toBe('Stream interrupted')
     }
   })
 
@@ -525,14 +526,14 @@ describe('Groq AG-UI event emission', () => {
     expect(eventTypes[0]).toBe('RUN_STARTED')
 
     // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
-    const textStartIndex = eventTypes.indexOf('TEXT_MESSAGE_START')
-    const textContentIndex = eventTypes.indexOf('TEXT_MESSAGE_CONTENT')
+    const textStartIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+    const textContentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
     expect(textStartIndex).toBeGreaterThan(-1)
     expect(textContentIndex).toBeGreaterThan(textStartIndex)
 
     // Should have TEXT_MESSAGE_END before RUN_FINISHED
-    const textEndIndex = eventTypes.indexOf('TEXT_MESSAGE_END')
-    const runFinishedIndex = eventTypes.indexOf('RUN_FINISHED')
+    const textEndIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+    const runFinishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
     expect(textEndIndex).toBeGreaterThan(-1)
     expect(runFinishedIndex).toBeGreaterThan(textEndIndex)
 

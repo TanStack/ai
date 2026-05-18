@@ -1,7 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import { generateToolWrappers, wrapCode } from '../src/worker/wrap-code'
-import type { ToolResultPayload, ToolSchema } from '../src/types'
+import type {
+  ExecuteResponse,
+  ToolResultPayload,
+  ToolSchema,
+} from '../src/types'
 import workerModule from '../src/worker/index'
+
+/**
+ * Error envelope returned by the outer worker for invalid requests (e.g.
+ * non-POST methods or missing `code`). Not part of `ExecuteResponse` — these
+ * are short-circuit responses produced before `executeCode` is called.
+ */
+interface SimpleErrorResponse {
+  error: string
+}
+
+/**
+ * Single trust-boundary cast: the Fetch API types `Response.json()` as
+ * `Promise<unknown>`, but tests know the worker's response shape from the
+ * source. This helper is the ONLY place where we assert that shape; all
+ * callers get a properly typed value back without sprinkling `as` casts at
+ * each call site.
+ */
+async function readJson<T>(response: Response): Promise<T> {
+  // Trust boundary: Response.json() returns unknown; tests own the shape.
+  return (await response.json()) as T
+}
 
 const worker = workerModule as {
   fetch: (
@@ -170,7 +195,7 @@ describe('Worker fetch handler', () => {
     const response = await worker.fetch(request, {}, mockExecutionContext)
 
     expect(response.status).toBe(405)
-    const json = await response.json()
+    const json = await readJson<SimpleErrorResponse>(response)
     expect(json).toHaveProperty('error', 'Method not allowed')
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
   })
@@ -184,7 +209,7 @@ describe('Worker fetch handler', () => {
     const response = await worker.fetch(request, {}, mockExecutionContext)
 
     expect(response.status).toBe(400)
-    const json = await response.json()
+    const json = await readJson<SimpleErrorResponse>(response)
     expect(json).toHaveProperty('error', 'Code is required')
   })
 
@@ -200,7 +225,9 @@ describe('Worker fetch handler', () => {
     const response = await worker.fetch(request, {}, mockExecutionContext)
 
     expect(response.status).toBe(200)
-    const json = await response.json()
+    const json = await readJson<Extract<ExecuteResponse, { status: 'error' }>>(
+      response,
+    )
     expect(json.status).toBe('error')
     expect(json.error.name).toBe('WorkerLoaderNotAvailable')
     expect(json.error.message).toContain('LOADER')
@@ -260,7 +287,9 @@ describe('Worker fetch handler', () => {
     expect(capturedOptions!.modules['main.js']).toContain('export default')
     expect(capturedOptions!.globalOutbound).toBeNull()
     expect(response.status).toBe(200)
-    const json = await response.json()
+    const json = await readJson<Extract<ExecuteResponse, { status: 'done' }>>(
+      response,
+    )
     expect(json.status).toBe('done')
     expect(json.success).toBe(true)
     expect(json.value).toBe(42)
@@ -297,10 +326,12 @@ describe('Worker fetch handler', () => {
     const response = await worker.fetch(request, env, mockExecutionContext)
 
     expect(response.status).toBe(200)
-    const json = await response.json()
+    const json = await readJson<
+      Extract<ExecuteResponse, { status: 'need_tools' }>
+    >(response)
     expect(json.status).toBe('need_tools')
     expect(json.toolCalls).toHaveLength(1)
-    expect(json.toolCalls[0].name).toBe('fetchData')
+    expect(json.toolCalls[0]!.name).toBe('fetchData')
     expect(typeof json.continuationId).toBe('string')
   })
 
@@ -341,7 +372,9 @@ describe('Worker fetch handler', () => {
     expect(receivedSignal!.aborted).toBe(true)
 
     expect(response.status).toBe(200)
-    const json = await response.json()
+    const json = await readJson<Extract<ExecuteResponse, { status: 'error' }>>(
+      response,
+    )
     expect(json.status).toBe('error')
     expect(json.error.name).toBe('TimeoutError')
     expect(json.error.message).toContain('50ms')
@@ -356,7 +389,9 @@ describe('Worker fetch handler', () => {
     const response = await worker.fetch(request, {}, mockExecutionContext)
 
     expect(response.status).toBe(500)
-    const json = await response.json()
+    const json = await readJson<Extract<ExecuteResponse, { status: 'error' }>>(
+      response,
+    )
     expect(json.status).toBe('error')
     expect(json.error.name).toBe('RequestError')
   })

@@ -82,8 +82,8 @@ describe('OpenAI adapter option mapping', () => {
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
       adapter,
+      systemPrompts: ['Stay concise'],
       messages: [
-        { role: 'system', content: 'Stay concise' },
         { role: 'user', content: 'How is the weather?' },
         {
           role: 'assistant',
@@ -109,7 +109,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     expect(responsesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = responsesCreate.mock.calls[0]
+    const [payload] = responsesCreate.mock.calls[0]!
 
     // Responses API uses different field names and structure
     expect(payload).toMatchObject({

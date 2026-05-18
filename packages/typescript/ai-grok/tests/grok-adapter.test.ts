@@ -3,6 +3,7 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createGrokText, grokText } from '../src/adapters/text'
 import { createGrokImage, grokImage } from '../src/adapters/image'
 import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
+import { EventType } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
 // Test helper: a silent logger for test chatStream calls.
@@ -85,11 +86,11 @@ describe('Grok adapters', () => {
     it('creates a text adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokText('grok-4-0709')
+      const adapter = grokText('grok-4')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
-      expect(adapter.model).toBe('grok-4-0709')
+      expect(adapter.model).toBe('grok-4')
     })
 
     it('throws if XAI_API_KEY is not set when using grokText', () => {
@@ -148,7 +149,7 @@ describe('Grok adapters', () => {
     it('creates a summarize adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokSummarize('grok-4-0709')
+      const adapter = grokSummarize('grok-4')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('summarize')
@@ -490,7 +491,7 @@ describe('Grok AG-UI event emission', () => {
     const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(runErrorChunk).toBeDefined()
     if (runErrorChunk?.type === 'RUN_ERROR') {
-      expect(runErrorChunk.error.message).toBe('Stream interrupted')
+      expect(runErrorChunk.error!.message).toBe('Stream interrupted')
     }
   })
 
@@ -542,14 +543,14 @@ describe('Grok AG-UI event emission', () => {
     expect(eventTypes[0]).toBe('RUN_STARTED')
 
     // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
-    const textStartIndex = eventTypes.indexOf('TEXT_MESSAGE_START')
-    const textContentIndex = eventTypes.indexOf('TEXT_MESSAGE_CONTENT')
+    const textStartIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+    const textContentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
     expect(textStartIndex).toBeGreaterThan(-1)
     expect(textContentIndex).toBeGreaterThan(textStartIndex)
 
     // Should have TEXT_MESSAGE_END before RUN_FINISHED
-    const textEndIndex = eventTypes.indexOf('TEXT_MESSAGE_END')
-    const runFinishedIndex = eventTypes.indexOf('RUN_FINISHED')
+    const textEndIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+    const runFinishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
     expect(textEndIndex).toBeGreaterThan(-1)
     expect(runFinishedIndex).toBeGreaterThan(textEndIndex)
 

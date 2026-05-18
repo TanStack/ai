@@ -112,7 +112,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
     expect(payload.model).toBe('gemini-2.5-pro')
     expect(payload.config).toMatchObject({
       temperature: 0.4,
@@ -171,34 +171,32 @@ describe('GeminiAdapter through AI', () => {
 
     const providerOptions: GeminiTextProviderOptions = {
       safetySettings,
-      generationConfig: {
-        stopSequences: ['<done>', '###'],
-        responseMimeType: 'application/json',
-        responseSchema,
-        responseJsonSchema,
-        responseModalities: ['TEXT'],
-        candidateCount: 2,
-        topK: 6,
-        seed: 7,
-        presencePenalty: 0.2,
-        frequencyPenalty: 0.4,
-        responseLogprobs: true,
-        logprobs: 3,
-        enableEnhancedCivicAnswers: true,
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: 'Studio',
-            },
+      stopSequences: ['<done>', '###'],
+      responseMimeType: 'application/json',
+      responseSchema,
+      responseJsonSchema,
+      responseModalities: ['TEXT'],
+      candidateCount: 2,
+      topK: 6,
+      seed: 7,
+      presencePenalty: 0.2,
+      frequencyPenalty: 0.4,
+      responseLogprobs: true,
+      logprobs: 3,
+      enableEnhancedCivicAnswers: true,
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: {
+            voiceName: 'Studio',
           },
         },
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingBudget: 128,
-        },
-        imageConfig: {
-          aspectRatio: '1:1',
-        },
+      },
+      thinkingConfig: {
+        includeThoughts: true,
+        thinkingBudget: 128,
+      },
+      imageConfig: {
+        aspectRatio: '1:1',
       },
       cachedContent: 'cachedContents/weather-context',
     } as const
@@ -219,7 +217,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
     const config = payload.config
 
     expect(config.temperature).toBe(0.61)
@@ -295,7 +293,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
-    const [streamPayload] = mocks.generateContentStreamSpy.mock.calls[0]
+    const [streamPayload] = mocks.generateContentStreamSpy.mock.calls[0]!
     expect(streamPayload.config?.topK).toBe(3)
 
     // AG-UI events: RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT..., TEXT_MESSAGE_END, RUN_FINISHED
@@ -376,7 +374,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
 
     // Tool result (user) and follow-up user message should be merged
     const roles = payload.contents.map((m: any) => m.role)
@@ -478,7 +476,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
 
     // No consecutive same-role messages
     const roles = payload.contents.map((m: any) => m.role)
@@ -569,7 +567,10 @@ describe('GeminiAdapter through AI', () => {
       tools: [sumTool],
       messages: [{ role: 'user', content: 'What is 1 + 2 + 5?' }],
       modelOptions: {
-        thinkingConfig: { includeThoughts: true, thinkingLevel: 'LOW' },
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingLevel: 'LOW',
+        },
       },
     })) {
       /* consume stream */
@@ -578,7 +579,7 @@ describe('GeminiAdapter through AI', () => {
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
 
     // Inspect the second call's payload (the turn that includes history)
-    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]
+    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
     const modelTurn = secondPayload.contents.find(
       (c: any) => c.role === 'model',
     )
@@ -662,7 +663,7 @@ describe('GeminiAdapter through AI', () => {
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
 
-    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]
+    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
     const modelTurn = secondPayload.contents.find(
       (c: any) => c.role === 'model',
     )
@@ -741,7 +742,7 @@ describe('GeminiAdapter through AI', () => {
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
 
-    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]
+    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
     const userTurn = secondPayload.contents.find((c: any) =>
       c.parts?.some((p: any) => p.functionResponse),
     )
@@ -785,7 +786,7 @@ describe('GeminiAdapter through AI', () => {
     })
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
     expect(payload.model).toBe('gemini-2.0-flash')
     expect(payload.config.systemInstruction).toContain(
       'professional summarizer',

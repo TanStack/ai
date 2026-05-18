@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { createCodeModeTool } from '../src/create-code-mode-tool'
@@ -65,7 +65,7 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    await tool.execute({ typescriptCode: 'const x: string = "hi"\nreturn x' })
+    await tool.execute!({ typescriptCode: 'const x: string = "hi"\nreturn x' })
 
     expect(driver.createContext).toHaveBeenCalledTimes(1)
     const executeCall = (mockContext.execute as any).mock.calls[0][0]
@@ -88,7 +88,7 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    await tool.execute({ typescriptCode: 'return 1' })
+    await tool.execute!({ typescriptCode: 'return 1' })
 
     expect(mockContext.dispose).toHaveBeenCalledTimes(1)
   })
@@ -105,7 +105,7 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    const result = await tool.execute({ typescriptCode: 'return 42' })
+    const result = await tool.execute!({ typescriptCode: 'return 42' })
     expect(result).toEqual({
       success: true,
       result: { answer: 42 },
@@ -125,7 +125,7 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    const result = await tool.execute({ typescriptCode: 'return x' })
+    const result = await tool.execute!({ typescriptCode: 'return x' })
     expect(result.success).toBe(false)
     expect(result.error?.name).toBe('ReferenceError')
     expect(result.error?.message).toBe('x is not defined')
@@ -140,7 +140,7 @@ describe('createCodeModeTool', () => {
     })
 
     // Invalid syntax that esbuild will reject — stripTypeScript now throws
-    const result = await tool.execute({
+    const result = await tool.execute!({
       typescriptCode: 'const x: = invalid{{{syntax',
     })
     expect(result.success).toBe(false)
@@ -156,7 +156,7 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    await tool.execute({ typescriptCode: 'return 1' }, { emitCustomEvent })
+    await tool.execute!({ typescriptCode: 'return 1' }, { emitCustomEvent })
 
     expect(emitCustomEvent).toHaveBeenCalledWith(
       'code_mode:execution_started',
@@ -180,29 +180,29 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    await tool.execute({ typescriptCode: 'return null' }, { emitCustomEvent })
+    await tool.execute!({ typescriptCode: 'return null' }, { emitCustomEvent })
 
     const consoleEvents = emitCustomEvent.mock.calls.filter(
       (c: any) => c[0] === 'code_mode:console',
     )
 
     expect(consoleEvents).toHaveLength(4)
-    expect(consoleEvents[0][1]).toEqual(
+    expect(consoleEvents[0]![1]).toEqual(
       expect.objectContaining({ level: 'log', message: 'hello' }),
     )
-    expect(consoleEvents[1][1]).toEqual(
+    expect(consoleEvents[1]![1]).toEqual(
       expect.objectContaining({ level: 'error', message: 'bad' }),
     )
-    expect(consoleEvents[2][1]).toEqual(
+    expect(consoleEvents[2]![1]).toEqual(
       expect.objectContaining({ level: 'warn', message: 'careful' }),
     )
-    expect(consoleEvents[3][1]).toEqual(
+    expect(consoleEvents[3]![1]).toEqual(
       expect.objectContaining({ level: 'info', message: 'fyi' }),
     )
   })
 
   it('getSkillBindings merges dynamic bindings into context', async () => {
-    const { driver, mockContext } = createMockDriver()
+    const { driver } = createMockDriver()
 
     const skillBinding = {
       name: 'skill_greet',
@@ -217,7 +217,7 @@ describe('createCodeModeTool', () => {
       getSkillBindings: async () => ({ skill_greet: skillBinding }),
     })
 
-    await tool.execute({ typescriptCode: 'return 1' })
+    await tool.execute!({ typescriptCode: 'return 1' })
 
     const contextConfig = (driver.createContext as any).mock.calls[0][0]
     expect(contextConfig.bindings).toHaveProperty('skill_greet')
@@ -231,7 +231,7 @@ describe('createCodeModeTool', () => {
       tools: [createMockTool('fetchWeather')],
     })
 
-    const result = await tool.execute({ typescriptCode: '' })
+    const result = await tool.execute!({ typescriptCode: '' })
     expect(result.success).toBe(false)
     expect(result.error?.name).toBe('ValidationError')
   })
