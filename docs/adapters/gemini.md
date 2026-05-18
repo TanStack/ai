@@ -148,6 +148,87 @@ for await (const chunk of chat({
 }
 ```
 
+### Wiring with `useChat` (React)
+
+The Interactions API is stateful and **does not accept multi-turn history without a `previous_interaction_id`** — if a chat client sends `[user, assistant, user]` to a fresh interaction the adapter throws `cannot send prior conversation history on a fresh interaction`. To make `useChat` work, persist the server-assigned id and send it back on the next turn:
+
+**Server route** (e.g. TanStack Start handler):
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequestBody,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { geminiTextInteractions } from "@tanstack/ai-gemini/experimental";
+
+export async function POST({ request }: { request: Request }) {
+  const params = await chatParamsFromRequestBody(await request.json());
+
+  // The client sends body.previousInteractionId; AG-UI maps `body` into
+  // `forwardedProps` on the wire.
+  const previousInteractionId =
+    typeof params.forwardedProps.previousInteractionId === "string"
+      ? params.forwardedProps.previousInteractionId
+      : undefined;
+
+  const stream = chat({
+    adapter: geminiTextInteractions("gemini-2.5-flash"),
+    messages: params.messages,
+    modelOptions: {
+      previous_interaction_id: previousInteractionId,
+      store: true, // required for chaining on the next turn
+    },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+**React client**:
+
+```tsx
+import { useEffect, useMemo, useState } from "react";
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
+import type { GeminiInteractionsCustomEventValue } from "@tanstack/ai-gemini/experimental";
+
+function GeminiChat() {
+  const [interactionId, setInteractionId] = useState<string | undefined>();
+
+  const body = useMemo(
+    () => (interactionId ? { previousInteractionId: interactionId } : {}),
+    [interactionId],
+  );
+
+  const { messages, setMessages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    body,
+    onCustomEvent: (eventType, data) => {
+      if (eventType === "gemini.interactionId") {
+        const value = data as
+          | GeminiInteractionsCustomEventValue<"gemini.interactionId">
+          | undefined;
+        if (value?.interactionId) setInteractionId(value.interactionId);
+      }
+    },
+  });
+
+  // Switching provider/model resets the server-side chain — drop the id
+  // AND the local message history together, otherwise the next turn
+  // ships multi-turn messages with no previous_interaction_id and the
+  // adapter errors out.
+  const [provider, setProvider] = useState("gemini-interactions");
+  useEffect(() => {
+    setInteractionId(undefined);
+    setMessages([]);
+  }, [provider]);
+
+  // ...render messages, call sendMessage(input)
+}
+```
+
+The full working example is in [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat) — see `src/routes/index.tsx` for the client and `src/routes/api.tanchat.ts` for the route.
+
 ### How it differs from `geminiText`
 
 | Concern | `geminiText` | `geminiTextInteractions` |
@@ -207,6 +288,7 @@ for await (const chunk of stream) {
 
 ### Caveats
 
+- **Multi-turn history requires `previous_interaction_id`.** The Interactions API has no stateless replay path — sending more than one message in `messages` without a `previous_interaction_id` throws. Chat UIs that maintain local history must capture the server-assigned id and chain (see [Wiring with `useChat`](#wiring-with-usechat-react)). On provider/model switch, also clear the local message buffer.
 - **Tools, `system_instruction`, and `generation_config` are interaction-scoped.** Per Google's docs these are NOT inherited from a prior interaction via `previous_interaction_id` — pass them again on every turn you need them.
 - `store: false` is incompatible with `previous_interaction_id` (no state to recall) and with `background: true`.
 - Retention (as of the time of writing): **55 days on the Paid Tier, 1 day on the Free Tier.** See [Google's Interactions API docs](https://ai.google.dev/gemini-api/docs/interactions) for current retention policy.

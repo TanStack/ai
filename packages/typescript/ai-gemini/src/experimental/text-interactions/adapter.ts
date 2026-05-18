@@ -43,7 +43,7 @@ type InteractionsTool = NonNullable<
 >[number]
 
 type ContentBlock = Interactions.Content
-type InteractionsRequestInput = string | Array<ContentBlock>
+type InteractionsRequestInput = Array<ContentBlock>
 
 type ToolCallState = {
   name: string
@@ -60,6 +60,12 @@ type ToolCallState = {
  * `name: 'gemini.interactionId'` emitted just before `RUN_FINISHED`; pass
  * that id back on the next turn via `modelOptions.previous_interaction_id`
  * to continue the conversation without resending history.
+ *
+ * The Interactions API does NOT support stateless multi-turn replay —
+ * passing more than one message in `messages` without a
+ * `previous_interaction_id` throws. For a chat UI that maintains local
+ * history (e.g. `useChat`), see the "Wiring with `useChat`" section of
+ * `docs/adapters/gemini.md` for the canonical client/server pattern.
  *
  * Supports user-defined function tools and the built-in tools
  * `google_search`, `code_execution`, `url_context`, `file_search`, and
@@ -254,11 +260,14 @@ function buildInteractionsRequest(
   }
 }
 
-// Google's Interactions API accepts `input` as either a plain string (text
-// only) or a flat `Array<Content>` (one or more content blocks).
-// `Array<Turn>` appears in `@google/genai`'s SDK type union but is *not*
-// accepted by the live API — it returns `invalid_request` /
-// "value at top-level must be a list" if you send Turn objects.
+// Google's Interactions API requires `input` to be a flat `Array<Content>`.
+// The SDK's type union (`string | Array<Content> | Array<Turn> | ...`) and
+// public docs suggest a bare string is also accepted, but the live API
+// rejects bare strings — at minimum once `tools` are present — with
+// `invalid_request` / "value at top-level must be a list". `Array<Turn>`
+// is rejected for the same reason. Always wrap text in `[{ type: 'text',
+// text }]` so the wire shape is uniform regardless of whether the caller
+// supplied tools.
 //
 // When `hasPreviousInteraction` is true the server holds the transcript up
 // through the last assistant turn, so we only send the blocks that come
@@ -299,7 +308,7 @@ function convertMessagesToInteractionsInput(
     }
     if (source.length > 1) {
       throw new Error(
-        'Gemini Interactions adapter: cannot send prior conversation history on a fresh interaction. Either set modelOptions.previous_interaction_id to chain prior turns server-side, or trim the message list to a single new user turn.',
+        'Gemini Interactions adapter: cannot send prior conversation history on a fresh interaction. Either set modelOptions.previous_interaction_id to chain prior turns server-side, or trim the message list to a single new user turn. See docs/adapters/gemini.md ("Wiring with useChat") for the canonical client/server pattern.',
       )
     }
     const only = source[0]!
@@ -308,7 +317,13 @@ function convertMessagesToInteractionsInput(
         `Gemini Interactions adapter: the first message of a fresh interaction must be a user turn (got role="${only.role}"). Set modelOptions.previous_interaction_id to continue an existing interaction.`,
       )
     }
-    return messageToInput(only, toolCallIdToName)
+    const blocks = messageToContentBlocks(only, toolCallIdToName)
+    if (blocks.length === 0) {
+      throw new Error(
+        'Gemini Interactions adapter: the user message produced no content blocks to send.',
+      )
+    }
+    return blocks
   }
 
   // Chained path: flatten the post-assistant messages into a single
@@ -323,27 +338,7 @@ function convertMessagesToInteractionsInput(
       'Gemini Interactions adapter: messages after the last assistant turn produced no content blocks to send.',
     )
   }
-  // Collapse a single text block to a plain string — matches the SDK's
-  // documented happy-path shape for follow-up turns.
-  if (blocks.length === 1 && blocks[0]?.type === 'text') {
-    return blocks[0].text ?? ''
-  }
   return blocks
-}
-
-function messageToInput(
-  msg: ModelMessage,
-  toolCallIdToName: Map<string, string>,
-): InteractionsRequestInput {
-  // Fast path: plain-text user message → string.
-  if (
-    msg.role === 'user' &&
-    typeof msg.content === 'string' &&
-    msg.content.length > 0
-  ) {
-    return msg.content
-  }
-  return messageToContentBlocks(msg, toolCallIdToName)
 }
 
 function messageToContentBlocks(

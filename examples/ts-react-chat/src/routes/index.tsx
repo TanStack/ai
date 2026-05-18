@@ -371,9 +371,14 @@ function ChatPage() {
   )
 
   // Reset the interaction id whenever the user switches model/provider so
-  // we don't chain against a stale or wrong-model interaction.
+  // we don't chain against a stale or wrong-model interaction. Messages
+  // are cleared too: the Gemini Interactions API can't replay history
+  // statelessly, so carrying messages from a different provider/model
+  // into a fresh interaction would surface as
+  // "cannot send prior conversation history on a fresh interaction".
   useEffect(() => {
     setInteractionId(undefined)
+    setMessages([])
   }, [selectedModel.provider, selectedModel.model])
 
   const body = useMemo(
@@ -389,6 +394,7 @@ function ChatPage() {
 
   const {
     messages,
+    setMessages,
     sendMessage,
     isLoading,
     error,

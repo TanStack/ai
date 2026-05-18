@@ -212,9 +212,10 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(payload.previous_interaction_id).toBe('int_1')
     expect(payload.model).toBe('gemini-2.5-flash')
     expect(payload.stream).toBe(true)
-    // Single text-only follow-up is sent as a plain string per Google's
-    // Interactions API contract — Array<Turn> is rejected by the wire.
-    expect(payload.input).toBe('What is my name?')
+    // `input` is always sent as `Array<Content>` — the live API rejects
+    // bare strings (and `Array<Turn>`) with `invalid_request` /
+    // "value at top-level must be a list" once tools are involved.
+    expect(payload.input).toEqual([{ type: 'text', text: 'What is my name?' }])
   })
 
   it('includes trailing tool result when chaining with previous_interaction_id', async () => {
@@ -299,7 +300,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(mocks.interactionsCreateSpy).not.toHaveBeenCalled()
   })
 
-  it('sends a fresh single-text turn as a plain string', async () => {
+  it('sends a fresh single-text turn as an Array<Content>', async () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
@@ -322,7 +323,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     )
 
     const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
-    expect(payload.input).toBe('Hello')
+    expect(payload.input).toEqual([{ type: 'text', text: 'Hello' }])
     expect(payload.previous_interaction_id).toBeUndefined()
   })
 
