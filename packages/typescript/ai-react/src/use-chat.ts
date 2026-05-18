@@ -196,31 +196,51 @@ export function useChat<
   // All callback options are read through optionsRef at call time, so fresh
   // closures from each render are picked up without recreating the client.
 
+  // Clear structured-output state on any user-initiated action that starts (or
+  // discards) a run. The RUN_STARTED handler also resets, but that fires only
+  // when the server's first chunk lands — leaving `partial`/`final` stale in
+  // the gap between the user action and the network response. Resetting here
+  // keeps the UI in sync with intent. The RUN_STARTED reset is still needed
+  // for agent-loop iterations within a single user action (each tool round
+  // emits its own RUN_STARTED, and intermediate text must not leak into the
+  // final structured buffer).
+  const resetStructuredOutput = useCallback(() => {
+    if (optionsRef.current.outputSchema !== undefined) {
+      rawJsonRef.current = ''
+      setPartial({} as Partial)
+      setFinal(null)
+    }
+  }, [])
+
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {
+      resetStructuredOutput()
       await client.sendMessage(content)
     },
-    [client],
+    [client, resetStructuredOutput],
   )
 
   const append = useCallback(
     async (message: ModelMessage | UIMessage) => {
+      resetStructuredOutput()
       await client.append(message)
     },
-    [client],
+    [client, resetStructuredOutput],
   )
 
   const reload = useCallback(async () => {
+    resetStructuredOutput()
     await client.reload()
-  }, [client])
+  }, [client, resetStructuredOutput])
 
   const stop = useCallback(() => {
     client.stop()
   }, [client])
 
   const clear = useCallback(() => {
+    resetStructuredOutput()
     client.clear()
-  }, [client])
+  }, [client, resetStructuredOutput])
 
   const setMessagesManually = useCallback(
     (newMessages: Array<UIMessage<TTools>>) => {
