@@ -8,7 +8,6 @@
   "packageManager": "pnpm@11.1.1",
   "type": "module",
   "engines": {
-    "node": ">=24",
     "pnpm": ">=11.0.0"
   },
   "scripts": {
