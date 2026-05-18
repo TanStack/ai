@@ -3,20 +3,9 @@
   "compilerOptions": {
     "outDir": "./dist/esm",
     "declarationMap": true,
-    "lib": [
-      "ES2022"
-    ],
-    "types": [
-      "@cloudflare/workers-types"
-    ]
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"]
   },
-  "include": [
-    "src",
-    "tests"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "worker"
-  ]
+  "include": ["src", "tests"],
+  "exclude": ["node_modules", "dist", "worker"]
 }

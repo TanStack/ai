@@ -552,7 +552,9 @@ describe('Gemini Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow DocumentPart', () => {
-      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<GeminiDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -569,7 +571,9 @@ describe('Gemini Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow DocumentPart', () => {
-      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<GeminiDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -585,7 +589,9 @@ describe('Gemini Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow DocumentPart', () => {
-      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<GeminiDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -601,7 +607,9 @@ describe('Gemini Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow DocumentPart', () => {
-      expectTypeOf<MessageWithContent<GeminiDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<GeminiDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 })

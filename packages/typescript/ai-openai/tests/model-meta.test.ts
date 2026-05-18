@@ -826,7 +826,9 @@ type OpenAITextPart = TextPart<OpenAIMessageMetadataByModality['text']>
 type OpenAIImagePart = ImagePart<OpenAIMessageMetadataByModality['image']>
 type OpenAIAudioPart = AudioPart<OpenAIMessageMetadataByModality['audio']>
 type OpenAIVideoPart = VideoPart<OpenAIMessageMetadataByModality['video']>
-type OpenAIDocumentPart = DocumentPart<OpenAIMessageMetadataByModality['document']>
+type OpenAIDocumentPart = DocumentPart<
+  OpenAIMessageMetadataByModality['document']
+>
 type MessageWithContent<T> = { role: 'user'; content: Array<T> }
 
 /**
@@ -848,9 +850,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -864,9 +872,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -880,9 +894,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -896,9 +916,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -912,9 +938,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -928,9 +960,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -944,9 +982,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -960,9 +1004,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -976,9 +1026,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -992,9 +1048,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1008,9 +1070,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1024,9 +1092,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1040,9 +1114,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1056,9 +1136,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1072,9 +1158,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1088,9 +1180,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1104,9 +1202,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1120,9 +1224,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1136,9 +1246,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1154,9 +1270,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow ImagePart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIImagePart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIImagePart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1170,9 +1292,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow ImagePart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIImagePart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIImagePart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1187,10 +1315,18 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should NOT allow ImagePart, AudioPart, VideoPart, or DocumentPart', () => {
-      expectTypeOf<MessageWithContent<OpenAIImagePart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIVideoPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<OpenAIDocumentPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIImagePart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIVideoPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<OpenAIDocumentPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -1198,15 +1334,21 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('String and null content should always be allowed', () => {
     it('text+image models should allow string content', () => {
-      type GPT51Message = ConstrainedModelMessage<MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-5.1']>>
-      type O3Message = ConstrainedModelMessage<MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['o3']>>
+      type GPT51Message = ConstrainedModelMessage<
+        MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-5.1']>
+      >
+      type O3Message = ConstrainedModelMessage<
+        MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['o3']>
+      >
 
       expectTypeOf<{ role: 'user'; content: string }>().toExtend<GPT51Message>()
       expectTypeOf<{ role: 'user'; content: string }>().toExtend<O3Message>()
     })
 
     it('text-only models should allow string content', () => {
-      type O3MiniMessage = ConstrainedModelMessage<MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['o3-mini']>>
+      type O3MiniMessage = ConstrainedModelMessage<
+        MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['o3-mini']>
+      >
 
       expectTypeOf<{
         role: 'user'
@@ -1215,7 +1357,9 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('text+audio models should allow string content', () => {
-      type GPTAudioMessage = ConstrainedModelMessage<MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-audio']>>
+      type GPTAudioMessage = ConstrainedModelMessage<
+        MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-audio']>
+      >
 
       expectTypeOf<{
         role: 'user'
@@ -1224,9 +1368,15 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('all models should allow null content', () => {
-      type GPT51Message = ConstrainedModelMessage<MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-5.1']>>
-      type O3MiniMessage = ConstrainedModelMessage<MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['o3-mini']>>
-      type GPTAudioMessage = ConstrainedModelMessage<MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-audio']>>
+      type GPT51Message = ConstrainedModelMessage<
+        MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-5.1']>
+      >
+      type O3MiniMessage = ConstrainedModelMessage<
+        MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['o3-mini']>
+      >
+      type GPTAudioMessage = ConstrainedModelMessage<
+        MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-audio']>
+      >
 
       expectTypeOf<{
         role: 'assistant'
@@ -1247,7 +1397,9 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
 
   describe('Mixed content part validation', () => {
     it('should NOT allow mixing valid and invalid content parts', () => {
-      type GPT51Message = ConstrainedModelMessage<MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-5.1']>>
+      type GPT51Message = ConstrainedModelMessage<
+        MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-5.1']>
+      >
 
       // TextPart + VideoPart should NOT be allowed (GPT-5.1 doesn't support video)
       expectTypeOf<
@@ -1261,7 +1413,9 @@ describe('OpenAI Model Input Modality Type Assertions', () => {
     })
 
     it('should allow mixing valid content parts', () => {
-      type GPT51Message = ConstrainedModelMessage<MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-5.1']>>
+      type GPT51Message = ConstrainedModelMessage<
+        MakeInputModalitiesTypes<OpenAIModelInputModalitiesByName['gpt-5.1']>
+      >
 
       // TextPart + ImagePart should be allowed
       expectTypeOf<

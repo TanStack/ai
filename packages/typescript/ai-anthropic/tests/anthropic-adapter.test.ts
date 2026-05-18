@@ -35,9 +35,8 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-const createAdapter = <TModel extends 'claude-3-7-sonnet'>(
-  model: TModel,
-) => new AnthropicTextAdapter({ apiKey: 'test-key' }, model)
+const createAdapter = <TModel extends 'claude-3-7-sonnet'>(model: TModel) =>
+  new AnthropicTextAdapter({ apiKey: 'test-key' }, model)
 
 const toolArguments = JSON.stringify({ location: 'Berlin' })
 

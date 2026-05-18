@@ -46,20 +46,20 @@ For deeper architecture details (adapter system, isomorphic tools, framework int
 
 All commands are run from the repo root. Nx handles affected detection and caching.
 
-| Goal                            | Command                                       |
-| ------------------------------- | --------------------------------------------- |
-| Run unit tests (affected)       | `pnpm test:lib`                               |
-| Watch unit tests                | `pnpm test:lib:dev`                           |
-| Type-check (affected)           | `pnpm test:types`                             |
-| Lint (affected)                 | `pnpm test:eslint`                            |
-| Verify build artifacts          | `pnpm test:build`                             |
-| Format the repo                 | `pnpm format`                                 |
-| Build (affected)                | `pnpm build`                                  |
-| Build everything                | `pnpm build:all`                              |
-| Run the full CI suite locally   | `pnpm test`                                   |
-| Run the affected-PR check       | `pnpm test:pr`                                |
-| E2E suite                       | `pnpm test:e2e`                               |
-| E2E with Playwright UI          | `pnpm test:e2e:ui`                            |
+| Goal                          | Command             |
+| ----------------------------- | ------------------- |
+| Run unit tests (affected)     | `pnpm test:lib`     |
+| Watch unit tests              | `pnpm test:lib:dev` |
+| Type-check (affected)         | `pnpm test:types`   |
+| Lint (affected)               | `pnpm test:eslint`  |
+| Verify build artifacts        | `pnpm test:build`   |
+| Format the repo               | `pnpm format`       |
+| Build (affected)              | `pnpm build`        |
+| Build everything              | `pnpm build:all`    |
+| Run the full CI suite locally | `pnpm test`         |
+| Run the affected-PR check     | `pnpm test:pr`      |
+| E2E suite                     | `pnpm test:e2e`     |
+| E2E with Playwright UI        | `pnpm test:e2e:ui`  |
 
 Working on a single package? `cd packages/typescript/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
 
@@ -73,11 +73,11 @@ The standardised per-package shape is:
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist"
+    "outDir": "dist",
     // + package-specific overrides only
   },
   "include": ["src", "tests"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist"],
 }
 ```
 
@@ -93,14 +93,14 @@ Tests are included in typecheck. `vite.config.ts` / `vitest.config.ts` are not â
 
 **Every feature, bug fix, or behaviour change MUST have E2E coverage.** See `testing/e2e/README.md` for the full guide. Quick reference:
 
-| Change type                                | What to add                                                              |
-| ------------------------------------------ | ------------------------------------------------------------------------ |
-| New provider adapter                       | Add provider to `feature-support.ts` + `test-matrix.ts`. Tests auto-run. |
-| New feature (e.g. new generation type)     | Add to types, feature config, support matrix, fixture, spec file.        |
-| Chat / streaming bug fix                   | Test case in `chat.spec.ts` or `tools-test/`.                            |
-| Tool system change                         | Scenario in `tools-test-scenarios.ts` + spec.                            |
-| Middleware change                          | Test in `middleware.spec.ts`.                                            |
-| Client-side change (useChat etc.)          | Test covering the observable behavior change.                            |
+| Change type                            | What to add                                                              |
+| -------------------------------------- | ------------------------------------------------------------------------ |
+| New provider adapter                   | Add provider to `feature-support.ts` + `test-matrix.ts`. Tests auto-run. |
+| New feature (e.g. new generation type) | Add to types, feature config, support matrix, fixture, spec file.        |
+| Chat / streaming bug fix               | Test case in `chat.spec.ts` or `tools-test/`.                            |
+| Tool system change                     | Scenario in `tools-test-scenarios.ts` + spec.                            |
+| Middleware change                      | Test in `middleware.spec.ts`.                                            |
+| Client-side change (useChat etc.)      | Test covering the observable behavior change.                            |
 
 Run the suite locally with `pnpm test:e2e`. Record real LLM fixtures with `OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record`.
 

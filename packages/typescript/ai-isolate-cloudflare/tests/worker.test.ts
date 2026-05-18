@@ -225,9 +225,8 @@ describe('Worker fetch handler', () => {
     const response = await worker.fetch(request, {}, mockExecutionContext)
 
     expect(response.status).toBe(200)
-    const json = await readJson<Extract<ExecuteResponse, { status: 'error' }>>(
-      response,
-    )
+    const json =
+      await readJson<Extract<ExecuteResponse, { status: 'error' }>>(response)
     expect(json.status).toBe('error')
     expect(json.error.name).toBe('WorkerLoaderNotAvailable')
     expect(json.error.message).toContain('LOADER')
@@ -287,9 +286,8 @@ describe('Worker fetch handler', () => {
     expect(capturedOptions!.modules['main.js']).toContain('export default')
     expect(capturedOptions!.globalOutbound).toBeNull()
     expect(response.status).toBe(200)
-    const json = await readJson<Extract<ExecuteResponse, { status: 'done' }>>(
-      response,
-    )
+    const json =
+      await readJson<Extract<ExecuteResponse, { status: 'done' }>>(response)
     expect(json.status).toBe('done')
     expect(json.success).toBe(true)
     expect(json.value).toBe(42)
@@ -326,9 +324,10 @@ describe('Worker fetch handler', () => {
     const response = await worker.fetch(request, env, mockExecutionContext)
 
     expect(response.status).toBe(200)
-    const json = await readJson<
-      Extract<ExecuteResponse, { status: 'need_tools' }>
-    >(response)
+    const json =
+      await readJson<Extract<ExecuteResponse, { status: 'need_tools' }>>(
+        response,
+      )
     expect(json.status).toBe('need_tools')
     expect(json.toolCalls).toHaveLength(1)
     expect(json.toolCalls[0]!.name).toBe('fetchData')
@@ -372,9 +371,8 @@ describe('Worker fetch handler', () => {
     expect(receivedSignal!.aborted).toBe(true)
 
     expect(response.status).toBe(200)
-    const json = await readJson<Extract<ExecuteResponse, { status: 'error' }>>(
-      response,
-    )
+    const json =
+      await readJson<Extract<ExecuteResponse, { status: 'error' }>>(response)
     expect(json.status).toBe('error')
     expect(json.error.name).toBe('TimeoutError')
     expect(json.error.message).toContain('50ms')
@@ -389,9 +387,8 @@ describe('Worker fetch handler', () => {
     const response = await worker.fetch(request, {}, mockExecutionContext)
 
     expect(response.status).toBe(500)
-    const json = await readJson<Extract<ExecuteResponse, { status: 'error' }>>(
-      response,
-    )
+    const json =
+      await readJson<Extract<ExecuteResponse, { status: 'error' }>>(response)
     expect(json.status).toBe('error')
     expect(json.error.name).toBe('RequestError')
   })

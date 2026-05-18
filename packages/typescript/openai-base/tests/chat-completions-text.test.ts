@@ -299,7 +299,9 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
       const textStartIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
-      const textContentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
+      const textContentIndex = eventTypes.indexOf(
+        EventType.TEXT_MESSAGE_CONTENT,
+      )
       expect(textStartIndex).toBeGreaterThan(-1)
       expect(textContentIndex).toBeGreaterThan(textStartIndex)
 

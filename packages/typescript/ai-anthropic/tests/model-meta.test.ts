@@ -567,12 +567,18 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicDocumentPart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AnthropicAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicVideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -583,12 +589,18 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicDocumentPart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AnthropicAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicVideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -599,12 +611,18 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicDocumentPart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AnthropicAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicVideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -615,12 +633,18 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicDocumentPart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AnthropicAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicVideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -631,12 +655,18 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicDocumentPart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AnthropicAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicVideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -647,12 +677,18 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicDocumentPart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AnthropicAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicVideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -663,12 +699,18 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicDocumentPart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AnthropicAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicVideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -679,12 +721,18 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicDocumentPart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AnthropicAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicVideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -695,12 +743,18 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicDocumentPart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AnthropicAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicVideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
@@ -711,12 +765,18 @@ describe('Anthropic Model Input Modality Type Assertions', () => {
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
       expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
       expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicDocumentPart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AnthropicAudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<AnthropicVideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 })

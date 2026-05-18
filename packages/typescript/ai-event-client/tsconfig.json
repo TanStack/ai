@@ -3,17 +3,9 @@
   "compilerOptions": {
     "outDir": "dist",
     "paths": {
-      "@tanstack/ai-event-client": [
-        "./src/index.ts"
-      ]
+      "@tanstack/ai-event-client": ["./src/index.ts"]
     }
   },
-  "include": [
-    "src",
-    "tests"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src", "tests"],
+  "exclude": ["node_modules", "dist"]
 }
