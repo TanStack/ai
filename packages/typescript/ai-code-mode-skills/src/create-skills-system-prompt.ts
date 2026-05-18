@@ -23,8 +23,8 @@ interface CreateSkillsSystemPromptOptions {
  * Generate example input from a JSON Schema
  */
 function generateExampleFromSchema(schema: Record<string, unknown>): string {
-  if (schema.type === 'object' && schema.properties) {
-    const props = schema.properties as Record<string, { type: string }>
+  if (schema['type'] === 'object' && schema['properties']) {
+    const props = schema['properties'] as Record<string, { type: string }>
     const example: Record<string, unknown> = {}
 
     for (const [key, value] of Object.entries(props)) {

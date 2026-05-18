@@ -91,7 +91,7 @@ export class OpenRouterTextAdapter<
   OpenRouterMessageMetadataByModality,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'openrouter' as const
 
   protected orClient: OpenRouter

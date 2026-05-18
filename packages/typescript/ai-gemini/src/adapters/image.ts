@@ -61,7 +61,7 @@ export class GeminiImageAdapter<
   GeminiImageModelProviderOptionsByName,
   GeminiImageModelSizeByName
 > {
-  readonly kind = 'image' as const
+  override readonly kind = 'image' as const
   readonly name = 'gemini' as const
 
   // Type-only property - never assigned at runtime

@@ -70,9 +70,9 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
       raw &&
       typeof raw === 'object' &&
       'parts' in raw &&
-      isValidParts(raw.parts)
+      isValidParts(raw['parts'])
     ) {
-      return { ...m, parts: raw.parts } as UIMessage | ModelMessage
+      return { ...m, parts: raw['parts'] } as UIMessage | ModelMessage
     }
     return m as ModelMessage
   })

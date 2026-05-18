@@ -41,7 +41,7 @@ const toolProps = computed<ToolCallRenderProps | null>(() => {
 <template>
   <!-- Text part -->
   <div v-if="part.type === 'text'">
-    <slot v-if="$slots.text" name="text" :content="part.content" />
+    <slot v-if="$slots['text']" name="text" :content="part.content" />
     <div v-else data-part-type="text" data-part-content>
       {{ part.content }}
     </div>
@@ -50,7 +50,7 @@ const toolProps = computed<ToolCallRenderProps | null>(() => {
   <!-- Thinking part -->
   <div v-else-if="part.type === 'thinking'">
     <slot
-      v-if="$slots.thinking"
+      v-if="$slots['thinking']"
       name="thinking"
       :content="part.content"
       :is-complete="isThinkingComplete"

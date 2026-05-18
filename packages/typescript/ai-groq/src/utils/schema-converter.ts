@@ -11,29 +11,29 @@ export { transformNullsToUndefined }
 function removeEmptyRequired(schema: Record<string, any>): Record<string, any> {
   const result = { ...schema }
 
-  if (Array.isArray(result.required) && result.required.length === 0) {
-    delete result.required
+  if (Array.isArray(result['required']) && result['required'].length === 0) {
+    delete result['required']
   }
 
-  if (result.properties && typeof result.properties === 'object') {
+  if (result['properties'] && typeof result['properties'] === 'object') {
     const properties: Record<string, any> = {}
     for (const [key, value] of Object.entries(
-      result.properties as Record<string, any>,
+      result['properties'] as Record<string, any>,
     )) {
       properties[key] =
         typeof value === 'object' && value !== null && !Array.isArray(value)
           ? removeEmptyRequired(value)
           : value
     }
-    result.properties = properties
+    result['properties'] = properties
   }
 
   if (
-    result.items &&
-    typeof result.items === 'object' &&
-    !Array.isArray(result.items)
+    result['items'] &&
+    typeof result['items'] === 'object' &&
+    !Array.isArray(result['items'])
   ) {
-    result.items = removeEmptyRequired(result.items)
+    result['items'] = removeEmptyRequired(result['items'])
   }
 
   // Recurse into combinator arrays (anyOf, oneOf, allOf)
@@ -47,12 +47,12 @@ function removeEmptyRequired(schema: Record<string, any>): Record<string, any> {
 
   // Recurse into additionalProperties if it's a schema object
   if (
-    result.additionalProperties &&
-    typeof result.additionalProperties === 'object' &&
-    !Array.isArray(result.additionalProperties)
+    result['additionalProperties'] &&
+    typeof result['additionalProperties'] === 'object' &&
+    !Array.isArray(result['additionalProperties'])
   ) {
-    result.additionalProperties = removeEmptyRequired(
-      result.additionalProperties,
+    result['additionalProperties'] = removeEmptyRequired(
+      result['additionalProperties'],
     )
   }
 
@@ -71,13 +71,13 @@ function normalizeObjectSchemas(
   schema: Record<string, any>,
 ): Record<string, any> {
   const result: Record<string, any> =
-    schema.type === 'object' && !schema.properties
+    schema['type'] === 'object' && !schema['properties']
       ? { ...schema, properties: {} }
       : { ...schema }
 
-  if (result.properties && typeof result.properties === 'object') {
-    result.properties = Object.fromEntries(
-      Object.entries(result.properties as Record<string, any>).map(
+  if (result['properties'] && typeof result['properties'] === 'object') {
+    result['properties'] = Object.fromEntries(
+      Object.entries(result['properties'] as Record<string, any>).map(
         ([key, value]) => [
           key,
           typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -89,11 +89,11 @@ function normalizeObjectSchemas(
   }
 
   if (
-    result.items &&
-    typeof result.items === 'object' &&
-    !Array.isArray(result.items)
+    result['items'] &&
+    typeof result['items'] === 'object' &&
+    !Array.isArray(result['items'])
   ) {
-    result.items = normalizeObjectSchemas(result.items)
+    result['items'] = normalizeObjectSchemas(result['items'])
   }
 
   for (const keyword of ['anyOf', 'oneOf', 'allOf'] as const) {
@@ -108,12 +108,12 @@ function normalizeObjectSchemas(
   }
 
   if (
-    result.additionalProperties &&
-    typeof result.additionalProperties === 'object' &&
-    !Array.isArray(result.additionalProperties)
+    result['additionalProperties'] &&
+    typeof result['additionalProperties'] === 'object' &&
+    !Array.isArray(result['additionalProperties'])
   ) {
-    result.additionalProperties = normalizeObjectSchemas(
-      result.additionalProperties as Record<string, any>,
+    result['additionalProperties'] = normalizeObjectSchemas(
+      result['additionalProperties'] as Record<string, any>,
     )
   }
 

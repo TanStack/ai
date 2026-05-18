@@ -46,7 +46,7 @@ export class GrokImageAdapter<
   GrokImageModelProviderOptionsByName,
   GrokImageModelSizeByName
 > {
-  readonly kind = 'image' as const
+  override readonly kind = 'image' as const
   readonly name = 'grok' as const
 
   protected client: OpenAI

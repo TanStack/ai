@@ -1708,9 +1708,9 @@ describe('ChatClient', () => {
       })
 
       // Per-message body should override base body
-      expect(capturedData?.model).toBe('gpt-4-turbo')
-      expect(capturedData?.temperature).toBe(0.7) // From base body
-      expect(capturedData?.maxTokens).toBe(100) // From per-message body
+      expect(capturedData?.['model']).toBe('gpt-4-turbo')
+      expect(capturedData?.['temperature']).toBe(0.7) // From base body
+      expect(capturedData?.['maxTokens']).toBe(100) // From per-message body
     })
 
     it('should accept forwardedProps option and merge into request body', async () => {
@@ -1730,8 +1730,8 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Hello')
 
-      expect(capturedData?.provider).toBe('openai')
-      expect(capturedData?.model).toBe('gpt-4o')
+      expect(capturedData?.['provider']).toBe('openai')
+      expect(capturedData?.['model']).toBe('gpt-4o')
     })
 
     it('updateOptions({ forwardedProps }) leaves a previously-set body intact', async () => {
@@ -1754,8 +1754,8 @@ describe('ChatClient', () => {
       client.updateOptions({ forwardedProps: { model: 'gpt-4o' } })
 
       await client.sendMessage('Hi')
-      expect(captures[0]?.provider).toBe('openai')
-      expect(captures[0]?.model).toBe('gpt-4o')
+      expect(captures[0]?.['provider']).toBe('openai')
+      expect(captures[0]?.['model']).toBe('gpt-4o')
     })
 
     it('updateOptions({ body }) leaves a previously-set forwardedProps intact', async () => {
@@ -1777,8 +1777,8 @@ describe('ChatClient', () => {
       client.updateOptions({ body: { provider: 'anthropic' } })
 
       await client.sendMessage('Hi')
-      expect(captures[0]?.provider).toBe('anthropic')
-      expect(captures[0]?.model).toBe('gpt-4')
+      expect(captures[0]?.['provider']).toBe('anthropic')
+      expect(captures[0]?.['model']).toBe('gpt-4')
     })
 
     it('should merge body and forwardedProps with forwardedProps winning', async () => {
@@ -1802,9 +1802,9 @@ describe('ChatClient', () => {
       await client.sendMessage('Hello')
 
       // forwardedProps wins on key collision so partial migrations are sane.
-      expect(capturedData?.model).toBe('gpt-4o')
+      expect(capturedData?.['model']).toBe('gpt-4o')
       // Non-conflicting keys from `body` are still forwarded.
-      expect(capturedData?.temperature).toBe(0.7)
+      expect(capturedData?.['temperature']).toBe(0.7)
     })
 
     it('should not auto-emit `conversationId` in merged body (replaced by AG-UI threadId)', async () => {
@@ -1828,7 +1828,7 @@ describe('ChatClient', () => {
       // now emits `threadId` at the wire's top level instead; the legacy
       // auto-emit was dropped to avoid duplicating the same identifier.
       // User-set `forwardedProps.conversationId` would still pass through.
-      expect(capturedData?.conversationId).toBeUndefined()
+      expect(capturedData?.['conversationId']).toBeUndefined()
     })
 
     it('should pass through user-set conversationId via forwardedProps', async () => {
@@ -1850,7 +1850,7 @@ describe('ChatClient', () => {
 
       // Backward compat: a user explicitly setting `conversationId` (e.g.
       // because their server still reads it) still works unchanged.
-      expect(capturedData?.conversationId).toBe('user-supplied')
+      expect(capturedData?.['conversationId']).toBe('user-supplied')
     })
 
     it('should clear per-message body after request', async () => {
@@ -1870,12 +1870,12 @@ describe('ChatClient', () => {
 
       // First message with per-message body
       await client.sendMessage('First', { temperature: 0.9 })
-      expect(capturedData?.temperature).toBe(0.9)
+      expect(capturedData?.['temperature']).toBe(0.9)
 
       // Second message without per-message body should not have temperature
       await client.sendMessage('Second')
-      expect(capturedData?.temperature).toBeUndefined()
-      expect(capturedData?.model).toBe('gpt-4')
+      expect(capturedData?.['temperature']).toBeUndefined()
+      expect(capturedData?.['model']).toBe('gpt-4')
     })
 
     it('should emit events with multimodal content', async () => {

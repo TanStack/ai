@@ -53,8 +53,8 @@ export class GrokTextAdapter<
   GrokMessageMetadataByModality,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
-  readonly name = 'grok' as const
+  override readonly kind = 'text' as const
+  override readonly name = 'grok' as const
 
   constructor(config: GrokTextConfig, model: TModel) {
     super(model, 'grok', new OpenAI(withGrokDefaults(config)))

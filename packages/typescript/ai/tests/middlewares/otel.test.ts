@@ -383,7 +383,7 @@ describe('otelMiddleware — tool spans', () => {
 
     // Craft a result that JSON.stringify cannot handle (circular ref).
     const circular: Record<string, unknown> = {}
-    circular.self = circular
+    circular['self'] = circular
 
     await mw.onAfterToolCall?.(ctx, {
       toolCall: makeToolCall({ id: 'tc-cyc' }),

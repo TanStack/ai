@@ -30,7 +30,7 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
     inputSchema.required || [],
   )
 
-  jsonSchema.additionalProperties = false
+  jsonSchema['additionalProperties'] = false
 
   return {
     type: 'function',

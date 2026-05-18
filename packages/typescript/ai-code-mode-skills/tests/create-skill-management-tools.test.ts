@@ -77,7 +77,7 @@ describe('createSkillManagementTools', () => {
       )) as Array<Record<string, unknown>>
       expect(results).toHaveLength(1)
       expect(results[0]).not.toHaveProperty('code')
-      expect(results[0]!.name).toBe('github_stats')
+      expect(results[0]!['name']).toBe('github_stats')
     })
 
     it('respects the limit parameter', async () => {

@@ -66,7 +66,7 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   Record<TModel, FalVideoProviderOptions<TModel>>,
   Record<TModel, FalModelVideoSize<TModel>>
 > {
-  readonly kind = 'video' as const
+  override readonly kind = 'video' as const
   readonly name = 'fal' as const
 
   constructor(model: TModel, config?: FalClientConfig) {

@@ -93,12 +93,12 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
     let audioUrl: string | undefined
     let contentType: string | undefined
 
-    if (data.audio && typeof data.audio === 'object' && 'url' in data.audio) {
-      const audioObj = data.audio as { url: string; content_type?: string }
+    if (data['audio'] && typeof data['audio'] === 'object' && 'url' in data['audio']) {
+      const audioObj = data['audio'] as { url: string; content_type?: string }
       audioUrl = audioObj.url
       contentType = audioObj.content_type
-    } else if (typeof data.audio_url === 'string') {
-      audioUrl = data.audio_url
+    } else if (typeof data['audio_url'] === 'string') {
+      audioUrl = data['audio_url']
     }
 
     if (!audioUrl) {

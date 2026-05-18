@@ -182,7 +182,7 @@ async function createElevenLabsConnection(
 
   // Only add clientTools if we have any
   if (Object.keys(elevenLabsClientTools).length > 0) {
-    sessionOptions.clientTools = elevenLabsClientTools
+    sessionOptions['clientTools'] = elevenLabsClientTools
   }
 
   // Start the conversation session

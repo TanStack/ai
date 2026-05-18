@@ -123,7 +123,7 @@ export class AnthropicTextAdapter<
   // chat() call site so users get `cache_control` autocomplete.
   AnthropicSystemPromptMetadata
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
 
   private client: Anthropic_SDK

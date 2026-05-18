@@ -88,7 +88,7 @@ export class OpenRouterResponsesTextAdapter<
   OpenRouterMessageMetadataByModality,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
 
   protected orClient: OpenRouter
@@ -1795,22 +1795,22 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     // verbatim so downstream extraction (e.g. for unknown event types) still
     // sees them.
     const out: Record<string, unknown> = { ...raw }
-    if ('item_id' in raw) out.itemId = raw.item_id
-    if ('output_index' in raw) out.outputIndex = raw.output_index
-    if ('content_index' in raw) out.contentIndex = raw.content_index
-    if ('sequence_number' in raw) out.sequenceNumber = raw.sequence_number
-    if ('summary_index' in raw) out.summaryIndex = raw.summary_index
-    if ('response' in raw && raw.response && typeof raw.response === 'object') {
-      out.response = camelCaseResponseShape(
-        raw.response as Record<string, unknown>,
+    if ('item_id' in raw) out['itemId'] = raw['item_id']
+    if ('output_index' in raw) out['outputIndex'] = raw['output_index']
+    if ('content_index' in raw) out['contentIndex'] = raw['content_index']
+    if ('sequence_number' in raw) out['sequenceNumber'] = raw['sequence_number']
+    if ('summary_index' in raw) out['summaryIndex'] = raw['summary_index']
+    if ('response' in raw && raw['response'] && typeof raw['response'] === 'object') {
+      out['response'] = camelCaseResponseShape(
+        raw['response'] as Record<string, unknown>,
       )
     }
-    if ('item' in raw && raw.item && typeof raw.item === 'object') {
-      out.item = camelCaseOutputItem(raw.item as Record<string, unknown>)
+    if ('item' in raw && raw['item'] && typeof raw['item'] === 'object') {
+      out['item'] = camelCaseOutputItem(raw['item'] as Record<string, unknown>)
     }
-    if ('part' in raw) out.part = raw.part
-    out.type =
-      typeof raw.type === 'string' ? raw.type : (e.type as string) || 'unknown'
+    if ('part' in raw) out['part'] = raw['part']
+    out['type'] =
+      typeof raw['type'] === 'string' ? raw['type'] : (e.type as string) || 'unknown'
     return out as unknown as NormalizedStreamEvent
   }
 
@@ -1824,7 +1824,7 @@ function camelCaseResponseShape(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...src }
   if ('incomplete_details' in src)
-    out.incompleteDetails = src.incomplete_details
+    out['incompleteDetails'] = src['incomplete_details']
   if (
     'input_tokens' in src ||
     'output_tokens' in src ||
@@ -1832,17 +1832,17 @@ function camelCaseResponseShape(
   ) {
     // never mutate src; rewrite usage in place if present.
   }
-  if (src.usage && typeof src.usage === 'object') {
-    const u = src.usage as Record<string, unknown>
-    out.usage = {
+  if (src['usage'] && typeof src['usage'] === 'object') {
+    const u = src['usage'] as Record<string, unknown>
+    out['usage'] = {
       ...u,
-      ...('input_tokens' in u && { inputTokens: u.input_tokens }),
-      ...('output_tokens' in u && { outputTokens: u.output_tokens }),
-      ...('total_tokens' in u && { totalTokens: u.total_tokens }),
+      ...('input_tokens' in u && { inputTokens: u['input_tokens'] }),
+      ...('output_tokens' in u && { outputTokens: u['output_tokens'] }),
+      ...('total_tokens' in u && { totalTokens: u['total_tokens'] }),
     }
   }
-  if (Array.isArray(src.output)) {
-    out.output = src.output.map((item) =>
+  if (Array.isArray(src['output'])) {
+    out['output'] = src['output'].map((item) =>
       item && typeof item === 'object'
         ? camelCaseOutputItem(item as Record<string, unknown>)
         : item,
@@ -1856,7 +1856,7 @@ function camelCaseOutputItem(
   src: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...src }
-  if ('call_id' in src) out.callId = src.call_id
+  if ('call_id' in src) out['callId'] = src['call_id']
   return out
 }
 

@@ -49,7 +49,7 @@ export function convertFunctionToolToResponsesFormat(
   const jsonSchema = {
     ...schemaConverter(inputSchema, inputSchema.required || []),
   }
-  jsonSchema.additionalProperties = false
+  jsonSchema['additionalProperties'] = false
 
   return {
     type: 'function',

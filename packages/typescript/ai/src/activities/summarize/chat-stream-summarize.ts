@@ -124,7 +124,7 @@ export class ChatStreamSummarizeAdapter<
     return { id, model, summary, usage }
   }
 
-  async *summarizeStream(
+  override async *summarizeStream(
     options: SummarizationOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const systemPrompt = this.buildSummarizationPrompt(options)

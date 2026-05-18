@@ -577,10 +577,10 @@ class TextEngine<
 
     // Gather flattened options into an object for context
     const options: Record<string, unknown> = {}
-    if (temperature !== undefined) options.temperature = temperature
-    if (topP !== undefined) options.topP = topP
-    if (maxTokens !== undefined) options.maxTokens = maxTokens
-    if (metadata !== undefined) options.metadata = metadata
+    if (temperature !== undefined) options['temperature'] = temperature
+    if (topP !== undefined) options['topP'] = topP
+    if (maxTokens !== undefined) options['maxTokens'] = maxTokens
+    if (metadata !== undefined) options['metadata'] = metadata
 
     this.eventOptions = Object.keys(options).length > 0 ? options : undefined
     this.eventToolNames = tools?.map((t) => t.name)

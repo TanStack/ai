@@ -62,7 +62,7 @@ export class OpenAIChatCompletionsTextAdapter<
   OpenAIMessageMetadataByModality,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
 
   constructor(config: OpenAIChatCompletionsConfig, model: TModel) {
     super(model, 'openai-chat', new OpenAI(config))

@@ -23,17 +23,17 @@ export function createOllamaClient(config: OllamaClientConfig = {}): Ollama {
 export function getOllamaHostFromEnv(): string {
   const env =
     typeof globalThis !== 'undefined' &&
-    (globalThis as Record<string, unknown>).window
+    (globalThis as Record<string, unknown>)['window']
       ? ((
-          (globalThis as Record<string, unknown>).window as Record<
+          (globalThis as Record<string, unknown>)['window'] as Record<
             string,
             unknown
           >
-        ).env as Record<string, string> | undefined)
+        )['env'] as Record<string, string> | undefined)
       : typeof process !== 'undefined'
         ? process.env
         : undefined
-  return env?.OLLAMA_HOST || 'http://localhost:11434'
+  return env?.['OLLAMA_HOST'] || 'http://localhost:11434'
 }
 
 /**

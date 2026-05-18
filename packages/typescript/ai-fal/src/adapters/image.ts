@@ -42,7 +42,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   Record<TModel, FalImageProviderOptions<TModel>>,
   Record<TModel, FalModelImageSize<TModel>>
 > {
-  readonly kind = 'image' as const
+  override readonly kind = 'image' as const
   readonly name = 'fal' as const
 
   constructor(model: TModel, config?: FalClientConfig) {

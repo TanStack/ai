@@ -46,7 +46,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   TMessageMetadata,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name: string
   protected client: OpenAI
 

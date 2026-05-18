@@ -46,7 +46,7 @@ export class OpenAIImageAdapter<
   OpenAIImageModelProviderOptionsByName,
   OpenAIImageModelSizeByName
 > {
-  readonly kind = 'image' as const
+  override readonly kind = 'image' as const
   readonly name = 'openai' as const
 
   protected client: OpenAI

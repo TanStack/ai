@@ -23,10 +23,10 @@ export function normalizeError(error: unknown): NormalizedError {
   if (typeof error === 'object' && error !== null) {
     const errObj = error as Record<string, unknown>
     return {
-      name: String(errObj.name || 'Error'),
-      message: String(errObj.message || 'Unknown error'),
-      stack: errObj.stack ? String(errObj.stack) : undefined,
-      code: errObj.code ? String(errObj.code) : undefined,
+      name: String(errObj['name'] || 'Error'),
+      message: String(errObj['message'] || 'Unknown error'),
+      stack: errObj['stack'] ? String(errObj['stack']) : undefined,
+      code: errObj['code'] ? String(errObj['code']) : undefined,
     }
   }
 

@@ -722,7 +722,7 @@ async function main() {
     `[models-eval] Run logs → ${relative(process.cwd(), LOG_DIR) || LOG_DIR} (gitignored)`,
   )
 
-  if (!effectiveNoJudge && !process.env.ANTHROPIC_API_KEY) {
+  if (!effectiveNoJudge && !process.env['ANTHROPIC_API_KEY']) {
     console.warn(
       '[models-eval] ANTHROPIC_API_KEY is not set; judging will fail. Use --no-judge to skip, or set the key.',
     )

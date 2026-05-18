@@ -47,7 +47,7 @@ export class OpenRouterImageAdapter<
   OpenRouterImageModelProviderOptionsByName,
   OpenRouterImageModelSizeByName
 > {
-  readonly kind = 'image' as const
+  override readonly kind = 'image' as const
   readonly name = 'openrouter' as const
 
   private client: OpenRouter

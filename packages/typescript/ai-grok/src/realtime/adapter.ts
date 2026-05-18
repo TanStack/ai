@@ -656,7 +656,7 @@ async function createWebRTCConnection(
             {
               source: 'grok.realtime',
               event_type: 'response.function_call_arguments.done',
-              item_id: event.item_id,
+              item_id: event['item_id'],
             },
           )
           emit('error', {
@@ -764,7 +764,7 @@ async function createWebRTCConnection(
         // types at provider level so they're visible during debugging without
         // emitting a user-visible error.
         logger.provider('grok.realtime unhandled server event', {
-          type: event.type,
+          type: event['type'],
         })
         break
     }
@@ -1038,51 +1038,51 @@ async function createWebRTCConnection(
       const sessionUpdate: Record<string, unknown> = {}
 
       if (config.instructions) {
-        sessionUpdate.instructions = config.instructions
+        sessionUpdate['instructions'] = config.instructions
       }
 
       if (config.voice) {
-        sessionUpdate.voice = config.voice
+        sessionUpdate['voice'] = config.voice
       }
 
       if (config.vadMode) {
         if (config.vadMode === 'semantic') {
-          sessionUpdate.turn_detection = {
+          sessionUpdate['turn_detection'] = {
             type: 'semantic_vad',
             eagerness: config.semanticEagerness ?? 'medium',
           }
         } else if (config.vadMode === 'server') {
-          sessionUpdate.turn_detection = {
+          sessionUpdate['turn_detection'] = {
             type: 'server_vad',
             threshold: config.vadConfig?.threshold ?? 0.5,
             prefix_padding_ms: config.vadConfig?.prefixPaddingMs ?? 300,
             silence_duration_ms: config.vadConfig?.silenceDurationMs ?? 500,
           }
         } else {
-          sessionUpdate.turn_detection = null
+          sessionUpdate['turn_detection'] = null
         }
       }
 
       if (config.tools !== undefined) {
-        sessionUpdate.tools = config.tools.map((t) => ({
+        sessionUpdate['tools'] = config.tools.map((t) => ({
           type: 'function',
           name: t.name,
           description: t.description,
           parameters: t.inputSchema ?? { type: 'object', properties: {} },
         }))
-        sessionUpdate.tool_choice = 'auto'
+        sessionUpdate['tool_choice'] = 'auto'
       }
 
       if (config.outputModalities) {
-        sessionUpdate.modalities = config.outputModalities
+        sessionUpdate['modalities'] = config.outputModalities
       }
 
       if (config.temperature !== undefined) {
-        sessionUpdate.temperature = config.temperature
+        sessionUpdate['temperature'] = config.temperature
       }
 
       if (config.maxOutputTokens !== undefined) {
-        sessionUpdate.max_response_output_tokens = config.maxOutputTokens
+        sessionUpdate['max_response_output_tokens'] = config.maxOutputTokens
       }
 
       // Let callers forward an explicit `input_audio_transcription` value
@@ -1093,15 +1093,15 @@ async function createWebRTCConnection(
         config.providerOptions ?? {}
       const callerTranscription =
         'inputAudioTranscription' in providerOptions
-          ? providerOptions.inputAudioTranscription
+          ? providerOptions['inputAudioTranscription']
           : 'input_audio_transcription' in providerOptions
-            ? providerOptions.input_audio_transcription
+            ? providerOptions['input_audio_transcription']
             : undefined
       if (callerTranscription !== undefined) {
-        sessionUpdate.input_audio_transcription =
+        sessionUpdate['input_audio_transcription'] =
           callerTranscription === false ? null : callerTranscription
       } else if (!hasSentInitialSessionUpdate) {
-        sessionUpdate.input_audio_transcription = { model: 'grok-stt' }
+        sessionUpdate['input_audio_transcription'] = { model: 'grok-stt' }
       }
 
       if (Object.keys(sessionUpdate).length > 0) {

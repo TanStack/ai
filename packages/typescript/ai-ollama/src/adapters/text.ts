@@ -118,7 +118,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   OllamaInputModalities,
   OllamaMessageMetadataByModality
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'ollama' as const
 
   private client: Ollama

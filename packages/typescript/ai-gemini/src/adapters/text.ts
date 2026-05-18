@@ -106,7 +106,7 @@ export class GeminiTextAdapter<
   TToolCapabilities,
   GeminiToolCallMetadata
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'gemini' as const
 
   private client: GoogleGenAI
