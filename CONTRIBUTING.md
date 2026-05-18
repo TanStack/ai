@@ -4,12 +4,9 @@ Thanks for contributing! This guide covers everything you need to get from a fre
 
 ## Prerequisites
 
-- **Node.js**: 24 or newer (older versions break `isolated-vm`).
 - **pnpm**: 10.17.0 or newer. Use the version pinned in `packageManager` (`pnpm@11.1.1`).
   - Recommended: install via [Corepack](https://nodejs.org/api/corepack.html). Run `corepack enable` once and pnpm is managed automatically.
 - **Git**.
-
-We don't currently use Volta/asdf/nvm files. A `.nvmrc` pins the Node version if you use nvm/fnm.
 
 ## Initial setup
 
