@@ -1,0 +1,92 @@
+# Provider documentation URLs
+
+Curated entry points for each provider's docs. Use these as WebFetch targets.
+If a page 404s or has moved, fall back to WebSearch with the provider name
+plus the section keyword (e.g., "openai models page 2026").
+
+When a section needs SDK-level API detail (e.g., "what parameters does the
+`messages.create` call accept?"), prefer the `context7` MCP server over
+WebFetch — call `resolve-library-id` with the SDK npm name, then `query-docs`.
+
+---
+
+## openai
+
+- Models: https://platform.openai.com/docs/models
+- API reference: https://platform.openai.com/docs/api-reference
+- Changelog: https://platform.openai.com/docs/changelog
+- Cookbook (capability examples): https://cookbook.openai.com/
+- npm SDK: https://www.npmjs.com/package/openai
+- context7 lib id hint: `openai/openai-node`
+
+## anthropic
+
+- Models: https://docs.anthropic.com/en/docs/about-claude/models
+- API reference: https://docs.anthropic.com/en/api/getting-started
+- Release notes: https://docs.anthropic.com/en/release-notes/api
+- Tool-use docs: https://docs.anthropic.com/en/docs/build-with-claude/tool-use
+- Prompt caching: https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+- npm SDK: https://www.npmjs.com/package/@anthropic-ai/sdk
+- context7 lib id hint: `anthropics/anthropic-sdk-typescript`
+
+## gemini (Google)
+
+- Models: https://ai.google.dev/gemini-api/docs/models
+- API reference: https://ai.google.dev/api
+- What's new: https://ai.google.dev/gemini-api/docs/changelog
+- Imagen (image-gen): https://ai.google.dev/gemini-api/docs/imagen
+- Lyria (audio-gen): https://ai.google.dev/gemini-api/docs/music-generation
+- npm SDK: https://www.npmjs.com/package/@google/genai
+- context7 lib id hint: `googleapis/js-genai`
+
+## ollama
+
+- Models library: https://ollama.com/library
+- API docs: https://github.com/ollama/ollama/blob/main/docs/api.md
+- Tool calling: https://ollama.com/blog/tool-support
+- npm SDK: https://www.npmjs.com/package/ollama
+- context7 lib id hint: `ollama/ollama-js`
+
+## grok (xAI)
+
+- Models: https://docs.x.ai/docs/models
+- API reference: https://docs.x.ai/docs/api-reference
+- Capabilities: https://docs.x.ai/docs/guides
+- Changelog: https://docs.x.ai/docs/release-notes
+- (Uses OpenAI-compatible HTTP API; SDK is the openai package.)
+
+## groq
+
+- Models: https://console.groq.com/docs/models
+- API reference: https://console.groq.com/docs/api-reference
+- Tool use: https://console.groq.com/docs/tool-use
+- npm SDK: https://www.npmjs.com/package/groq-sdk
+- context7 lib id hint: `groq/groq-typescript`
+
+## openrouter
+
+- Models: https://openrouter.ai/models
+- API docs: https://openrouter.ai/docs/quickstart
+- Provider routing: https://openrouter.ai/docs/features/provider-routing
+- (Proxies many providers; uses OpenAI-compatible API.)
+
+## fal (media-only)
+
+- Models catalog: https://fal.ai/models
+- API docs: https://docs.fal.ai/
+- npm SDK: https://www.npmjs.com/package/@fal-ai/client
+- context7 lib id hint: `fal-ai/fal-js`
+
+## elevenlabs (TTS-only)
+
+- Voices / models: https://elevenlabs.io/docs/api-reference/voices
+- TTS API: https://elevenlabs.io/docs/api-reference/text-to-speech
+- npm SDK: https://www.npmjs.com/package/@elevenlabs/elevenlabs-js
+
+---
+
+## Maintenance
+
+If you find a URL has permanently moved while running an audit, update this
+file in the same report turn — the maintainer will see the change in
+`git status` alongside the new report.
