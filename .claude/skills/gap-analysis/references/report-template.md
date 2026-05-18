@@ -4,6 +4,7 @@ Fill this template and write the result to
 `.agent/gap-analysis/<YYYY-MM-DD>-<scope>.md`.
 
 `<scope>` is one of:
+
 - `<provider>` — e.g. `openai`
 - `feature-<feature>` — e.g. `feature-tts`
 - `models`
@@ -14,7 +15,7 @@ Replace every `{{placeholder}}`. Drop sections that have zero entries
 
 ---
 
-```markdown
+````markdown
 # Gap Analysis — {{scope-human}} — {{YYYY-MM-DD}}
 
 > Source-of-truth matrix: `testing/e2e/src/lib/feature-support.ts`
@@ -104,7 +105,7 @@ Ordered list of concrete files to touch, one per follow-up:
 - Upstream pages fetched: {{count}}
 - Subagents launched: {{count or "none"}}
 - Time: {{wall-clock}} (optional)
-```
+````
 
 ---
 

@@ -15,13 +15,13 @@ markdown report under `.agent/gap-analysis/`. **Do not edit source files.**
 
 ## Invocation
 
-| Args                              | Scope                                                  |
-| --------------------------------- | ------------------------------------------------------ |
-| `<provider>` (e.g. `openai`)      | One provider — all four audit dimensions.              |
-| `feature <feature>` (e.g. `tts`)  | One feature row of the matrix across all providers.    |
-| `models`                          | New-model diff for every provider.                     |
-| `--all`                           | Full sweep (fan out subagents, one per provider).      |
-| _(none)_                          | Ask the user which scope via AskUserQuestion.          |
+| Args                             | Scope                                               |
+| -------------------------------- | --------------------------------------------------- |
+| `<provider>` (e.g. `openai`)     | One provider — all four audit dimensions.           |
+| `feature <feature>` (e.g. `tts`) | One feature row of the matrix across all providers. |
+| `models`                         | New-model diff for every provider.                  |
+| `--all`                          | Full sweep (fan out subagents, one per provider).   |
+| _(none)_                         | Ask the user which scope via AskUserQuestion.       |
 
 ## Workflow
 
@@ -86,6 +86,7 @@ seven; `fal` and `elevenlabs` only appear in model/media audits.
 ## Verification before finishing
 
 Before printing the summary:
+
 - Report file exists and is non-empty.
 - `git status` shows only new files under `.agent/gap-analysis/` — nothing
   under `packages/` or `testing/` should have been modified. Run `git status`

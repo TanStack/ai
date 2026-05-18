@@ -12,6 +12,7 @@ final report. Skip dimensions that don't apply to the scope (e.g.,
 **Upstream:** the provider's models page (see provider-doc-urls.md).
 
 Steps:
+
 1. Read the local `model-meta.ts` and extract the model-id constants
    (e.g. `OPENAI_CHAT_MODELS`, `ANTHROPIC_MODELS`, `GEMINI_MODELS`, etc.).
    The constants are usually exported `as const` records keyed by model id.
@@ -30,6 +31,7 @@ Steps:
    shape the maintainer can paste in.
 
 **Priority rubric:**
+
 - New flagship / GA model → **high**
 - New preview / experimental model → **medium**
 - Deprecated upstream but still in local → **medium** (action: deprecate)
@@ -43,13 +45,14 @@ Steps:
 **Upstream:** each provider's API reference / capabilities page.
 
 Steps:
+
 1. Read the matrix. For each `feature ∈ ALL_FEATURES`:
    - List `providers_with = matrix[feature]`.
    - Compute `providers_without = ALL_PROVIDERS - providers_with`.
 2. For each `(feature, provider)` in `providers_without`:
    - Check if `feature-support.ts` has an inline comment immediately above
      the feature's `Set` that excludes this provider (e.g., `// Gemini
-     excluded: …`). If yes → **tested gap**, surface in "Out-of-scope" with
+excluded: …`). If yes → **tested gap**, surface in "Out-of-scope" with
      line-number citation.
    - Otherwise, WebFetch the provider's API reference and search for the
      capability. Map TanStack feature → upstream capability using the table
@@ -60,29 +63,30 @@ Steps:
 
 ### Feature → upstream capability map
 
-| TanStack feature           | Upstream capability to look for                          |
-| -------------------------- | -------------------------------------------------------- |
-| `chat`                     | Any chat/messages/completions endpoint                   |
-| `one-shot-text`            | Non-streaming completion                                 |
-| `reasoning`                | Reasoning / thinking / chain-of-thought tokens           |
-| `multi-turn`               | Conversation / message history support                   |
-| `tool-calling`             | Function calling / tool use                              |
-| `parallel-tool-calls`      | Multiple tool calls in one turn (parallel)               |
-| `tool-approval`            | Pause-before-execute / user-confirm tool hooks           |
-| `text-tool-text`           | Tool call interleaved with text in the same turn         |
-| `structured-output`        | JSON schema / response format / structured outputs       |
-| `structured-output-stream` | Streaming JSON schema responses                          |
-| `agentic-structured`       | Structured output + tool calling combined                |
-| `multimodal-image`         | Image input (vision)                                     |
-| `multimodal-structured`    | Image input + structured output                          |
-| `summarize`                | Any non-chat completion useful for summarization         |
-| `summarize-stream`         | Streaming summarize                                      |
-| `image-gen`                | Image generation endpoint                                |
-| `tts`                      | Text-to-speech endpoint                                  |
-| `transcription`            | Speech-to-text endpoint                                  |
-| `video-gen`                | Video generation endpoint                                |
+| TanStack feature           | Upstream capability to look for                    |
+| -------------------------- | -------------------------------------------------- |
+| `chat`                     | Any chat/messages/completions endpoint             |
+| `one-shot-text`            | Non-streaming completion                           |
+| `reasoning`                | Reasoning / thinking / chain-of-thought tokens     |
+| `multi-turn`               | Conversation / message history support             |
+| `tool-calling`             | Function calling / tool use                        |
+| `parallel-tool-calls`      | Multiple tool calls in one turn (parallel)         |
+| `tool-approval`            | Pause-before-execute / user-confirm tool hooks     |
+| `text-tool-text`           | Tool call interleaved with text in the same turn   |
+| `structured-output`        | JSON schema / response format / structured outputs |
+| `structured-output-stream` | Streaming JSON schema responses                    |
+| `agentic-structured`       | Structured output + tool calling combined          |
+| `multimodal-image`         | Image input (vision)                               |
+| `multimodal-structured`    | Image input + structured output                    |
+| `summarize`                | Any non-chat completion useful for summarization   |
+| `summarize-stream`         | Streaming summarize                                |
+| `image-gen`                | Image generation endpoint                          |
+| `tts`                      | Text-to-speech endpoint                            |
+| `transcription`            | Speech-to-text endpoint                            |
+| `video-gen`                | Video generation endpoint                          |
 
 **Priority rubric:**
+
 - Real gap on a flagship feature (`tool-calling`, `structured-output`,
   `multimodal-image`) → **high**
 - Real gap on a media feature (`image-gen`, `tts`, `transcription`,
@@ -98,6 +102,7 @@ Steps:
 **Upstream:** provider's API reference top-level navigation.
 
 Steps:
+
 1. Read the upstream API reference's top-level sections.
 2. For each section, ask: does TanStack AI have a concept for this? Examples
    of "novel" upstream capabilities to look out for:
@@ -119,6 +124,7 @@ Steps:
    - Whether other TanStack AI adapters expose anything analogous
 
 **Priority rubric:**
+
 - Capability that meaningfully changes app architecture (caching, batch,
   realtime) → **high**
 - Capability that's a sibling of existing features → **medium**
@@ -132,6 +138,7 @@ Steps:
 **Upstream:** model-level capability tables on the provider's models page.
 
 Steps:
+
 1. Read every provider's `model-meta.ts`. For each model entry, list its
    `supports` arrays.
 2. Build a cross-provider table: for the **chat** model class, which keys
@@ -147,6 +154,7 @@ Steps:
    note in the report only if upstream announcement is < 30 days old.
 
 **Priority rubric:**
+
 - Missing capability flag for an in-use feature → **high** (causes type
   errors or feature unavailable)
 - Stale context window / output tokens → **medium**
