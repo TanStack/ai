@@ -24,6 +24,13 @@ describe('useChat() return type (solid)', () => {
       expectTypeOf<R['final']>().toEqualTypeOf<Accessor<Person | null>>()
     })
 
+    it('still exposes the base shape (messages, sendMessage, isLoading, …)', () => {
+      type R = UseChatReturn<NoTools, PersonSchema>
+      expectTypeOf<R['sendMessage']>().toBeFunction()
+      expectTypeOf<R['isLoading']>().toBeFunction()
+      expectTypeOf<R['messages']>().toBeFunction()
+    })
+
     it('options accept outputSchema with the schema type', () => {
       type O = UseChatOptions<NoTools, PersonSchema>
       expectTypeOf<O['outputSchema']>().toEqualTypeOf<
@@ -60,6 +67,12 @@ describe('useChat() return type (solid)', () => {
       expectTypeOf<StructuredPart['data']>().toEqualTypeOf<
         unknown | undefined
       >()
+    })
+
+    it('preserves the base return shape', () => {
+      type R = UseChatReturn<NoTools>
+      expectTypeOf<R['sendMessage']>().toBeFunction()
+      expectTypeOf<R['isLoading']>().toBeFunction()
     })
   })
 })
