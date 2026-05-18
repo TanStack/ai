@@ -93,7 +93,8 @@ export class GeminiTextInteractionsAdapter<
   async *chatStream(
     options: TextOptions<GeminiTextInteractionsProviderOptions>,
   ): AsyncIterable<StreamChunk> {
-    const runId = generateId(this.name)
+    const runId = options.runId ?? generateId(this.name)
+    const threadId = options.threadId ?? generateId(this.name)
     const timestamp = Date.now()
     const { logger } = options
 
@@ -116,6 +117,8 @@ export class GeminiTextInteractionsAdapter<
         stream as AsyncIterable<InteractionSSEEvent>,
         options.model,
         runId,
+        threadId,
+        options.parentRunId,
         timestamp,
         this.name,
         logger,
@@ -576,6 +579,8 @@ async function* translateInteractionEvents(
   stream: AsyncIterable<InteractionSSEEvent>,
   model: string,
   runId: string,
+  threadId: string,
+  parentRunId: string | undefined,
   timestamp: number,
   adapterName: string,
   logger: InternalLogger,
@@ -617,8 +622,10 @@ async function* translateInteractionEvents(
       yield asChunk({
         type: 'RUN_STARTED',
         runId,
+        threadId,
         model,
         timestamp,
+        parentRunId,
       })
     }
   }
@@ -857,6 +864,7 @@ async function* translateInteractionEvents(
         yield asChunk({
           type: 'RUN_FINISHED',
           runId,
+          threadId,
           model,
           timestamp,
           finishReason,

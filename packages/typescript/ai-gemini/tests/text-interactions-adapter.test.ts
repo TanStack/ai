@@ -127,6 +127,41 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(interactionCustom.value).toEqual({ interactionId: 'int_1' })
   })
 
+  it('threads runId, threadId, and parentRunId onto RUN_STARTED / RUN_FINISHED for AG-UI compliance', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_3', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_3', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'run_42',
+        threadId: 'thread_7',
+        parentRunId: 'run_parent',
+      }),
+    )
+
+    const started = chunks.find((c) => c.type === 'RUN_STARTED') as any
+    expect(started.runId).toBe('run_42')
+    expect(started.threadId).toBe('thread_7')
+    expect(started.parentRunId).toBe('run_parent')
+
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
+    expect(finished.runId).toBe('run_42')
+    expect(finished.threadId).toBe('thread_7')
+  })
+
   it('forwards previous_interaction_id on the outgoing request and sends only the latest user turn', async () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
