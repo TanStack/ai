@@ -295,9 +295,7 @@ function convertMessagesToInteractionsInput(
   // `invalid_request` / "value at top-level must be a list".
   if (!hasPreviousInteraction) {
     if (source.length === 0) {
-      throw new Error(
-        'Gemini Interactions adapter: no messages to send.',
-      )
+      throw new Error('Gemini Interactions adapter: no messages to send.')
     }
     if (source.length > 1) {
       throw new Error(
