@@ -42,8 +42,10 @@ markdown report under `.agent/gap-analysis/`. **Do not edit source files.**
    2. Cross-adapter feature parity
    3. Untracked features
    4. Capability-flag drift
+   5. Telemetry / observability parity (usage tokens, cache/reasoning
+      counts, request ids, logging asymmetry)
 5. **Fan out** for `--all`: launch one `Explore` subagent per provider, max 3
-   in parallel. Each subagent returns the four-dimension findings for its
+   in parallel. Each subagent returns the five-dimension findings for its
    provider; you synthesise into the combined report.
 6. **Write the report** to `.agent/gap-analysis/YYYY-MM-DD-<scope>.md` using
    [references/report-template.md](references/report-template.md). Date is
@@ -75,7 +77,10 @@ markdown report under `.agent/gap-analysis/`. **Do not edit source files.**
 (media-only), `elevenlabs` (TTS-only). The feature matrix tracks the first
 seven; `fal` and `elevenlabs` only appear in model/media audits.
 
-## Known features (22)
+## Known features (19)
+
+Canonical list is `ALL_FEATURES` in `testing/e2e/src/lib/types.ts` — always
+re-read it; this list is a snapshot:
 
 `chat`, `one-shot-text`, `reasoning`, `multi-turn`, `tool-calling`,
 `parallel-tool-calls`, `tool-approval`, `text-tool-text`, `structured-output`,

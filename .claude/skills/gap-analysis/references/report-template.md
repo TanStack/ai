@@ -78,6 +78,23 @@ Replace every `{{placeholder}}`. Drop sections that have zero entries
 
 ---
 
+## Telemetry / observability parity
+
+> Per dimension 5 in audit-checklist.md. Compares what each adapter
+> forwards into `StreamChunk` / final response vs. what upstream returns.
+
+- **[{{provider}}] drops `{{field}}`** that upstream returns (e.g.,
+  `cache_read_input_tokens`, `reasoning_tokens`, `cached_tokens`).
+  - Upstream evidence: [{{doc-title}}]({{doc-url}})
+  - Sibling adapters that already forward it: {{list}}
+  - Adapter path: `packages/typescript/ai-{{provider}}/src/adapters/{{file}}:{{line}}`
+  - Effort: {{S / M / L}}
+
+- **[{{provider}}] logging asymmetry** — {{e.g., adapter swallows parse
+  failures while `<other>` warns}}; consider matching.
+
+---
+
 ## Out-of-scope — documented exclusions
 
 > Listed for completeness; no action required. Each links to the comment
@@ -101,7 +118,7 @@ Ordered list of concrete files to touch, one per follow-up:
 - Scope: `{{scope-raw}}`
 - Date: {{YYYY-MM-DD}}
 - Providers audited: {{comma-separated}}
-- Features audited: {{comma-separated or "all 22"}}
+- Features audited: {{comma-separated or "all (per ALL_FEATURES)"}}
 - Upstream pages fetched: {{count}}
 - Subagents launched: {{count or "none"}}
 - Time: {{wall-clock}} (optional)
