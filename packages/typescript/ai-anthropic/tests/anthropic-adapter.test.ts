@@ -35,7 +35,7 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: MockAnthropic }
 })
 
-const createAdapter = <TModel extends 'claude-3-7-sonnet-20250219'>(
+const createAdapter = <TModel extends 'claude-3-7-sonnet'>(
   model: TModel,
 ) => new AnthropicTextAdapter({ apiKey: 'test-key' }, model)
 
@@ -98,7 +98,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -109,66 +109,12 @@ describe('Anthropic adapter option mapping', () => {
       chunks.push(chunk)
     }
 
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     // system should be an array of TextBlockParam, not a joined string
     expect(payload.system).toEqual([
       { type: 'text', text: 'You are a helpful assistant.' },
       { type: 'text', text: 'Be concise.' },
-    ])
-  })
-
-  it('allows modelOptions.system to override systemPrompts with cache_control', async () => {
-    const mockStream = (async function* () {
-      yield {
-        type: 'content_block_start',
-        index: 0,
-        content_block: { type: 'text', text: '' },
-      }
-      yield {
-        type: 'content_block_delta',
-        index: 0,
-        delta: { type: 'text_delta', text: 'Hello' },
-      }
-      yield {
-        type: 'message_delta',
-        delta: { stop_reason: 'end_turn' },
-        usage: { output_tokens: 3 },
-      }
-      yield { type: 'message_stop' }
-    })()
-
-    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
-
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
-
-    const chunks: StreamChunk[] = []
-    for await (const chunk of chat({
-      adapter,
-      messages: [{ role: 'user', content: 'Hi' }],
-      systemPrompts: ['This should be overridden'],
-      modelOptions: {
-        system: [
-          {
-            type: 'text',
-            text: 'You are a helpful assistant.',
-            cache_control: { type: 'ephemeral' },
-          },
-        ],
-      },
-    })) {
-      chunks.push(chunk)
-    }
-
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
-
-    // modelOptions.system should take precedence over systemPrompts
-    expect(payload.system).toEqual([
-      {
-        type: 'text',
-        text: 'You are a helpful assistant.',
-        cache_control: { type: 'ephemeral' },
-      },
     ])
   })
 
@@ -218,10 +164,9 @@ describe('Anthropic adapter option mapping', () => {
       stop_sequences: ['</done>'],
       thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: 5,
-      system: 'Respond with JSON',
-    } satisfies AnthropicTextProviderOptions & { system: string }
+    } satisfies AnthropicTextProviderOptions
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     // Consume the stream to trigger the API call
     const chunks: StreamChunk[] = []
@@ -251,10 +196,10 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     expect(payload).toMatchObject({
-      model: 'claude-3-7-sonnet-20250219',
+      model: 'claude-3-7-sonnet',
       max_tokens: 3000,
       temperature: 0.4,
       container: providerOptions.container,
@@ -263,7 +208,6 @@ describe('Anthropic adapter option mapping', () => {
       stop_sequences: providerOptions.stop_sequences,
       thinking: providerOptions.thinking,
       top_k: providerOptions.top_k,
-      system: providerOptions.system,
     })
     expect(payload.stream).toBe(true)
 
@@ -331,7 +275,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     // Multi-turn: user -> assistant(tool_calls) -> tool_result -> follow-up user
     const chunks: StreamChunk[] = []
@@ -359,7 +303,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     // The tool_result (user) and follow-up user message should be merged into one user message
     expect(payload.messages).toEqual([
@@ -404,7 +348,7 @@ describe('Anthropic adapter option mapping', () => {
       createTextStream('Follow-up answer'),
     )
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -434,13 +378,13 @@ describe('Anthropic adapter option mapping', () => {
       tools: [weatherTool],
       modelOptions: {
         thinking: { type: 'enabled', budget_tokens: 1024 },
-      } as AnthropicTextProviderOptions,
+      } satisfies AnthropicTextProviderOptions,
     })) {
       chunks.push(chunk)
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     expect(payload.betas).toEqual(['interleaved-thinking-2025-05-14'])
     expect(payload.messages[1].content).toEqual([
@@ -463,7 +407,7 @@ describe('Anthropic adapter option mapping', () => {
       createTextStream('Next answer'),
     )
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -484,12 +428,12 @@ describe('Anthropic adapter option mapping', () => {
       ],
       modelOptions: {
         thinking: { type: 'enabled', budget_tokens: 1024 },
-      } as AnthropicTextProviderOptions,
+      } satisfies AnthropicTextProviderOptions,
     })) {
       chunks.push(chunk)
     }
 
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     expect(payload.messages[1].content).toEqual([
       {
@@ -529,7 +473,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -567,7 +511,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     // Both tool results should be merged into a single user message
     expect(payload.messages).toEqual([
@@ -645,7 +589,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -700,7 +644,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     // Verify: no consecutive same-role messages, no empty assistants, no duplicate tool_results
     const roles = payload.messages.map((m: any) => m.role)
@@ -757,7 +701,7 @@ describe('Anthropic adapter option mapping', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -772,7 +716,7 @@ describe('Anthropic adapter option mapping', () => {
     }
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = mocks.betaMessagesCreate.mock.calls[0]
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
     // The empty assistant message should be filtered out, and consecutive
     // user messages should be merged
@@ -821,7 +765,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
@@ -884,7 +828,7 @@ describe('Anthropic stream processing', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const adapter = createAdapter('claude-3-7-sonnet-20250219')
+    const adapter = createAdapter('claude-3-7-sonnet')
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({

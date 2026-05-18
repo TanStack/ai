@@ -301,7 +301,6 @@ export class AnthropicTextAdapter<
         'mcp_servers',
         'service_tier',
         'stop_sequences',
-        'system',
         'thinking',
         'tool_choice',
         'top_k',
