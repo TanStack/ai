@@ -1,5 +1,11 @@
 # @tanstack/ai-ollama
 
+## 0.6.16
+
+### Patch Changes
+
+- fix(ai-ollama): inject system prompts into messages array for chat API ([#568](https://github.com/TanStack/ai/pull/568))
+
 ## 0.6.15
 
 ### Patch Changes
