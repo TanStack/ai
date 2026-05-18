@@ -187,7 +187,10 @@ export function parseOutputFormat(fmt: ElevenLabsOutputFormat | undefined): {
       return { format: 'ulaw', contentType: 'audio/basic' }
     case 'alaw':
       return { format: 'alaw', contentType: 'audio/x-alaw-basic' }
+    case undefined:
     default:
+      // `split('_')[0]?.toLowerCase()` can be `undefined` only if `fmt` is
+      // an empty string; any other unknown codec also falls back to mp3.
       return { format: 'mp3', contentType: 'audio/mpeg' }
   }
 }

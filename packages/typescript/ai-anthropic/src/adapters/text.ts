@@ -992,7 +992,16 @@ export class AnthropicTextAdapter<
                 }
                 break
               }
+              case 'stop_sequence':
+              case 'end_turn':
+              case 'pause_turn':
+              case 'refusal':
+              case 'model_context_window_exceeded':
               default: {
+                // All remaining Anthropic stop_reason variants map to the
+                // generic "stop" finish reason — they describe *why* the
+                // stream ended, but for AG-UI consumers the resulting event
+                // shape is identical.
                 yield {
                   type: EventType.RUN_FINISHED,
                   runId,

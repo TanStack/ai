@@ -417,8 +417,9 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
   })
 
   const finishLabel = () => {
-    if (!iter().finishReason) return null
-    switch (iter().finishReason) {
+    const reason = iter().finishReason
+    if (!reason) return null
+    switch (reason) {
       case 'stop':
         return 'completed'
       case 'tool_calls':
@@ -428,7 +429,7 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
       case 'length':
         return 'max length'
       default:
-        return iter().finishReason
+        return reason
     }
   }
 

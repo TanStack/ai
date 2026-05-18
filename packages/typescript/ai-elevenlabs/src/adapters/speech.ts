@@ -211,6 +211,9 @@ function inferOutputFormatFromResponseFormat(
       return 'opus_48000_128'
     case undefined:
       return undefined
+    case 'aac':
+    case 'flac':
+    case 'wav':
     default:
       // `aac` / `flac` / `wav` are not native ElevenLabs formats —
       // fall back to mp3 rather than blowing up mid-request.

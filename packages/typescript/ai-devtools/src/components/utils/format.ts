@@ -29,6 +29,8 @@ export const getChunkTypeColor = (type: Chunk['type']): string => {
       return '#ef4444' // red
     case 'approval':
       return '#f59e0b' // orange/amber
+    case 'thinking':
+      return '#a855f7' // violet
     default:
       return '#6b7280' // gray
   }

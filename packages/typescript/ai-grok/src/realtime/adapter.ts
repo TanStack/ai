@@ -759,10 +759,12 @@ async function createWebRTCConnection(
         break
       }
 
+      case undefined:
       default:
         // The xAI realtime protocol is a moving target; log unhandled event
         // types at provider level so they're visible during debugging without
-        // emitting a user-visible error.
+        // emitting a user-visible error. `undefined` shares the bucket because
+        // a malformed event without a `type` field is just as unhandleable.
         logger.provider('grok.realtime unhandled server event', {
           type: event['type'],
         })

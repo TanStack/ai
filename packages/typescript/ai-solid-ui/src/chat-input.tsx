@@ -64,7 +64,7 @@ export function ChatInput(props: ChatInputProps) {
 
   const handleSubmit = () => {
     if (!value().trim() || disabled()) return
-    sendMessage(value())
+    void sendMessage(value())
     setValue('')
   }
 

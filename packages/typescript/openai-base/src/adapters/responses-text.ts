@@ -1765,7 +1765,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
+      case 'video':
+      case 'document':
       default:
+        // OpenAI Responses API doesn't accept native video/document parts on
+        // this path — surface as explicit unsupported error so callers see
+        // the same message regardless of which content type leaked through.
         throw new Error(`Unsupported content part type: ${part.type}`)
     }
   }
