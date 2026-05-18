@@ -1,5 +1,12 @@
 # @tanstack/ai-code-mode-models-eval
 
+## 0.0.18
+
+### Patch Changes
+
+- Updated dependencies [[`2f6bd13`](https://github.com/TanStack/ai/commit/2f6bd139dd7404e04edfa81c0ab105f2bfb02680)]:
+  - @tanstack/ai-ollama@0.6.16
+
 ## 0.0.17
 
 ### Patch Changes
