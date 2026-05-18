@@ -17,14 +17,7 @@
     "stream-processor-panel",
     "php-slim",
     "python-fastapi",
-    "ts-code-mode-web",
-    "ts-group-chat",
-    "ts-react-chat",
-    "ts-react-media",
-    "ts-react-search",
-    "ts-solid-chat",
-    "ts-svelte-chat",
-    "ts-vue-chat",
+    "ts-*",
     "vanilla-chat"
   ],
   "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
