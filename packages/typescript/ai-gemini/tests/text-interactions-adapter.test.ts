@@ -212,10 +212,16 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(payload.previous_interaction_id).toBe('int_1')
     expect(payload.model).toBe('gemini-2.5-flash')
     expect(payload.stream).toBe(true)
-    // `input` is always sent as `Array<Content>` — the live API rejects
-    // bare strings (and `Array<Turn>`) with `invalid_request` /
-    // "value at top-level must be a list" once tools are involved.
-    expect(payload.input).toEqual([{ type: 'text', text: 'What is my name?' }])
+    // `input` is sent as `Array<Step>` — the live API expects a list
+    // of Steps at the top level, not bare content blocks. See the
+    // `InteractionsRequestInput` comment in the adapter for the
+    // rejection mode if that envelope is missing.
+    expect(payload.input).toEqual([
+      {
+        type: 'user_input',
+        content: [{ type: 'text', text: 'What is my name?' }],
+      },
+    ])
   })
 
   it('includes trailing tool result when chaining with previous_interaction_id', async () => {
@@ -266,8 +272,8 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
     expect(payload.previous_interaction_id).toBe('int_prev')
-    // Tool result follow-ups are sent as a flat Array<Content> with
-    // function_result blocks — the API doesn't accept Turn wrappers.
+    // Tool result follow-ups are sent as Step[] with `function_result`
+    // entries at the top level (NOT wrapped in `user_input` content).
     expect(payload.input).toEqual([
       {
         type: 'function_result',
@@ -300,7 +306,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(mocks.interactionsCreateSpy).not.toHaveBeenCalled()
   })
 
-  it('sends a fresh single-text turn as an Array<Content>', async () => {
+  it('sends a fresh single-text turn as a single user_input Step', async () => {
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
@@ -323,7 +329,9 @@ describe('GeminiTextInteractionsAdapter', () => {
     )
 
     const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
-    expect(payload.input).toEqual([{ type: 'text', text: 'Hello' }])
+    expect(payload.input).toEqual([
+      { type: 'user_input', content: [{ type: 'text', text: 'Hello' }] },
+    ])
     expect(payload.previous_interaction_id).toBeUndefined()
   })
 
@@ -565,6 +573,74 @@ describe('GeminiTextInteractionsAdapter', () => {
         file_search_store_names: ['fileSearchStores/my-store'],
         top_k: 5,
         metadata_filter: 'kind="faq"',
+      },
+    ])
+  })
+
+  it('strips empty `required: []` arrays from tool parameter schemas', async () => {
+    // The live Interactions API rejects tool parameter schemas that
+    // contain an empty `required` array with the misleading top-level
+    // error "value at top-level must be a list". The adapter must strip
+    // those instances before sending.
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_strip', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_strip', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [
+          {
+            name: 'noArgs',
+            description: 'A tool with no parameters',
+            // Mirrors what zod-to-json-schema emits for `z.object({})`:
+            // `properties: {}` and `required: []`. The `required: []`
+            // is the poison.
+            inputSchema: { type: 'object', properties: {}, required: [] },
+          },
+          {
+            name: 'withRequired',
+            description: 'A tool with one required param',
+            inputSchema: {
+              type: 'object',
+              properties: { city: { type: 'string' } },
+              required: ['city'],
+            },
+          },
+        ] as Array<Tool>,
+      }),
+    )
+
+    const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
+    expect(payload.tools).toEqual([
+      {
+        type: 'function',
+        name: 'noArgs',
+        description: 'A tool with no parameters',
+        // `required: []` stripped; `properties: {}` preserved.
+        parameters: { type: 'object', properties: {} },
+      },
+      {
+        type: 'function',
+        name: 'withRequired',
+        description: 'A tool with one required param',
+        // Non-empty `required` is passed through unchanged.
+        parameters: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city'],
+        },
       },
     ])
   })

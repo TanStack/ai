@@ -78,13 +78,23 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Gemini Interactions (stateful, experimental — `@tanstack/ai-gemini/experimental`)
   {
     provider: 'gemini-interactions',
+    model: 'gemini-2.5-flash',
+    label: 'Gemini Interactions - 2.5 Flash (experimental)',
+  },
+  {
+    provider: 'gemini-interactions',
+    model: 'gemini-2.5-pro',
+    label: 'Gemini Interactions - 2.5 Pro (experimental)',
+  },
+  {
+    provider: 'gemini-interactions',
     model: 'gemini-3.1-pro-preview',
     label: 'Gemini Interactions - 3.1 Pro Preview (experimental)',
   },
   {
     provider: 'gemini-interactions',
-    model: 'gemini-3.1-flash-lite-preview',
-    label: 'Gemini Interactions - 3.1 Flash Lite Preview (experimental)',
+    model: 'gemini-3.1-flash-lite',
+    label: 'Gemini Interactions - 3.1 Flash Lite (experimental)',
   },
 
   // Openrouter — multi-provider via OpenRouter's unified API

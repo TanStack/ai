@@ -241,14 +241,14 @@ export const Route = createFileRoute('/api/tanchat')({
           // Get typed adapter options using createChatOptions pattern
           const options = adapterConfig[provider]()
 
-          // Gemini's Interactions API rejects tool parameter schemas that
-          // include `anyOf` (e.g. Zod unions), so the guitar tool suite is
-          // skipped for that provider. Other providers get the full set
-          // merged with whatever client-side tools the request brought.
-          const mergedTools =
-            provider === 'gemini-interactions'
-              ? mergeAgentTools([], params.tools)
-              : mergeAgentTools(serverTools, params.tools)
+          // All providers (including gemini-interactions) get the full
+          // server-tool set merged with whatever client-side tools the
+          // request brought. Historical note: gemini-interactions used
+          // to be excluded because of an assumed `anyOf` incompatibility
+          // and an empty-`required: []` rejection. The first turned out
+          // to be a non-issue against the live API and the second is now
+          // sanitized inside `@tanstack/ai-gemini/experimental`.
+          const mergedTools = mergeAgentTools(serverTools, params.tools)
 
           const stream = chat({
             ...options,

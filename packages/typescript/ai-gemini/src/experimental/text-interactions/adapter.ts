@@ -43,7 +43,26 @@ type InteractionsTool = NonNullable<
 >[number]
 
 type ContentBlock = Interactions.Content
-type InteractionsRequestInput = Array<ContentBlock>
+
+// The Interactions API takes `input` as a list of *Steps* (not a list of
+// content blocks, and not a list of `Turn`s — the SDK's type union is
+// misleading on both counts). The live API enforces the Step envelope —
+// raw content arrays produce `invalid_request` / "value at top-level
+// must be a list". The wire discriminator is snake_case
+// (`user_input` / `function_result`); see
+// https://ai.google.dev/api/interactions-api for the full Step union.
+type UserInputStep = {
+  type: 'user_input'
+  content: Array<ContentBlock>
+}
+type FunctionResultStep = {
+  type: 'function_result'
+  call_id: string
+  name?: string
+  result: string
+}
+type InteractionsStep = UserInputStep | FunctionResultStep
+type InteractionsRequestInput = Array<InteractionsStep>
 
 type ToolCallState = {
   name: string
@@ -90,6 +109,14 @@ export class GeminiTextInteractionsAdapter<
   readonly name = 'gemini-text-interactions' as const
 
   private client: GoogleGenAI
+  // Tracks the most recent server-assigned interaction id per threadId
+  // so that within a single `chat()` call the agent loop can chain
+  // itself: iteration 0 has no prior id, but iteration 1+ (after a
+  // tool call) need to send the id from iteration 0 — the caller has
+  // no opportunity to thread it back between iterations of the same
+  // request. Cross-request chaining is still the caller's job via
+  // `modelOptions.previous_interaction_id`.
+  private interactionIdByThread = new Map<string, string>()
 
   constructor(config: GeminiTextInteractionsConfig, model: TModel) {
     super({}, model)
@@ -104,8 +131,21 @@ export class GeminiTextInteractionsAdapter<
     const timestamp = Date.now()
     const { logger } = options
 
+    // Resolve `previous_interaction_id`. Caller-provided wins; otherwise
+    // fall back to the id we captured during a prior iteration of this
+    // same agent-loop run (matched by threadId).
+    const effectivePreviousInteractionId =
+      options.modelOptions?.previous_interaction_id ??
+      this.interactionIdByThread.get(threadId)
+
     try {
-      const request = buildInteractionsRequest(options)
+      const request = buildInteractionsRequest({
+        ...options,
+        modelOptions: {
+          ...options.modelOptions,
+          previous_interaction_id: effectivePreviousInteractionId,
+        },
+      })
       logger.request(
         `activity=chat provider=gemini-text-interactions model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         {
@@ -114,12 +154,15 @@ export class GeminiTextInteractionsAdapter<
           request,
         },
       )
+      // Cast: SDK types `input` as `string | Content[] | Turn[] | ...` but
+      // the live API actually requires `Step[]`. See the
+      // `InteractionsRequestInput` type above for the explanation.
       const stream = await this.client.interactions.create({
         ...request,
         stream: true,
-      })
+      } as Parameters<typeof this.client.interactions.create>[0])
 
-      yield* translateInteractionEvents(
+      for await (const chunk of translateInteractionEvents(
         stream as AsyncIterable<InteractionSSEEvent>,
         options.model,
         runId,
@@ -128,7 +171,22 @@ export class GeminiTextInteractionsAdapter<
         timestamp,
         this.name,
         logger,
-      )
+      )) {
+        // Capture the server-assigned id so the next agent-loop
+        // iteration on this thread can chain off it. The CUSTOM event
+        // is also yielded downstream as usual — callers consume it via
+        // `onCustomEvent` for cross-request chaining.
+        if (
+          chunk.type === 'CUSTOM' &&
+          (chunk as { name?: string }).name === 'gemini.interactionId'
+        ) {
+          const value = (chunk as { value?: { interactionId?: string } }).value
+          if (value?.interactionId) {
+            this.interactionIdByThread.set(threadId, value.interactionId)
+          }
+        }
+        yield chunk
+      }
     } catch (error) {
       const message =
         error instanceof Error
@@ -171,7 +229,9 @@ export class GeminiTextInteractionsAdapter<
           request,
         },
       )
-      const result = await this.client.interactions.create(request)
+      const result = (await this.client.interactions.create(
+        request as Parameters<typeof this.client.interactions.create>[0],
+      )) as Interaction
 
       const rawText = extractTextFromInteraction(result)
 
@@ -260,21 +320,22 @@ function buildInteractionsRequest(
   }
 }
 
-// Google's Interactions API requires `input` to be a flat `Array<Content>`.
-// The SDK's type union (`string | Array<Content> | Array<Turn> | ...`) and
-// public docs suggest a bare string is also accepted, but the live API
-// rejects bare strings — at minimum once `tools` are present — with
-// `invalid_request` / "value at top-level must be a list". `Array<Turn>`
-// is rejected for the same reason. Always wrap text in `[{ type: 'text',
-// text }]` so the wire shape is uniform regardless of whether the caller
-// supplied tools.
+// Google's Interactions API takes `input` as `Array<Step>`. Each Step
+// is `{type: 'user_input' | 'function_result' | ..., ...}` — content
+// blocks (text/image/etc.) live nested inside a Step's `content` array,
+// they are NOT valid at the top level. Sending raw `Array<Content>`
+// produces `invalid_request` / "value at top-level must be a list",
+// because the API is looking for a Step list at the top level and
+// gets content objects instead. The SDK's type union
+// (`string | Array<Content> | Array<Turn> | ...`) is misleading; see
+// https://ai.google.dev/api/interactions-api for the real Step union.
 //
-// When `hasPreviousInteraction` is true the server holds the transcript up
-// through the last assistant turn, so we only send the blocks that come
-// after it (a new user turn, a tool result continuing a function call,
-// etc.). Otherwise the conversation is fresh and only the latest user
-// turn is supported — multi-turn replay without `previous_interaction_id`
-// is not part of the Interactions API contract.
+// When `hasPreviousInteraction` is true the server holds the transcript
+// up through the last assistant turn, so we only send the steps that
+// come after it (a new `user_input`, one or more `function_result`s
+// continuing a tool call, etc.). Otherwise the conversation is fresh
+// and only the latest user turn is supported — multi-turn replay
+// without `previous_interaction_id` is not part of the API contract.
 function convertMessagesToInteractionsInput(
   messages: Array<ModelMessage>,
   hasPreviousInteraction: boolean,
@@ -298,10 +359,6 @@ function convertMessagesToInteractionsInput(
     )
   }
 
-  // The fresh-conversation path only supports a single user turn — the
-  // server has no prior context to splice older messages into, and the
-  // wire-level API will reject multi-turn `Array<Turn>` shapes with
-  // `invalid_request` / "value at top-level must be a list".
   if (!hasPreviousInteraction) {
     if (source.length === 0) {
       throw new Error('Gemini Interactions adapter: no messages to send.')
@@ -317,34 +374,47 @@ function convertMessagesToInteractionsInput(
         `Gemini Interactions adapter: the first message of a fresh interaction must be a user turn (got role="${only.role}"). Set modelOptions.previous_interaction_id to continue an existing interaction.`,
       )
     }
-    const blocks = messageToContentBlocks(only, toolCallIdToName)
-    if (blocks.length === 0) {
+    const content = messageToContentBlocks(only)
+    if (content.length === 0) {
       throw new Error(
         'Gemini Interactions adapter: the user message produced no content blocks to send.',
       )
     }
-    return blocks
+    return [{ type: 'user_input', content }]
   }
 
-  // Chained path: flatten the post-assistant messages into a single
-  // Content[]. In practice this is either a single new user turn or one
-  // or more `function_result` tool messages.
-  const blocks: Array<ContentBlock> = []
+  // Chained path: each post-assistant message becomes one Step. A user
+  // reply maps to `user_input`; a tool reply maps to `function_result`.
+  // Assistant turns shouldn't appear here (sliced off above) — if one
+  // somehow does we skip it rather than letting it shape the wire.
+  const steps: Array<InteractionsStep> = []
   for (const msg of source) {
-    blocks.push(...messageToContentBlocks(msg, toolCallIdToName))
+    if (msg.role === 'tool' && msg.toolCallId) {
+      steps.push({
+        type: 'function_result',
+        call_id: msg.toolCallId,
+        name: toolCallIdToName.get(msg.toolCallId),
+        result: typeof msg.content === 'string' ? msg.content : '',
+      })
+    } else if (msg.role === 'user') {
+      const content = messageToContentBlocks(msg)
+      if (content.length > 0) {
+        steps.push({ type: 'user_input', content })
+      }
+    }
   }
-  if (blocks.length === 0) {
+  if (steps.length === 0) {
     throw new Error(
-      'Gemini Interactions adapter: messages after the last assistant turn produced no content blocks to send.',
+      'Gemini Interactions adapter: messages after the last assistant turn produced no steps to send.',
     )
   }
-  return blocks
+  return steps
 }
 
-function messageToContentBlocks(
-  msg: ModelMessage,
-  toolCallIdToName: Map<string, string>,
-): Array<ContentBlock> {
+// Extracts the content blocks (text / image / audio / video / document)
+// from a single message. Tool calls and tool results live one level up
+// as Steps, not as content, so they are NOT emitted here.
+function messageToContentBlocks(msg: ModelMessage): Array<ContentBlock> {
   const blocks: Array<ContentBlock> = []
 
   if (Array.isArray(msg.content)) {
@@ -357,26 +427,6 @@ function messageToContentBlocks(
     msg.role !== 'tool'
   ) {
     blocks.push({ type: 'text', text: msg.content })
-  }
-
-  if (msg.role === 'assistant' && msg.toolCalls?.length) {
-    for (const toolCall of msg.toolCalls) {
-      blocks.push({
-        type: 'function_call',
-        id: toolCall.id,
-        name: toolCall.function.name,
-        arguments: safeParseToolArguments(toolCall.function.arguments),
-      })
-    }
-  }
-
-  if (msg.role === 'tool' && msg.toolCallId) {
-    blocks.push({
-      type: 'function_result',
-      call_id: msg.toolCallId,
-      name: toolCallIdToName.get(msg.toolCallId),
-      result: typeof msg.content === 'string' ? msg.content : '',
-    })
   }
 
   return blocks
@@ -609,11 +659,9 @@ function convertToolsToInteractionsFormat<TTool extends Tool>(
           type: 'function',
           name: tool.name,
           description: tool.description,
-          parameters: tool.inputSchema ?? {
-            type: 'object',
-            properties: {},
-            required: [],
-          },
+          parameters: sanitizeToolParameters(
+            tool.inputSchema ?? { type: 'object', properties: {} },
+          ),
         })
       }
     }
@@ -963,4 +1011,25 @@ function extractTextFromInteraction(interaction: Interaction): string {
     }
   }
   return text
+}
+
+// The live Interactions API rejects tool parameter schemas that contain
+// an empty `required: []` array with the misleading top-level error
+// `"value at top-level must be a list"`. Empty `properties: {}` and
+// `parameters: {}` are both fine — only the empty `required` array is
+// poison. The Zod -> JSON Schema converter (and many hand-written
+// schemas) emit `required: []` whenever a tool has zero required
+// parameters, so we strip those instances recursively before sending.
+// Non-empty `required` arrays are passed through unchanged.
+function sanitizeToolParameters(schema: unknown): unknown {
+  if (!schema || typeof schema !== 'object') return schema
+  if (Array.isArray(schema)) return schema.map(sanitizeToolParameters)
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === 'required' && Array.isArray(value) && value.length === 0) {
+      continue
+    }
+    out[key] = sanitizeToolParameters(value)
+  }
+  return out
 }
