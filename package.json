@@ -8,7 +8,7 @@
   "packageManager": "pnpm@11.1.1",
   "type": "module",
   "engines": {
-    "pnpm": ">=11.0.0"
+    "pnpm": ">=10.17.0"
   },
   "scripts": {
     "clean": "pnpm --filter \"./packages/**\" run clean",

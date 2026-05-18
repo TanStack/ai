@@ -240,12 +240,12 @@ describe('Gemini Model Provider Options Type Assertions', () => {
   })
 
   describe('Detailed property type assertions', () => {
-    it('thinking models should allow thinkingConfig in generationConfig', () => {
+    it('thinking models should allow thinkingConfig', () => {
       type Options = GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
 
-      // The generationConfig should include thinkingConfig from GeminiCommonConfigOptions
-      // which intersects with GeminiThinkingOptions
-      expectTypeOf<Options>().toHaveProperty('stopSequences')
+      // gemini-2.5-pro supports thinking, so its provider options should
+      // include thinkingConfig from GeminiThinkingOptions.
+      expectTypeOf<Options>().toHaveProperty('thinkingConfig')
     })
 
     it('structured output options should have responseMimeType and responseSchema', () => {

@@ -6,7 +6,7 @@ Node.js V8 isolate driver for TanStack AI Code Mode. Uses [`isolated-vm`](https:
 
 - Node.js >= 22 (matches [`isolated-vm`'s engine constraint](https://github.com/laverdet/isolated-vm/blob/main/package.json))
 - Native compilation toolchain (the `isolated-vm` package compiles a native addon)
-- On Node.js 20.x and later, pass `--no-node-snapshot` when running `node`
+- Pass `--no-node-snapshot` when running `node` (required by `isolated-vm` on every supported Node.js version)
 
 ## Installation
 

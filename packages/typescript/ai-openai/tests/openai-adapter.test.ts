@@ -119,6 +119,7 @@ describe('OpenAI adapter option mapping', () => {
       max_output_tokens: 1024, // Responses API uses max_output_tokens instead of max_tokens
       stream: true,
       tool_choice: 'required', // From modelOptions
+      instructions: 'Stay concise', // systemPrompts join the Responses API `instructions` field
     })
 
     // Responses API uses 'input' instead of 'messages'
