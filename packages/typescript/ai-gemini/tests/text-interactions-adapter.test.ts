@@ -212,12 +212,9 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(payload.previous_interaction_id).toBe('int_1')
     expect(payload.model).toBe('gemini-2.5-flash')
     expect(payload.stream).toBe(true)
-    expect(payload.input).toEqual([
-      {
-        role: 'user',
-        content: [{ type: 'text', text: 'What is my name?' }],
-      },
-    ])
+    // Single text-only follow-up is sent as a plain string per Google's
+    // Interactions API contract — Array<Turn> is rejected by the wire.
+    expect(payload.input).toBe('What is my name?')
   })
 
   it('includes trailing tool result when chaining with previous_interaction_id', async () => {
@@ -268,37 +265,21 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
     expect(payload.previous_interaction_id).toBe('int_prev')
+    // Tool result follow-ups are sent as a flat Array<Content> with
+    // function_result blocks — the API doesn't accept Turn wrappers.
     expect(payload.input).toEqual([
       {
-        role: 'user',
-        content: [
-          {
-            type: 'function_result',
-            call_id: 'call_1',
-            name: 'lookup_weather',
-            result: '{"tempC":22}',
-          },
-        ],
+        type: 'function_result',
+        call_id: 'call_1',
+        name: 'lookup_weather',
+        result: '{"tempC":22}',
       },
     ])
   })
 
-  it('sends full conversation as Turn[] when previous_interaction_id is absent', async () => {
-    mocks.interactionsCreateSpy.mockResolvedValue(
-      mkStream([
-        {
-          event_type: 'interaction.start',
-          interaction: { id: 'int_3', status: 'in_progress' },
-        },
-        {
-          event_type: 'interaction.complete',
-          interaction: { id: 'int_3', status: 'completed' },
-        },
-      ]),
-    )
-
+  it('rejects multi-turn history without previous_interaction_id with a targeted error', async () => {
     const adapter = createAdapter()
-    await collectChunks(
+    const chunks = await collectChunks(
       chat({
         adapter,
         messages: [
@@ -309,12 +290,40 @@ describe('GeminiTextInteractionsAdapter', () => {
       }),
     )
 
+    // The Interactions API does not support stateless multi-turn replay —
+    // the adapter must error rather than send invalid Turn[] shapes that
+    // the API rejects with "value at top-level must be a list".
+    const err = chunks.find((c) => c.type === 'RUN_ERROR') as any
+    expect(err).toBeDefined()
+    expect(err.message).toMatch(/previous_interaction_id/i)
+    expect(mocks.interactionsCreateSpy).not.toHaveBeenCalled()
+  })
+
+  it('sends a fresh single-text turn as a plain string', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_fresh', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_fresh', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hello' }],
+      }),
+    )
+
     const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
-    expect(payload.input).toEqual([
-      { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
-      { role: 'model', content: [{ type: 'text', text: 'Hi there' }] },
-      { role: 'user', content: [{ type: 'text', text: 'How are you?' }] },
-    ])
+    expect(payload.input).toBe('Hello')
+    expect(payload.previous_interaction_id).toBeUndefined()
   })
 
   it('translates function_call deltas into TOOL_CALL_* events and marks tool_calls finish reason', async () => {
@@ -425,21 +434,24 @@ describe('GeminiTextInteractionsAdapter', () => {
             content: '{"tempC":22}',
           },
         ],
+        // Tool-result continuations require a prior interaction id; the
+        // server already has the assistant turn, the client only re-sends
+        // the function_result.
+        modelOptions: {
+          previous_interaction_id: 'int_prev',
+        } as GeminiTextInteractionsProviderOptions,
       }),
     )
 
     const [payload] = mocks.interactionsCreateSpy.mock.calls[0]
-    expect(payload.input).toContainEqual({
-      role: 'user',
-      content: [
-        expect.objectContaining({
-          type: 'function_result',
-          call_id: 'call_1',
-          name: 'lookup_weather',
-          result: '{"tempC":22}',
-        }),
-      ],
-    })
+    expect(payload.input).toContainEqual(
+      expect.objectContaining({
+        type: 'function_result',
+        call_id: 'call_1',
+        name: 'lookup_weather',
+        result: '{"tempC":22}',
+      }),
+    )
   })
 
   it('rejects unsupported image mime types with a clear error', async () => {

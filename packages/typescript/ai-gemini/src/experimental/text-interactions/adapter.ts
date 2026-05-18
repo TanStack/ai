@@ -42,8 +42,8 @@ type InteractionsTool = NonNullable<
   Extract<InteractionsInput, { tools?: any }>['tools']
 >[number]
 
-type TurnInput = Interactions.Turn
 type ContentBlock = Interactions.Content
+type InteractionsRequestInput = string | Array<ContentBlock>
 
 type ToolCallState = {
   name: string
@@ -254,14 +254,22 @@ function buildInteractionsRequest(
   }
 }
 
+// Google's Interactions API accepts `input` as either a plain string (text
+// only) or a flat `Array<Content>` (one or more content blocks).
+// `Array<Turn>` appears in `@google/genai`'s SDK type union but is *not*
+// accepted by the live API — it returns `invalid_request` /
+// "value at top-level must be a list" if you send Turn objects.
+//
 // When `hasPreviousInteraction` is true the server holds the transcript up
-// through the last assistant turn, so we only send messages that come after
-// it (a new user turn, a tool result continuing a function call, etc.).
-// Otherwise we send the full conversation as `Turn[]`.
+// through the last assistant turn, so we only send the blocks that come
+// after it (a new user turn, a tool result continuing a function call,
+// etc.). Otherwise the conversation is fresh and only the latest user
+// turn is supported — multi-turn replay without `previous_interaction_id`
+// is not part of the Interactions API contract.
 function convertMessagesToInteractionsInput(
   messages: Array<ModelMessage>,
   hasPreviousInteraction: boolean,
-): Array<TurnInput> {
+): InteractionsRequestInput {
   const toolCallIdToName = new Map<string, string>()
   for (const msg of messages) {
     if (msg.role === 'assistant' && msg.toolCalls) {
@@ -275,19 +283,110 @@ function convertMessagesToInteractionsInput(
     ? messagesAfterLastAssistant(messages)
     : messages
 
-  const turns: Array<TurnInput> = []
-  for (const msg of source) {
-    const turn = messageToTurn(msg, toolCallIdToName)
-    if (turn) turns.push(turn)
-  }
-
-  if (hasPreviousInteraction && turns.length === 0) {
+  if (hasPreviousInteraction && source.length === 0) {
     throw new Error(
       'Gemini Interactions adapter: modelOptions.previous_interaction_id was provided but no new messages were found after the last assistant turn. Append at least one user or tool message before chaining.',
     )
   }
 
-  return turns
+  // The fresh-conversation path only supports a single user turn — the
+  // server has no prior context to splice older messages into, and the
+  // wire-level API will reject multi-turn `Array<Turn>` shapes with
+  // `invalid_request` / "value at top-level must be a list".
+  if (!hasPreviousInteraction) {
+    if (source.length === 0) {
+      throw new Error(
+        'Gemini Interactions adapter: no messages to send.',
+      )
+    }
+    if (source.length > 1) {
+      throw new Error(
+        'Gemini Interactions adapter: cannot send prior conversation history on a fresh interaction. Either set modelOptions.previous_interaction_id to chain prior turns server-side, or trim the message list to a single new user turn.',
+      )
+    }
+    const only = source[0]!
+    if (only.role !== 'user') {
+      throw new Error(
+        `Gemini Interactions adapter: the first message of a fresh interaction must be a user turn (got role="${only.role}"). Set modelOptions.previous_interaction_id to continue an existing interaction.`,
+      )
+    }
+    return messageToInput(only, toolCallIdToName)
+  }
+
+  // Chained path: flatten the post-assistant messages into a single
+  // Content[]. In practice this is either a single new user turn or one
+  // or more `function_result` tool messages.
+  const blocks: Array<ContentBlock> = []
+  for (const msg of source) {
+    blocks.push(...messageToContentBlocks(msg, toolCallIdToName))
+  }
+  if (blocks.length === 0) {
+    throw new Error(
+      'Gemini Interactions adapter: messages after the last assistant turn produced no content blocks to send.',
+    )
+  }
+  // Collapse a single text block to a plain string — matches the SDK's
+  // documented happy-path shape for follow-up turns.
+  if (blocks.length === 1 && blocks[0]?.type === 'text') {
+    return blocks[0].text ?? ''
+  }
+  return blocks
+}
+
+function messageToInput(
+  msg: ModelMessage,
+  toolCallIdToName: Map<string, string>,
+): InteractionsRequestInput {
+  // Fast path: plain-text user message → string.
+  if (
+    msg.role === 'user' &&
+    typeof msg.content === 'string' &&
+    msg.content.length > 0
+  ) {
+    return msg.content
+  }
+  return messageToContentBlocks(msg, toolCallIdToName)
+}
+
+function messageToContentBlocks(
+  msg: ModelMessage,
+  toolCallIdToName: Map<string, string>,
+): Array<ContentBlock> {
+  const blocks: Array<ContentBlock> = []
+
+  if (Array.isArray(msg.content)) {
+    for (const part of msg.content) {
+      blocks.push(contentPartToBlock(part))
+    }
+  } else if (
+    typeof msg.content === 'string' &&
+    msg.content &&
+    msg.role !== 'tool'
+  ) {
+    blocks.push({ type: 'text', text: msg.content })
+  }
+
+  if (msg.role === 'assistant' && msg.toolCalls?.length) {
+    for (const toolCall of msg.toolCalls) {
+      blocks.push({
+        type: 'function_call',
+        id: toolCall.id,
+        name: toolCall.function.name,
+        arguments: safeParseToolArguments(toolCall.function.arguments),
+      })
+    }
+  }
+
+  if (msg.role === 'tool' && msg.toolCallId) {
+    blocks.push({
+      type: 'function_result',
+      call_id: msg.toolCallId,
+      name: toolCallIdToName.get(msg.toolCallId),
+      result: typeof msg.content === 'string' ? msg.content : '',
+    })
+  }
+
+  return blocks
 }
 
 function messagesAfterLastAssistant(
@@ -311,51 +410,6 @@ function safeParseToolArguments(
   } catch {
     return {}
   }
-}
-
-function messageToTurn(
-  msg: ModelMessage,
-  toolCallIdToName: Map<string, string>,
-): TurnInput | undefined {
-  const parts: Array<ContentBlock> = []
-
-  if (Array.isArray(msg.content)) {
-    for (const part of msg.content) {
-      parts.push(contentPartToBlock(part))
-    }
-  } else if (
-    typeof msg.content === 'string' &&
-    msg.content &&
-    msg.role !== 'tool'
-  ) {
-    parts.push({ type: 'text', text: msg.content })
-  }
-
-  if (msg.role === 'assistant' && msg.toolCalls?.length) {
-    for (const toolCall of msg.toolCalls) {
-      parts.push({
-        type: 'function_call',
-        id: toolCall.id,
-        name: toolCall.function.name,
-        arguments: safeParseToolArguments(toolCall.function.arguments),
-      })
-    }
-  }
-
-  if (msg.role === 'tool' && msg.toolCallId) {
-    parts.push({
-      type: 'function_result',
-      call_id: msg.toolCallId,
-      name: toolCallIdToName.get(msg.toolCallId),
-      result: typeof msg.content === 'string' ? msg.content : '',
-    })
-  }
-
-  if (parts.length === 0) return undefined
-
-  const role = msg.role === 'assistant' ? 'model' : 'user'
-
-  return { role, content: parts }
 }
 
 // `satisfies` pins these arrays to the SDK's narrow mime-type unions: if
