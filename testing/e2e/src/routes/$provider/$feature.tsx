@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
+import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { Feature, Mode, Provider } from '@/lib/types'
 import { ALL_PROVIDERS } from '@/lib/types'
 import { isSupported } from '@/lib/feature-support'
@@ -159,13 +160,11 @@ function ChatFeature({
         if (eventType === 'structured-output.complete') {
           const value = data as { object: unknown; raw: string } | undefined
           setStructuredObject(value?.object ?? null)
-        } else if (
-          eventType === 'gemini.interactionId' &&
-          data &&
-          typeof (data as { interactionId?: unknown }).interactionId ===
-            'string'
-        ) {
-          setInteractionId((data as { interactionId: string }).interactionId)
+        } else if (eventType === 'gemini.interactionId') {
+          const value = data as
+            | GeminiInteractionsCustomEventValue<'gemini.interactionId'>
+            | undefined
+          if (value?.interactionId) setInteractionId(value.interactionId)
         }
       },
       onChunk: (chunk) => {

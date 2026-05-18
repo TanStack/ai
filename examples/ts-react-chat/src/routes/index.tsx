@@ -23,6 +23,7 @@ import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { ContentPart } from '@tanstack/ai'
+import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
@@ -404,9 +405,10 @@ function ChatPage() {
         context.toolCallId ? `(tool call: ${context.toolCallId})` : '',
       )
       if (eventType === 'gemini.interactionId') {
-        const id = (data as { interactionId?: string } | undefined)
-          ?.interactionId
-        if (id) setInteractionId(id)
+        const value = data as
+          | GeminiInteractionsCustomEventValue<'gemini.interactionId'>
+          | undefined
+        if (value?.interactionId) setInteractionId(value.interactionId)
       }
     },
   })

@@ -4,6 +4,10 @@ import { chat } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interactions/adapter'
 import type { GeminiTextInteractionsProviderOptions } from '../src/experimental/text-interactions/adapter'
+import type {
+  GeminiInteractionsCustomEvent,
+  GeminiInteractionsCustomEventValue,
+} from '../src/experimental/text-interactions/events'
 
 const mocks = vi.hoisted(() => {
   return {
@@ -122,9 +126,19 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const interactionCustom = chunks.find(
       (c) => c.type === 'CUSTOM' && (c as any).name === 'gemini.interactionId',
-    ) as any
+    ) as
+      | (Extract<StreamChunk, { type: 'CUSTOM' }> &
+          Extract<
+            GeminiInteractionsCustomEvent,
+            { name: 'gemini.interactionId' }
+          >)
+      | undefined
     expect(interactionCustom).toBeDefined()
-    expect(interactionCustom.value).toEqual({ interactionId: 'int_1' })
+    // Narrowing via the discriminated union exported from /experimental:
+    const value:
+      | GeminiInteractionsCustomEventValue<'gemini.interactionId'>
+      | undefined = interactionCustom?.value
+    expect(value).toEqual({ interactionId: 'int_1' })
   })
 
   it('threads runId, threadId, and parentRunId onto RUN_STARTED / RUN_FINISHED for AG-UI compliance', async () => {
