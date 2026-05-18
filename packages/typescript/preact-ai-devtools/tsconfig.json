@@ -1,11 +1,16 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "preserve",
     "jsxFactory": "h",
-    "jsxFragmentFactory": "Fragment",
-    "moduleResolution": "bundler",
-    "strictNullChecks": true
+    "jsxFragmentFactory": "Fragment"
   },
-  "include": ["eslint.config.js", "prettier.config.js", "src"]
+  "include": [
+    "src",
+    "tests"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

@@ -1,14 +1,15 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "vite.config.ts"],
+  "include": [
+    "src",
+    "tests"
+  ],
   "exclude": [
     "node_modules",
     "dist",
-    "**/*.config.ts",
-    "eslint.config.js",
     "tests/**/*.test-d.ts"
   ]
 }

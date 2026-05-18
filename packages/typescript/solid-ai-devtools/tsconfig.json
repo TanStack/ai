@@ -1,10 +1,15 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "preserve",
-    "jsxFactory": "solid",
-    "moduleResolution": "bundler",
-    "strictNullChecks": true
+    "jsxFactory": "solid"
   },
-  "include": ["eslint.config.js", "prettier.config.js", "src"]
+  "include": [
+    "src",
+    "tests"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
