@@ -17,9 +17,7 @@ interface DevtoolsModelMessage {
  * doesn't import from `@tanstack/ai` (which would introduce a circular dep,
  * see file-top comment).
  */
-type DevtoolsSystemPrompt =
-  | string
-  | { content: string; metadata?: unknown }
+type DevtoolsSystemPrompt = string | { content: string; metadata?: unknown }
 
 interface DevtoolsMiddlewareContext {
   requestId: string

@@ -112,7 +112,9 @@ export interface TextActivityOptions<
    * caching), providers without per-prompt metadata reject the field
    * entirely.
    */
-  systemPrompts?: Array<SystemPrompt<TAdapter['~types']['systemPromptMetadata']>>
+  systemPrompts?: Array<
+    SystemPrompt<TAdapter['~types']['systemPromptMetadata']>
+  >
   /**
    * Tools for function calling (auto-executed when called).
    *

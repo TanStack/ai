@@ -342,9 +342,10 @@ export class AnthropicTextAdapter<
       top_p: options.topP,
       messages: formattedMessages,
       system: (() => {
-        const normalized = normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
-          options.systemPrompts,
-        )
+        const normalized =
+          normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+            options.systemPrompts,
+          )
         if (normalized.length === 0) return undefined
         return normalized.map(
           (p): TextBlockParam => ({
