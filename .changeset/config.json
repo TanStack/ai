@@ -10,7 +10,23 @@
   "updateInternalDependencies": "patch",
   "fixed": [],
   "linked": [],
-  "ignore": [],
+  "ignore": [
+    "@tanstack/ai-codemods",
+    "@tanstack/ai-code-mode-models-eval",
+    "@tanstack/ai-e2e",
+    "stream-processor-panel",
+    "php-slim",
+    "python-fastapi",
+    "ts-code-mode-web",
+    "ts-group-chat",
+    "ts-react-chat",
+    "ts-react-media",
+    "ts-react-search",
+    "ts-solid-chat",
+    "ts-svelte-chat",
+    "ts-vue-chat",
+    "vanilla-chat"
+  ],
   "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
     "onlyUpdatePeerDependentsWhenOutOfRange": true
   }

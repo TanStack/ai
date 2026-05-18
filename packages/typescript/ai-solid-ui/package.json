@@ -57,6 +57,6 @@
     "@tanstack/ai-solid": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "solid-js": "^1.9.10",
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   }
 }
