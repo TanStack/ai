@@ -3322,4 +3322,117 @@ describe('StreamProcessor', () => {
       expect(toolResultPart.state).toBe('complete')
     })
   })
+
+  describe('Structured output parts', () => {
+    it('routes deltas after structured-output.start into a structured-output part', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":', 'msg-1'))
+      processor.processChunk(ev.textContent('"Alice"}', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.complete',
+          value: {
+            object: { name: 'Alice' },
+            raw: '{"name":"Alice"}',
+            messageId: 'msg-1',
+          },
+        }),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+
+      const messages = processor.getMessages()
+      const assistant = messages.find((m) => m.role === 'assistant')
+      expect(assistant).toBeDefined()
+
+      // No text part — the JSON bytes routed into the structured-output part.
+      expect(assistant!.parts.find((p) => p.type === 'text')).toBeUndefined()
+
+      const sop = assistant!.parts.find((p) => p.type === 'structured-output')
+      expect(sop).toBeDefined()
+      expect((sop as any).status).toBe('complete')
+      expect((sop as any).data).toEqual({ name: 'Alice' })
+      expect((sop as any).raw).toBe('{"name":"Alice"}')
+    })
+
+    it('progressively populates partial as JSON deltas arrive', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":', 'msg-1'))
+
+      let assistant = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')
+      let sop = assistant!.parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).status).toBe('streaming')
+
+      processor.processChunk(ev.textContent('"Alice"', 'msg-1'))
+      assistant = processor.getMessages().find((m) => m.role === 'assistant')
+      sop = assistant!.parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).partial).toEqual({ name: 'Alice' })
+
+      processor.processChunk(ev.textContent('}', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.complete',
+          value: {
+            object: { name: 'Alice' },
+            raw: '{"name":"Alice"}',
+            messageId: 'msg-1',
+          },
+        }),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+
+      assistant = processor.getMessages().find((m) => m.role === 'assistant')
+      sop = assistant!.parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).status).toBe('complete')
+      expect((sop as any).data).toEqual({ name: 'Alice' })
+    })
+
+    it('marks a streaming structured-output part as errored on RUN_ERROR', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":"Al', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.RUN_ERROR, {
+          runId: 'run-1',
+          message: 'Stream aborted',
+        }),
+      )
+
+      const assistant = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')
+      const sop = assistant!.parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).status).toBe('error')
+      expect((sop as any).errorMessage).toBe('Stream aborted')
+      // Partial buffer up to error is preserved for inspection.
+      expect((sop as any).raw).toBe('{"name":"Al')
+    })
+  })
 })

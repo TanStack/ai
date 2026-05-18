@@ -5,7 +5,9 @@
  * These are used by StreamProcessor to manage the message array.
  */
 
+import { parsePartialJSON } from './json-parser'
 import type {
+  StructuredOutputPart,
   ThinkingPart,
   ToolCallPart,
   ToolResultPart,
@@ -247,6 +249,132 @@ export function updateToolCallApprovalResponse(
       toolCallPart.state = 'approval-responded'
     }
 
+    return { ...msg, parts }
+  })
+}
+
+/**
+ * Append a delta to the structured-output part on `messageId`, or create one
+ * if absent. Progressive parse of the accumulated buffer fills `partial`.
+ * `status` stays `'streaming'` until the terminal complete/error helpers run.
+ */
+export function appendStructuredOutputDelta(
+  messages: Array<UIMessage>,
+  messageId: string,
+  delta: string,
+): Array<UIMessage> {
+  return messages.map((msg) => {
+    if (msg.id !== messageId) {
+      return msg
+    }
+
+    const parts = [...msg.parts]
+    const existingIndex = parts.findIndex(
+      (p): p is StructuredOutputPart => p.type === 'structured-output',
+    )
+    const existing =
+      existingIndex >= 0 ? (parts[existingIndex] as StructuredOutputPart) : null
+
+    const nextRaw = (existing?.raw ?? '') + delta
+    const progressive = parsePartialJSON(nextRaw)
+
+    const nextPart: StructuredOutputPart = {
+      type: 'structured-output',
+      status: 'streaming',
+      raw: nextRaw,
+      ...(progressive !== undefined && progressive !== null
+        ? { partial: progressive }
+        : {}),
+      ...(existing?.reasoning !== undefined
+        ? { reasoning: existing.reasoning }
+        : {}),
+    }
+
+    if (existingIndex >= 0) {
+      parts[existingIndex] = nextPart
+    } else {
+      parts.push(nextPart)
+    }
+
+    return { ...msg, parts }
+  })
+}
+
+/**
+ * Snap the structured-output part on `messageId` to `complete` with the
+ * validated `data`. If no part exists yet (terminal event arrived without
+ * any deltas), one is created — `raw` falls back to the JSON serialization
+ * of `data` so the wire round-trip stays consistent.
+ */
+export function completeStructuredOutputPart(
+  messages: Array<UIMessage>,
+  messageId: string,
+  data: unknown,
+  raw: string,
+  reasoning?: string,
+): Array<UIMessage> {
+  return messages.map((msg) => {
+    if (msg.id !== messageId) {
+      return msg
+    }
+
+    const parts = [...msg.parts]
+    const existingIndex = parts.findIndex(
+      (p): p is StructuredOutputPart => p.type === 'structured-output',
+    )
+
+    const nextPart: StructuredOutputPart = {
+      type: 'structured-output',
+      status: 'complete',
+      data,
+      partial: data,
+      raw:
+        raw ||
+        (existingIndex >= 0
+          ? (parts[existingIndex] as StructuredOutputPart).raw
+          : ''),
+      ...(reasoning !== undefined ? { reasoning } : {}),
+    }
+
+    if (existingIndex >= 0) {
+      parts[existingIndex] = nextPart
+    } else {
+      parts.push(nextPart)
+    }
+
+    return { ...msg, parts }
+  })
+}
+
+/**
+ * Mark any streaming structured-output part on `messageId` as errored.
+ * No-op if no streaming part exists.
+ */
+export function errorStructuredOutputPart(
+  messages: Array<UIMessage>,
+  messageId: string,
+  errorMessage: string,
+): Array<UIMessage> {
+  return messages.map((msg) => {
+    if (msg.id !== messageId) {
+      return msg
+    }
+
+    const parts = [...msg.parts]
+    const existingIndex = parts.findIndex(
+      (p): p is StructuredOutputPart =>
+        p.type === 'structured-output' && p.status === 'streaming',
+    )
+    if (existingIndex < 0) {
+      return msg
+    }
+
+    const existing = parts[existingIndex] as StructuredOutputPart
+    parts[existingIndex] = {
+      ...existing,
+      status: 'error',
+      errorMessage,
+    }
     return { ...msg, parts }
   })
 }

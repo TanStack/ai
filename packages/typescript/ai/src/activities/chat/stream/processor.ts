@@ -20,6 +20,9 @@
 import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
 import { defaultJSONParser } from './json-parser'
 import {
+  appendStructuredOutputDelta,
+  completeStructuredOutputPart,
+  errorStructuredOutputPart,
   updateTextPart,
   updateThinkingPart,
   updateToolCallApproval,
@@ -144,6 +147,12 @@ export class StreamProcessor {
   private toolCallToMessage: Map<string, string> = new Map()
   private pendingManualMessageId: string | null = null
   private pendingThinkingStepId: string | null = null
+
+  // Messages whose TEXT_MESSAGE_CONTENT deltas should be routed into a
+  // StructuredOutputPart instead of a TextPart. Populated by the
+  // `structured-output.start` CUSTOM event; cleared by `structured-output.complete`
+  // / RUN_ERROR / finalize.
+  private structuredMessageIds: Set<string> = new Set()
 
   // Run tracking (for concurrent run safety)
   private activeRuns = new Set<string>()
@@ -395,6 +404,7 @@ export class StreamProcessor {
     this.messageStates.clear()
     this.activeMessageIds.clear()
     this.toolCallToMessage.clear()
+    this.structuredMessageIds.clear()
     this.pendingManualMessageId = null
     this.emitMessagesChange()
   }
@@ -841,6 +851,27 @@ export class StreamProcessor {
     // Content arriving means all current tool calls for this message are complete
     this.completeAllToolCallsForMessage(messageId)
 
+    // Structured-output run: route the delta into the message's
+    // StructuredOutputPart instead of building a TextPart. The server emits
+    // `structured-output.start` ahead of these deltas so we know to redirect.
+    if (this.structuredMessageIds.has(messageId)) {
+      const delta =
+        chunk.delta ||
+        (chunk.content !== undefined && chunk.content !== ''
+          ? chunk.content
+          : '')
+      if (delta !== '') {
+        this.messages = appendStructuredOutputDelta(
+          this.messages,
+          messageId,
+          delta,
+        )
+        state.totalTextContent += delta
+        this.emitMessagesChange()
+      }
+      return
+    }
+
     const previousSegment = state.currentSegmentText
 
     // Detect if this is a NEW text segment (after tool calls) vs continuation
@@ -1192,10 +1223,23 @@ export class StreamProcessor {
     } else {
       this.activeRuns.clear()
     }
-    this.ensureAssistantMessage()
+    const { messageId } = this.ensureAssistantMessage()
     // Prefer spec field `message`; fall back to deprecated `error.message`
     const errorMessage =
       chunk.message || chunk.error?.message || 'An error occurred'
+
+    // Mark any in-flight structured-output part on this message as errored
+    // so consumers can render the partial buffer with a clear error state.
+    if (this.structuredMessageIds.has(messageId)) {
+      this.messages = errorStructuredOutputPart(
+        this.messages,
+        messageId,
+        errorMessage,
+      )
+      this.structuredMessageIds.delete(messageId)
+      this.emitMessagesChange()
+    }
+
     this.events.onError?.(new Error(errorMessage))
   }
 
@@ -1374,6 +1418,42 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
   ): void {
     const messageId = this.getActiveAssistantMessageId()
+
+    // Mark a message as carrying structured output. Subsequent
+    // TEXT_MESSAGE_CONTENT deltas for this messageId route into the
+    // StructuredOutputPart instead of building a TextPart.
+    if (chunk.name === 'structured-output.start' && chunk.value) {
+      const v = chunk.value as { messageId?: string }
+      const targetId = v.messageId ?? messageId
+      if (targetId) {
+        this.ensureAssistantMessage(targetId)
+        this.structuredMessageIds.add(targetId)
+      }
+      return
+    }
+
+    // Snap the structured-output part to its validated terminal state.
+    if (chunk.name === 'structured-output.complete' && chunk.value) {
+      const v = chunk.value as {
+        object: unknown
+        raw?: string
+        reasoning?: string
+        messageId?: string
+      }
+      const targetId = v.messageId ?? messageId
+      if (targetId) {
+        this.messages = completeStructuredOutputPart(
+          this.messages,
+          targetId,
+          v.object,
+          v.raw ?? '',
+          v.reasoning,
+        )
+        this.structuredMessageIds.delete(targetId)
+        this.emitMessagesChange()
+      }
+      // Fall through so user `onCustomEvent` callbacks still observe the event.
+    }
 
     // Handle client tool input availability - trigger client-side execution
     if (chunk.name === 'tool-input-available' && chunk.value) {
@@ -1719,6 +1799,7 @@ export class StreamProcessor {
     this.activeMessageIds.clear()
     this.activeRuns.clear()
     this.toolCallToMessage.clear()
+    this.structuredMessageIds.clear()
     this.pendingManualMessageId = null
     this.pendingThinkingStepId = null
     this.finishReason = null

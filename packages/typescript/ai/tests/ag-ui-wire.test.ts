@@ -141,6 +141,49 @@ describe('uiMessagesToWire', () => {
     expect((wire[0]! as any).parts).toEqual([{ type: 'text', content: 'hi' }])
   })
 
+  it('serializes a structured-output part to assistant content using its raw JSON', () => {
+    // The raw JSON is the byte-identical buffer the model produced. Sending
+    // it back as assistant content keeps multi-turn structured chat coherent
+    // (the LLM sees its own prior structured response).
+    const raw = JSON.stringify({ name: 'Alice', age: 25 })
+    const messages: Array<UIMessage> = [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'extract' }] },
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'complete',
+            raw,
+            data: { name: 'Alice', age: 25 },
+            partial: { name: 'Alice', age: 25 },
+          },
+        ],
+      },
+    ]
+    const wire = uiMessagesToWire(messages)
+    const assistant = wire.find((m) => m.role === 'assistant') as any
+    expect(assistant).toBeDefined()
+    expect(assistant.content).toBe(raw)
+  })
+
+  it('falls back to JSON.stringify(data) when a structured-output part has no raw buffer', () => {
+    const data = { name: 'Bob', age: 40 }
+    const messages: Array<UIMessage> = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          { type: 'structured-output', status: 'complete', raw: '', data },
+        ],
+      },
+    ]
+    const wire = uiMessagesToWire(messages)
+    const assistant = wire.find((m) => m.role === 'assistant') as any
+    expect(assistant.content).toBe(JSON.stringify(data))
+  })
+
   it('preserves per-part metadata on multimodal parts (round-trip via parts field)', () => {
     const messages: Array<UIMessage> = [
       {

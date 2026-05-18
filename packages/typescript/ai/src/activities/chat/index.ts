@@ -2045,7 +2045,49 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
         outputSchema: jsonSchema,
       })
 
+  // Track the assistant messageId the structured stream is producing so we
+  // can tag both the synthetic `structured-output.start` and the terminal
+  // `structured-output.complete` event with it. Consumers (the client-side
+  // StreamProcessor) use this to route the JSON deltas into a
+  // StructuredOutputPart on the right UIMessage, and to snap that part to
+  // its complete state when the terminal event arrives.
+  let structuredMessageId: string | null = null
+  let startEmitted = false
+
   for await (const chunk of stream) {
+    // Capture the assistant messageId from the first text-message lifecycle
+    // event so the synthetic start carries it.
+    if (!structuredMessageId) {
+      if (chunk.type === EventType.TEXT_MESSAGE_START && 'messageId' in chunk) {
+        structuredMessageId = (chunk as { messageId: string }).messageId
+      } else if (
+        chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+        'messageId' in chunk
+      ) {
+        structuredMessageId = (chunk as { messageId: string }).messageId
+      }
+    }
+
+    // Emit the synthetic start once, immediately before the first text
+    // content delta would otherwise be routed to a TextPart on the client.
+    if (
+      !startEmitted &&
+      structuredMessageId &&
+      (chunk.type === EventType.TEXT_MESSAGE_START ||
+        chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+    ) {
+      startEmitted = true
+      yield {
+        type: EventType.CUSTOM,
+        name: 'structured-output.start',
+        value: { messageId: structuredMessageId },
+        model: 'model' in chunk ? (chunk.model ?? model) : model,
+        timestamp:
+          'timestamp' in chunk ? (chunk.timestamp ?? Date.now()) : Date.now(),
+        runId,
+      }
+    }
+
     if (
       chunk.type === EventType.CUSTOM &&
       chunk.name === 'structured-output.complete'
@@ -2065,10 +2107,15 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
             ...chunk,
             // Forward `reasoning` through schema validation so consumers that
             // only listen for the terminal event don't lose chain-of-thought.
+            // Tag with messageId so the client processor can snap the right
+            // assistant message's structured-output part.
             value: {
               object: validated,
               raw: value.raw,
               ...(value.reasoning ? { reasoning: value.reasoning } : {}),
+              ...(structuredMessageId
+                ? { messageId: structuredMessageId }
+                : {}),
             },
           }
           continue
@@ -2099,6 +2146,18 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
           }
           return
         }
+      }
+      // No Standard schema (raw JSONSchema). Still tag the terminal event
+      // with messageId so the client processor can snap the right part.
+      if (structuredMessageId) {
+        yield {
+          ...chunk,
+          value: {
+            ...(chunk.value as Record<string, unknown>),
+            messageId: structuredMessageId,
+          },
+        }
+        continue
       }
       yield chunk
       continue

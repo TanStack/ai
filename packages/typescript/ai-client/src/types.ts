@@ -162,6 +162,27 @@ export interface ThinkingPart {
   content: string
 }
 
+/**
+ * StructuredOutputPart — typed structured response attached to the assistant
+ * message that produced it. `data` and `partial` are intentionally `unknown`
+ * here; the ai-react `useChat<_, TSchema>` hook narrows them via
+ * `InferSchemaType<TSchema>` at the consumption site (the `partial`/`final`
+ * derivation in use-chat.ts). Consumers that need typed access can do the
+ * same narrowing locally.
+ */
+export interface StructuredOutputPart {
+  type: 'structured-output'
+  status: 'streaming' | 'complete' | 'error'
+  /** Progressive parse of `raw` via parsePartialJSON. */
+  partial?: unknown
+  /** Validated final object — only set when `status === 'complete'`. */
+  data?: unknown
+  /** Accumulating JSON buffer. Source of truth for wire round-trip. */
+  raw: string
+  reasoning?: string
+  errorMessage?: string
+}
+
 export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
   | TextPart
   | ImagePart
@@ -171,6 +192,7 @@ export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
   | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart
+  | StructuredOutputPart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs

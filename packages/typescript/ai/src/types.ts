@@ -365,6 +365,35 @@ export interface ThinkingPart {
   signature?: string
 }
 
+/**
+ * StructuredOutputPart — a typed structured response attached to the assistant
+ * message that produced it.
+ *
+ * For `useChat({ outputSchema })` and `chat({ outputSchema })`, each assistant
+ * turn that streams a JSON object gets exactly one of these. `partial` updates
+ * per delta via progressive JSON parsing, `data` snaps on the terminal
+ * `structured-output.complete` event, and `raw` is the accumulating JSON
+ * buffer that gets sent back to the LLM as assistant content on the next turn
+ * so multi-turn structured chat stays coherent.
+ *
+ * `data` and `partial` are intentionally untyped at this layer; ai-client /
+ * ai-react narrow them via `InferSchemaType<TSchema>` from the hook surface.
+ */
+export interface StructuredOutputPart {
+  type: 'structured-output'
+  status: 'streaming' | 'complete' | 'error'
+  /** Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete. */
+  partial?: unknown
+  /** Validated final object — only set when `status === 'complete'`. */
+  data?: unknown
+  /** Accumulating JSON buffer. Source of truth for wire round-trip. */
+  raw: string
+  /** Optional chain-of-thought surfaced by reasoning models alongside the structured output. */
+  reasoning?: string
+  /** Populated when `status === 'error'`. */
+  errorMessage?: string
+}
+
 export type MessagePart =
   | TextPart
   | ImagePart
@@ -374,6 +403,7 @@ export type MessagePart =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
+  | StructuredOutputPart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
@@ -1115,6 +1145,22 @@ export interface StructuredOutputCompleteEvent<T = unknown> extends Omit<
 }
 
 /**
+ * Emitted at the start of a streaming structured-output run, before the JSON
+ * deltas. Tells consumers that the upcoming `TEXT_MESSAGE_CONTENT` deltas
+ * belong to a structured response so they can route those bytes into a
+ * `StructuredOutputPart` instead of building a `TextPart`. Carries the
+ * `messageId` the deltas will be tagged with so the routing decision can be
+ * made per-message rather than globally.
+ */
+export interface StructuredOutputStartEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
+  name: 'structured-output.start'
+  value: { messageId: string }
+}
+
+/**
  * Emitted when a server tool requires approval before execution. The agent
  * loop yields this and pauses — `structured-output.complete` will not fire
  * for that run. The shape is fixed by the orchestrator's tool-approval flow
@@ -1183,6 +1229,7 @@ export interface ToolInputAvailableEvent extends Omit<
  */
 export type StructuredOutputStream<T = unknown> = AsyncIterable<
   | Exclude<StreamChunk, CustomEvent>
+  | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent<T>
   | ApprovalRequestedEvent
   | ToolInputAvailableEvent
