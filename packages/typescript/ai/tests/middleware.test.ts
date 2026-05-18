@@ -9,6 +9,7 @@ import {
   serverTool,
 } from './test-utils'
 import type { StreamChunk } from '../src/types'
+import type { SystemPrompt } from '../src/system-prompts'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
@@ -2576,7 +2577,7 @@ describe('chat() middleware', () => {
         phase: string
         iteration: number
         maxTokens?: number
-        systemPrompts: Array<string>
+        systemPrompts: Array<SystemPrompt>
       }> = []
 
       const tool = serverTool('myTool', () => ({ ok: true }))

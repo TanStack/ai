@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
@@ -562,9 +562,12 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       options: ollamaOptions,
       messages: this.formatMessages(options.messages),
       tools: this.convertToolsToOllamaFormat(options.tools),
-      ...(options.systemPrompts?.length
-        ? { system: options.systemPrompts.join('\n') }
-        : {}),
+      ...(() => {
+        const prompts = normalizeSystemPrompts(options.systemPrompts)
+        return prompts.length > 0
+          ? { system: prompts.map((p) => p.content).join('\n') }
+          : {}
+      })(),
     }
   }
 }

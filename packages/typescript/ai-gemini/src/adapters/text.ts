@@ -1,5 +1,5 @@
 import { FinishReason } from '@google/genai'
-import { EventType } from '@tanstack/ai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
@@ -838,7 +838,12 @@ export class GeminiTextAdapter<
                 : undefined,
             }
           : undefined,
-        systemInstruction: options.systemPrompts?.join('\n'),
+        systemInstruction: (() => {
+          const prompts = normalizeSystemPrompts(options.systemPrompts)
+          return prompts.length > 0
+            ? prompts.map((p) => p.content).join('\n')
+            : undefined
+        })(),
         tools: convertToolsToProviderFormat(options.tools),
       },
     }

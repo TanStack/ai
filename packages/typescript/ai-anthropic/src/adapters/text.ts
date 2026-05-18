@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { validateTextProviderOptions } from '../text/text-provider-options'
@@ -38,6 +38,7 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type {
+  AnthropicSystemPromptMetadata,
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from '../text/text-provider-options'
@@ -115,7 +116,12 @@ export class AnthropicTextAdapter<
   TProviderOptions,
   TInputModalities,
   AnthropicMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  // TToolCallMetadata — anthropic has no tool-call metadata round-tripping
+  unknown,
+  // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the
+  // chat() call site so users get `cache_control` autocomplete.
+  AnthropicSystemPromptMetadata
 > {
   readonly kind = 'text' as const
   readonly name = 'anthropic' as const
@@ -335,11 +341,21 @@ export class AnthropicTextAdapter<
       temperature: options.temperature,
       top_p: options.topP,
       messages: formattedMessages,
-      system: options.systemPrompts?.length
-        ? options.systemPrompts.map(
-            (text): TextBlockParam => ({ type: 'text', text }),
-          )
-        : undefined,
+      system: (() => {
+        const normalized = normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+          options.systemPrompts,
+        )
+        if (normalized.length === 0) return undefined
+        return normalized.map(
+          (p): TextBlockParam => ({
+            type: 'text',
+            text: p.content,
+            ...(p.metadata?.cache_control && {
+              cache_control: p.metadata.cache_control,
+            }),
+          }),
+        )
+      })(),
       tools: tools,
       ...validProviderOptions,
     }

@@ -1,5 +1,5 @@
 import { OpenRouter } from '@openrouter/sdk'
-import { EventType } from '@tanstack/ai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
@@ -1553,10 +1553,11 @@ export class OpenRouterResponsesTextAdapter<
       }),
       ...(options.topP !== undefined && { topP: options.topP }),
       ...(options.metadata !== undefined && { metadata: options.metadata }),
-      ...(options.systemPrompts &&
-        options.systemPrompts.length > 0 && {
-          instructions: options.systemPrompts.join('\n'),
-        }),
+      ...(() => {
+        const prompts = normalizeSystemPrompts(options.systemPrompts)
+        if (prompts.length === 0) return {}
+        return { instructions: prompts.map((p) => p.content).join('\n') }
+      })(),
       input,
       ...(tools &&
         tools.length > 0 && {

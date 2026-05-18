@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { normalizeSystemPrompts } from '@tanstack/ai'
 import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
@@ -140,10 +141,11 @@ export class OpenAITextAdapter<
       }),
       ...(options.topP !== undefined && { top_p: options.topP }),
       ...(options.metadata !== undefined && { metadata: options.metadata }),
-      ...(options.systemPrompts &&
-        options.systemPrompts.length > 0 && {
-          instructions: options.systemPrompts.join('\n'),
-        }),
+      ...(() => {
+        const prompts = normalizeSystemPrompts(options.systemPrompts)
+        if (prompts.length === 0) return {}
+        return { instructions: prompts.map((p) => p.content).join('\n') }
+      })(),
       input,
       ...(tools && tools.length > 0 && { tools }),
     }

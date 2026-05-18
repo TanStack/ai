@@ -1,4 +1,5 @@
 import type { ModelMessage, StreamChunk, Tool, ToolCall } from '../../../types'
+import type { SystemPrompt } from '../../../system-prompts'
 
 // ===========================
 // Middleware Context
@@ -74,7 +75,7 @@ export interface ChatMiddlewareContext {
   // --- Config-derived info (may update per-iteration via onConfig) ---
 
   /** System prompts configured for this chat */
-  systemPrompts: Array<string>
+  systemPrompts: Array<SystemPrompt>
   /** Names of configured tools, if any */
   toolNames?: Array<string>
   /** Flattened generation options (temperature, topP, maxTokens, metadata) */
@@ -115,7 +116,7 @@ export interface ChatMiddlewareContext {
  */
 export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
-  systemPrompts: Array<string>
+  systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
   temperature?: number
   topP?: number

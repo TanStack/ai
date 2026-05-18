@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
@@ -1088,10 +1088,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     const messages: Array<ChatCompletionMessageParam> = []
 
     // Add system prompts first
-    if (options.systemPrompts && options.systemPrompts.length > 0) {
+    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+    if (systemPrompts.length > 0) {
       messages.push({
         role: 'system',
-        content: options.systemPrompts.join('\n'),
+        content: systemPrompts.map((p) => p.content).join('\n'),
       })
     }
 

@@ -1,5 +1,5 @@
 import { OpenRouter } from '@openrouter/sdk'
-import { EventType } from '@tanstack/ai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
@@ -1114,10 +1114,11 @@ export class OpenRouterTextAdapter<
       : ''
 
     const messages: Array<ChatMessages> = []
-    if (options.systemPrompts?.length) {
+    const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
+    if (systemPrompts.length > 0) {
       messages.push({
         role: 'system',
-        content: options.systemPrompts.join('\n'),
+        content: systemPrompts.map((p) => p.content).join('\n'),
       })
     }
     for (const m of options.messages) {

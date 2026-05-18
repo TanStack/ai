@@ -10,6 +10,7 @@ export {
   type AnthropicTextConfig,
   type AnthropicTextProviderOptions,
 } from './adapters/text'
+export type { AnthropicSystemPromptMetadata } from './text/text-provider-options'
 
 // Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
 export {

@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
@@ -1599,10 +1599,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }),
       ...(options.topP !== undefined && { top_p: options.topP }),
       ...(options.metadata !== undefined && { metadata: options.metadata }),
-      ...(options.systemPrompts &&
-        options.systemPrompts.length > 0 && {
-          instructions: options.systemPrompts.join('\n'),
-        }),
+      ...(() => {
+        const prompts = normalizeSystemPrompts(options.systemPrompts)
+        if (prompts.length === 0) return {}
+        return { instructions: prompts.map((p) => p.content).join('\n') }
+      })(),
       input,
       // Conditional spread: `tools: undefined` would clobber any
       // modelOptions.tools the caller set above.

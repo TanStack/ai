@@ -60,6 +60,7 @@ function makeAdapter(opts: {
       },
       toolCapabilities: [] as ReadonlyArray<string>,
       toolCallMetadata: undefined as unknown,
+      systemPromptMetadata: undefined as never,
     },
     chatStream: () => (async function* () {})(),
     structuredOutput:

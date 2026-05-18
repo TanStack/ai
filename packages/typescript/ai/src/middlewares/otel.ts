@@ -372,9 +372,14 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         state.assistantTextBufferTruncated = false
 
         if (captureContent) {
+          // Pull out plain strings from systemPrompts; per-prompt metadata
+          // (e.g. Anthropic cache_control) is irrelevant for observability.
+          const systemPromptContents = config.systemPrompts.map((p) =>
+            typeof p === 'string' ? p : p.content,
+          )
           // Span events follow the original GenAI semconv (one event per
           // message). Backends that read events get content this way.
-          for (const sys of config.systemPrompts) {
+          for (const sys of systemPromptContents) {
             iterSpan.addEvent('gen_ai.system.message', {
               content: redactContent(sys),
             })
@@ -391,7 +396,7 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           // (`gen_ai.input.messages`) — backends like PostHog read prompt
           // content from this attribute, not from span events.
           const inputMessages: Array<{ role: string; content: string }> = []
-          for (const sys of config.systemPrompts) {
+          for (const sys of systemPromptContents) {
             inputMessages.push({
               role: 'system',
               content: redactContent(sys),

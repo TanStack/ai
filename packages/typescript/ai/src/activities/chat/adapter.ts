@@ -55,6 +55,10 @@ export interface StructuredOutputResult<T = unknown> {
  * - TMessageMetadata: Metadata types for content parts (already resolved)
  * - TToolCapabilities: Tuple of tool-kind strings supported by this model, resolved from `supports.tools`
  * - TToolCallMetadata: Metadata type that round-trips with tool calls (e.g. Gemini's `thoughtSignature`)
+ * - TSystemPromptMetadata: Provider-typed metadata accepted on each
+ *   `systemPrompts[i]` entry (e.g. Anthropic `cache_control`). Defaults to
+ *   `never` — adapters without per-prompt metadata reject the `metadata`
+ *   field at the call site.
  */
 export interface TextAdapter<
   TModel extends string,
@@ -63,6 +67,7 @@ export interface TextAdapter<
   TMessageMetadataByModality extends DefaultMessageMetadataByModality,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
   TToolCallMetadata = unknown,
+  TSystemPromptMetadata = never,
 > {
   /** Discriminator for adapter kind */
   readonly kind: 'text'
@@ -80,6 +85,7 @@ export interface TextAdapter<
     messageMetadataByModality: TMessageMetadataByModality
     toolCapabilities: TToolCapabilities
     toolCallMetadata: TToolCallMetadata
+    systemPromptMetadata: TSystemPromptMetadata
   }
 
   /**
@@ -123,7 +129,7 @@ export interface TextAdapter<
  * A TextAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyTextAdapter = TextAdapter<any, any, any, any, any, any>
+export type AnyTextAdapter = TextAdapter<any, any, any, any, any, any, any>
 
 /**
  * Abstract base class for text adapters.
@@ -138,13 +144,15 @@ export abstract class BaseTextAdapter<
   TMessageMetadataByModality extends DefaultMessageMetadataByModality,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
   TToolCallMetadata = unknown,
+  TSystemPromptMetadata = never,
 > implements TextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   TMessageMetadataByModality,
   TToolCapabilities,
-  TToolCallMetadata
+  TToolCallMetadata,
+  TSystemPromptMetadata
 > {
   readonly kind = 'text' as const
   abstract readonly name: string
@@ -157,6 +165,7 @@ export abstract class BaseTextAdapter<
     messageMetadataByModality: TMessageMetadataByModality
     toolCapabilities: TToolCapabilities
     toolCallMetadata: TToolCallMetadata
+    systemPromptMetadata: TSystemPromptMetadata
   }
 
   protected config: TextAdapterConfig

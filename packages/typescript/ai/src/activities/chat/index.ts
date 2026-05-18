@@ -56,6 +56,7 @@ import type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
 } from './middleware/types'
+import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { ProviderTool } from '../../tools/provider-tool'
@@ -102,8 +103,16 @@ export interface TextActivityOptions<
         messageMetadataByModality: TAdapter['~types']['messageMetadataByModality']
       }>
   >
-  /** System prompts to prepend to the conversation */
-  systemPrompts?: TextOptions['systemPrompts']
+  /**
+   * System prompts to prepend to the conversation.
+   *
+   * Accepts plain strings or `{ content, metadata }` objects. The `metadata`
+   * field is typed by the adapter — Anthropic narrows it to
+   * `AnthropicSystemPromptMetadata` (with `cache_control` for prompt
+   * caching), providers without per-prompt metadata reject the field
+   * entirely.
+   */
+  systemPrompts?: Array<SystemPrompt<TAdapter['~types']['systemPromptMetadata']>>
   /**
    * Tools for function calling (auto-executed when called).
    *
@@ -275,7 +284,7 @@ interface TextEngineConfig<
   TParams extends TextOptions<any, any> = TextOptions<any>,
 > {
   adapter: TAdapter
-  systemPrompts?: Array<string>
+  systemPrompts?: Array<SystemPrompt>
   params: TParams
   middleware?: Array<ChatMiddleware>
   context?: unknown
@@ -290,7 +299,7 @@ class TextEngine<
 > {
   private readonly adapter: TAdapter
   private params: TParams
-  private systemPrompts: Array<string>
+  private systemPrompts: Array<SystemPrompt>
   private tools: Array<Tool>
   private readonly loopStrategy: AgentLoopStrategy
   private toolCallManager: ToolCallManager

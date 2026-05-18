@@ -117,6 +117,64 @@ describe('Anthropic adapter option mapping', () => {
     ])
   })
 
+  it('attaches cache_control to system TextBlockParams via systemPrompts metadata', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'ok' },
+      }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 1 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      systemPrompts: [
+        {
+          content: 'Stable instructions — cache me.',
+          // metadata is narrowed to AnthropicSystemPromptMetadata via the
+          // adapter's `~types['systemPromptMetadata']` declaration — no
+          // `satisfies` needed.
+          metadata: { cache_control: { type: 'ephemeral', ttl: '5m' } },
+        },
+        'Volatile per-request instruction.',
+      ],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    // Object-form prompts attach their metadata cache_control; plain strings
+    // produce a TextBlockParam with no cache_control.
+    expect(payload.system).toEqual([
+      {
+        type: 'text',
+        text: 'Stable instructions — cache me.',
+        cache_control: { type: 'ephemeral', ttl: '5m' },
+      },
+      {
+        type: 'text',
+        text: 'Volatile per-request instruction.',
+      },
+    ])
+  })
+
   it('maps normalized options and Anthropic provider settings', async () => {
     // Mock the streaming response
     const mockStream = (async function* () {
