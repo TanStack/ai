@@ -5,7 +5,7 @@ title: ToolCallArgsEvent
 
 # Interface: ToolCallArgsEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:996](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L996)
+Defined in: [packages/typescript/ai/src/types.ts:1011](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1011)
 
 Emitted when tool call arguments are streaming.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `args?` (accumulated)
 optional args: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1000](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1000)
+Defined in: [packages/typescript/ai/src/types.ts:1015](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1015)
 
 Full accumulated arguments so far (TanStack AI internal)
 
@@ -42,6 +42,6 @@ Full accumulated arguments so far (TanStack AI internal)
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:998](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L998)
+Defined in: [packages/typescript/ai/src/types.ts:1013](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1013)
 
 Model identifier for multi-model support

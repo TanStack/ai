@@ -5,7 +5,7 @@ title: ToolCallStartEvent
 
 # Interface: ToolCallStartEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:973](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L973)
+Defined in: [packages/typescript/ai/src/types.ts:988](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L988)
 
 Emitted when a tool call starts.
 
@@ -30,7 +30,7 @@ TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
 optional index: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:982](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L982)
+Defined in: [packages/typescript/ai/src/types.ts:997](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L997)
 
 Index for parallel tool calls
 
@@ -42,7 +42,7 @@ Index for parallel tool calls
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:987](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L987)
+Defined in: [packages/typescript/ai/src/types.ts:1002](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1002)
 
 Provider-specific metadata to carry into the ToolCall.
 Untyped at the event layer because events flow through a discriminated
@@ -57,7 +57,7 @@ union that does not survive generics; adapters cast it to their typed
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:975](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L975)
+Defined in: [packages/typescript/ai/src/types.ts:990](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L990)
 
 Model identifier for multi-model support
 
@@ -69,7 +69,7 @@ Model identifier for multi-model support
 toolName: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:980](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L980)
+Defined in: [packages/typescript/ai/src/types.ts:995](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L995)
 
 #### Deprecated
 

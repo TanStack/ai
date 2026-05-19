@@ -5,7 +5,7 @@ title: VideoJobResult
 
 # Interface: VideoJobResult
 
-Defined in: [packages/typescript/ai/src/types.ts:1553](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1553)
+Defined in: [packages/typescript/ai/src/types.ts:1568](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1568)
 
 **`Experimental`**
 
@@ -21,7 +21,7 @@ Result of creating a video generation job.
 jobId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1555](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1555)
+Defined in: [packages/typescript/ai/src/types.ts:1570](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1570)
 
 **`Experimental`**
 
@@ -35,7 +35,7 @@ Unique job identifier for polling status
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1557](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1557)
+Defined in: [packages/typescript/ai/src/types.ts:1572](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1572)
 
 **`Experimental`**
 

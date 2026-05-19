@@ -24,7 +24,7 @@ type BeforeToolCallDecision =
 };
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:154](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L154)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:155](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L155)
 
 Decision returned from onBeforeToolCall.
 - undefined/void: continue with normal execution

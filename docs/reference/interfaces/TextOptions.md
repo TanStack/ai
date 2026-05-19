@@ -5,7 +5,7 @@ title: TextOptions
 
 # Interface: TextOptions\<TProviderOptionsSuperset, TProviderOptionsForModel\>
 
-Defined in: [packages/typescript/ai/src/types.ts:725](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L725)
+Defined in: [packages/typescript/ai/src/types.ts:726](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L726)
 
 Options passed into the SDK and further piped to the AI provider.
 
@@ -27,7 +27,7 @@ Options passed into the SDK and further piped to the AI provider.
 optional abortController: AbortController;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:815](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L815)
+Defined in: [packages/typescript/ai/src/types.ts:830](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L830)
 
 AbortController for request cancellation.
 
@@ -54,7 +54,7 @@ https://developer.mozilla.org/en-US/docs/Web/API/AbortController
 optional agentLoopStrategy: AgentLoopStrategy;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:733](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L733)
+Defined in: [packages/typescript/ai/src/types.ts:748](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L748)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [packages/typescript/ai/src/types.ts:733](https://github.com/TanStac
 optional conversationId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:801](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L801)
+Defined in: [packages/typescript/ai/src/types.ts:816](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L816)
 
 #### Deprecated
 
@@ -85,7 +85,7 @@ Will be removed in a future major release.
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:822](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L822)
+Defined in: [packages/typescript/ai/src/types.ts:837](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L837)
 
 Internal logger threaded from the chat entry point. Adapter implementations
 must call `logger.request()` before SDK calls, `logger.provider()` for each
@@ -99,7 +99,7 @@ chunk received, and `logger.errors()` in catch blocks.
 optional maxTokens: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:768](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L768)
+Defined in: [packages/typescript/ai/src/types.ts:783](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L783)
 
 The maximum number of tokens to generate in the response.
 
@@ -119,7 +119,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:730](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L730)
+Defined in: [packages/typescript/ai/src/types.ts:731](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L731)
 
 ***
 
@@ -129,7 +129,7 @@ Defined in: [packages/typescript/ai/src/types.ts:730](https://github.com/TanStac
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:779](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L779)
+Defined in: [packages/typescript/ai/src/types.ts:794](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L794)
 
 Additional metadata to attach to the request.
 Can be used for tracking, debugging, or passing custom information.
@@ -148,7 +148,7 @@ Provider usage:
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:729](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L729)
+Defined in: [packages/typescript/ai/src/types.ts:730](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L730)
 
 ***
 
@@ -158,7 +158,7 @@ Defined in: [packages/typescript/ai/src/types.ts:729](https://github.com/TanStac
 optional modelOptions: TProviderOptionsForModel;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:780](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L780)
+Defined in: [packages/typescript/ai/src/types.ts:795](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L795)
 
 ***
 
@@ -168,7 +168,7 @@ Defined in: [packages/typescript/ai/src/types.ts:780](https://github.com/TanStac
 optional outputSchema: SchemaInput;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:790](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L790)
+Defined in: [packages/typescript/ai/src/types.ts:805](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L805)
 
 Schema for structured output.
 When provided, the adapter should use the provider's native structured output API
@@ -184,7 +184,7 @@ Supports any Standard JSON Schema compliant library (Zod, ArkType, Valibot, etc.
 optional parentRunId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:839](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L839)
+Defined in: [packages/typescript/ai/src/types.ts:854](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L854)
 
 Parent run ID for AG-UI protocol nested run correlation.
 Surfaced for observability/middleware; not consumed by the LLM call.
@@ -197,7 +197,7 @@ Surfaced for observability/middleware; not consumed by the LLM call.
 optional request: Request | RequestInit;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:781](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L781)
+Defined in: [packages/typescript/ai/src/types.ts:796](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L796)
 
 ***
 
@@ -207,7 +207,7 @@ Defined in: [packages/typescript/ai/src/types.ts:781](https://github.com/TanStac
 optional runId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:834](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L834)
+Defined in: [packages/typescript/ai/src/types.ts:849](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L849)
 
 Run ID for AG-UI protocol run correlation.
 When provided, this will be used in RunStartedEvent and RunFinishedEvent.
@@ -218,10 +218,25 @@ If not provided, a unique ID will be generated.
 ### systemPrompts?
 
 ```ts
-optional systemPrompts: string[];
+optional systemPrompts: SystemPrompt[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:732](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L732)
+Defined in: [packages/typescript/ai/src/types.ts:747](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L747)
+
+System prompts to include with the request.
+
+Accepts plain strings (the common case) or `{ content, metadata }`
+objects that let providers attach typed metadata (e.g. Anthropic
+`cache_control` for prompt caching) per prompt. At the chat call site
+the adapter narrows `metadata`'s type via `~types['systemPromptMetadata']`
+— providers that don't declare one default to `never`, which makes the
+field carry no meaningful value (TypeScript will only accept
+`undefined` there). Provider-foreign metadata that reaches an adapter
+via JS / `as any` is silently dropped, never written to the wire.
+
+#### See
+
+SystemPrompt
 
 ***
 
@@ -231,7 +246,7 @@ Defined in: [packages/typescript/ai/src/types.ts:732](https://github.com/TanStac
 optional temperature: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:746](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L746)
+Defined in: [packages/typescript/ai/src/types.ts:761](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L761)
 
 Controls the randomness of the output.
 Higher values (e.g., 0.8) make output more random, lower values (e.g., 0.2) make it more focused and deterministic.
@@ -252,7 +267,7 @@ Provider usage:
 optional threadId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:828](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L828)
+Defined in: [packages/typescript/ai/src/types.ts:843](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L843)
 
 Thread ID for AG-UI protocol run correlation.
 When provided, this will be used in RunStartedEvent and RunFinishedEvent.
@@ -265,7 +280,7 @@ When provided, this will be used in RunStartedEvent and RunFinishedEvent.
 optional tools: Tool<any, any, any>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:731](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L731)
+Defined in: [packages/typescript/ai/src/types.ts:732](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L732)
 
 ***
 
@@ -275,7 +290,7 @@ Defined in: [packages/typescript/ai/src/types.ts:731](https://github.com/TanStac
 optional topP: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:759](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L759)
+Defined in: [packages/typescript/ai/src/types.ts:774](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L774)
 
 Nucleus sampling parameter. An alternative to temperature sampling.
 The model considers the results of tokens with topP probability mass.
