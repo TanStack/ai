@@ -4,10 +4,12 @@ import {
   Braces,
   FileAudio,
   FileText,
+  Guitar,
   Image,
   ImagePlus,
   Mic,
   Music,
+  Radio,
   Send,
   Square,
   Video,
@@ -184,6 +186,27 @@ function Messages({
             >
               <Braces size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">Structured</span>
+            </Link>
+            <Link
+              to="/generations/structured-chat"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Braces size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Structured Chat</span>
+            </Link>
+            <Link
+              to="/example/guitars"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Guitar size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Guitar Demo</span>
+            </Link>
+            <Link
+              to="/realtime"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Radio size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Realtime</span>
             </Link>
           </div>
         </div>
