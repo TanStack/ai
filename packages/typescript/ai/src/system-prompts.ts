@@ -77,14 +77,20 @@ export function normalizeSystemPrompts<TMetadata = unknown>(
   if (!prompts || prompts.length === 0) return []
   return prompts.map((p, i) => {
     if (typeof p === 'string') return { content: p }
-    if (p === null || typeof p !== 'object') {
+    // Defence in depth: TypeScript narrows `p` to the object arm here, but
+    // this function is a public API boundary that callers can reach via
+    // plain JS or `as any`. Re-validate at runtime so we never stream a
+    // literal `"undefined"` into the model.
+    const candidate = p as unknown
+    if (candidate === null || typeof candidate !== 'object') {
       throw new TypeError(
-        `systemPrompts[${i}]: expected a string or { content, metadata? }, got ${p === null ? 'null' : typeof p}`,
+        `systemPrompts[${i}]: expected a string or { content, metadata? }, got ${candidate === null ? 'null' : typeof candidate}`,
       )
     }
-    if (typeof p.content !== 'string') {
+    const { content } = candidate as { content?: unknown }
+    if (typeof content !== 'string') {
       throw new TypeError(
-        `systemPrompts[${i}]: content must be a string, got ${typeof p.content}`,
+        `systemPrompts[${i}]: content must be a string, got ${typeof content}`,
       )
     }
     return p as NormalizedSystemPrompt<TMetadata>
