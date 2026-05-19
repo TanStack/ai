@@ -1146,10 +1146,8 @@ export interface CustomEvent extends AGUICustomEvent {
  * }
  * ```
  */
-export interface StructuredOutputCompleteEvent<T = unknown> extends Omit<
-  CustomEvent,
-  'name' | 'value'
-> {
+export interface StructuredOutputCompleteEvent<T = unknown>
+  extends CustomEvent {
   name: 'structured-output.complete'
   value: { object: T; raw: string; reasoning?: string }
 }
@@ -1162,10 +1160,7 @@ export interface StructuredOutputCompleteEvent<T = unknown> extends Omit<
  * `messageId` the deltas will be tagged with so the routing decision can be
  * made per-message rather than globally.
  */
-export interface StructuredOutputStartEvent extends Omit<
-  CustomEvent,
-  'name' | 'value'
-> {
+export interface StructuredOutputStartEvent extends CustomEvent {
   name: 'structured-output.start'
   value: { messageId: string }
 }
@@ -1177,10 +1172,7 @@ export interface StructuredOutputStartEvent extends Omit<
  * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
  * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
  */
-export interface ApprovalRequestedEvent extends Omit<
-  CustomEvent,
-  'name' | 'value'
-> {
+export interface ApprovalRequestedEvent extends CustomEvent {
   name: 'approval-requested'
   value: {
     toolCallId: string
@@ -1196,10 +1188,7 @@ export interface ApprovalRequestedEvent extends Omit<
  * will not fire for that run. Shape fixed by the agent-loop forwarding in
  * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
  */
-export interface ToolInputAvailableEvent extends Omit<
-  CustomEvent,
-  'name' | 'value'
-> {
+export interface ToolInputAvailableEvent extends CustomEvent {
   name: 'tool-input-available'
   value: {
     toolCallId: string
