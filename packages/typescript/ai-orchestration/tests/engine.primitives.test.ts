@@ -166,9 +166,9 @@ describe('step()', () => {
     // fn was called once in phase 1; replay must NOT call it again.
     expect(callCount).toBe(1)
 
-    const finished = phase2.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { data: string } }
-      | undefined
+    const finished = phase2.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { data: string } } | undefined
     expect(finished?.output.data).toBe('world')
   })
 
@@ -208,7 +208,6 @@ describe('step()', () => {
 
     const log = await store.getSteps(runId)
     expect(log[0]?.error?.message).toBe('kaboom')
-
     ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
       _id,
     ) => undefined
@@ -225,9 +224,9 @@ describe('step()', () => {
     // Replay throws the recorded error back into user code without
     // re-invoking fn. User's try/catch must still observe `caught`.
     expect(callCount).toBe(1)
-    const finished = phase2.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { caught: boolean } }
-      | undefined
+    const finished = phase2.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { caught: boolean } } | undefined
     expect(finished?.output.caught).toBe(true)
   })
 })
@@ -272,9 +271,9 @@ describe('now()', () => {
       }),
     )
 
-    const finished = phase2.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { ts: number } }
-      | undefined
+    const finished = phase2.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { ts: number } } | undefined
     expect(finished?.output.ts).toBe(recordedTs)
   })
 })
@@ -305,7 +304,6 @@ describe('uuid()', () => {
     expect(recordedId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     )
-
     ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
       _id,
     ) => undefined
@@ -319,9 +317,9 @@ describe('uuid()', () => {
       }),
     )
 
-    const finished = phase2.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { id: string } }
-      | undefined
+    const finished = phase2.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { id: string } } | undefined
     expect(finished?.output.id).toBe(recordedId)
   })
 })

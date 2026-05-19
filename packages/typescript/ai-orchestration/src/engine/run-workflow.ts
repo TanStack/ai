@@ -431,8 +431,7 @@ async function* attachRun(
       message:
         persistedRunState.error?.message ??
         `Run ${runId} ended with status ${persistedRunState.status}`,
-      code:
-        persistedRunState.status === 'aborted' ? 'aborted' : 'error',
+      code: persistedRunState.status === 'aborted' ? 'aborted' : 'error',
     })
     return
   }
@@ -475,8 +474,7 @@ async function* attachRun(
     value: {
       runId,
       status: 'running',
-      note:
-        'Run is executing on another node (or this process is read-only). Wire the publisher hook to tail live events.',
+      note: 'Run is executing on another node (or this process is read-only). Wire the publisher hook to tail live events.',
     },
   })
 }
@@ -601,7 +599,11 @@ async function* resumeRun(
   }
 
   const live: LiveRun = {
-    runState: { ...persistedRunState, status: 'running', updatedAt: Date.now() },
+    runState: {
+      ...persistedRunState,
+      status: 'running',
+      updatedAt: Date.now(),
+    },
     generator: undefined as unknown as LiveRun['generator'],
     abortController,
     approvalResolver: undefined,
@@ -837,7 +839,8 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       }
 
       const result =
-        pendingResult ?? (await live.generator.next(nextValue as StepDescriptor))
+        pendingResult ??
+        (await live.generator.next(nextValue as StepDescriptor))
       pendingResult = null
 
       // Track state diffs every iteration so the local prevState stays in
@@ -1030,8 +1033,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         })
 
         const ctxId = `${runId}:step-${logLength}`
-        const retryPolicy =
-          descriptor.retry ?? args.workflow.defaultStepRetry
+        const retryPolicy = descriptor.retry ?? args.workflow.defaultStepRetry
         const maxAttempts = Math.max(1, retryPolicy?.maxAttempts ?? 1)
         const attempts: Array<{
           startedAt: number
@@ -1081,10 +1083,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
                     attemptController.signal.addEventListener(
                       'abort',
                       () => {
-                        if (
-                          abortController.signal.aborted &&
-                          !timeoutHandle
-                        ) {
+                        if (abortController.signal.aborted && !timeoutHandle) {
                           // Aborted by run-level cancel, not by timeout.
                           reject(new Error('Workflow aborted'))
                           return
@@ -1478,8 +1477,7 @@ async function tryAppendStep(
       //       name check prevents misclassifying an agent CAS conflict
       //       (which would be a real multi-writer race) as idempotent.
       const explicitSignalMatch =
-        record.signalId !== undefined &&
-        existing.signalId === record.signalId
+        record.signalId !== undefined && existing.signalId === record.signalId
       const implicitApprovalRetry =
         record.signalId === undefined &&
         existing.signalId === undefined &&

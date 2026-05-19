@@ -1,10 +1,5 @@
 import { LogConflictError } from '../types'
-import type {
-  LiveRun,
-  RunState,
-  RunStore,
-  StepRecord,
-} from '../types'
+import type { LiveRun, RunState, RunStore, StepRecord } from '../types'
 
 export interface InMemoryRunStoreOptions {
   /** TTL in milliseconds. Default 1 hour. */
@@ -74,7 +69,11 @@ export function inMemoryRunStore(
         // treat the existing entry as an idempotent retry (same
         // signalId) or as a lost race (different signalId).
         return Promise.reject(
-          new LogConflictError(runId, expectedNextIndex, log[expectedNextIndex]),
+          new LogConflictError(
+            runId,
+            expectedNextIndex,
+            log[expectedNextIndex],
+          ),
         )
       }
       // Record's index field is normalized to the actual position so

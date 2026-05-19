@@ -65,9 +65,9 @@ describe('patched()', () => {
         runStore: store,
       }),
     )
-    const finished = events.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { flag: boolean } }
-      | undefined
+    const finished = events.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { flag: boolean } } | undefined
     expect(finished?.output.flag).toBe(true)
   })
 
@@ -93,9 +93,9 @@ describe('patched()', () => {
         runStore: store,
       }),
     )
-    const finished = events.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { flag: boolean } }
-      | undefined
+    const finished = events.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { flag: boolean } } | undefined
     expect(finished?.output.flag).toBe(false)
   })
 

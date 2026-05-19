@@ -166,9 +166,9 @@ describe('per-step retry', () => {
 
     // shouldRetry returned false on attempt 1 → no further attempts.
     expect(callCount).toBe(1)
-    const finished = events.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { caught: boolean } }
-      | undefined
+    const finished = events.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { caught: boolean } } | undefined
     expect(finished?.output.caught).toBe(true)
   })
 
@@ -208,9 +208,9 @@ describe('per-step retry', () => {
     )
 
     expect(callCount).toBe(3)
-    const finished = events.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { caught: string } }
-      | undefined
+    const finished = events.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { caught: string } } | undefined
     expect(finished?.output.caught).toBe('fail 3')
   })
 })

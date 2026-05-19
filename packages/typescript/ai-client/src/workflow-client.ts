@@ -144,10 +144,7 @@ export class WorkflowClient<
    * serves the existing run as an attach snapshot or rejects with
    * `run_id_conflict`.
    */
-  async start(
-    input: TInput,
-    options?: { runId?: string },
-  ): Promise<void> {
+  async start(input: TInput, options?: { runId?: string }): Promise<void> {
     const runId = options?.runId ?? `run_${globalThis.crypto.randomUUID()}`
     this.setState({
       ...(initialState as WorkflowClientState<TState, TOutput>),
@@ -187,9 +184,7 @@ export class WorkflowClient<
   ): Promise<void> {
     if (!this.clientState.runId) throw new Error('No run in progress')
     const runId = this.clientState.runId
-    const signalId =
-      options?.signalId ??
-      globalThis.crypto.randomUUID()
+    const signalId = options?.signalId ?? globalThis.crypto.randomUUID()
     this.setState({
       pendingApproval: null,
       pendingSignal: null,
@@ -210,10 +205,12 @@ export class WorkflowClient<
     // and the server keeps running. We don't `await` — stop is
     // fire-and-forget by contract — but we do consume the stream so
     // the request actually goes out.
-    void this.consumeStream(this.openStream({
-      abort: true,
-      runId: this.clientState.runId,
-    })).catch(() => {
+    void this.consumeStream(
+      this.openStream({
+        abort: true,
+        runId: this.clientState.runId,
+      }),
+    ).catch(() => {
       // Network failures on the abort post are non-fatal — the local
       // state already reflects 'aborted'. A misbehaving abort request
       // should not throw an unhandled rejection.

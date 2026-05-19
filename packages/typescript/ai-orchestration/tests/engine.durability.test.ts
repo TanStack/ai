@@ -193,7 +193,9 @@ describe('engine durability — resume after restart (replay)', () => {
     const types2 = phase2.map((e) => e.type)
     expect(types2).toContain('RUN_FINISHED')
 
-    const finished = phase2.find((e) => e.type === 'RUN_FINISHED') as unknown as {
+    const finished = phase2.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as {
       output: { result: string }
     }
     expect(finished.output.result).toBe('HELLO')
@@ -257,7 +259,9 @@ describe('engine durability — resume after restart (replay)', () => {
 
     expect(echoCallCount).toBe(1)
 
-    const finished = phase2.find((e) => e.type === 'RUN_FINISHED') as unknown as {
+    const finished = phase2.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as {
       output: { result: string }
     }
     expect(finished.output.result).toBe('ONE')

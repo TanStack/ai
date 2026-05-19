@@ -75,11 +75,8 @@ export function useWorkflow<
   )
   const attach = useCallback((runId: string) => client.attach(runId), [client])
   const signal = useCallback(
-    (
-      name: string,
-      payload: unknown,
-      options?: { signalId?: string },
-    ) => client.signal(name, payload, options),
+    (name: string, payload: unknown, options?: { signalId?: string }) =>
+      client.signal(name, payload, options),
     [client],
   )
   const start = useCallback(

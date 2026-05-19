@@ -25,9 +25,7 @@ import type { AnyWorkflowDefinition, RunStore } from '../types'
  *                  ?? v2 // default to latest for fresh starts / unrouted runs
  *     runWorkflow({ workflow: wf, runId, ... })
  */
-export async function selectWorkflowVersion<
-  T extends AnyWorkflowDefinition,
->(
+export async function selectWorkflowVersion<T extends AnyWorkflowDefinition>(
   versions: ReadonlyArray<T>,
   runId: string,
   runStore: RunStore,

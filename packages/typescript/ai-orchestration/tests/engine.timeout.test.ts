@@ -62,9 +62,9 @@ describe('step timeout', () => {
         runStore: store,
       }),
     )
-    const finished = events.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { caughtName: string } }
-      | undefined
+    const finished = events.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { caughtName: string } } | undefined
     expect(finished?.output.caughtName).toBe('StepTimeoutError')
   })
 
@@ -107,9 +107,9 @@ describe('step timeout', () => {
         runStore: store,
       }),
     )
-    const finished = events.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { aborted: boolean } }
-      | undefined
+    const finished = events.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { aborted: boolean } } | undefined
     expect(finished?.output.aborted).toBe(true)
     expect(observedAborted).toBe(true)
   })
@@ -152,9 +152,9 @@ describe('step timeout', () => {
         runStore: store,
       }),
     )
-    const finished = events.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { attempts: number; caught: string } }
-      | undefined
+    const finished = events.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { attempts: number; caught: string } } | undefined
     expect(finished?.output.attempts).toBe(3)
     expect(finished?.output.caught).toBe('StepTimeoutError')
   })
@@ -183,9 +183,9 @@ describe('step timeout', () => {
         runStore: store,
       }),
     )
-    const finished = events.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { ok: boolean } }
-      | undefined
+    const finished = events.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { ok: boolean } } | undefined
     expect(finished?.output.ok).toBe(true)
   })
 
@@ -217,8 +217,7 @@ describe('step timeout', () => {
             },
           )
         } catch (err) {
-          caughtImmediately =
-            err instanceof StepTimeoutError && callCount === 1
+          caughtImmediately = err instanceof StepTimeoutError && callCount === 1
         }
         return { caughtImmediately }
       },

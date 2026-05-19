@@ -129,7 +129,9 @@ describe('waitForSignal()', () => {
       }),
     )
 
-    const finished = phase2.find((e) => e.type === 'RUN_FINISHED') as unknown as
+    const finished = phase2.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as
       | { output: { payload: { ok: boolean; n: number } } }
       | undefined
     expect(finished?.output.payload).toEqual({ ok: true, n: 42 })
@@ -175,9 +177,9 @@ describe('waitForSignal()', () => {
       }),
     )
 
-    const finished = phase2.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { payload: { ok: boolean } } }
-      | undefined
+    const finished = phase2.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { payload: { ok: boolean } } } | undefined
     expect(finished?.output.payload).toEqual({ ok: true })
   })
 })
@@ -257,9 +259,9 @@ describe('sleep() / sleepUntil()', () => {
       }),
     )
 
-    const finished = phase2.find((e) => e.type === 'RUN_FINISHED') as unknown as
-      | { output: { awoke: boolean } }
-      | undefined
+    const finished = phase2.find(
+      (e) => e.type === 'RUN_FINISHED',
+    ) as unknown as { output: { awoke: boolean } } | undefined
     expect(finished?.output.awoke).toBe(true)
   })
 })
