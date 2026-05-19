@@ -1,5 +1,5 @@
 ---
-"@tanstack/ai": patch
+'@tanstack/ai': patch
 ---
 
 fix(ai): restore `StructuredOutputStream` assignability to `AsyncIterable<StreamChunk>` so it can be passed to `toServerSentEventsResponse`

@@ -1146,8 +1146,9 @@ export interface CustomEvent extends AGUICustomEvent {
  * }
  * ```
  */
-export interface StructuredOutputCompleteEvent<T = unknown>
-  extends CustomEvent {
+export interface StructuredOutputCompleteEvent<
+  T = unknown,
+> extends CustomEvent {
   name: 'structured-output.complete'
   value: { object: T; raw: string; reasoning?: string }
 }
