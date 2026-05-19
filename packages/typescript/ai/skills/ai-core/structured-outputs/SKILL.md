@@ -52,13 +52,13 @@ Adding `stream: true` switches the return to `StructuredOutputStream<InferSchema
 
 ## Decision: which pattern fits
 
-| Building this | Use |
-|---|---|
-| One prompt in → one typed object out (script, server endpoint, CLI) | Pattern 1 (basic) or 2 (nested) |
-| A UI that fills in field by field as the model streams (progressive form, live card) | Pattern 4 — `useChat({ outputSchema })` |
-| Direct iteration of the stream in Node or tests | Pattern 3 — async iterable |
-| Users iterate on a structured object across multiple turns (recipe builder, ticket refinement) | Pattern 5 — multi-turn structured chat |
-| Tools that gather info, then return a typed object | Combine any of the above with `tools` — see ai-core/tool-calling |
+| Building this                                                                                  | Use                                                              |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| One prompt in → one typed object out (script, server endpoint, CLI)                            | Pattern 1 (basic) or 2 (nested)                                  |
+| A UI that fills in field by field as the model streams (progressive form, live card)           | Pattern 4 — `useChat({ outputSchema })`                          |
+| Direct iteration of the stream in Node or tests                                                | Pattern 3 — async iterable                                       |
+| Users iterate on a structured object across multiple turns (recipe builder, ticket refinement) | Pattern 5 — multi-turn structured chat                           |
+| Tools that gather info, then return a typed object                                             | Combine any of the above with `tools` — see ai-core/tool-calling |
 
 ## Core Patterns
 
@@ -167,10 +167,7 @@ const stream = chat({
 })
 
 for await (const chunk of stream) {
-  if (
-    chunk.type === 'CUSTOM' &&
-    chunk.name === 'structured-output.complete'
-  ) {
+  if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
     // Terminal event. `chunk.value.object` is fully validated and typed
     // against the schema you passed in — no helper or cast required.
     chunk.value.object.name // string
@@ -184,12 +181,12 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 
 **Adapter coverage for streaming:**
 
-| Adapter | `outputSchema` + `stream: true` |
-|---|---|
-| `@tanstack/ai-openai` | Native single-request stream (Responses API) |
-| `@tanstack/ai-openrouter` | Native single-request stream |
-| `@tanstack/ai-grok` | Native single-request stream (Chat Completions) |
-| `@tanstack/ai-groq` | Native single-request stream (Chat Completions) |
+| Adapter                                           | `outputSchema` + `stream: true`                                                               |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `@tanstack/ai-openai`                             | Native single-request stream (Responses API)                                                  |
+| `@tanstack/ai-openrouter`                         | Native single-request stream                                                                  |
+| `@tanstack/ai-grok`                               | Native single-request stream (Chat Completions)                                               |
+| `@tanstack/ai-groq`                               | Native single-request stream (Chat Completions)                                               |
 | All other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event |
 
 Consumer code is identical across providers — always read the final object off `structured-output.complete`. You only see incremental `TEXT_MESSAGE_CONTENT` deltas when the adapter implements `structuredOutputStream` natively.
@@ -352,9 +349,11 @@ That hack is **gone**. With `outputSchema` set, `TEXT_MESSAGE_CONTENT` deltas no
 ```tsx
 // CORRECT — find the structured-output part directly; let actual TextParts render
 last?.parts.map((part, i) => {
-  if (part.type === 'thinking') return <ReasoningView key={i} text={part.content} />
+  if (part.type === 'thinking')
+    return <ReasoningView key={i} text={part.content} />
   if (part.type === 'tool-call') return <ToolCallView key={i} part={part} />
-  if (part.type === 'structured-output') return <RecipeCard key={i} part={part} />
+  if (part.type === 'structured-output')
+    return <RecipeCard key={i} part={part} />
   if (part.type === 'text') return <p key={i}>{part.content}</p> // ← real text, not JSON
   return null
 })
