@@ -260,7 +260,7 @@ function PersonExtractor() {
 - `partial` is `DeepPartial<z.infer<typeof PersonSchema>>` — every property optional, every nested array element optional. Updated from `TEXT_MESSAGE_CONTENT` deltas.
 - `final` is `z.infer<typeof PersonSchema> | null` — populated when `structured-output.complete` arrives.
 - `outputSchema` is for client-side type inference only. **Validation runs on the server** against the schema you pass to `chat({ outputSchema })` there.
-- Same shape works for non-streaming adapters: when the adapter falls back to a single `structured-output.complete`, `partial` stays `{}` and `final` populates on arrival.
+- Same shape works for non-streaming adapters: the fallback path emits one whole-JSON `TEXT_MESSAGE_CONTENT` then the terminal event, so `partial` populates and `final` snaps in the same render tick — same consumer code as the native-streaming providers, just without an intermediate field-by-field reveal.
 
 ### Pattern 5: Multi-turn structured chat
 
