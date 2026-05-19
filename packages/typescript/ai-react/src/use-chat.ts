@@ -193,17 +193,11 @@ export function useChat<
     [client],
   )
 
-  // `partial` and `final` are derived from the active assistant message's
-  // structured-output part. "Active" = the last assistant message whose
-  // position in the array is greater than the last user message — that is,
-  // the assistant message responding to the most recent user turn. Between
-  // sendMessage() and the server's first chunk no such assistant message
-  // exists yet, so `partial` reads as `{}` and `final` as `null` without
-  // any extra state. During streaming the part's `partial` is the progressive
-  // parse; once `structured-output.complete` snaps the part to `complete`,
-  // `final` returns the validated `data`. Historical structured responses on
-  // earlier assistant messages are not exposed through these (consumers walk
-  // `messages` directly for that).
+  // The "active" structured-output part is the one on the assistant message
+  // that follows the latest user message. No such message exists between
+  // sendMessage() and the first chunk, so partial/final naturally read as
+  // cleared. Historical parts on earlier assistant messages remain available
+  // via `messages` directly.
   const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
     let lastUserIndex = -1
     for (let i = messages.length - 1; i >= 0; i--) {

@@ -148,10 +148,6 @@ export class StreamProcessor {
   private pendingManualMessageId: string | null = null
   private pendingThinkingStepId: string | null = null
 
-  // Messages whose TEXT_MESSAGE_CONTENT deltas should be routed into a
-  // StructuredOutputPart instead of a TextPart. Populated by the
-  // `structured-output.start` CUSTOM event; cleared by `structured-output.complete`
-  // / RUN_ERROR / finalize.
   private structuredMessageIds: Set<string> = new Set()
 
   // Run tracking (for concurrent run safety)
@@ -392,6 +388,13 @@ export class StreamProcessor {
    * Remove messages after a certain index (for reload/retry)
    */
   removeMessagesAfter(index: number): void {
+    const keptIds = new Set(this.messages.slice(0, index + 1).map((m) => m.id))
+    // Drop routing state for messages that no longer exist; otherwise a
+    // structured-output stream after `reload()` could land deltas on a stale
+    // messageId map entry, corrupting the new assistant message's parts.
+    for (const id of this.structuredMessageIds.keys()) {
+      if (!keptIds.has(id)) this.structuredMessageIds.delete(id)
+    }
     this.messages = this.messages.slice(0, index + 1)
     this.emitMessagesChange()
   }
@@ -851,9 +854,6 @@ export class StreamProcessor {
     // Content arriving means all current tool calls for this message are complete
     this.completeAllToolCallsForMessage(messageId)
 
-    // Structured-output run: route the delta into the message's
-    // StructuredOutputPart instead of building a TextPart. The server emits
-    // `structured-output.start` ahead of these deltas so we know to redirect.
     if (this.structuredMessageIds.has(messageId)) {
       const delta =
         chunk.delta ||
@@ -1228,8 +1228,6 @@ export class StreamProcessor {
     const errorMessage =
       chunk.message || chunk.error?.message || 'An error occurred'
 
-    // Mark any in-flight structured-output part on this message as errored
-    // so consumers can render the partial buffer with a clear error state.
     if (this.structuredMessageIds.has(messageId)) {
       this.messages = errorStructuredOutputPart(
         this.messages,
@@ -1419,9 +1417,6 @@ export class StreamProcessor {
   ): void {
     const messageId = this.getActiveAssistantMessageId()
 
-    // Mark a message as carrying structured output. Subsequent
-    // TEXT_MESSAGE_CONTENT deltas for this messageId route into the
-    // StructuredOutputPart instead of building a TextPart.
     if (chunk.name === 'structured-output.start' && chunk.value) {
       const v = chunk.value as { messageId?: string }
       const targetId = v.messageId ?? messageId
@@ -1432,7 +1427,6 @@ export class StreamProcessor {
       return
     }
 
-    // Snap the structured-output part to its validated terminal state.
     if (chunk.name === 'structured-output.complete' && chunk.value) {
       const v = chunk.value as {
         object: unknown

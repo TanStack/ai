@@ -113,28 +113,23 @@ export function uiMessagesToWire(
 }
 
 function collectText(parts: ReadonlyArray<MessagePart>): string {
-  // Both `text` parts and the raw JSON of `structured-output` parts contribute
-  // to the assistant's wire `content`. For structured turns the original
-  // streamed JSON is the source of truth — emitting it back lets the LLM see
-  // its own prior structured responses in multi-turn flows. Text and
-  // structured parts are mutually exclusive on a single assistant message in
-  // practice, but the concat is safe either way.
+  // The streamed JSON of a completed structured-output part is the source of
+  // truth for multi-turn coherence — emitting it back as assistant content
+  // lets the LLM see its own prior structured response. Streaming/errored
+  // parts are skipped: they'd ship malformed JSON fragments and confuse the
+  // model. `completeStructuredOutputPart` guarantees a non-empty `raw` on
+  // complete parts (falling back to JSON.stringify(data) if needed), so we
+  // don't need to re-serialize here.
   const out: Array<string> = []
   for (const p of parts) {
     if (p.type === 'text') {
       out.push(p.content)
-    } else if (p.type === 'structured-output') {
-      // Prefer raw (the streamed JSON), fall back to serializing data if a
-      // terminal-only complete event populated only `data`.
-      if (p.raw !== '') {
-        out.push(p.raw)
-      } else if (p.data !== undefined) {
-        try {
-          out.push(JSON.stringify(p.data))
-        } catch {
-          // Circular or unserializable data: skip rather than throw.
-        }
-      }
+    } else if (
+      p.type === 'structured-output' &&
+      p.status === 'complete' &&
+      p.raw !== ''
+    ) {
+      out.push(p.raw)
     }
   }
   return out.join('')

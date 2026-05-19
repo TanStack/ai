@@ -367,17 +367,9 @@ export interface ThinkingPart {
 
 /**
  * StructuredOutputPart — a typed structured response attached to the assistant
- * message that produced it.
- *
- * For `useChat({ outputSchema })` and `chat({ outputSchema })`, each assistant
- * turn that streams a JSON object gets exactly one of these. `partial` updates
- * per delta via progressive JSON parsing, `data` snaps on the terminal
- * `structured-output.complete` event, and `raw` is the accumulating JSON
- * buffer that gets sent back to the LLM as assistant content on the next turn
- * so multi-turn structured chat stays coherent.
- *
- * `data` and `partial` are intentionally untyped at this layer; ai-client /
- * ai-react narrow them via `InferSchemaType<TSchema>` from the hook surface.
+ * message that produced it. `data` and `partial` are intentionally untyped at
+ * this layer; ai-react narrows them via `InferSchemaType<TSchema>` from the
+ * hook surface.
  */
 export interface StructuredOutputPart {
   type: 'structured-output'

@@ -2045,31 +2045,45 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
         outputSchema: jsonSchema,
       })
 
-  // Track the assistant messageId the structured stream is producing so we
-  // can tag both the synthetic `structured-output.start` and the terminal
-  // `structured-output.complete` event with it. Consumers (the client-side
-  // StreamProcessor) use this to route the JSON deltas into a
-  // StructuredOutputPart on the right UIMessage, and to snap that part to
-  // its complete state when the terminal event arrives.
+  // Tag the start/complete events with the assistant messageId so the
+  // client-side processor can route JSON deltas to (and snap) the right
+  // StructuredOutputPart. Missing messageId is treated as a hard error
+  // below to avoid silently rendering JSON as plain text.
   let structuredMessageId: string | null = null
   let startEmitted = false
 
+  const extractMessageId = (c: StreamChunk): string | null => {
+    const id = (c as { messageId?: unknown }).messageId
+    return typeof id === 'string' && id !== '' ? id : null
+  }
+
   for await (const chunk of stream) {
-    // Capture the assistant messageId from the first text-message lifecycle
-    // event so the synthetic start carries it.
     if (!structuredMessageId) {
-      if (chunk.type === EventType.TEXT_MESSAGE_START && 'messageId' in chunk) {
-        structuredMessageId = (chunk as { messageId: string }).messageId
-      } else if (
-        chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
-        'messageId' in chunk
+      if (
+        chunk.type === EventType.TEXT_MESSAGE_START ||
+        chunk.type === EventType.TEXT_MESSAGE_CONTENT
       ) {
-        structuredMessageId = (chunk as { messageId: string }).messageId
+        structuredMessageId = extractMessageId(chunk)
       }
     }
 
-    // Emit the synthetic start once, immediately before the first text
-    // content delta would otherwise be routed to a TextPart on the client.
+    // Adapter emitted content with no usable messageId. Routing JSON deltas
+    // into a TextPart would silently render raw JSON in the user's chat, so
+    // fail loudly here instead.
+    if (!structuredMessageId && chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+      yield {
+        type: EventType.RUN_ERROR,
+        runId,
+        model,
+        timestamp: Date.now(),
+        message:
+          'Structured-output stream produced text content without a messageId; ' +
+          'adapter is not honoring the AG-UI contract.',
+        code: 'structured-output-missing-message-id',
+      }
+      return
+    }
+
     if (
       !startEmitted &&
       structuredMessageId &&

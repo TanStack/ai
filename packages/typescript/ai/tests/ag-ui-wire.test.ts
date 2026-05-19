@@ -168,20 +168,66 @@ describe('uiMessagesToWire', () => {
     expect(assistant.content).toBe(raw)
   })
 
-  it('falls back to JSON.stringify(data) when a structured-output part has no raw buffer', () => {
-    const data = { name: 'Bob', age: 40 }
+  it('skips streaming and errored structured-output parts so partial JSON is never sent as history', () => {
+    // A part captured mid-stream (or after a RUN_ERROR) holds an incomplete
+    // JSON fragment in `raw`. Shipping that as assistant content would feed
+    // malformed JSON back to the LLM. The wire must drop these.
+    const streaming: Array<UIMessage> = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'streaming',
+            raw: '{"name":"Al',
+          },
+        ],
+      },
+    ]
+    expect(
+      (uiMessagesToWire(streaming).find((m) => m.role === 'assistant') as any)
+        .content,
+    ).toBeUndefined()
+
+    const errored: Array<UIMessage> = [
+      {
+        id: 'a2',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'error',
+            raw: '{"name":"Bo',
+            errorMessage: 'aborted',
+          },
+        ],
+      },
+    ]
+    expect(
+      (uiMessagesToWire(errored).find((m) => m.role === 'assistant') as any)
+        .content,
+    ).toBeUndefined()
+  })
+
+  it('drops a complete structured-output part with empty raw (defensive — completeStructuredOutputPart guarantees non-empty raw)', () => {
     const messages: Array<UIMessage> = [
       {
         id: 'a1',
         role: 'assistant',
         parts: [
-          { type: 'structured-output', status: 'complete', raw: '', data },
+          {
+            type: 'structured-output',
+            status: 'complete',
+            raw: '',
+            data: { name: 'Bob' },
+          },
         ],
       },
     ]
     const wire = uiMessagesToWire(messages)
     const assistant = wire.find((m) => m.role === 'assistant') as any
-    expect(assistant.content).toBe(JSON.stringify(data))
+    expect(assistant.content).toBeUndefined()
   })
 
   it('preserves per-part metadata on multimodal parts (round-trip via parts field)', () => {

@@ -3434,5 +3434,160 @@ describe('StreamProcessor', () => {
       // Partial buffer up to error is preserved for inspection.
       expect((sop as any).raw).toBe('{"name":"Al')
     })
+
+    it('creates an error placeholder part when RUN_ERROR fires before any delta', () => {
+      // Adapter dropped between `structured-output.start` and the first
+      // delta. Without the placeholder, the UI consumer would find no
+      // structured-output part on the message and have nothing to render
+      // the failure against.
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.RUN_ERROR, {
+          runId: 'run-1',
+          message: 'Connection lost',
+        }),
+      )
+
+      const sop = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')!
+        .parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).status).toBe('error')
+      expect((sop as any).errorMessage).toBe('Connection lost')
+      expect((sop as any).raw).toBe('')
+    })
+
+    it('keeps a complete structured-output part complete if a later RUN_ERROR fires on the same message', () => {
+      // RUN_ERROR after a successful complete (e.g. a downstream tool errored)
+      // should not retroactively un-complete the structured response — the
+      // model genuinely produced it. The error gets surfaced via onError; the
+      // part stays renderable.
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":"A"}', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.complete',
+          value: {
+            object: { name: 'A' },
+            raw: '{"name":"A"}',
+            messageId: 'msg-1',
+          },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.RUN_ERROR, {
+          runId: 'run-1',
+          message: 'downstream failed',
+        }),
+      )
+
+      const sop = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')!
+        .parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).status).toBe('complete')
+      expect((sop as any).data).toEqual({ name: 'A' })
+    })
+
+    it('handles tool-call interleaved between structured-output.start and the first delta', () => {
+      // Anthropic/OpenAI can interleave a tool call with the JSON response on
+      // the same assistant message. The tool-call part must land alongside
+      // the structured-output part, and both must reach terminal states.
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.toolStart('tc-1', 'lookup'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"q":"x"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'lookup'))
+      processor.processChunk(ev.textContent('{"name":"A"}', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.complete',
+          value: {
+            object: { name: 'A' },
+            raw: '{"name":"A"}',
+            messageId: 'msg-1',
+          },
+        }),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+
+      const assistant = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')!
+      const tool = assistant.parts.find((p) => p.type === 'tool-call') as any
+      const sop = assistant.parts.find(
+        (p) => p.type === 'structured-output',
+      ) as any
+
+      expect(tool?.id).toBe('tc-1')
+      expect(tool?.state).toBe('input-complete')
+      expect(sop?.status).toBe('complete')
+      expect(sop?.data).toEqual({ name: 'A' })
+    })
+
+    it('clears structuredMessageIds for messages dropped by removeMessagesAfter (reload)', () => {
+      // Reload removes the last assistant message and re-streams from the
+      // last user message. If the dropped assistant's routing entry lingers
+      // in structuredMessageIds, a stray delta targeting it would land in
+      // a structured-output part on a phantom message. The test feeds such
+      // a stray delta after the cleanup and asserts the new assistant gets
+      // a plain TextPart, not a structured-output part.
+      const processor = new StreamProcessor()
+
+      const user = processor.addUserMessage('extract person')
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-a' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":"A"', 'msg-a'))
+
+      // Reload: drop everything after the user message.
+      const userIndex = processor
+        .getMessages()
+        .findIndex((m) => m.id === user.id)
+      processor.removeMessagesAfter(userIndex)
+
+      processor.processChunk(ev.textStart('msg-b'))
+      processor.processChunk(ev.textContent('hello', 'msg-b'))
+
+      const assistants = processor
+        .getMessages()
+        .filter((m) => m.role === 'assistant')
+      expect(assistants).toHaveLength(1)
+      expect(assistants[0]!.id).toBe('msg-b')
+      expect(
+        assistants[0]!.parts.find((p) => p.type === 'structured-output'),
+      ).toBeUndefined()
+    })
   })
 })
