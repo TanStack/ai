@@ -1,5 +1,13 @@
 # @tanstack/ai-react
 
+## 0.11.1
+
+### Patch Changes
+
+- Updated dependencies [[`617b5b5`](https://github.com/TanStack/ai/commit/617b5b512a6b3989c442efa41975dacc194d882a)]:
+  - @tanstack/ai@0.19.1
+  - @tanstack/ai-client@0.11.1
+
 ## 0.11.0
 
 ### Minor Changes
