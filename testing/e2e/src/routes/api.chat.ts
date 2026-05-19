@@ -10,8 +10,7 @@ import { createTextAdapter } from '@/lib/providers'
 import { featureConfigs } from '@/lib/features'
 import { guitarRecommendationSchema, recipeSchema } from '@/lib/schemas'
 
-const DEFAULT_SYSTEM_PROMPT =
-  'You are a helpful assistant for a guitar store.'
+const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant for a guitar store.'
 
 export const Route = createFileRoute('/api/chat')({
   server: {
