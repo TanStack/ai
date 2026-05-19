@@ -91,6 +91,7 @@ export function ChatUI({
                 return (
                   <div
                     key={i}
+                    data-testid="text-part"
                     className="prose prose-invert prose-sm max-w-none"
                   >
                     <ReactMarkdown

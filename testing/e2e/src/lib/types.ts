@@ -20,6 +20,7 @@ export type Feature =
   | 'text-tool-text'
   | 'structured-output'
   | 'structured-output-stream'
+  | 'multi-turn-structured'
   | 'agentic-structured'
   | 'multimodal-image'
   | 'multimodal-structured'
@@ -51,6 +52,7 @@ export const ALL_FEATURES: Feature[] = [
   'text-tool-text',
   'structured-output',
   'structured-output-stream',
+  'multi-turn-structured',
   'agentic-structured',
   'multimodal-image',
   'multimodal-structured',
