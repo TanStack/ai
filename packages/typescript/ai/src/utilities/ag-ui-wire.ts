@@ -117,9 +117,12 @@ function collectText(parts: ReadonlyArray<MessagePart>): string {
   // truth for multi-turn coherence — emitting it back as assistant content
   // lets the LLM see its own prior structured response. Streaming/errored
   // parts are skipped: they'd ship malformed JSON fragments and confuse the
-  // model. `completeStructuredOutputPart` guarantees a non-empty `raw` on
-  // complete parts (falling back to JSON.stringify(data) if needed), so we
-  // don't need to re-serialize here.
+  // model. `completeStructuredOutputPart` tries hard to populate `raw`
+  // (caller → existing buffer → `JSON.stringify(data)`), but the stringify
+  // fallback can leave it empty when `data` is unserializable (BigInt,
+  // circular). The `p.raw !== ''` guard below is what enforces "no malformed
+  // round-trip" in that case — without it we'd ship `''` and the model would
+  // see an empty assistant turn.
   const out: Array<string> = []
   for (const p of parts) {
     if (p.type === 'text') {

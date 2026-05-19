@@ -256,7 +256,16 @@ export function updateToolCallApprovalResponse(
 /**
  * Append a delta to the structured-output part on `messageId`, or create one
  * if absent. Progressive parse of the accumulated buffer fills `partial`.
- * `status` stays `'streaming'` until the terminal complete/error helpers run.
+ *
+ * Callers must only invoke this while the part is still in flight — the
+ * helper unconditionally writes `status: 'streaming'`, so feeding it a delta
+ * after a `complete`/`error` terminal would regress the part. In practice the
+ * processor gates calls via `structuredMessageIds`, which is dropped on
+ * terminal events.
+ *
+ * If the progressive parse returns null/undefined (the buffer is not yet a
+ * parseable JSON prefix), the previously-good `partial` is preserved so the
+ * UI doesn't flicker back to empty for a single render.
  */
 export function appendStructuredOutputDelta(
   messages: Array<UIMessage>,
@@ -277,14 +286,16 @@ export function appendStructuredOutputDelta(
 
     const nextRaw = (existing?.raw ?? '') + delta
     const progressive = parsePartialJSON(nextRaw)
+    const nextPartial =
+      progressive !== undefined && progressive !== null
+        ? progressive
+        : existing?.partial
 
     const nextPart: StructuredOutputPart = {
       type: 'structured-output',
       status: 'streaming',
       raw: nextRaw,
-      ...(progressive !== undefined && progressive !== null
-        ? { partial: progressive }
-        : {}),
+      ...(nextPartial !== undefined ? { partial: nextPartial } : {}),
       ...(existing?.reasoning !== undefined
         ? { reasoning: existing.reasoning }
         : {}),
@@ -337,10 +348,13 @@ export function completeStructuredOutputPart(
       try {
         resolvedRaw = JSON.stringify(data)
       } catch {
-        // Unserializable (circular, BigInt, throwing toJSON). Leave raw empty;
-        // downstream filters (wire converter, uiMessageToModelMessages) refuse
-        // to round-trip complete parts with empty raw rather than silently
-        // shipping nothing.
+        // Unserializable (circular, BigInt, throwing toJSON). Leave raw
+        // empty. Both downstream paths handle this: `ag-ui-wire.ts`
+        // `collectText` skips complete parts with empty raw entirely, and
+        // `uiMessageToModelMessages` falls back to a defensive
+        // `safeJsonStringify(data)` which itself returns `''` for the same
+        // unserializable inputs — so the turn is silently dropped from the
+        // next request rather than shipping garbage or crashing the stream.
       }
     }
 

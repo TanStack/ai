@@ -1156,7 +1156,8 @@ export interface StructuredOutputStartEvent extends Omit<
  * Emitted when a server tool requires approval before execution. The agent
  * loop yields this and pauses — `structured-output.complete` will not fire
  * for that run. The shape is fixed by the orchestrator's tool-approval flow
- * (see `buildApprovalChunks` in `activities/chat/index.ts`).
+ * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
+ * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
  */
 export interface ApprovalRequestedEvent extends Omit<
   CustomEvent,
@@ -1174,8 +1175,8 @@ export interface ApprovalRequestedEvent extends Omit<
 /**
  * Emitted when a client tool is invoked. The agent loop yields this and
  * pauses to let the caller run the tool client-side — `structured-output.complete`
- * will not fire for that run. Shape fixed by `buildClientToolChunks` in
- * `activities/chat/index.ts`.
+ * will not fire for that run. Shape fixed by the agent-loop forwarding in
+ * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
  */
 export interface ToolInputAvailableEvent extends Omit<
   CustomEvent,

@@ -390,10 +390,24 @@ export class StreamProcessor {
   removeMessagesAfter(index: number): void {
     const keptIds = new Set(this.messages.slice(0, index + 1).map((m) => m.id))
     // Drop routing state for messages that no longer exist; otherwise a
-    // structured-output stream after `reload()` could land deltas on a stale
-    // messageId map entry, corrupting the new assistant message's parts.
-    for (const id of this.structuredMessageIds.keys()) {
+    // resumed stream (`reload()` or a server that reuses messageIds across
+    // runs) could land deltas / tool args on stale map entries and corrupt
+    // the new assistant message's parts. Mirror the four routing maps that
+    // key on messageId: structuredMessageIds (custom-event routing),
+    // messageStates (per-message stream state), toolCallToMessage (tool
+    // args → message), and activeMessageIds (finalize / completeAllToolCalls
+    // iteration targets — must not include phantoms).
+    for (const id of this.structuredMessageIds) {
       if (!keptIds.has(id)) this.structuredMessageIds.delete(id)
+    }
+    for (const id of this.messageStates.keys()) {
+      if (!keptIds.has(id)) this.messageStates.delete(id)
+    }
+    for (const [toolCallId, msgId] of this.toolCallToMessage) {
+      if (!keptIds.has(msgId)) this.toolCallToMessage.delete(toolCallId)
+    }
+    for (const id of this.activeMessageIds) {
+      if (!keptIds.has(id)) this.activeMessageIds.delete(id)
     }
     this.messages = this.messages.slice(0, index + 1)
     this.emitMessagesChange()
@@ -1241,9 +1255,17 @@ export class StreamProcessor {
       this.activeRuns.clear()
     }
     const { messageId } = this.ensureAssistantMessage()
-    // Prefer spec field `message`; fall back to deprecated `error.message`
+    // Prefer spec field `message`; fall back to deprecated `error.message`.
+    // If neither is set, the chunk still carries debug context (provider
+    // error codes, request ids, etc.) — log it so the failure isn't silent.
     const errorMessage =
       chunk.message || chunk.error?.message || 'An error occurred'
+    if (!chunk.message && !chunk.error?.message) {
+      console.error(
+        '[StreamProcessor] RUN_ERROR with no message; original chunk:',
+        chunk,
+      )
+    }
 
     if (this.structuredMessageIds.has(messageId)) {
       this.messages = errorStructuredOutputPart(
@@ -1681,6 +1703,27 @@ export class StreamProcessor {
         lastAssistantMessage = msg
       }
     }
+
+    // The stream closed but one or more structured-output runs never sent
+    // their terminal `structured-output.complete`. Snap each lingering
+    // streaming part to error so the UI doesn't appear to stream forever,
+    // and drop the routing entries so a subsequent run on the same
+    // processor instance (long-lived `subscribe()` mode) doesn't reuse
+    // the stale ids.
+    //
+    // The iteration is unconditional w.r.t. `this.hasError` — RUN_ERROR
+    // already removed its target messageId from `structuredMessageIds`
+    // before reaching finalize, so anything still in the set is by
+    // definition a non-errored, never-completed run (the multi-run case:
+    // run-A errors, run-B is still streaming when finalize fires).
+    for (const messageId of this.structuredMessageIds) {
+      this.messages = errorStructuredOutputPart(
+        this.messages,
+        messageId,
+        'Stream ended without structured-output.complete',
+      )
+    }
+    this.structuredMessageIds.clear()
 
     this.activeMessageIds.clear()
 

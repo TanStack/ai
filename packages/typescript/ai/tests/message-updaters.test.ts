@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  appendStructuredOutputDelta,
+  completeStructuredOutputPart,
+  errorStructuredOutputPart,
   updateTextPart,
   updateThinkingPart,
   updateToolCallApproval,
@@ -9,7 +12,11 @@ import {
   updateToolCallWithOutput,
   updateToolResultPart,
 } from '../src/activities/chat/stream/message-updaters'
-import type { ToolCallPart, UIMessage } from '../src/types'
+import type {
+  StructuredOutputPart,
+  ToolCallPart,
+  UIMessage,
+} from '../src/types'
 
 // Helper to create a test message
 function createMessage(
@@ -878,6 +885,245 @@ describe('message-updaters', () => {
 
       expect(result[0]?.parts).not.toBe(originalParts)
       expect(messages[0]?.parts).toBe(originalParts)
+    })
+  })
+
+  describe('appendStructuredOutputDelta', () => {
+    it('preserves the last-good partial when a delta makes the buffer unparseable', () => {
+      // Existing part holds a valid `partial` from earlier deltas. A new
+      // delta lands that, appended to the existing raw, can no longer be
+      // partial-parsed (buffer starts with non-JSON garbage). The helper
+      // must preserve the last-good `partial` rather than dropping it,
+      // otherwise the UI would flicker back to empty for one render.
+      const messages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'structured-output',
+              status: 'streaming',
+              raw: 'xxx',
+              partial: { rememberMe: 'last good' },
+            } as StructuredOutputPart,
+          ],
+          createdAt: new Date(),
+        },
+      ]
+
+      const result = appendStructuredOutputDelta(messages, 'msg-1', '{"a":1}')
+
+      const sop = result[0]!.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )!
+      expect(sop.status).toBe('streaming')
+      expect(sop.raw).toBe('xxx{"a":1}')
+      // parsePartialJSON('xxx{"a":1}') throws → returns undefined.
+      // Fix: fall back to the previously-good partial instead of dropping it.
+      expect(sop.partial).toEqual({ rememberMe: 'last good' })
+    })
+
+    it('updates partial when the buffer becomes parseable again', () => {
+      // Sanity check: if the next delta IS parseable, use the fresh result,
+      // not the stale existing one.
+      const messages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'structured-output',
+              status: 'streaming',
+              raw: '{"a":1',
+              partial: { a: 1 },
+            } as StructuredOutputPart,
+          ],
+          createdAt: new Date(),
+        },
+      ]
+
+      const result = appendStructuredOutputDelta(messages, 'msg-1', ',"b":2}')
+      const sop = result[0]!.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )!
+      expect(sop.raw).toBe('{"a":1,"b":2}')
+      expect(sop.partial).toEqual({ a: 1, b: 2 })
+    })
+  })
+
+  describe('completeStructuredOutputPart', () => {
+    it('falls back to JSON.stringify(data) when no raw is available (terminal-only complete)', () => {
+      // Models / adapters that send only the terminal `structured-output.complete`
+      // (no streamed JSON deltas) leave the part with empty raw. The helper must
+      // synthesize raw from `data` so the wire converter still has something
+      // to ship on the next turn. Verified end-to-end in the round-trip path.
+      const messages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          parts: [],
+          createdAt: new Date(),
+        },
+      ]
+
+      const data = { ok: true, n: 42 }
+      const result = completeStructuredOutputPart(messages, 'msg-1', data, '')
+
+      const sop = result[0]!.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )!
+      expect(sop.status).toBe('complete')
+      expect(sop.data).toEqual(data)
+      expect(sop.raw).toBe(JSON.stringify(data))
+    })
+
+    it('leaves raw empty when data is unserializable (BigInt) without throwing', () => {
+      // Documents the catch-and-leave-empty contract: downstream filters
+      // (ag-ui-wire `collectText`, messages.ts `uiMessageToModelMessages`)
+      // refuse to round-trip complete parts with empty raw AND unserializable
+      // data, so the stream doesn't crash and the offending turn is silently
+      // dropped from history. A regression that removed the try/catch would
+      // crash the entire stream processor; this test pins that down.
+      const messages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          parts: [],
+          createdAt: new Date(),
+        },
+      ]
+
+      const data = { value: 1n }
+      expect(() =>
+        completeStructuredOutputPart(messages, 'msg-1', data, ''),
+      ).not.toThrow()
+
+      const result = completeStructuredOutputPart(messages, 'msg-1', data, '')
+      const sop = result[0]!.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )!
+      expect(sop.status).toBe('complete')
+      expect(sop.raw).toBe('')
+    })
+
+    it('leaves raw empty when data has a circular reference without throwing', () => {
+      const messages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          parts: [],
+          createdAt: new Date(),
+        },
+      ]
+
+      const data: Record<string, unknown> = { name: 'circ' }
+      data.self = data
+
+      expect(() =>
+        completeStructuredOutputPart(messages, 'msg-1', data, ''),
+      ).not.toThrow()
+      const result = completeStructuredOutputPart(messages, 'msg-1', data, '')
+      const sop = result[0]!.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )!
+      expect(sop.raw).toBe('')
+    })
+
+    it('prefers caller-supplied raw over existing buffer and over data fallback', () => {
+      const messages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'structured-output',
+              status: 'streaming',
+              raw: '{"partial":1',
+            } as StructuredOutputPart,
+          ],
+          createdAt: new Date(),
+        },
+      ]
+      const result = completeStructuredOutputPart(
+        messages,
+        'msg-1',
+        { a: 1 },
+        '{"a":1}',
+      )
+      const sop = result[0]!.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )!
+      expect(sop.raw).toBe('{"a":1}')
+    })
+  })
+
+  describe('errorStructuredOutputPart', () => {
+    it('creates an empty errored placeholder when no part exists yet', () => {
+      const messages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          parts: [],
+          createdAt: new Date(),
+        },
+      ]
+      const result = errorStructuredOutputPart(messages, 'msg-1', 'boom')
+      const sop = result[0]!.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )!
+      expect(sop.status).toBe('error')
+      expect(sop.errorMessage).toBe('boom')
+      expect(sop.raw).toBe('')
+    })
+
+    it('does not downgrade a complete part to error', () => {
+      const messages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'structured-output',
+              status: 'complete',
+              raw: '{"a":1}',
+              data: { a: 1 },
+              partial: { a: 1 },
+            } as StructuredOutputPart,
+          ],
+          createdAt: new Date(),
+        },
+      ]
+      const result = errorStructuredOutputPart(messages, 'msg-1', 'late error')
+      const sop = result[0]!.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )!
+      expect(sop.status).toBe('complete')
+      expect((sop as { errorMessage?: string }).errorMessage).toBeUndefined()
+    })
+
+    it('snaps a streaming part to error preserving raw', () => {
+      const messages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'structured-output',
+              status: 'streaming',
+              raw: '{"a":',
+              partial: { a: undefined },
+            } as StructuredOutputPart,
+          ],
+          createdAt: new Date(),
+        },
+      ]
+      const result = errorStructuredOutputPart(messages, 'msg-1', 'truncated')
+      const sop = result[0]!.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )!
+      expect(sop.status).toBe('error')
+      expect(sop.errorMessage).toBe('truncated')
+      expect(sop.raw).toBe('{"a":')
     })
   })
 })

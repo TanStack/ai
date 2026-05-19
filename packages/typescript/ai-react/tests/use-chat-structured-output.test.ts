@@ -502,6 +502,57 @@ describe('useChat({ outputSchema }) — runtime', () => {
   })
 })
 
+describe('useChat({ outputSchema }) — initialMessages handling', () => {
+  const person: Person = {
+    name: 'John Doe',
+    age: 30,
+    email: 'john@example.com',
+  }
+  const json = JSON.stringify(person)
+
+  it('does not leak `final` from a stale initialMessages assistant when no user message exists yet', async () => {
+    // Regression: `activeStructuredPart` previously walked all assistant
+    // messages from the end when there was no user message — so a structured
+    // assistant turn carried in via `initialMessages` would leak into `final`
+    // before the consumer ever sent anything. With the fix, `final` reads
+    // null until a user message exists.
+    const adapter = createMockConnectionAdapter({ chunks: [] })
+
+    const { result } = renderHook(() =>
+      useChat({
+        connection: adapter,
+        outputSchema: personSchema,
+        initialMessages: [
+          {
+            id: 'stale-assistant',
+            role: 'assistant',
+            parts: [
+              {
+                type: 'structured-output',
+                status: 'complete',
+                raw: json,
+                data: person,
+                partial: person,
+              },
+            ],
+            createdAt: new Date(),
+          },
+        ],
+      }),
+    )
+
+    // The stale assistant message is visible in history…
+    await waitFor(() => {
+      expect(result.current.messages.length).toBeGreaterThan(0)
+    })
+    expect(result.current.messages[0]?.id).toBe('stale-assistant')
+
+    // …but `final` and `partial` must NOT be derived from it.
+    expect(result.current.final).toBeNull()
+    expect(result.current.partial).toEqual({})
+  })
+})
+
 describe('useChat() without outputSchema — runtime', () => {
   it('does not break or track structured state when no schema is supplied', async () => {
     const adapter = createMockConnectionAdapter({
