@@ -1457,7 +1457,7 @@ If you hit something that isn't covered here, the deep-dive docs pick up where t
 1. [Quick Start](../getting-started/quick-start) — minimal working setup
 2. [Tools](../tools/tools), [Tool Architecture](../tools/tool-architecture), and [Tool Approval](../tools/tool-approval) — the isomorphic tool system
 3. [Agentic Cycle](../chat/agentic-cycle) — agent loop internals and strategy composition
-4. [Structured Outputs](../chat/structured-outputs) — `outputSchema`, provider implementations, schema libraries
+4. [Structured Outputs](../structured-outputs/overview) — `outputSchema`, provider implementations, schema libraries
 5. [Middleware](../advanced/middleware) — full hook reference, context object, built-in middleware
 6. [Connection Adapters](../chat/connection-adapters) — SSE, HTTP stream, custom transports
 7. [Per-Model Type Safety](../advanced/per-model-type-safety) — how `modelOptions` is typed
