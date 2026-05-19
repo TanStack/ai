@@ -6,6 +6,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { AnyClientTool } from '@tanstack/ai'
+import type { StructuredOutputPart } from '@tanstack/ai-client'
 import type { Accessor } from 'solid-js'
 import type { DeepPartial, UseChatOptions, UseChatReturn } from '../src/types'
 
@@ -29,6 +30,17 @@ describe('useChat() return type (solid)', () => {
         PersonSchema | undefined
       >()
     })
+
+    it('threads the schema type through messages → parts → structured-output.data', () => {
+      type R = UseChatReturn<NoTools, PersonSchema>
+      type Messages = R['messages'] extends Accessor<infer A> ? A : never
+      type Part = Messages[number]['parts'][number]
+      type StructuredPart = Extract<Part, { type: 'structured-output' }>
+      expectTypeOf<StructuredPart>().toEqualTypeOf<
+        StructuredOutputPart<Person>
+      >()
+      expectTypeOf<StructuredPart['data']>().toEqualTypeOf<Person | undefined>()
+    })
   })
 
   describe('without outputSchema', () => {
@@ -38,6 +50,16 @@ describe('useChat() return type (solid)', () => {
       type _Partial = R['partial']
       // @ts-expect-error - final only exists when outputSchema is supplied
       type _Final = R['final']
+    })
+
+    it('messages.parts structured-output variant defaults to unknown', () => {
+      type R = UseChatReturn<NoTools>
+      type Messages = R['messages'] extends Accessor<infer A> ? A : never
+      type Part = Messages[number]['parts'][number]
+      type StructuredPart = Extract<Part, { type: 'structured-output' }>
+      expectTypeOf<StructuredPart['data']>().toEqualTypeOf<
+        unknown | undefined
+      >()
     })
   })
 })

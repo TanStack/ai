@@ -1,6 +1,9 @@
 import { ChatClient } from '@tanstack/ai-client'
-import { parsePartialJSON } from '@tanstack/ai'
-import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
+import type {
+  ChatClientState,
+  ConnectionStatus,
+  StructuredOutputPart,
+} from '@tanstack/ai-client'
 import type {
   AnyClientTool,
   InferSchemaType,
@@ -66,14 +69,12 @@ export function createChat<
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
 
-  // Structured-output state. Runtime always tracks them — the conditional
-  // return type hides them when no `outputSchema` is supplied.
+  // Structured-output `partial` / `final` are derived from `messages` —
+  // specifically from the structured-output part on the latest assistant
+  // message (the one after the most recent user message). Per-turn parts
+  // keep history coherent without a separate reset signal.
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
-  let partial = $state<Partial>({} as Partial)
-  let final = $state<Final | null>(null)
-  // Raw JSON accumulator — not reactive, just a local buffer.
-  let rawJson = ''
 
   // Create ChatClient instance.
   // Note: Svelte's createChat runs once per instance and `options` is captured
@@ -88,25 +89,6 @@ export function createChat<
     forwardedProps: options.forwardedProps,
     onResponse: options.onResponse,
     onChunk: (chunk: StreamChunk) => {
-      if (options.outputSchema !== undefined) {
-        if (chunk.type === 'RUN_STARTED') {
-          rawJson = ''
-          partial = {} as Partial
-          final = null
-        } else if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-          rawJson += chunk.delta
-          const progressive = parsePartialJSON(rawJson)
-          if (progressive && typeof progressive === 'object') {
-            partial = progressive as Partial
-          }
-        } else if (
-          chunk.type === 'CUSTOM' &&
-          chunk.name === 'structured-output.complete'
-        ) {
-          const value = chunk.value as { object: unknown }
-          final = value.object as Final
-        }
-      }
       options.onChunk?.(chunk)
     },
     onFinish: (message) => {
@@ -203,6 +185,44 @@ export function createChat<
   const updateForwardedProps = (newForwardedProps: Record<string, any>) => {
     client.updateOptions({ forwardedProps: newForwardedProps })
   }
+
+  // The "active" structured-output part is the one on the assistant message
+  // after the latest user message. When no user message exists yet (e.g.
+  // `initialMessages` carries only a stale assistant turn), we return null
+  // rather than scanning history — otherwise a `final` from a previous
+  // session would leak in on first render. Uses `$derived.by` so the
+  // multi-line scan re-runs whenever `messages` changes.
+  const activeStructuredPart: StructuredOutputPart | null = $derived.by(() => {
+    let lastUserIndex = -1
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === 'user') {
+        lastUserIndex = i
+        break
+      }
+    }
+    if (lastUserIndex === -1) return null
+    for (let i = messages.length - 1; i > lastUserIndex; i--) {
+      const m = messages[i]!
+      if (m.role !== 'assistant') continue
+      const part = m.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )
+      if (part) return part
+    }
+    return null
+  })
+
+  const partial: Partial = $derived.by(() => {
+    if (!activeStructuredPart) return {} as Partial
+    const v = activeStructuredPart.partial ?? activeStructuredPart.data
+    return (v ?? {}) as Partial
+  })
+
+  const final: Final | null = $derived(
+    activeStructuredPart && activeStructuredPart.status === 'complete'
+      ? (activeStructuredPart.data as Final)
+      : null,
+  )
 
   // Return the chat interface with reactive getters
   // Using getters allows Svelte to track reactivity without needing $ prefix
