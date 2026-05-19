@@ -69,10 +69,7 @@ const config = [
     // limitations, conditional-return narrowing failures) can opt out via
     // `// eslint-disable-next-line no-restricted-syntax -- <reason>`.
     name: 'tanstack/ai/no-double-as',
-    files: [
-      'packages/typescript/*/src/**/*.{ts,tsx}',
-      'src/**/*.{ts,tsx}',
-    ],
+    files: ['packages/typescript/*/src/**/*.{ts,tsx}', 'src/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-syntax': [
         'error',
@@ -80,7 +77,7 @@ const config = [
           selector:
             "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
           message:
-            'Avoid `as unknown as <Type>` — it bypasses TS\'s structural overlap check. Prefer plain `as <Type>`, fix the root cause, or opt out with `// eslint-disable-next-line no-restricted-syntax -- <reason>`.',
+            "Avoid `as unknown as <Type>` — it bypasses TS's structural overlap check. Prefer plain `as <Type>`, fix the root cause, or opt out with `// eslint-disable-next-line no-restricted-syntax -- <reason>`.",
         },
       ],
     },

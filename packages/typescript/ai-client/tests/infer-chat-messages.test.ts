@@ -76,13 +76,13 @@ describe('InferChatMessages — round-trip identity', () => {
 
     type Messages = InferChatMessages<typeof options>
 
-    expectTypeOf<Messages>().toEqualTypeOf<
-      Array<UIMessage<readonly []>>
-    >()
+    expectTypeOf<Messages>().toEqualTypeOf<Array<UIMessage<readonly []>>>()
   })
 
   it('produces `never` when given a non-options input', () => {
-    expectTypeOf<InferChatMessages<{ notAnOptions: true }>>().toEqualTypeOf<never>()
+    expectTypeOf<
+      InferChatMessages<{ notAnOptions: true }>
+    >().toEqualTypeOf<never>()
     expectTypeOf<InferChatMessages<string>>().toEqualTypeOf<never>()
     expectTypeOf<InferChatMessages<undefined>>().toEqualTypeOf<never>()
   })

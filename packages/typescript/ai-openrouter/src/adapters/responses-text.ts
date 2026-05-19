@@ -1800,7 +1800,11 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     if ('content_index' in raw) out['contentIndex'] = raw['content_index']
     if ('sequence_number' in raw) out['sequenceNumber'] = raw['sequence_number']
     if ('summary_index' in raw) out['summaryIndex'] = raw['summary_index']
-    if ('response' in raw && raw['response'] && typeof raw['response'] === 'object') {
+    if (
+      'response' in raw &&
+      raw['response'] &&
+      typeof raw['response'] === 'object'
+    ) {
       out['response'] = camelCaseResponseShape(
         raw['response'] as Record<string, unknown>,
       )
@@ -1810,7 +1814,9 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     }
     if ('part' in raw) out['part'] = raw['part']
     out['type'] =
-      typeof raw['type'] === 'string' ? raw['type'] : (e.type as string) || 'unknown'
+      typeof raw['type'] === 'string'
+        ? raw['type']
+        : (e.type as string) || 'unknown'
     // eslint-disable-next-line no-restricted-syntax -- NormalizedStreamEvent is a discriminated union built field-by-field from Record<string, unknown>; TS can't narrow the variant from construction.
     return out as unknown as NormalizedStreamEvent
   }

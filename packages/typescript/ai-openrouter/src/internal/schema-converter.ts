@@ -16,7 +16,8 @@ export function makeStructuredOutputCompatible(
 ): Record<string, any> {
   const result = { ...schema }
   const required =
-    originalRequired ?? (Array.isArray(result['required']) ? result['required'] : [])
+    originalRequired ??
+    (Array.isArray(result['required']) ? result['required'] : [])
 
   if (result['type'] === 'object' && result['properties']) {
     const properties = { ...result['properties'] }

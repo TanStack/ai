@@ -75,7 +75,10 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.['unit']?.enum).toEqual(['celsius', 'fahrenheit'])
+    expect(result?.properties?.['unit']?.enum).toEqual([
+      'celsius',
+      'fahrenheit',
+    ])
     expect(result?.required).toContain('unit')
   })
 
@@ -86,7 +89,10 @@ describe('convertSchemaToJsonSchema', () => {
     const result = convertSchemaToJsonSchema(schema)
 
     expect(result).toBeDefined()
-    expect(result?.properties?.['unit']?.enum).toEqual(['celsius', 'fahrenheit'])
+    expect(result?.properties?.['unit']?.enum).toEqual([
+      'celsius',
+      'fahrenheit',
+    ])
     expect(result?.required).not.toContain('unit')
   })
 
@@ -117,8 +123,12 @@ describe('convertSchemaToJsonSchema', () => {
     expect(result).toBeDefined()
     expect(result?.type).toBe('object')
     expect(result?.properties?.['address']?.type).toBe('object')
-    expect(result?.properties?.['address']?.properties?.['street']?.type).toBe('string')
-    expect(result?.properties?.['address']?.properties?.['city']?.type).toBe('string')
+    expect(result?.properties?.['address']?.properties?.['street']?.type).toBe(
+      'string',
+    )
+    expect(result?.properties?.['address']?.properties?.['city']?.type).toBe(
+      'string',
+    )
   })
 
   it('should handle empty object schema', () => {
@@ -246,13 +256,15 @@ describe('convertSchemaToJsonSchema', () => {
     expect(result).toBeDefined()
     expect(result?.type).toBe('object')
     expect(result?.properties?.['user']?.type).toBe('object')
-    expect(result?.properties?.['user']?.properties?.['name']?.type).toBe('string')
-    expect(result?.properties?.['user']?.properties?.['name']?.description).toBe(
-      'User name',
+    expect(result?.properties?.['user']?.properties?.['name']?.type).toBe(
+      'string',
     )
-    expect(result?.properties?.['user']?.properties?.['preferences']?.type).toBe(
-      'object',
-    )
+    expect(
+      result?.properties?.['user']?.properties?.['name']?.description,
+    ).toBe('User name')
+    expect(
+      result?.properties?.['user']?.properties?.['preferences']?.type,
+    ).toBe('object')
     expect(result?.properties?.['tags']?.type).toBe('array')
   })
 
@@ -528,7 +540,9 @@ describe('convertSchemaToJsonSchema', () => {
       const result = convertSchemaToJsonSchema(jsonSchema)
 
       expect(result).toBe(jsonSchema)
-      expect(result?.properties?.['phone']?.pattern).toBe('^\\+?[1-9]\\d{1,14}$')
+      expect(result?.properties?.['phone']?.pattern).toBe(
+        '^\\+?[1-9]\\d{1,14}$',
+      )
     })
 
     it('should distinguish between Zod schemas and plain objects', () => {

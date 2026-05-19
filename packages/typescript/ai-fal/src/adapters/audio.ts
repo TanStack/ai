@@ -117,7 +117,11 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
     let audioUrl: string | undefined
     let contentType: string | undefined
 
-    if (data['audio'] && typeof data['audio'] === 'object' && 'url' in data['audio']) {
+    if (
+      data['audio'] &&
+      typeof data['audio'] === 'object' &&
+      'url' in data['audio']
+    ) {
       const audioObj = data['audio'] as { url: string; content_type?: string }
       audioUrl = audioObj.url
       contentType = audioObj.content_type

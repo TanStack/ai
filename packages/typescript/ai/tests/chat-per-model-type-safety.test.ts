@@ -17,7 +17,10 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import { chat } from '../src'
 import { BaseTextAdapter } from '../src/activities/chat/adapter'
-import type { DefaultMessageMetadataByModality, StreamChunk } from '../src/types'
+import type {
+  DefaultMessageMetadataByModality,
+  StreamChunk,
+} from '../src/types'
 
 // ===========================
 // Mock Provider Options Types
