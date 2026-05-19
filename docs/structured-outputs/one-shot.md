@@ -53,12 +53,13 @@ person.email; // string
 
 ## Type Inference
 
-The return type of `chat()` switches on `outputSchema`:
+The return type of `chat()` switches on the combination of `outputSchema` and `stream`:
 
 | Configuration | Return type |
 |---|---|
-| No `outputSchema` | `AsyncIterable<StreamChunk>` |
-| With `outputSchema` (this page) | `Promise<InferSchemaType<TSchema>>` |
+| No `outputSchema`, `stream: false` | `Promise<string>` |
+| No `outputSchema`, `stream: true` (default for plain chat) | `AsyncIterable<StreamChunk>` |
+| With `outputSchema` (this page — implicitly non-streaming) | `Promise<InferSchemaType<TSchema>>` |
 | With `outputSchema` and `stream: true` | `StructuredOutputStream<InferSchemaType<TSchema>>` (see [Streaming UIs](./streaming)) |
 
 The TypeScript type of `person` above is `{ name: string; age: number; email: string }` — derived from `PersonSchema`. No runtime cast, no `as`, no separate type definition.

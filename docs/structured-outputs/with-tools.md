@@ -126,30 +126,38 @@ The full server-tool approval pattern lives in [Tool Approval Flow](../tools/too
 
 ## Client tools mid-run
 
-Client tools (tools registered with an `execute` function on the client) are invoked the same way they would be in a normal chat. If you registered the tool with `execute`, the runtime runs it automatically and posts the result back — no extra code on your side.
-
-If you want manual control, listen for `onToolCall` and respond with `addToolResult({ toolCallId, tool, output, state })`:
+Client tools — defined with `.client((input) => ...)` on the tool definition — execute automatically when the model calls them. The runtime sees the queued `tool-input-available` custom event, looks up the registered `.client()` implementation, runs it, and posts the result back. The agent loop continues to the structured-output stream once every client tool resolves. There's no `onToolCall` option to wire up on the hook side.
 
 ```tsx
-const { addToolResult } = useChat({
+import { toolDefinition } from "@tanstack/ai";
+import { clientTools } from "@tanstack/ai-client";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { z } from "zod";
+
+const lookupContactDef = toolDefinition({
+  name: "lookup_contact",
+  description: "Find a contact by name",
+  inputSchema: z.object({ name: z.string() }),
+  outputSchema: z.object({ email: z.string(), phone: z.string() }),
+});
+
+// `.client()` registers the browser-side implementation. Calls land here
+// automatically when the model invokes the tool.
+const lookupContact = lookupContactDef.client((input) => {
+  // Look up in local state, IndexedDB, an in-process address book, etc.
+  return runLookupOnClient(input);
+});
+
+const { messages, sendMessage, partial, final } = useChat({
   outputSchema: RecommendationSchema,
-  tools: [lookupContact], // client tool, no `execute`
+  tools: clientTools(lookupContact),
   connection: fetchServerSentEvents("/api/recommend"),
-  onToolCall: async ({ toolCallId, toolName, input }) => {
-    if (toolName === "lookup_contact") {
-      const output = await runLookupOnClient(input);
-      await addToolResult({
-        toolCallId,
-        tool: toolName,
-        output,
-        state: "output-available",
-      });
-    }
-  },
 });
 ```
 
-The agent loop pauses on the `tool-input-available` custom event, your callback resolves, and the loop continues to the structured-output stream. See [Client Tools](../tools/client-tools) for the canonical pattern.
+While the client tool runs, the agent loop is paused and the structured-output stream hasn't started — `partial` stays `{}` and `final` stays `null`. As soon as the `.client()` implementation returns, the loop resumes, the structured stream takes over, and `partial` / `final` populate.
+
+See [Client Tools](../tools/client-tools) for the full pattern (typed inputs / outputs, multiple client tools, mixing with server tools, surfacing tool calls in the message renderer).
 
 ## Multi-turn + tools + structured output
 

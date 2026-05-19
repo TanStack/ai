@@ -147,13 +147,12 @@ return (
     object: T;          // validated, parsed, typed
     raw: string;        // full accumulated JSON text
     reasoning?: string; // present only for thinking/reasoning models
-    messageId: string;  // the assistant message id this object belongs to
   },
   // ...standard event fields (timestamp, model, …)
 }
 ```
 
-A `structured-output.start` event fires once at the beginning of the run carrying the same `messageId`. Adapters use it to tell the client "the next batch of text deltas belongs to a structured-output part, not a free-form text part."
+A `structured-output.start` event fires once at the beginning of the run carrying `{ messageId }`. Its job is to tell the client "the next batch of `TEXT_MESSAGE_CONTENT` deltas belongs to the assistant message with this id — route them into a `StructuredOutputPart` instead of building a free-form `TextPart`." The runtime also attaches the same `messageId` to the terminal `structured-output.complete` event's `value` so the client snaps the right assistant message's part on the way out — that extra field isn't on the public `StructuredOutputCompleteEvent<T>` shape (since consumer code typically doesn't need it; the start event already carries it), but you can read it off `value` at runtime if you need to.
 
 ## Adapter coverage
 

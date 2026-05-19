@@ -43,7 +43,9 @@ type StructuredOutputPart<TData> = {
 };
 ```
 
-`TData` flows from `useChat({ outputSchema })` through `UIMessage<TTools, TData>` and `MessagePart<TTools, TData>` down to the structured-output variant. The result: when you call `useChat({ outputSchema: RecipeSchema })`, `messages[i].parts.find(p => p.type === "structured-output")` returns `StructuredOutputPart<Recipe>` — `data` is typed as `Recipe`, `partial` as `DeepPartial<Recipe>`. No manual cast.
+`TData` flows from `useChat({ outputSchema })` through the framework-package message types (`UIMessage<TTools, TData>` and `MessagePart<TTools, TData>` in `@tanstack/ai-client`, which the React / Vue / Solid / Svelte hooks re-export) down to the structured-output variant. The result: when you call `useChat({ outputSchema: RecipeSchema })`, `messages[i].parts.find(p => p.type === "structured-output")` returns `StructuredOutputPart<Recipe>` — `data` is typed as `Recipe`, `partial` as `DeepPartial<Recipe>`. No manual cast.
+
+> **Note:** The core `@tanstack/ai` package defines `MessagePart<TData>` and `UIMessage<TData>` with a single generic (no `TTools`) — the tools generic lives in `@tanstack/ai-client` and the framework hook packages. If you're building UI, you almost always want to import from your framework package (`@tanstack/ai-react` / `-vue` / `-solid` / `-svelte`) or from `@tanstack/ai-client` — those carry both generics. The core types come into play only if you're working at the adapter layer below the client.
 
 When the next turn streams in, it lands on a **new** assistant message with its **own** structured-output part. The old turn stays untouched. That's what makes "show history" trivial.
 
