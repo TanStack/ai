@@ -11,14 +11,16 @@ import type { StreamChunk } from '@tanstack/ai'
 // Schema shared by every turn in this conversation. The point of this example
 // is to demonstrate that *every* assistant message carries its own typed
 // structured-output part — old turns don't get blown away by new ones.
+//
+// Constraints (`min`, `int`, `default`) are intentionally avoided here:
+// OpenAI's strict structured outputs reject `integer`, `minimum`/`maximum`,
+// `minLength`/`maxLength`, `minItems`/`maxItems`, and `default`. The system
+// prompt asks the model to satisfy these informally.
 export const RecipeSchema = z.object({
   title: z.string().describe('A short title for the recipe'),
   cuisine: z.string().describe('Cuisine label, e.g. "Italian", "Mexican"'),
-  servings: z.number().int().min(1).describe('Number of servings'),
-  estimatedCostUsd: z
-    .number()
-    .min(0)
-    .describe('Rough total grocery cost in USD'),
+  servings: z.number().describe('Number of servings (a positive integer)'),
+  estimatedCostUsd: z.number().describe('Rough total grocery cost in USD'),
   ingredients: z
     .array(
       z.object({
@@ -26,9 +28,9 @@ export const RecipeSchema = z.object({
         amount: z.string().describe('Quantity with unit, e.g. "200 g"'),
       }),
     )
-    .min(1),
-  steps: z.array(z.string()).min(1).describe('Numbered cooking steps'),
-  tips: z.array(z.string()).default([]),
+    .describe('At least one ingredient'),
+  steps: z.array(z.string()).describe('Numbered cooking steps'),
+  tips: z.array(z.string()).describe('Optional list of tips; empty if none'),
 })
 
 export type Recipe = z.infer<typeof RecipeSchema>
