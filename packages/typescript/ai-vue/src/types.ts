@@ -91,12 +91,12 @@ export type UseChatReturn<
          * latest assistant message's structured-output part — updates as
          * `TEXT_MESSAGE_CONTENT` deltas accumulate into that part.
          */
-        partial: DeepReadonly<ShallowRef<DeepPartial<InferSchemaType<TSchema>>>>
+        partial: Readonly<ShallowRef<DeepPartial<InferSchemaType<TSchema>>>>
         /**
          * Final, schema-validated structured output. `null` until the latest
          * assistant turn's structured-output part transitions to `complete`.
          */
-        final: DeepReadonly<ShallowRef<InferSchemaType<TSchema> | null>>
+        final: Readonly<ShallowRef<InferSchemaType<TSchema> | null>>
       }
     : Record<never, never>)
 
@@ -109,7 +109,7 @@ interface BaseUseChatReturn<
    * `messages[i].parts.find(p => p.type === 'structured-output')` is typed
    * by the schema — `data: T`, `partial: DeepPartial<T>`.
    */
-  messages: DeepReadonly<ShallowRef<Array<UIMessage<TTools, TData>>>>
+  messages: Readonly<ShallowRef<Array<UIMessage<TTools, TData>>>>
 
   /**
    * Send a message and get a response.

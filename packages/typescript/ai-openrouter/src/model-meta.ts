@@ -16251,6 +16251,10 @@ export const OPENROUTER_CHAT_MODELS = [
   'openrouter/auto',
 ] as const
 
+export type OpenRouterChatModelToolCapabilitiesByName = {
+  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly ['web_search']
+}
+
 export const OPENROUTER_IMAGE_MODELS = [
   GOOGLE_GEMINI_2_5_FLASH_IMAGE.id,
   GOOGLE_GEMINI_3_PRO_IMAGE_PREVIEW.id,

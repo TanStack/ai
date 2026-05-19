@@ -7,7 +7,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec'
 import type { AnyClientTool } from '@tanstack/ai'
 import type { StructuredOutputPart } from '@tanstack/ai-client'
-import type { DeepReadonly, ShallowRef } from 'vue'
+import type { ShallowRef } from 'vue'
 import type { DeepPartial, UseChatOptions, UseChatReturn } from '../src/types'
 
 type Person = { name: string; age: number; email: string }
@@ -19,10 +19,10 @@ describe('useChat() return type (vue)', () => {
     it('exposes typed partial + final refs', () => {
       type R = UseChatReturn<NoTools, PersonSchema>
       expectTypeOf<R['partial']>().toEqualTypeOf<
-        DeepReadonly<ShallowRef<DeepPartial<Person>>>
+        Readonly<ShallowRef<DeepPartial<Person>>>
       >()
       expectTypeOf<R['final']>().toEqualTypeOf<
-        DeepReadonly<ShallowRef<Person | null>>
+        Readonly<ShallowRef<Person | null>>
       >()
     })
 
@@ -39,7 +39,7 @@ describe('useChat() return type (vue)', () => {
       // structured-output part on each assistant message carries `data:
       // Person` (and `partial: DeepPartial<Person>`). No cast needed.
       type Messages =
-        R['messages'] extends DeepReadonly<ShallowRef<infer A>> ? A : never
+        R['messages'] extends Readonly<ShallowRef<infer A>> ? A : never
       type Part = Messages[number]['parts'][number]
       type StructuredPart = Extract<Part, { type: 'structured-output' }>
       expectTypeOf<StructuredPart>().toEqualTypeOf<
@@ -61,7 +61,7 @@ describe('useChat() return type (vue)', () => {
     it('messages.parts structured-output variant defaults to unknown', () => {
       type R = UseChatReturn<NoTools>
       type Messages =
-        R['messages'] extends DeepReadonly<ShallowRef<infer A>> ? A : never
+        R['messages'] extends Readonly<ShallowRef<infer A>> ? A : never
       type Part = Messages[number]['parts'][number]
       type StructuredPart = Extract<Part, { type: 'structured-output' }>
       expectTypeOf<StructuredPart['data']>().toEqualTypeOf<
