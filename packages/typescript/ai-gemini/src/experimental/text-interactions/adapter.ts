@@ -205,6 +205,7 @@ export class GeminiTextInteractionsAdapter<
       options.modelOptions?.previous_interaction_id ??
       this.interactionIdByThread.get(threadId)
 
+    let sawTerminalEvent = false
     try {
       const request = buildInteractionsRequest({
         ...options,
@@ -227,7 +228,6 @@ export class GeminiTextInteractionsAdapter<
         { signal: options.abortController?.signal },
       )) as AsyncIterable<InteractionSSEEvent>
 
-      let sawTerminalEvent = false
       for await (const chunk of translateInteractionEvents(
         stream,
         options.model,
@@ -311,6 +311,16 @@ export class GeminiTextInteractionsAdapter<
         timestamp,
         message,
         error: { message },
+      }
+    } finally {
+      // Belt-and-suspenders eviction for the abandonment path: if the
+      // consumer calls `.return()` on this generator (upstream `break`,
+      // request abort) we never reach the in-loop eviction, the
+      // truncation guard, or the catch handler — without this, the next
+      // turn on the same threadId would chain off a stale id captured
+      // before the early exit. Idempotent with the other paths.
+      if (!sawTerminalEvent) {
+        this.interactionIdByThread.delete(threadId)
       }
     }
   }
