@@ -45,8 +45,15 @@ export const Route = createFileRoute('/api/structured-chat')({
           return new Response(null, { status: 499 })
         }
 
+        // Use { once: true } and re-check `aborted` after attaching the
+        // listener: between the early-return above and addEventListener the
+        // signal can fire and we'd miss the event otherwise.
         const abortController = new AbortController()
-        request.signal.addEventListener('abort', () => abortController.abort())
+        const onAbort = () => abortController.abort()
+        request.signal.addEventListener('abort', onAbort, { once: true })
+        if (request.signal.aborted) {
+          onAbort()
+        }
 
         let params
         try {
@@ -75,13 +82,17 @@ export const Route = createFileRoute('/api/structured-chat')({
           }) as AsyncIterable<StreamChunk>
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'An error occurred'
+          // Log full error server-side; return generic message to the client
+          // so provider/internal details (auth failures, model names, stack
+          // traces) don't leak through the 500 response body.
           console.error('[api/structured-chat] Error:', error)
-          return new Response(JSON.stringify({ error: message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          })
+          return new Response(
+            JSON.stringify({ error: 'Internal server error' }),
+            {
+              status: 500,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
         }
       },
     },
