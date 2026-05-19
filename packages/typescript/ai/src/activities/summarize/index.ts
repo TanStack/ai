@@ -159,7 +159,7 @@ export function summarize<
 
   if (stream) {
     return runStreamingSummarize(
-      options as unknown as SummarizeActivityOptions<
+      options as SummarizeActivityOptions<
         SummarizeAdapter<string, object>,
         true
       >,
@@ -167,7 +167,7 @@ export function summarize<
   }
 
   return runSummarize(
-    options as unknown as SummarizeActivityOptions<
+    options as SummarizeActivityOptions<
       SummarizeAdapter<string, object>,
       false
     >,

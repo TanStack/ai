@@ -707,10 +707,7 @@ export class GeminiTextAdapter<
                 >)
               : {}
           } catch {
-            parsedArgs = toolCall.function.arguments as unknown as Record<
-              string,
-              unknown
-            >
+            parsedArgs = {}
           }
 
           const thoughtSignature = (

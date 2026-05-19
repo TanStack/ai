@@ -525,8 +525,11 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
                     parsedArguments = {}
                   }
                 } else {
-                  parsedArguments = toolCall.function
-                    .arguments as unknown as Record<string, unknown>
+                  // ToolCall.function.arguments is typed as string; this
+                  // branch is a defensive runtime guard. Fall back to {} to
+                  // avoid an unsound cast that would let a non-record value
+                  // through.
+                  parsedArguments = {}
                 }
 
                 return {

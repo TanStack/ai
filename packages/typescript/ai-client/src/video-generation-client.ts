@@ -345,7 +345,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     }
 
     // No onResult callback, or callback returned void → use raw value
-    this.result = rawResult as unknown as TOutput
+    this.result = rawResult as TOutput
     this.callbacksRef.onResultChange?.(this.result)
   }
 

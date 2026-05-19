@@ -61,7 +61,7 @@ export function uiMessagesToWire(
         content:
           parts.length > 0
             ? collectText(parts)
-            : ((msg as unknown as { content?: string }).content ?? ''),
+            : ((msg as { content?: string }).content ?? ''),
       })
       continue
     }
@@ -72,7 +72,7 @@ export function uiMessagesToWire(
         content:
           parts.length > 0
             ? collectUserContent(parts)
-            : ((msg as unknown as { content?: string }).content ?? ''),
+            : ((msg as { content?: string }).content ?? ''),
       })
       continue
     }

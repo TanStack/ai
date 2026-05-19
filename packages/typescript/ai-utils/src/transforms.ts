@@ -24,7 +24,7 @@
  */
 export function transformNullsToUndefined<T>(obj: T): T {
   if (obj === null) {
-    return undefined as unknown as T
+    return undefined as T
   }
 
   if (typeof obj !== 'object') {
@@ -32,7 +32,7 @@ export function transformNullsToUndefined<T>(obj: T): T {
   }
 
   if (Array.isArray(obj)) {
-    return obj.map((item) => transformNullsToUndefined(item)) as unknown as T
+    return obj.map((item) => transformNullsToUndefined(item)) as T
   }
 
   const result: Record<string, unknown> = {}

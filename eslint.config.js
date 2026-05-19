@@ -52,6 +52,39 @@ const config = [
       ],
     },
   },
+  {
+    // `no-restricted-syntax` banning `as unknown as <Type>` double-casts.
+    //
+    // Why separate from the typed-linting block: a few packages still ship a
+    // local `eslint.config.js` that re-exports root. Flat-config evaluates
+    // `files` globs relative to the *config-file's* directory, so the typed
+    // block's `packages/typescript/*/src/**` glob fails to match anything
+    // when re-exported from inside `packages/typescript/<pkg>/`. The dual
+    // glob below works in both contexts.
+    //
+    // Why ban `as unknown as T`: it bypasses TS's structural-overlap check
+    // (the safety net that errors when two types don't sufficiently
+    // overlap), like `@ts-ignore` for type assertions. Plain `as T` keeps
+    // the check. Genuine boundaries (vendor SDK shape drift, DOM lib
+    // limitations, conditional-return narrowing failures) can opt out via
+    // `// eslint-disable-next-line no-restricted-syntax -- <reason>`.
+    name: 'tanstack/ai/no-double-as',
+    files: [
+      'packages/typescript/*/src/**/*.{ts,tsx}',
+      'src/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
+          message:
+            'Avoid `as unknown as <Type>` — it bypasses TS\'s structural overlap check. Prefer plain `as <Type>`, fix the root cause, or opt out with `// eslint-disable-next-line no-restricted-syntax -- <reason>`.',
+        },
+      ],
+    },
+  },
 ]
 
 export default config

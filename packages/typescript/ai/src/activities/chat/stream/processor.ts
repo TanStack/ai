@@ -845,7 +845,7 @@ export class StreamProcessor {
   ): void {
     this.resetStreamState()
     // AG-UI Message[] is compatible with UIMessage[] at runtime
-    this.messages = [...chunk.messages] as unknown as Array<UIMessage>
+    this.messages = [...chunk.messages] as Array<UIMessage>
     this.emitMessagesChange()
   }
 

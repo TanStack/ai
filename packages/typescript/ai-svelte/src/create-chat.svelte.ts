@@ -226,6 +226,7 @@ export function createChat<
 
   // Return the chat interface with reactive getters
   // Using getters allows Svelte to track reactivity without needing $ prefix
+  // eslint-disable-next-line no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema> due to TSchema conditional partial/final fields; TS can't structurally narrow.
   return {
     get messages() {
       return messages
