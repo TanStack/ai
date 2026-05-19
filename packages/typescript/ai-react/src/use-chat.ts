@@ -258,5 +258,5 @@ export function useChat<
     addToolApprovalResponse,
     partial,
     final,
-  } as UseChatReturn<TTools, TSchema>
+  } as unknown as UseChatReturn<TTools, TSchema>
 }

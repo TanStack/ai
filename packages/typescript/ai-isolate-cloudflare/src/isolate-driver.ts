@@ -63,8 +63,8 @@ function normalizeError(error: unknown): { name: string; message: string } {
   if (typeof error === 'object' && error !== null) {
     const e = error as Record<string, unknown>
     return {
-      name: String(e.name || 'Error'),
-      message: String(e.message || JSON.stringify(error)),
+      name: String(e['name'] || 'Error'),
+      message: String(e['message'] || JSON.stringify(error)),
     }
   }
   return { name: 'Error', message: String(error) }

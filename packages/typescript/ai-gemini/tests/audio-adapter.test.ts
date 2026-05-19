@@ -33,12 +33,12 @@ describe('Gemini Audio (Lyria) Adapter', () => {
   })
 
   it('geminiAudio reads the API key from the environment', () => {
-    process.env.GOOGLE_API_KEY = 'env-key'
+    process.env['GOOGLE_API_KEY'] = 'env-key'
     try {
       const adapter = geminiAudio('lyria-3-clip-preview')
       expect(adapter.model).toBe('lyria-3-clip-preview')
     } finally {
-      delete process.env.GOOGLE_API_KEY
+      delete process.env['GOOGLE_API_KEY']
     }
   })
 

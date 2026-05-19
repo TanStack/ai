@@ -180,7 +180,7 @@ describe('elevenlabsRealtime adapter', () => {
 
     it('should pass client tools as plain functions to @elevenlabs/client', async () => {
       const executeMock = vi.fn(
-        async (params: Record<string, unknown>) => `Sunny in ${params.city}`,
+        async (params: Record<string, unknown>) => `Sunny in ${params['city']}`,
       )
       const mockTool = createMockClientTool({
         name: 'get_weather',
@@ -195,7 +195,7 @@ describe('elevenlabsRealtime adapter', () => {
       await createConnection([mockTool])
 
       // The clientTools passed to startSession should contain plain functions
-      const registeredTool = capturedSessionOptions.clientTools?.get_weather
+      const registeredTool = capturedSessionOptions.clientTools?.['get_weather']
       expect(registeredTool).toBeDefined()
       expect(typeof registeredTool).toBe('function')
 
@@ -214,7 +214,7 @@ describe('elevenlabsRealtime adapter', () => {
 
       await createConnection([mockTool])
 
-      const registeredTool = capturedSessionOptions.clientTools?.get_data
+      const registeredTool = capturedSessionOptions.clientTools?.['get_data']
       const result = await registeredTool!({})
       expect(result).toBe(JSON.stringify({ temp: 72, unit: 'F' }))
     })

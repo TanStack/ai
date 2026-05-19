@@ -25,8 +25,8 @@ describe('Gemini TTS Adapter', () => {
   })
 
   afterEach(() => {
-    delete process.env.GOOGLE_API_KEY
-    delete process.env.GEMINI_API_KEY
+    delete process.env['GOOGLE_API_KEY']
+    delete process.env['GEMINI_API_KEY']
   })
 
   it('createGeminiSpeech returns a configured adapter', () => {
@@ -41,7 +41,7 @@ describe('Gemini TTS Adapter', () => {
   })
 
   it('geminiSpeech reads the API key from the environment', () => {
-    process.env.GOOGLE_API_KEY = 'env-key'
+    process.env['GOOGLE_API_KEY'] = 'env-key'
     const adapter = geminiSpeech('gemini-2.5-flash-preview-tts')
     expect(adapter.model).toBe('gemini-2.5-flash-preview-tts')
   })

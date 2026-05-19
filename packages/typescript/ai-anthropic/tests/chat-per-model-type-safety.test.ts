@@ -63,10 +63,10 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('claude-haiku-3-5 — priority tier WITHOUT extended thinking', () => {
+  describe('claude-3-5-haiku — priority tier WITHOUT extended thinking', () => {
     it('accepts service_tier + tool_choice + stop_sequences', () => {
       chat({
-        adapter: anthropicText('claude-haiku-3-5'),
+        adapter: anthropicText('claude-3-5-haiku'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
           service_tier: 'auto',
@@ -79,20 +79,20 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 
     it('rejects extended `thinking` option', () => {
       chat({
-        adapter: anthropicText('claude-haiku-3-5'),
+        adapter: anthropicText('claude-3-5-haiku'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          // @ts-expect-error - 'thinking' is not available on claude-haiku-3-5
+          // @ts-expect-error - 'thinking' is not available on claude-3-5-haiku
           thinking: { type: 'enabled', budget_tokens: 1024 },
         },
       })
     })
   })
 
-  describe('claude-haiku-3 — neither thinking nor priority tier', () => {
+  describe('claude-3-haiku — neither thinking nor priority tier', () => {
     it('accepts base options (container, mcp_servers, stop_sequences, tool_choice, top_k)', () => {
       chat({
-        adapter: anthropicText('claude-haiku-3'),
+        adapter: anthropicText('claude-3-haiku'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
           container: null,
@@ -106,10 +106,10 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 
     it('rejects extended `thinking` option', () => {
       chat({
-        adapter: anthropicText('claude-haiku-3'),
+        adapter: anthropicText('claude-3-haiku'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          // @ts-expect-error - 'thinking' is not available on claude-haiku-3
+          // @ts-expect-error - 'thinking' is not available on claude-3-haiku
           thinking: { type: 'enabled', budget_tokens: 1024 },
         },
       })
@@ -117,10 +117,10 @@ describe('Anthropic per-model chat modelOptions gating', () => {
 
     it('rejects `service_tier` option', () => {
       chat({
-        adapter: anthropicText('claude-haiku-3'),
+        adapter: anthropicText('claude-3-haiku'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          // @ts-expect-error - 'service_tier' is not available on claude-haiku-3
+          // @ts-expect-error - 'service_tier' is not available on claude-3-haiku
           service_tier: 'auto',
         },
       })
@@ -159,8 +159,8 @@ describe('Anthropic provider options shape assertions', () => {
     })
   })
 
-  describe('claude-haiku-3-5 — priority tier without thinking', () => {
-    type Options = AnthropicChatModelProviderOptionsByName['claude-haiku-3-5']
+  describe('claude-3-5-haiku — priority tier without thinking', () => {
+    type Options = AnthropicChatModelProviderOptionsByName['claude-3-5-haiku']
 
     it('has service_tier', () => {
       expectTypeOf<Options>().toHaveProperty('service_tier')
@@ -173,8 +173,8 @@ describe('Anthropic provider options shape assertions', () => {
     })
   })
 
-  describe('claude-haiku-3 — bare-bones', () => {
-    type Options = AnthropicChatModelProviderOptionsByName['claude-haiku-3']
+  describe('claude-3-haiku — bare-bones', () => {
+    type Options = AnthropicChatModelProviderOptionsByName['claude-3-haiku']
 
     it('has tool_choice', () => {
       expectTypeOf<Options>().toHaveProperty('tool_choice')
