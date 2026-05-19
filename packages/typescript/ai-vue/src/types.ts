@@ -80,28 +80,36 @@ export type UseChatOptions<
 export type UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
-> = BaseUseChatReturn<TTools> &
+> = BaseUseChatReturn<
+  TTools,
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown
+> &
   (TSchema extends SchemaInput
     ? {
         /**
-         * Live progressively-parsed structured output. Updated from
-         * `TEXT_MESSAGE_CONTENT` deltas via `parsePartialJSON`. Resets on
-         * every new run.
+         * Live progressively-parsed structured output. Derived from the
+         * latest assistant message's structured-output part — updates as
+         * `TEXT_MESSAGE_CONTENT` deltas accumulate into that part.
          */
         partial: DeepReadonly<ShallowRef<DeepPartial<InferSchemaType<TSchema>>>>
         /**
-         * Final, schema-validated structured output. `null` until the terminal
-         * `structured-output.complete` event arrives. Resets on every new run.
+         * Final, schema-validated structured output. `null` until the latest
+         * assistant turn's structured-output part transitions to `complete`.
          */
         final: DeepReadonly<ShallowRef<InferSchemaType<TSchema> | null>>
       }
     : Record<never, never>)
 
-interface BaseUseChatReturn<TTools extends ReadonlyArray<AnyClientTool> = any> {
+interface BaseUseChatReturn<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TData = unknown,
+> {
   /**
-   * Current messages in the conversation
+   * Current messages in the conversation. When `outputSchema` is supplied,
+   * `messages[i].parts.find(p => p.type === 'structured-output')` is typed
+   * by the schema — `data: T`, `partial: DeepPartial<T>`.
    */
-  messages: DeepReadonly<ShallowRef<Array<UIMessage<TTools>>>>
+  messages: DeepReadonly<ShallowRef<Array<UIMessage<TTools, TData>>>>
 
   /**
    * Send a message and get a response.
@@ -112,7 +120,7 @@ interface BaseUseChatReturn<TTools extends ReadonlyArray<AnyClientTool> = any> {
   /**
    * Append a message to the conversation
    */
-  append: (message: ModelMessage | UIMessage<TTools>) => Promise<void>
+  append: (message: ModelMessage | UIMessage<TTools, TData>) => Promise<void>
 
   /**
    * Add the result of a client-side tool execution
@@ -156,7 +164,7 @@ interface BaseUseChatReturn<TTools extends ReadonlyArray<AnyClientTool> = any> {
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools>>) => void
+  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages

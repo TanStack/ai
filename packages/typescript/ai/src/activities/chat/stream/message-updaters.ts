@@ -5,7 +5,9 @@
  * These are used by StreamProcessor to manage the message array.
  */
 
+import { parsePartialJSON } from './json-parser'
 import type {
+  StructuredOutputPart,
   ThinkingPart,
   ToolCallPart,
   ToolResultPart,
@@ -247,6 +249,175 @@ export function updateToolCallApprovalResponse(
       toolCallPart.state = 'approval-responded'
     }
 
+    return { ...msg, parts }
+  })
+}
+
+/**
+ * Append a delta to the structured-output part on `messageId`, or create one
+ * if absent. Progressive parse of the accumulated buffer fills `partial`.
+ *
+ * Callers must only invoke this while the part is still in flight — the
+ * helper unconditionally writes `status: 'streaming'`, so feeding it a delta
+ * after a `complete`/`error` terminal would regress the part. In practice the
+ * processor gates calls via `structuredMessageIds`, which is dropped on
+ * terminal events.
+ *
+ * If the progressive parse returns null/undefined (the buffer is not yet a
+ * parseable JSON prefix), the previously-good `partial` is preserved so the
+ * UI doesn't flicker back to empty for a single render.
+ */
+export function appendStructuredOutputDelta(
+  messages: Array<UIMessage>,
+  messageId: string,
+  delta: string,
+): Array<UIMessage> {
+  return messages.map((msg) => {
+    if (msg.id !== messageId) {
+      return msg
+    }
+
+    const parts = [...msg.parts]
+    const existingIndex = parts.findIndex(
+      (p): p is StructuredOutputPart => p.type === 'structured-output',
+    )
+    const existing =
+      existingIndex >= 0 ? (parts[existingIndex] as StructuredOutputPart) : null
+
+    const nextRaw = (existing?.raw ?? '') + delta
+    const progressive = parsePartialJSON(nextRaw)
+    const nextPartial =
+      progressive !== undefined && progressive !== null
+        ? progressive
+        : existing?.partial
+
+    const nextPart: StructuredOutputPart = {
+      type: 'structured-output',
+      status: 'streaming',
+      raw: nextRaw,
+      ...(nextPartial !== undefined ? { partial: nextPartial } : {}),
+      ...(existing?.reasoning !== undefined
+        ? { reasoning: existing.reasoning }
+        : {}),
+    }
+
+    if (existingIndex >= 0) {
+      parts[existingIndex] = nextPart
+    } else {
+      parts.push(nextPart)
+    }
+
+    return { ...msg, parts }
+  })
+}
+
+/**
+ * Snap the structured-output part on `messageId` to `complete` with the
+ * validated `data`. Picks the freshest available `raw` so the wire
+ * round-trip stays internally consistent:
+ *
+ *   1. Caller-supplied `raw` (the original streamed bytes from the model).
+ *   2. The existing part's `raw` (deltas accumulated before this terminal).
+ *   3. `JSON.stringify(data)` as a defensive fallback for terminal-only
+ *      completes that never shipped raw — keeps the part self-consistent
+ *      so downstream consumers never see a complete part with empty raw.
+ */
+export function completeStructuredOutputPart(
+  messages: Array<UIMessage>,
+  messageId: string,
+  data: unknown,
+  raw: string,
+  reasoning?: string,
+): Array<UIMessage> {
+  return messages.map((msg) => {
+    if (msg.id !== messageId) {
+      return msg
+    }
+
+    const parts = [...msg.parts]
+    const existingIndex = parts.findIndex(
+      (p): p is StructuredOutputPart => p.type === 'structured-output',
+    )
+
+    const existingRaw =
+      existingIndex >= 0
+        ? (parts[existingIndex] as StructuredOutputPart).raw
+        : ''
+    let resolvedRaw = raw || existingRaw
+    if (resolvedRaw === '' && data !== undefined) {
+      try {
+        resolvedRaw = JSON.stringify(data)
+      } catch {
+        // Unserializable (circular, BigInt, throwing toJSON). Leave raw
+        // empty. Both downstream paths handle this: `ag-ui-wire.ts`
+        // `collectText` skips complete parts with empty raw entirely, and
+        // `uiMessageToModelMessages` falls back to a defensive
+        // `safeJsonStringify(data)` which itself returns `''` for the same
+        // unserializable inputs — so the turn is silently dropped from the
+        // next request rather than shipping garbage or crashing the stream.
+      }
+    }
+
+    const nextPart: StructuredOutputPart = {
+      type: 'structured-output',
+      status: 'complete',
+      data,
+      partial: data,
+      raw: resolvedRaw,
+      ...(reasoning !== undefined ? { reasoning } : {}),
+    }
+
+    if (existingIndex >= 0) {
+      parts[existingIndex] = nextPart
+    } else {
+      parts.push(nextPart)
+    }
+
+    return { ...msg, parts }
+  })
+}
+
+/**
+ * Mark the structured-output part on `messageId` as errored. If no part
+ * exists yet — RUN_ERROR fired after `structured-output.start` but before
+ * any delta — create an empty errored placeholder so consumers have
+ * something renderable. Existing complete parts are left alone (an error
+ * after a successful complete should not retroactively un-complete it).
+ */
+export function errorStructuredOutputPart(
+  messages: Array<UIMessage>,
+  messageId: string,
+  errorMessage: string,
+): Array<UIMessage> {
+  return messages.map((msg) => {
+    if (msg.id !== messageId) {
+      return msg
+    }
+
+    const parts = [...msg.parts]
+    const existingIndex = parts.findIndex(
+      (p): p is StructuredOutputPart => p.type === 'structured-output',
+    )
+
+    if (existingIndex < 0) {
+      parts.push({
+        type: 'structured-output',
+        status: 'error',
+        raw: '',
+        errorMessage,
+      })
+      return { ...msg, parts }
+    }
+
+    const existing = parts[existingIndex] as StructuredOutputPart
+    if (existing.status === 'complete') {
+      return msg
+    }
+    parts[existingIndex] = {
+      ...existing,
+      status: 'error',
+      errorMessage,
+    }
     return { ...msg, parts }
   })
 }

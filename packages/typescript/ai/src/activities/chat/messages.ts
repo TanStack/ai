@@ -24,6 +24,14 @@ function isContentPart(part: MessagePart): part is ContentPart {
   )
 }
 
+function safeJsonStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return ''
+  }
+}
+
 /**
  * Collapse an array of ContentParts into the most compact ModelMessage content:
  * - Empty array → null
@@ -281,6 +289,24 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             content: part.content,
             ...(part.signature && { signature: part.signature }),
           })
+        }
+        break
+
+      case 'structured-output':
+        // Only emit completed structured responses into history. Streaming or
+        // errored buffers would push malformed JSON into the next LLM turn's
+        // assistant content. `raw` is the source of truth; `data` is the
+        // defensive fallback for terminal-only completes that didn't ship raw.
+        if (part.status === 'complete') {
+          const serialized =
+            part.raw !== ''
+              ? part.raw
+              : part.data !== undefined
+                ? safeJsonStringify(part.data)
+                : ''
+          if (serialized !== '') {
+            current.contentParts.push({ type: 'text', content: serialized })
+          }
         }
         break
 

@@ -9,19 +9,31 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
-import type OpenAI from 'openai'
+import OpenAI from 'openai'
 import type { JSONSchema, StreamChunk } from '@tanstack/ai'
 import { resolveDebugOption, type Logger } from '@tanstack/ai/adapter-internals'
 
-let mockCreate: ReturnType<typeof vi.fn>
+/**
+ * Signature of the OpenAI SDK's `responses.create`. Mirrors the narrowing
+ * applied in the sibling chat-completions structured-output stream test:
+ * collapse the streaming / non-streaming overload union to a single
+ * params + options pair and return `unknown`, since the assertions live
+ * on AG-UI events, not SDK structural types.
+ */
+type MockResponsesCreate = (
+  params: OpenAI.Responses.ResponseCreateParams,
+  options?: OpenAI.RequestOptions,
+) => unknown
+
+let mockCreate: ReturnType<typeof vi.fn<MockResponsesCreate>>
 
 function makeStubClient(): OpenAI {
-  return {
-    responses: {
-      create: (params: unknown, options: unknown) =>
-        mockCreate(params, options),
-    },
-  } as unknown as OpenAI
+  const client = new OpenAI({ apiKey: 'test-api-key' })
+  client.responses.create = ((
+    params: OpenAI.Responses.ResponseCreateParams,
+    options?: OpenAI.RequestOptions,
+  ) => mockCreate(params, options)) as typeof client.responses.create
+  return client
 }
 
 class TestAdapter extends OpenAIBaseResponsesTextAdapter<string> {

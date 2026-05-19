@@ -8,7 +8,9 @@ import {
 import type { Feature, Provider } from '@/lib/types'
 import { createTextAdapter } from '@/lib/providers'
 import { featureConfigs } from '@/lib/features'
-import { guitarRecommendationSchema } from '@/lib/schemas'
+import { guitarRecommendationSchema, recipeSchema } from '@/lib/schemas'
+
+const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant for a guitar store.'
 
 export const Route = createFileRoute('/api/chat')({
   server: {
@@ -52,14 +54,17 @@ export const Route = createFileRoute('/api/chat')({
         )
 
         try {
+          const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT
+
+          // Two structured-output-streaming features differ only in which
+          // schema they bind to. Branched per-feature so TS can pick the
+          // right `chat<TSchema>()` overload without a `never` cast.
           const stream =
             feature === 'structured-output-stream'
               ? chat({
                   ...adapterOptions,
                   modelOptions: config.modelOptions,
-                  systemPrompts: [
-                    'You are a helpful assistant for a guitar store.',
-                  ],
+                  systemPrompts: [systemPrompt],
                   messages: params.messages,
                   threadId: params.threadId,
                   runId: params.runId,
@@ -67,19 +72,29 @@ export const Route = createFileRoute('/api/chat')({
                   stream: true,
                   abortController,
                 })
-              : chat({
-                  ...adapterOptions,
-                  tools: config.tools,
-                  modelOptions: config.modelOptions,
-                  systemPrompts: [
-                    'You are a helpful assistant for a guitar store.',
-                  ],
-                  agentLoopStrategy: maxIterations(5),
-                  messages: params.messages,
-                  threadId: params.threadId,
-                  runId: params.runId,
-                  abortController,
-                })
+              : feature === 'multi-turn-structured'
+                ? chat({
+                    ...adapterOptions,
+                    modelOptions: config.modelOptions,
+                    systemPrompts: [systemPrompt],
+                    messages: params.messages,
+                    threadId: params.threadId,
+                    runId: params.runId,
+                    outputSchema: recipeSchema,
+                    stream: true,
+                    abortController,
+                  })
+                : chat({
+                    ...adapterOptions,
+                    tools: config.tools,
+                    modelOptions: config.modelOptions,
+                    systemPrompts: [systemPrompt],
+                    agentLoopStrategy: maxIterations(5),
+                    messages: params.messages,
+                    threadId: params.threadId,
+                    runId: params.runId,
+                    abortController,
+                  })
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {

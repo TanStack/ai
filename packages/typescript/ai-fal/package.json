@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-fal",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "fal.ai adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -52,7 +52,7 @@
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:*"

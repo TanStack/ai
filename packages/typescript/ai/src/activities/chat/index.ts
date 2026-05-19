@@ -22,7 +22,7 @@ import {
   parseWithStandardSchema,
 } from './tools/schema-converter'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
-import { convertMessagesToModelMessages } from './messages'
+import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import type {
   ApprovalRequest,
@@ -2045,7 +2045,100 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
         outputSchema: jsonSchema,
       })
 
+  // Tag the start/complete events with the assistant messageId so the
+  // client-side processor can route JSON deltas to (and snap) the right
+  // StructuredOutputPart. Missing messageId is treated as a hard error
+  // below to avoid silently rendering JSON as plain text.
+  let structuredMessageId: string | null = null
+  let startEmitted = false
+
+  const extractMessageId = (c: StreamChunk): string | null => {
+    const id = (c as { messageId?: unknown }).messageId
+    return typeof id === 'string' && id !== '' ? id : null
+  }
+
+  // Emit a `structured-output.start` (synthesizing a messageId if the
+  // adapter hasn't picked one yet) so that the client processor can route
+  // the forthcoming error chunk into a `structured-output` part on the
+  // placeholder assistant message. Without this, a RUN_ERROR that fires
+  // before the adapter has yielded any TEXT_MESSAGE_START leaves the
+  // assistant message with zero parts — the structured-output UI surface
+  // never sees the error.
+  const emitStartIfNeeded = function* (
+    referenceChunk: StreamChunk,
+  ): Generator<StreamChunk, void, void> {
+    if (startEmitted) return
+    const idForStart = structuredMessageId ?? generateMessageId()
+    structuredMessageId = idForStart
+    startEmitted = true
+    yield {
+      type: EventType.CUSTOM,
+      name: 'structured-output.start',
+      value: { messageId: idForStart },
+      model:
+        'model' in referenceChunk ? (referenceChunk.model ?? model) : model,
+      timestamp:
+        'timestamp' in referenceChunk
+          ? (referenceChunk.timestamp ?? Date.now())
+          : Date.now(),
+      runId,
+    }
+  }
+
   for await (const chunk of stream) {
+    if (!structuredMessageId) {
+      if (
+        chunk.type === EventType.TEXT_MESSAGE_START ||
+        chunk.type === EventType.TEXT_MESSAGE_CONTENT
+      ) {
+        structuredMessageId = extractMessageId(chunk)
+      }
+    }
+
+    // RUN_ERROR before any text deltas: synthesize the structured-output.start
+    // so the client snaps an errored part instead of a silent UI. The
+    // synthesized messageId becomes the assistant message id the client
+    // creates on its side (handleRunErrorEvent calls ensureAssistantMessage()
+    // which picks up the same id from the structured-output.start above).
+    if (chunk.type === EventType.RUN_ERROR && !startEmitted) {
+      yield* emitStartIfNeeded(chunk)
+    }
+
+    // Adapter emitted content with no usable messageId. Routing JSON deltas
+    // into a TextPart would silently render raw JSON in the user's chat, so
+    // fail loudly here instead.
+    if (!structuredMessageId && chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+      yield {
+        type: EventType.RUN_ERROR,
+        runId,
+        model,
+        timestamp: Date.now(),
+        message:
+          'Structured-output stream produced text content without a messageId; ' +
+          'adapter is not honoring the AG-UI contract.',
+        code: 'structured-output-missing-message-id',
+      }
+      return
+    }
+
+    if (
+      !startEmitted &&
+      structuredMessageId &&
+      (chunk.type === EventType.TEXT_MESSAGE_START ||
+        chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+    ) {
+      startEmitted = true
+      yield {
+        type: EventType.CUSTOM,
+        name: 'structured-output.start',
+        value: { messageId: structuredMessageId },
+        model: 'model' in chunk ? (chunk.model ?? model) : model,
+        timestamp:
+          'timestamp' in chunk ? (chunk.timestamp ?? Date.now()) : Date.now(),
+        runId,
+      }
+    }
+
     if (
       chunk.type === EventType.CUSTOM &&
       chunk.name === 'structured-output.complete'
@@ -2065,10 +2158,15 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
             ...chunk,
             // Forward `reasoning` through schema validation so consumers that
             // only listen for the terminal event don't lose chain-of-thought.
+            // Tag with messageId so the client processor can snap the right
+            // assistant message's structured-output part.
             value: {
               object: validated,
               raw: value.raw,
               ...(value.reasoning ? { reasoning: value.reasoning } : {}),
+              ...(structuredMessageId
+                ? { messageId: structuredMessageId }
+                : {}),
             },
           }
           continue
@@ -2099,6 +2197,18 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
           }
           return
         }
+      }
+      // No Standard schema (raw JSONSchema). Still tag the terminal event
+      // with messageId so the client processor can snap the right part.
+      if (structuredMessageId) {
+        yield {
+          ...chunk,
+          value: {
+            ...(chunk.value as Record<string, unknown>),
+            messageId: structuredMessageId,
+          },
+        }
+        continue
       }
       yield chunk
       continue

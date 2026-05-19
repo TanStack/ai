@@ -1,13 +1,31 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import type OpenAI from 'openai'
 import { OpenAIImageAdapter, createOpenaiImage } from '../src/adapters/image'
 import {
   validateImageSize,
   validateNumberOfImages,
   validatePrompt,
 } from '../src/image/image-provider-options'
+import type { OpenAIImageModel } from '../src/model-meta'
 
 const testLogger = resolveDebugOption(false)
+
+/**
+ * Test-only subclass of `OpenAIImageAdapter` that exposes the real
+ * `OpenAI` SDK client's `images.generate` method to `vi.spyOn`. Using a
+ * subclass + spy (instead of replacing the whole `client` field with a
+ * stub) keeps every type real: no `as unknown as` cast, no synthetic stub
+ * type, and the original `OpenAI` instance — constructed by the adapter
+ * itself — stays in place.
+ */
+class TestOpenAIImageAdapter<
+  TModel extends OpenAIImageModel,
+> extends OpenAIImageAdapter<TModel> {
+  spyOnImagesGenerate() {
+    return vi.spyOn(this.client.images, 'generate')
+  }
+}
 
 describe('OpenAI Image Adapter', () => {
   describe('createOpenaiImage', () => {
@@ -134,7 +152,8 @@ describe('OpenAI Image Adapter', () => {
 
   describe('generateImages', () => {
     it('calls the OpenAI images.generate API', async () => {
-      const mockResponse = {
+      const mockResponse: OpenAI.Images.ImagesResponse = {
+        created: 0,
         data: [
           {
             b64_json: 'base64encodedimage',
@@ -143,22 +162,19 @@ describe('OpenAI Image Adapter', () => {
         ],
         usage: {
           input_tokens: 10,
+          input_tokens_details: { image_tokens: 0, text_tokens: 10 },
           output_tokens: 100,
           total_tokens: 110,
         },
       }
 
-      const mockGenerate = vi.fn().mockResolvedValueOnce(mockResponse)
-
-      const adapter = createOpenaiImage('gpt-image-1', 'test-api-key')
-      // Replace the internal OpenAI SDK client with our mock
-      ;(
-        adapter as unknown as { client: { images: { generate: unknown } } }
-      ).client = {
-        images: {
-          generate: mockGenerate,
-        },
-      }
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      const mockGenerate = adapter
+        .spyOnImagesGenerate()
+        .mockResolvedValueOnce(mockResponse)
 
       const result = await adapter.generateImages({
         model: 'gpt-image-1',
@@ -178,8 +194,8 @@ describe('OpenAI Image Adapter', () => {
 
       expect(result.model).toBe('gpt-image-1')
       expect(result.images).toHaveLength(1)
-      expect(result.images[0].b64Json).toBe('base64encodedimage')
-      expect(result.images[0].revisedPrompt).toBe('A beautiful cat')
+      expect(result.images[0]!.b64Json).toBe('base64encodedimage')
+      expect(result.images[0]!.revisedPrompt).toBe('A beautiful cat')
       expect(result.usage).toEqual({
         inputTokens: 10,
         outputTokens: 100,
@@ -188,20 +204,16 @@ describe('OpenAI Image Adapter', () => {
     })
 
     it('generates a unique ID for each response', async () => {
-      const mockResponse = {
+      const mockResponse: OpenAI.Images.ImagesResponse = {
+        created: 0,
         data: [{ b64_json: 'base64' }],
       }
 
-      const mockGenerate = vi.fn().mockResolvedValue(mockResponse)
-
-      const adapter = createOpenaiImage('gpt-image-1', 'test-api-key')
-      ;(
-        adapter as unknown as { client: { images: { generate: unknown } } }
-      ).client = {
-        images: {
-          generate: mockGenerate,
-        },
-      }
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      adapter.spyOnImagesGenerate().mockResolvedValue(mockResponse)
 
       const result1 = await adapter.generateImages({
         model: 'dall-e-3',

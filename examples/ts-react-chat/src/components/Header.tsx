@@ -166,6 +166,19 @@ export default function Header() {
             <span className="font-medium">Structured Output</span>
           </Link>
 
+          <Link
+            to="/generations/structured-chat"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Braces size={20} />
+            <span className="font-medium">Structured Chat</span>
+          </Link>
+
           <hr className="border-gray-700 my-2" />
 
           <p className="text-xs text-gray-500 uppercase tracking-wider px-3 pt-2 pb-1">

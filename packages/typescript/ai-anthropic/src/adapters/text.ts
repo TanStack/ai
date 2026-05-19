@@ -301,11 +301,31 @@ export class AnthropicTextAdapter<
         'mcp_servers',
         'service_tier',
         'stop_sequences',
-        'system',
         'thinking',
         'tool_choice',
         'top_k',
       ]
+      const validKeySet = new Set<string>(validKeys)
+      const droppedKeys = Object.keys(modelOptions).filter(
+        (key) => !validKeySet.has(key),
+      )
+      if (droppedKeys.length > 0) {
+        // Reachable when callers cast around the public type (e.g.
+        // `modelOptions: { system: ... } as any`). Without this warning the
+        // unknown keys are silently dropped — `system` in particular was a
+        // previously-tested path for attaching `cache_control` and we don't
+        // want that to fail in production with no signal.
+        options.logger.errors(
+          `anthropic.mapCommonOptionsToAnthropic dropped unknown modelOptions key(s): ${droppedKeys.join(', ')}`,
+          {
+            source: 'anthropic.mapCommonOptionsToAnthropic',
+            droppedKeys,
+            hint: droppedKeys.includes('system')
+              ? 'pass system prompts via the top-level `systemPrompts` option; `modelOptions.system` is no longer honored'
+              : undefined,
+          },
+        )
+      }
       for (const key of validKeys) {
         if (key in modelOptions) {
           const value = modelOptions[key]

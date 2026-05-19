@@ -141,6 +141,95 @@ describe('uiMessagesToWire', () => {
     expect((wire[0]! as any).parts).toEqual([{ type: 'text', content: 'hi' }])
   })
 
+  it('serializes a structured-output part to assistant content using its raw JSON', () => {
+    // The raw JSON is the byte-identical buffer the model produced. Sending
+    // it back as assistant content keeps multi-turn structured chat coherent
+    // (the LLM sees its own prior structured response).
+    const raw = JSON.stringify({ name: 'Alice', age: 25 })
+    const messages: Array<UIMessage> = [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'extract' }] },
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'complete',
+            raw,
+            data: { name: 'Alice', age: 25 },
+            partial: { name: 'Alice', age: 25 },
+          },
+        ],
+      },
+    ]
+    const wire = uiMessagesToWire(messages)
+    const assistant = wire.find((m) => m.role === 'assistant') as any
+    expect(assistant).toBeDefined()
+    expect(assistant.content).toBe(raw)
+  })
+
+  it('skips streaming and errored structured-output parts so partial JSON is never sent as history', () => {
+    // A part captured mid-stream (or after a RUN_ERROR) holds an incomplete
+    // JSON fragment in `raw`. Shipping that as assistant content would feed
+    // malformed JSON back to the LLM. The wire must drop these.
+    const streaming: Array<UIMessage> = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'streaming',
+            raw: '{"name":"Al',
+          },
+        ],
+      },
+    ]
+    expect(
+      (uiMessagesToWire(streaming).find((m) => m.role === 'assistant') as any)
+        .content,
+    ).toBeUndefined()
+
+    const errored: Array<UIMessage> = [
+      {
+        id: 'a2',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'error',
+            raw: '{"name":"Bo',
+            errorMessage: 'aborted',
+          },
+        ],
+      },
+    ]
+    expect(
+      (uiMessagesToWire(errored).find((m) => m.role === 'assistant') as any)
+        .content,
+    ).toBeUndefined()
+  })
+
+  it('drops a complete structured-output part with empty raw (defensive — completeStructuredOutputPart guarantees non-empty raw)', () => {
+    const messages: Array<UIMessage> = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'complete',
+            raw: '',
+            data: { name: 'Bob' },
+          },
+        ],
+      },
+    ]
+    const wire = uiMessagesToWire(messages)
+    const assistant = wire.find((m) => m.role === 'assistant') as any
+    expect(assistant.content).toBeUndefined()
+  })
+
   it('preserves per-part metadata on multimodal parts (round-trip via parts field)', () => {
     const messages: Array<UIMessage> = [
       {

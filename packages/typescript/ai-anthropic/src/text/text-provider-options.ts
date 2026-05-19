@@ -170,10 +170,14 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    */
   stream?: boolean
   /**
-    * stem prompt.
- 
- A system prompt is a way of providing context and instructions to Claude, such as specifying a particular goal or role.
-    */
+   * System prompt — built by the adapter from the user-facing
+   * `systemPrompts: Array<string>` on the chat call. This field is internal:
+   * users should pass system prompts via `systemPrompts`, not via
+   * `modelOptions`.
+   *
+   * A system prompt is a way of providing context and instructions to Claude,
+   * such as specifying a particular goal or role.
+   */
   system?: string | Array<TextBlockParam>
   /**
    * Amount of randomness injected into the response.

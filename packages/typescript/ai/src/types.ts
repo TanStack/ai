@@ -365,7 +365,43 @@ export interface ThinkingPart {
   signature?: string
 }
 
-export type MessagePart =
+/**
+ * Recursive `Partial` — every nested field becomes optional. Used as the
+ * `partial` type on a streaming structured-output part since the progressive
+ * JSON parse hands back objects whose fields are only filled in as bytes
+ * arrive. Defaulted in `DeepPartial<unknown>` → `unknown` so untyped parts
+ * keep their existing shape.
+ */
+export type DeepPartial<T> =
+  T extends ReadonlyArray<infer U>
+    ? Array<DeepPartial<U>>
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T
+
+/**
+ * StructuredOutputPart — a typed structured response attached to the assistant
+ * message that produced it. Generic over the schema-inferred data type so
+ * consumers can thread `useChat({ outputSchema })`'s schema all the way down
+ * to `messages[i].parts[j].data`. Defaults to `unknown` so untyped consumers
+ * (e.g. internal codepaths that don't know about TSchema) keep working.
+ */
+export interface StructuredOutputPart<TData = unknown> {
+  type: 'structured-output'
+  status: 'streaming' | 'complete' | 'error'
+  /** Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete. */
+  partial?: DeepPartial<TData>
+  /** Validated final object — only set when `status === 'complete'`. */
+  data?: TData
+  /** Accumulating JSON buffer. Source of truth for wire round-trip. */
+  raw: string
+  /** Optional chain-of-thought surfaced by reasoning models alongside the structured output. */
+  reasoning?: string
+  /** Populated when `status === 'error'`. */
+  errorMessage?: string
+}
+
+export type MessagePart<TData = unknown> =
   | TextPart
   | ImagePart
   | AudioPart
@@ -374,15 +410,19 @@ export type MessagePart =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
+  | StructuredOutputPart<TData>
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
- * Contains parts that can be text, tool calls, or tool results
+ * Contains parts that can be text, tool calls, or tool results. Generic over
+ * the structured-output data type so `useChat({ outputSchema })`'s schema
+ * narrows `parts.find(p => p.type === 'structured-output').data` on the
+ * consumer side without manual casts.
  */
-export interface UIMessage {
+export interface UIMessage<TData = unknown> {
   id: string
   role: 'system' | 'user' | 'assistant'
-  parts: Array<MessagePart>
+  parts: Array<MessagePart<TData>>
   createdAt?: Date
 }
 
@@ -1115,10 +1155,27 @@ export interface StructuredOutputCompleteEvent<T = unknown> extends Omit<
 }
 
 /**
+ * Emitted at the start of a streaming structured-output run, before the JSON
+ * deltas. Tells consumers that the upcoming `TEXT_MESSAGE_CONTENT` deltas
+ * belong to a structured response so they can route those bytes into a
+ * `StructuredOutputPart` instead of building a `TextPart`. Carries the
+ * `messageId` the deltas will be tagged with so the routing decision can be
+ * made per-message rather than globally.
+ */
+export interface StructuredOutputStartEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
+  name: 'structured-output.start'
+  value: { messageId: string }
+}
+
+/**
  * Emitted when a server tool requires approval before execution. The agent
  * loop yields this and pauses — `structured-output.complete` will not fire
  * for that run. The shape is fixed by the orchestrator's tool-approval flow
- * (see `buildApprovalChunks` in `activities/chat/index.ts`).
+ * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
+ * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
  */
 export interface ApprovalRequestedEvent extends Omit<
   CustomEvent,
@@ -1136,8 +1193,8 @@ export interface ApprovalRequestedEvent extends Omit<
 /**
  * Emitted when a client tool is invoked. The agent loop yields this and
  * pauses to let the caller run the tool client-side — `structured-output.complete`
- * will not fire for that run. Shape fixed by `buildClientToolChunks` in
- * `activities/chat/index.ts`.
+ * will not fire for that run. Shape fixed by the agent-loop forwarding in
+ * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
  */
 export interface ToolInputAvailableEvent extends Omit<
   CustomEvent,
@@ -1183,6 +1240,7 @@ export interface ToolInputAvailableEvent extends Omit<
  */
 export type StructuredOutputStream<T = unknown> = AsyncIterable<
   | Exclude<StreamChunk, CustomEvent>
+  | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent<T>
   | ApprovalRequestedEvent
   | ToolInputAvailableEvent

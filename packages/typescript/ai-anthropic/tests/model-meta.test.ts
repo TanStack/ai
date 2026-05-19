@@ -3,6 +3,7 @@ import type {
   AnthropicChatModelProviderOptionsByName,
   AnthropicModelInputModalitiesByName,
 } from '../src/model-meta'
+import type { AnthropicMessageMetadataByModality } from '../src/message-types'
 import type {
   AnthropicContainerOptions,
   AnthropicContextManagementOptions,
@@ -18,9 +19,19 @@ import type {
   ConstrainedModelMessage,
   DocumentPart,
   ImagePart,
+  Modality,
   TextPart,
   VideoPart,
 } from '@tanstack/ai'
+
+/**
+ * Helper type to construct InputModalitiesTypes from modalities array and metadata.
+ * This is used to properly type ConstrainedModelMessage in tests.
+ */
+type MakeInputModalitiesTypes<TModalities extends ReadonlyArray<Modality>> = {
+  inputModalities: TModalities
+  messageMetadataByModality: AnthropicMessageMetadataByModality
+}
 
 /**
  * Type assertion tests for Anthropic model provider options.
@@ -531,166 +542,241 @@ describe('Anthropic Model Provider Options Type Assertions', () => {
  * No Claude models support: audio, video
  */
 describe('Anthropic Model Input Modality Type Assertions', () => {
-  // Helper type for creating a user message with specific content
+  // Helper type for creating a user message with specific content.
+  // Uses provider-specific metadata so that ConstrainedModelMessage extension
+  // checks succeed for the modalities this provider supports.
+  type AnthropicTextPart = TextPart<AnthropicMessageMetadataByModality['text']>
+  type AnthropicImagePart = ImagePart<
+    AnthropicMessageMetadataByModality['image']
+  >
+  type AnthropicAudioPart = AudioPart<
+    AnthropicMessageMetadataByModality['audio']
+  >
+  type AnthropicVideoPart = VideoPart<
+    AnthropicMessageMetadataByModality['video']
+  >
+  type AnthropicDocumentPart = DocumentPart<
+    AnthropicMessageMetadataByModality['document']
+  >
   type MessageWithContent<T> = { role: 'user'; content: Array<T> }
 
   describe('Claude Opus 4.5 (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-opus-4-5']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
   describe('Claude Sonnet 4.6 (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-sonnet-4-6']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
   describe('Claude Sonnet 4.5 (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-sonnet-4-5']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
   describe('Claude Haiku 4.5 (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-haiku-4-5']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
   describe('Claude Opus 4.1 (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-opus-4-1']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
   describe('Claude Sonnet 4 (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-sonnet-4']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
   describe('Claude 3.7 Sonnet (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-3-7-sonnet']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
   describe('Claude Opus 4 (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-opus-4']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
   describe('Claude 3.5 Haiku (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-3-5-haiku']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 
   describe('Claude 3 Haiku (text + image + document)', () => {
     type Modalities = AnthropicModelInputModalitiesByName['claude-3-haiku']
-    type Message = ConstrainedModelMessage<Modalities>
+    type Message = ConstrainedModelMessage<MakeInputModalitiesTypes<Modalities>>
 
     it('should allow TextPart, ImagePart, and DocumentPart', () => {
-      expectTypeOf<MessageWithContent<TextPart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<ImagePart>>().toExtend<Message>()
-      expectTypeOf<MessageWithContent<DocumentPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicTextPart>>().toExtend<Message>()
+      expectTypeOf<MessageWithContent<AnthropicImagePart>>().toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicDocumentPart>
+      >().toExtend<Message>()
     })
 
     it('should NOT allow AudioPart or VideoPart', () => {
-      expectTypeOf<MessageWithContent<AudioPart>>().not.toExtend<Message>()
-      expectTypeOf<MessageWithContent<VideoPart>>().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicAudioPart>
+      >().not.toExtend<Message>()
+      expectTypeOf<
+        MessageWithContent<AnthropicVideoPart>
+      >().not.toExtend<Message>()
     })
   })
 })

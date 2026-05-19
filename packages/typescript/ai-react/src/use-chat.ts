@@ -1,5 +1,4 @@
 import { ChatClient } from '@tanstack/ai-client'
-import { parsePartialJSON } from '@tanstack/ai'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
   AnyClientTool,
@@ -8,7 +7,11 @@ import type {
   SchemaInput,
   StreamChunk,
 } from '@tanstack/ai'
-import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
+import type {
+  ChatClientState,
+  ConnectionStatus,
+  StructuredOutputPart,
+} from '@tanstack/ai-client'
 
 import type {
   DeepPartial,
@@ -36,18 +39,8 @@ export function useChat<
     useState<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = useState(false)
 
-  // Structured-output state. Only meaningful when `outputSchema` is supplied;
-  // when it isn't, these stay at their initial values and are hidden from the
-  // return type by the conditional in UseChatReturn. Runtime always tracks
-  // them — the type system gates visibility, not the runtime.
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
-  const [partial, setPartial] = useState<Partial>({} as Partial)
-  const [final, setFinal] = useState<Final | null>(null)
-  // Raw JSON accumulator for parsePartialJSON. Ref instead of state — partial
-  // JSON parsing happens synchronously inside the chunk handler; we don't want
-  // a re-render per delta solely to track the buffer.
-  const rawJsonRef = useRef('')
 
   // Track current messages in a ref to preserve them when client is recreated
   const messagesRef = useRef<Array<UIMessage<TTools>>>(
@@ -56,7 +49,6 @@ export function useChat<
   const isFirstMountRef = useRef(true)
 
   // Update ref synchronously during render so it's always current when useMemo runs.
-  // A useEffect here would be async and messagesRef could be stale on client recreation.
   messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
@@ -64,11 +56,7 @@ export function useChat<
   optionsRef.current = options
 
   // Create ChatClient instance with callbacks to sync state
-  // Note: Options are captured at client creation time.
-  // The connection adapter can use functions for dynamic values (url, headers, etc.)
-  // which are evaluated lazily on each request.
   const client = useMemo(() => {
-    // On first mount, use initialMessages. On subsequent recreations, preserve existing messages.
     const messagesToUse = isFirstMountRef.current
       ? options.initialMessages || []
       : messagesRef.current
@@ -81,34 +69,8 @@ export function useChat<
       initialMessages: messagesToUse,
       body: optionsRef.current.body,
       forwardedProps: optionsRef.current.forwardedProps,
-      // Wrap every callback so the latest options are read at call time.
-      // Capturing the function reference directly would freeze it to whatever
-      // the parent passed on the first render.
       onResponse: (response) => optionsRef.current.onResponse?.(response),
       onChunk: (chunk: StreamChunk) => {
-        // Internal structured-output tracking — runs before the user callback
-        // so user code observes the same state the hook does. Only active when
-        // a schema is supplied; otherwise the branches are no-ops.
-        if (optionsRef.current.outputSchema !== undefined) {
-          if (chunk.type === 'RUN_STARTED') {
-            // New run — reset both views.
-            rawJsonRef.current = ''
-            setPartial({} as Partial)
-            setFinal(null)
-          } else if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-            rawJsonRef.current += chunk.delta
-            const progressive = parsePartialJSON(rawJsonRef.current)
-            if (progressive && typeof progressive === 'object') {
-              setPartial(progressive as Partial)
-            }
-          } else if (
-            chunk.type === 'CUSTOM' &&
-            chunk.name === 'structured-output.complete'
-          ) {
-            const value = chunk.value as { object: unknown }
-            setFinal(value.object as Final)
-          }
-        }
         optionsRef.current.onChunk?.(chunk)
       },
       onFinish: (message: UIMessage<TTools>) => {
@@ -145,11 +107,6 @@ export function useChat<
     })
   }, [clientId])
 
-  // Sync body / forwardedProps changes to the client.
-  // This allows dynamic values (like model selection) to be updated
-  // without recreating the client. Both fields populate the same
-  // wire payload; `forwardedProps` is preferred and `body` is
-  // deprecated but still supported.
   useEffect(() => {
     client.updateOptions({
       body: options.body,
@@ -157,19 +114,14 @@ export function useChat<
     })
   }, [client, options.body, options.forwardedProps])
 
-  // Sync initial messages on mount only
-  // Note: initialMessages are passed to ChatClient constructor, but we also
-  // set them here to ensure React state is in sync
   useEffect(() => {
     if (options.initialMessages && options.initialMessages.length > 0) {
-      // Only set if current messages are empty (initial state)
       if (messages.length === 0) {
         client.setMessagesManually(options.initialMessages)
       }
     }
-  }, []) // Only run on mount - initialMessages are handled by ChatClient constructor
+  }, [])
 
-  // Keep connection lifecycle opt-in and explicit.
   useEffect(() => {
     if (options.live) {
       client.subscribe()
@@ -178,13 +130,8 @@ export function useChat<
     }
   }, [client, options.live])
 
-  // Cleanup on unmount: stop any in-flight requests
-  // Note: We only cleanup when client changes or component unmounts.
-  // DO NOT include isLoading in dependencies - that would cause the cleanup
-  // to run when isLoading changes, aborting continuation requests.
   useEffect(() => {
     return () => {
-      // live mode owns the connection lifecycle; non-live keeps request-only stop.
       if (options.live) {
         client.unsubscribe()
       } else {
@@ -192,9 +139,6 @@ export function useChat<
       }
     }
   }, [client, options.live])
-
-  // All callback options are read through optionsRef at call time, so fresh
-  // closures from each render are picked up without recreating the client.
 
   const sendMessage = useCallback(
     async (content: string | MultimodalContent) => {
@@ -249,10 +193,49 @@ export function useChat<
     [client],
   )
 
-  // partial / final are runtime-tracked unconditionally; the conditional
-  // return type (UseChatReturn<TTools, TSchema>) hides them from callers that
-  // didn't supply `outputSchema`. The `as` cast is the seam between the
-  // unconditional runtime shape and the schema-discriminated public shape.
+  // The "active" structured-output part is the one on the assistant message
+  // that follows the latest user message. No such message exists between
+  // sendMessage() and the first chunk, so partial/final naturally read as
+  // cleared. Historical parts on earlier assistant messages remain available
+  // via `messages` directly.
+  //
+  // When there is NO user message yet (e.g. `initialMessages` contains only
+  // a stale assistant turn or a system prompt) we deliberately return null
+  // rather than scanning historical assistants — otherwise a `final` from a
+  // previous session would leak into the hook value on first render.
+  const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
+    let lastUserIndex = -1
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === 'user') {
+        lastUserIndex = i
+        break
+      }
+    }
+    if (lastUserIndex === -1) return null
+    for (let i = messages.length - 1; i > lastUserIndex; i--) {
+      const m = messages[i]!
+      if (m.role !== 'assistant') continue
+      const part = m.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )
+      if (part) return part
+    }
+    return null
+  }, [messages])
+
+  const partial = useMemo<Partial>(() => {
+    if (!activeStructuredPart) return {} as Partial
+    const v = activeStructuredPart.partial ?? activeStructuredPart.data
+    return (v ?? {}) as Partial
+  }, [activeStructuredPart])
+
+  const final = useMemo<Final | null>(() => {
+    if (!activeStructuredPart || activeStructuredPart.status !== 'complete') {
+      return null
+    }
+    return activeStructuredPart.data as Final
+  }, [activeStructuredPart])
+
   return {
     messages,
     sendMessage,

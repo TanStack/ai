@@ -6,6 +6,13 @@ interface FeatureConfig {
   modelOptions: Record<string, any>
   modelOverrides?: Partial<Record<Provider, string>>
   dedicatedRoute?: string
+  /**
+   * Optional system prompt override. Defaults (in `api.chat.ts`) to the
+   * guitar-store assistant prompt that covers most features; only set this
+   * when the feature genuinely needs a different persona (e.g. the
+   * `multi-turn-structured` chef recipe-builder).
+   */
+  systemPrompt?: string
 }
 
 export const featureConfigs: Record<Feature, FeatureConfig> = {
@@ -52,6 +59,12 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   'structured-output-stream': {
     tools: [],
     modelOptions: {},
+  },
+  'multi-turn-structured': {
+    tools: [],
+    modelOptions: {},
+    systemPrompt:
+      'You are a chef assistant that always responds with a single recipe matching the provided JSON schema. When the user asks for modifications, produce a new recipe in the same shape that reflects the change. Stay terse — short titles, short steps.',
   },
   'agentic-structured': {
     tools: [getGuitars],

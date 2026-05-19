@@ -20,6 +20,9 @@
 import { generateMessageId, uiMessageToModelMessages } from '../messages.js'
 import { defaultJSONParser } from './json-parser'
 import {
+  appendStructuredOutputDelta,
+  completeStructuredOutputPart,
+  errorStructuredOutputPart,
   updateTextPart,
   updateThinkingPart,
   updateToolCallApproval,
@@ -144,6 +147,8 @@ export class StreamProcessor {
   private toolCallToMessage: Map<string, string> = new Map()
   private pendingManualMessageId: string | null = null
   private pendingThinkingStepId: string | null = null
+
+  private structuredMessageIds: Set<string> = new Set()
 
   // Run tracking (for concurrent run safety)
   private activeRuns = new Set<string>()
@@ -383,6 +388,27 @@ export class StreamProcessor {
    * Remove messages after a certain index (for reload/retry)
    */
   removeMessagesAfter(index: number): void {
+    const keptIds = new Set(this.messages.slice(0, index + 1).map((m) => m.id))
+    // Drop routing state for messages that no longer exist; otherwise a
+    // resumed stream (`reload()` or a server that reuses messageIds across
+    // runs) could land deltas / tool args on stale map entries and corrupt
+    // the new assistant message's parts. Mirror the four routing maps that
+    // key on messageId: structuredMessageIds (custom-event routing),
+    // messageStates (per-message stream state), toolCallToMessage (tool
+    // args → message), and activeMessageIds (finalize / completeAllToolCalls
+    // iteration targets — must not include phantoms).
+    for (const id of this.structuredMessageIds) {
+      if (!keptIds.has(id)) this.structuredMessageIds.delete(id)
+    }
+    for (const id of this.messageStates.keys()) {
+      if (!keptIds.has(id)) this.messageStates.delete(id)
+    }
+    for (const [toolCallId, msgId] of this.toolCallToMessage) {
+      if (!keptIds.has(msgId)) this.toolCallToMessage.delete(toolCallId)
+    }
+    for (const id of this.activeMessageIds) {
+      if (!keptIds.has(id)) this.activeMessageIds.delete(id)
+    }
     this.messages = this.messages.slice(0, index + 1)
     this.emitMessagesChange()
   }
@@ -395,6 +421,7 @@ export class StreamProcessor {
     this.messageStates.clear()
     this.activeMessageIds.clear()
     this.toolCallToMessage.clear()
+    this.structuredMessageIds.clear()
     this.pendingManualMessageId = null
     this.emitMessagesChange()
   }
@@ -841,6 +868,41 @@ export class StreamProcessor {
     // Content arriving means all current tool calls for this message are complete
     this.completeAllToolCallsForMessage(messageId)
 
+    if (this.structuredMessageIds.has(messageId)) {
+      // `chunk.delta` is incremental; `chunk.content` is sometimes cumulative
+      // (mirrors what the plain-text branch handles below). Reconcile against
+      // the existing raw buffer so adapters that emit cumulative content
+      // don't duplicate the JSON.
+      let delta = chunk.delta || ''
+      if (delta === '' && chunk.content !== undefined && chunk.content !== '') {
+        const existingRaw = (
+          this.messages
+            .find((m) => m.id === messageId)
+            ?.parts.find(
+              (p): p is Extract<MessagePart, { type: 'structured-output' }> =>
+                p.type === 'structured-output',
+            ) ?? { raw: '' }
+        ).raw
+        if (chunk.content.startsWith(existingRaw)) {
+          delta = chunk.content.slice(existingRaw.length)
+        } else if (existingRaw.startsWith(chunk.content)) {
+          delta = ''
+        } else {
+          delta = chunk.content
+        }
+      }
+      if (delta !== '') {
+        this.messages = appendStructuredOutputDelta(
+          this.messages,
+          messageId,
+          delta,
+        )
+        state.totalTextContent += delta
+        this.emitMessagesChange()
+      }
+      return
+    }
+
     const previousSegment = state.currentSegmentText
 
     // Detect if this is a NEW text segment (after tool calls) vs continuation
@@ -1192,10 +1254,29 @@ export class StreamProcessor {
     } else {
       this.activeRuns.clear()
     }
-    this.ensureAssistantMessage()
-    // Prefer spec field `message`; fall back to deprecated `error.message`
+    const { messageId } = this.ensureAssistantMessage()
+    // Prefer spec field `message`; fall back to deprecated `error.message`.
+    // If neither is set, the chunk still carries debug context (provider
+    // error codes, request ids, etc.) — log it so the failure isn't silent.
     const errorMessage =
       chunk.message || chunk.error?.message || 'An error occurred'
+    if (!chunk.message && !chunk.error?.message) {
+      console.error(
+        '[StreamProcessor] RUN_ERROR with no message; original chunk:',
+        chunk,
+      )
+    }
+
+    if (this.structuredMessageIds.has(messageId)) {
+      this.messages = errorStructuredOutputPart(
+        this.messages,
+        messageId,
+        errorMessage,
+      )
+      this.structuredMessageIds.delete(messageId)
+      this.emitMessagesChange()
+    }
+
     this.events.onError?.(new Error(errorMessage))
   }
 
@@ -1374,6 +1455,38 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'CUSTOM' }>,
   ): void {
     const messageId = this.getActiveAssistantMessageId()
+
+    if (chunk.name === 'structured-output.start' && chunk.value) {
+      const v = chunk.value as { messageId?: string }
+      const targetId = v.messageId ?? messageId
+      if (targetId) {
+        this.ensureAssistantMessage(targetId)
+        this.structuredMessageIds.add(targetId)
+      }
+      return
+    }
+
+    if (chunk.name === 'structured-output.complete' && chunk.value) {
+      const v = chunk.value as {
+        object: unknown
+        raw?: string
+        reasoning?: string
+        messageId?: string
+      }
+      const targetId = v.messageId ?? messageId
+      if (targetId) {
+        this.messages = completeStructuredOutputPart(
+          this.messages,
+          targetId,
+          v.object,
+          v.raw ?? '',
+          v.reasoning,
+        )
+        this.structuredMessageIds.delete(targetId)
+        this.emitMessagesChange()
+      }
+      // Fall through so user `onCustomEvent` callbacks still observe the event.
+    }
 
     // Handle client tool input availability - trigger client-side execution
     if (chunk.name === 'tool-input-available' && chunk.value) {
@@ -1591,6 +1704,27 @@ export class StreamProcessor {
       }
     }
 
+    // The stream closed but one or more structured-output runs never sent
+    // their terminal `structured-output.complete`. Snap each lingering
+    // streaming part to error so the UI doesn't appear to stream forever,
+    // and drop the routing entries so a subsequent run on the same
+    // processor instance (long-lived `subscribe()` mode) doesn't reuse
+    // the stale ids.
+    //
+    // The iteration is unconditional w.r.t. `this.hasError` — RUN_ERROR
+    // already removed its target messageId from `structuredMessageIds`
+    // before reaching finalize, so anything still in the set is by
+    // definition a non-errored, never-completed run (the multi-run case:
+    // run-A errors, run-B is still streaming when finalize fires).
+    for (const messageId of this.structuredMessageIds) {
+      this.messages = errorStructuredOutputPart(
+        this.messages,
+        messageId,
+        'Stream ended without structured-output.complete',
+      )
+    }
+    this.structuredMessageIds.clear()
+
     this.activeMessageIds.clear()
 
     // Remove whitespace-only assistant messages (handles models like Gemini
@@ -1719,6 +1853,7 @@ export class StreamProcessor {
     this.activeMessageIds.clear()
     this.activeRuns.clear()
     this.toolCallToMessage.clear()
+    this.structuredMessageIds.clear()
     this.pendingManualMessageId = null
     this.pendingThinkingStepId = null
     this.finishReason = null

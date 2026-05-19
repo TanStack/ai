@@ -86,7 +86,10 @@ export type UseChatOptions<
 export type UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
-> = BaseUseChatReturn<TTools> &
+> = BaseUseChatReturn<
+  TTools,
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown
+> &
   (TSchema extends SchemaInput
     ? {
         /**
@@ -105,11 +108,16 @@ export type UseChatReturn<
       }
     : Record<never, never>)
 
-interface BaseUseChatReturn<TTools extends ReadonlyArray<AnyClientTool> = any> {
+interface BaseUseChatReturn<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TData = unknown,
+> {
   /**
-   * Current messages in the conversation
+   * Current messages in the conversation. When `outputSchema` is supplied,
+   * `messages[i].parts.find(p => p.type === 'structured-output')` is typed
+   * with the schema's inferred shape — `data: T`, `partial: DeepPartial<T>`.
    */
-  messages: Array<UIMessage<TTools>>
+  messages: Array<UIMessage<TTools, TData>>
 
   /**
    * Send a message and get a response.
@@ -120,7 +128,7 @@ interface BaseUseChatReturn<TTools extends ReadonlyArray<AnyClientTool> = any> {
   /**
    * Append a message to the conversation
    */
-  append: (message: ModelMessage | UIMessage<TTools>) => Promise<void>
+  append: (message: ModelMessage | UIMessage<TTools, TData>) => Promise<void>
 
   /**
    * Add the result of a client-side tool execution
@@ -187,7 +195,7 @@ interface BaseUseChatReturn<TTools extends ReadonlyArray<AnyClientTool> = any> {
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools>>) => void
+  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages

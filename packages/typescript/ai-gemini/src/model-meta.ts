@@ -3,7 +3,6 @@ import type {
   GeminiCommonConfigOptions,
   GeminiSafetyOptions,
   GeminiStructuredOutputOptions,
-  GeminiThinkingAdvancedOptions,
   GeminiThinkingOptions,
   GeminiToolConfigOptions,
 } from './text/text-provider-options'
@@ -81,8 +80,7 @@ const GEMINI_3_1_PRO = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions &
-    GeminiThinkingOptions &
-    GeminiThinkingAdvancedOptions
+    GeminiThinkingOptions
 >
 
 const GEMINI_3_PRO = {
@@ -116,8 +114,7 @@ const GEMINI_3_PRO = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions &
-    GeminiThinkingOptions &
-    GeminiThinkingAdvancedOptions
+    GeminiThinkingOptions
 >
 
 const GEMINI_3_FLASH = {
@@ -151,8 +148,7 @@ const GEMINI_3_FLASH = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions &
-    GeminiThinkingOptions &
-    GeminiThinkingAdvancedOptions
+    GeminiThinkingOptions
 >
 
 const GEMINI_3_PRO_IMAGE = {
@@ -180,8 +176,7 @@ const GEMINI_3_PRO_IMAGE = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions &
-    GeminiThinkingOptions &
-    GeminiThinkingAdvancedOptions
+    GeminiThinkingOptions
 >
 
 const GEMINI_3_1_FLASH_IMAGE = {
@@ -1080,22 +1075,19 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions &
-    GeminiThinkingOptions &
-    GeminiThinkingAdvancedOptions
+    GeminiThinkingOptions
   [GEMINI_3_PRO.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions &
-    GeminiThinkingOptions &
-    GeminiThinkingAdvancedOptions
+    GeminiThinkingOptions
   [GEMINI_3_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
     GeminiStructuredOutputOptions &
-    GeminiThinkingOptions &
-    GeminiThinkingAdvancedOptions
+    GeminiThinkingOptions
   [GEMINI_3_1_FLASH_LITE.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &

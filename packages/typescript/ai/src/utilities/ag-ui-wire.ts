@@ -1,4 +1,4 @@
-import type { ContentPart, MessagePart, TextPart, UIMessage } from '../types'
+import type { ContentPart, MessagePart, UIMessage } from '../types'
 
 type AGUITextInputContent = { type: 'text'; text: string }
 type AGUIInputContent =
@@ -113,10 +113,29 @@ export function uiMessagesToWire(
 }
 
 function collectText(parts: ReadonlyArray<MessagePart>): string {
-  return parts
-    .filter((p): p is TextPart => p.type === 'text')
-    .map((p) => p.content)
-    .join('')
+  // The streamed JSON of a completed structured-output part is the source of
+  // truth for multi-turn coherence — emitting it back as assistant content
+  // lets the LLM see its own prior structured response. Streaming/errored
+  // parts are skipped: they'd ship malformed JSON fragments and confuse the
+  // model. `completeStructuredOutputPart` tries hard to populate `raw`
+  // (caller → existing buffer → `JSON.stringify(data)`), but the stringify
+  // fallback can leave it empty when `data` is unserializable (BigInt,
+  // circular). The `p.raw !== ''` guard below is what enforces "no malformed
+  // round-trip" in that case — without it we'd ship `''` and the model would
+  // see an empty assistant turn.
+  const out: Array<string> = []
+  for (const p of parts) {
+    if (p.type === 'text') {
+      out.push(p.content)
+    } else if (
+      p.type === 'structured-output' &&
+      p.status === 'complete' &&
+      p.raw !== ''
+    ) {
+      out.push(p.raw)
+    }
+  }
+  return out.join('')
 }
 
 function collectUserContent(
