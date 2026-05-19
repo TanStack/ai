@@ -42,10 +42,8 @@ export type GeminiTextInteractionsConfig = GeminiClientConfig
 export type GeminiTextInteractionsProviderOptions =
   ExternalTextInteractionsProviderOptions
 
-type InteractionsInput = NonNullable<Interactions.InteractionCreateParams>
-
 type InteractionsTool = NonNullable<
-  Extract<InteractionsInput, { tools?: any }>['tools']
+  Interactions.CreateModelInteractionParamsStreaming['tools']
 >[number]
 
 type ContentBlock = Interactions.Content
@@ -85,7 +83,11 @@ type GeminiInteractionsRequestBody = Omit<
 
 type ToolCallState = {
   name: string
-  args: string
+  // Accumulated args as a parsed object. Kept here in object form so a
+  // garbled delta can't corrupt previously-merged fragments (the prior
+  // string-then-reparse pipeline replaced the whole accumulator on any
+  // parse failure). Stringified only when emitting AG-UI events.
+  args: Record<string, unknown>
   index: number
   started: boolean
   ended: boolean
@@ -175,19 +177,19 @@ export class GeminiTextInteractionsAdapter<
 
   private client: GoogleGenAI
   // Tracks the most recent server-assigned interaction id per threadId
-  // so that within a single agent-loop run the adapter can chain
-  // iterations: iteration 0 has no prior id, but iteration 1+ (after a
-  // tool call) need to send the id from iteration 0 — the caller has no
-  // opportunity to thread it back between iterations. Entries are
-  // evicted on terminal `RUN_FINISHED` (finishReason !== 'tool_calls')
-  // and on `RUN_ERROR`, on the truncation fallback when the SDK closes
-  // without a terminal event, on thrown errors via the catch handler,
-  // and — via the `chatStream` `finally` block — on consumer abandonment
-  // through `.return()` (upstream `break`/abort). The only path that
-  // keeps an entry is a `RUN_FINISHED(tool_calls)` followed by a normal
-  // generator completion (the immediate-next iteration consumes it).
+  // so the adapter can chain follow-up calls on the same thread without
+  // the caller having to thread the id manually. Two callers rely on
+  // this:
+  //   1. The agent loop's tool-call iterations (each iteration is a new
+  //      `chatStream` call with accumulated tool messages).
+  //   2. The agentic-structured composition: a `chatStream` run followed
+  //      by `structuredOutput` on the accumulated messages.
   // Cross-request chaining is the caller's job via
-  // `modelOptions.previous_interaction_id`.
+  // `modelOptions.previous_interaction_id`. To keep stale ids from
+  // chaining a brand-new turn, `chatStream` evicts at the START when
+  // the caller signals fresh-turn intent (no caller-provided id AND a
+  // single user message — anything else is a follow-up). Errors evict
+  // immediately so a failed turn never chains into the next one.
   private interactionIdByThread = new Map<string, string>()
 
   constructor(config: GeminiTextInteractionsConfig, model: TModel) {
@@ -202,6 +204,19 @@ export class GeminiTextInteractionsAdapter<
     const threadId = options.threadId ?? generateId(this.name)
     const timestamp = Date.now()
     const { logger } = options
+
+    // Fresh-turn intent: caller didn't thread an id AND only a single
+    // user message is queued. Drop any stale captured id so we don't
+    // silently chain off a prior turn the caller doesn't know about.
+    // Multi-message inputs are follow-ups (agent-loop iteration or
+    // structuredOutput composition) and keep the Map entry.
+    if (
+      !options.modelOptions?.previous_interaction_id &&
+      options.messages.length === 1 &&
+      options.messages[0]?.role === 'user'
+    ) {
+      this.interactionIdByThread.delete(threadId)
+    }
 
     // Resolve `previous_interaction_id`. Caller-provided wins; otherwise
     // fall back to the id we captured during a prior iteration of this
@@ -271,13 +286,10 @@ export class GeminiTextInteractionsAdapter<
         }
         if (chunk.type === EventType.RUN_FINISHED) {
           sawTerminalEvent = true
-          // Evict on a natural turn boundary. `tool_calls` means the
-          // agent loop will iterate again on the same threadId and we
-          // need the captured id; any other finishReason is the end of
-          // this turn so the chain is done.
-          if (chunk.finishReason !== 'tool_calls') {
-            this.interactionIdByThread.delete(threadId)
-          }
+          // Keep the captured id for follow-ups (next agent-loop
+          // iteration OR a structuredOutput call composing this turn).
+          // The next *fresh* chatStream call evicts at the top via the
+          // fresh-turn guard.
         } else if (chunk.type === EventType.RUN_ERROR) {
           sawTerminalEvent = true
           this.interactionIdByThread.delete(threadId)
@@ -327,16 +339,13 @@ export class GeminiTextInteractionsAdapter<
         error: { message },
       }
     } finally {
-      // Cleanup for any path that didn't reach the bottom of the `try`:
-      //   - consumer `.return()` on the generator (upstream `break`/abort)
-      //     never throws into the catch and never reaches the truncation
-      //     guard, so this is the only path that evicts.
-      //   - The catch handler also lands here with `completedTryBlock`
-      //     false; the explicit delete it ran is harmless to repeat.
-      // Critically, this also covers `.return()` AFTER a
-      // RUN_FINISHED(tool_calls) — `sawTerminalEvent` is `true` in that
-      // case but the in-loop intentionally kept the map entry for an
-      // agent-loop iteration that will now never run, so we evict here.
+      // Abandonment cleanup — consumer `.return()` (upstream `break` /
+      // abort) bypasses both the truncation guard and the catch handler.
+      // `completedTryBlock` is the sentinel that distinguishes natural
+      // completion from abandonment; on abandonment we evict so a stale
+      // id from a half-finished turn can't chain into a follow-up. The
+      // catch handler also lands here with the flag false; its explicit
+      // delete is harmless to repeat.
       if (!completedTryBlock) {
         this.interactionIdByThread.delete(threadId)
       }
@@ -961,28 +970,13 @@ async function* translateInteractionEvents(
     for (const [toolCallId, state] of toolCalls) {
       if (state.ended) continue
       state.ended = true
-      let parsedInput: unknown = {}
-      try {
-        const parsed = JSON.parse(state.args)
-        parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-      } catch (error) {
-        logger.errors(
-          'gemini-text-interactions.translateInteractionEvents TOOL_CALL_END parse failed',
-          {
-            error,
-            toolCallId,
-            args: state.args,
-            source: 'gemini-text-interactions.chatStream',
-          },
-        )
-      }
       yield {
         type: EventType.TOOL_CALL_END,
         toolCallId,
         toolName: state.name,
         model,
         timestamp,
-        input: parsedInput,
+        input: state.args,
       }
     }
     if (hasEmittedTextMessageStart) {
@@ -1063,36 +1057,14 @@ async function* translateInteractionEvents(
             if (!state) {
               state = {
                 name: delta.name,
-                args: JSON.stringify(deltaArgs),
+                args: { ...deltaArgs },
                 index: nextToolIndex++,
                 started: false,
                 ended: false,
               }
               toolCalls.set(toolCallId, state)
             } else {
-              // Merge incremental fragments at the object level. We
-              // keep `state.args` as a stringified JSON because that's
-              // the shape AG-UI's `TOOL_CALL_ARGS.args` exposes; we
-              // re-parse on each delta to merge then re-stringify.
-              try {
-                const existing = JSON.parse(state.args)
-                state.args = JSON.stringify({
-                  ...(existing && typeof existing === 'object' ? existing : {}),
-                  ...deltaArgs,
-                })
-              } catch (error) {
-                logger.errors(
-                  'gemini-text-interactions.translateInteractionEvents tool args merge failed',
-                  {
-                    error,
-                    toolCallId,
-                    existingArgs: state.args,
-                    deltaArgs,
-                    source: 'gemini-text-interactions.chatStream',
-                  },
-                )
-                state.args = JSON.stringify(deltaArgs)
-              }
+              state.args = { ...state.args, ...deltaArgs }
               if (delta.name) state.name = delta.name
             }
             if (!state.started) {
@@ -1113,7 +1085,7 @@ async function* translateInteractionEvents(
               model,
               timestamp,
               delta: JSON.stringify(deltaArgs),
-              args: state.args,
+              args: JSON.stringify(state.args),
             }
             break
           }
@@ -1367,6 +1339,12 @@ async function* translateInteractionEvents(
         break
     }
   }
+
+  // Stream ended without `interaction.complete` or `error` (both `return`
+  // out of the loop). Seal any in-flight TEXT/TOOL/REASONING blocks here
+  // so the truncation-fallback RUN_ERROR yielded by `chatStream` doesn't
+  // leave orphan `*_START` events open downstream.
+  yield* closeOpenState()
 }
 
 function extractTextFromInteraction(interaction: Interaction): string {

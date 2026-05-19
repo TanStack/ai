@@ -829,4 +829,512 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(structuredPayload.response_format).toBeDefined()
     expect(structuredPayload.stream).toBeUndefined()
   })
+
+  // ===========================
+  // interactionId map lifecycle
+  // ===========================
+  //
+  // The adapter keeps a `Map<threadId, interactionId>` so multi-iteration
+  // agent loops within one chatStream invocation, and the agentic-structured
+  // composition (chatStream → structuredOutput), can chain via the
+  // server-assigned id without the caller threading it. The tests below
+  // pin the eviction policy: stale entries on the same threadId have
+  // bitten this adapter before (see recent fixes to abandonment and the
+  // tool_calls boundary in the commit log). Each test makes a second
+  // `chat()` call on the same threadId and asserts the second outgoing
+  // payload's `previous_interaction_id` — the only externally observable
+  // signal of the Map's state.
+
+  it('preserves the captured interactionId across iterations after RUN_FINISHED(tool_calls)', async () => {
+    // First call: ends with tool_calls. Map MUST retain the id so the
+    // next iteration on the same threadId can chain.
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_tool_chain', status: 'in_progress' },
+        },
+        {
+          event_type: 'content.delta',
+          index: 0,
+          delta: {
+            type: 'function_call',
+            id: 'call_x',
+            name: 'lookup',
+            arguments: { q: 'madrid' },
+          },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: {
+            id: 'int_tool_chain',
+            status: 'requires_action',
+          },
+        },
+      ]),
+    )
+    // Second call: same threadId, no caller-provided previous_interaction_id.
+    // Must carry the id from the first call.
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_after_tool', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_after_tool', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_chain',
+        messages: [{ role: 'user', content: 'Weather?' }],
+        tools: [{ name: 'lookup', description: 'lookup' }],
+      }),
+    )
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_chain',
+        messages: [
+          { role: 'user', content: 'Weather?' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_x',
+                type: 'function',
+                function: { name: 'lookup', arguments: '{"q":"madrid"}' },
+              },
+            ],
+          },
+          { role: 'tool', toolCallId: 'call_x', content: '{"tempC":22}' },
+        ],
+      }),
+    )
+
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    expect(secondPayload.previous_interaction_id).toBe('int_tool_chain')
+  })
+
+  it('evicts the captured interactionId after a terminal RUN_FINISHED(stop)', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_done', status: 'in_progress' },
+        },
+        {
+          event_type: 'content.delta',
+          index: 0,
+          delta: { type: 'text', text: 'done' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_done', status: 'completed' },
+        },
+      ]),
+    )
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_fresh', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_fresh', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_stop',
+        messages: [{ role: 'user', content: 'Hello' }],
+      }),
+    )
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_stop',
+        messages: [{ role: 'user', content: 'Hello again' }],
+      }),
+    )
+
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    expect(secondPayload.previous_interaction_id).toBeUndefined()
+  })
+
+  it('evicts the captured interactionId after RUN_ERROR from an upstream error event', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_err', status: 'in_progress' },
+        },
+        { event_type: 'error', error: { code: 500, message: 'boom' } },
+      ]),
+    )
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_recovery', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_recovery', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_err',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    )
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_err',
+        messages: [{ role: 'user', content: 'Try again' }],
+      }),
+    )
+
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    expect(secondPayload.previous_interaction_id).toBeUndefined()
+  })
+
+  it('evicts on truncation (SDK stream ends without interaction.complete or error) and seals open AG-UI state', async () => {
+    // Mid-stream text + function_call deltas, then the SDK stream just
+    // ends with no terminal event. The truncation fallback in chatStream
+    // must yield a synthetic RUN_ERROR AND closeOpenState must seal the
+    // open TEXT_MESSAGE_START / TOOL_CALL_START so downstream consumers
+    // don't see orphaned `*_START` events without matching `*_END`.
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_trunc', status: 'in_progress' },
+        },
+        {
+          event_type: 'content.delta',
+          index: 0,
+          delta: { type: 'text', text: 'partial' },
+        },
+        {
+          event_type: 'content.delta',
+          index: 0,
+          delta: {
+            type: 'function_call',
+            id: 'call_trunc',
+            name: 'lookup',
+            arguments: { q: 'x' },
+          },
+        },
+        // (no interaction.complete, no error)
+      ]),
+    )
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_after_trunc', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_after_trunc', status: 'completed' },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    const truncatedChunks = await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_trunc',
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [{ name: 'lookup', description: 'lookup' }],
+      }),
+    )
+
+    // Truncation surfaces as RUN_ERROR rather than silently leaving
+    // downstream waiting on a RUN_FINISHED that never arrives.
+    const truncError = truncatedChunks.find(
+      (c) => c.type === 'RUN_ERROR',
+    ) as any
+    expect(truncError).toBeDefined()
+    expect(truncError.message).toMatch(/without a terminal event/i)
+
+    // Open TEXT_MESSAGE_START / TOOL_CALL_START must be sealed before
+    // the RUN_ERROR so the StreamProcessor sees a balanced event stream.
+    const types = truncatedChunks.map((c) => c.type)
+    const textStart = types.indexOf('TEXT_MESSAGE_START')
+    const textEnd = types.indexOf('TEXT_MESSAGE_END')
+    expect(textStart).toBeGreaterThanOrEqual(0)
+    expect(textEnd).toBeGreaterThan(textStart)
+    const toolStart = types.indexOf('TOOL_CALL_START')
+    const toolEnd = types.indexOf('TOOL_CALL_END')
+    expect(toolStart).toBeGreaterThanOrEqual(0)
+    expect(toolEnd).toBeGreaterThan(toolStart)
+    const runError = types.indexOf('RUN_ERROR')
+    expect(textEnd).toBeLessThan(runError)
+    expect(toolEnd).toBeLessThan(runError)
+
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_trunc',
+        messages: [{ role: 'user', content: 'Try again' }],
+      }),
+    )
+
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    expect(secondPayload.previous_interaction_id).toBeUndefined()
+  })
+
+  it('evicts on consumer abandonment via generator .return() (upstream break)', async () => {
+    // The consumer stops iterating mid-stream BEFORE any terminal event.
+    // The chatStream `finally` block must evict, otherwise a follow-up
+    // call on the same threadId would silently inherit a stale id from
+    // a transcript the server never finished.
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_abandon', status: 'in_progress' },
+        },
+        {
+          event_type: 'content.delta',
+          index: 0,
+          delta: { type: 'text', text: 'first chunk' },
+        },
+        // (never reached — consumer breaks before this)
+        {
+          event_type: 'interaction.complete',
+          interaction: { id: 'int_abandon', status: 'completed' },
+        },
+      ]),
+    )
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_fresh_after_abandon', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: {
+            id: 'int_fresh_after_abandon',
+            status: 'completed',
+          },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    const stream = chat({
+      adapter,
+      threadId: 'thread_abandon',
+      messages: [{ role: 'user', content: 'Hi' }],
+    })
+    for await (const chunk of stream) {
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') break
+    }
+
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_abandon',
+        messages: [{ role: 'user', content: 'Try again' }],
+      }),
+    )
+
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    expect(secondPayload.previous_interaction_id).toBeUndefined()
+  })
+
+  it('structuredOutput chains via the captured interactionId after a multi-turn chatStream', async () => {
+    // Regression for the agentic-structured composition: chat() runs
+    // a tool-using chatStream first, then calls structuredOutput with
+    // the accumulated multi-turn messages. Without the captured id
+    // surviving across the two calls, convertMessagesToInteractionsInput
+    // would throw "cannot send prior conversation history on a fresh
+    // interaction" on the structuredOutput call.
+    //
+    // Three mocked calls:
+    //   1. Seed: a fresh single-user turn that captures `int_seed`.
+    //   2. chatStream multi-turn iteration: must chain off `int_seed`,
+    //      captures `int_iter`.
+    //   3. structuredOutput (non-streaming): must chain off `int_iter`.
+    mocks.interactionsCreateSpy
+      .mockResolvedValueOnce(
+        mkStream([
+          {
+            event_type: 'interaction.start',
+            interaction: { id: 'int_seed', status: 'in_progress' },
+          },
+          {
+            event_type: 'interaction.complete',
+            interaction: { id: 'int_seed', status: 'completed' },
+          },
+        ]),
+      )
+      // chatStream multi-turn iteration: must chain off id_seed.
+      .mockResolvedValueOnce(
+        mkStream([
+          {
+            event_type: 'interaction.start',
+            interaction: { id: 'int_iter', status: 'in_progress' },
+          },
+          {
+            event_type: 'content.delta',
+            index: 0,
+            delta: { type: 'text', text: 'ok' },
+          },
+          {
+            event_type: 'interaction.complete',
+            interaction: { id: 'int_iter', status: 'completed' },
+          },
+        ]),
+      )
+      // structuredOutput (non-streaming): must chain off id_iter.
+      .mockResolvedValueOnce({
+        id: 'int_struct',
+        status: 'completed',
+        outputs: [{ type: 'text', text: '{"answer":"42"}' }],
+      })
+
+    const adapter = createAdapter()
+    const messagesAfterToolLoop: Parameters<typeof chat>[0]['messages'] = [
+      { role: 'user', content: 'Compute the answer.' },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'call_compute',
+            type: 'function',
+            function: { name: 'compute', arguments: '{}' },
+          },
+        ],
+      },
+      { role: 'tool', toolCallId: 'call_compute', content: '42' },
+    ]
+
+    // Seed call: a fresh single-user turn on the same thread to capture
+    // an id in the Map.
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_agentic',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    )
+    // Compose: chatStream + structuredOutput on the same threadId,
+    // multi-turn messages, no caller-provided previous_interaction_id.
+    const result = await chat({
+      adapter,
+      threadId: 'thread_agentic',
+      messages: messagesAfterToolLoop,
+      outputSchema: z.object({ answer: z.string() }),
+    })
+
+    expect(result).toEqual({ answer: '42' })
+    // Iteration call must chain off the seeded id.
+    const iterPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    expect(iterPayload.previous_interaction_id).toBe('int_seed')
+    // structuredOutput must chain off the iteration's id.
+    const structuredPayload = mocks.interactionsCreateSpy.mock.calls[2][0]
+    expect(structuredPayload.previous_interaction_id).toBe('int_iter')
+    expect(structuredPayload.response_mime_type).toBe('application/json')
+  })
+
+  it('evicts on consumer abandonment AFTER RUN_FINISHED(tool_calls) — the tool-iteration that never happens', async () => {
+    // Specifically guards against the regression from commit efc9394f:
+    // a RUN_FINISHED(tool_calls) sets `sawTerminalEvent = true` and the
+    // in-loop deliberately keeps the entry for the next iteration. If
+    // the consumer then abandons (no next iteration), the finally block
+    // must still evict — otherwise the entry leaks indefinitely.
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: { id: 'int_tool_abandon', status: 'in_progress' },
+        },
+        {
+          event_type: 'content.delta',
+          index: 0,
+          delta: {
+            type: 'function_call',
+            id: 'call_y',
+            name: 'lookup',
+            arguments: { q: 'x' },
+          },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: {
+            id: 'int_tool_abandon',
+            status: 'requires_action',
+          },
+        },
+      ]),
+    )
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      mkStream([
+        {
+          event_type: 'interaction.start',
+          interaction: {
+            id: 'int_recovery_after_tool_abandon',
+            status: 'in_progress',
+          },
+        },
+        {
+          event_type: 'interaction.complete',
+          interaction: {
+            id: 'int_recovery_after_tool_abandon',
+            status: 'completed',
+          },
+        },
+      ]),
+    )
+
+    const adapter = createAdapter()
+    const stream = chat({
+      adapter,
+      threadId: 'thread_tool_abandon',
+      messages: [{ role: 'user', content: 'Weather?' }],
+      tools: [{ name: 'lookup', description: 'lookup' }],
+    })
+    for await (const chunk of stream) {
+      // Abandon right after the run finishes with tool_calls — exactly
+      // the spot where `sawTerminalEvent` is `true` but the entry was
+      // intentionally retained.
+      if (chunk.type === 'RUN_FINISHED') break
+    }
+
+    await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread_tool_abandon',
+        messages: [{ role: 'user', content: 'Different question' }],
+      }),
+    )
+
+    const secondPayload = mocks.interactionsCreateSpy.mock.calls[1][0]
+    expect(secondPayload.previous_interaction_id).toBeUndefined()
+  })
 })
