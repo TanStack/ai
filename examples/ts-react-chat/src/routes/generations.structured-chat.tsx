@@ -186,11 +186,13 @@ function RecipeCard({ part }: { part: StructuredOutputPart }) {
           <span className="inline-block w-2 h-2 mt-2 rounded-full bg-orange-400 animate-pulse" />
         )}
       </div>
-      {(recipe.cuisine || recipe.servings || recipe.estimatedCostUsd) && (
+      {(recipe.cuisine ||
+        recipe.servings ||
+        recipe.estimatedCostUsd !== undefined) && (
         <p className="text-xs text-gray-400 mt-1">
           {recipe.cuisine}
           {recipe.servings ? ` · serves ${recipe.servings}` : ''}
-          {recipe.estimatedCostUsd
+          {recipe.estimatedCostUsd !== undefined
             ? ` · ~$${recipe.estimatedCostUsd.toFixed(2)}`
             : ''}
         </p>

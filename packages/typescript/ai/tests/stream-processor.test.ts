@@ -3551,6 +3551,40 @@ describe('StreamProcessor', () => {
       expect(sop?.data).toEqual({ name: 'A' })
     })
 
+    it('reconciles cumulative TEXT_MESSAGE_CONTENT against existing raw without duplication', () => {
+      // Some adapters emit `content` (cumulative buffer) instead of `delta`.
+      // The structured branch must dedup it against the part's existing raw,
+      // otherwise we'd append the whole buffer each time and corrupt the JSON.
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TEXT_MESSAGE_CONTENT, {
+          messageId: 'msg-1',
+          content: '{"name":',
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TEXT_MESSAGE_CONTENT, {
+          messageId: 'msg-1',
+          content: '{"name":"Alice"}',
+        }),
+      )
+
+      const sop = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')!
+        .parts.find((p) => p.type === 'structured-output') as any
+      expect(sop.raw).toBe('{"name":"Alice"}')
+    })
+
     it('clears structuredMessageIds for messages dropped by removeMessagesAfter (reload)', () => {
       // Reload removes the last assistant message and re-streams from the
       // last user message. If the dropped assistant's routing entry lingers

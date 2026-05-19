@@ -158,6 +158,26 @@ export function ChatUI({
                   </div>
                 )
               }
+              if (part.type === 'structured-output') {
+                // Render the streamed JSON so the assistant message has
+                // visible content for selectors (e.g. `getLastAssistantMessage`).
+                // Previously this content arrived as a `text` part — the new
+                // routing puts it on a `structured-output` part instead.
+                const sop = part as any
+                const text =
+                  sop.raw ||
+                  (sop.data !== undefined ? JSON.stringify(sop.data) : '')
+                if (text === '') return null
+                return (
+                  <div
+                    key={i}
+                    data-testid="structured-output-part"
+                    className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap break-words"
+                  >
+                    {text}
+                  </div>
+                )
+              }
               return null
             })}
           </div>

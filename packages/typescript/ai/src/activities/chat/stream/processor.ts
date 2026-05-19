@@ -855,11 +855,28 @@ export class StreamProcessor {
     this.completeAllToolCallsForMessage(messageId)
 
     if (this.structuredMessageIds.has(messageId)) {
-      const delta =
-        chunk.delta ||
-        (chunk.content !== undefined && chunk.content !== ''
-          ? chunk.content
-          : '')
+      // `chunk.delta` is incremental; `chunk.content` is sometimes cumulative
+      // (mirrors what the plain-text branch handles below). Reconcile against
+      // the existing raw buffer so adapters that emit cumulative content
+      // don't duplicate the JSON.
+      let delta = chunk.delta || ''
+      if (delta === '' && chunk.content !== undefined && chunk.content !== '') {
+        const existingRaw = (
+          this.messages
+            .find((m) => m.id === messageId)
+            ?.parts.find(
+              (p): p is Extract<MessagePart, { type: 'structured-output' }> =>
+                p.type === 'structured-output',
+            ) ?? { raw: '' }
+        ).raw
+        if (chunk.content.startsWith(existingRaw)) {
+          delta = chunk.content.slice(existingRaw.length)
+        } else if (existingRaw.startsWith(chunk.content)) {
+          delta = ''
+        } else {
+          delta = chunk.content
+        }
+      }
       if (delta !== '') {
         this.messages = appendStructuredOutputDelta(
           this.messages,
