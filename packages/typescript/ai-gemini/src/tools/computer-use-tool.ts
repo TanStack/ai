@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type { ComputerUse } from '@google/genai'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
@@ -21,13 +22,12 @@ export function convertComputerUseToolToAdapterFormat(tool: Tool) {
 export function computerUseTool(
   config: ComputerUseToolConfig,
 ): GeminiComputerUseTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<GeminiComputerUseTool>({
     name: 'computer_use',
     description: '',
     metadata: {
       environment: config.environment,
       excludedPredefinedFunctions: config.excludedPredefinedFunctions,
     },
-  } as unknown as GeminiComputerUseTool
+  })
 }

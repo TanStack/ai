@@ -23,3 +23,17 @@ export interface ProviderTool<
   readonly '~provider': TProvider
   readonly '~toolKind': TKind
 }
+
+/**
+ * Attach the `ProviderTool` phantom brand to a plain `Tool`-shaped object.
+ *
+ * The brand fields (`'~provider'`, `'~toolKind'`) exist only in the type
+ * system and are never assigned at runtime, so this is a single audited
+ * type-only assertion. Use it inside adapter `xxxTool()` factories instead
+ * of `as unknown as` — the cast collapses to one named site.
+ */
+export function brandProviderTool<T extends ProviderTool<string, string>>(
+  tool: Omit<T, '~provider' | '~toolKind'>,
+): T {
+  return tool as T
+}

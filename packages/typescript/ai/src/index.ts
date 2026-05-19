@@ -69,6 +69,7 @@ export { ToolCallManager } from './activities/chat/tools/tool-calls'
 
 // Provider tool type
 export type { ProviderTool } from './tools/provider-tool'
+export { brandProviderTool } from './tools/provider-tool'
 
 // Agent loop strategies
 export {

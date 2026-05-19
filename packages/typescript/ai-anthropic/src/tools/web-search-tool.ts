@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type { WebSearchTool20250305 } from '@anthropic-ai/sdk/resources/messages'
 import type { CacheControl } from '../text/text-provider-options'
 import type { ProviderTool, Tool } from '@tanstack/ai'
@@ -82,10 +83,9 @@ export function webSearchTool(
 ): AnthropicWebSearchTool {
   validateDomains(config)
   validateUserLocation(config)
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<AnthropicWebSearchTool>({
     name: 'web_search',
     description: '',
     metadata: config,
-  } as unknown as AnthropicWebSearchTool
+  })
 }

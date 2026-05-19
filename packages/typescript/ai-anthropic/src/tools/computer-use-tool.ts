@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type {
   BetaToolComputerUse20241022,
   BetaToolComputerUse20250124,
@@ -23,10 +24,9 @@ export function convertComputerUseToolToAdapterFormat(
 export function computerUseTool(
   config: ComputerUseToolConfig,
 ): AnthropicComputerUseTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<AnthropicComputerUseTool>({
     name: 'computer',
     description: '',
     metadata: config,
-  } as unknown as AnthropicComputerUseTool
+  })
 }

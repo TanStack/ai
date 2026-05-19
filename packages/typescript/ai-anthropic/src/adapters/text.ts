@@ -21,10 +21,12 @@ import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   Base64ImageSource,
   Base64PDFSource,
+  ContentBlockParam,
   DocumentBlockParam,
   ImageBlockParam,
-  MessageParam,
   TextBlockParam,
+  ThinkingBlockParam,
+  ToolUseBlockParam,
   URLImageSource,
   URLPDFSource,
 } from '@anthropic-ai/sdk/resources/messages'
@@ -59,13 +61,6 @@ export interface AnthropicTextConfig extends AnthropicClientConfig {}
  * Anthropic-specific provider options for text/chat
  */
 export type AnthropicTextProviderOptions = ExternalTextProviderOptions
-
-type AnthropicContentBlocks =
-  Extract<MessageParam['content'], Array<unknown>> extends Array<infer Block>
-    ? Array<Block>
-    : never
-type AnthropicContentBlock =
-  AnthropicContentBlocks extends Array<infer Block> ? Block : never
 
 // ===========================
 // Type Resolution Helpers
@@ -478,14 +473,14 @@ export class AnthropicTextAdapter<
       }
 
       if (role === 'assistant' && message.toolCalls?.length) {
-        const contentBlocks: AnthropicContentBlocks = []
+        const contentBlocks: Array<ContentBlockParam> = []
 
         this.appendThinkingBlocks(contentBlocks, message.thinking)
 
         if (message.content) {
           const content =
             typeof message.content === 'string' ? message.content : ''
-          const textBlock: AnthropicContentBlock = {
+          const textBlock: TextBlockParam = {
             type: 'text',
             text: content,
           }
@@ -503,7 +498,7 @@ export class AnthropicTextAdapter<
             parsedInput = toolCall.function.arguments
           }
 
-          const toolUseBlock: AnthropicContentBlock = {
+          const toolUseBlock: ToolUseBlockParam = {
             type: 'tool_use',
             id: toolCall.id,
             name: toolCall.function.name,
@@ -521,7 +516,7 @@ export class AnthropicTextAdapter<
       }
 
       if (role === 'assistant') {
-        const contentBlocks: AnthropicContentBlocks = []
+        const contentBlocks: Array<ContentBlockParam> = []
         this.appendThinkingBlocks(contentBlocks, message.thinking)
 
         if (Array.isArray(message.content)) {
@@ -573,18 +568,19 @@ export class AnthropicTextAdapter<
   }
 
   private appendThinkingBlocks(
-    contentBlocks: AnthropicContentBlocks,
+    contentBlocks: Array<ContentBlockParam>,
     thinkingParts: ModelMessage['thinking'],
   ): void {
     if (!thinkingParts?.length) return
 
     for (const thinking of thinkingParts) {
       if (!thinking.signature) continue
-      contentBlocks.push({
+      const block: ThinkingBlockParam = {
         type: 'thinking',
         thinking: thinking.content,
         signature: thinking.signature,
-      } as unknown as AnthropicContentBlock)
+      }
+      contentBlocks.push(block)
     }
   }
 
