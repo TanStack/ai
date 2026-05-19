@@ -2,7 +2,21 @@ import { createFileRoute } from '@tanstack/react-router'
 import { generateAudio, toHttpResponse } from '@tanstack/ai'
 import { createAudioAdapter } from '@/lib/media-providers'
 import type { ElevenLabsAudioModel } from '@tanstack/ai-elevenlabs'
-import type { Provider } from '@/lib/types'
+import type { Feature, Provider } from '@/lib/types'
+
+// Map ElevenLabs audio model name → feature so the createAudioAdapter
+// factory picks the right model variant. Music vs sound-effects diverge
+// only in which `music_v1` / `eleven_text_to_sound_v*` model the
+// elevenlabs branch hardcodes.
+function modelToFeature(model: ElevenLabsAudioModel | undefined): Feature {
+  if (
+    model === 'eleven_text_to_sound_v1' ||
+    model === 'eleven_text_to_sound_v2'
+  ) {
+    return 'sound-effects'
+  }
+  return 'audio-gen'
+}
 
 export const Route = createFileRoute('/api/audio/stream')({
   server: {
@@ -22,7 +36,12 @@ export const Route = createFileRoute('/api/audio/stream')({
             aimockPort?: number
           }
 
-        const adapter = createAudioAdapter(provider, aimockPort, testId, model)
+        const adapter = createAudioAdapter(
+          provider,
+          aimockPort,
+          testId,
+          modelToFeature(model),
+        )
 
         try {
           const stream = generateAudio({

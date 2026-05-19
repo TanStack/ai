@@ -1,3 +1,4 @@
+import { EventType } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   createGeminiClient,
@@ -5,7 +6,11 @@ import {
   getGeminiApiKeyFromEnv,
 } from '../../utils'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { GeminiModels } from '../../model-meta'
+import type {
+  GeminiChatModelToolCapabilitiesByName,
+  GeminiModelInputModalitiesByName,
+  GeminiModels,
+} from '../../model-meta'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -13,12 +18,18 @@ import type {
 import type { GoogleGenAI, Interactions } from '@google/genai'
 import type {
   ContentPart,
+  Modality,
   ModelMessage,
   StreamChunk,
   TextOptions,
   Tool,
 } from '@tanstack/ai'
 
+import type {
+  GeminiInteractionsCustomEvent,
+  GeminiInteractionsCustomEventValue,
+  GeminiInteractionsStream,
+} from './events'
 import type { ExternalTextInteractionsProviderOptions } from './provider-options'
 import type { GeminiMessageMetadataByModality } from '../../message-types'
 import type { GeminiClientConfig } from '../../utils'
@@ -26,12 +37,7 @@ import type { GeminiClientConfig } from '../../utils'
 type Interaction = Interactions.Interaction
 type InteractionSSEEvent = Interactions.InteractionSSEEvent
 
-/** Cast an event object to StreamChunk. Adapters construct events with string
- *  literal types which are structurally compatible with the EventType enum. */
-const asChunk = (chunk: Record<string, unknown>) =>
-  chunk as unknown as StreamChunk
-
-export interface GeminiTextInteractionsConfig extends GeminiClientConfig {}
+export type GeminiTextInteractionsConfig = GeminiClientConfig
 
 export type GeminiTextInteractionsProviderOptions =
   ExternalTextInteractionsProviderOptions
@@ -64,6 +70,19 @@ type FunctionResultStep = {
 type InteractionsStep = UserInputStep | FunctionResultStep
 type InteractionsRequestInput = Array<InteractionsStep>
 
+// Concrete wire shape we send to `client.interactions.create`. The SDK's
+// own param union types `input` as `string | Content[] | Turn[] | ...`
+// which is wrong for the live API (see the InteractionsRequestInput
+// comment above), so we type `input` ourselves and cast just once at the
+// SDK boundary instead of casting every field through.
+type GeminiInteractionsRequestBody = Omit<
+  Interactions.CreateModelInteractionParamsStreaming,
+  'input' | 'stream'
+> & {
+  input: InteractionsRequestInput
+  stream?: boolean
+}
+
 type ToolCallState = {
   name: string
   args: string
@@ -71,6 +90,43 @@ type ToolCallState = {
   started: boolean
   ended: boolean
 }
+
+// ===========================
+// Type Resolution Helpers
+// ===========================
+
+/**
+ * Resolve provider options for a specific model. The Interactions API's
+ * request shape is the same across all chat-capable Gemini models — the
+ * SDK doesn't expose a per-model param union — so this currently falls
+ * through to the flat `GeminiTextInteractionsProviderOptions` for every
+ * model. The alias exists for parity with `GeminiTextAdapter`, so a
+ * per-model map can be slotted in later without changing the adapter
+ * signature.
+ */
+type ResolveProviderOptions = GeminiTextInteractionsProviderOptions
+
+/**
+ * Resolve input modalities for a specific model. Reuses the chat-model
+ * modality map from `model-meta.ts`: passing a `document` content block
+ * to a model that doesn't support it is a compile error, matching the
+ * sibling `GeminiTextAdapter`.
+ */
+type ResolveInputModalities<TModel extends string> =
+  TModel extends keyof GeminiModelInputModalitiesByName
+    ? GeminiModelInputModalitiesByName[TModel]
+    : readonly ['text', 'image', 'audio', 'video', 'document']
+
+/**
+ * Resolve tool capabilities for a specific model. Reuses the chat-model
+ * capability map: `google_maps` / `google_search_retrieval` /
+ * `mcp_server` are rejected at runtime by `convertToolsToInteractionsFormat`,
+ * but per-model gating happens here at compile time.
+ */
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof GeminiChatModelToolCapabilitiesByName
+    ? NonNullable<GeminiChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
 
 /**
  * Tree-shakeable adapter for Gemini's stateful Interactions API. Routes
@@ -88,34 +144,45 @@ type ToolCallState = {
  *
  * Supports user-defined function tools and the built-in tools
  * `google_search`, `code_execution`, `url_context`, `file_search`, and
- * `computer_use`. Built-in tool activity is surfaced via `CUSTOM` events
- * named `gemini.googleSearchCall`/`gemini.googleSearchResult` (and the
- * corresponding per-tool variants) carrying the raw Interactions delta.
- * `google_search_retrieval`, `google_maps`, and `mcp_server` are not
- * supported on this adapter.
+ * `computer_use`. Built-in tool *activity* for the four search/exec
+ * variants is surfaced via `CUSTOM` events
+ * (`gemini.googleSearchCall` / `gemini.googleSearchResult` and the
+ * corresponding per-tool variants) carrying the raw Interactions delta;
+ * see {@link GeminiInteractionsCustomEvent}. `computer_use` is accepted
+ * in the request but the Interactions API does not currently stream
+ * per-delta CUSTOM events for it. `google_search_retrieval`,
+ * `google_maps`, and `mcp_server` are not supported on this adapter.
  *
  * @experimental Interactions API is in Beta per Google; shapes may change.
  * @see https://ai.google.dev/gemini-api/docs/interactions
  */
 export class GeminiTextInteractionsAdapter<
   TModel extends GeminiModels,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions,
+  TInputModalities extends
+    ReadonlyArray<Modality> = ResolveInputModalities<TModel>,
+  TToolCapabilities extends
+    ReadonlyArray<string> = ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
-  GeminiTextInteractionsProviderOptions,
-  readonly ['text', 'image', 'audio', 'video', 'document'],
-  GeminiMessageMetadataByModality
+  TProviderOptions,
+  TInputModalities,
+  GeminiMessageMetadataByModality,
+  TToolCapabilities
 > {
   readonly kind = 'text' as const
   readonly name = 'gemini-text-interactions' as const
 
   private client: GoogleGenAI
   // Tracks the most recent server-assigned interaction id per threadId
-  // so that within a single `chat()` call the agent loop can chain
-  // itself: iteration 0 has no prior id, but iteration 1+ (after a
-  // tool call) need to send the id from iteration 0 — the caller has
-  // no opportunity to thread it back between iterations of the same
-  // request. Cross-request chaining is still the caller's job via
-  // `modelOptions.previous_interaction_id`.
+  // so that within a single agent-loop run the adapter can chain
+  // iterations: iteration 0 has no prior id, but iteration 1+ (after a
+  // tool call) need to send the id from iteration 0 — the caller has no
+  // opportunity to thread it back between iterations. We evict entries
+  // on terminal `RUN_FINISHED` (finishReason !== 'tool_calls') and on
+  // `RUN_ERROR` so a stale id from an aborted/errored turn cannot leak
+  // into the next turn on the same threadId. Cross-request chaining is
+  // still the caller's job via `modelOptions.previous_interaction_id`.
   private interactionIdByThread = new Map<string, string>()
 
   constructor(config: GeminiTextInteractionsConfig, model: TModel) {
@@ -154,16 +221,15 @@ export class GeminiTextInteractionsAdapter<
           request,
         },
       )
-      // Cast: SDK types `input` as `string | Content[] | Turn[] | ...` but
-      // the live API actually requires `Step[]`. See the
-      // `InteractionsRequestInput` type above for the explanation.
-      const stream = await this.client.interactions.create({
-        ...request,
-        stream: true,
-      } as Parameters<typeof this.client.interactions.create>[0])
+      const stream = (await this.client.interactions.create(
+        { ...request, stream: true } as GeminiInteractionsRequestBody &
+          Parameters<typeof this.client.interactions.create>[0],
+        { signal: options.abortController?.signal },
+      )) as AsyncIterable<InteractionSSEEvent>
 
+      let sawTerminalEvent = false
       for await (const chunk of translateInteractionEvents(
-        stream as AsyncIterable<InteractionSSEEvent>,
+        stream,
         options.model,
         runId,
         threadId,
@@ -176,18 +242,60 @@ export class GeminiTextInteractionsAdapter<
         // iteration on this thread can chain off it. The CUSTOM event
         // is also yielded downstream as usual — callers consume it via
         // `onCustomEvent` for cross-request chaining.
+        //
+        // The yield type can't be narrowed to GeminiInteractionsStream
+        // here without fighting zod-passthrough variance (StreamChunk's
+        // CustomEvent variant carries `[k: string]: unknown`), so we
+        // narrow via the literal `name` and trust the typed
+        // construction inside `translateInteractionEvents`.
         if (
-          chunk.type === 'CUSTOM' &&
-          (chunk as { name?: string }).name === 'gemini.interactionId'
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'gemini.interactionId'
         ) {
-          const value = (chunk as { value?: { interactionId?: string } }).value
-          if (value?.interactionId) {
-            this.interactionIdByThread.set(threadId, value.interactionId)
+          const value =
+            chunk.value as GeminiInteractionsCustomEventValue<'gemini.interactionId'>
+          this.interactionIdByThread.set(threadId, value.interactionId)
+        }
+        if (chunk.type === EventType.RUN_FINISHED) {
+          sawTerminalEvent = true
+          // Evict on a natural turn boundary. `tool_calls` means the
+          // agent loop will iterate again on the same threadId and we
+          // need the captured id; any other finishReason is the end of
+          // this turn so the chain is done.
+          if (chunk.finishReason !== 'tool_calls') {
+            this.interactionIdByThread.delete(threadId)
           }
+        } else if (chunk.type === EventType.RUN_ERROR) {
+          sawTerminalEvent = true
+          this.interactionIdByThread.delete(threadId)
         }
         yield chunk
       }
+
+      if (!sawTerminalEvent) {
+        // SDK stream ended without either `interaction.complete` or
+        // `error` — surface the truncation rather than silently leaving
+        // downstream consumers waiting on a `RUN_FINISHED` that will
+        // never come.
+        this.interactionIdByThread.delete(threadId)
+        const message =
+          'Gemini Interactions stream ended without a terminal event (no interaction.complete or error)'
+        logger.errors('gemini-text-interactions.chatStream truncated', {
+          source: 'gemini-text-interactions.chatStream',
+          runId,
+          threadId,
+        })
+        yield {
+          type: EventType.RUN_ERROR,
+          runId,
+          model: options.model,
+          timestamp,
+          message,
+          error: { message },
+        }
+      }
     } catch (error) {
+      this.interactionIdByThread.delete(threadId)
       const message =
         error instanceof Error
           ? error.message
@@ -196,14 +304,14 @@ export class GeminiTextInteractionsAdapter<
         error,
         source: 'gemini-text-interactions.chatStream',
       })
-      yield asChunk({
-        type: 'RUN_ERROR',
+      yield {
+        type: EventType.RUN_ERROR,
         runId,
         model: options.model,
         timestamp,
         message,
         error: { message },
-      })
+      }
     }
   }
 
@@ -212,9 +320,27 @@ export class GeminiTextInteractionsAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const { logger } = chatOptions
-    const baseRequest = buildInteractionsRequest(chatOptions)
+    const threadId = chatOptions.threadId
 
-    const request = {
+    // Mirror the chatStream fallback: the agentic-structured flow runs
+    // the chat loop first and then calls structuredOutput with the
+    // accumulated `messages`. If any tool ran during the loop, the
+    // messages include assistant/tool turns; without a chained
+    // previous_interaction_id those would throw "cannot send prior
+    // conversation history on a fresh interaction".
+    const effectivePreviousInteractionId =
+      chatOptions.modelOptions?.previous_interaction_id ??
+      (threadId ? this.interactionIdByThread.get(threadId) : undefined)
+
+    const baseRequest = buildInteractionsRequest({
+      ...chatOptions,
+      modelOptions: {
+        ...chatOptions.modelOptions,
+        previous_interaction_id: effectivePreviousInteractionId,
+      },
+    })
+
+    const request: GeminiInteractionsRequestBody = {
       ...baseRequest,
       response_mime_type: 'application/json',
       response_format: outputSchema,
@@ -230,10 +356,18 @@ export class GeminiTextInteractionsAdapter<
         },
       )
       const result = (await this.client.interactions.create(
-        request as Parameters<typeof this.client.interactions.create>[0],
+        request as GeminiInteractionsRequestBody &
+          Parameters<typeof this.client.interactions.create>[0],
+        { signal: chatOptions.abortController?.signal },
       )) as Interaction
 
       const rawText = extractTextFromInteraction(result)
+
+      if (!rawText) {
+        throw new Error(
+          `Gemini Interactions returned no text output for structured-output request (status: ${result.status}). The model may have produced only tool calls or non-text content.`,
+        )
+      }
 
       let parsed: unknown
       try {
@@ -250,10 +384,13 @@ export class GeminiTextInteractionsAdapter<
         error,
         source: 'gemini-text-interactions.structuredOutput',
       })
+      // Preserve the original error as `cause` so the stack trace and any
+      // SDK-attached status/code/headers survive for Sentry dedup.
       throw new Error(
         error instanceof Error
           ? error.message
           : 'An unknown error occurred during structured output generation.',
+        { cause: error },
       )
     }
   }
@@ -264,7 +401,12 @@ export function createGeminiTextInteractions<TModel extends GeminiModels>(
   model: TModel,
   apiKey: string,
   config?: Omit<GeminiTextInteractionsConfig, 'apiKey'>,
-): GeminiTextInteractionsAdapter<TModel> {
+): GeminiTextInteractionsAdapter<
+  TModel,
+  ResolveProviderOptions,
+  ResolveInputModalities<TModel>,
+  ResolveToolCapabilities<TModel>
+> {
   return new GeminiTextInteractionsAdapter({ apiKey, ...config }, model)
 }
 
@@ -272,14 +414,19 @@ export function createGeminiTextInteractions<TModel extends GeminiModels>(
 export function geminiTextInteractions<TModel extends GeminiModels>(
   model: TModel,
   config?: Omit<GeminiTextInteractionsConfig, 'apiKey'>,
-): GeminiTextInteractionsAdapter<TModel> {
+): GeminiTextInteractionsAdapter<
+  TModel,
+  ResolveProviderOptions,
+  ResolveInputModalities<TModel>,
+  ResolveToolCapabilities<TModel>
+> {
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiTextInteractions(model, apiKey, config)
 }
 
 function buildInteractionsRequest(
   options: TextOptions<GeminiTextInteractionsProviderOptions>,
-) {
+): GeminiInteractionsRequestBody {
   const modelOpts = options.modelOptions
 
   const systemInstruction =
@@ -390,11 +537,12 @@ function convertMessagesToInteractionsInput(
   const steps: Array<InteractionsStep> = []
   for (const msg of source) {
     if (msg.role === 'tool' && msg.toolCallId) {
+      const result = serializeToolResultContent(msg.content)
       steps.push({
         type: 'function_result',
         call_id: msg.toolCallId,
         name: toolCallIdToName.get(msg.toolCallId),
-        result: typeof msg.content === 'string' ? msg.content : '',
+        result,
       })
     } else if (msg.role === 'user') {
       const content = messageToContentBlocks(msg)
@@ -409,6 +557,26 @@ function convertMessagesToInteractionsInput(
     )
   }
   return steps
+}
+
+// The Interactions API's `function_result.result` field is a string. We
+// fail loudly on non-string tool content rather than silently coercing
+// to `''` — silent coercion meant the model lost the entire tool
+// output for callers that returned content as an array (e.g. image +
+// text) or `null`. If you need to send structured tool output, encode
+// it yourself before passing.
+function serializeToolResultContent(
+  content: ModelMessage['content'] | undefined,
+): string {
+  if (typeof content === 'string') return content
+  if (content === null || content === undefined) {
+    throw new Error(
+      'Gemini Interactions adapter: tool message has no content. The Interactions API requires a string `result` on function_result steps — return a string from your tool implementation (encode JSON/multimodal output yourself).',
+    )
+  }
+  throw new Error(
+    'Gemini Interactions adapter: tool message content must be a string (got an array of content parts). The Interactions API requires a string `result` on function_result steps — stringify multimodal tool output before returning it from your tool.',
+  )
 }
 
 // Extracts the content blocks (text / image / audio / video / document)
@@ -445,12 +613,21 @@ function messagesAfterLastAssistant(
 
 function safeParseToolArguments(
   raw: string | undefined,
+  logger: InternalLogger,
 ): Record<string, unknown> {
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw)
     return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
+  } catch (error) {
+    logger.errors(
+      'gemini-text-interactions.safeParseToolArguments parse failed',
+      {
+        error,
+        raw,
+        source: 'gemini-text-interactions.chatStream',
+      },
+    )
     return {}
   }
 }
@@ -670,6 +847,34 @@ function convertToolsToInteractionsFormat<TTool extends Tool>(
   return result
 }
 
+// Map of API-level status values onto the AG-UI `finishReason` field.
+// `requires_action` is the Interactions API's signal that the model
+// produced one or more function calls and is waiting for results — we
+// always map that to 'tool_calls' regardless of whether deltas were
+// observed (a function_call may have arrived in a single delta with no
+// other content). `incomplete` is the truncation signal (max_tokens
+// exceeded etc.) — map to 'length'. `completed` is normal stop.
+function statusToFinishReason(
+  status: Interaction['status'] | undefined,
+  sawFunctionCall: boolean,
+): 'stop' | 'length' | 'tool_calls' | null {
+  if (status === 'requires_action') return 'tool_calls'
+  if (status === 'incomplete') return 'length'
+  if (sawFunctionCall) return 'tool_calls'
+  return 'stop'
+}
+
+// Statuses that mean the interaction did not produce a usable result.
+// `failed`/`cancelled` map to RUN_ERROR. `incomplete` is the model
+// hitting a stop condition (max_tokens etc.) and is reported via
+// `finishReason: 'length'` on RUN_FINISHED so callers can decide how to
+// react without it looking like a hard error.
+function statusIsError(
+  status: Interaction['status'] | undefined,
+): status is 'failed' | 'cancelled' {
+  return status === 'failed' || status === 'cancelled'
+}
+
 async function* translateInteractionEvents(
   stream: AsyncIterable<InteractionSSEEvent>,
   model: string,
@@ -696,32 +901,84 @@ async function* translateInteractionEvents(
   const closeReasoningIfNeeded = function* (): Generator<StreamChunk> {
     if (reasoningMessageId && !hasClosedReasoning) {
       hasClosedReasoning = true
-      yield asChunk({
-        type: 'REASONING_MESSAGE_END',
+      yield {
+        type: EventType.REASONING_MESSAGE_END,
         messageId: reasoningMessageId,
         model,
         timestamp,
-      })
-      yield asChunk({
-        type: 'REASONING_END',
+      }
+      yield {
+        type: EventType.REASONING_END,
         messageId: reasoningMessageId,
         model,
         timestamp,
-      })
+      }
+      // Reset so that a later `thought_summary` delta (the API
+      // interleaves text → thought → text on some models) opens a
+      // fresh reasoning block instead of re-using an already-ended
+      // messageId, which would violate AG-UI ordering.
+      thinkingStepId = null
+      reasoningMessageId = null
+      hasClosedReasoning = false
+    }
+  }
+
+  // Seals any in-flight messages and tool calls. Called both on the
+  // normal terminal path (`interaction.complete`) and on the error path
+  // (`error` SSE event + premature EOF) so the StreamProcessor never
+  // sees orphan TEXT_MESSAGE_START / TOOL_CALL_START / REASONING_*
+  // events on RUN_ERROR.
+  const closeOpenState = function* (): Generator<StreamChunk> {
+    yield* closeReasoningIfNeeded()
+    for (const [toolCallId, state] of toolCalls) {
+      if (state.ended) continue
+      state.ended = true
+      let parsedInput: unknown = {}
+      try {
+        const parsed = JSON.parse(state.args)
+        parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+      } catch (error) {
+        logger.errors(
+          'gemini-text-interactions.translateInteractionEvents TOOL_CALL_END parse failed',
+          {
+            error,
+            toolCallId,
+            args: state.args,
+            source: 'gemini-text-interactions.chatStream',
+          },
+        )
+      }
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        toolName: state.name,
+        model,
+        timestamp,
+        input: parsedInput,
+      }
+    }
+    if (hasEmittedTextMessageStart) {
+      hasEmittedTextMessageStart = false
+      yield {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId,
+        model,
+        timestamp,
+      }
     }
   }
 
   const emitRunStartedIfNeeded = function* (): Generator<StreamChunk> {
     if (!hasEmittedRunStarted) {
       hasEmittedRunStarted = true
-      yield asChunk({
-        type: 'RUN_STARTED',
+      yield {
+        type: EventType.RUN_STARTED,
         runId,
         threadId,
         model,
         timestamp,
         parentRunId,
-      })
+      }
     }
   }
 
@@ -747,23 +1004,23 @@ async function* translateInteractionEvents(
             yield* closeReasoningIfNeeded()
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
-              yield asChunk({
-                type: 'TEXT_MESSAGE_START',
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
                 messageId,
                 model,
                 timestamp,
                 role: 'assistant',
-              })
+              }
             }
             textAccumulated += delta.text
-            yield asChunk({
-              type: 'TEXT_MESSAGE_CONTENT',
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
               messageId,
               model,
               timestamp,
               delta: delta.text,
               content: textAccumulated,
-            })
+            }
             break
           }
           case 'function_call': {
@@ -772,7 +1029,7 @@ async function* translateInteractionEvents(
             const toolCallId = delta.id
             const deltaArgs: Record<string, unknown> =
               typeof delta.arguments === 'string'
-                ? safeParseToolArguments(delta.arguments)
+                ? safeParseToolArguments(delta.arguments, logger)
                 : delta.arguments
             let state = toolCalls.get(toolCallId)
             if (!state) {
@@ -785,116 +1042,202 @@ async function* translateInteractionEvents(
               }
               toolCalls.set(toolCallId, state)
             } else {
-              // Merge incremental fragments at the object level — the SDK
-              // types args as an object per delta, so string concatenation
-              // would produce invalid JSON.
+              // Merge incremental fragments at the object level. We
+              // keep `state.args` as a stringified JSON because that's
+              // the shape AG-UI's `TOOL_CALL_ARGS.args` exposes; we
+              // re-parse on each delta to merge then re-stringify.
               try {
                 const existing = JSON.parse(state.args)
                 state.args = JSON.stringify({
-                  ...(existing && typeof existing === 'object' ? existing : {}),
+                  ...(existing && typeof existing === 'object'
+                    ? existing
+                    : {}),
                   ...deltaArgs,
                 })
-              } catch {
+              } catch (error) {
+                logger.errors(
+                  'gemini-text-interactions.translateInteractionEvents tool args merge failed',
+                  {
+                    error,
+                    toolCallId,
+                    existingArgs: state.args,
+                    deltaArgs,
+                    source: 'gemini-text-interactions.chatStream',
+                  },
+                )
                 state.args = JSON.stringify(deltaArgs)
               }
               if (delta.name) state.name = delta.name
             }
             if (!state.started) {
               state.started = true
-              yield asChunk({
-                type: 'TOOL_CALL_START',
+              yield {
+                type: EventType.TOOL_CALL_START,
                 toolCallId,
+                toolCallName: state.name,
                 toolName: state.name,
                 model,
                 timestamp,
                 index: state.index,
-              })
+              }
             }
-            yield asChunk({
-              type: 'TOOL_CALL_ARGS',
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
               toolCallId,
               model,
               timestamp,
               delta: JSON.stringify(deltaArgs),
               args: state.args,
-            })
+            }
             break
           }
-          case 'google_search_call':
-          case 'code_execution_call':
-          case 'url_context_call':
+          case 'google_search_call': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.googleSearchCall',
+              value: delta,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'google_search_result': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.googleSearchResult',
+              value: delta,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'code_execution_call': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.codeExecutionCall',
+              value: delta,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'code_execution_result': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.codeExecutionResult',
+              value: delta,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'url_context_call': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.urlContextCall',
+              value: delta,
+              model,
+              timestamp,
+            }
+            break
+          }
+          case 'url_context_result': {
+            yield* closeReasoningIfNeeded()
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.urlContextResult',
+              value: delta,
+              model,
+              timestamp,
+            }
+            break
+          }
           case 'file_search_call': {
             yield* closeReasoningIfNeeded()
-            yield asChunk({
-              type: 'CUSTOM',
-              name: `gemini.${camelizeDeltaType(delta.type)}`,
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.fileSearchCall',
               value: delta,
               model,
               timestamp,
-            })
+            }
             break
           }
-          case 'google_search_result':
-          case 'code_execution_result':
-          case 'url_context_result':
           case 'file_search_result': {
             yield* closeReasoningIfNeeded()
-            yield asChunk({
-              type: 'CUSTOM',
-              name: `gemini.${camelizeDeltaType(delta.type)}`,
+            yield {
+              type: EventType.CUSTOM,
+              name: 'gemini.fileSearchResult',
               value: delta,
               model,
               timestamp,
-            })
+            }
             break
           }
           case 'thought_summary': {
             const thoughtText =
-              delta.content && 'text' in delta.content ? delta.content.text : ''
+              delta.content && 'text' in delta.content
+                ? delta.content.text
+                : ''
             if (!thoughtText) break
             if (thinkingStepId === null) {
               thinkingStepId = generateId(adapterName)
               reasoningMessageId = generateId(adapterName)
-              yield asChunk({
-                type: 'REASONING_START',
+              yield {
+                type: EventType.REASONING_START,
                 messageId: reasoningMessageId,
                 model,
                 timestamp,
-              })
-              yield asChunk({
-                type: 'REASONING_MESSAGE_START',
+              }
+              yield {
+                type: EventType.REASONING_MESSAGE_START,
                 messageId: reasoningMessageId,
                 role: 'reasoning',
                 model,
                 timestamp,
-              })
-              yield asChunk({
-                type: 'STEP_STARTED',
+              }
+              yield {
+                type: EventType.STEP_STARTED,
+                stepName: thinkingStepId,
                 stepId: thinkingStepId,
                 model,
                 timestamp,
                 stepType: 'thinking',
-              })
+              }
             }
             thinkingAccumulated += thoughtText
-            yield asChunk({
-              type: 'REASONING_MESSAGE_CONTENT',
+            yield {
+              type: EventType.REASONING_MESSAGE_CONTENT,
               messageId: reasoningMessageId!,
               delta: thoughtText,
               model,
               timestamp,
-            })
-            yield asChunk({
-              type: 'STEP_FINISHED',
+            }
+            yield {
+              type: EventType.STEP_FINISHED,
+              stepName: thinkingStepId,
               stepId: thinkingStepId,
               model,
               timestamp,
               delta: thoughtText,
               content: thinkingAccumulated,
-            })
+            }
             break
           }
           default:
+            // Unknown delta types — surface to observability so SDK
+            // drift is visible (the Interactions API is beta and
+            // emits e.g. `mcp_server_tool_call_delta` shapes we don't
+            // translate yet).
+            logger.provider(
+              `gemini-text-interactions unhandled content.delta type`,
+              { delta },
+            )
             break
         }
         break
@@ -910,54 +1253,46 @@ async function* translateInteractionEvents(
           interactionId = event.interaction.id
         }
 
-        yield* closeReasoningIfNeeded()
+        yield* closeOpenState()
 
-        for (const [toolCallId, state] of toolCalls) {
-          if (state.ended) continue
-          state.ended = true
-          let parsedInput: unknown = {}
-          try {
-            const parsed = JSON.parse(state.args)
-            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-          } catch {
-            parsedInput = {}
+        const status = event.interaction.status
+        if (statusIsError(status)) {
+          const message = `Gemini Interactions ${status}: the interaction ended without a usable response.`
+          logger.errors(
+            'gemini-text-interactions.translateInteractionEvents non-success status',
+            {
+              source: 'gemini-text-interactions.chatStream',
+              status,
+              interactionId,
+            },
+          )
+          yield {
+            type: EventType.RUN_ERROR,
+            runId,
+            model,
+            timestamp,
+            message,
+            code: status,
+            error: { message, code: status },
           }
-          yield asChunk({
-            type: 'TOOL_CALL_END',
-            toolCallId,
-            toolName: state.name,
-            model,
-            timestamp,
-            input: parsedInput,
-          })
-        }
-
-        if (hasEmittedTextMessageStart) {
-          yield asChunk({
-            type: 'TEXT_MESSAGE_END',
-            messageId,
-            model,
-            timestamp,
-          })
+          return
         }
 
         const usage = event.interaction.usage
-        const finishReason: 'tool_calls' | 'stop' = sawFunctionCall
-          ? 'tool_calls'
-          : 'stop'
+        const finishReason = statusToFinishReason(status, sawFunctionCall)
 
         if (interactionId) {
-          yield asChunk({
-            type: 'CUSTOM',
+          yield {
+            type: EventType.CUSTOM,
             name: 'gemini.interactionId',
             value: { interactionId },
             model,
             timestamp,
-          })
+          }
         }
 
-        yield asChunk({
-          type: 'RUN_FINISHED',
+        yield {
+          type: EventType.RUN_FINISHED,
           runId,
           threadId,
           model,
@@ -970,37 +1305,45 @@ async function* translateInteractionEvents(
                 totalTokens: usage.total_tokens ?? 0,
               }
             : undefined,
-        })
-        break
+        }
+        return
       }
 
       case 'error': {
-        const message = event.error?.message ?? 'Unknown error'
-        const code = event.error?.code?.toString()
-        yield asChunk({
-          type: 'RUN_ERROR',
+        // Close any in-flight TEXT_MESSAGE_START / TOOL_CALL_START /
+        // REASONING_* so downstream consumers don't see orphan open
+        // state after RUN_ERROR.
+        yield* closeOpenState()
+        const rawMessage = event.error?.message
+        const message =
+          typeof rawMessage === 'string' && rawMessage.length > 0
+            ? rawMessage
+            : `Gemini Interactions error (no message): ${JSON.stringify(event.error ?? {})}`
+        const rawCode = event.error?.code
+        const code =
+          typeof rawCode === 'string' || typeof rawCode === 'number'
+            ? String(rawCode)
+            : undefined
+        yield {
+          type: EventType.RUN_ERROR,
           runId,
           model,
           timestamp,
           message,
           code,
           error: { message, code },
-        })
+        }
         return
       }
 
       default:
+        logger.provider(
+          `gemini-text-interactions unhandled event_type`,
+          { event },
+        )
         break
     }
   }
-}
-
-function camelizeDeltaType(type: string): string {
-  const [first, ...rest] = type.split('_')
-  return (
-    (first ?? '') +
-    rest.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
-  )
 }
 
 function extractTextFromInteraction(interaction: Interaction): string {
@@ -1033,3 +1376,8 @@ function sanitizeToolParameters(schema: unknown): unknown {
   }
   return out
 }
+
+// Re-export the stream type so consumers can import it alongside the
+// adapter from a single path: `import type { GeminiInteractionsStream }
+// from '@tanstack/ai-gemini/experimental'`.
+export type { GeminiInteractionsStream }

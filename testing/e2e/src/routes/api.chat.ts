@@ -5,6 +5,7 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import { createTextAdapter } from '@/lib/providers'
 import { featureConfigs } from '@/lib/features'
@@ -129,7 +130,16 @@ export const Route = createFileRoute('/api/chat')({
                     abortController,
                   })
 
-          return toServerSentEventsResponse(stream, { abortController })
+          // Cast: `chat()` returns `AsyncIterable<StreamChunk> |
+          // StructuredOutputStream<T>`. Both yield AG-UI events at runtime
+          // but the typed-CUSTOM-events variants on `StructuredOutputStream`
+          // aren't structurally assignable to the bare `StreamChunk` union
+          // (zod-passthrough index-signature variance). The runtime is fine
+          // either way.
+          return toServerSentEventsResponse(
+            stream as AsyncIterable<StreamChunk>,
+            { abortController },
+          )
         } catch (error: any) {
           console.error(`[api.chat] Error:`, error.message)
           if (error.name === 'AbortError' || abortController.signal.aborted) {

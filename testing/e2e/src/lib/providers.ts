@@ -35,7 +35,7 @@ const defaultModels: Record<Provider, string> = {
 export function createTextAdapter(
   provider: Provider,
   modelOverride?: string,
-  aimockPort?: number,
+  _aimockPort?: number,
   testId?: string,
   feature?: Feature,
 ): { adapter: AnyTextAdapter } {

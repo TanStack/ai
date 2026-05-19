@@ -8,8 +8,8 @@ export {
   geminiTextInteractions,
   type GeminiTextInteractionsConfig,
   type GeminiTextInteractionsProviderOptions,
+  type GeminiInteractionsStream,
 } from './text-interactions/adapter'
-export type { ExternalTextInteractionsProviderOptions } from './text-interactions/provider-options'
 export type {
   GeminiInteractionsCustomEvent,
   GeminiInteractionsCustomEventName,

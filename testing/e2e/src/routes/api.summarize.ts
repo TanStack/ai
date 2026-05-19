@@ -62,20 +62,19 @@ export const Route = createFileRoute('/api/summarize')({
               { status: 400, headers: { 'Content-Type': 'application/json' } },
             )
           }
-          const result = summarize({
-            adapter,
-            text,
-            stream: shouldStream ?? true,
-          })
-
+          // Split into two branches so `summarize` returns the narrow
+          // type per call (`Promise<SummarizationResult>` vs
+          // `AsyncIterable<AGUIEvent>`) — the merged union return is not
+          // statically narrowable by a later `shouldStream === false`
+          // check on the result variable.
           if (shouldStream === false) {
-            const summary = await result
+            const summary = await summarize({ adapter, text, stream: false })
             return new Response(JSON.stringify({ summary }), {
               headers: { 'Content-Type': 'application/json' },
             })
           }
-
-          return toServerSentEventsResponse(result)
+          const stream = summarize({ adapter, text, stream: true })
+          return toServerSentEventsResponse(stream)
         } catch (error: any) {
           return new Response(JSON.stringify({ error: error.message }), {
             status: 500,

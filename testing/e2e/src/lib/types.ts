@@ -8,6 +8,8 @@ export type Provider =
   | 'grok'
   | 'groq'
   | 'openrouter'
+  | 'openrouter-responses'
+  | 'elevenlabs'
 
 export type Feature =
   | 'chat'
@@ -27,6 +29,8 @@ export type Feature =
   | 'summarize'
   | 'summarize-stream'
   | 'image-gen'
+  | 'audio-gen'
+  | 'sound-effects'
   | 'tts'
   | 'transcription'
   | 'video-gen'
@@ -40,6 +44,8 @@ export const ALL_PROVIDERS: Provider[] = [
   'grok',
   'groq',
   'openrouter',
+  'openrouter-responses',
+  'elevenlabs',
 ]
 
 export const ALL_FEATURES: Feature[] = [
@@ -60,6 +66,8 @@ export const ALL_FEATURES: Feature[] = [
   'summarize',
   'summarize-stream',
   'image-gen',
+  'audio-gen',
+  'sound-effects',
   'tts',
   'transcription',
   'video-gen',

@@ -2,9 +2,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   chat,
   chatParamsFromRequestBody,
+  EventType,
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai'
 import { createTextAdapter } from '@/lib/providers'
 import { getToolsForScenario } from '@/lib/tools-test-tools'
 
@@ -41,18 +43,16 @@ export const Route = createFileRoute('/api/tools-test')({
         try {
           // Special error scenario: return a stream that immediately errors
           if (scenario === 'error') {
-            const errorStream = (async function* () {
+            const errorStream = (async function* (): AsyncGenerator<StreamChunk> {
               yield {
-                type: 'RUN_STARTED' as const,
+                type: EventType.RUN_STARTED,
                 runId: 'error-test',
+                threadId: 'error-test',
                 timestamp: Date.now(),
               }
               yield {
-                type: 'RUN_ERROR' as const,
-                runId: 'error-test',
-                error: {
-                  message: 'Test error: Something went wrong during generation',
-                },
+                type: EventType.RUN_ERROR,
+                message: 'Test error: Something went wrong during generation',
                 timestamp: Date.now(),
               }
             })()
