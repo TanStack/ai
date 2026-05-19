@@ -6,26 +6,35 @@
  * `cache_control` for prompt caching, future per-prompt safety overrides for
  * Gemini, etc.
  *
- * Adapters that don't recognise a given metadata field silently ignore it, so
- * the object form is portable across providers. For type-safe per-provider
- * metadata, narrow `TMetadata` via the provider's `<Provider>SystemPromptMetadata`
- * interface (e.g. `AnthropicSystemPromptMetadata`).
+ * At the chat call site, `metadata` is narrowed by the adapter via
+ * `~types['systemPromptMetadata']`. Providers that don't declare one inherit
+ * the default `never`, which makes the field carry no meaningful value: TS
+ * only accepts `undefined` there, and provider-foreign metadata that reaches
+ * an adapter via JS / `as any` is silently dropped, never written to the
+ * wire. For type-safe per-provider metadata, refer to the provider's
+ * `<Provider>SystemPromptMetadata` interface (e.g. `AnthropicSystemPromptMetadata`).
  *
  * @example
  *   // The 90% case — plain strings work everywhere.
  *   systemPrompts: ['Be concise.', 'Cite sources.']
  *
  * @example
- *   // Provider-specific metadata via the object form.
- *   import type { AnthropicSystemPromptMetadata } from '@tanstack/ai-anthropic'
+ *   // Provider-specific metadata via the object form. No `satisfies` cast
+ *   // is needed — the adapter narrows the `metadata` field's type at the
+ *   // call site so users get autocomplete and structural checking
+ *   // automatically.
+ *   import { anthropicText } from '@tanstack/ai-anthropic'
  *
- *   systemPrompts: [
- *     {
- *       content: 'Stable instructions — cache me.',
- *       metadata: { cache_control: { type: 'ephemeral' } } satisfies AnthropicSystemPromptMetadata,
- *     },
- *     'Volatile per-request instruction.',
- *   ]
+ *   chat({
+ *     adapter: anthropicText(),
+ *     systemPrompts: [
+ *       {
+ *         content: 'Stable instructions — cache me.',
+ *         metadata: { cache_control: { type: 'ephemeral' } },
+ *       },
+ *       'Volatile per-request instruction.',
+ *     ],
+ *   })
  */
 export type SystemPrompt<TMetadata = unknown> =
   | string
@@ -52,6 +61,11 @@ export interface NormalizedSystemPrompt<TMetadata = unknown> {
  *
  * Returns an empty array (never `undefined`) so callers can chain `.map` /
  * `.join` without an extra null check.
+ *
+ * Throws a `TypeError` (naming the offending index) if an object-form entry's
+ * `content` isn't a string. Public API boundary — callers reaching this
+ * function through `as any` / external JS would otherwise stream a literal
+ * `"undefined"` into the model's system prompt with no signal.
  */
 export function normalizeSystemPrompts<TMetadata = unknown>(
   // Accept the wide public shape (`SystemPrompt<unknown>`) regardless of the
@@ -61,9 +75,18 @@ export function normalizeSystemPrompts<TMetadata = unknown>(
   prompts: ReadonlyArray<SystemPrompt> | undefined,
 ): Array<NormalizedSystemPrompt<TMetadata>> {
   if (!prompts || prompts.length === 0) return []
-  return prompts.map((p) =>
-    typeof p === 'string'
-      ? { content: p }
-      : (p as NormalizedSystemPrompt<TMetadata>),
-  )
+  return prompts.map((p, i) => {
+    if (typeof p === 'string') return { content: p }
+    if (p === null || typeof p !== 'object') {
+      throw new TypeError(
+        `systemPrompts[${i}]: expected a string or { content, metadata? }, got ${p === null ? 'null' : typeof p}`,
+      )
+    }
+    if (typeof p.content !== 'string') {
+      throw new TypeError(
+        `systemPrompts[${i}]: content must be a string, got ${typeof p.content}`,
+      )
+    }
+    return p as NormalizedSystemPrompt<TMetadata>
+  })
 }

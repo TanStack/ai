@@ -131,6 +131,48 @@ describe('GeminiAdapter through AI', () => {
     ])
   })
 
+  it('joins object-form systemPrompts into systemInstruction and drops foreign metadata', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'ok' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: { totalTokenCount: 1 },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      systemPrompts: [
+        'plain',
+        { content: 'object-form' },
+        // `metadata` on a Gemini chat is `never` at the type level; the cast
+        // models a stale call site reaching the adapter via JS / `as any`.
+        // The adapter must still produce the expected systemInstruction
+        // string and never leak the foreign field anywhere on the payload.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { content: 'with-foreign-meta', metadata: { cache_control: {} } as any },
+      ],
+    })) {
+      /* consume stream */
+    }
+
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.config.systemInstruction).toBe(
+      'plain\nobject-form\nwith-foreign-meta',
+    )
+    // Foreign metadata never reaches the wire.
+    expect(JSON.stringify(payload)).not.toContain('cache_control')
+  })
+
   it('maps every common and provider option into the Gemini payload', async () => {
     const streamChunks = [
       {

@@ -190,6 +190,64 @@ describe('chat() middleware', () => {
       expect(calls[0]!.systemPrompts).toContain('Original')
     })
 
+    it('should preserve object-form systemPrompts through middleware', async () => {
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), ev.textContent('hi'), ev.runFinished('stop')],
+        ],
+      })
+
+      // Capture what the middleware sees in config.systemPrompts so we can
+      // assert the wide shape (Array<SystemPrompt>) — not a flattened
+      // Array<string> — reaches middleware code.
+      const observed: Array<unknown> = []
+
+      // Middleware reads ChatMiddlewareConfig.systemPrompts (now widened to
+      // Array<SystemPrompt>) and prepends another object-form entry. Only
+      // mutate at beforeModel so the assertion stays deterministic
+      // (onConfig fires at both init and beforeModel).
+      const middleware: ChatMiddleware = {
+        name: 'prepender',
+        onConfig: (ctx, config) => {
+          if (ctx.phase !== 'beforeModel') return undefined
+          observed.push(...config.systemPrompts)
+          return {
+            systemPrompts: [
+              { content: 'prepended', metadata: { tag: 'mw' } },
+              ...config.systemPrompts,
+            ],
+          }
+        },
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        systemPrompts: [
+          'plain-original',
+          { content: 'object-original', metadata: { caller: 'test' } },
+        ],
+        middleware: [middleware],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      // The middleware saw the wide shape: a plain string and an object
+      // with metadata, not a pre-flattened Array<string>.
+      expect(observed).toEqual([
+        'plain-original',
+        { content: 'object-original', metadata: { caller: 'test' } },
+      ])
+
+      // The adapter receives the middleware's mutation verbatim — strings
+      // stay strings, object-form entries keep their metadata, and the
+      // prepend order is preserved.
+      expect(calls[0]!.systemPrompts).toEqual([
+        { content: 'prepended', metadata: { tag: 'mw' } },
+        'plain-original',
+        { content: 'object-original', metadata: { caller: 'test' } },
+      ])
+    })
+
     it('should pipe config through multiple middlewares in order', async () => {
       const { adapter, calls } = createMockAdapter({
         iterations: [

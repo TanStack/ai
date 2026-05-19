@@ -435,6 +435,44 @@ describe('otelMiddleware — captureContent', () => {
     expect(asstEvt!.attributes!['content']).toBe('Hi [NUM] there')
   })
 
+  it('captureContent=true attaches systemPrompt metadata as a JSON span attribute when any entry carries metadata', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: [
+        'plain',
+        { content: 'cached', metadata: { cache_control: { type: 'ephemeral' } } },
+        { content: 'no-meta' },
+      ],
+    })
+
+    const iter = spans[1]!
+    const attr = iter.attributes!['tanstack.ai.system_prompt.metadata']
+    expect(typeof attr).toBe('string')
+    expect(JSON.parse(attr as string)).toEqual([
+      null,
+      { cache_control: { type: 'ephemeral' } },
+      null,
+    ])
+  })
+
+  it('does not attach systemPrompt metadata attribute when no entry carries metadata', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: ['plain-a', { content: 'plain-b' }],
+    })
+
+    const iter = spans[1]!
+    expect(iter.attributes!['tanstack.ai.system_prompt.metadata']).toBeUndefined()
+  })
+
   it('captureContent=false emits no message events', async () => {
     const { tracer, spans } = createFakeTracer()
     const mw = otelMiddleware({ tracer })

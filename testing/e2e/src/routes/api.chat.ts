@@ -56,6 +56,27 @@ export const Route = createFileRoute('/api/chat')({
         try {
           const systemPrompt = config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT
 
+          // Test-only flag — when truthy, the route promotes the system
+          // prompt to object-form and attaches Anthropic `cache_control`
+          // metadata. Enables system-prompt-metadata.spec.ts to verify
+          // cache_control reaches the wire via the aimock journal.
+          const systemPromptCacheControl =
+            fp.systemPromptCacheControl === true
+              ? ({ type: 'ephemeral' as const } as const)
+              : undefined
+          const systemPrompts = systemPromptCacheControl
+            ? [
+                {
+                  content: systemPrompt,
+                  metadata: { cache_control: systemPromptCacheControl },
+                  // The route is provider-generic; the metadata type is
+                  // adapter-narrowed and only meaningful for Anthropic, so
+                  // a single bridge cast lives here at the test entry.
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any,
+              ]
+            : [systemPrompt]
+
           // Two structured-output-streaming features differ only in which
           // schema they bind to. Branched per-feature so TS can pick the
           // right `chat<TSchema>()` overload without a `never` cast.
@@ -64,7 +85,7 @@ export const Route = createFileRoute('/api/chat')({
               ? chat({
                   ...adapterOptions,
                   modelOptions: config.modelOptions,
-                  systemPrompts: [systemPrompt],
+                  systemPrompts,
                   messages: params.messages,
                   threadId: params.threadId,
                   runId: params.runId,
@@ -76,7 +97,7 @@ export const Route = createFileRoute('/api/chat')({
                 ? chat({
                     ...adapterOptions,
                     modelOptions: config.modelOptions,
-                    systemPrompts: [systemPrompt],
+                    systemPrompts,
                     messages: params.messages,
                     threadId: params.threadId,
                     runId: params.runId,
@@ -88,7 +109,7 @@ export const Route = createFileRoute('/api/chat')({
                     ...adapterOptions,
                     tools: config.tools,
                     modelOptions: config.modelOptions,
-                    systemPrompts: [systemPrompt],
+                    systemPrompts,
                     agentLoopStrategy: maxIterations(5),
                     messages: params.messages,
                     threadId: params.threadId,

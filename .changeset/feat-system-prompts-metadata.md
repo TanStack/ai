@@ -20,9 +20,11 @@ field's type is inferred from the adapter via a new
   users get `cache_control` autocomplete and type-checking on
   `systemPrompts[i].metadata` for Anthropic chats.
 - Adapters with no per-prompt metadata (OpenAI, Gemini, Ollama,
-  OpenRouter, openai-base) inherit the default `never`, which makes the
-  `metadata` field unusable at the call site — passing it is a TypeScript
-  error.
+  OpenRouter, openai-base) inherit the default `never`, which means the
+  `metadata` field carries no meaningful value at the call site —
+  TypeScript only accepts `undefined` there. Provider-foreign metadata
+  that reaches an adapter via JS / `as any` is silently dropped, never
+  written to the wire.
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -40,7 +42,9 @@ chat({
   ],
 })
 
-// OpenAI — `metadata` field is `never`, attempting to pass it errors at compile time.
+// OpenAI — `metadata` is `never`; only `undefined` is assignable, so the
+// field is effectively unusable. The object form without `metadata` still
+// works for portability.
 chat({
   adapter: openaiText({ apiKey }, 'gpt-4o-mini'),
   systemPrompts: [
@@ -67,7 +71,16 @@ Internal:
   the corresponding `TextBlockParam`.
 - All other text adapters call `normalizeSystemPrompts()` and join
   `.content` for their respective `instructions` / `system` /
-  `systemInstruction` fields.
+  `systemInstruction` fields. Foreign metadata that reaches them via JS
+  / `as any` is dropped (never written to the wire).
+- `normalizeSystemPrompts()` is the public API boundary and throws
+  `TypeError` (naming the offending index) for object-form entries whose
+  `content` isn't a string — preventing literal `"undefined"` from
+  reaching the model on stale call sites.
+- OpenTelemetry middleware attaches per-prompt metadata as the
+  `tanstack.ai.system_prompt.metadata` JSON span attribute when
+  `captureContent: true` and at least one entry carries metadata, so
+  observability backends can distinguish cache hit/miss for Anthropic.
 - `@tanstack/ai-event-client` mirrors the `SystemPrompt` shape locally
   (avoids a circular import) and projects metadata away on the devtools
   wire — devtools UI still receives `Array<string>`.

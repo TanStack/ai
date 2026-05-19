@@ -735,8 +735,12 @@ export interface TextOptions<
    *
    * Accepts plain strings (the common case) or `{ content, metadata }`
    * objects that let providers attach typed metadata (e.g. Anthropic
-   * `cache_control` for prompt caching) per prompt. Providers without
-   * matching metadata support silently drop the field.
+   * `cache_control` for prompt caching) per prompt. At the chat call site
+   * the adapter narrows `metadata`'s type via `~types['systemPromptMetadata']`
+   * — providers that don't declare one default to `never`, which makes the
+   * field carry no meaningful value (TypeScript will only accept
+   * `undefined` there). Provider-foreign metadata that reaches an adapter
+   * via JS / `as any` is silently dropped, never written to the wire.
    *
    * @see SystemPrompt
    */
