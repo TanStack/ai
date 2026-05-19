@@ -154,6 +154,89 @@ describe('useChat({ outputSchema }) — runtime', () => {
     expect(result.current.partial).toEqual(personB)
   })
 
+  it('clears `partial` and `final` at sendMessage time, not just on RUN_STARTED', async () => {
+    const personA: Person = {
+      name: 'Alice',
+      age: 25,
+      email: 'alice@example.com',
+    }
+
+    // Second connect() never yields — simulates the gap between sendMessage
+    // dispatch and the server's first chunk. If reset only happens on
+    // RUN_STARTED, the previous run's `partial`/`final` linger here.
+    let call = 0
+    let releaseSecond!: () => void
+    const secondStarted = new Promise<void>((resolve) => {
+      releaseSecond = resolve
+    })
+    const adapter = {
+      async *connect() {
+        if (call === 0) {
+          call++
+          for (const chunk of buildStructuredStream(
+            JSON.stringify(personA),
+            personA,
+            'run-a',
+          )) {
+            yield chunk
+          }
+          return
+        }
+        // Block until the test inspects state, then yield nothing (the test
+        // only cares about the pre-first-chunk window).
+        await secondStarted
+      },
+    }
+
+    const { result } = renderHook(() =>
+      useChat({ connection: adapter, outputSchema: personSchema }),
+    )
+
+    await act(async () => {
+      await result.current.sendMessage('A')
+    })
+    await waitFor(() => {
+      expect(result.current.final).toEqual(personA)
+    })
+
+    // Fire the second send. We do NOT await — the adapter is parked on
+    // `secondStarted`, so awaiting would deadlock. We just need the
+    // synchronous reset inside sendMessage to fire.
+    act(() => {
+      void result.current.sendMessage('B')
+    })
+
+    await waitFor(() => {
+      expect(result.current.partial).toEqual({})
+      expect(result.current.final).toBeNull()
+    })
+
+    releaseSecond()
+  })
+
+  it('clears `partial` and `final` on clear()', async () => {
+    const chunks = buildStructuredStream(json, person)
+    const adapter = createMockConnectionAdapter({ chunks })
+
+    const { result } = renderHook(() =>
+      useChat({ connection: adapter, outputSchema: personSchema }),
+    )
+
+    await act(async () => {
+      await result.current.sendMessage('Extract')
+    })
+    await waitFor(() => {
+      expect(result.current.final).toEqual(person)
+    })
+
+    act(() => {
+      result.current.clear()
+    })
+
+    expect(result.current.partial).toEqual({})
+    expect(result.current.final).toBeNull()
+  })
+
   it("invokes the user's onChunk callback alongside internal tracking", async () => {
     const chunks = buildStructuredStream(json, person)
     const adapter = createMockConnectionAdapter({ chunks })
