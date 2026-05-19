@@ -1685,15 +1685,29 @@ describe('StreamProcessor', () => {
     })
 
     it('RUN_ERROR with empty message should use fallback', () => {
+      // The fallback path logs the original chunk so the failure isn't silent
+      // for debugging; spy the warning so the test output stays quiet AND we
+      // assert the debug hook fired. Wrapped in try/finally so a failed
+      // assertion doesn't leak the mock into subsequent tests (vitest doesn't
+      // auto-restore spies unless `restoreMocks: true` is configured).
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
-      processor.prepareAssistantMessage()
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        processor.prepareAssistantMessage()
 
-      processor.processChunk(ev.runError(''))
+        processor.processChunk(ev.runError(''))
 
-      expect(events.onError).toHaveBeenCalledTimes(1)
-      const errorArg = events.onError.mock.calls[0]![0]
-      expect(errorArg.message).toBe('An error occurred')
+        expect(events.onError).toHaveBeenCalledTimes(1)
+        const errorArg = events.onError.mock.calls[0]![0]
+        expect(errorArg.message).toBe('An error occurred')
+        expect(errorSpy).toHaveBeenCalledWith(
+          '[StreamProcessor] RUN_ERROR with no message; original chunk:',
+          expect.objectContaining({ type: EventType.RUN_ERROR }),
+        )
+      } finally {
+        errorSpy.mockRestore()
+      }
     })
   })
 
@@ -3320,6 +3334,400 @@ describe('StreamProcessor', () => {
       expect(toolResultPart.toolCallId).toBe('tc-1')
       expect(toolResultPart.content).toBe('{"temp": 72}')
       expect(toolResultPart.state).toBe('complete')
+    })
+  })
+
+  describe('Structured output parts', () => {
+    it('routes deltas after structured-output.start into a structured-output part', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":', 'msg-1'))
+      processor.processChunk(ev.textContent('"Alice"}', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.complete',
+          value: {
+            object: { name: 'Alice' },
+            raw: '{"name":"Alice"}',
+            messageId: 'msg-1',
+          },
+        }),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+
+      const messages = processor.getMessages()
+      const assistant = messages.find((m) => m.role === 'assistant')
+      expect(assistant).toBeDefined()
+
+      // No text part — the JSON bytes routed into the structured-output part.
+      expect(assistant!.parts.find((p) => p.type === 'text')).toBeUndefined()
+
+      const sop = assistant!.parts.find((p) => p.type === 'structured-output')
+      expect(sop).toBeDefined()
+      expect((sop as any).status).toBe('complete')
+      expect((sop as any).data).toEqual({ name: 'Alice' })
+      expect((sop as any).raw).toBe('{"name":"Alice"}')
+    })
+
+    it('progressively populates partial as JSON deltas arrive', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":', 'msg-1'))
+
+      let assistant = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')
+      let sop = assistant!.parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).status).toBe('streaming')
+
+      processor.processChunk(ev.textContent('"Alice"', 'msg-1'))
+      assistant = processor.getMessages().find((m) => m.role === 'assistant')
+      sop = assistant!.parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).partial).toEqual({ name: 'Alice' })
+
+      processor.processChunk(ev.textContent('}', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.complete',
+          value: {
+            object: { name: 'Alice' },
+            raw: '{"name":"Alice"}',
+            messageId: 'msg-1',
+          },
+        }),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+
+      assistant = processor.getMessages().find((m) => m.role === 'assistant')
+      sop = assistant!.parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).status).toBe('complete')
+      expect((sop as any).data).toEqual({ name: 'Alice' })
+    })
+
+    it('marks a streaming structured-output part as errored on RUN_ERROR', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":"Al', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.RUN_ERROR, {
+          runId: 'run-1',
+          message: 'Stream aborted',
+        }),
+      )
+
+      const assistant = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')
+      const sop = assistant!.parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).status).toBe('error')
+      expect((sop as any).errorMessage).toBe('Stream aborted')
+      // Partial buffer up to error is preserved for inspection.
+      expect((sop as any).raw).toBe('{"name":"Al')
+    })
+
+    it('creates an error placeholder part when RUN_ERROR fires before any delta', () => {
+      // Adapter dropped between `structured-output.start` and the first
+      // delta. Without the placeholder, the UI consumer would find no
+      // structured-output part on the message and have nothing to render
+      // the failure against.
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.RUN_ERROR, {
+          runId: 'run-1',
+          message: 'Connection lost',
+        }),
+      )
+
+      const sop = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')!
+        .parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).status).toBe('error')
+      expect((sop as any).errorMessage).toBe('Connection lost')
+      expect((sop as any).raw).toBe('')
+    })
+
+    it('keeps a complete structured-output part complete if a later RUN_ERROR fires on the same message', () => {
+      // RUN_ERROR after a successful complete (e.g. a downstream tool errored)
+      // should not retroactively un-complete the structured response — the
+      // model genuinely produced it. The error gets surfaced via onError; the
+      // part stays renderable.
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":"A"}', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.complete',
+          value: {
+            object: { name: 'A' },
+            raw: '{"name":"A"}',
+            messageId: 'msg-1',
+          },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.RUN_ERROR, {
+          runId: 'run-1',
+          message: 'downstream failed',
+        }),
+      )
+
+      const sop = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')!
+        .parts.find((p) => p.type === 'structured-output')
+      expect((sop as any).status).toBe('complete')
+      expect((sop as any).data).toEqual({ name: 'A' })
+    })
+
+    it('handles tool-call interleaved between structured-output.start and the first delta', () => {
+      // Anthropic/OpenAI can interleave a tool call with the JSON response on
+      // the same assistant message. The tool-call part must land alongside
+      // the structured-output part, and both must reach terminal states.
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.toolStart('tc-1', 'lookup'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"q":"x"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'lookup'))
+      processor.processChunk(ev.textContent('{"name":"A"}', 'msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.complete',
+          value: {
+            object: { name: 'A' },
+            raw: '{"name":"A"}',
+            messageId: 'msg-1',
+          },
+        }),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+
+      const assistant = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')!
+      const tool = assistant.parts.find((p) => p.type === 'tool-call') as any
+      const sop = assistant.parts.find(
+        (p) => p.type === 'structured-output',
+      ) as any
+
+      expect(tool?.id).toBe('tc-1')
+      expect(tool?.state).toBe('input-complete')
+      expect(sop?.status).toBe('complete')
+      expect(sop?.data).toEqual({ name: 'A' })
+    })
+
+    it('reconciles cumulative TEXT_MESSAGE_CONTENT against existing raw without duplication', () => {
+      // Some adapters emit `content` (cumulative buffer) instead of `delta`.
+      // The structured branch must dedup it against the part's existing raw,
+      // otherwise we'd append the whole buffer each time and corrupt the JSON.
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TEXT_MESSAGE_CONTENT, {
+          messageId: 'msg-1',
+          content: '{"name":',
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TEXT_MESSAGE_CONTENT, {
+          messageId: 'msg-1',
+          content: '{"name":"Alice"}',
+        }),
+      )
+
+      const sop = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')!
+        .parts.find((p) => p.type === 'structured-output') as any
+      expect(sop.raw).toBe('{"name":"Alice"}')
+    })
+
+    it('clears structuredMessageIds for messages dropped by removeMessagesAfter (reload)', () => {
+      // Reload removes the last assistant message and re-streams from the
+      // last user message. If the dropped assistant's routing entry lingers
+      // in structuredMessageIds, an adapter that reuses the same messageId
+      // on the resumed run (or a stale buffered chunk) would route plain
+      // text content into a structured-output part on the revived message.
+      //
+      // To actually exercise the cleanup, the resumed stream below reuses
+      // `msg-a` AND sends plain (non-structured) text content. Without the
+      // cleanup the assertion `no structured-output part` would fail because
+      // `structuredMessageIds.has('msg-a')` would still be true and the
+      // delta would land in `appendStructuredOutputDelta`.
+      const processor = new StreamProcessor()
+
+      const user = processor.addUserMessage('extract person')
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-a' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":"A"', 'msg-a'))
+
+      // Reload: drop everything after the user message.
+      const userIndex = processor
+        .getMessages()
+        .findIndex((m) => m.id === user.id)
+      processor.removeMessagesAfter(userIndex)
+
+      // Resume with the same messageId — no structured-output.start this
+      // time. With the cleanup this is plain text; without the cleanup the
+      // stale routing entry would force a structured-output part.
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(ev.textContent('hello', 'msg-a'))
+
+      const assistants = processor
+        .getMessages()
+        .filter((m) => m.role === 'assistant')
+      expect(assistants).toHaveLength(1)
+      expect(assistants[0]!.id).toBe('msg-a')
+      expect(
+        assistants[0]!.parts.find((p) => p.type === 'structured-output'),
+      ).toBeUndefined()
+      const textPart = assistants[0]!.parts.find((p) => p.type === 'text')
+      expect(textPart).toBeDefined()
+      expect((textPart as { content: string }).content).toBe('hello')
+    })
+
+    it('snaps a streaming structured-output part to error if RUN_FINISHED fires without structured-output.complete', () => {
+      // F3 regression: if the adapter ends the stream (RUN_FINISHED) without
+      // emitting the terminal `structured-output.complete`, the part should
+      // not linger as `streaming` forever and `structuredMessageIds` must be
+      // cleared so a later run on the same long-lived processor doesn't
+      // route into the stale entry.
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'msg-1' },
+        }),
+      )
+      processor.processChunk(ev.textContent('{"name":"A', 'msg-1'))
+      // No `structured-output.complete` — go straight to RUN_FINISHED.
+      processor.processChunk(ev.runFinished('stop', 'run-a'))
+
+      const assistant = processor
+        .getMessages()
+        .find((m) => m.role === 'assistant')!
+      const sop = assistant.parts.find((p) => p.type === 'structured-output')
+      expect(sop).toBeDefined()
+      expect((sop as { status: string }).status).toBe('error')
+
+      // And the routing set is empty — a follow-up run on the same processor
+      // that reuses the same messageId routes to plain text.
+      processor.processChunk(ev.runStarted('run-b'))
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('plain', 'msg-1'))
+
+      const followup = processor.getMessages().find((m) => m.id === 'msg-1')!
+      // The structured-output part from the prior run remains (errored), and
+      // the plain text from the new run lands as a TextPart, not a new
+      // structured-output part.
+      const textPart = followup.parts.find((p) => p.type === 'text')
+      expect(textPart).toBeDefined()
+      expect((textPart as { content: string }).content).toBe('plain')
+    })
+
+    it('clears messageStates for messages dropped by removeMessagesAfter', () => {
+      // Regression for a sibling of the structuredMessageIds leak: stale
+      // entries in `messageStates` for a dropped messageId would short-
+      // circuit `ensureAssistantMessage` (it returns the stale state and
+      // never pushes the message back into the messages array). A resumed
+      // run that ships a TEXT_MESSAGE_CONTENT for the dropped id without
+      // a prior TEXT_MESSAGE_START — possible when an adapter resumes by
+      // continuing the previous assistant message — would silently drop
+      // its deltas because `updateTextPart` finds no msg-a in messages.
+      const processor = new StreamProcessor()
+
+      const user = processor.addUserMessage('hi')
+      processor.processChunk(ev.runStarted('run-a'))
+      processor.processChunk(ev.textStart('msg-a'))
+      processor.processChunk(ev.textContent('first turn', 'msg-a'))
+
+      // Reload: drop everything after the user message.
+      const userIndex = processor
+        .getMessages()
+        .findIndex((m) => m.id === user.id)
+      processor.removeMessagesAfter(userIndex)
+
+      // Resume by sending content for the same id without a fresh
+      // TEXT_MESSAGE_START. With the cleanup, ensureAssistantMessage
+      // creates a new assistant message for msg-a; the content lands.
+      // Without the cleanup, the stale state short-circuits the helper
+      // and the content silently disappears.
+      processor.processChunk(ev.textContent('resumed', 'msg-a'))
+
+      const assistants = processor
+        .getMessages()
+        .filter((m) => m.role === 'assistant')
+      expect(assistants).toHaveLength(1)
+      expect(assistants[0]!.id).toBe('msg-a')
+      const textPart = assistants[0]!.parts.find((p) => p.type === 'text')
+      expect(textPart).toBeDefined()
+      expect((textPart as { content: string }).content).toBe('resumed')
     })
   })
 })

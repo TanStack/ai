@@ -557,17 +557,21 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       ...modelOptions,
     }
 
+    const formattedMessages = this.formatMessages(options.messages)
+
+    const prompts = normalizeSystemPrompts(options.systemPrompts)
+    if (prompts.length > 0) {
+      formattedMessages.unshift({
+        role: 'system',
+        content: prompts.map((p) => p.content).join('\n'),
+      })
+    }
+
     return {
       model,
       options: ollamaOptions,
-      messages: this.formatMessages(options.messages),
+      messages: formattedMessages,
       tools: this.convertToolsToOllamaFormat(options.tools),
-      ...(() => {
-        const prompts = normalizeSystemPrompts(options.systemPrompts)
-        return prompts.length > 0
-          ? { system: prompts.map((p) => p.content).join('\n') }
-          : {}
-      })(),
     }
   }
 }

@@ -375,4 +375,92 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(runError!.code).toBe('schema-validation')
     })
   })
+
+  describe('lifecycle ordering', () => {
+    it('emits structured-output.start before the first TEXT_MESSAGE_CONTENT', async () => {
+      // Coverage gap: the client-side routing the PR introduces only works
+      // if the server orchestrator emits `structured-output.start` BEFORE
+      // any TEXT_MESSAGE_CONTENT. Without this ordering, deltas would land
+      // in a plain TextPart instead of the structured-output part.
+      const adapter = makeAdapter({
+        structuredOutputStream: () =>
+          (async function* () {
+            for (const c of structuredStreamChunks(
+              JSON.stringify(validPerson),
+              validPerson,
+            ))
+              yield c
+          })(),
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      const chunks = await collectChunks(
+        stream as unknown as AsyncIterable<StreamChunk>,
+      )
+
+      const startIndex = chunks.findIndex(
+        (c) =>
+          c.type === EventType.CUSTOM &&
+          (c as { name?: string }).name === 'structured-output.start',
+      )
+      const firstContentIndex = chunks.findIndex(
+        (c) => c.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
+      expect(startIndex).toBeGreaterThanOrEqual(0)
+      expect(firstContentIndex).toBeGreaterThanOrEqual(0)
+      expect(startIndex).toBeLessThan(firstContentIndex)
+    })
+
+    it('synthesizes structured-output.start before forwarding a pre-delta RUN_ERROR', async () => {
+      // F1 regression: if the adapter errors before any TEXT_MESSAGE_START
+      // (auth failure, network error before stream open, schema-pre-flight
+      // throw), the orchestrator must still emit `structured-output.start`
+      // so the client snaps an errored structured-output part on a
+      // placeholder assistant message. Without this, the UI would render
+      // nothing — the part the multi-turn renderer reads off the message
+      // never gets created.
+      const adapter = makeAdapter({
+        // Throws synchronously when fallback awaits it — the adapter never
+        // yielded any TEXT_MESSAGE_START.
+        structuredOutput: async () => {
+          throw new Error('upstream auth failed')
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      const chunks = await collectChunks(
+        stream as unknown as AsyncIterable<StreamChunk>,
+      )
+
+      const startIndex = chunks.findIndex(
+        (c) =>
+          c.type === EventType.CUSTOM &&
+          (c as { name?: string }).name === 'structured-output.start',
+      )
+      const errorIndex = chunks.findIndex((c) => c.type === EventType.RUN_ERROR)
+      expect(startIndex).toBeGreaterThanOrEqual(0)
+      expect(errorIndex).toBeGreaterThanOrEqual(0)
+      expect(startIndex).toBeLessThan(errorIndex)
+
+      // The synthesized start carries a non-empty messageId so the client
+      // processor's `handleCustomEvent` routes it to a placeholder message.
+      const startChunk = chunks[startIndex] as {
+        value: { messageId: string }
+      }
+      expect(typeof startChunk.value.messageId).toBe('string')
+      expect(startChunk.value.messageId.length).toBeGreaterThan(0)
+    })
+  })
 })

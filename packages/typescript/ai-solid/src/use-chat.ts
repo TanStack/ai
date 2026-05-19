@@ -7,8 +7,11 @@ import {
 } from 'solid-js'
 
 import { ChatClient } from '@tanstack/ai-client'
-import { parsePartialJSON } from '@tanstack/ai'
-import type { ChatClientState, ConnectionStatus } from '@tanstack/ai-client'
+import type {
+  ChatClientState,
+  ConnectionStatus,
+  StructuredOutputPart,
+} from '@tanstack/ai-client'
 import type {
   AnyClientTool,
   InferSchemaType,
@@ -47,14 +50,12 @@ export function useChat<
     createSignal<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = createSignal(false)
 
-  // Structured-output state. Runtime always tracks them — the conditional
-  // return type hides them from callers that didn't supply `outputSchema`.
+  // Structured-output `partial` / `final` are derived from `messages` —
+  // specifically from the structured-output part on the latest assistant
+  // message (the one after the most recent user message). Per-turn parts
+  // keep history coherent without a separate reset signal.
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
-  const [partial, setPartial] = createSignal<Partial>({} as Partial)
-  const [final, setFinal] = createSignal<Final | null>(null)
-  // Raw JSON accumulator — kept outside the signal to avoid extra re-runs.
-  let rawJson = ''
 
   // Create ChatClient instance with callbacks to sync state.
   // Every user-provided callback is wrapped so the LATEST `options.xxx` value
@@ -71,25 +72,6 @@ export function useChat<
       forwardedProps: options.forwardedProps,
       onResponse: (response) => options.onResponse?.(response),
       onChunk: (chunk: StreamChunk) => {
-        if (options.outputSchema !== undefined) {
-          if (chunk.type === 'RUN_STARTED') {
-            rawJson = ''
-            setPartial({} as Partial)
-            setFinal(null)
-          } else if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
-            rawJson += chunk.delta
-            const progressive = parsePartialJSON(rawJson)
-            if (progressive && typeof progressive === 'object') {
-              setPartial(() => progressive as Partial)
-            }
-          } else if (
-            chunk.type === 'CUSTOM' &&
-            chunk.name === 'structured-output.complete'
-          ) {
-            const value = chunk.value as { object: unknown }
-            setFinal(() => value.object as Final)
-          }
-        }
         options.onChunk?.(chunk)
       },
       onFinish: (message) => {
@@ -217,6 +199,44 @@ export function useChat<
   }) => {
     await client().addToolApprovalResponse(response)
   }
+
+  // The "active" structured-output part is on the assistant message after
+  // the latest user message. When no user message exists yet, return null
+  // rather than scanning history — otherwise a stale `final` from
+  // `initialMessages` would leak into the value on first render.
+  const activeStructuredPart = createMemo<StructuredOutputPart | null>(() => {
+    const list = messages()
+    let lastUserIndex = -1
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i]!.role === 'user') {
+        lastUserIndex = i
+        break
+      }
+    }
+    if (lastUserIndex === -1) return null
+    for (let i = list.length - 1; i > lastUserIndex; i--) {
+      const m = list[i]!
+      if (m.role !== 'assistant') continue
+      const part = m.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )
+      if (part) return part
+    }
+    return null
+  })
+
+  const partial = createMemo<Partial>(() => {
+    const part = activeStructuredPart()
+    if (!part) return {} as Partial
+    const v = part.partial ?? part.data
+    return (v ?? {}) as Partial
+  })
+
+  const final = createMemo<Final | null>(() => {
+    const part = activeStructuredPart()
+    if (!part || part.status !== 'complete') return null
+    return part.data as Final
+  })
 
   // partial / final are runtime-tracked unconditionally; the conditional
   // return type hides them when no `outputSchema` is supplied.

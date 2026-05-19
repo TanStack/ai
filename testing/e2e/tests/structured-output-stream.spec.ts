@@ -25,6 +25,18 @@ for (const provider of providersFor('structured-output-stream')) {
       expect(response).toContain('Fender Stratocaster')
       expect(response).toContain('1299')
 
+      // Routing assertion: per `docs/structured-outputs/streaming.md`, when
+      // `outputSchema` is set, `TEXT_MESSAGE_CONTENT` deltas accumulate into
+      // a `structured-output` part — NOT into a `text` part with raw JSON
+      // bytes. The harness `ChatUI` renders both part types with distinct
+      // testids, so the assistant message must have exactly one
+      // `structured-output-part` and zero `text-part`s.
+      const assistantMessage = page.getByTestId('assistant-message').last()
+      await expect(
+        assistantMessage.getByTestId('structured-output-part'),
+      ).toHaveCount(1)
+      await expect(assistantMessage.getByTestId('text-part')).toHaveCount(0)
+
       // Verify the terminal `structured-output.complete` CUSTOM event
       // reached the client and carries the parsed object — protects against
       // a regression where the event is dropped but the JSON text still
