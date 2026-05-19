@@ -51,8 +51,17 @@ export const Route = createFileRoute('/api/audio/stream')({
             stream: true,
           })
           return toHttpResponse(stream, { abortController })
-        } catch (error: any) {
-          return new Response(JSON.stringify({ error: error.message }), {
+        } catch (error) {
+          console.error('[api.audio.stream] Error:', error)
+          if (
+            (error instanceof Error && error.name === 'AbortError') ||
+            abortController.signal.aborted
+          ) {
+            return new Response(null, { status: 499 })
+          }
+          const message =
+            error instanceof Error ? error.message : 'An error occurred'
+          return new Response(JSON.stringify({ error: message }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
           })

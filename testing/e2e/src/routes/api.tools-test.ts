@@ -80,20 +80,20 @@ export const Route = createFileRoute('/api/tools-test')({
           })
 
           return toServerSentEventsResponse(stream, { abortController })
-        } catch (error: any) {
+        } catch (error) {
           console.error('[Tools Test API] Error:', error)
-          if (error.name === 'AbortError' || abortController.signal.aborted) {
+          if (
+            (error instanceof Error && error.name === 'AbortError') ||
+            abortController.signal.aborted
+          ) {
             return new Response(null, { status: 499 })
           }
-          return new Response(
-            JSON.stringify({
-              error: error.message || 'An error occurred',
-            }),
-            {
-              status: 500,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          )
+          const message =
+            error instanceof Error ? error.message : 'An error occurred'
+          return new Response(JSON.stringify({ error: message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
       },
     },

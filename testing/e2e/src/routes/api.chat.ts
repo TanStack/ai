@@ -140,18 +140,20 @@ export const Route = createFileRoute('/api/chat')({
             stream as AsyncIterable<StreamChunk>,
             { abortController },
           )
-        } catch (error: any) {
-          console.error(`[api.chat] Error:`, error.message)
-          if (error.name === 'AbortError' || abortController.signal.aborted) {
+        } catch (error) {
+          console.error('[api.chat] Error:', error)
+          if (
+            (error instanceof Error && error.name === 'AbortError') ||
+            abortController.signal.aborted
+          ) {
             return new Response(null, { status: 499 })
           }
-          return new Response(
-            JSON.stringify({ error: error.message || 'An error occurred' }),
-            {
-              status: 500,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          )
+          const message =
+            error instanceof Error ? error.message : 'An error occurred'
+          return new Response(JSON.stringify({ error: message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
       },
     },

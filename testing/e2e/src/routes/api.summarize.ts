@@ -75,8 +75,14 @@ export const Route = createFileRoute('/api/summarize')({
           }
           const stream = summarize({ adapter, text, stream: true })
           return toServerSentEventsResponse(stream)
-        } catch (error: any) {
-          return new Response(JSON.stringify({ error: error.message }), {
+        } catch (error) {
+          console.error('[api.summarize] Error:', error)
+          if (error instanceof Error && error.name === 'AbortError') {
+            return new Response(null, { status: 499 })
+          }
+          const message =
+            error instanceof Error ? error.message : 'An error occurred'
+          return new Response(JSON.stringify({ error: message }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
           })
