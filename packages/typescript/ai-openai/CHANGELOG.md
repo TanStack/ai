@@ -1,5 +1,11 @@
 # @tanstack/ai-openai
 
+## 0.9.3
+
+### Patch Changes
+
+- Update model metadata from OpenRouter API ([#581](https://github.com/TanStack/ai/pull/581))
+
 ## 0.9.2
 
 ### Patch Changes
