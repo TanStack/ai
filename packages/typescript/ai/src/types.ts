@@ -366,18 +366,33 @@ export interface ThinkingPart {
 }
 
 /**
- * StructuredOutputPart — a typed structured response attached to the assistant
- * message that produced it. `data` and `partial` are intentionally untyped at
- * this layer; ai-react narrows them via `InferSchemaType<TSchema>` from the
- * hook surface.
+ * Recursive `Partial` — every nested field becomes optional. Used as the
+ * `partial` type on a streaming structured-output part since the progressive
+ * JSON parse hands back objects whose fields are only filled in as bytes
+ * arrive. Defaulted in `DeepPartial<unknown>` → `unknown` so untyped parts
+ * keep their existing shape.
  */
-export interface StructuredOutputPart {
+export type DeepPartial<T> =
+  T extends ReadonlyArray<infer U>
+    ? Array<DeepPartial<U>>
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T
+
+/**
+ * StructuredOutputPart — a typed structured response attached to the assistant
+ * message that produced it. Generic over the schema-inferred data type so
+ * consumers can thread `useChat({ outputSchema })`'s schema all the way down
+ * to `messages[i].parts[j].data`. Defaults to `unknown` so untyped consumers
+ * (e.g. internal codepaths that don't know about TSchema) keep working.
+ */
+export interface StructuredOutputPart<TData = unknown> {
   type: 'structured-output'
   status: 'streaming' | 'complete' | 'error'
   /** Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete. */
-  partial?: unknown
+  partial?: DeepPartial<TData>
   /** Validated final object — only set when `status === 'complete'`. */
-  data?: unknown
+  data?: TData
   /** Accumulating JSON buffer. Source of truth for wire round-trip. */
   raw: string
   /** Optional chain-of-thought surfaced by reasoning models alongside the structured output. */
@@ -386,7 +401,7 @@ export interface StructuredOutputPart {
   errorMessage?: string
 }
 
-export type MessagePart =
+export type MessagePart<TData = unknown> =
   | TextPart
   | ImagePart
   | AudioPart
@@ -395,16 +410,19 @@ export type MessagePart =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
-  | StructuredOutputPart
+  | StructuredOutputPart<TData>
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
- * Contains parts that can be text, tool calls, or tool results
+ * Contains parts that can be text, tool calls, or tool results. Generic over
+ * the structured-output data type so `useChat({ outputSchema })`'s schema
+ * narrows `parts.find(p => p.type === 'structured-output').data` on the
+ * consumer side without manual casts.
  */
-export interface UIMessage {
+export interface UIMessage<TData = unknown> {
   id: string
   role: 'system' | 'user' | 'assistant'
-  parts: Array<MessagePart>
+  parts: Array<MessagePart<TData>>
   createdAt?: Date
 }
 
