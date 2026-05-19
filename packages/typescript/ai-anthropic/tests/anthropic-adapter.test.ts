@@ -117,6 +117,73 @@ describe('Anthropic adapter option mapping', () => {
     ])
   })
 
+  it('drops unknown modelOptions keys (e.g. `system`) and warns via logger.error', async () => {
+    const mockStream = (async function* () {
+      yield {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      }
+      yield {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'Hello' },
+      }
+      yield {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 3 },
+      }
+      yield { type: 'message_stop' }
+    })()
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('claude-3-7-sonnet')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      systemPrompts: ['real system prompt'],
+      modelOptions: {
+        system: 'ignored escape hatch',
+        bogus_key: 'also ignored',
+      } as unknown as AnthropicTextProviderOptions,
+      debug: { logger, errors: true },
+    })) {
+      chunks.push(chunk)
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    // systemPrompts wins; modelOptions.system was dropped.
+    expect(payload.system).toEqual([
+      { type: 'text', text: 'real system prompt' },
+    ])
+    // bogus_key did not leak into the request either.
+    expect(payload).not.toHaveProperty('bogus_key')
+
+    // The drop is loud — error fired with both keys named and a hint for `system`.
+    expect(logger.error).toHaveBeenCalled()
+    const errorCall = logger.error.mock.calls.find((call) =>
+      String(call[0]).includes('dropped unknown modelOptions key'),
+    )
+    expect(errorCall).toBeDefined()
+    const [, meta] = errorCall!
+    expect((meta as { droppedKeys: Array<string> }).droppedKeys).toEqual(
+      expect.arrayContaining(['system', 'bogus_key']),
+    )
+    expect((meta as { hint?: string }).hint).toMatch(/systemPrompts/)
+  })
+
   it('maps normalized options and Anthropic provider settings', async () => {
     // Mock the streaming response
     const mockStream = (async function* () {
