@@ -178,11 +178,16 @@ export class GeminiTextInteractionsAdapter<
   // so that within a single agent-loop run the adapter can chain
   // iterations: iteration 0 has no prior id, but iteration 1+ (after a
   // tool call) need to send the id from iteration 0 — the caller has no
-  // opportunity to thread it back between iterations. We evict entries
-  // on terminal `RUN_FINISHED` (finishReason !== 'tool_calls') and on
-  // `RUN_ERROR` so a stale id from an aborted/errored turn cannot leak
-  // into the next turn on the same threadId. Cross-request chaining is
-  // still the caller's job via `modelOptions.previous_interaction_id`.
+  // opportunity to thread it back between iterations. Entries are
+  // evicted on terminal `RUN_FINISHED` (finishReason !== 'tool_calls')
+  // and on `RUN_ERROR`, on the truncation fallback when the SDK closes
+  // without a terminal event, on thrown errors via the catch handler,
+  // and — via the `chatStream` `finally` block — on consumer abandonment
+  // through `.return()` (upstream `break`/abort). The only path that
+  // keeps an entry is a `RUN_FINISHED(tool_calls)` followed by a normal
+  // generator completion (the immediate-next iteration consumes it).
+  // Cross-request chaining is the caller's job via
+  // `modelOptions.previous_interaction_id`.
   private interactionIdByThread = new Map<string, string>()
 
   constructor(config: GeminiTextInteractionsConfig, model: TModel) {
@@ -206,6 +211,14 @@ export class GeminiTextInteractionsAdapter<
       this.interactionIdByThread.get(threadId)
 
     let sawTerminalEvent = false
+    // Sentinel for the `.return()` abandonment path. Set to `true` only at
+    // the bottom of the `try` block — so a consumer-initiated close (via
+    // upstream `break` or abort) leaves it `false`, distinguishing
+    // abandonment from normal completion. This is the only signal that
+    // catches abandonment AFTER a `RUN_FINISHED(tool_calls)`, where
+    // `sawTerminalEvent` is `true` but the in-loop deliberately kept the
+    // map entry for an agent-loop iteration that will now never run.
+    let completedTryBlock = false
     try {
       const request = buildInteractionsRequest({
         ...options,
@@ -294,6 +307,7 @@ export class GeminiTextInteractionsAdapter<
           error: { message },
         }
       }
+      completedTryBlock = true
     } catch (error) {
       this.interactionIdByThread.delete(threadId)
       const message =
@@ -313,13 +327,17 @@ export class GeminiTextInteractionsAdapter<
         error: { message },
       }
     } finally {
-      // Belt-and-suspenders eviction for the abandonment path: if the
-      // consumer calls `.return()` on this generator (upstream `break`,
-      // request abort) we never reach the in-loop eviction, the
-      // truncation guard, or the catch handler — without this, the next
-      // turn on the same threadId would chain off a stale id captured
-      // before the early exit. Idempotent with the other paths.
-      if (!sawTerminalEvent) {
+      // Cleanup for any path that didn't reach the bottom of the `try`:
+      //   - consumer `.return()` on the generator (upstream `break`/abort)
+      //     never throws into the catch and never reaches the truncation
+      //     guard, so this is the only path that evicts.
+      //   - The catch handler also lands here with `completedTryBlock`
+      //     false; the explicit delete it ran is harmless to repeat.
+      // Critically, this also covers `.return()` AFTER a
+      // RUN_FINISHED(tool_calls) — `sawTerminalEvent` is `true` in that
+      // case but the in-loop intentionally kept the map entry for an
+      // agent-loop iteration that will now never run, so we evict here.
+      if (!completedTryBlock) {
         this.interactionIdByThread.delete(threadId)
       }
     }
