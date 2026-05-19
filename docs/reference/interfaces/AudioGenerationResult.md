@@ -5,7 +5,7 @@ title: AudioGenerationResult
 
 # Interface: AudioGenerationResult
 
-Defined in: [packages/typescript/ai/src/types.ts:1512](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1512)
+Defined in: [packages/typescript/ai/src/types.ts:1502](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1502)
 
 Result of audio generation
 
@@ -17,7 +17,7 @@ Result of audio generation
 audio: GeneratedAudio;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1518](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1518)
+Defined in: [packages/typescript/ai/src/types.ts:1508](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1508)
 
 The generated audio
 
@@ -29,7 +29,7 @@ The generated audio
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1514](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1514)
+Defined in: [packages/typescript/ai/src/types.ts:1504](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1504)
 
 Unique identifier for the generation
 
@@ -41,7 +41,7 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1516](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1516)
+Defined in: [packages/typescript/ai/src/types.ts:1506](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1506)
 
 Model used for generation
 
@@ -53,7 +53,7 @@ Model used for generation
 optional usage: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1520](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1520)
+Defined in: [packages/typescript/ai/src/types.ts:1510](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1510)
 
 Token usage information (if available)
 

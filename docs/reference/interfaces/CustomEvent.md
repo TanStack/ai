@@ -16,6 +16,13 @@ TanStack AI adds: `model?`
 
 - `CustomEvent`
 
+## Extended by
+
+- [`StructuredOutputCompleteEvent`](StructuredOutputCompleteEvent.md)
+- [`StructuredOutputStartEvent`](StructuredOutputStartEvent.md)
+- [`ApprovalRequestedEvent`](ApprovalRequestedEvent.md)
+- [`ToolInputAvailableEvent`](ToolInputAvailableEvent.md)
+
 ## Indexable
 
 ```ts

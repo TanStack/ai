@@ -5,7 +5,7 @@ title: ReasoningStartEvent
 
 # Interface: ReasoningStartEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1259](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1259)
+Defined in: [packages/typescript/ai/src/types.ts:1249](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1249)
 
 Emitted when reasoning starts for a message.
 
@@ -30,6 +30,6 @@ TanStack AI adds: `model?`
 optional model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1261](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1261)
+Defined in: [packages/typescript/ai/src/types.ts:1251](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1251)
 
 Model identifier for multi-model support

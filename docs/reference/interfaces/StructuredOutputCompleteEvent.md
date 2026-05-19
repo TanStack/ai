@@ -26,7 +26,7 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 
 ## Extends
 
-- `Omit`\<[`CustomEvent`](CustomEvent.md), `"name"` \| `"value"`\>
+- [`CustomEvent`](CustomEvent.md)
 
 ## Type Parameters
 
@@ -37,14 +37,26 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 ## Indexable
 
 ```ts
-[key: string]: unknown
-```
-
-```ts
-[key: number]: unknown
+[k: string]: unknown
 ```
 
 ## Properties
+
+### model?
+
+```ts
+optional model: string;
+```
+
+Defined in: [packages/typescript/ai/src/types.ts:1128](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1128)
+
+Model identifier for multi-model support
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+
+***
 
 ### name
 
@@ -52,7 +64,13 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 name: "structured-output.complete";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1153](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1153)
+Defined in: [packages/typescript/ai/src/types.ts:1152](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1152)
+
+#### Overrides
+
+```ts
+CustomEvent.name
+```
 
 ***
 
@@ -62,7 +80,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1153](https://github.com/TanSta
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1154](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1154)
+Defined in: [packages/typescript/ai/src/types.ts:1153](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1153)
 
 #### object
 
@@ -80,4 +98,10 @@ raw: string;
 
 ```ts
 optional reasoning: string;
+```
+
+#### Overrides
+
+```ts
+CustomEvent.value
 ```

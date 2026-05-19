@@ -5,7 +5,7 @@ title: ApprovalRequestedEvent
 
 # Interface: ApprovalRequestedEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1180](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1180)
+Defined in: [packages/typescript/ai/src/types.ts:1176](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1176)
 
 Emitted when a server tool requires approval before execution. The agent
 loop yields this and pauses — `structured-output.complete` will not fire
@@ -15,19 +15,31 @@ for that run. The shape is fixed by the orchestrator's tool-approval flow
 
 ## Extends
 
-- `Omit`\<[`CustomEvent`](CustomEvent.md), `"name"` \| `"value"`\>
+- [`CustomEvent`](CustomEvent.md)
 
 ## Indexable
 
 ```ts
-[key: string]: unknown
-```
-
-```ts
-[key: number]: unknown
+[k: string]: unknown
 ```
 
 ## Properties
+
+### model?
+
+```ts
+optional model: string;
+```
+
+Defined in: [packages/typescript/ai/src/types.ts:1128](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1128)
+
+Model identifier for multi-model support
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+
+***
 
 ### name
 
@@ -35,7 +47,13 @@ for that run. The shape is fixed by the orchestrator's tool-approval flow
 name: "approval-requested";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1184](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1184)
+Defined in: [packages/typescript/ai/src/types.ts:1177](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1177)
+
+#### Overrides
+
+```ts
+CustomEvent.name
+```
 
 ***
 
@@ -45,7 +63,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1184](https://github.com/TanSta
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1185](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1185)
+Defined in: [packages/typescript/ai/src/types.ts:1178](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1178)
 
 #### approval
 
@@ -81,4 +99,10 @@ toolCallId: string;
 
 ```ts
 toolName: string;
+```
+
+#### Overrides
+
+```ts
+CustomEvent.value
 ```

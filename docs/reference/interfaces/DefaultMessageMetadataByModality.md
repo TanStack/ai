@@ -5,7 +5,7 @@ title: DefaultMessageMetadataByModality
 
 # Interface: DefaultMessageMetadataByModality
 
-Defined in: [packages/typescript/ai/src/types.ts:1732](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1732)
+Defined in: [packages/typescript/ai/src/types.ts:1722](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1722)
 
 Default metadata type for adapters that don't define custom metadata.
 Uses unknown for all modalities.
@@ -18,7 +18,7 @@ Uses unknown for all modalities.
 audio: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1735](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1735)
+Defined in: [packages/typescript/ai/src/types.ts:1725](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1725)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1735](https://github.com/TanSta
 document: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1737](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1737)
+Defined in: [packages/typescript/ai/src/types.ts:1727](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1727)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1737](https://github.com/TanSta
 image: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1734](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1734)
+Defined in: [packages/typescript/ai/src/types.ts:1724](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1724)
 
 ***
 
@@ -48,7 +48,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1734](https://github.com/TanSta
 text: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1733](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1733)
+Defined in: [packages/typescript/ai/src/types.ts:1723](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1723)
 
 ***
 
@@ -58,4 +58,4 @@ Defined in: [packages/typescript/ai/src/types.ts:1733](https://github.com/TanSta
 video: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1736](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1736)
+Defined in: [packages/typescript/ai/src/types.ts:1726](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1726)
