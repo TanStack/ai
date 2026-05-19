@@ -1,5 +1,18 @@
 # ts-svelte-chat
 
+## 0.1.45
+
+### Patch Changes
+
+- Updated dependencies [[`2e0e2eb`](https://github.com/TanStack/ai/commit/2e0e2eb72684aac82e570d57767656e218289b49)]:
+  - @tanstack/ai@0.19.0
+  - @tanstack/ai-client@0.11.0
+  - @tanstack/ai-svelte@0.10.0
+  - @tanstack/ai-anthropic@0.8.9
+  - @tanstack/ai-gemini@0.10.6
+  - @tanstack/ai-ollama@0.6.17
+  - @tanstack/ai-openai@0.9.2
+
 ## 0.1.44
 
 ### Patch Changes
