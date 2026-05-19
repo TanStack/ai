@@ -137,8 +137,11 @@ function serializeContent(content: unknown): string {
       case 'document':
         parts.push('[document]')
         break
+      case undefined:
+        parts.push('[unknown]')
+        break
       default:
-        parts.push(`[${type ?? 'unknown'}]`)
+        parts.push(`[${type}]`)
     }
   }
   return parts.join(' ')

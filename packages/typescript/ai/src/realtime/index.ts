@@ -1,7 +1,7 @@
 import type { RealtimeToken, RealtimeTokenOptions } from './types'
 
 // Re-export all types
-export * from './types'
+export type * from './types'
 
 /**
  * Generate a realtime token using the provided adapter.

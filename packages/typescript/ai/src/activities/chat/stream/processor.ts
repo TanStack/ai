@@ -480,6 +480,7 @@ export class StreamProcessor {
     // Cast needed: @ag-ui/core Zod passthrough types add `& { [k: string]: unknown }`
     // which prevents TypeScript from narrowing the `type` discriminant in switch.
     const c = chunk as StreamChunk & { type: string }
+    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (c.type) {
       // AG-UI Events
       case 'TEXT_MESSAGE_START':

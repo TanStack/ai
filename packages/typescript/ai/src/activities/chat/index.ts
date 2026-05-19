@@ -703,6 +703,7 @@ class TextEngine<
   }
 
   private handleStreamChunk(chunk: StreamChunk): void {
+    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (chunk.type) {
       // AG-UI Events
       case 'TEXT_MESSAGE_CONTENT':

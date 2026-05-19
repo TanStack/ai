@@ -83,6 +83,7 @@ export function deriveAudioContentType(
       return 'audio/mp4'
     case 'webm':
       return 'audio/webm'
+    case undefined:
     default:
       return 'audio/mpeg'
   }

@@ -159,6 +159,7 @@ export class GenerationClient<
 
       this.callbacksRef.onChunk?.(chunk)
 
+      // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType has ~22 variants; this consumer only handles the subset relevant to generation lifecycle.
       switch (chunk.type) {
         case 'CUSTOM': {
           if (chunk.name === GENERATION_EVENTS.RESULT) {
@@ -184,6 +185,8 @@ export class GenerationClient<
             'An error occurred'
           throw new Error(msg)
         }
+        default:
+          break
       }
     }
   }

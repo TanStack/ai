@@ -221,6 +221,9 @@ export class ChatStreamSummarizeAdapter<
       case 'concise':
         prompt += 'Provide a very concise summary in 1-2 sentences. '
         break
+      case undefined:
+        prompt += 'Provide a clear and concise summary. '
+        break
       default:
         prompt += 'Provide a clear and concise summary. '
     }

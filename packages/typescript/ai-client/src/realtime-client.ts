@@ -168,7 +168,7 @@ export class RealtimeClient {
     if (!this.connection || this.state.status !== 'connected') {
       return
     }
-    this.connection.startAudioCapture()
+    void this.connection.startAudioCapture()
     this.updateState({ mode: 'listening' })
   }
 
@@ -305,7 +305,7 @@ export class RealtimeClient {
    * Call this when disposing of the client.
    */
   destroy(): void {
-    this.disconnect()
+    void this.disconnect()
     this.stateChangeCallbacks.clear()
   }
 
@@ -344,7 +344,7 @@ export class RealtimeClient {
     const refreshIn = Math.max(0, timeUntilExpiry - TOKEN_REFRESH_BUFFER_MS)
 
     this.tokenRefreshTimeout = setTimeout(() => {
-      this.refreshToken()
+      void this.refreshToken()
     }, refreshIn)
   }
 
@@ -407,20 +407,20 @@ export class RealtimeClient {
 
     // Tool calls
     this.unsubscribers.push(
-      this.connection.on(
-        'tool_call',
-        async ({ toolCallId, toolName, input }) => {
-          if (!toolCallId) {
-            console.error(
-              '[RealtimeClient] tool_call missing toolCallId',
-              toolName,
-            )
-            return
-          }
-          const tool = this.clientTools.get(toolName)
-          if (tool?.execute) {
+      this.connection.on('tool_call', ({ toolCallId, toolName, input }) => {
+        if (!toolCallId) {
+          console.error(
+            '[RealtimeClient] tool_call missing toolCallId',
+            toolName,
+          )
+          return
+        }
+        const tool = this.clientTools.get(toolName)
+        const execute = tool?.execute
+        if (execute) {
+          void (async () => {
             try {
-              const output = await tool.execute(input)
+              const output = await execute(input)
               this.connection?.sendToolResult(
                 toolCallId,
                 typeof output === 'string' ? output : JSON.stringify(output),
@@ -433,16 +433,16 @@ export class RealtimeClient {
                 JSON.stringify({ error: errMsg }),
               )
             }
-          } else {
-            this.connection?.sendToolResult(
-              toolCallId,
-              JSON.stringify({
-                error: `Unknown or non-executable tool: ${String(toolName)}`,
-              }),
-            )
-          }
-        },
-      ),
+          })()
+        } else {
+          this.connection?.sendToolResult(
+            toolCallId,
+            JSON.stringify({
+              error: `Unknown or non-executable tool: ${String(toolName)}`,
+            }),
+          )
+        }
+      }),
     )
 
     // Message complete
