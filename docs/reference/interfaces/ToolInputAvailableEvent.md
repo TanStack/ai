@@ -5,12 +5,12 @@ title: ToolInputAvailableEvent
 
 # Interface: ToolInputAvailableEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1142](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1142)
+Defined in: [packages/typescript/ai/src/types.ts:1199](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1199)
 
 Emitted when a client tool is invoked. The agent loop yields this and
 pauses to let the caller run the tool client-side — `structured-output.complete`
-will not fire for that run. Shape fixed by `buildClientToolChunks` in
-`activities/chat/index.ts`.
+will not fire for that run. Shape fixed by the agent-loop forwarding in
+`runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
 
 ## Extends
 
@@ -34,7 +34,7 @@ will not fire for that run. Shape fixed by `buildClientToolChunks` in
 name: "tool-input-available";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1146](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1146)
+Defined in: [packages/typescript/ai/src/types.ts:1203](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1203)
 
 ***
 
@@ -44,7 +44,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1146](https://github.com/TanSta
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1147](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1147)
+Defined in: [packages/typescript/ai/src/types.ts:1204](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1204)
 
 #### input
 

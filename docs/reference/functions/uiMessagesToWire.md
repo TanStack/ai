@@ -23,7 +23,7 @@ AG-UI server consumers.
 
 ### messages
 
-[`UIMessage`](../interfaces/UIMessage.md)[]
+[`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>[]
 
 ## Returns
 

@@ -10,11 +10,11 @@ function chatParamsFromRequestBody(body): Promise<{
   context: object[];
   forwardedProps: Record<string, unknown>;
   messages: (
-     | UIMessage
      | ModelMessage<
      | string
      | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
-    | null>)[];
+     | null>
+    | UIMessage<unknown>)[];
   parentRunId?: string;
   runId: string;
   state: unknown;
@@ -44,11 +44,11 @@ reasoning/activity/developer-role normalization internally.
   `context`: `object`[];
   `forwardedProps`: `Record`\<`string`, `unknown`\>;
   `messages`: (
-     \| [`UIMessage`](../interfaces/UIMessage.md)
      \| [`ModelMessage`](../interfaces/ModelMessage.md)\<
      \| `string`
      \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
-    \| `null`\>)[];
+     \| `null`\>
+    \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>)[];
   `parentRunId?`: `string`;
   `runId`: `string`;
   `state`: `unknown`;
