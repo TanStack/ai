@@ -5,7 +5,7 @@ title: VideoGenerationOptions
 
 # Interface: VideoGenerationOptions\<TProviderOptions, TSize\>
 
-Defined in: [packages/typescript/ai/src/types.ts:1537](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1537)
+Defined in: [packages/typescript/ai/src/types.ts:1527](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1527)
 
 **`Experimental`**
 
@@ -32,7 +32,7 @@ These are the common options supported across providers.
 optional duration: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1548](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1548)
+Defined in: [packages/typescript/ai/src/types.ts:1538](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1538)
 
 **`Experimental`**
 
@@ -46,7 +46,7 @@ Video duration in seconds
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1555](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1555)
+Defined in: [packages/typescript/ai/src/types.ts:1545](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1545)
 
 **`Experimental`**
 
@@ -61,7 +61,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1542](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1542)
+Defined in: [packages/typescript/ai/src/types.ts:1532](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1532)
 
 **`Experimental`**
 
@@ -75,7 +75,7 @@ The model to use for video generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1550](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1550)
+Defined in: [packages/typescript/ai/src/types.ts:1540](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1540)
 
 **`Experimental`**
 
@@ -89,7 +89,7 @@ Model-specific options for video generation
 prompt: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1544](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1544)
+Defined in: [packages/typescript/ai/src/types.ts:1534](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1534)
 
 **`Experimental`**
 
@@ -103,7 +103,7 @@ Text description of the desired video
 optional size: TSize;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1546](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1546)
+Defined in: [packages/typescript/ai/src/types.ts:1536](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1536)
 
 **`Experimental`**
 
