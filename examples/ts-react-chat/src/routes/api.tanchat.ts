@@ -99,13 +99,13 @@ const loggingMiddleware: ChatMiddleware = {
   onStart(ctx) {
     console.log(`[logging] onStart requestId=${ctx.requestId}`)
   },
-  onIteration(ctx, info) {
+  onIteration(_ctx, info) {
     console.log(`[logging] onIteration iteration=${info.iteration}`)
   },
-  onBeforeToolCall(ctx, toolCtx) {
+  onBeforeToolCall(_ctx, toolCtx) {
     console.log(`[logging] onBeforeToolCall tool=${toolCtx.toolName}`)
   },
-  onAfterToolCall(ctx, info) {
+  onAfterToolCall(_ctx, info) {
     console.log(
       `[logging] onAfterToolCall tool=${info.toolName} result=${JSON.stringify(info.result).slice(0, 100)}`,
     )
@@ -115,7 +115,7 @@ const loggingMiddleware: ChatMiddleware = {
       `[logging] onFinish reason=${info.finishReason} iterations=${ctx.iteration}`,
     )
   },
-  onUsage(ctx, usage) {
+  onUsage(_ctx, usage) {
     console.log(
       `[logging] onUsage tokens=${usage.totalTokens} input=${usage.promptTokens} output=${usage.completionTokens}, total: ${usage.totalTokens}`,
     )

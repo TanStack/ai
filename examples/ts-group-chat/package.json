@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite dev --port 4000",
     "build": "exit 0",
-    "test": "exit 0"
+    "test": "exit 0",
+    "test:types": "tsc --noEmit"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
