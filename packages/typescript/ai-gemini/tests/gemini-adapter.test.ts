@@ -159,7 +159,10 @@ describe('GeminiAdapter through AI', () => {
         // The adapter must still produce the expected systemInstruction
         // string and never leak the foreign field anywhere on the payload.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        { content: 'with-foreign-meta', metadata: { cache_control: {} } as any },
+        {
+          content: 'with-foreign-meta',
+          metadata: { cache_control: {} } as any,
+        },
       ],
     })) {
       /* consume stream */

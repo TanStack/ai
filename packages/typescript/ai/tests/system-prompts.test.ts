@@ -24,10 +24,7 @@ describe('normalizeSystemPrompts', () => {
         { content: 'cached', metadata: meta },
         { content: 'plain' },
       ]),
-    ).toEqual([
-      { content: 'cached', metadata: meta },
-      { content: 'plain' },
-    ])
+    ).toEqual([{ content: 'cached', metadata: meta }, { content: 'plain' }])
   })
 
   it('mixes plain strings and object-form in order', () => {

@@ -444,7 +444,10 @@ describe('otelMiddleware — captureContent', () => {
       messages: [{ role: 'user', content: 'hi' }],
       systemPrompts: [
         'plain',
-        { content: 'cached', metadata: { cache_control: { type: 'ephemeral' } } },
+        {
+          content: 'cached',
+          metadata: { cache_control: { type: 'ephemeral' } },
+        },
         { content: 'no-meta' },
       ],
     })
@@ -470,7 +473,9 @@ describe('otelMiddleware — captureContent', () => {
     })
 
     const iter = spans[1]!
-    expect(iter.attributes!['tanstack.ai.system_prompt.metadata']).toBeUndefined()
+    expect(
+      iter.attributes!['tanstack.ai.system_prompt.metadata'],
+    ).toBeUndefined()
   })
 
   it('captureContent=false emits no message events', async () => {
