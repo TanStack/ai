@@ -42,12 +42,12 @@ const stream = chat({
 import { chat } from "@tanstack/ai";
 import { createGeminiChat } from "@tanstack/ai-gemini";
 
-const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, {
+const adapter = createGeminiChat("gemini-2.5-pro", process.env.GEMINI_API_KEY!, {
   // ... your config options
 });
 
 const stream = chat({
-  adapter: adapter("gemini-2.5-pro"),
+  adapter,
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -55,13 +55,13 @@ const stream = chat({
 ## Configuration
 
 ```typescript
-import { createGeminiChat, type GeminiChatConfig } from "@tanstack/ai-gemini";
+import { createGeminiChat, type GeminiTextConfig } from "@tanstack/ai-gemini";
 
-const config: Omit<GeminiChatConfig, 'apiKey'> = {
+const config: Omit<GeminiTextConfig, 'apiKey'> = {
   baseURL: "https://generativelanguage.googleapis.com/v1beta", // Optional
 };
 
-const adapter = createGeminiChat(process.env.GEMINI_API_KEY!, config);
+const adapter = createGeminiChat("gemini-2.5-pro", process.env.GEMINI_API_KEY!, config);
 ```
   
 
@@ -510,18 +510,24 @@ These models use the dedicated `generateImages` API.
 
 ## API Reference
 
-### `geminiText(config?)`
+### `geminiText(model, config?)`
 
 Creates a Gemini text/chat adapter using environment variables.
 
+**Parameters:**
+
+- `model` - The model name (e.g. `"gemini-2.5-pro"`)
+- `config.baseURL?` - Custom base URL (optional)
+
 **Returns:** A Gemini text adapter instance.
 
-### `createGeminiText(apiKey, config?)`
+### `createGeminiChat(model, apiKey, config?)`
 
 Creates a Gemini text/chat adapter with an explicit API key.
 
 **Parameters:**
 
+- `model` - The model name (e.g. `"gemini-2.5-pro"`)
 - `apiKey` - Your Gemini API key
 - `config.baseURL?` - Custom base URL (optional)
 
@@ -543,15 +549,26 @@ Creates a Gemini Interactions API text adapter with an explicit API key.
 
 **Returns:** A Gemini Interactions text adapter instance.
 
-### `geminiSummarize(config?)`
+### `geminiSummarize(model, config?)`
 
 Creates a Gemini summarization adapter using environment variables.
 
+**Parameters:**
+
+- `model` - The model name (e.g. `"gemini-2.5-pro"`)
+- `config.baseURL?` - Custom base URL (optional)
+
 **Returns:** A Gemini summarize adapter instance.
 
-### `createGeminiSummarize(apiKey, config?)`
+### `createGeminiSummarize(apiKey, model, config?)`
 
 Creates a Gemini summarization adapter with an explicit API key.
+
+**Parameters:**
+
+- `apiKey` - Your Gemini API key
+- `model` - The model name (e.g. `"gemini-2.5-pro"`)
+- `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini summarize adapter instance.
 
@@ -578,15 +595,26 @@ Creates a Gemini image adapter with an explicit API key.
 
 **Returns:** A Gemini image adapter instance.
 
-### `geminiTTS(config?)`
+### `geminiSpeech(model, config?)`
 
-Creates a Gemini TTS adapter using environment variables.
+Creates a Gemini text-to-speech adapter using environment variables.
+
+**Parameters:**
+
+- `model` - The model name (e.g. `"gemini-2.5-flash-preview-tts"`)
+- `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini TTS adapter instance.
 
-### `createGeminiTTS(apiKey, config?)`
+### `createGeminiSpeech(model, apiKey, config?)`
 
-Creates a Gemini TTS adapter with an explicit API key.
+Creates a Gemini text-to-speech adapter with an explicit API key.
+
+**Parameters:**
+
+- `model` - The model name (e.g. `"gemini-2.5-flash-preview-tts"`)
+- `apiKey` - Your Gemini API key
+- `config.baseURL?` - Custom base URL (optional)
 
 **Returns:** A Gemini TTS adapter instance.
 
