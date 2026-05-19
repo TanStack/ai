@@ -46,9 +46,13 @@ export function createImageAdapter(
         defaultHeaders: headers,
       }),
     gemini: () =>
-      createGeminiImage('gemini-2.0-flash-preview-image-generation', DUMMY_KEY, {
-        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
-      }),
+      createGeminiImage(
+        'gemini-2.0-flash-preview-image-generation',
+        DUMMY_KEY,
+        {
+          httpOptions: { baseUrl: llmockBase(aimockPort), headers },
+        },
+      ),
     grok: () =>
       createGrokImage('grok-2-image-1212', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),

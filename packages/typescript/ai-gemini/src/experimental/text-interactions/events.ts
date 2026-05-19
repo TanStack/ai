@@ -6,8 +6,10 @@ import type { CustomEvent, StreamChunk } from '@tanstack/ai'
  * immediately before `RUN_FINISHED` on a successful run; pass `interactionId`
  * back as `modelOptions.previous_interaction_id` to continue the conversation.
  */
-export interface GeminiInteractionIdEvent
-  extends Omit<CustomEvent, 'name' | 'value'> {
+export interface GeminiInteractionIdEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
   name: 'gemini.interactionId'
   value: { interactionId: string }
 }
@@ -16,8 +18,10 @@ export interface GeminiInteractionIdEvent
  * `CUSTOM` event carrying a raw `google_search_call` content delta from the
  * Interactions API. Payload shape is owned by `@google/genai`.
  */
-export interface GeminiGoogleSearchCallEvent
-  extends Omit<CustomEvent, 'name' | 'value'> {
+export interface GeminiGoogleSearchCallEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
   name: 'gemini.googleSearchCall'
   value: Interactions.ContentDelta.GoogleSearchCallDelta
 }
@@ -26,8 +30,10 @@ export interface GeminiGoogleSearchCallEvent
  * `CUSTOM` event carrying a raw `google_search_result` content delta from
  * the Interactions API.
  */
-export interface GeminiGoogleSearchResultEvent
-  extends Omit<CustomEvent, 'name' | 'value'> {
+export interface GeminiGoogleSearchResultEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
   name: 'gemini.googleSearchResult'
   value: Interactions.ContentDelta.GoogleSearchResultDelta
 }
@@ -36,8 +42,10 @@ export interface GeminiGoogleSearchResultEvent
  * `CUSTOM` event carrying a raw `code_execution_call` content delta from
  * the Interactions API.
  */
-export interface GeminiCodeExecutionCallEvent
-  extends Omit<CustomEvent, 'name' | 'value'> {
+export interface GeminiCodeExecutionCallEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
   name: 'gemini.codeExecutionCall'
   value: Interactions.ContentDelta.CodeExecutionCallDelta
 }
@@ -46,8 +54,10 @@ export interface GeminiCodeExecutionCallEvent
  * `CUSTOM` event carrying a raw `code_execution_result` content delta from
  * the Interactions API.
  */
-export interface GeminiCodeExecutionResultEvent
-  extends Omit<CustomEvent, 'name' | 'value'> {
+export interface GeminiCodeExecutionResultEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
   name: 'gemini.codeExecutionResult'
   value: Interactions.ContentDelta.CodeExecutionResultDelta
 }
@@ -56,8 +66,10 @@ export interface GeminiCodeExecutionResultEvent
  * `CUSTOM` event carrying a raw `url_context_call` content delta from the
  * Interactions API.
  */
-export interface GeminiUrlContextCallEvent
-  extends Omit<CustomEvent, 'name' | 'value'> {
+export interface GeminiUrlContextCallEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
   name: 'gemini.urlContextCall'
   value: Interactions.ContentDelta.URLContextCallDelta
 }
@@ -66,8 +78,10 @@ export interface GeminiUrlContextCallEvent
  * `CUSTOM` event carrying a raw `url_context_result` content delta from the
  * Interactions API.
  */
-export interface GeminiUrlContextResultEvent
-  extends Omit<CustomEvent, 'name' | 'value'> {
+export interface GeminiUrlContextResultEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
   name: 'gemini.urlContextResult'
   value: Interactions.ContentDelta.URLContextResultDelta
 }
@@ -76,8 +90,10 @@ export interface GeminiUrlContextResultEvent
  * `CUSTOM` event carrying a raw `file_search_call` content delta from the
  * Interactions API.
  */
-export interface GeminiFileSearchCallEvent
-  extends Omit<CustomEvent, 'name' | 'value'> {
+export interface GeminiFileSearchCallEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
   name: 'gemini.fileSearchCall'
   value: Interactions.ContentDelta.FileSearchCallDelta
 }
@@ -86,8 +102,10 @@ export interface GeminiFileSearchCallEvent
  * `CUSTOM` event carrying a raw `file_search_result` content delta from the
  * Interactions API.
  */
-export interface GeminiFileSearchResultEvent
-  extends Omit<CustomEvent, 'name' | 'value'> {
+export interface GeminiFileSearchResultEvent extends Omit<
+  CustomEvent,
+  'name' | 'value'
+> {
   name: 'gemini.fileSearchResult'
   value: Interactions.ContentDelta.FileSearchResultDelta
 }

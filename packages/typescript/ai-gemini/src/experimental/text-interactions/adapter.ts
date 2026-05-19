@@ -159,10 +159,10 @@ type ResolveToolCapabilities<TModel extends string> =
 export class GeminiTextInteractionsAdapter<
   TModel extends GeminiModels,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions,
-  TInputModalities extends
-    ReadonlyArray<Modality> = ResolveInputModalities<TModel>,
-  TToolCapabilities extends
-    ReadonlyArray<string> = ResolveToolCapabilities<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -1049,9 +1049,7 @@ async function* translateInteractionEvents(
               try {
                 const existing = JSON.parse(state.args)
                 state.args = JSON.stringify({
-                  ...(existing && typeof existing === 'object'
-                    ? existing
-                    : {}),
+                  ...(existing && typeof existing === 'object' ? existing : {}),
                   ...deltaArgs,
                 })
               } catch (error) {
@@ -1181,9 +1179,7 @@ async function* translateInteractionEvents(
           }
           case 'thought_summary': {
             const thoughtText =
-              delta.content && 'text' in delta.content
-                ? delta.content.text
-                : ''
+              delta.content && 'text' in delta.content ? delta.content.text : ''
             if (!thoughtText) break
             if (thinkingStepId === null) {
               thinkingStepId = generateId(adapterName)
@@ -1337,10 +1333,9 @@ async function* translateInteractionEvents(
       }
 
       default:
-        logger.provider(
-          `gemini-text-interactions unhandled event_type`,
-          { event },
-        )
+        logger.provider(`gemini-text-interactions unhandled event_type`, {
+          event,
+        })
         break
     }
   }

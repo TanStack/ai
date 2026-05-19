@@ -43,19 +43,20 @@ export const Route = createFileRoute('/api/tools-test')({
         try {
           // Special error scenario: return a stream that immediately errors
           if (scenario === 'error') {
-            const errorStream = (async function* (): AsyncGenerator<StreamChunk> {
-              yield {
-                type: EventType.RUN_STARTED,
-                runId: 'error-test',
-                threadId: 'error-test',
-                timestamp: Date.now(),
-              }
-              yield {
-                type: EventType.RUN_ERROR,
-                message: 'Test error: Something went wrong during generation',
-                timestamp: Date.now(),
-              }
-            })()
+            const errorStream =
+              (async function* (): AsyncGenerator<StreamChunk> {
+                yield {
+                  type: EventType.RUN_STARTED,
+                  runId: 'error-test',
+                  threadId: 'error-test',
+                  timestamp: Date.now(),
+                }
+                yield {
+                  type: EventType.RUN_ERROR,
+                  message: 'Test error: Something went wrong during generation',
+                  timestamp: Date.now(),
+                }
+              })()
             return toServerSentEventsResponse(errorStream, { abortController })
           }
 
