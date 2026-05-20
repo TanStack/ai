@@ -23,18 +23,18 @@ Always import from the framework package on the client — never from
 
 ## Sub-Skills
 
-| Need to...                                        | Read                                        |
-| ------------------------------------------------- | ------------------------------------------- |
-| Build a chat UI with streaming                    | ai-core/chat-experience/SKILL.md            |
-| Add tool calling (server, client, or both)        | ai-core/tool-calling/SKILL.md               |
-| Generate images, video, speech, or transcriptions | ai-core/media-generation/SKILL.md           |
-| Get typed JSON responses from the LLM             | ai-core/structured-outputs/SKILL.md         |
-| Choose and configure a provider adapter           | ai-core/adapter-configuration/SKILL.md      |
-| Implement AG-UI streaming protocol server-side    | ai-core/ag-ui-protocol/SKILL.md             |
-| Add analytics, logging, or lifecycle hooks        | ai-core/middleware/SKILL.md                 |
-| Connect to a non-TanStack-AI backend              | ai-core/custom-backend-integration/SKILL.md |
-| Turn on/off debug logging, pipe into pino/winston | ai-core/debug-logging/SKILL.md              |
-| Set up Code Mode (LLM code execution)             | See `@tanstack/ai-code-mode` package skills |
+| Need to...                                        | Read                                            |
+| ------------------------------------------------- | ----------------------------------------------- |
+| Build a chat UI with streaming                    | ai-core/chat-experience/SKILL.md                |
+| Add tool calling (server, client, or both)        | ai-core/tool-calling/SKILL.md                   |
+| Generate images, video, speech, or transcriptions | ai-core/media-generation/SKILL.md               |
+| Get typed JSON responses from the LLM             | ai-core/structured-outputs/SKILL.md             |
+| Choose and configure a provider adapter           | ai-core/adapter-configuration/SKILL.md          |
+| Implement AG-UI streaming protocol server-side    | ai-core/ag-ui-protocol/SKILL.md                 |
+| Add analytics, logging, or lifecycle hooks        | ai-core/middleware/SKILL.md                     |
+| Connect to a non-TanStack-AI backend              | ai-core/custom-backend-integration/SKILL.md     |
+| Turn on/off debug logging, pipe into pino/winston | ai-core/debug-logging/SKILL.md                  |
+| Set up Code Mode (LLM code execution)             | See `@tanstack/ai-code-mode` package skills     |
 | Compose multi-step LLM runs / orchestrators       | See `@tanstack/ai-orchestration` package skills |
 
 ## Quick Decision Tree

@@ -30,14 +30,14 @@ sources:
 
 `useChat` is right for a single conversation. `chat()` with tools is right for a single LLM call that may loop through tools (the agent loop). Reach for `@tanstack/ai-orchestration` only when there are **multiple distinct LLM steps that need to coordinate** — and the steps either run in a fixed sequence (workflow) or the next step depends on the last (orchestrator).
 
-| Building this                                                                 | Use                                                |
-| ----------------------------------------------------------------------------- | -------------------------------------------------- |
-| One conversation, one model, optional tool calls in an agent loop             | `chat()` + `useChat` (see ai-core/chat-experience) |
-| Multi-step LLM pipeline with a fixed order (A → B → C)                        | `defineWorkflow` (Pattern 1)                       |
-| Multi-step run where the next step depends on the previous result             | `defineOrchestrator` (Pattern 2)                   |
-| Any of the above, paused mid-run for human approval                           | `approve()` primitive (Pattern 3)                  |
-| Carry context from one user submission to the next (refinement, iteration)   | `initialize()` + `previousX` input (Pattern 4)     |
-| Wrap a flaky step with retry + backoff                                        | `retry()` primitive (Pattern 5)                    |
+| Building this                                                              | Use                                                |
+| -------------------------------------------------------------------------- | -------------------------------------------------- |
+| One conversation, one model, optional tool calls in an agent loop          | `chat()` + `useChat` (see ai-core/chat-experience) |
+| Multi-step LLM pipeline with a fixed order (A → B → C)                     | `defineWorkflow` (Pattern 1)                       |
+| Multi-step run where the next step depends on the previous result          | `defineOrchestrator` (Pattern 2)                   |
+| Any of the above, paused mid-run for human approval                        | `approve()` primitive (Pattern 3)                  |
+| Carry context from one user submission to the next (refinement, iteration) | `initialize()` + `previousX` input (Pattern 4)     |
+| Wrap a flaky step with retry + backoff                                     | `retry()` primitive (Pattern 5)                    |
 
 ## Setup
 
@@ -54,10 +54,7 @@ Peer dependency: `@tanstack/ai`. The provider adapter you're calling (`@tanstack
 Use when the path is known up front and steps are typed.
 
 ```typescript
-import {
-  defineAgent,
-  defineWorkflow,
-} from '@tanstack/ai-orchestration'
+import { defineAgent, defineWorkflow } from '@tanstack/ai-orchestration'
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
@@ -72,7 +69,10 @@ const translate = defineAgent({
       outputSchema: z.object({ translated: z.string() }),
       stream: true,
       messages: [
-        { role: 'user', content: `Translate to ${input.target}: ${input.text}` },
+        {
+          role: 'user',
+          content: `Translate to ${input.target}: ${input.text}`,
+        },
       ],
     }),
 })
@@ -119,10 +119,7 @@ export const pipeline = defineWorkflow({
 Use when the next step depends on the previous result. The `router` is a generator returning `{ done: true, output }` or `{ agent, input }` each turn.
 
 ```typescript
-import {
-  defineOrchestrator,
-  defineRouter,
-} from '@tanstack/ai-orchestration'
+import { defineOrchestrator, defineRouter } from '@tanstack/ai-orchestration'
 
 const orchestratorConfig = {
   agents: { triage, extractTopics, draftOutline, expandSection },
@@ -143,7 +140,8 @@ const router = defineRouter(
     if (lastResult && typeof lastResult === 'object') {
       const r = lastResult as Record<string, unknown>
       if (Array.isArray(r.topics)) state.topics = r.topics as Array<string>
-      if (Array.isArray(r.headings)) state.headings = r.headings as Array<string>
+      if (Array.isArray(r.headings))
+        state.headings = r.headings as Array<string>
       if (typeof r.heading === 'string' && typeof r.body === 'string') {
         state.sections.push({ heading: r.heading, body: r.body })
       }
@@ -211,7 +209,7 @@ Inside an orchestrator router, deny-with-feedback routes back to a refinement st
 
 ```typescript
 if (triage.next === 'await-approval') {
-  const decision = yield* approve({ title: '...', description: '...' })
+  const decision = yield * approve({ title: '...', description: '...' })
   if (decision.approved) {
     return { agent: 'implement', input: { spec: state.spec } }
   }
@@ -229,14 +227,16 @@ Client side:
 ```tsx
 const run = useWorkflow({ connection: fetchWorkflowEvents('/api/feature') })
 
-{run.pendingApproval && (
-  <ApprovalPrompt
-    title={run.pendingApproval.title}
-    description={run.pendingApproval.description}
-    onApprove={() => run.approve(true)}
-    onDeny={(feedback) => run.approve(false, feedback)}
-  />
-)}
+{
+  run.pendingApproval && (
+    <ApprovalPrompt
+      title={run.pendingApproval.title}
+      description={run.pendingApproval.description}
+      onApprove={() => run.approve(true)}
+      onDeny={(feedback) => run.approve(false, feedback)}
+    />
+  )
+}
 ```
 
 ### Pattern 4: Refinement across separate runs
@@ -297,9 +297,9 @@ const submit = () =>
 ```typescript
 import { retry, SchemaValidationError } from '@tanstack/ai-orchestration'
 
-const result = yield* retry(
-  () => agents.parser({ document }),
-  {
+const result =
+  yield *
+  retry(() => agents.parser({ document }), {
     attempts: 3,
     backoff: 'exponential',
     baseDelayMs: 200,
@@ -307,8 +307,7 @@ const result = yield* retry(
     // Don't retry schema violations — re-running the same model with the
     // same prompt won't fix them. Retry only network/rate-limit errors.
     retryOn: (err) => !(err instanceof SchemaValidationError),
-  },
-)
+  })
 ```
 
 `retry(fn, options)` reinvokes `fn()` on failure — the underlying generator restarts. Works around agents, nested workflows, or any yieldable.
@@ -383,7 +382,10 @@ run: ({ input }) => chat({ adapter, messages })
 run: ({ input, signal }) => {
   const abortController = new AbortController()
   if (signal.aborted) abortController.abort()
-  else signal.addEventListener('abort', () => abortController.abort(), { once: true })
+  else
+    signal.addEventListener('abort', () => abortController.abort(), {
+      once: true,
+    })
   return chat({ adapter, messages, abortController })
 }
 ```
@@ -394,14 +396,22 @@ The run itself aborts either way — the engine checks `signal.aborted` on every
 
 ```typescript
 // ❌ Router stays blind to results; triage loops forever.
-const decision = yield* agents.triage({ /* ... */ })
+const decision =
+  yield *
+  agents.triage({
+    /* ... */
+  })
 
 // ✅
 if (lastResult && typeof lastResult === 'object') {
   const r = lastResult as Record<string, unknown>
   if ('spec' in r) state.spec = r.spec as Spec
 }
-const decision = yield* agents.triage({ /* ... */ })
+const decision =
+  yield *
+  agents.triage({
+    /* ... */
+  })
 ```
 
 ### 3. Not clearing `pendingFeedback` after the spec agent consumes it
