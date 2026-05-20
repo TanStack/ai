@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
+import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -37,6 +38,11 @@ const ToolsTestRoute = ToolsTestRouteImport.update({
 const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
   id: '/middleware-test',
   path: '/middleware-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
+  id: '/markdown-cjk',
+  path: '/markdown-cjk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -127,6 +133,7 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
@@ -170,6 +178,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/tools-test': typeof ToolsTestRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
@@ -193,6 +202,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
@@ -214,6 +224,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/markdown-cjk'
     | '/middleware-test'
     | '/tools-test'
     | '/$provider/$feature'
@@ -257,6 +269,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   ToolsTestRoute: typeof ToolsTestRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
@@ -286,6 +299,13 @@ declare module '@tanstack/react-router' {
       path: '/middleware-test'
       fullPath: '/middleware-test'
       preLoaderRoute: typeof MiddlewareTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/markdown-cjk': {
+      id: '/markdown-cjk'
+      path: '/markdown-cjk'
+      fullPath: '/markdown-cjk'
+      preLoaderRoute: typeof MarkdownCjkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -470,6 +490,7 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   ToolsTestRoute: ToolsTestRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,

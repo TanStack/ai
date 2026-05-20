@@ -36,6 +36,7 @@
     "rehype-highlight": "^7.0.2",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
+    "remark-cjk-friendly": "^2.0.1",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18",
     "vite-tsconfig-paths": "^5.1.4",

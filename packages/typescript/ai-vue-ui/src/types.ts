@@ -1,4 +1,5 @@
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-vue'
+import type { PluggableList } from '@crazydos/vue-markdown'
 
 export interface ChatProps {
   /** CSS class name for the root element */
@@ -89,6 +90,15 @@ export interface TextPartProps {
   userClass?: string
   /** Additional class for assistant messages (also used for system messages) */
   assistantClass?: string
+  /** Additional remark plugins, appended after the defaults. */
+  remarkPlugins?: PluggableList
+  /** Additional rehype plugins, appended after the defaults. */
+  rehypePlugins?: PluggableList
+  /**
+   * Drop the built-in plugin defaults and disable the renderer's built-in
+   * sanitizer. The caller becomes responsible for sanitization.
+   */
+  disableDefaultPlugins?: boolean
 }
 
 export interface ToolApprovalProps {
