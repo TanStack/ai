@@ -3,6 +3,7 @@ import type {
   InferSchema,
   SchemaInput,
   StepDescriptor,
+  StepRetryOptions,
   WorkflowDefinition,
   WorkflowRunArgs,
 } from '../types'
@@ -15,6 +16,13 @@ export interface DefineWorkflowConfig<
 > {
   name: string
   description?: string
+  /** Caller-supplied version identifier — e.g. 'v1', '2026-05-15'.
+   *  Used with `selectWorkflowVersion` for cross-version routing. */
+  version?: string
+  /** Migration patch names. Pairs with `yield* patched(name)` calls
+   *  in user code. Declaring this switches the workflow to a lighter
+   *  fingerprint that tolerates code-body changes. */
+  patches?: ReadonlyArray<string>
   input?: TInputSchema
   output?: TOutputSchema
   state?: TStateSchema
@@ -26,6 +34,13 @@ export interface DefineWorkflowConfig<
   }) => TStateSchema extends SchemaInput
     ? Partial<InferSchema<TStateSchema>>
     : Record<string, unknown>
+  /**
+   * Default retry policy applied to every `step()` call in this
+   * workflow that doesn't carry its own `{ retry }` option. Useful for
+   * coarse-grained policies like "retry transient errors up to 3 times
+   * with exponential backoff" without repeating it at every site.
+   */
+  defaultStepRetry?: StepRetryOptions
   run: (
     args: WorkflowRunArgs<
       TInputSchema extends SchemaInput ? InferSchema<TInputSchema> : unknown,
@@ -58,11 +73,14 @@ export function defineWorkflow<
     __kind: 'workflow',
     name: config.name,
     description: config.description,
+    version: config.version,
+    patches: config.patches,
     inputSchema: config.input,
     outputSchema: config.output,
     stateSchema: config.state,
     agents: config.agents,
     initialize: config.initialize,
+    defaultStepRetry: config.defaultStepRetry,
     run: config.run,
   }
 }

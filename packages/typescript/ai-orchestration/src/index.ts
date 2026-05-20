@@ -14,8 +14,16 @@ export type { DefineWorkflowConfig } from './define/define-workflow'
 // ===== Generator primitives =====
 export { approve } from './primitives/approve'
 export type { ApproveOptions } from './primitives/approve'
+export { now } from './primitives/now'
+export { patched } from './primitives/patched'
 export { retry } from './primitives/retry'
 export type { RetryOptions } from './primitives/retry'
+export { sleep, sleepUntil, TIMER_SIGNAL_NAME } from './primitives/sleep'
+export { step } from './primitives/step'
+export type { StepOptions } from './primitives/step'
+export { uuid } from './primitives/uuid'
+export { waitForSignal } from './primitives/wait-for-signal'
+export type { WaitForSignalOptions } from './primitives/wait-for-signal'
 export { fail, succeed } from './result'
 
 // ===== Server-side run =====
@@ -23,6 +31,13 @@ export { runWorkflow } from './engine/run-workflow'
 export type { RunWorkflowOptions } from './engine/run-workflow'
 export { parseWorkflowRequest } from './server'
 export type { WorkflowRequestParams } from './server'
+
+// ===== Cross-version registry =====
+export {
+  createWorkflowRegistry,
+  selectWorkflowVersion,
+} from './registry/select-version'
+export type { WorkflowRegistry } from './registry/select-version'
 
 // ===== Run store =====
 export { inMemoryRunStore } from './run-store/in-memory'
@@ -34,6 +49,7 @@ export type { DeleteReason, RunState, RunStatus, RunStore } from './types'
 
 // ===== Errors =====
 export { SchemaValidationError } from './engine/invoke-agent'
+export { LogConflictError, StepTimeoutError } from './types'
 
 // ===== Public types =====
 export type {
@@ -46,8 +62,14 @@ export type {
   EmitFn,
   InferSchema,
   SchemaInput,
+  SignalResult,
+  StepAttempt,
+  StepContext,
   StepDescriptor,
   StepGenerator,
+  StepKind,
+  StepRecord,
+  StepRetryOptions,
   WorkflowDefinition,
   WorkflowRunArgs,
 } from './types'
