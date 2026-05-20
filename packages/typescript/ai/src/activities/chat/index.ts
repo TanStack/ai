@@ -607,7 +607,12 @@ class TextEngine<
 
       // Call terminal hook (skip when waiting for client — stream is paused, not finished).
       // Priority: finalizationError → onError; otherwise normal onFinish.
-      if (!this.terminalHookCalled && this.toolPhase !== 'wait') {
+      // Skip on cancellation — the finally block routes aborts to onAbort.
+      if (
+        !this.terminalHookCalled &&
+        this.toolPhase !== 'wait' &&
+        !this.isCancelled()
+      ) {
         if (this.finalizationError) {
           this.terminalHookCalled = true
           const errForHook = new Error(
@@ -1750,10 +1755,20 @@ class TextEngine<
         }
       }
 
-      // 7a. Pre-process state + observability hooks.
+      // 7a. Targeted state updates only.
+      // We deliberately do NOT call `handleStreamChunk(chunk)` here — that
+      // would mutate agent-loop state with finalization data:
+      //  - TEXT_MESSAGE_CONTENT deltas would pollute `accumulatedContent`
+      //    (raw JSON would leak into `info.content` on onFinish)
+      //  - RUN_FINISHED would overwrite `finishedEvent` + `lastFinishReason`
+      //    (finalization's 'stop' would overwrite the agent-loop's real
+      //    finish reason)
+      //  - STEP_FINISHED would pollute `currentThinkingContent`
+      // Finalization is a separate phase from the agent loop; its state must
+      // not cross-contaminate. The explicit branches below capture the only
+      // bits we actually need from this stream.
       // All narrowing below is via the discriminated-union `chunk.type`
       // — no `as` casts.
-      this.handleStreamChunk(chunk)
 
       if (
         chunk.type === EventType.CUSTOM &&
@@ -1806,6 +1821,13 @@ class TextEngine<
       if (this.finalizationError) {
         break
       }
+    }
+
+    // Mid-finalization abort: don't attribute a missing-result error.
+    // Let the engine's `finally` block in `run()` route to `onAbort` instead
+    // of mis-routing through `onError`.
+    if (this.isCancelled()) {
+      return
     }
 
     // Empty stream / missing complete event
@@ -1872,6 +1894,20 @@ class TextEngine<
       this.finalStructuredOutput.yieldChunks &&
       !runErrorYielded
     ) {
+      // Empty-stream case: no in-loop synthesis fired because no chunks
+      // arrived. Synthesize `structured-output.start` here so the client-side
+      // StreamProcessor can route the upcoming RUN_ERROR to a
+      // `StructuredOutputPart` instead of dropping it as an orphan error.
+      if (!startEmitted) {
+        const synthStart = buildSynthesizedStart()
+        const startOutputs = await pipeThroughMiddleware(synthStart)
+        for (const outputChunk of startOutputs) {
+          yield outputChunk
+          this.middlewareCtx.chunkIndex++
+        }
+        startEmitted = true
+      }
+
       const errChunk: StreamChunk = {
         type: EventType.RUN_ERROR,
         runId: this.runIdOverride ?? this.requestId,
