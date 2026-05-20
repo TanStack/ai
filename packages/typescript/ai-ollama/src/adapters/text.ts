@@ -558,7 +558,9 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         temperature: options.temperature,
       }),
       ...(options.topP !== undefined && { top_p: options.topP }),
-      ...(options.maxTokens !== undefined && { num_predict: options.maxTokens }),
+      ...(options.maxTokens !== undefined && {
+        num_predict: options.maxTokens,
+      }),
       ...modelOptions,
     }
 

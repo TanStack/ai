@@ -356,10 +356,9 @@ export class AnthropicTextAdapter<
     // outside the literal and spread it conditionally rather than
     // assigning `undefined` under exactOptionalPropertyTypes.
     const systemBlocks = ((): Array<TextBlockParam> | undefined => {
-      const normalized =
-        normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
-          options.systemPrompts,
-        )
+      const normalized = normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+        options.systemPrompts,
+      )
       if (normalized.length === 0) return undefined
       return normalized.map(
         (p): TextBlockParam => ({

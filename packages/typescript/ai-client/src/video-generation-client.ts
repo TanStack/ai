@@ -18,7 +18,9 @@ import type {
 // option bags (where each callback may be `undefined`) into the callbacks
 // ref under `exactOptionalPropertyTypes`.
 interface VideoCallbacks<TOutput> {
-  onResult?: ((result: VideoGenerateResult) => TOutput | null | void) | undefined
+  onResult?:
+    | ((result: VideoGenerateResult) => TOutput | null | void)
+    | undefined
   onError?: ((error: Error) => void) | undefined
   onProgress?: ((progress: number, message?: string) => void) | undefined
   onChunk?: ((chunk: StreamChunk) => void) | undefined

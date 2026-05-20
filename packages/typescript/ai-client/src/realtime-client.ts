@@ -513,8 +513,8 @@ export class RealtimeClient {
     if (!hasConfig) return
 
     // `RealtimeToolConfig.inputSchema` is `Record<string, any>` (no
-     // `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
-     // it so we don't pass `undefined` when the tool has no input schema.
+    // `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
+    // it so we don't pass `undefined` when the tool has no input schema.
     const toolsConfig = tools
       ? Array.from(this.clientTools.values()).map((t) => {
           const inputSchema = t.inputSchema

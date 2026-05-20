@@ -737,7 +737,10 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
         }
 
         state.rootSpan.recordException(exception)
-        state.rootSpan.setStatus({ code: SpanStatusCode.ERROR, ...statusMessage })
+        state.rootSpan.setStatus({
+          code: SpanStatusCode.ERROR,
+          ...statusMessage,
+        })
 
         if (durationHistogram) {
           durationHistogram.record(info.duration / 1000, {
