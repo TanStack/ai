@@ -50,12 +50,14 @@ const { messages, sendMessage } = useChat({
 **Dynamic URL and headers.** Pass functions when the value depends on per-request state (current user, fresh token):
 
 ```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
 const { messages } = useChat({
   connection: fetchServerSentEvents(
     () => `/api/chat?user=${currentUserId}`,
     () => ({
       headers: { Authorization: `Bearer ${getToken()}` },
-    })
+    }),
   ),
 });
 ```
