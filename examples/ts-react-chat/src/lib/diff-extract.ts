@@ -72,7 +72,7 @@ export function extractFileFromPatch(rawPatch: string): string {
 function stripCodeFence(input: string): string {
   const trimmed = input.trim()
   // ```<lang>\n…\n```
-  const fenceMatch = trimmed.match(/^```[^\n]*\n([\s\S]*?)```?\s*$/)
+  const fenceMatch = trimmed.match(/^```[^\n]*\n([\s\S]*?)\n?```\s*$/)
   if (fenceMatch?.[1] !== undefined) {
     return fenceMatch[1]
   }

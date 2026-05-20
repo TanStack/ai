@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface Article {
   title: string
@@ -6,10 +6,16 @@ interface Article {
 }
 
 export function ArticleModal(props: { article: Article; onClose: () => void }) {
-  // Close on Escape, lock body scroll while open.
+  // Close on Escape, lock body scroll while open. Capture onClose via ref
+  // so the effect can stay mount-scoped — depending on `[props]` (or even
+  // `[props.onClose]` when the parent inlines a fresh closure each render)
+  // would re-run the effect every render, capturing `'hidden'` into `prev`
+  // and leaving body scroll locked on unmount.
+  const onCloseRef = useRef(props.onClose)
+  onCloseRef.current = props.onClose
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose()
+      if (e.key === 'Escape') onCloseRef.current()
     }
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
@@ -18,7 +24,7 @@ export function ArticleModal(props: { article: Article; onClose: () => void }) {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
     }
-  }, [props])
+  }, [])
 
   const date = new Date().toLocaleDateString('en-US', {
     year: 'numeric',

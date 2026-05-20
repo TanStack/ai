@@ -19,22 +19,35 @@ export function getHighlighter(): Promise<Highlighter> {
         themes: [tanstackInkTheme],
         langs: ['diff', 'markdown', 'typescript', 'tsx', 'json', 'bash'],
       })
-    })()
+    })().catch((err) => {
+      // Don't poison the cache — clear so a remount can retry. Log so the
+      // failure is visible during dev rather than silently degrading to
+      // plain <pre>.
+      // eslint-disable-next-line no-console
+      console.error('[shiki] highlighter init failed', err)
+      highlighterPromise = null
+      throw err
+    })
   }
   return highlighterPromise
 }
 
-const KNOWN_LANGS = new Set([
+const CANONICAL_LANGS = new Set([
   'diff',
   'markdown',
-  'md',
   'typescript',
-  'ts',
   'tsx',
   'json',
   'bash',
-  'sh',
 ])
+
+// Aliases that callers may pass — mapped to a canonical id the highlighter
+// was bundled with.
+const LANG_ALIASES: Record<string, string> = {
+  md: 'markdown',
+  ts: 'typescript',
+  sh: 'bash',
+}
 
 /** Map a filename extension to a shiki-known language id. Falls back to
  *  'typescript' for unknown extensions — this helper is used by the file
@@ -68,5 +81,6 @@ export function inferLangFromFilename(filename: string | undefined): string {
 
 export function normalizeLang(lang: string | undefined): string {
   if (!lang) return 'typescript'
-  return KNOWN_LANGS.has(lang) ? lang : 'typescript'
+  if (CANONICAL_LANGS.has(lang)) return lang
+  return LANG_ALIASES[lang] ?? 'typescript'
 }

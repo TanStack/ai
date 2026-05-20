@@ -38,6 +38,10 @@ export function CodeBlock(props: CodeBlockProps) {
   const [errored, setErrored] = useState(false)
 
   useEffect(() => {
+    // Reset stale state whenever inputs change so a previous render's
+    // highlighted html or sticky errored flag doesn't bleed across.
+    setHtml(null)
+    setErrored(false)
     // Object wrapper so the cleanup closure can mutate without ESLint's
     // no-unnecessary-condition narrowing the bool to `false` at the check
     // sites (it doesn't see the deferred cleanup mutation).
@@ -56,7 +60,9 @@ export function CodeBlock(props: CodeBlockProps) {
           theme: 'tanstack-ink',
         })
         setHtml(out)
-      } catch {
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[CodeBlock] highlight failed', { lang, err })
         if (!ctl.cancelled) setErrored(true)
       }
     })()

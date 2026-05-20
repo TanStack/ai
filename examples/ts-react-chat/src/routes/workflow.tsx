@@ -64,12 +64,6 @@ function WorkflowPage() {
       lastRunIdRef.current = wf.runId
       setModalOpen(true)
     }
-    if (wf.status === 'idle' || wf.status === 'running') {
-      // New run starting — clear the modal-shown marker so the next finish opens it.
-      if (wf.runId !== lastRunIdRef.current) {
-        // keep marker; only reset when user explicitly starts again with a different runId
-      }
-    }
   }, [finalResult, wf.runId, wf.status])
 
   return (
