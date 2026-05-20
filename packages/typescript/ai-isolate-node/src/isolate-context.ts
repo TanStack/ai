@@ -7,10 +7,10 @@ import type { ExecutionResult, IsolateContext } from '@tanstack/ai-code-mode'
  * IsolateContext implementation using isolated-vm
  */
 export class NodeIsolateContext implements IsolateContext {
-  private isolate: ivm.Isolate
-  private context: ivm.Context
-  private logs: Array<string>
-  private timeout: number
+  private readonly isolate: ivm.Isolate
+  private readonly context: ivm.Context
+  private readonly logs: Array<string>
+  private readonly timeout: number
   private disposed = false
 
   constructor(

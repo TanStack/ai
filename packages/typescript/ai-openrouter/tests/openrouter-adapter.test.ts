@@ -15,19 +15,23 @@ let mockSend: any
 // reach the SDK rather than being silently dropped by the adapter.
 let lastOpenRouterConfig: any
 
-// Mock the SDK with a class defined inline
+// Mock the SDK using a constructor function rather than a `class`.
+// `useDefineForClassFields: true` emits real ES2022 class fields, and vitest's
+// mock-hoister mis-rewrites a field named `chat` because that identifier is
+// also a named import on line 2. A plain constructor function with `this.*`
+// assignments sidesteps the collision entirely.
 // eslint-disable-next-line @typescript-eslint/require-await
 vi.mock('@openrouter/sdk', async () => {
-  return {
-    OpenRouter: class {
-      constructor(config?: unknown) {
-        lastOpenRouterConfig = config
-      }
-      chat = {
-        send: (...args: Array<unknown>) => mockSend(...args),
-      }
-    },
+  function OpenRouter(
+    this: { chat: { send: (...args: Array<unknown>) => unknown } },
+    config?: unknown,
+  ) {
+    lastOpenRouterConfig = config
+    this.chat = {
+      send: (...args: Array<unknown>) => mockSend(...args),
+    }
   }
+  return { OpenRouter }
 })
 
 const createAdapter = () =>
@@ -171,6 +175,51 @@ describe('OpenRouter adapter option mapping', () => {
     expect(serialized).toHaveProperty('max_completion_tokens', 1024)
     expect(serialized).toHaveProperty('stream', true)
     expect(serialized).toHaveProperty('tool_choice', 'auto')
+  })
+
+  it('prepends mixed string + object-form systemPrompts as a role:system message and drops foreign metadata', async () => {
+    const streamChunks = [
+      {
+        id: 'chatcmpl-sys',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      },
+    ]
+
+    setupMockSdkClient(streamChunks)
+
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: [
+        'plain',
+        { content: 'object-form' },
+        // `metadata` is `never` for OpenRouter at the type level; the cast
+        // simulates a stale JS / `as any` caller. The adapter must still
+        // produce the joined system message and never leak the foreign
+        // field to the wire.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { content: 'with-meta', metadata: { cache_control: {} } } as any,
+      ],
+    })) {
+      /* consume */
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    const messages = params.messages as Array<{ role: string; content: string }>
+
+    // OpenRouter injects systemPrompts as a positional role:system message
+    // at the head of `messages` (not via a separate `system` field).
+    expect(messages[0]).toEqual({
+      role: 'system',
+      content: 'plain\nobject-form\nwith-meta',
+    })
+    expect(messages[1]).toMatchObject({ role: 'user' })
+    expect(JSON.stringify(params)).not.toContain('cache_control')
   })
 
   it('streams chat chunks with content and usage', async () => {

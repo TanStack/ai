@@ -55,11 +55,19 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
 
     isFirstMountRef.current = false
 
+    // Build options with conditional spreads for fields whose source
+    // type is `T | undefined` but the ChatClient target uses a strict
+    // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
+    // assigning `undefined` to those, so we omit the key when absent.
+    const initialOptions = optionsRef.current
     return new ChatClient({
-      connection: optionsRef.current.connection,
+      connection: initialOptions.connection,
       id: clientId,
       initialMessages: messagesToUse,
-      body: optionsRef.current.body,
+      ...(initialOptions.body !== undefined && { body: initialOptions.body }),
+      ...(initialOptions.forwardedProps !== undefined && {
+        forwardedProps: initialOptions.forwardedProps,
+      }),
       // Wrap every callback so the latest options are read at call time.
       // Capturing the function reference directly would freeze it to whatever
       // the parent passed on the first render.
@@ -73,8 +81,12 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
       },
       onCustomEvent: (eventType, data, context) =>
         optionsRef.current.onCustomEvent?.(eventType, data, context),
-      tools: optionsRef.current.tools,
-      streamProcessor: options.streamProcessor,
+      ...(initialOptions.tools !== undefined && {
+        tools: initialOptions.tools,
+      }),
+      ...(options.streamProcessor !== undefined && {
+        streamProcessor: options.streamProcessor,
+      }),
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
       },
@@ -99,11 +111,19 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     })
   }, [clientId])
 
-  // Sync body changes to the client
-  // This allows dynamic body values (like model selection) to be updated without recreating the client
+  // Sync body / forwardedProps changes to the client.
+  // Both populate the same wire payload; `forwardedProps` is preferred
+  // and `body` is deprecated but still supported.
   useEffect(() => {
-    client.updateOptions({ body: options.body })
-  }, [client, options.body])
+    // Conditional spread: `updateOptions` declares strict-optional
+    // fields and rejects explicit `undefined` under EOPT.
+    client.updateOptions({
+      body: options.body,
+      ...(options.forwardedProps !== undefined && {
+        forwardedProps: options.forwardedProps,
+      }),
+    })
+  }, [client, options.body, options.forwardedProps])
 
   // Sync initial messages on mount only
   // Note: initialMessages are passed to ChatClient constructor, but we also
@@ -179,7 +199,7 @@ export function useChat<TTools extends ReadonlyArray<AnyClientTool> = any>(
     async (result: {
       toolCallId: string
       tool: string
-      output: any
+      output: unknown
       state?: 'output-available' | 'output-error'
       errorText?: string
     }) => {

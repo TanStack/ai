@@ -82,7 +82,7 @@ export class ElevenLabsTranscriptionAdapter<
 > {
   readonly name = 'elevenlabs' as const
 
-  private client: ElevenLabsClient
+  private readonly client: ElevenLabsClient
 
   constructor(model: TModel, config?: ElevenLabsClientConfig) {
     super(model, config ?? {})
@@ -165,6 +165,7 @@ export class ElevenLabsTranscriptionAdapter<
     // The SDK types this as a union of single- and multi-channel responses.
     // We treat multi-channel as "join the channel transcripts" — consumers
     // who care about per-channel detail can re-parse from `modelOptions`.
+    // eslint-disable-next-line no-restricted-syntax -- bridges SpeechToTextConvertResponse union (incl. webhook variant with no text/words/transcripts) to a flattened duck-typed shape we discriminate at runtime
     const data = response as unknown as {
       text?: string
       languageCode?: string
@@ -261,7 +262,7 @@ function buildWordsAndSegments(
   segments?: Array<TranscriptionSegment>
 } {
   const timedWords = words.filter(
-    (w) =>
+    (w): w is typeof w & { start: number; end: number } =>
       typeof w.start === 'number' &&
       typeof w.end === 'number' &&
       w.type !== 'spacing',
@@ -270,8 +271,8 @@ function buildWordsAndSegments(
 
   const outWords: Array<TranscriptionWord> = timedWords.map((w) => ({
     word: w.text,
-    start: w.start!,
-    end: w.end!,
+    start: w.start,
+    end: w.end,
   }))
 
   // Group contiguous words that share a speaker into segments. If no speaker
@@ -287,8 +288,8 @@ function buildWordsAndSegments(
   for (const w of timedWords) {
     if (!current) {
       current = {
-        start: w.start!,
-        end: w.end!,
+        start: w.start,
+        end: w.end,
         text: w.text,
         ...(w.speakerId ? { speaker: w.speakerId } : {}),
       }
@@ -297,14 +298,14 @@ function buildWordsAndSegments(
     if (w.speakerId && current.speaker !== w.speakerId) {
       segments.push({ id: segments.length, ...current })
       current = {
-        start: w.start!,
-        end: w.end!,
+        start: w.start,
+        end: w.end,
         text: w.text,
         speaker: w.speakerId,
       }
       continue
     }
-    current.end = w.end!
+    current.end = w.end
     current.text = current.text ? `${current.text} ${w.text}` : w.text
   }
   if (current) segments.push({ id: segments.length, ...current })

@@ -593,6 +593,45 @@ const CLAUDE_OPUS_4_7 = {
     AnthropicSamplingOptions
 >
 
+const CLAUDE_OPUS_4_7_FAST = {
+  name: 'claude-opus-4.7-fast',
+  id: 'claude-opus-4.7-fast',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 30,
+      cached: 3,
+    },
+    output: {
+      normal: 150,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
 export const ANTHROPIC_MODELS = [
   CLAUDE_OPUS_4_6.id,
   CLAUDE_OPUS_4_5.id,
@@ -609,6 +648,8 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_OPUS_4_6_FAST.id,
 
   CLAUDE_OPUS_4_7.id,
+
+  CLAUDE_OPUS_4_7_FAST.id,
 ] as const
 
 // const ANTHROPIC_IMAGE_MODELS = [] as const
@@ -727,6 +768,14 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicThinkingOptions &
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions
+  [CLAUDE_OPUS_4_7_FAST.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
 }
 
 export type AnthropicChatModelToolCapabilitiesByName = {
@@ -770,4 +819,5 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_HAIKU_3.id]: typeof CLAUDE_HAIKU_3.supports.input
   [CLAUDE_OPUS_4_6_FAST.id]: typeof CLAUDE_OPUS_4_6_FAST.supports.input
   [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.input
+  [CLAUDE_OPUS_4_7_FAST.id]: typeof CLAUDE_OPUS_4_7_FAST.supports.input
 }

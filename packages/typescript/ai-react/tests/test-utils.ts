@@ -24,5 +24,5 @@ import { useChat } from '../src/use-chat'
 export function renderUseChat(
   options?: UseChatOptions,
 ): RenderHookResult<UseChatReturn, UseChatOptions> {
-  return renderHook(() => useChat(options))
+  return renderHook(() => useChat(options!))
 }

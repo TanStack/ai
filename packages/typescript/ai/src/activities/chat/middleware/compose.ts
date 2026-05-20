@@ -26,7 +26,7 @@ function instrumentCtx(ctx: ChatMiddlewareContext) {
   return {
     requestId: ctx.requestId,
     streamId: ctx.streamId,
-    clientId: ctx.conversationId,
+    clientId: ctx.threadId,
     timestamp: Date.now(),
   }
 }

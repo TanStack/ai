@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
@@ -46,7 +46,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   TMessageMetadata,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name: string
   protected client: OpenAI
 
@@ -74,7 +74,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         ended?: boolean
         // Set when args.done arrives before TOOL_CALL_START could fire
         // (output_item.added lacked a name). output_item.done picks these
-        // up to emit the missing END.
+        // up to emit the missing END. Allow explicit `undefined` so the
+        // emission paths can re-clear the slot after handing it off.
         pendingArguments?: string
       }
     >()
@@ -128,17 +129,24 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp: Date.now(),
+          parentRunId: options.parentRunId,
         }
       }
 
-      // Emit AG-UI RUN_ERROR
+      // Emit AG-UI RUN_ERROR. Conditional `code` spread keeps the wire
+      // shape spec-compliant under `exactOptionalPropertyTypes`: AG-UI's
+      // `RunErrorEvent.code` is `string?` (absent vs explicit `undefined`
+      // matter), so we omit the key when there's no code.
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
         code: errorPayload.code,
-        error: errorPayload,
+        error: {
+          message: errorPayload.message,
+          code: errorPayload.code,
+        },
       }
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
@@ -393,6 +401,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             threadId: aguiState.threadId,
             model,
             timestamp,
+            parentRunId: chatOptions.parentRunId,
           }
         }
 
@@ -437,11 +446,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           yield* openReasoning()
           // openReasoning() guarantees reasoningMessageId is set on first call;
           // TS can't see through the generator side-effect.
-          const messageId = reasoningMessageId!
+          if (!reasoningMessageId) continue
           accumulatedReasoning += reasoningDelta
           yield {
             type: EventType.REASONING_MESSAGE_CONTENT,
-            messageId,
+            messageId: reasoningMessageId,
             delta: reasoningDelta,
             model,
             timestamp,
@@ -497,14 +506,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ).response
           const message =
             response?.error?.message || 'Responses API stream failed'
+          const code = response?.error?.code
+          // Conditional `code` spread keeps the wire shape spec-compliant
+          // under `exactOptionalPropertyTypes` (see chatStream catch).
           yield {
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
             timestamp,
             message,
-            code: response?.error?.code,
-            error: { message, code: response?.error?.code },
+            ...(code !== undefined && { code }),
+            error: { message, ...(code !== undefined && { code }) },
           }
           return
         }
@@ -594,6 +606,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           threadId: aguiState.threadId,
           model,
           timestamp,
+          parentRunId: chatOptions.parentRunId,
         }
       }
 
@@ -603,14 +616,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `${this.name}.structuredOutputStream failed`,
       )
 
+      // Conditional `code` spread keeps the wire shape spec-compliant under
+      // `exactOptionalPropertyTypes` (see chatStream catch).
+      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model,
         timestamp,
         message: errorPayload.message,
-        code: isAbort ? 'aborted' : errorPayload.code,
-        error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
+        ...(resolvedCode !== undefined && { code: resolvedCode }),
+        error: {
+          message: errorPayload.message,
+          ...(resolvedCode !== undefined && { code: resolvedCode }),
+        },
       }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
@@ -739,7 +758,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         name: string
         started: boolean
         ended?: boolean
-        pendingArguments?: string
+        pendingArguments?: string | undefined
       }
     >,
     options: TextOptions<TProviderOptions>,
@@ -785,6 +804,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
+            parentRunId: options.parentRunId,
           }
         }
 
@@ -1147,25 +1167,25 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
           if (item.type === 'function_call' && item.id) {
-            const existing = toolCallMetadata.get(item.id)
             // Track the item as soon as we see it so subsequent arg deltas
             // aren't logged as orphans, but only emit TOOL_CALL_START when
             // both id AND name are populated. Emitting START with an empty
             // name would propagate into TOOL_CALL_END (which reads the same
             // metadata) and route the tool call to whatever name happens to
             // match `''` downstream — a silent misroute.
-            if (!existing) {
-              toolCallMetadata.set(item.id, {
+            let metadata = toolCallMetadata.get(item.id)
+            if (!metadata) {
+              metadata = {
                 index: chunk.output_index,
                 name: item.name || '',
                 started: false,
-              })
-            } else if (!existing.name && item.name) {
+              }
+              toolCallMetadata.set(item.id, metadata)
+            } else if (!metadata.name && item.name) {
               // A later output_item.added for the same id finally carries
               // the name. Update so the gated emission below can fire.
-              existing.name = item.name
+              metadata.name = item.name
             }
-            const metadata = toolCallMetadata.get(item.id)!
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
@@ -1492,15 +1512,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
 
         if (chunk.type === 'error') {
+          // Conditional `code` spread keeps the wire shape spec-compliant
+          // under `exactOptionalPropertyTypes` (see chatStream catch).
+          const code = chunk.code ?? undefined
           yield {
             type: EventType.RUN_ERROR,
             model: model || options.model,
             timestamp: Date.now(),
             message: chunk.message,
-            code: chunk.code ?? undefined,
+            ...(code !== undefined && { code }),
             error: {
               message: chunk.message,
-              code: chunk.code ?? undefined,
+              ...(code !== undefined && { code }),
             },
           }
           // RUN_ERROR is terminal — don't let the synthetic RUN_FINISHED
@@ -1527,13 +1550,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             timestamp: Date.now(),
           }
         }
+        // Omit `usage` entirely (vs `usage: undefined`) — the synthetic
+        // RUN_FINISHED for truncated streams has no usage data, and AG-UI's
+        // `RunFinishedEvent.usage` is optional without `| undefined` under
+        // `exactOptionalPropertyTypes`.
         yield {
           type: EventType.RUN_FINISHED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: model || options.model,
           timestamp: Date.now(),
-          usage: undefined,
           finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
         }
       }
@@ -1548,13 +1574,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
+      // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream
+      // catch for the rationale).
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        code: errorPayload.code,
-        error: errorPayload,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
       }
     }
   }
@@ -1595,10 +1626,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }),
       ...(options.topP !== undefined && { top_p: options.topP }),
       ...(options.metadata !== undefined && { metadata: options.metadata }),
-      ...(options.systemPrompts &&
-        options.systemPrompts.length > 0 && {
-          instructions: options.systemPrompts.join('\n'),
-        }),
+      ...(() => {
+        const prompts = normalizeSystemPrompts(options.systemPrompts)
+        if (prompts.length === 0) return {}
+        return { instructions: prompts.map((p) => p.content).join('\n') }
+      })(),
       input,
       // Conditional spread: `tools: undefined` would clobber any
       // modelOptions.tools the caller set above.
@@ -1760,7 +1792,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
+      case 'video':
+      case 'document':
       default:
+        // OpenAI Responses API doesn't accept native video/document parts on
+        // this path — surface as explicit unsupported error so callers see
+        // the same message regardless of which content type leaked through.
         throw new Error(`Unsupported content part type: ${part.type}`)
     }
   }

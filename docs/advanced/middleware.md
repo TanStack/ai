@@ -319,7 +319,8 @@ Every hook receives a `ChatMiddlewareContext` as its first argument. It provides
 |-------|------|-------------|
 | `requestId` | `string` | Unique ID for this chat request |
 | `streamId` | `string` | Unique ID for this stream |
-| `conversationId` | `string \| undefined` | User-provided conversation ID |
+| `threadId` | `string` | AG-UI thread identifier. Resolves to caller-provided `threadId` (or legacy `conversationId`), or an auto-generated value if neither is supplied. Use this for event correlation. |
+| `conversationId` | `string \| undefined` | **Deprecated** alias of `threadId`. Always equals `ctx.threadId`; retained so middleware written before the AG-UI rename keeps working. New middleware should read `ctx.threadId`. |
 | `phase` | `ChatMiddlewarePhase` | Current lifecycle phase |
 | `iteration` | `number` | Agent loop iteration (0-indexed) |
 | `chunkIndex` | `number` | Running count of chunks yielded |

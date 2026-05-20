@@ -5,7 +5,7 @@ title: TranscriptionWord
 
 # Interface: TranscriptionWord
 
-Defined in: [packages/typescript/ai/src/types.ts:1610](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1610)
+Defined in: [packages/typescript/ai/src/types.ts:1704](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1704)
 
 A single word with timing information.
 
@@ -17,7 +17,7 @@ A single word with timing information.
 end: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1616](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1616)
+Defined in: [packages/typescript/ai/src/types.ts:1710](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1710)
 
 End time in seconds
 
@@ -29,7 +29,7 @@ End time in seconds
 start: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1614](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1614)
+Defined in: [packages/typescript/ai/src/types.ts:1708](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1708)
 
 Start time in seconds
 
@@ -41,6 +41,6 @@ Start time in seconds
 word: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1612](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1612)
+Defined in: [packages/typescript/ai/src/types.ts:1706](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1706)
 
 The transcribed word

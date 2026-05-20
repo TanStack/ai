@@ -232,47 +232,47 @@ function OrchestrationPage() {
       <TerminalChrome status={orch.status} runId={orch.runId} />
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-0 lg:gap-4">
-      <div
-        ref={logRef}
-        className="bg-ink-soft border-x border-b border-ink-line lg:border lg:border-ink-line px-5 sm:px-8 py-6 h-[72vh] overflow-y-auto text-[13.5px] leading-[1.7] text-bone"
-      >
-        <BootBanner />
+        <div
+          ref={logRef}
+          className="bg-ink-soft border-x border-b border-ink-line lg:border lg:border-ink-line px-5 sm:px-8 py-6 h-[72vh] overflow-y-auto text-[13.5px] leading-[1.7] text-bone"
+        >
+          <BootBanner />
 
-        {history.map((entry) => (
-          <ClosedSession key={entry.id} entry={entry} />
-        ))}
+          {history.map((entry) => (
+            <ClosedSession key={entry.id} entry={entry} />
+          ))}
 
-        {orch.runId && !history.some((h) => h.id === orch.runId) && (
-          <ActiveSession
-            userMessage={orch.state?.lastUserMessage}
-            steps={orch.steps}
-            currentStep={orch.currentStep}
-            currentText={orch.currentText}
-            liveSpec={liveSpec}
-            liveCoderPatch={liveCoderPatch}
-            pendingApproval={orch.pendingApproval}
-            onApprove={(approved, feedback) => orch.approve(approved, feedback)}
-            error={orch.error}
-            finalResult={
-              orch.status === 'finished' ? orch.state?.result : undefined
-            }
-            phase={orch.state?.phase}
+          {orch.runId && !history.some((h) => h.id === orch.runId) && (
+            <ActiveSession
+              userMessage={orch.state?.lastUserMessage}
+              steps={orch.steps}
+              currentStep={orch.currentStep}
+              currentText={orch.currentText}
+              liveSpec={liveSpec}
+              liveCoderPatch={liveCoderPatch}
+              pendingApproval={orch.pendingApproval}
+              onApprove={(approved, feedback) =>
+                orch.approve(approved, feedback)
+              }
+              error={orch.error}
+              finalResult={
+                orch.status === 'finished' ? orch.state?.result : undefined
+              }
+              phase={orch.state?.phase}
+            />
+          )}
+
+          <PromptLine
+            ref={inputRef}
+            value={input}
+            onValueChange={setInput}
+            onSubmit={submit}
+            onStop={isBusy ? () => orch.stop() : undefined}
+            disabled={isBusy || !!orch.pendingApproval}
+            refining={!!carryover && !isBusy}
+            onResetCarryover={carryover ? () => setCarryover(null) : undefined}
           />
-        )}
-
-        <PromptLine
-          ref={inputRef}
-          value={input}
-          onValueChange={setInput}
-          onSubmit={submit}
-          onStop={isBusy ? () => orch.stop() : undefined}
-          disabled={isBusy || !!orch.pendingApproval}
-          refining={!!carryover && !isBusy}
-          onResetCarryover={
-            carryover ? () => setCarryover(null) : undefined
-          }
-        />
-      </div>
+        </div>
 
         <FileTreePanel files={filesForPanel} />
       </div>
@@ -476,9 +476,7 @@ function StepHeader(props: {
       <span className="text-taupe-deep">
         {step.stepType?.replace('-', '·')}
       </span>
-      {active && (
-        <span className="text-citron anim-blink ml-1">running…</span>
-      )}
+      {active && <span className="text-citron anim-blink ml-1">running…</span>}
       <span className="ml-auto text-taupe-deep tabular text-[12px]">
         {duration !== null ? `${duration}ms` : ''}
       </span>
@@ -510,9 +508,7 @@ function StepBody(props: {
   }
   if (step.status === 'failed' && step.result !== undefined) {
     return (
-      <div className="ml-5 mt-1 text-rust">
-        {stringifyResult(step.result)}
-      </div>
+      <div className="ml-5 mt-1 text-rust">{stringifyResult(step.result)}</div>
     )
   }
   return null
@@ -535,9 +531,7 @@ function FinishedStepBody(props: { step: WorkflowStep }) {
           <span className="text-taupe-deep">files: </span>
           {result.files.join(', ')}
         </div>
-        <div className="text-taupe-deep italic mt-0.5">
-          {result.rationale}
-        </div>
+        <div className="text-taupe-deep italic mt-0.5">{result.rationale}</div>
       </div>
     )
   }
@@ -600,9 +594,7 @@ function SpecLine(props: {
     <div className="ml-5 mt-1 text-bone">
       <div>
         <span className="text-taupe-deep">title: </span>
-        {props.spec.title ?? (
-          <span className="text-taupe-deep italic">…</span>
-        )}
+        {props.spec.title ?? <span className="text-taupe-deep italic">…</span>}
       </div>
       {props.spec.summary && (
         <div className="text-taupe italic mt-0.5">{props.spec.summary}</div>
@@ -617,9 +609,7 @@ function SpecLine(props: {
           ))}
         </div>
       )}
-      {props.streaming && (
-        <span className="anim-blink text-citron">▌</span>
-      )}
+      {props.streaming && <span className="anim-blink text-citron">▌</span>}
     </div>
   )
 }
@@ -766,9 +756,7 @@ function FinalSummary(props: { result: OrchState['result'] }) {
   return (
     <div className="mt-3 border-l-2 border-moss pl-4">
       <div className="text-moss">✓ implementation finished</div>
-      <div className="text-taupe italic mt-0.5">
-        “{props.result.rationale}”
-      </div>
+      <div className="text-taupe italic mt-0.5">“{props.result.rationale}”</div>
       <div className="text-taupe-deep mt-1">
         {props.result.patches.length} patches —{' '}
         {props.result.patches.map((p) => p.filename).join(', ')}

@@ -14,7 +14,7 @@ export interface AgentStore {
 }
 
 export class InMemoryAgentStore implements AgentStore {
-  private sessions = new Map<string, AgentSession>()
+  private readonly sessions = new Map<string, AgentSession>()
 
   get(name: string): Promise<AgentSession | null> {
     return Promise.resolve(this.sessions.get(name) ?? null)

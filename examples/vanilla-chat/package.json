@@ -2,17 +2,18 @@
   "name": "vanilla-chat",
   "private": true,
   "type": "module",
-  "version": "0.0.38",
+  "version": "0.0.40",
   "scripts": {
     "start": "vite --port 3001",
     "dev": "vite --port 3001",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:types": "tsc --noEmit"
   },
   "dependencies": {
     "@tanstack/ai-client": "workspace:*"
   },
   "devDependencies": {
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   }
 }

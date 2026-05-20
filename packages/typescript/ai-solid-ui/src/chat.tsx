@@ -70,14 +70,16 @@ export interface ChatProps {
 export function Chat(props: ChatProps) {
   const chat = useChat({
     connection: props.connection,
-    initialMessages: props.initialMessages,
-    id: props.id,
-    body: props.body,
-    onResponse: props.onResponse,
-    onChunk: props.onChunk,
-    onFinish: props.onFinish,
-    onError: props.onError,
-    tools: props.tools,
+    ...(props.initialMessages !== undefined && {
+      initialMessages: props.initialMessages,
+    }),
+    ...(props.id !== undefined && { id: props.id }),
+    ...(props.body !== undefined && { body: props.body }),
+    ...(props.onResponse !== undefined && { onResponse: props.onResponse }),
+    ...(props.onChunk !== undefined && { onChunk: props.onChunk }),
+    ...(props.onFinish !== undefined && { onFinish: props.onFinish }),
+    ...(props.onError !== undefined && { onError: props.onError }),
+    ...(props.tools !== undefined && { tools: props.tools }),
   })
 
   return (

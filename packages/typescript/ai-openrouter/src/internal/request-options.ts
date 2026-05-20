@@ -13,5 +13,8 @@ export function extractRequestOptions(
   request: Request | RequestInit | undefined,
 ): { headers?: HeadersInit; signal?: AbortSignal | null } {
   if (!request) return {}
-  return { headers: request.headers, signal: request.signal ?? undefined }
+  return {
+    ...(request.headers !== undefined && { headers: request.headers }),
+    ...(request.signal !== undefined && { signal: request.signal }),
+  }
 }

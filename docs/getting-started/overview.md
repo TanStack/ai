@@ -98,6 +98,14 @@ Solid hooks for TanStack AI:
 - Tool approval flow support
 - Type-safe message handling with `InferChatMessages`
 
+### `@tanstack/ai-orchestration`
+Generator-based workflows and orchestrators for multi-step LLM runs:
+- `defineAgent` / `defineWorkflow` / `defineOrchestrator` for typed composition
+- `approve()` primitive for human-in-the-loop pauses
+- `runWorkflow` + SSE streaming, `useWorkflow` / `useOrchestration` on the client
+
+See [Workflows & Orchestration](../orchestration/overview) when you have more than one LLM step to coordinate.
+
 ## Adapters
 
 With the help of adapters, TanStack AI can connect to various LLM providers. Available adapters include:
@@ -115,4 +123,5 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 
 - [Quick Start Guide](./quick-start) - Get up and running in minutes
 - [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
+- [Workflows & Orchestration](../orchestration/overview) - Compose multi-step LLM runs
 - [API Reference](../api/ai) - Explore the full API

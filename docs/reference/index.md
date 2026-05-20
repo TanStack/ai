@@ -56,6 +56,7 @@ title: "@tanstack/ai"
 - [Logger](interfaces/Logger.md)
 - [MessagesSnapshotEvent](interfaces/MessagesSnapshotEvent.md)
 - [ModelMessage](interfaces/ModelMessage.md)
+- [NormalizedSystemPrompt](interfaces/NormalizedSystemPrompt.md)
 - [ProcessorResult](interfaces/ProcessorResult.md)
 - [ProcessorState](interfaces/ProcessorState.md)
 - [ProviderTool](interfaces/ProviderTool.md)
@@ -89,6 +90,8 @@ title: "@tanstack/ai"
 - [StreamProcessorEvents](interfaces/StreamProcessorEvents.md)
 - [StreamProcessorOptions](interfaces/StreamProcessorOptions.md)
 - [StructuredOutputCompleteEvent](interfaces/StructuredOutputCompleteEvent.md)
+- [StructuredOutputPart](interfaces/StructuredOutputPart.md)
+- [StructuredOutputStartEvent](interfaces/StructuredOutputStartEvent.md)
 - [SummarizationOptions](interfaces/SummarizationOptions.md)
 - [SummarizationResult](interfaces/SummarizationResult.md)
 - [SummarizeAdapter](interfaces/SummarizeAdapter.md)
@@ -157,6 +160,7 @@ title: "@tanstack/ai"
 - [ContentPartForInputModalitiesTypes](type-aliases/ContentPartForInputModalitiesTypes.md)
 - [ContentPartSource](type-aliases/ContentPartSource.md)
 - [DebugOption](type-aliases/DebugOption.md)
+- [DeepPartial](type-aliases/DeepPartial.md)
 - [GeneratedAudio](type-aliases/GeneratedAudio.md)
 - [GeneratedImage](type-aliases/GeneratedImage.md)
 - [GeneratedMediaSource](type-aliases/GeneratedMediaSource.md)
@@ -178,8 +182,10 @@ title: "@tanstack/ai"
 - [StreamChunk](type-aliases/StreamChunk.md)
 - [~~StreamChunkType~~](type-aliases/StreamChunkType.md)
 - [StructuredOutputStream](type-aliases/StructuredOutputStream.md)
+- [SystemPrompt](type-aliases/SystemPrompt.md)
 - [ToolCallState](type-aliases/ToolCallState.md)
 - [ToolResultState](type-aliases/ToolResultState.md)
+- [WireMessage](type-aliases/WireMessage.md)
 
 ## Variables
 
@@ -188,6 +194,8 @@ title: "@tanstack/ai"
 ## Functions
 
 - [chat](functions/chat.md)
+- [chatParamsFromRequest](functions/chatParamsFromRequest.md)
+- [chatParamsFromRequestBody](functions/chatParamsFromRequestBody.md)
 - [combineStrategies](functions/combineStrategies.md)
 - [convertMessagesToModelMessages](functions/convertMessagesToModelMessages.md)
 - [convertSchemaToJsonSchema](functions/convertSchemaToJsonSchema.md)
@@ -212,8 +220,10 @@ title: "@tanstack/ai"
 - [generateVideo](functions/generateVideo.md)
 - [getVideoJobStatus](functions/getVideoJobStatus.md)
 - [maxIterations](functions/maxIterations.md)
+- [mergeAgentTools](functions/mergeAgentTools.md)
 - [modelMessagesToUIMessages](functions/modelMessagesToUIMessages.md)
 - [modelMessageToUIMessage](functions/modelMessageToUIMessage.md)
+- [normalizeSystemPrompts](functions/normalizeSystemPrompts.md)
 - [normalizeToUIMessage](functions/normalizeToUIMessage.md)
 - [parsePartialJSON](functions/parsePartialJSON.md)
 - [realtimeToken](functions/realtimeToken.md)
@@ -224,5 +234,6 @@ title: "@tanstack/ai"
 - [toolDefinition](functions/toolDefinition.md)
 - [toServerSentEventsResponse](functions/toServerSentEventsResponse.md)
 - [toServerSentEventsStream](functions/toServerSentEventsStream.md)
+- [uiMessagesToWire](functions/uiMessagesToWire.md)
 - [uiMessageToModelMessages](functions/uiMessageToModelMessages.md)
 - [untilFinishReason](functions/untilFinishReason.md)

@@ -292,7 +292,7 @@
     "name": "MoonshotAI Kimi Latest",
     "created": 1777318428,
     "description": "This model always redirects to the latest model in the MoonshotAI Kimi family.",
-    "context_length": 32768,
+    "context_length": 262144,
     "architecture": {
       "modality": "text+image->text",
       "input_modalities": ["text", "image"],
@@ -301,13 +301,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000074",
-      "completion": "0.0000035",
+      "prompt": "0.00000073",
+      "completion": "0.00000349",
       "input_cache_read": "0.00000025"
     },
     "top_provider": {
-      "context_length": 32768,
-      "max_completion_tokens": 32768,
+      "context_length": 262142,
+      "max_completion_tokens": 262142,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -1035,7 +1035,7 @@
     "name": "Magnum v4 72B",
     "created": 1729555200,
     "description": "This is a series of models designed to replicate the prose quality of the Claude 3 models, specifically Sonnet(https://openrouter.ai/anthropic/claude-3.5-sonnet) and Opus(https://openrouter.ai/anthropic/claude-3-opus).\n\nThe model is fine-tuned on top of [Qwen2.5 72B](https://openrouter.ai/qwen/qwen-2.5-72b-instruct).",
-    "context_length": 16384,
+    "context_length": 32768,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -1562,6 +1562,60 @@
     }
   },
   {
+    "id": "anthropic/claude-opus-4.7-fast",
+    "canonical_slug": "anthropic/claude-4.7-opus-fast-20260512",
+    "hugging_face_id": null,
+    "name": "Anthropic: Claude Opus 4.7 (Fast)",
+    "created": 1778613011,
+    "description": "Fast-mode variant of [Opus 4.7](/anthropic/claude-opus-4.7) - identical capabilities with higher output speed at premium 6x pricing.\n\nLearn more in Anthropic's docs: https://platform.claude.com/docs/en/build-with-claude/fast-mode",
+    "context_length": 1000000,
+    "architecture": {
+      "modality": "text+image+file->text",
+      "input_modalities": ["text", "image", "file"],
+      "output_modalities": ["text"],
+      "tokenizer": "Claude",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.00003",
+      "completion": "0.00015",
+      "web_search": "0.01",
+      "input_cache_read": "0.000003",
+      "input_cache_write": "0.0000375"
+    },
+    "top_provider": {
+      "context_length": 1000000,
+      "max_completion_tokens": 128000,
+      "is_moderated": true
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "response_format",
+      "stop",
+      "structured_outputs",
+      "tool_choice",
+      "tools",
+      "verbosity"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/anthropic/claude-4.7-opus-fast-20260512/endpoints"
+    }
+  },
+  {
     "id": "anthropic/claude-sonnet-4",
     "canonical_slug": "anthropic/claude-4-sonnet-20250522",
     "hugging_face_id": "",
@@ -1908,7 +1962,7 @@
     },
     "supported_voices": null,
     "knowledge_cutoff": null,
-    "expiration_date": null,
+    "expiration_date": "2026-05-21",
     "links": {
       "details": "/api/v1/models/arcee-ai/trinity-large-preview/endpoints"
     }
@@ -2166,7 +2220,7 @@
     "name": "Baidu: ERNIE 4.5 21B A3B",
     "created": 1755034167,
     "description": "A sophisticated text-based Mixture-of-Experts (MoE) model featuring 21B total parameters with 3B activated per token, delivering exceptional multimodal understanding and generation through heterogeneous MoE structures and modality-isolated routing. Supporting an...",
-    "context_length": 120000,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -2266,7 +2320,7 @@
     "name": "Baidu: ERNIE 4.5 300B A47B ",
     "created": 1751300139,
     "description": "ERNIE-4.5-300B-A47B is a 300B parameter Mixture-of-Experts (MoE) language model developed by Baidu as part of the ERNIE 4.5 series. It activates 47B parameters per token and supports text generation in...",
-    "context_length": 123000,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -2289,6 +2343,7 @@
       "max_tokens",
       "presence_penalty",
       "repetition_penalty",
+      "response_format",
       "seed",
       "stop",
       "temperature",
@@ -2310,7 +2365,7 @@
     "name": "Baidu: ERNIE 4.5 VL 28B A3B",
     "created": 1755032836,
     "description": "A powerful multimodal Mixture-of-Experts chat model featuring 28B total parameters with 3B activated per token, delivering exceptional text and vision understanding through its innovative heterogeneous MoE structure with modality-isolated routing....",
-    "context_length": 30000,
+    "context_length": 131072,
     "architecture": {
       "modality": "text+image->text",
       "input_modalities": ["text", "image"],
@@ -2358,7 +2413,7 @@
     "name": "Baidu: ERNIE 4.5 VL 424B A47B ",
     "created": 1751300903,
     "description": "ERNIE-4.5-VL-424B-A47B is a multimodal Mixture-of-Experts (MoE) model from Baidu’s ERNIE 4.5 series, featuring 424B total parameters with 47B active per token. It is trained jointly on text and image data...",
-    "context_length": 123000,
+    "context_length": 131072,
     "architecture": {
       "modality": "text+image->text",
       "input_modalities": ["image", "text"],
@@ -2398,10 +2453,10 @@
     }
   },
   {
-    "id": "baidu/qianfan-ocr-fast:free",
+    "id": "baidu/qianfan-ocr-fast",
     "canonical_slug": "baidu/qianfan-ocr-fast-20260420",
     "hugging_face_id": "",
-    "name": "Baidu: Qianfan-OCR-Fast (free)",
+    "name": "Baidu: Qianfan-OCR-Fast",
     "created": 1776707472,
     "description": "Qianfan-OCR-Fast is a domain-specific multimodal large model purpose-built for OCR. By leveraging specialized OCR training data while preserving versatile multimodal intelligence, it provides a powerful performance upgrade over Qianfan-OCR.",
     "context_length": 65536,
@@ -2413,8 +2468,8 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0",
-      "completion": "0"
+      "prompt": "0.00000068",
+      "completion": "0.00000281"
     },
     "top_provider": {
       "context_length": 65536,
@@ -3110,7 +3165,6 @@
       "frequency_penalty",
       "include_reasoning",
       "logit_bias",
-      "logprobs",
       "max_tokens",
       "min_p",
       "presence_penalty",
@@ -3124,7 +3178,6 @@
       "tool_choice",
       "tools",
       "top_k",
-      "top_logprobs",
       "top_p"
     ],
     "default_parameters": {},
@@ -3142,7 +3195,7 @@
     "name": "DeepSeek: R1",
     "created": 1737381095,
     "description": "DeepSeek R1 is here: Performance on par with [OpenAI o1](/openai/o1), but open-sourced and with fully open reasoning tokens. It's 671B parameters in size, with 37B active in an inference pass....",
-    "context_length": 64000,
+    "context_length": 163840,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -3168,8 +3221,10 @@
       "presence_penalty",
       "reasoning",
       "repetition_penalty",
+      "response_format",
       "seed",
       "stop",
+      "structured_outputs",
       "temperature",
       "tool_choice",
       "tools",
@@ -3304,7 +3359,7 @@
     "name": "DeepSeek: R1 Distill Qwen 32B",
     "created": 1738194830,
     "description": "DeepSeek R1 Distill Qwen 32B is a distilled large language model based on [Qwen 2.5 32B](https://huggingface.co/Qwen/Qwen2.5-32B), using outputs from [DeepSeek R1](/deepseek/deepseek-r1). It outperforms OpenAI's o1-mini across various benchmarks, achieving new...",
-    "context_length": 32768,
+    "context_length": 128000,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -3590,13 +3645,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000014",
-      "completion": "0.00000028",
-      "input_cache_read": "0.0000000028"
+      "prompt": "0.000000112",
+      "completion": "0.000000224",
+      "input_cache_read": "0.000000022"
     },
     "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 384000,
+      "context_length": 1048575,
+      "max_completion_tokens": null,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -3620,6 +3675,52 @@
       "top_k",
       "top_logprobs",
       "top_p"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/deepseek/deepseek-v4-flash-20260423/endpoints"
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4-flash:free",
+    "canonical_slug": "deepseek/deepseek-v4-flash-20260423",
+    "hugging_face_id": "deepseek-ai/DeepSeek-V4-Flash",
+    "name": "DeepSeek: DeepSeek V4 Flash (free)",
+    "created": 1777000666,
+    "description": "DeepSeek V4 Flash is an efficiency-optimized Mixture-of-Experts model from DeepSeek with 284B total parameters and 13B activated parameters, supporting a 1M-token context window. It is designed for fast inference and...",
+    "context_length": 1048576,
+    "architecture": {
+      "modality": "text->text",
+      "input_modalities": ["text"],
+      "output_modalities": ["text"],
+      "tokenizer": "DeepSeek",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0",
+      "completion": "0"
+    },
+    "top_provider": {
+      "context_length": 1048576,
+      "max_completion_tokens": 384000,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "reasoning",
+      "tool_choice",
+      "tools"
     ],
     "default_parameters": {
       "temperature": null,
@@ -4361,7 +4462,7 @@
     "name": "Google: Nano Banana 2 (Gemini 3.1 Flash Image Preview)",
     "created": 1772119558,
     "description": "Gemini 3.1 Flash Image Preview, a.k.a. \"Nano Banana 2,\" is Google’s latest state of the art image generation and editing model, delivering Pro-level visual quality at Flash speed. It combines...",
-    "context_length": 65536,
+    "context_length": 131072,
     "architecture": {
       "modality": "text+image->text+image",
       "input_modalities": ["image", "text"],
@@ -4590,7 +4691,7 @@
     "name": "Google: Gemini 3.1 Pro Preview Custom Tools",
     "created": 1772045923,
     "description": "Gemini 3.1 Pro Preview Custom Tools is a variant of Gemini 3.1 Pro that improves tool selection behavior by preventing overuse of a general bash tool when more efficient third-party...",
-    "context_length": 1048576,
+    "context_length": 1048756,
     "architecture": {
       "modality": "text+image+file+audio+video->text",
       "input_modalities": ["text", "audio", "image", "video", "file"],
@@ -5261,20 +5362,23 @@
     },
     "pricing": {
       "prompt": "0.000000017",
-      "completion": "0.00000011"
+      "completion": "0.000000112"
     },
     "top_provider": {
       "context_length": 131000,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 131000,
       "is_moderated": false
     },
     "per_request_limits": null,
     "supported_parameters": [
       "frequency_penalty",
+      "logit_bias",
       "max_tokens",
+      "min_p",
       "presence_penalty",
       "repetition_penalty",
       "seed",
+      "stop",
       "temperature",
       "top_k",
       "top_p"
@@ -5471,9 +5575,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000008",
-      "completion": "0.00000024",
-      "input_cache_read": "0.000000016"
+      "prompt": "0.00000001",
+      "completion": "0.00000003",
+      "input_cache_read": "0.000000002"
     },
     "top_provider": {
       "context_length": 262144,
@@ -5512,10 +5616,10 @@
     }
   },
   {
-    "id": "inclusionai/ring-2.6-1t:free",
+    "id": "inclusionai/ring-2.6-1t",
     "canonical_slug": "inclusionai/ring-2.6-1t-20260508",
     "hugging_face_id": null,
-    "name": "inclusionAI: Ring-2.6-1T (free)",
+    "name": "inclusionAI: Ring-2.6-1T",
     "created": 1778247440,
     "description": "Ring-2.6-1T is a 1T-parameter-scale thinking model with 63B active parameters, built for real-world agent workflows that require both strong capability and operational efficiency. It is optimized for coding agents, tool...",
     "context_length": 262144,
@@ -5527,8 +5631,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0",
-      "completion": "0"
+      "prompt": "0.000000075",
+      "completion": "0.000000625",
+      "input_cache_read": "0.000000015"
     },
     "top_provider": {
       "context_length": 262144,
@@ -5543,6 +5648,7 @@
       "presence_penalty",
       "reasoning",
       "repetition_penalty",
+      "response_format",
       "seed",
       "stop",
       "temperature",
@@ -5699,7 +5805,7 @@
     "name": "LiquidAI: LFM2-24B-A2B",
     "created": 1772048711,
     "description": "LFM2-24B-A2B is the largest model in the LFM2 family of hybrid architectures designed for efficient on-device deployment. Built as a 24B parameter Mixture-of-Experts model with only 2B active parameters per...",
-    "context_length": 32768,
+    "context_length": 128000,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -5926,6 +6032,7 @@
       "repetition_penalty",
       "seed",
       "stop",
+      "structured_outputs",
       "temperature",
       "top_k",
       "top_p"
@@ -5970,6 +6077,7 @@
       "min_p",
       "presence_penalty",
       "repetition_penalty",
+      "response_format",
       "seed",
       "stop",
       "temperature",
@@ -6041,7 +6149,7 @@
     "name": "Meta: Llama 3.1 8B Instruct",
     "created": 1721692800,
     "description": "Meta's latest class of model (Llama 3.1) launched with a variety of sizes & flavors. This 8B instruct-tuned version is fast and efficient. It has demonstrated strong performance compared to...",
-    "context_length": 16384,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -6140,7 +6248,7 @@
     "name": "Meta: Llama 3.2 1B Instruct",
     "created": 1727222400,
     "description": "Llama 3.2 1B is a 1-billion-parameter language model focused on efficiently performing natural language tasks, such as summarization, dialogue, and multilingual text analysis. Its smaller size allows it to operate...",
-    "context_length": 60000,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -6150,20 +6258,23 @@
     },
     "pricing": {
       "prompt": "0.000000027",
-      "completion": "0.0000002"
+      "completion": "0.000000201"
     },
     "top_provider": {
       "context_length": 60000,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 60000,
       "is_moderated": false
     },
     "per_request_limits": null,
     "supported_parameters": [
       "frequency_penalty",
+      "logit_bias",
       "max_tokens",
+      "min_p",
       "presence_penalty",
       "repetition_penalty",
       "seed",
+      "stop",
       "temperature",
       "top_k",
       "top_p"
@@ -6183,7 +6294,7 @@
     "name": "Meta: Llama 3.2 3B Instruct",
     "created": 1727222400,
     "description": "Llama 3.2 3B is a 3-billion-parameter multilingual large language model, optimized for advanced natural language processing tasks like dialogue generation, reasoning, and summarization. Designed with the latest transformer architecture, it...",
-    "context_length": 80000,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -6192,21 +6303,24 @@
       "instruct_type": "llama3"
     },
     "pricing": {
-      "prompt": "0.000000051",
-      "completion": "0.00000034"
+      "prompt": "0.0000000509",
+      "completion": "0.000000335"
     },
     "top_provider": {
       "context_length": 80000,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 80000,
       "is_moderated": false
     },
     "per_request_limits": null,
     "supported_parameters": [
       "frequency_penalty",
+      "logit_bias",
       "max_tokens",
+      "min_p",
       "presence_penalty",
       "repetition_penalty",
       "seed",
+      "stop",
       "temperature",
       "top_k",
       "top_p"
@@ -6318,7 +6432,7 @@
     "name": "Meta: Llama 3.3 70B Instruct (free)",
     "created": 1733506137,
     "description": "The Meta Llama 3.3 multilingual large language model (LLM) is a pretrained and instruction tuned generative model in 70B (text in/text out). The Llama 3.3 instruction tuned text only model...",
-    "context_length": 65536,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -6410,7 +6524,7 @@
     "name": "Meta: Llama 4 Scout",
     "created": 1743881519,
     "description": "Llama 4 Scout 17B Instruct (16E) is a mixture-of-experts (MoE) language model developed by Meta, activating 17 billion parameters out of a total of 109B. It supports native multimodal input...",
-    "context_length": 327680,
+    "context_length": 10000000,
     "architecture": {
       "modality": "text+image->text",
       "input_modalities": ["text", "image"],
@@ -6469,21 +6583,24 @@
       "instruct_type": "none"
     },
     "pricing": {
-      "prompt": "0.00000048",
+      "prompt": "0.000000484",
       "completion": "0.00000003"
     },
     "top_provider": {
       "context_length": 131072,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 131072,
       "is_moderated": false
     },
     "per_request_limits": null,
     "supported_parameters": [
       "frequency_penalty",
+      "logit_bias",
       "max_tokens",
+      "min_p",
       "presence_penalty",
       "repetition_penalty",
       "seed",
+      "stop",
       "temperature",
       "top_k",
       "top_p"
@@ -6600,7 +6717,7 @@
     "name": "Microsoft: Phi 4 Mini Instruct",
     "created": 1760726049,
     "description": "Phi-4-mini-instruct is a lightweight open model built upon synthetic data and filtered publicly available websites - with a focus on high-quality, reasoning dense data. The model belongs to the Phi-4...",
-    "context_length": 128000,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -6647,7 +6764,7 @@
     "name": "WizardLM-2 8x22B",
     "created": 1713225600,
     "description": "WizardLM-2 8x22B is Microsoft AI's most advanced Wizard model. It demonstrates highly competitive performance compared to leading proprietary models, and it consistently outperforms all existing state-of-the-art opensource models. It is...",
-    "context_length": 65535,
+    "context_length": 65536,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -6670,6 +6787,7 @@
       "max_tokens",
       "presence_penalty",
       "repetition_penalty",
+      "response_format",
       "seed",
       "stop",
       "temperature",
@@ -6781,7 +6899,7 @@
     "name": "MiniMax: MiniMax M2",
     "created": 1761252093,
     "description": "MiniMax-M2 is a compact, high-efficiency large language model optimized for end-to-end coding and agentic workflows. With 10 billion activated parameters (230 billion total), it delivers near-frontier intelligence across general reasoning,...",
-    "context_length": 196608,
+    "context_length": 204800,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -6877,7 +6995,7 @@
     "name": "MiniMax: MiniMax M2.1",
     "created": 1766454997,
     "description": "MiniMax-M2.1 is a lightweight, state-of-the-art large language model optimized for coding, agentic workflows, and modern application development. With only 10 billion activated parameters, it delivers a major jump in real-world...",
-    "context_length": 196608,
+    "context_length": 204800,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -6934,7 +7052,7 @@
     "name": "MiniMax: MiniMax M2.5",
     "created": 1770908502,
     "description": "MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in a diverse range of complex real-world digital working environments, M2.5 builds upon the coding expertise of M2.1...",
-    "context_length": 196608,
+    "context_length": 204800,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -6997,7 +7115,7 @@
     "name": "MiniMax: MiniMax M2.5 (free)",
     "created": 1770908502,
     "description": "MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in a diverse range of complex real-world digital working environments, M2.5 builds upon the coding expertise of M2.1...",
-    "context_length": 196608,
+    "context_length": 204800,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -7047,7 +7165,7 @@
     "name": "MiniMax: MiniMax M2.7",
     "created": 1773836697,
     "description": "MiniMax-M2.7 is a next-generation large language model designed for autonomous, real-world productivity and continuous improvement. Built to actively participate in its own evolution, M2.7 integrates advanced agentic capabilities through multi-agent...",
-    "context_length": 196608,
+    "context_length": 204800,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -7056,12 +7174,12 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000002",
+      "prompt": "0.000000279",
       "completion": "0.0000012"
     },
     "top_provider": {
       "context_length": 196608,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 131072,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -7110,8 +7228,8 @@
     "description": "Mistral's cutting-edge language model for coding released end of July 2025. Codestral specializes in low-latency, high-frequency tasks such as fill-in-the-middle (FIM), code correction and test generation.\n\n[Blog Post](https://mistral.ai/news/codestral-25-08)",
     "context_length": 256000,
     "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
+      "modality": "text+file->text",
+      "input_modalities": ["text", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7159,8 +7277,8 @@
     "description": "Devstral 2 is a state-of-the-art open-source model by Mistral AI specializing in agentic coding. It is a 123B-parameter dense transformer model supporting a 256K context window. Devstral 2 supports exploring...",
     "context_length": 262144,
     "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
+      "modality": "text+file->text",
+      "input_modalities": ["text", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7210,8 +7328,8 @@
     "description": "Devstral Medium is a high-performance code generation and agentic reasoning model developed jointly by Mistral AI and All Hands AI. Positioned as a step up from Devstral Small, it achieves...",
     "context_length": 131072,
     "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
+      "modality": "text+file->text",
+      "input_modalities": ["text", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7259,8 +7377,8 @@
     "description": "Devstral Small 1.1 is a 24B parameter open-weight language model for software engineering agents, developed by Mistral AI in collaboration with All Hands AI. Finetuned from Mistral Small 3.1 and...",
     "context_length": 131072,
     "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
+      "modality": "text+file->text",
+      "input_modalities": ["text", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7468,7 +7586,7 @@
     "name": "Mistral: Mistral 7B Instruct v0.1",
     "created": 1695859200,
     "description": "A 7.3B parameter model that outperforms Llama 2 13B on all benchmarks, with optimizations for speed and context length.",
-    "context_length": 2824,
+    "context_length": 4096,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -7482,16 +7600,19 @@
     },
     "top_provider": {
       "context_length": 2824,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 2824,
       "is_moderated": false
     },
     "per_request_limits": null,
     "supported_parameters": [
       "frequency_penalty",
+      "logit_bias",
       "max_tokens",
+      "min_p",
       "presence_penalty",
       "repetition_penalty",
       "seed",
+      "stop",
       "temperature",
       "top_k",
       "top_p"
@@ -7515,8 +7636,8 @@
     "description": "This is Mistral AI's flagship model, Mistral Large 2 (version `mistral-large-2407`). It's a proprietary weights-available model and excels at reasoning, code, JSON, chat, and more. Read the launch announcement [here](https://mistral.ai/news/mistral-large-2407/)....",
     "context_length": 128000,
     "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
+      "modality": "text+file->text",
+      "input_modalities": ["text", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7564,8 +7685,8 @@
     "description": "This is Mistral AI's flagship model, Mistral Large 2 (version mistral-large-2407). It's a proprietary weights-available model and excels at reasoning, code, JSON, chat, and more. Read the launch announcement [here](https://mistral.ai/news/mistral-large-2407/)....",
     "context_length": 131072,
     "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
+      "modality": "text+file->text",
+      "input_modalities": ["text", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7613,8 +7734,8 @@
     "description": "Mistral Large 2 2411 is an update of [Mistral Large 2](/mistralai/mistral-large) released together with [Pixtral Large 2411](/mistralai/pixtral-large-2411) It provides a significant upgrade on the previous [Mistral Large 24.07](/mistralai/mistral-large-2407), with notable...",
     "context_length": 131072,
     "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
+      "modality": "text+file->text",
+      "input_modalities": ["text", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7662,8 +7783,8 @@
     "description": "Mistral Large 3 2512 is Mistral’s most capable model to date, featuring a sparse mixture-of-experts architecture with 41B active parameters (675B total), and released under the Apache 2.0 license.",
     "context_length": 262144,
     "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": ["text", "image"],
+      "modality": "text+image+file->text",
+      "input_modalities": ["text", "image", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7713,8 +7834,8 @@
     "description": "Mistral Medium 3 is a high-performance enterprise-grade language model designed to deliver frontier-level capabilities at significantly reduced operational cost. It balances state-of-the-art reasoning and multimodal performance with 8× lower cost...",
     "context_length": 131072,
     "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": ["text", "image"],
+      "modality": "text+image+file->text",
+      "input_modalities": ["text", "image", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7762,8 +7883,8 @@
     "description": "Mistral Medium 3.5 is a dense 128B instruction-following model from Mistral AI. It supports text and image inputs with text output, and is designed for agentic workflows, coding, and complex...",
     "context_length": 262144,
     "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": ["text", "image"],
+      "modality": "text+image+file->text",
+      "input_modalities": ["text", "image", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7817,8 +7938,8 @@
     "description": "Mistral Medium 3.1 is an updated version of Mistral Medium 3, which is a high-performance enterprise-grade language model designed to deliver frontier-level capabilities at significantly reduced operational cost. It balances...",
     "context_length": 131072,
     "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": ["text", "image"],
+      "modality": "text+image+file->text",
+      "input_modalities": ["text", "image", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -7885,7 +8006,6 @@
     "supported_parameters": [
       "frequency_penalty",
       "logit_bias",
-      "logprobs",
       "max_tokens",
       "min_p",
       "presence_penalty",
@@ -7898,7 +8018,6 @@
       "tool_choice",
       "tools",
       "top_k",
-      "top_logprobs",
       "top_p"
     ],
     "default_parameters": {
@@ -7920,8 +8039,8 @@
     "description": "Mistral Saba is a 24B-parameter language model specifically designed for the Middle East and South Asia, delivering accurate and contextually relevant responses while maintaining efficient performance. Trained on curated regional...",
     "context_length": 32768,
     "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
+      "modality": "text+file->text",
+      "input_modalities": ["text", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -8085,21 +8204,24 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000035",
-      "completion": "0.00000056"
+      "prompt": "0.000000351",
+      "completion": "0.000000555"
     },
     "top_provider": {
       "context_length": 128000,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 128000,
       "is_moderated": false
     },
     "per_request_limits": null,
     "supported_parameters": [
       "frequency_penalty",
+      "logit_bias",
       "max_tokens",
+      "min_p",
       "presence_penalty",
       "repetition_penalty",
       "seed",
+      "stop",
       "temperature",
       "top_k",
       "top_p"
@@ -8175,8 +8297,8 @@
     "description": "Mistral's official instruct fine-tuned version of [Mixtral 8x22B](/models/mistralai/mixtral-8x22b). It uses 39B active parameters out of 141B, offering unparalleled cost efficiency for its size. Its strengths include: - strong math, coding,...",
     "context_length": 65536,
     "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
+      "modality": "text+file->text",
+      "input_modalities": ["text", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": "mistral"
@@ -8224,8 +8346,8 @@
     "description": "Pixtral Large is a 124B parameter, open-weight, multimodal model built on top of [Mistral Large 2](/mistralai/mistral-large-2411). The model is able to understand documents, charts and natural images. The model is...",
     "context_length": 131072,
     "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": ["text", "image"],
+      "modality": "text+image+file->text",
+      "input_modalities": ["text", "image", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -8273,8 +8395,8 @@
     "description": "Voxtral Small is an enhancement of Mistral Small 3, incorporating state-of-the-art audio input capabilities while retaining best-in-class text performance. It excels at speech transcription, translation and audio understanding. Input audio...",
     "context_length": 32000,
     "architecture": {
-      "modality": "text+audio->text",
-      "input_modalities": ["text", "audio"],
+      "modality": "text+file+audio->text",
+      "input_modalities": ["text", "audio", "file"],
       "output_modalities": ["text"],
       "tokenizer": "Mistral",
       "instruct_type": null
@@ -8378,8 +8500,8 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000004",
-      "completion": "0.000002"
+      "prompt": "0.0000006",
+      "completion": "0.0000025"
     },
     "top_provider": {
       "context_length": 262144,
@@ -8407,7 +8529,7 @@
     "default_parameters": {},
     "supported_voices": null,
     "knowledge_cutoff": "2024-12-31",
-    "expiration_date": "2026-05-14",
+    "expiration_date": null,
     "links": {
       "details": "/api/v1/models/moonshotai/kimi-k2-0905/endpoints"
     }
@@ -8429,8 +8551,7 @@
     },
     "pricing": {
       "prompt": "0.0000006",
-      "completion": "0.0000025",
-      "input_cache_read": "0.00000015"
+      "completion": "0.0000025"
     },
     "top_provider": {
       "context_length": 262144,
@@ -8486,8 +8607,8 @@
     },
     "pricing": {
       "prompt": "0.0000004",
-      "completion": "0.00000198",
-      "input_cache_read": "0.00000005"
+      "completion": "0.0000019",
+      "input_cache_read": "0.00000009"
     },
     "top_provider": {
       "context_length": 262144,
@@ -8538,7 +8659,7 @@
     "name": "MoonshotAI: Kimi K2.6",
     "created": 1776699402,
     "description": "Kimi K2.6 is Moonshot AI's next-generation multimodal model, designed for long-horizon coding, coding-driven UI/UX generation, and multi-agent orchestration. It handles complex end-to-end coding tasks across Python, Rust, and Go, and...",
-    "context_length": 32768,
+    "context_length": 262144,
     "architecture": {
       "modality": "text+image->text",
       "input_modalities": ["text", "image"],
@@ -8547,13 +8668,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000074",
-      "completion": "0.0000035",
+      "prompt": "0.00000073",
+      "completion": "0.00000349",
       "input_cache_read": "0.00000025"
     },
     "top_provider": {
-      "context_length": 32768,
-      "max_completion_tokens": 32768,
+      "context_length": 262142,
+      "max_completion_tokens": 262142,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -9210,7 +9331,7 @@
     "name": "NVIDIA: Nemotron 3 Super",
     "created": 1773245239,
     "description": "NVIDIA Nemotron 3 Super is a 120B-parameter open hybrid MoE model, activating just 12B parameters for maximum compute efficiency and accuracy in complex multi-agent applications. Built on a hybrid Mamba-Transformer...",
-    "context_length": 262144,
+    "context_length": 1000000,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -9270,7 +9391,7 @@
     "name": "NVIDIA: Nemotron 3 Super (free)",
     "created": 1773245239,
     "description": "NVIDIA Nemotron 3 Super is a 120B-parameter open hybrid MoE model, activating just 12B parameters for maximum compute efficiency and accuracy in complex multi-agent applications. Built on a hybrid Mamba-Transformer...",
-    "context_length": 262144,
+    "context_length": 1000000,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -11367,7 +11488,7 @@
     "top_provider": {
       "context_length": 128000,
       "max_completion_tokens": 16384,
-      "is_moderated": true
+      "is_moderated": false
     },
     "per_request_limits": null,
     "supported_parameters": [
@@ -12790,6 +12911,57 @@
     }
   },
   {
+    "id": "perceptron/perceptron-mk1",
+    "canonical_slug": "perceptron/perceptron-mk1-20260512",
+    "hugging_face_id": null,
+    "name": "Perceptron: Perceptron Mk1",
+    "created": 1778597029,
+    "description": "Perceptron Mk1 (Mark One) is Perceptron's highest-quality vision-language model for video and embodied reasoning.** It accepts image and video inputs paired with natural language queries, and produces detailed visual understanding...",
+    "context_length": 32768,
+    "architecture": {
+      "modality": "text+image+video->text",
+      "input_modalities": ["text", "image", "video"],
+      "output_modalities": ["text"],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.00000015",
+      "completion": "0.0000015"
+    },
+    "top_provider": {
+      "context_length": 32768,
+      "max_completion_tokens": 8192,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "frequency_penalty",
+      "include_reasoning",
+      "max_tokens",
+      "presence_penalty",
+      "reasoning",
+      "structured_outputs",
+      "temperature",
+      "top_k",
+      "top_p"
+    ],
+    "default_parameters": {
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "frequency_penalty": null,
+      "presence_penalty": null,
+      "repetition_penalty": null
+    },
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/perceptron/perceptron-mk1-20260512/endpoints"
+    }
+  },
+  {
     "id": "perplexity/sonar",
     "canonical_slug": "perplexity/sonar",
     "hugging_face_id": "",
@@ -13171,7 +13343,7 @@
     "name": "Qwen2.5 72B Instruct",
     "created": 1726704000,
     "description": "Qwen2.5 72B is the latest series of Qwen large language models. Qwen2.5 brings the following improvements upon Qwen2: - Significantly more knowledge and has greatly improved capabilities in coding and...",
-    "context_length": 32768,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -13221,7 +13393,7 @@
     "name": "Qwen: Qwen2.5 7B Instruct",
     "created": 1729036800,
     "description": "Qwen2.5 7B is the latest series of Qwen large language models. Qwen2.5 brings the following improvements upon Qwen2: - Significantly more knowledge and has greatly improved capabilities in coding and...",
-    "context_length": 32768,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -13274,7 +13446,7 @@
     "name": "Qwen2.5 Coder 32B Instruct",
     "created": 1731368400,
     "description": "Qwen2.5-Coder is the latest series of Code-Specific Qwen large language models (formerly known as CodeQwen). Qwen2.5-Coder brings the following improvements upon CodeQwen1.5: - Significantly improvements in **code generation**, **code reasoning**...",
-    "context_length": 32768,
+    "context_length": 128000,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -13288,16 +13460,19 @@
     },
     "top_provider": {
       "context_length": 32768,
-      "max_completion_tokens": null,
+      "max_completion_tokens": 32768,
       "is_moderated": false
     },
     "per_request_limits": null,
     "supported_parameters": [
       "frequency_penalty",
+      "logit_bias",
       "max_tokens",
+      "min_p",
       "presence_penalty",
       "repetition_penalty",
       "seed",
+      "stop",
       "temperature",
       "top_k",
       "top_p"
@@ -13308,50 +13483,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/qwen/qwen-2.5-coder-32b-instruct/endpoints"
-    }
-  },
-  {
-    "id": "qwen/qwen-max",
-    "canonical_slug": "qwen/qwen-max-2025-01-25",
-    "hugging_face_id": "",
-    "name": "Qwen: Qwen-Max ",
-    "created": 1738402289,
-    "description": "Qwen-Max, based on Qwen2.5, provides the best inference performance among [Qwen models](/qwen), especially for complex multi-step tasks. It's a large-scale MoE model that has been pretrained on over 20 trillion...",
-    "context_length": 32768,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Qwen",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000104",
-      "completion": "0.00000416",
-      "input_cache_read": "0.000000208"
-    },
-    "top_provider": {
-      "context_length": 32768,
-      "max_completion_tokens": 8192,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {},
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": "2026-05-13",
-    "links": {
-      "details": "/api/v1/models/qwen/qwen-max-2025-01-25/endpoints"
     }
   },
   {
@@ -13500,146 +13631,13 @@
     }
   },
   {
-    "id": "qwen/qwen-turbo",
-    "canonical_slug": "qwen/qwen-turbo-2024-11-01",
-    "hugging_face_id": "",
-    "name": "Qwen: Qwen-Turbo",
-    "created": 1738410974,
-    "description": "Qwen-Turbo, based on Qwen2.5, is a 1M context model that provides fast speed and low cost, suitable for simple tasks.",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Qwen",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000000325",
-      "completion": "0.00000013",
-      "input_cache_read": "0.0000000065"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 8192,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {},
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": "2026-05-13",
-    "links": {
-      "details": "/api/v1/models/qwen/qwen-turbo-2024-11-01/endpoints"
-    }
-  },
-  {
-    "id": "qwen/qwen-vl-max",
-    "canonical_slug": "qwen/qwen-vl-max-2025-01-25",
-    "hugging_face_id": "",
-    "name": "Qwen: Qwen VL Max",
-    "created": 1738434304,
-    "description": "Qwen VL Max is a visual understanding model with 7500 tokens context length. It excels in delivering optimal performance for a broader spectrum of complex tasks.\n",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": ["text", "image"],
-      "output_modalities": ["text"],
-      "tokenizer": "Qwen",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.00000052",
-      "completion": "0.00000208"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 32768,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": "2026-05-13",
-    "links": {
-      "details": "/api/v1/models/qwen/qwen-vl-max-2025-01-25/endpoints"
-    }
-  },
-  {
-    "id": "qwen/qwen-vl-plus",
-    "canonical_slug": "qwen/qwen-vl-plus",
-    "hugging_face_id": "",
-    "name": "Qwen: Qwen VL Plus",
-    "created": 1738731255,
-    "description": "Qwen's Enhanced Large Visual Language Model. Significantly upgraded for detailed recognition capabilities and text recognition abilities, supporting ultra-high pixel resolutions up to millions of pixels and extreme aspect ratios for...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text+image->text",
-      "input_modalities": ["text", "image"],
-      "output_modalities": ["text"],
-      "tokenizer": "Qwen",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000001365",
-      "completion": "0.0000004095",
-      "input_cache_read": "0.0000000273"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": 8192,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "temperature",
-      "top_p"
-    ],
-    "default_parameters": {},
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-03-31",
-    "expiration_date": "2026-05-13",
-    "links": {
-      "details": "/api/v1/models/qwen/qwen-vl-plus/endpoints"
-    }
-  },
-  {
     "id": "qwen/qwen2.5-vl-72b-instruct",
     "canonical_slug": "qwen/qwen2.5-vl-72b-instruct",
     "hugging_face_id": "Qwen/Qwen2.5-VL-72B-Instruct",
     "name": "Qwen: Qwen2.5 VL 72B Instruct",
     "created": 1738410311,
     "description": "Qwen2.5-VL is proficient in recognizing common objects such as flowers, birds, fish, and insects. It is also highly capable of analyzing texts, charts, icons, graphics, and layouts within images.",
-    "context_length": 32000,
+    "context_length": 131072,
     "architecture": {
       "modality": "text+image->text",
       "input_modalities": ["text", "image"],
@@ -13686,7 +13684,7 @@
     "name": "Qwen: Qwen3 14B",
     "created": 1745876478,
     "description": "Qwen3-14B is a dense 14.8B parameter causal language model from the Qwen3 series, designed for both complex reasoning and efficient dialogue. It supports seamless switching between a \"thinking\" mode for...",
-    "context_length": 40960,
+    "context_length": 131702,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -13695,7 +13693,7 @@
       "instruct_type": "qwen3"
     },
     "pricing": {
-      "prompt": "0.00000006",
+      "prompt": "0.0000001",
       "completion": "0.00000024"
     },
     "top_provider": {
@@ -13837,7 +13835,7 @@
     "name": "Qwen: Qwen3 235B A22B Thinking 2507",
     "created": 1753449557,
     "description": "Qwen3-235B-A22B-Thinking-2507 is a high-performance, open-weight Mixture-of-Experts (MoE) language model optimized for complex reasoning tasks. It activates 22B of its 235B parameters per forward pass and natively supports up to 262,144...",
-    "context_length": 131072,
+    "context_length": 262144,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -13893,7 +13891,7 @@
     "name": "Qwen: Qwen3 30B A3B",
     "created": 1745878604,
     "description": "Qwen3, the latest generation in the Qwen large language model series, features both dense and mixture-of-experts (MoE) architectures to excel in reasoning, multilingual support, and advanced agent tasks. Its unique...",
-    "context_length": 40960,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -14054,7 +14052,7 @@
     "name": "Qwen: Qwen3 32B",
     "created": 1745875945,
     "description": "Qwen3-32B is a dense 32.8B parameter causal language model from the Qwen3 series, optimized for both complex reasoning and efficient dialogue. It supports seamless switching between a \"thinking\" mode for...",
-    "context_length": 40960,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -14106,7 +14104,7 @@
     "name": "Qwen: Qwen3 8B",
     "created": 1745876632,
     "description": "Qwen3-8B is a dense 8.2B parameter causal language model from the Qwen3 series, designed for both reasoning-heavy tasks and efficient dialogue. It supports seamless switching between \"thinking\" mode for math,...",
-    "context_length": 40960,
+    "context_length": 131072,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -14166,7 +14164,7 @@
     "name": "Qwen: Qwen3 Coder 480B A35B",
     "created": 1753230546,
     "description": "Qwen3-Coder-480B-A35B-Instruct is a Mixture-of-Experts (MoE) code generation model developed by the Qwen team. It is optimized for agentic coding tasks such as function calling, tool use, and long-context reasoning over...",
-    "context_length": 262144,
+    "context_length": 1048576,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -14418,7 +14416,7 @@
     "name": "Qwen: Qwen3 Coder 480B A35B (free)",
     "created": 1753230546,
     "description": "Qwen3-Coder-480B-A35B-Instruct is a Mixture-of-Experts (MoE) code generation model developed by the Qwen team. It is optimized for agentic coding tasks such as function calling, tool use, and long-context reasoning over...",
-    "context_length": 262000,
+    "context_length": 1048576,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -14657,7 +14655,7 @@
     "name": "Qwen: Qwen3 Next 80B A3B Thinking",
     "created": 1757612284,
     "description": "Qwen3-Next-80B-A3B-Thinking is a reasoning-first chat model in the Qwen3-Next line that outputs structured “thinking” traces by default. It’s designed for hard multi-step problems; math proofs, code synthesis/debugging, logic, and agentic...",
-    "context_length": 131072,
+    "context_length": 262144,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -14824,7 +14822,7 @@
     "name": "Qwen: Qwen3 VL 30B A3B Instruct",
     "created": 1759794476,
     "description": "Qwen3-VL-30B-A3B-Instruct is a multimodal model that unifies strong text generation with visual understanding for images and videos. Its Instruct variant optimizes instruction-following for general multimodal tasks. It excels in perception...",
-    "context_length": 131072,
+    "context_length": 262144,
     "architecture": {
       "modality": "text+image->text",
       "input_modalities": ["text", "image"],
@@ -14938,7 +14936,7 @@
     "name": "Qwen: Qwen3 VL 32B Instruct",
     "created": 1761231332,
     "description": "Qwen3-VL-32B-Instruct is a large-scale multimodal vision-language model designed for high-precision understanding and reasoning across text, images, and video. With 32 billion parameters, it combines deep visual perception with advanced text...",
-    "context_length": 131072,
+    "context_length": 262144,
     "architecture": {
       "modality": "text+image->text",
       "input_modalities": ["text", "image"],
@@ -14988,7 +14986,7 @@
     "name": "Qwen: Qwen3 VL 8B Instruct",
     "created": 1760463308,
     "description": "Qwen3-VL-8B-Instruct is a multimodal vision-language model from the Qwen3-VL series, built for high-fidelity understanding and reasoning across text, images, and video. It features improved multimodal fusion with Interleaved-MRoPE for long-horizon...",
-    "context_length": 131072,
+    "context_length": 256000,
     "architecture": {
       "modality": "text+image->text",
       "input_modalities": ["image", "text"],
@@ -15042,7 +15040,7 @@
     "name": "Qwen: Qwen3 VL 8B Thinking",
     "created": 1760463746,
     "description": "Qwen3-VL-8B-Thinking is the reasoning-optimized variant of the Qwen3-VL-8B multimodal model, designed for advanced visual and textual reasoning across complex scenes, documents, and temporal sequences. It integrates enhanced multimodal alignment and...",
-    "context_length": 131072,
+    "context_length": 256000,
     "architecture": {
       "modality": "text+image->text",
       "input_modalities": ["image", "text"],
@@ -15285,7 +15283,8 @@
     },
     "pricing": {
       "prompt": "0.00000039",
-      "completion": "0.00000234"
+      "completion": "0.00000234",
+      "input_cache_read": "0.000000195"
     },
     "top_provider": {
       "context_length": 262144,
@@ -15508,8 +15507,8 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000004",
-      "completion": "0.0000024"
+      "prompt": "0.0000003",
+      "completion": "0.0000018"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -15672,9 +15671,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000025",
-      "completion": "0.0000015",
-      "input_cache_write": "0.0000003125"
+      "prompt": "0.0000001875",
+      "completion": "0.000001125",
+      "input_cache_write": "0.000000234375"
     },
     "top_provider": {
       "context_length": 1000000,
@@ -16772,380 +16771,6 @@
     }
   },
   {
-    "id": "x-ai/grok-3",
-    "canonical_slug": "x-ai/grok-3",
-    "hugging_face_id": "",
-    "name": "xAI: Grok 3",
-    "created": 1749582908,
-    "description": "Grok 3 is the latest model from xAI. It's their flagship model that excels at enterprise use cases like data extraction, coding, and text summarization. Possesses deep domain knowledge in...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Grok",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "web_search": "0.005",
-      "input_cache_read": "0.00000075"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ],
-    "default_parameters": {},
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-02-28",
-    "expiration_date": "2026-05-15",
-    "links": {
-      "details": "/api/v1/models/x-ai/grok-3/endpoints"
-    }
-  },
-  {
-    "id": "x-ai/grok-3-beta",
-    "canonical_slug": "x-ai/grok-3-beta",
-    "hugging_face_id": "",
-    "name": "xAI: Grok 3 Beta",
-    "created": 1744240068,
-    "description": "Grok 3 is the latest model from xAI. It's their flagship model that excels at enterprise use cases like data extraction, coding, and text summarization. Possesses deep domain knowledge in...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Grok",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "web_search": "0.005",
-      "input_cache_read": "0.00000075"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "frequency_penalty",
-      "logprobs",
-      "max_tokens",
-      "presence_penalty",
-      "response_format",
-      "seed",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ],
-    "default_parameters": {},
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-02-28",
-    "expiration_date": "2026-05-15",
-    "links": {
-      "details": "/api/v1/models/x-ai/grok-3-beta/endpoints"
-    }
-  },
-  {
-    "id": "x-ai/grok-3-mini",
-    "canonical_slug": "x-ai/grok-3-mini",
-    "hugging_face_id": "",
-    "name": "xAI: Grok 3 Mini",
-    "created": 1749583245,
-    "description": "A lightweight model that thinks before responding. Fast, smart, and great for logic-based tasks that do not require deep domain knowledge. The raw thinking traces are accessible.",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Grok",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000005",
-      "web_search": "0.005",
-      "input_cache_read": "0.000000075"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "logprobs",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-02-28",
-    "expiration_date": "2026-05-15",
-    "links": {
-      "details": "/api/v1/models/x-ai/grok-3-mini/endpoints"
-    }
-  },
-  {
-    "id": "x-ai/grok-3-mini-beta",
-    "canonical_slug": "x-ai/grok-3-mini-beta",
-    "hugging_face_id": "",
-    "name": "xAI: Grok 3 Mini Beta",
-    "created": 1744240195,
-    "description": "Grok 3 Mini is a lightweight, smaller thinking model. Unlike traditional models that generate answers immediately, Grok 3 Mini thinks before responding. It’s ideal for reasoning-heavy tasks that don’t demand...",
-    "context_length": 131072,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Grok",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000003",
-      "completion": "0.0000005",
-      "web_search": "0.005",
-      "input_cache_read": "0.000000075"
-    },
-    "top_provider": {
-      "context_length": 131072,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "logprobs",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "frequency_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-02-28",
-    "expiration_date": "2026-05-15",
-    "links": {
-      "details": "/api/v1/models/x-ai/grok-3-mini-beta/endpoints"
-    }
-  },
-  {
-    "id": "x-ai/grok-4",
-    "canonical_slug": "x-ai/grok-4-07-09",
-    "hugging_face_id": "",
-    "name": "xAI: Grok 4",
-    "created": 1752087689,
-    "description": "Grok 4 is xAI's latest reasoning model with a 256k context window. It supports parallel tool calling, structured outputs, and both image and text inputs. Note that reasoning is not...",
-    "context_length": 256000,
-    "architecture": {
-      "modality": "text+image+file->text",
-      "input_modalities": ["image", "text", "file"],
-      "output_modalities": ["text"],
-      "tokenizer": "Grok",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.000003",
-      "completion": "0.000015",
-      "web_search": "0.005",
-      "input_cache_read": "0.00000075"
-    },
-    "top_provider": {
-      "context_length": 256000,
-      "max_completion_tokens": null,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "logprobs",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-07-31",
-    "expiration_date": "2026-05-15",
-    "links": {
-      "details": "/api/v1/models/x-ai/grok-4-07-09/endpoints"
-    }
-  },
-  {
-    "id": "x-ai/grok-4-fast",
-    "canonical_slug": "x-ai/grok-4-fast",
-    "hugging_face_id": "",
-    "name": "xAI: Grok 4 Fast",
-    "created": 1758240090,
-    "description": "Grok 4 Fast is xAI's latest multimodal model with SOTA cost-efficiency and a 2M token context window. It comes in two flavors: non-reasoning and reasoning. Read more about the model...",
-    "context_length": 2000000,
-    "architecture": {
-      "modality": "text+image+file->text",
-      "input_modalities": ["text", "image", "file"],
-      "output_modalities": ["text"],
-      "tokenizer": "Grok",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000002",
-      "completion": "0.0000005",
-      "web_search": "0.005",
-      "input_cache_read": "0.00000005"
-    },
-    "top_provider": {
-      "context_length": 2000000,
-      "max_completion_tokens": 30000,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "logprobs",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-09-30",
-    "expiration_date": "2026-05-15",
-    "links": {
-      "details": "/api/v1/models/x-ai/grok-4-fast/endpoints"
-    }
-  },
-  {
-    "id": "x-ai/grok-4.1-fast",
-    "canonical_slug": "x-ai/grok-4.1-fast",
-    "hugging_face_id": "",
-    "name": "xAI: Grok 4.1 Fast",
-    "created": 1763587502,
-    "description": "Grok 4.1 Fast is xAI's best agentic tool calling model that shines in real-world use cases like customer support and deep research. 2M context window. Reasoning can be enabled/disabled using...",
-    "context_length": 2000000,
-    "architecture": {
-      "modality": "text+image+file->text",
-      "input_modalities": ["text", "image", "file"],
-      "output_modalities": ["text"],
-      "tokenizer": "Grok",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000002",
-      "completion": "0.0000005",
-      "web_search": "0.005",
-      "input_cache_read": "0.00000005"
-    },
-    "top_provider": {
-      "context_length": 2000000,
-      "max_completion_tokens": 30000,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "logprobs",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": 0.7,
-      "top_p": 0.95,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": null,
-    "expiration_date": "2026-05-15",
-    "links": {
-      "details": "/api/v1/models/x-ai/grok-4.1-fast/endpoints"
-    }
-  },
-  {
     "id": "x-ai/grok-4.20",
     "canonical_slug": "x-ai/grok-4.20-20260309",
     "hugging_face_id": "",
@@ -17312,63 +16937,6 @@
     "expiration_date": null,
     "links": {
       "details": "/api/v1/models/x-ai/grok-4.3-20260430/endpoints"
-    }
-  },
-  {
-    "id": "x-ai/grok-code-fast-1",
-    "canonical_slug": "x-ai/grok-code-fast-1",
-    "hugging_face_id": "",
-    "name": "xAI: Grok Code Fast 1",
-    "created": 1756238927,
-    "description": "Grok Code Fast 1 is a speedy and economical reasoning model that excels at agentic coding. With reasoning traces visible in the response, developers can steer Grok Code for high-quality...",
-    "context_length": 256000,
-    "architecture": {
-      "modality": "text->text",
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "Grok",
-      "instruct_type": null
-    },
-    "pricing": {
-      "prompt": "0.0000002",
-      "completion": "0.0000015",
-      "web_search": "0.005",
-      "input_cache_read": "0.00000002"
-    },
-    "top_provider": {
-      "context_length": 256000,
-      "max_completion_tokens": 10000,
-      "is_moderated": false
-    },
-    "per_request_limits": null,
-    "supported_parameters": [
-      "include_reasoning",
-      "logprobs",
-      "max_tokens",
-      "reasoning",
-      "response_format",
-      "seed",
-      "stop",
-      "structured_outputs",
-      "temperature",
-      "tool_choice",
-      "tools",
-      "top_logprobs",
-      "top_p"
-    ],
-    "default_parameters": {
-      "temperature": null,
-      "top_p": null,
-      "top_k": null,
-      "frequency_penalty": null,
-      "presence_penalty": null,
-      "repetition_penalty": null
-    },
-    "supported_voices": null,
-    "knowledge_cutoff": "2025-09-30",
-    "expiration_date": "2026-05-15",
-    "links": {
-      "details": "/api/v1/models/x-ai/grok-code-fast-1/endpoints"
     }
   },
   {
@@ -17877,6 +17445,7 @@
       "presence_penalty",
       "reasoning",
       "repetition_penalty",
+      "response_format",
       "seed",
       "stop",
       "temperature",
@@ -17904,7 +17473,7 @@
     "name": "Z.ai: GLM 4.6",
     "created": 1759235576,
     "description": "Compared with GLM-4.5, this generation brings several key improvements: Longer context window: The context window has been expanded from 128K to 200K tokens, enabling the model to handle more complex...",
-    "context_length": 204800,
+    "context_length": 202752,
     "architecture": {
       "modality": "text->text",
       "input_modalities": ["text"],
@@ -17913,12 +17482,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000039",
-      "completion": "0.0000019"
+      "prompt": "0.00000043",
+      "completion": "0.00000174",
+      "input_cache_read": "0.00000008"
     },
     "top_provider": {
-      "context_length": 204800,
-      "max_completion_tokens": 204800,
+      "context_length": 202752,
+      "max_completion_tokens": 131072,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -17951,7 +17521,7 @@
     },
     "supported_voices": null,
     "knowledge_cutoff": "2025-03-31",
-    "expiration_date": "2026-05-14",
+    "expiration_date": null,
     "links": {
       "details": "/api/v1/models/z-ai/glm-4.6/endpoints"
     }
@@ -18155,7 +17725,6 @@
       "frequency_penalty",
       "include_reasoning",
       "logit_bias",
-      "logprobs",
       "max_tokens",
       "min_p",
       "presence_penalty",
@@ -18169,7 +17738,6 @@
       "tool_choice",
       "tools",
       "top_k",
-      "top_logprobs",
       "top_p"
     ],
     "default_parameters": {

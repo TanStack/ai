@@ -99,8 +99,8 @@ export class WorkflowClient<
   private clientState: WorkflowClientState<TState, TOutput> = {
     ...initialState,
   } as WorkflowClientState<TState, TOutput>
-  private opts: WorkflowClientOptions
-  private subscribers = new Set<
+  private readonly opts: WorkflowClientOptions
+  private readonly subscribers = new Set<
     (s: WorkflowClientState<TState, TOutput>) => void
   >()
 
@@ -415,13 +415,15 @@ function removeAt(
   segments: Array<string>,
 ): void {
   if (segments.length === 0) return
-  const last = segments[segments.length - 1]!
+  const last = segments[segments.length - 1]
+  if (last === undefined) return
   let cursor: Record<string, unknown> = target
   for (let i = 0; i < segments.length - 1; i++) {
-    cursor = cursor[segments[i]!] as Record<string, unknown>
+    const seg = segments[i]
+    if (seg === undefined) return
+    cursor = cursor[seg] as Record<string, unknown>
   }
-  if (Array.isArray(cursor))
-    (cursor as unknown as Array<unknown>).splice(Number(last), 1)
+  if (Array.isArray(cursor)) (cursor as Array<unknown>).splice(Number(last), 1)
   else delete cursor[last]
 }
 
@@ -431,10 +433,12 @@ function setAt(
   value: unknown,
 ): void {
   if (segments.length === 0) return
-  const last = segments[segments.length - 1]!
+  const last = segments[segments.length - 1]
+  if (last === undefined) return
   let cursor: Record<string, unknown> = target
   for (let i = 0; i < segments.length - 1; i++) {
-    const seg = segments[i]!
+    const seg = segments[i]
+    if (seg === undefined) return
     if (cursor[seg] === undefined) cursor[seg] = {}
     cursor = cursor[seg] as Record<string, unknown>
   }

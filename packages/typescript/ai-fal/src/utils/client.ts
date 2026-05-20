@@ -38,7 +38,7 @@ export function extractUrlExtension(url: string): string | undefined {
   } catch {
     // Fall back to treating the input as a raw path when URL parsing fails
     // (e.g. the caller passed a bare path). Still strip ?query and #fragment.
-    pathname = url.split('?')[0]!.split('#')[0]!
+    pathname = url.split('?')[0]?.split('#')[0] ?? url
   }
   // Drop trailing slashes so `/path/audio.mp3/` still yields `mp3`.
   const normalized = pathname.replace(/\/+$/, '')
@@ -83,6 +83,7 @@ export function deriveAudioContentType(
       return 'audio/mp4'
     case 'webm':
       return 'audio/webm'
+    case undefined:
     default:
       return 'audio/mpeg'
   }
@@ -132,8 +133,8 @@ export function arrayBufferToBase64(bytes: ArrayBuffer): string {
   }
   const view = new Uint8Array(bytes)
   let binary = ''
-  for (let i = 0; i < view.byteLength; i += 1) {
-    binary += String.fromCharCode(view[i]!)
+  for (const byte of view) {
+    binary += String.fromCharCode(byte)
   }
   return btoa(binary)
 }

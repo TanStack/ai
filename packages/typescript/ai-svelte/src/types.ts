@@ -78,18 +78,21 @@ export type CreateChatOptions<
 export type CreateChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
-> = BaseCreateChatReturn<TTools> &
+> = BaseCreateChatReturn<
+  TTools,
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown
+> &
   (TSchema extends SchemaInput
     ? {
         /**
          * Live progressively-parsed structured output (reactive getter).
-         * Resets on every new run.
+         * Derived from the latest assistant message's structured-output part.
          */
         readonly partial: DeepPartial<InferSchemaType<TSchema>>
         /**
          * Final, schema-validated structured output (reactive getter). `null`
-         * until the terminal `structured-output.complete` event arrives.
-         * Resets on every new run.
+         * until the latest assistant turn's structured-output part transitions
+         * to `complete`.
          */
         readonly final: InferSchemaType<TSchema> | null
       }
@@ -97,11 +100,15 @@ export type CreateChatReturn<
 
 interface BaseCreateChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TData = unknown,
 > {
   /**
-   * Current messages in the conversation (reactive getter)
+   * Current messages in the conversation (reactive getter). When
+   * `outputSchema` is supplied, `messages[i].parts.find(p => p.type ===
+   * 'structured-output')` is typed by the schema — `data: T`,
+   * `partial: DeepPartial<T>`.
    */
-  readonly messages: Array<UIMessage<TTools>>
+  readonly messages: Array<UIMessage<TTools, TData>>
 
   /**
    * Send a message and get a response.
@@ -112,7 +119,7 @@ interface BaseCreateChatReturn<
   /**
    * Append a message to the conversation
    */
-  append: (message: ModelMessage | UIMessage<TTools>) => Promise<void>
+  append: (message: ModelMessage | UIMessage<TTools, TData>) => Promise<void>
 
   /**
    * Add the result of a client-side tool execution
@@ -156,7 +163,7 @@ interface BaseCreateChatReturn<
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools>>) => void
+  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages
@@ -183,9 +190,15 @@ interface BaseCreateChatReturn<
    */
   readonly sessionGenerating: boolean
   /**
-   * Update the body sent with requests (e.g., for changing model selection)
+   * @deprecated Use `updateForwardedProps` instead. Both populate the
+   * same wire payload; `updateBody` is retained for backward compatibility.
    */
   updateBody: (body: Record<string, any>) => void
+  /**
+   * Update the AG-UI `forwardedProps` sent with requests (e.g., for
+   * changing model selection or other client-driven options).
+   */
+  updateForwardedProps: (forwardedProps: Record<string, any>) => void
 }
 
 // Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client

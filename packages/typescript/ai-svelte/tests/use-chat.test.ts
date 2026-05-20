@@ -51,7 +51,7 @@ describe('createChat', () => {
     })
 
     expect(chat.messages).toHaveLength(1)
-    expect(chat.messages[0].role).toBe('user')
+    expect(chat.messages[0]!.role).toBe('user')
   })
 
   it('should have sendMessage method', () => {

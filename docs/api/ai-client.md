@@ -46,7 +46,9 @@ const client = new ChatClient({
 - `connection` - Connection adapter for streaming
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
-- `body?` - Additional body parameters to send
+- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field
+- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works — values are merged into `forwardedProps` on the wire and mirrored under the legacy `data` field for backward compatibility
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
@@ -174,10 +176,12 @@ Creates a custom connection adapter.
 import { stream } from "@tanstack/ai-client";
 
 const adapter = stream(async (messages, data, signal) => {
-  // Custom implementation
+  // `data` here carries the merged forwardedProps. The fetch-based
+  // adapters serialize it as the AG-UI `RunAgentInput.forwardedProps`
+  // field on the wire (with a backward-compat `data` mirror).
   const response = await fetch("/api/chat", {
     method: "POST",
-    body: JSON.stringify({ messages, ...data }),
+    body: JSON.stringify({ messages, forwardedProps: data }),
     signal,
   });
   return processStream(response);

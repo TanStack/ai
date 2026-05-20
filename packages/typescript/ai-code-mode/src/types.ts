@@ -130,7 +130,7 @@ export interface ToolBinding {
   /**
    * JSON Schema for tool output (optional)
    */
-  outputSchema?: Record<string, unknown>
+  outputSchema?: Record<string, unknown> | undefined
 
   /**
    * The execute function that will be injected into the sandbox.
@@ -217,9 +217,11 @@ export interface CodeModeToolResult {
   /**
    * Error details if execution failed
    */
-  error?: {
-    message: string
-    name?: string
-    line?: number
-  }
+  error?:
+    | {
+        message: string
+        name?: string | undefined
+        line?: number | undefined
+      }
+    | undefined
 }

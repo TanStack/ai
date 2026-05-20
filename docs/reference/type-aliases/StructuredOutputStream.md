@@ -8,12 +8,13 @@ title: StructuredOutputStream
 ```ts
 type StructuredOutputStream<T> = AsyncIterable<
   | Exclude<StreamChunk, CustomEvent>
+  | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent<T>
   | ApprovalRequestedEvent
 | ToolInputAvailableEvent>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1153](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1153)
+Defined in: [packages/typescript/ai/src/types.ts:1246](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1246)
 
 Public type for streams returned by `chat({ outputSchema, stream: true })`.
 

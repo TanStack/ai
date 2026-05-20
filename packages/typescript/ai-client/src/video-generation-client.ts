@@ -14,19 +14,24 @@ import type {
 /**
  * Callbacks stored in a ref so hooks can update them without recreating the client.
  */
+// All optional fields explicitly allow `| undefined` so callers can spread
+// option bags (where each callback may be `undefined`) into the callbacks
+// ref under `exactOptionalPropertyTypes`.
 interface VideoCallbacks<TOutput> {
-  onResult?: (result: VideoGenerateResult) => TOutput | null | void
-  onError?: (error: Error) => void
-  onProgress?: (progress: number, message?: string) => void
-  onChunk?: (chunk: StreamChunk) => void
-  onJobCreated?: (jobId: string) => void
-  onStatusUpdate?: (status: VideoStatusInfo) => void
-  onResultChange?: (result: TOutput | null) => void
-  onLoadingChange?: (isLoading: boolean) => void
-  onErrorChange?: (error: Error | undefined) => void
-  onStatusChange?: (status: GenerationClientState) => void
-  onJobIdChange?: (jobId: string | null) => void
-  onVideoStatusChange?: (status: VideoStatusInfo | null) => void
+  onResult?:
+    | ((result: VideoGenerateResult) => TOutput | null | void)
+    | undefined
+  onError?: ((error: Error) => void) | undefined
+  onProgress?: ((progress: number, message?: string) => void) | undefined
+  onChunk?: ((chunk: StreamChunk) => void) | undefined
+  onJobCreated?: ((jobId: string) => void) | undefined
+  onStatusUpdate?: ((status: VideoStatusInfo) => void) | undefined
+  onResultChange?: ((result: TOutput | null) => void) | undefined
+  onLoadingChange?: ((isLoading: boolean) => void) | undefined
+  onErrorChange?: ((error: Error | undefined) => void) | undefined
+  onStatusChange?: ((status: GenerationClientState) => void) | undefined
+  onJobIdChange?: ((jobId: string | null) => void) | undefined
+  onVideoStatusChange?: ((status: VideoStatusInfo | null) => void) | undefined
 }
 
 /**
@@ -65,8 +70,8 @@ interface VideoCallbacks<TOutput> {
  * ```
  */
 export class VideoGenerationClient<TOutput = VideoGenerateResult> {
-  private connection: ConnectConnectionAdapter | undefined
-  private fetcher:
+  private readonly connection: ConnectConnectionAdapter | undefined
+  private readonly fetcher:
     | GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
     | undefined
   private body: Record<string, any>
@@ -78,7 +83,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
   private abortController: AbortController | null = null
-  private callbacksRef: VideoCallbacks<TOutput>
+  private readonly callbacksRef: VideoCallbacks<TOutput>
 
   constructor(
     options: VideoGenerationClientOptions<TOutput> &
@@ -185,6 +190,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
 
       this.callbacksRef.onChunk?.(chunk)
 
+      // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType has ~22 variants; this consumer only handles the subset relevant to video generation lifecycle.
       switch (chunk.type) {
         case 'CUSTOM': {
           if (chunk.name === GENERATION_EVENTS.VIDEO_JOB_CREATED) {
@@ -221,6 +227,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
             'An error occurred'
           throw new Error(msg)
         }
+        default:
+          break
       }
     }
   }
@@ -345,7 +353,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     }
 
     // No onResult callback, or callback returned void → use raw value
-    this.result = rawResult as unknown as TOutput
+    this.result = rawResult as TOutput
     this.callbacksRef.onResultChange?.(this.result)
   }
 

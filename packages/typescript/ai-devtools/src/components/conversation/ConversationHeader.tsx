@@ -16,8 +16,9 @@ export const ConversationHeader: Component<ConversationHeaderProps> = (
 
   const iterationCount = () => conv().iterationCount ?? conv().iterations.length
   const totalDuration = () => {
-    if (!conv().completedAt) return undefined
-    return conv().completedAt! - conv().startedAt
+    const completedAt = conv().completedAt
+    if (!completedAt) return undefined
+    return completedAt - conv().startedAt
   }
 
   const totalMessages = () => conv().messages.length

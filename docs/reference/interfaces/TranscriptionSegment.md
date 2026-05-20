@@ -5,7 +5,7 @@ title: TranscriptionSegment
 
 # Interface: TranscriptionSegment
 
-Defined in: [packages/typescript/ai/src/types.ts:1592](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1592)
+Defined in: [packages/typescript/ai/src/types.ts:1686](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1686)
 
 A single segment of transcribed audio with timing information.
 
@@ -17,7 +17,7 @@ A single segment of transcribed audio with timing information.
 optional confidence: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1602](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1602)
+Defined in: [packages/typescript/ai/src/types.ts:1696](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1696)
 
 Confidence score (0-1), if available
 
@@ -29,7 +29,7 @@ Confidence score (0-1), if available
 end: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1598](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1598)
+Defined in: [packages/typescript/ai/src/types.ts:1692](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1692)
 
 End time of the segment in seconds
 
@@ -41,7 +41,7 @@ End time of the segment in seconds
 id: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1594](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1594)
+Defined in: [packages/typescript/ai/src/types.ts:1688](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1688)
 
 Unique identifier for the segment
 
@@ -53,7 +53,7 @@ Unique identifier for the segment
 optional speaker: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1604](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1604)
+Defined in: [packages/typescript/ai/src/types.ts:1698](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1698)
 
 Speaker identifier, if diarization is enabled
 
@@ -65,7 +65,7 @@ Speaker identifier, if diarization is enabled
 start: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1596](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1596)
+Defined in: [packages/typescript/ai/src/types.ts:1690](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1690)
 
 Start time of the segment in seconds
 
@@ -77,6 +77,6 @@ Start time of the segment in seconds
 text: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1600](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1600)
+Defined in: [packages/typescript/ai/src/types.ts:1694](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1694)
 
 Transcribed text for this segment

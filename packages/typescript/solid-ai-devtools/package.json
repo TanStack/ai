@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/solid-ai-devtools",
-  "version": "0.2.32",
+  "version": "0.2.36",
   "description": "Solid TanStack AI Devtools",
   "author": "",
   "license": "MIT",
@@ -56,7 +56,7 @@
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
     "solid-js": "^1.9.10",
-    "vite": "^7.2.7",
+    "vite": "^7.3.3",
     "vite-plugin-solid": "^2.11.10"
   }
 }

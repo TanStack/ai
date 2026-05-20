@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type {
   BetaToolBash20241022,
   BetaToolBash20250124,
@@ -17,10 +18,9 @@ export function convertBashToolToAdapterFormat(tool: Tool): BashToolConfig {
 }
 
 export function bashTool(config: BashToolConfig): AnthropicBashTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<AnthropicBashTool>({
     name: 'bash',
     description: '',
     metadata: config,
-  } as unknown as AnthropicBashTool
+  })
 }

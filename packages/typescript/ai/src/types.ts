@@ -3,6 +3,7 @@ import type {
   StandardSchemaV1,
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
+import type { SystemPrompt } from './system-prompts'
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
@@ -365,7 +366,43 @@ export interface ThinkingPart {
   signature?: string
 }
 
-export type MessagePart =
+/**
+ * Recursive `Partial` — every nested field becomes optional. Used as the
+ * `partial` type on a streaming structured-output part since the progressive
+ * JSON parse hands back objects whose fields are only filled in as bytes
+ * arrive. Defaulted in `DeepPartial<unknown>` → `unknown` so untyped parts
+ * keep their existing shape.
+ */
+export type DeepPartial<T> =
+  T extends ReadonlyArray<infer U>
+    ? Array<DeepPartial<U>>
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T
+
+/**
+ * StructuredOutputPart — a typed structured response attached to the assistant
+ * message that produced it. Generic over the schema-inferred data type so
+ * consumers can thread `useChat({ outputSchema })`'s schema all the way down
+ * to `messages[i].parts[j].data`. Defaults to `unknown` so untyped consumers
+ * (e.g. internal codepaths that don't know about TSchema) keep working.
+ */
+export interface StructuredOutputPart<TData = unknown> {
+  type: 'structured-output'
+  status: 'streaming' | 'complete' | 'error'
+  /** Progressive parse of `raw` via parsePartialJSON — populated while streaming and after complete. */
+  partial?: DeepPartial<TData>
+  /** Validated final object — only set when `status === 'complete'`. */
+  data?: TData
+  /** Accumulating JSON buffer. Source of truth for wire round-trip. */
+  raw: string
+  /** Optional chain-of-thought surfaced by reasoning models alongside the structured output. */
+  reasoning?: string
+  /** Populated when `status === 'error'`. */
+  errorMessage?: string
+}
+
+export type MessagePart<TData = unknown> =
   | TextPart
   | ImagePart
   | AudioPart
@@ -374,15 +411,19 @@ export type MessagePart =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
+  | StructuredOutputPart<TData>
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
- * Contains parts that can be text, tool calls, or tool results
+ * Contains parts that can be text, tool calls, or tool results. Generic over
+ * the structured-output data type so `useChat({ outputSchema })`'s schema
+ * narrows `parts.find(p => p.type === 'structured-output').data` on the
+ * consumer side without manual casts.
  */
-export interface UIMessage {
+export interface UIMessage<TData = unknown> {
   id: string
   role: 'system' | 'user' | 'assistant'
-  parts: Array<MessagePart>
+  parts: Array<MessagePart<TData>>
   createdAt?: Date
 }
 
@@ -545,7 +586,9 @@ export interface Tool<
    *   return weather; // Can return object or string
    * }
    */
-  execute?: (args: any, context?: ToolExecutionContext) => Promise<any> | any
+  execute?:
+    | ((args: any, context?: ToolExecutionContext) => Promise<any> | any)
+    | undefined
 
   /** If true, tool execution requires user approval before running. Works with both server and client tools. */
   needsApproval?: boolean
@@ -554,7 +597,7 @@ export interface Tool<
   lazy?: boolean
 
   /** Additional metadata for adapters or custom extensions */
-  metadata?: Record<string, any>
+  metadata?: Record<string, any> | undefined
 }
 
 export interface ToolConfig {
@@ -688,8 +731,22 @@ export interface TextOptions<
 > {
   model: string
   messages: Array<ModelMessage>
-  tools?: Array<Tool<any, any, any>>
-  systemPrompts?: Array<string>
+  tools?: Array<Tool<any, any, any>> | undefined
+  /**
+   * System prompts to include with the request.
+   *
+   * Accepts plain strings (the common case) or `{ content, metadata }`
+   * objects that let providers attach typed metadata (e.g. Anthropic
+   * `cache_control` for prompt caching) per prompt. At the chat call site
+   * the adapter narrows `metadata`'s type via `~types['systemPromptMetadata']`
+   * — providers that don't declare one default to `never`, which makes the
+   * field carry no meaningful value (TypeScript will only accept
+   * `undefined` there). Provider-foreign metadata that reaches an adapter
+   * via JS / `as any` is silently dropped, never written to the wire.
+   *
+   * @see SystemPrompt
+   */
+  systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
   /**
    * Controls the randomness of the output.
@@ -736,7 +793,7 @@ export interface TextOptions<
    * - Anthropic: `metadata` (Record<string, any>) - includes optional user_id (max 256 chars)
    * - Gemini: Not directly available in TextProviderOptions
    */
-  metadata?: Record<string, any>
+  metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel
   request?: Request | RequestInit
 
@@ -749,8 +806,14 @@ export interface TextOptions<
    */
   outputSchema?: SchemaInput
   /**
-   * Conversation ID for correlating client and server-side devtools events.
-   * When provided, server-side events will be linked to the client conversation in devtools.
+   * @deprecated Use `threadId` instead. `conversationId` is the legacy
+   * pre-AG-UI name for the same concept (a stable per-conversation
+   * identifier used to correlate client/server devtools events). When
+   * `conversationId` is omitted, the runtime falls back to `threadId`
+   * automatically, so most callers can simply pass `threadId` (or rely
+   * on `chatParamsFromRequest`, which surfaces it on `params`).
+   *
+   * Will be removed in a future major release.
    */
   conversationId?: string
   /**
@@ -786,6 +849,11 @@ export interface TextOptions<
    * If not provided, a unique ID will be generated.
    */
   runId?: string
+  /**
+   * Parent run ID for AG-UI protocol nested run correlation.
+   * Surfaced for observability/middleware; not consumed by the LLM call.
+   */
+  parentRunId?: string
 }
 
 // ============================================================================
@@ -872,10 +940,12 @@ export interface RunErrorEvent extends AGUIRunErrorEvent {
    * @deprecated Use top-level `message` and `code` fields instead.
    * Kept for backward compatibility.
    */
-  error?: {
-    message: string
-    code?: string
-  }
+  error?:
+    | {
+        message: string
+        code?: string | undefined
+      }
+    | undefined
 }
 
 /**
@@ -1095,24 +1165,34 @@ export interface CustomEvent extends AGUICustomEvent {
  * }
  * ```
  */
-export interface StructuredOutputCompleteEvent<T = unknown> extends Omit<
-  CustomEvent,
-  'name' | 'value'
-> {
+export interface StructuredOutputCompleteEvent<
+  T = unknown,
+> extends CustomEvent {
   name: 'structured-output.complete'
   value: { object: T; raw: string; reasoning?: string }
+}
+
+/**
+ * Emitted at the start of a streaming structured-output run, before the JSON
+ * deltas. Tells consumers that the upcoming `TEXT_MESSAGE_CONTENT` deltas
+ * belong to a structured response so they can route those bytes into a
+ * `StructuredOutputPart` instead of building a `TextPart`. Carries the
+ * `messageId` the deltas will be tagged with so the routing decision can be
+ * made per-message rather than globally.
+ */
+export interface StructuredOutputStartEvent extends CustomEvent {
+  name: 'structured-output.start'
+  value: { messageId: string }
 }
 
 /**
  * Emitted when a server tool requires approval before execution. The agent
  * loop yields this and pauses — `structured-output.complete` will not fire
  * for that run. The shape is fixed by the orchestrator's tool-approval flow
- * (see `buildApprovalChunks` in `activities/chat/index.ts`).
+ * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
+ * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
  */
-export interface ApprovalRequestedEvent extends Omit<
-  CustomEvent,
-  'name' | 'value'
-> {
+export interface ApprovalRequestedEvent extends CustomEvent {
   name: 'approval-requested'
   value: {
     toolCallId: string
@@ -1125,13 +1205,10 @@ export interface ApprovalRequestedEvent extends Omit<
 /**
  * Emitted when a client tool is invoked. The agent loop yields this and
  * pauses to let the caller run the tool client-side — `structured-output.complete`
- * will not fire for that run. Shape fixed by `buildClientToolChunks` in
- * `activities/chat/index.ts`.
+ * will not fire for that run. Shape fixed by the agent-loop forwarding in
+ * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
  */
-export interface ToolInputAvailableEvent extends Omit<
-  CustomEvent,
-  'name' | 'value'
-> {
+export interface ToolInputAvailableEvent extends CustomEvent {
   name: 'tool-input-available'
   value: {
     toolCallId: string
@@ -1172,6 +1249,7 @@ export interface ToolInputAvailableEvent extends Omit<
  */
 export type StructuredOutputStream<T = unknown> = AsyncIterable<
   | Exclude<StreamChunk, CustomEvent>
+  | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent<T>
   | ApprovalRequestedEvent
   | ToolInputAvailableEvent

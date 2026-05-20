@@ -1,16 +1,8 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist"
   },
-  "include": [
-    "scripts/**/*.ts",
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "./tests/**/*.ts",
-    "openapi-ts.config.ts",
-    "eslint.config.ts",
-    "vite.config.ts"
-  ],
+  "include": ["src", "tests", "scripts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -124,8 +124,10 @@ const MiddlewareStep: Component<{
     return null
   }
 
-  const hasChanges = () =>
-    ev().configChanges && Object.keys(ev().configChanges!).length > 0
+  const hasChanges = () => {
+    const changes = ev().configChanges
+    return changes && Object.keys(changes).length > 0
+  }
 
   return (
     <>
@@ -386,8 +388,9 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
   const isError = () => iter().finishReason === 'error'
 
   const duration = () => {
-    if (!iter().completedAt) return undefined
-    return iter().completedAt! - iter().startedAt
+    const completedAt = iter().completedAt
+    if (!completedAt) return undefined
+    return completedAt - iter().startedAt
   }
 
   const label = () => getIterationLabel(iter(), props.index)
@@ -417,8 +420,9 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
   })
 
   const finishLabel = () => {
-    if (!iter().finishReason) return null
-    switch (iter().finishReason) {
+    const reason = iter().finishReason
+    if (!reason) return null
+    switch (reason) {
       case 'stop':
         return 'completed'
       case 'tool_calls':
@@ -428,7 +432,7 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
       case 'length':
         return 'max length'
       default:
-        return iter().finishReason
+        return reason
     }
   }
 
@@ -441,9 +445,10 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
 
   // Config data from this iteration
   const configSubtitle = () => {
+    const { model, provider } = iter()
     const parts: Array<string> = []
-    if (iter().model) parts.push(iter().model!)
-    if (iter().provider) parts.push(iter().provider!)
+    if (model) parts.push(model)
+    if (provider) parts.push(provider)
     return parts.length > 0 ? parts.join(' \u00B7 ') : null
   }
 
@@ -610,12 +615,14 @@ export const IterationCard: Component<IterationCardProps> = (props) => {
             </span>
           </Show>
           <Show when={deltaUsage()}>
-            <span
-              class={`${s().badge} ${s().badgeUsage}`}
-              title={`Prompt: ${deltaUsage()!.promptTokens.toLocaleString()} | Completion: ${deltaUsage()!.completionTokens.toLocaleString()}`}
-            >
-              🎯 {deltaUsage()!.totalTokens.toLocaleString()}
-            </span>
+            {(usage) => (
+              <span
+                class={`${s().badge} ${s().badgeUsage}`}
+                title={`Prompt: ${usage().promptTokens.toLocaleString()} | Completion: ${usage().completionTokens.toLocaleString()}`}
+              >
+                🎯 {usage().totalTokens.toLocaleString()}
+              </span>
+            )}
           </Show>
           <Show when={isActive()}>
             <span class={`${s().badge} ${s().badgeDuration}`}>⟳ streaming</span>

@@ -313,6 +313,7 @@ async function* startRun(
 
   const live: LiveRun = {
     runState,
+    // eslint-disable-next-line no-restricted-syntax -- generator is assigned on the next line; field is required to be non-optional in LiveRun
     generator: undefined as unknown as LiveRun['generator'],
     abortController,
     approvalResolver: undefined,

@@ -1,5 +1,171 @@
 # @tanstack/ai
 
+## 0.20.0
+
+### Minor Changes
+
+- feat(ai): `systemPrompts` accept `{ content, metadata }` with adapter-inferred metadata typing ([#575](https://github.com/TanStack/ai/pull/575))
+
+  `chat({ systemPrompts })` now accepts either a plain string (the existing
+  shape — fully backward compatible) or `{ content, metadata }`. The `metadata`
+  field's type is inferred from the adapter via a new
+  `TSystemPromptMetadata` generic on `TextAdapter` / `BaseTextAdapter`:
+  - `@tanstack/ai-anthropic` declares `AnthropicSystemPromptMetadata` →
+    users get `cache_control` autocomplete and type-checking on
+    `systemPrompts[i].metadata` for Anthropic chats.
+  - Adapters with no per-prompt metadata (OpenAI, Gemini, Ollama,
+    OpenRouter, openai-base) inherit the default `never`, which means the
+    `metadata` field carries no meaningful value at the call site —
+    TypeScript only accepts `undefined` there. Provider-foreign metadata
+    that reaches an adapter via JS / `as any` is silently dropped, never
+    written to the wire.
+
+  ```ts
+  import { chat } from '@tanstack/ai'
+  import { anthropicText } from '@tanstack/ai-anthropic'
+
+  // Anthropic — `cache_control` is autocompleted, no `satisfies` needed.
+  chat({
+    adapter: anthropicText({ apiKey }, 'claude-sonnet-4-6'),
+    systemPrompts: [
+      {
+        content: 'Stable instructions — cache me.',
+        metadata: { cache_control: { type: 'ephemeral' } },
+      },
+      'Volatile per-request instruction.',
+    ],
+  })
+
+  // OpenAI — `metadata` is `never`; only `undefined` is assignable, so the
+  // field is effectively unusable. The object form without `metadata` still
+  // works for portability.
+  chat({
+    adapter: openaiText({ apiKey }, 'gpt-4o-mini'),
+    systemPrompts: [
+      'Plain string.',
+      { content: 'Object form without metadata is allowed.' },
+    ],
+  })
+  ```
+
+  New exports:
+  - `@tanstack/ai`: `SystemPrompt`, `NormalizedSystemPrompt` types and the
+    `normalizeSystemPrompts()` helper adapters use to normalize the wide
+    input shape to `{ content, metadata? }` before consumption.
+  - `@tanstack/ai-anthropic`: `AnthropicSystemPromptMetadata` interface
+    (currently exposes `cache_control` for prompt caching).
+
+  Internal:
+  - New `TSystemPromptMetadata = never` generic on `TextAdapter` /
+    `BaseTextAdapter`, surfaced via `'~types'['systemPromptMetadata']`
+    for inference at the `chat()` call site.
+  - Anthropic adapter reads `metadata.cache_control` and attaches it to
+    the corresponding `TextBlockParam`.
+  - All other text adapters call `normalizeSystemPrompts()` and join
+    `.content` for their respective `instructions` / `system` /
+    `systemInstruction` fields. Foreign metadata that reaches them via JS
+    / `as any` is dropped (never written to the wire).
+  - `normalizeSystemPrompts()` is the public API boundary and throws
+    `TypeError` (naming the offending index) for object-form entries whose
+    `content` isn't a string — preventing literal `"undefined"` from
+    reaching the model on stale call sites.
+  - OpenTelemetry middleware attaches per-prompt metadata as the
+    `tanstack.ai.system_prompt.metadata` JSON span attribute when
+    `captureContent: true` and at least one entry carries metadata, so
+    observability backends can distinguish cache hit/miss for Anthropic.
+  - `@tanstack/ai-event-client` mirrors the `SystemPrompt` shape locally
+    (avoids a circular import) and projects metadata away on the devtools
+    wire — devtools UI still receives `Array<string>`.
+
+### Patch Changes
+
+- Updated dependencies [[`496db9c`](https://github.com/TanStack/ai/commit/496db9c42a7d3051a1295091eae29ae1c31ef997)]:
+  - @tanstack/ai-event-client@0.3.5
+
+## 0.19.1
+
+### Patch Changes
+
+- fix(ai): restore `StructuredOutputStream` assignability to `AsyncIterable<StreamChunk>` so it can be passed to `toServerSentEventsResponse` ([#587](https://github.com/TanStack/ai/pull/587))
+
+  `StructuredOutputStartEvent`, `StructuredOutputCompleteEvent`, `ApprovalRequestedEvent`, and `ToolInputAvailableEvent` declared their shape with `extends Omit<CustomEvent, 'name' | 'value'>`. Because `CustomEvent` is inferred from a zod `passthrough` schema, it carries a `[k: string]: unknown` index signature, and `Omit` on a type with a `string` index signature collapses every surviving property to `unknown` — including `type: 'CUSTOM'`. That broke union assignability against `AGUIEvent`/`StreamChunk`, so `toServerSentEventsResponse(stream)` failed to typecheck against streams returned by `chat({ outputSchema, stream: true })`.
+
+  Switched to `extends CustomEvent` with refined `name`/`value` (allowed: narrower types of declared properties), which keeps `type: 'CUSTOM'` intact and preserves the existing discriminated-narrowing patterns.
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.3.4
+
+## 0.19.0
+
+### Minor Changes
+
+- feat: structured-output as a typed MessagePart on each assistant UIMessage ([#577](https://github.com/TanStack/ai/pull/577))
+
+  `useChat({ outputSchema })` (React, Vue, Solid) and `createChat({ outputSchema })` (Svelte) previously kept a single hook-level `partial`/`final` slot, so multi-turn structured chats lost every prior turn's response as soon as a new one streamed in. Each assistant turn now carries its own typed `structured-output` MessagePart on the UIMessage it belongs to. History walks `messages` and finds the typed part on each turn; the hook-level `partial` and `final` are derived from the latest assistant message's part and continue to work as before. Applies to all four framework hook packages.
+
+  The structured-output part type is generic over the schema's inferred data type:
+  - `StructuredOutputPart<TData = unknown>` in `@tanstack/ai` carries `data: TData`, `partial: DeepPartial<TData>`, `raw: string`, plus `status: 'streaming' | 'complete' | 'error'` and an optional `errorMessage`.
+  - `MessagePart<TTools, TData>` and `UIMessage<TTools, TData>` in `@tanstack/ai-client` thread the generic through the message types.
+  - Each framework hook's return (`UseChatReturn<TTools, TSchema>` for React / Vue / Solid, `CreateChatReturn<TTools, TSchema>` for Svelte) substitutes `TData = InferSchemaType<TSchema>` when a schema is supplied, so `messages[i].parts.find(p => p.type === 'structured-output').data` is typed by the schema with no cast required.
+
+  Default `TData = unknown` keeps every existing consumer that doesn't pass a schema source-compatible.
+
+  Server-side `chat({ outputSchema, stream: true })` emits a new `structured-output.start` CUSTOM event before the JSON deltas so the client processor can route them into the StructuredOutputPart instead of building a TextPart. The wire converter serializes the part's raw JSON back as assistant content, so multi-turn structured chats stay coherent (the LLM sees its own prior structured responses on follow-up turns). For adapters without native JSON-schema streaming (Anthropic, Gemini, Ollama), the existing fallback path emits one terminal `structured-output.complete` event and the same per-turn typed part lands on the message — consumer code is identical.
+
+  A new example route demonstrating the multi-turn pattern is at `/generations/structured-chat` in the `ts-react-chat` example.
+
+  **Breaking-shape note (minor, not major):** When `outputSchema` is set, `TEXT_MESSAGE_CONTENT` deltas no longer create a `TextPart` on the assistant message — they accumulate into the `StructuredOutputPart`. Consumers that iterated `message.parts` and explicitly filtered out `TextPart`s to hide raw JSON (the workaround documented prior to this change) can remove that filter; doing nothing is also safe because no `TextPart` is produced in the first place.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.3.3
+
+## 0.18.0
+
+### Minor Changes
+
+- **Breaking:** AG-UI client-to-server compliance. ([#511](https://github.com/TanStack/ai/pull/511))
+
+  `@tanstack/ai-client` now POSTs an AG-UI `RunAgentInput` request body and `@tanstack/ai` server endpoints must use the new `chatParamsFromRequestBody` + `mergeAgentTools` helpers. Upgrade both packages together.
+
+  Highlights:
+  - **Wire format**: `{threadId, runId, state, messages, tools, context, forwardedProps}` (per AG-UI 0.0.52 `RunAgentInputSchema`) instead of `{messages, data}`.
+  - **New server helpers** exported from `@tanstack/ai`: `chatParamsFromRequestBody`, `mergeAgentTools`.
+  - **`chat()` accepts `threadId`, `runId`, `parentRunId`** as optional fields for AG-UI run correlation.
+  - **`ChatClient` accepts `threadId`** option; auto-generates and persists per session if omitted; fresh `runId` per send.
+  - **Client tools auto-advertised** to the server via `RunAgentInput.tools`.
+  - **Foreign AG-UI clients** can hit a TanStack server: `developer` collapses to `system`, `reasoning`/`activity` drop.
+
+  See `docs/migration/ag-ui-compliance.md` for full migration steps.
+
+### Patch Changes
+
+- fix(ai): infer Zod-typed `outputSchema` instead of collapsing to `unknown` ([#563](https://github.com/TanStack/ai/pull/563))
+
+  `chat({ outputSchema: zodSchema })` previously returned `Promise<unknown>` (and
+  `StructuredOutputCompleteEvent<T>` resolved with `T = unknown`) because
+  `InferSchemaType` only matched `StandardJSONSchemaV1`. Zod's core `$ZodType`
+  declares `~standard` as `StandardSchemaV1.Props` — without a type-level
+  `jsonSchema` converter — so Zod schemas (and any other library that exposes
+  only the Standard Schema validator surface to the type checker) fell through
+  to `unknown`, forcing callers to either cast or run a redundant `schema.parse()`.
+
+  `SchemaInput` now also accepts `StandardSchemaV1<any, any>`, and
+  `InferSchemaType` recovers the input type from that branch when the
+  JSON-schema branch doesn't match. The runtime path is unchanged for Zod /
+  ArkType / Valibot (`convertSchemaToJsonSchema` still detects the runtime
+  `~standard.jsonSchema` converter); only the static types are widened.
+
+  `convertSchemaToJsonSchema` now throws an actionable error when given a
+  Standard Schema validator that lacks a JSON-schema converter, instead of
+  silently shipping the raw `{ '~standard': ... }` object to the LLM provider.
+
+  Closes #562
+
+- Updated dependencies []:
+  - @tanstack/ai-event-client@0.3.2
+
 ## 0.17.0
 
 ### Minor Changes

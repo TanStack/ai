@@ -12,6 +12,13 @@ interface DevtoolsModelMessage {
   toolCalls?: unknown
 }
 
+/**
+ * Mirrors `SystemPrompt` from `@tanstack/ai` structurally so this package
+ * doesn't import from `@tanstack/ai` (which would introduce a circular dep,
+ * see file-top comment).
+ */
+type DevtoolsSystemPrompt = string | { content: string; metadata?: unknown }
+
 interface DevtoolsMiddlewareContext {
   requestId: string
   streamId: string
@@ -19,7 +26,7 @@ interface DevtoolsMiddlewareContext {
   provider: string
   model: string
   source: 'client' | 'server'
-  systemPrompts: Array<string>
+  systemPrompts: ReadonlyArray<DevtoolsSystemPrompt>
   toolNames?: Array<string>
   options?: Record<string, unknown>
   modelOptions?: Record<string, unknown>
@@ -104,7 +111,13 @@ function buildEventContext(ctx: DevtoolsMiddlewareContext) {
     model: ctx.model,
     clientId: ctx.conversationId,
     source: ctx.source,
-    systemPrompts: ctx.systemPrompts.length > 0 ? ctx.systemPrompts : undefined,
+    // Devtools wire payload is plain strings; per-prompt metadata is
+    // irrelevant for observation and would require devtools-UI changes to
+    // render. Project metadata away here so the wire shape is unchanged.
+    systemPrompts:
+      ctx.systemPrompts.length > 0
+        ? ctx.systemPrompts.map((p) => (typeof p === 'string' ? p : p.content))
+        : undefined,
     toolNames: ctx.toolNames,
     options: ctx.options,
     modelOptions: ctx.modelOptions,

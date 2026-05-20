@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
@@ -118,10 +118,10 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   OllamaInputModalities,
   OllamaMessageMetadataByModality
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'ollama' as const
 
-  private client: Ollama
+  private readonly client: Ollama
 
   constructor(
     hostOrClientOrConfig: string | Ollama | OllamaClientConfig | undefined,
@@ -248,6 +248,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           threadId,
           model: chunk.model,
           timestamp: Date.now(),
+          parentRunId: options.parentRunId,
         }
       }
 
@@ -450,13 +451,16 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
         accumulatedReasoning += chunk.message.thinking
 
-        // Spec REASONING content event
-        yield {
-          type: EventType.REASONING_MESSAGE_CONTENT,
-          messageId: reasoningMessageId!,
-          delta: chunk.message.thinking,
-          model: chunk.model,
-          timestamp: Date.now(),
+        // Spec REASONING content event — reasoningMessageId is set in the
+        // hasEmittedStepStarted block above (entered on the same `thinking` path)
+        if (reasoningMessageId) {
+          yield {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: reasoningMessageId,
+            delta: chunk.message.thinking,
+            model: chunk.model,
+            timestamp: Date.now(),
+          }
         }
 
         // Legacy STEP event
@@ -524,8 +528,11 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
                     parsedArguments = {}
                   }
                 } else {
-                  parsedArguments = toolCall.function
-                    .arguments as unknown as Record<string, unknown>
+                  // ToolCall.function.arguments is typed as string; this
+                  // branch is a defensive runtime guard. Fall back to {} to
+                  // avoid an unsound cast that would let a non-record value
+                  // through.
+                  parsedArguments = {}
                 }
 
                 return {
@@ -550,20 +557,33 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       | undefined
 
     const ollamaOptions = {
-      temperature: options.temperature,
-      top_p: options.topP,
-      num_predict: options.maxTokens,
+      ...(options.temperature !== undefined && {
+        temperature: options.temperature,
+      }),
+      ...(options.topP !== undefined && { top_p: options.topP }),
+      ...(options.maxTokens !== undefined && {
+        num_predict: options.maxTokens,
+      }),
       ...modelOptions,
     }
+
+    const formattedMessages = this.formatMessages(options.messages)
+
+    const prompts = normalizeSystemPrompts(options.systemPrompts)
+    if (prompts.length > 0) {
+      formattedMessages.unshift({
+        role: 'system',
+        content: prompts.map((p) => p.content).join('\n'),
+      })
+    }
+
+    const convertedTools = this.convertToolsToOllamaFormat(options.tools)
 
     return {
       model,
       options: ollamaOptions,
-      messages: this.formatMessages(options.messages),
-      tools: this.convertToolsToOllamaFormat(options.tools),
-      ...(options.systemPrompts?.length
-        ? { system: options.systemPrompts.join('\n') }
-        : {}),
+      messages: formattedMessages,
+      ...(convertedTools !== undefined && { tools: convertedTools }),
     }
   }
 }

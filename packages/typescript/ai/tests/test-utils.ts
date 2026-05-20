@@ -10,6 +10,7 @@ import type {
   TextMessageContentEvent,
   TextMessageEndEvent,
   TextMessageStartEvent,
+  TextOptions,
   Tool,
   ToolCallArgsEvent,
   ToolCallEndEvent,
@@ -153,7 +154,7 @@ export function createMockAdapter(options: {
   iterations?: Array<Array<StreamChunk>>
   structuredOutput?: (opts: any) => Promise<{ data: unknown; rawText: string }>
 }) {
-  const calls: Array<Record<string, unknown>> = []
+  const calls: Array<TextOptions<any, any>> = []
   let callIndex = 0
 
   const adapter: AnyTextAdapter = {
@@ -172,6 +173,7 @@ export function createMockAdapter(options: {
       },
       toolCapabilities: [] as ReadonlyArray<string>,
       toolCallMetadata: undefined as unknown,
+      systemPromptMetadata: undefined as never,
     },
     chatStream: (opts: any) => {
       calls.push(opts)

@@ -3,19 +3,19 @@ import { realtimeToken } from '@tanstack/ai'
 import { grokRealtimeToken } from '../src/realtime/token'
 
 const originalFetch = globalThis.fetch
-const originalXaiApiKey = process.env.XAI_API_KEY
+const originalXaiApiKey = process.env['XAI_API_KEY']
 
 beforeEach(() => {
-  process.env.XAI_API_KEY = 'xai-test'
+  process.env['XAI_API_KEY'] = 'xai-test'
 })
 
 afterEach(() => {
   globalThis.fetch = originalFetch
   vi.restoreAllMocks()
   if (originalXaiApiKey === undefined) {
-    delete process.env.XAI_API_KEY
+    delete process.env['XAI_API_KEY']
   } else {
-    process.env.XAI_API_KEY = originalXaiApiKey
+    process.env['XAI_API_KEY'] = originalXaiApiKey
   }
 })
 

@@ -10,21 +10,32 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
-import type OpenAI from 'openai'
+import OpenAI from 'openai'
 import type { JSONSchema, StreamChunk } from '@tanstack/ai'
 import { resolveDebugOption, type Logger } from '@tanstack/ai/adapter-internals'
 
-let mockCreate: ReturnType<typeof vi.fn>
+/**
+ * Signature of the OpenAI SDK's `chat.completions.create`. See sibling
+ * test `chat-completions-text.test.ts` for the rationale: we narrow the
+ * union of streaming / non-streaming overloads down to a tuple the
+ * `mockImplementation` of `vi.fn` can actually accept, and return
+ * `unknown` because the test asserts on AG-UI events emitted by the
+ * adapter rather than on SDK structural types.
+ */
+type MockChatCompletionCreate = (
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParams,
+  options?: OpenAI.RequestOptions,
+) => unknown
+
+let mockCreate: ReturnType<typeof vi.fn<MockChatCompletionCreate>>
 
 function makeStubClient(): OpenAI {
-  return {
-    chat: {
-      completions: {
-        create: (params: unknown, options: unknown) =>
-          mockCreate(params, options),
-      },
-    },
-  } as unknown as OpenAI
+  const client = new OpenAI({ apiKey: 'test-api-key' })
+  client.chat.completions.create = ((
+    params: OpenAI.Chat.Completions.ChatCompletionCreateParams,
+    options?: OpenAI.RequestOptions,
+  ) => mockCreate(params, options)) as typeof client.chat.completions.create
+  return client
 }
 
 class TestAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {

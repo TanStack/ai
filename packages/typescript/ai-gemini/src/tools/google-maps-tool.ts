@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type { GoogleMaps } from '@google/genai'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
@@ -18,10 +19,9 @@ export function convertGoogleMapsToolToAdapterFormat(tool: Tool) {
 export function googleMapsTool(
   config?: GoogleMapsToolConfig,
 ): GeminiGoogleMapsTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<GeminiGoogleMapsTool>({
     name: 'google_maps',
     description: '',
     metadata: config,
-  } as unknown as GeminiGoogleMapsTool
+  })
 }

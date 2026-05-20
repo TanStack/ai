@@ -14,7 +14,10 @@ export interface ChatMessagesProps {
   /** Element to show while loading the first message */
   loadingState?: JSX.Element
   /** Custom error renderer */
-  errorState?: (props: { error: Error; reload: () => void }) => JSX.Element
+  errorState?: (props: {
+    error: Error
+    reload: () => Promise<void>
+  }) => JSX.Element
   /** Auto-scroll to bottom on new messages */
   autoScroll?: boolean
 }
@@ -45,7 +48,10 @@ export function ChatMessages(props: ChatMessagesProps) {
   return (
     <Show
       when={!error() || !props.errorState}
-      fallback={<>{props.errorState?.({ error: error()!, reload })}</>}
+      fallback={(() => {
+        const err = error()
+        return err ? <>{props.errorState?.({ error: err, reload })}</> : null
+      })()}
     >
       <Show
         when={!isLoading() || messages().length > 0 || !props.loadingState}

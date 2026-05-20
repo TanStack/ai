@@ -9,9 +9,12 @@ import type {
   InferToolOutput,
   ModelMessage,
   StreamChunk,
+  StructuredOutputPart,
   VideoPart,
 } from '@tanstack/ai'
 import type { ConnectionAdapter } from './connection-adapters'
+
+export type { StructuredOutputPart } from '@tanstack/ai'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -162,7 +165,10 @@ export interface ThinkingPart {
   content: string
 }
 
-export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
+export type MessagePart<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TData = unknown,
+> =
   | TextPart
   | ImagePart
   | AudioPart
@@ -171,15 +177,27 @@ export type MessagePart<TTools extends ReadonlyArray<AnyClientTool> = any> =
   | ToolCallPart<TTools>
   | ToolResultPart
   | ThinkingPart
+  | StructuredOutputPart<TData>
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
- * Contains parts that can be text, tool calls, or tool results
+ * Contains parts that can be text, tool calls, or tool results.
+ *
+ * `TTools` narrows the tool-call/result part types based on the registered
+ * tools. `TData` is the schema-inferred type for any `structured-output` part
+ * on the message — defaulted to `unknown` so untyped consumers (the core
+ * stream processor, the wire converter) don't need to thread a schema generic
+ * everywhere; the hook layer (`useChat({ outputSchema })`) substitutes it on
+ * the public return so `m.parts.find(p => p.type === 'structured-output').data`
+ * is typed without manual casts.
  */
-export interface UIMessage<TTools extends ReadonlyArray<AnyClientTool> = any> {
+export interface UIMessage<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TData = unknown,
+> {
   id: string
   role: 'system' | 'user' | 'assistant'
-  parts: Array<MessagePart<TTools>>
+  parts: Array<MessagePart<TTools, TData>>
   createdAt?: Date
 }
 
@@ -205,7 +223,28 @@ export interface ChatClientOptions<
   id?: string
 
   /**
-   * Additional body parameters to send
+   * Thread ID to use for this chat session. Persists across sends within
+   * the session. If omitted, a unique thread ID is generated.
+   */
+  threadId?: string
+
+  /**
+   * Arbitrary client-controlled JSON forwarded to the server in the
+   * AG-UI `RunAgentInput.forwardedProps` field. Use this for per-session
+   * options like provider/model selection or feature flags that the
+   * server endpoint should read.
+   *
+   * Replaces the legacy `body` option. If both are provided,
+   * `forwardedProps` wins on key collision.
+   */
+  forwardedProps?: Record<string, any>
+
+  /**
+   * @deprecated Use `forwardedProps` instead. `body` continues to work
+   * unchanged — its values are merged into the AG-UI
+   * `RunAgentInput.forwardedProps` field on the wire and are also
+   * mirrored under the legacy `data` field for servers that have not
+   * migrated yet. Will be removed in a future major release.
    */
   body?: Record<string, any>
 

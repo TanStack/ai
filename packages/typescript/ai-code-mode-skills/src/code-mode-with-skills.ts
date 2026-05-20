@@ -100,7 +100,9 @@ export async function codeModeWithSkills({
             const context = await config.driver.createContext({
               bindings: createEventAwareBindings(baseBindings, () => {}),
               timeout: config.timeout,
-              memoryLimit: config.memoryLimit,
+              ...(config.memoryLimit !== undefined && {
+                memoryLimit: config.memoryLimit,
+              }),
             })
             try {
               const result = await context.execute(strippedCode)

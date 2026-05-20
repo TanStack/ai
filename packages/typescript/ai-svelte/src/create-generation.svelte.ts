@@ -116,6 +116,11 @@ export function createGeneration<
   let error = $state<Error | undefined>(undefined)
   let status = $state<GenerationClientState>('idle')
 
+  // `body` uses a conditional spread because `GenerationClientOptions.body`
+  // is declared `body?: Record<string, any>` (absent vs. present) under
+  // `exactOptionalPropertyTypes`. Assigning `undefined` directly would be
+  // rejected — the optional caller `options.body` may be undefined, in which
+  // case we want the key to be absent.
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
     id: clientId,
     body: options.body,

@@ -69,6 +69,7 @@ export { ToolCallManager } from './activities/chat/tools/tool-calls'
 
 // Provider tool type
 export type { ProviderTool } from './tools/provider-tool'
+export { brandProviderTool } from './tools/provider-tool'
 
 // Agent loop strategies
 export {
@@ -103,6 +104,10 @@ export type {
 
 // All types
 export * from './types'
+
+// System prompts (type + normaliser used by adapters)
+export type { SystemPrompt, NormalizedSystemPrompt } from './system-prompts'
+export { normalizeSystemPrompts } from './system-prompts'
 
 // Utility functions
 export { detectImageMimeType } from './utils'
@@ -167,6 +172,17 @@ export type {
   ToolResultState,
   JSONParser,
 } from './activities/chat/stream/index'
+
+// Chat utilities
+export {
+  chatParamsFromRequest,
+  chatParamsFromRequestBody,
+  mergeAgentTools,
+} from './utilities/chat-params'
+
+// AG-UI wire serialization (used internally by @tanstack/ai-client)
+export { uiMessagesToWire } from './utilities/ag-ui-wire'
+export type { WireMessage } from './utilities/ag-ui-wire'
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'

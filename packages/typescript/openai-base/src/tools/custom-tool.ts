@@ -11,11 +11,17 @@ export type CustomTool = CustomToolConfig
  */
 export function convertCustomToolToAdapterFormat(tool: Tool): CustomToolConfig {
   const metadata = tool.metadata as CustomToolConfig
+  // Conditional spread: the SDK's `CustomToolConfig` declares optional
+  // fields as `description?: string` (no `| undefined`) under
+  // exactOptionalPropertyTypes, so we omit absent fields rather than
+  // passing them through as explicit `undefined`.
   return {
     type: 'custom',
     name: metadata.name,
-    description: metadata.description,
-    format: metadata.format,
+    ...(metadata.description !== undefined && {
+      description: metadata.description,
+    }),
+    ...(metadata.format !== undefined && { format: metadata.format }),
   }
 }
 

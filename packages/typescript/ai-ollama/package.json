@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-ollama",
-  "version": "0.6.14",
+  "version": "0.6.18",
   "description": "Ollama adapter for TanStack AI",
   "author": "",
   "license": "MIT",
@@ -50,6 +50,6 @@
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   }
 }

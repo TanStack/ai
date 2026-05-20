@@ -46,7 +46,7 @@ export class ChatStreamSummarizeAdapter<
 > extends BaseSummarizeAdapter<TModel, TProviderOptions> {
   readonly name: string
 
-  private textAdapter: ChatStreamCapable
+  private readonly textAdapter: ChatStreamCapable
 
   constructor(
     textAdapter: ChatStreamCapable,
@@ -124,7 +124,7 @@ export class ChatStreamSummarizeAdapter<
     return { id, model, summary, usage }
   }
 
-  async *summarizeStream(
+  override async *summarizeStream(
     options: SummarizationOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const systemPrompt = this.buildSummarizationPrompt(options)
@@ -220,6 +220,9 @@ export class ChatStreamSummarizeAdapter<
         break
       case 'concise':
         prompt += 'Provide a very concise summary in 1-2 sentences. '
+        break
+      case undefined:
+        prompt += 'Provide a clear and concise summary. '
         break
       default:
         prompt += 'Provide a clear and concise summary. '

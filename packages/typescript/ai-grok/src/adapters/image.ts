@@ -46,7 +46,7 @@ export class GrokImageAdapter<
   GrokImageModelProviderOptionsByName,
   GrokImageModelSizeByName
 > {
-  readonly kind = 'image' as const
+  override readonly kind = 'image' as const
   readonly name = 'grok' as const
 
   protected client: OpenAI
@@ -65,11 +65,13 @@ export class GrokImageAdapter<
     validateImageSize(model, size)
     validateNumberOfImages(model, numberOfImages)
 
-    const request: OpenAI_SDK.Images.ImageGenerateParams = {
+    const resolvedSize = size as OpenAI_SDK.Images.ImageGenerateParams['size']
+    const request: OpenAI_SDK.Images.ImageGenerateParamsNonStreaming = {
       model,
       prompt,
       n: numberOfImages ?? 1,
-      size: size as OpenAI_SDK.Images.ImageGenerateParams['size'],
+      ...(resolvedSize !== undefined && { size: resolvedSize }),
+      stream: false,
       ...modelOptions,
     }
 
@@ -78,19 +80,26 @@ export class GrokImageAdapter<
         `activity=image provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'}`,
         { provider: this.name, model },
       )
-      const response = await this.client.images.generate({
-        ...request,
-        stream: false,
-      })
+      const response = await this.client.images.generate(request)
 
       const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
         (item): Array<GeneratedImage> => {
           const revisedPrompt = item.revised_prompt
           if (item.b64_json) {
-            return [{ b64Json: item.b64_json, revisedPrompt }]
+            return [
+              {
+                b64Json: item.b64_json,
+                ...(revisedPrompt !== undefined && { revisedPrompt }),
+              },
+            ]
           }
           if (item.url) {
-            return [{ url: item.url, revisedPrompt }]
+            return [
+              {
+                url: item.url,
+                ...(revisedPrompt !== undefined && { revisedPrompt }),
+              },
+            ]
           }
           return []
         },
@@ -100,13 +109,13 @@ export class GrokImageAdapter<
         id: generateId(this.name),
         model,
         images,
-        usage: response.usage
-          ? {
-              inputTokens: response.usage.input_tokens,
-              outputTokens: response.usage.output_tokens,
-              totalTokens: response.usage.total_tokens,
-            }
-          : undefined,
+        ...(response.usage && {
+          usage: {
+            inputTokens: response.usage.input_tokens,
+            outputTokens: response.usage.output_tokens,
+            totalTokens: response.usage.total_tokens,
+          },
+        }),
       }
     } catch (error: unknown) {
       options.logger.errors(`${this.name}.generateImages fatal`, {

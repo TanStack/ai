@@ -13,12 +13,12 @@ export function mapVideoSizeToFalFormat<TModel extends string>(
     return {
       aspect_ratio,
       resolution,
-    } as unknown as FalModelVideoSizeInput<TModel>
+    } as FalModelVideoSizeInput<TModel>
   }
 
   if (size.includes(':')) {
-    return { aspect_ratio: size } as unknown as FalModelVideoSizeInput<TModel>
+    return { aspect_ratio: size } as FalModelVideoSizeInput<TModel>
   }
 
-  return { resolution: size } as unknown as FalModelVideoSizeInput<TModel>
+  return { resolution: size } as FalModelVideoSizeInput<TModel>
 }

@@ -9,21 +9,27 @@ import { useSummarize } from '../src/use-summarize'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { createMockConnectionAdapter } from './test-utils'
 import type { StreamChunk } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 
 // Helper to create generation stream chunks
 function createGenerationChunks(result: unknown): Array<StreamChunk> {
   return [
-    { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
     {
-      type: 'CUSTOM',
+      type: EventType.RUN_STARTED,
+      runId: 'run-1',
+      threadId: 'thread-1',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.CUSTOM,
       name: 'generation:result',
       value: result,
       timestamp: Date.now(),
     },
     {
-      type: 'RUN_FINISHED',
+      type: EventType.RUN_FINISHED,
       runId: 'run-1',
-      finishReason: 'stop',
+      threadId: 'thread-1',
       timestamp: Date.now(),
     },
   ]
@@ -32,44 +38,61 @@ function createGenerationChunks(result: unknown): Array<StreamChunk> {
 // Helper to create video generation stream chunks
 function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
   return [
-    { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
     {
-      type: 'CUSTOM',
+      type: EventType.RUN_STARTED,
+      runId: 'run-1',
+      threadId: 'thread-1',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.CUSTOM,
       name: 'video:job:created',
       value: { jobId },
       timestamp: Date.now(),
     },
     {
-      type: 'CUSTOM',
+      type: EventType.CUSTOM,
       name: 'video:status',
       value: { jobId, status: 'processing', progress: 50 },
       timestamp: Date.now(),
     },
     {
-      type: 'CUSTOM',
+      type: EventType.CUSTOM,
       name: 'generation:result',
       value: { jobId, status: 'completed', url },
       timestamp: Date.now(),
     },
     {
-      type: 'RUN_FINISHED',
+      type: EventType.RUN_FINISHED,
       runId: 'run-1',
-      finishReason: 'stop',
+      threadId: 'thread-1',
       timestamp: Date.now(),
     },
   ]
 }
 
-// Helper to create error stream chunks
+// Helper to create error stream chunks.
+// NOTE: The AG-UI spec for RUN_ERROR carries `message` directly on the event
+// (not nested under `error`). We emit BOTH shapes here because GenerationClient
+// supports the legacy `chunk.error.message` fallback (see generation-client.ts:
+// `chunk.message ?? chunk.error?.message`). Once that fallback is removed, the
+// `error` field can drop.
 function createErrorChunks(message: string): Array<StreamChunk> {
   return [
-    { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
     {
-      type: 'RUN_ERROR',
+      type: EventType.RUN_STARTED,
       runId: 'run-1',
-      error: { message },
+      threadId: 'thread-1',
       timestamp: Date.now(),
     },
+    {
+      type: EventType.RUN_ERROR,
+      message,
+      // Legacy shape preserved for the fallback branch in generation-client.ts.
+      // AGUIEventSchema is `passthrough` so unknown keys are allowed at runtime;
+      // the strict TS union still requires a cast on this single chunk.
+      error: { message },
+    } as StreamChunk,
   ]
 }
 
@@ -128,7 +151,6 @@ describe('useGeneration', () => {
     })
 
     it('should track loading state during fetcher call', async () => {
-      const states: Array<boolean> = []
       let resolvePromise: (value: any) => void
 
       const { result } = renderHook(() =>
@@ -157,23 +179,28 @@ describe('useGeneration', () => {
     it('should call onProgress callback', async () => {
       const onProgress = vi.fn()
       const chunks: Array<StreamChunk> = [
-        { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
         {
-          type: 'CUSTOM',
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.CUSTOM,
           name: 'generation:progress',
           value: { progress: 50, message: 'Halfway' },
           timestamp: Date.now(),
         },
         {
-          type: 'CUSTOM',
+          type: EventType.CUSTOM,
           name: 'generation:result',
           value: { id: '1' },
           timestamp: Date.now(),
         },
         {
-          type: 'RUN_FINISHED',
+          type: EventType.RUN_FINISHED,
           runId: 'run-1',
-          finishReason: 'stop',
+          threadId: 'thread-1',
           timestamp: Date.now(),
         },
       ]
@@ -327,8 +354,12 @@ describe('useGeneration', () => {
 
   describe('error handling', () => {
     it('should require either connection or fetcher', () => {
+      // Empty options is structurally valid (both connection and fetcher are
+      // optional) but a runtime guard inside useGeneration throws. Pinning the
+      // generics explicitly avoids leaving the constraints to default to
+      // `unknown`, which trips inference on the empty literal.
       expect(() => {
-        renderHook(() => useGeneration({} as any))
+        renderHook(() => useGeneration<Record<string, unknown>, unknown>({}))
       }).toThrow('useGeneration requires either a connection or fetcher option')
     })
   })
@@ -352,6 +383,7 @@ describe('useGenerateImage', () => {
   describe('fetcher mode', () => {
     it('should generate images using fetcher', async () => {
       const mockResult = {
+        id: 'img-1',
         images: [{ url: 'http://example.com/img.png' }],
         model: 'dall-e-3',
       }
@@ -395,6 +427,7 @@ describe('useGenerateImage', () => {
   describe('connection mode', () => {
     it('should generate images using connection', async () => {
       const mockResult = {
+        id: 'img-1',
         images: [{ url: 'http://example.com/img.png' }],
         model: 'dall-e-3',
       }
@@ -425,6 +458,7 @@ describe('useGenerateImage', () => {
 
     it('should reset state after generation', async () => {
       const mockResult = {
+        id: 'img-1',
         images: [{ url: 'http://example.com/img.png' }],
         model: 'dall-e-3',
       }
@@ -465,6 +499,7 @@ describe('useGenerateSpeech', () => {
   describe('fetcher mode', () => {
     it('should generate speech using fetcher', async () => {
       const mockResult = {
+        id: 'tts-1',
         audio: 'base64data',
         format: 'mp3' as const,
         model: 'tts-1',
@@ -530,6 +565,7 @@ describe('useGenerateSpeech', () => {
   describe('stop and reset', () => {
     it('should reset state after generation', async () => {
       const mockResult = {
+        id: 'tts-1',
         audio: 'base64data',
         format: 'mp3' as const,
         model: 'tts-1',
@@ -671,6 +707,7 @@ describe('useTranscription', () => {
   describe('fetcher mode', () => {
     it('should transcribe audio using fetcher', async () => {
       const mockResult = {
+        id: 'trans-1',
         text: 'Hello world',
         model: 'whisper-1',
       }
@@ -731,6 +768,7 @@ describe('useTranscription', () => {
   describe('stop and reset', () => {
     it('should reset state after transcription', async () => {
       const mockResult = {
+        id: 'trans-1',
         text: 'Hello world',
         model: 'whisper-1',
       }
@@ -769,8 +807,10 @@ describe('useSummarize', () => {
   describe('fetcher mode', () => {
     it('should summarize text using fetcher', async () => {
       const mockResult = {
+        id: 'sum-1',
         summary: 'A brief summary',
         model: 'gpt-4',
+        usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120 },
       }
       const onResult = vi.fn()
 
@@ -827,8 +867,10 @@ describe('useSummarize', () => {
   describe('stop and reset', () => {
     it('should reset state after summarization', async () => {
       const mockResult = {
+        id: 'sum-1',
         summary: 'A brief summary',
         model: 'gpt-4',
+        usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120 },
       }
 
       const { result } = renderHook(() =>
@@ -1036,8 +1078,11 @@ describe('useGenerateVideo', () => {
 
   describe('error handling', () => {
     it('should require either connection or fetcher', () => {
+      // Empty options is structurally valid (both connection and fetcher are
+      // optional on UseGenerateVideoOptions) but a runtime guard inside
+      // useGenerateVideo throws.
       expect(() => {
-        renderHook(() => useGenerateVideo({} as any))
+        renderHook(() => useGenerateVideo({}))
       }).toThrow(
         'useGenerateVideo requires either a connection or fetcher option',
       )

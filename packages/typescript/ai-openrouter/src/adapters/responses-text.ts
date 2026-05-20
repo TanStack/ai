@@ -1,5 +1,5 @@
 import { OpenRouter } from '@openrouter/sdk'
-import { EventType } from '@tanstack/ai'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId, transformNullsToUndefined } from '@tanstack/ai-utils'
@@ -88,7 +88,7 @@ export class OpenRouterResponsesTextAdapter<
   OpenRouterMessageMetadataByModality,
   TToolCapabilities
 > {
-  readonly kind = 'text' as const
+  override readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
 
   protected orClient: OpenRouter
@@ -137,7 +137,7 @@ export class OpenRouterResponsesTextAdapter<
       const response = await this.orClient.beta.responses.send(
         { responsesRequest: { ...responsesRequest, stream: true } },
         {
-          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
       )
@@ -165,6 +165,7 @@ export class OpenRouterResponsesTextAdapter<
           threadId: aguiState.threadId,
           model: options.model,
           timestamp: Date.now(),
+          parentRunId: options.parentRunId,
         }
       }
 
@@ -174,7 +175,10 @@ export class OpenRouterResponsesTextAdapter<
         timestamp: Date.now(),
         message: errorPayload.message,
         code: errorPayload.code,
-        error: errorPayload,
+        error: {
+          message: errorPayload.message,
+          code: errorPayload.code,
+        },
       }
 
       options.logger.errors(`${this.name}.chatStream fatal`, {
@@ -221,7 +225,7 @@ export class OpenRouterResponsesTextAdapter<
           },
         },
         {
-          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
       )
@@ -389,7 +393,7 @@ export class OpenRouterResponsesTextAdapter<
           },
         },
         {
-          signal: reqOptions.signal ?? undefined,
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
         },
       )
@@ -410,6 +414,7 @@ export class OpenRouterResponsesTextAdapter<
             threadId: aguiState.threadId,
             model,
             timestamp,
+            parentRunId: chatOptions.parentRunId,
           }
         }
 
@@ -448,11 +453,11 @@ export class OpenRouterResponsesTextAdapter<
           yield* openReasoning()
           // openReasoning() guarantees reasoningMessageId is set on first
           // call; TS can't see through the generator side-effect.
-          const messageId = reasoningMessageId!
+          if (!reasoningMessageId) continue
           accumulatedReasoning += reasoningDelta
           yield {
             type: EventType.REASONING_MESSAGE_CONTENT,
-            messageId,
+            messageId: reasoningMessageId,
             delta: reasoningDelta,
             model,
             timestamp,
@@ -629,6 +634,7 @@ export class OpenRouterResponsesTextAdapter<
           threadId: aguiState.threadId,
           model,
           timestamp,
+          parentRunId: chatOptions.parentRunId,
         }
       }
 
@@ -647,14 +653,18 @@ export class OpenRouterResponsesTextAdapter<
         `${this.name}.structuredOutputStream failed`,
       )
 
+      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       yield {
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model,
         timestamp,
         message: errorPayload.message,
-        code: isAbort ? 'aborted' : errorPayload.code,
-        error: { ...errorPayload, ...(isAbort && { code: 'aborted' }) },
+        ...(resolvedCode !== undefined && { code: resolvedCode }),
+        error: {
+          message: errorPayload.message,
+          ...(resolvedCode !== undefined && { code: resolvedCode }),
+        },
       }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
@@ -803,6 +813,7 @@ export class OpenRouterResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
+            parentRunId: options.parentRunId,
           }
         }
 
@@ -1131,17 +1142,17 @@ export class OpenRouterResponsesTextAdapter<
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
           if (item?.type === 'function_call' && item.id) {
-            const existing = toolCallMetadata.get(item.id)
-            if (!existing) {
-              toolCallMetadata.set(item.id, {
+            let metadata = toolCallMetadata.get(item.id)
+            if (!metadata) {
+              metadata = {
                 index: chunk.outputIndex ?? 0,
                 name: item.name,
                 started: false,
-              })
-            } else if (!existing.name) {
-              existing.name = item.name
+              }
+              toolCallMetadata.set(item.id, metadata)
+            } else if (!metadata.name) {
+              metadata.name = item.name
             }
-            const metadata = toolCallMetadata.get(item.id)!
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
@@ -1462,7 +1473,6 @@ export class OpenRouterResponsesTextAdapter<
           threadId: aguiState.threadId,
           model: model || options.model,
           timestamp: Date.now(),
-          usage: undefined,
           finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
         }
       }
@@ -1480,8 +1490,11 @@ export class OpenRouterResponsesTextAdapter<
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        code: errorPayload.code,
-        error: errorPayload,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
       }
     }
   }
@@ -1549,10 +1562,11 @@ export class OpenRouterResponsesTextAdapter<
       }),
       ...(options.topP !== undefined && { topP: options.topP }),
       ...(options.metadata !== undefined && { metadata: options.metadata }),
-      ...(options.systemPrompts &&
-        options.systemPrompts.length > 0 && {
-          instructions: options.systemPrompts.join('\n'),
-        }),
+      ...(() => {
+        const prompts = normalizeSystemPrompts(options.systemPrompts)
+        if (prompts.length === 0) return {}
+        return { instructions: prompts.map((p) => p.content).join('\n') }
+      })(),
       input,
       ...(tools &&
         tools.length > 0 && {
@@ -1795,9 +1809,13 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     if ('content_index' in raw) out.contentIndex = raw.content_index
     if ('sequence_number' in raw) out.sequenceNumber = raw.sequence_number
     if ('summary_index' in raw) out.summaryIndex = raw.summary_index
-    if ('response' in raw && raw.response && typeof raw.response === 'object') {
-      out.response = camelCaseResponseShape(
-        raw.response as Record<string, unknown>,
+    if (
+      'response' in raw &&
+      raw['response'] &&
+      typeof raw['response'] === 'object'
+    ) {
+      out['response'] = camelCaseResponseShape(
+        raw['response'] as Record<string, unknown>,
       )
     }
     if ('item' in raw && raw.item && typeof raw.item === 'object') {
@@ -1805,10 +1823,14 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     }
     if ('part' in raw) out.part = raw.part
     out.type =
-      typeof raw.type === 'string' ? raw.type : (e.type as string) || 'unknown'
+      typeof raw['type'] === 'string'
+        ? raw['type']
+        : (e.type as string) || 'unknown'
+    // eslint-disable-next-line no-restricted-syntax -- NormalizedStreamEvent is a discriminated union built field-by-field from Record<string, unknown>; TS can't narrow the variant from construction.
     return out as unknown as NormalizedStreamEvent
   }
 
+  // eslint-disable-next-line no-restricted-syntax -- NormalizedStreamEvent is a discriminated union; the upstream `event` is a passthrough whose variant TS can't infer here.
   return event as unknown as NormalizedStreamEvent
 }
 

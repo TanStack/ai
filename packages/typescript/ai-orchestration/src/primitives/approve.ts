@@ -23,6 +23,7 @@ export function* approve(
     description: options.description,
   }
   // The engine returns ApprovalResult via gen.next(value).
+  // eslint-disable-next-line no-restricted-syntax -- yield expression has unknown type; engine guarantees ApprovalResult resume value
   const result = (yield descriptor) as unknown as ApprovalResult
   return result
 }

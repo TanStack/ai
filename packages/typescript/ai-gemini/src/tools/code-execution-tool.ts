@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
 export interface CodeExecutionToolConfig {}
@@ -14,10 +15,9 @@ export function convertCodeExecutionToolToAdapterFormat(_tool: Tool) {
 }
 
 export function codeExecutionTool(): GeminiCodeExecutionTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<GeminiCodeExecutionTool>({
     name: 'code_execution',
     description: '',
     metadata: {},
-  } as unknown as GeminiCodeExecutionTool
+  })
 }

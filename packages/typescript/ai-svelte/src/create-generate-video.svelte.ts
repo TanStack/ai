@@ -125,6 +125,10 @@ export function createGenerateVideo<
   let error = $state<Error | undefined>(undefined)
   let status = $state<GenerationClientState>('idle')
 
+  // `body` uses a conditional spread because `VideoGenerationClientOptions.body`
+  // is declared `body?: Record<string, any>` (absent vs. present) under
+  // `exactOptionalPropertyTypes`. The optional caller `options.body` may be
+  // undefined, in which case we want the key to be absent on the target.
   const baseOptions = {
     id: clientId,
     body: options.body,

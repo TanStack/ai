@@ -82,8 +82,8 @@ describe('OpenAI adapter option mapping', () => {
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
       adapter,
+      systemPrompts: ['Stay concise'],
       messages: [
-        { role: 'system', content: 'Stay concise' },
         { role: 'user', content: 'How is the weather?' },
         {
           role: 'assistant',
@@ -109,7 +109,7 @@ describe('OpenAI adapter option mapping', () => {
     }
 
     expect(responsesCreate).toHaveBeenCalledTimes(1)
-    const [payload] = responsesCreate.mock.calls[0]
+    const [payload] = responsesCreate.mock.calls[0]!
 
     // Responses API uses different field names and structure
     expect(payload).toMatchObject({
@@ -119,6 +119,7 @@ describe('OpenAI adapter option mapping', () => {
       max_output_tokens: 1024, // Responses API uses max_output_tokens instead of max_tokens
       stream: true,
       tool_choice: 'required', // From modelOptions
+      instructions: 'Stay concise', // systemPrompts join the Responses API `instructions` field
     })
 
     // Responses API uses 'input' instead of 'messages'
@@ -128,5 +129,48 @@ describe('OpenAI adapter option mapping', () => {
     expect(payload.tools).toBeDefined()
     expect(Array.isArray(payload.tools)).toBe(true)
     expect(payload.tools.length).toBeGreaterThan(0)
+  })
+
+  it('accepts mixed string + object-form systemPrompts and joins .content into instructions', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-mixed',
+          model: 'gpt-4o-mini',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-mixed',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = { responses: { create: responsesCreate } }
+
+    for await (const _ of chat({
+      adapter,
+      systemPrompts: [
+        'Plain string.',
+        // Object form (without metadata — OpenAI has no per-prompt metadata
+        // surface, so the `metadata` field is typed `never` and rejected
+        // at the call site).
+        { content: 'Structured.' },
+      ],
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.instructions).toBe('Plain string.\nStructured.')
   })
 })

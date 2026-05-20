@@ -1,0 +1,19 @@
+{
+  "name": "@tanstack/ai-codemods",
+  "version": "0.0.0",
+  "private": true,
+  "description": "jscodeshift codemods for migrating TanStack AI client APIs",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:dev": "vitest",
+    "ag-ui-compliance": "node ./run.mjs ag-ui-compliance"
+  },
+  "devDependencies": {
+    "@types/jscodeshift": "^17.1.1",
+    "@types/node": "^24.10.1",
+    "jscodeshift": "^17.1.1",
+    "typescript": "5.9.3",
+    "vitest": "^4.0.14"
+  }
+}

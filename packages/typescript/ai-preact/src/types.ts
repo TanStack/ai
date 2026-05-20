@@ -66,7 +66,7 @@ export interface UseChatReturn<
   addToolResult: (result: {
     toolCallId: string
     tool: string
-    output: any
+    output: unknown
     state?: 'output-available' | 'output-error'
     errorText?: string
   }) => Promise<void>

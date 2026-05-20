@@ -46,7 +46,7 @@ const slotProps = computed<ToolApprovalRenderProps>(() => ({
 
 <template>
   <!-- Scoped slot for custom UI -->
-  <slot v-if="$slots.default" v-bind="slotProps" />
+  <slot v-if="$slots['default']" v-bind="slotProps" />
 
   <!-- Already responded - show decision -->
   <div

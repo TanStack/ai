@@ -22,12 +22,19 @@ export function convertFileSearchToolToAdapterFormat(
   tool: Tool,
 ): FileSearchToolConfig {
   const metadata = tool.metadata as FileSearchToolConfig
+  // Conditional spread: SDK's `FileSearchToolConfig` declares the
+  // optional fields without `| undefined`, so we omit absent values
+  // rather than passing them through as explicit `undefined`.
   return {
     type: 'file_search',
     vector_store_ids: metadata.vector_store_ids,
-    max_num_results: metadata.max_num_results,
-    ranking_options: metadata.ranking_options,
-    filters: metadata.filters,
+    ...(metadata.max_num_results !== undefined && {
+      max_num_results: metadata.max_num_results,
+    }),
+    ...(metadata.ranking_options !== undefined && {
+      ranking_options: metadata.ranking_options,
+    }),
+    ...(metadata.filters !== undefined && { filters: metadata.filters }),
   }
 }
 

@@ -53,13 +53,23 @@ export class OpenAITranscriptionAdapter<
 
     const file = this.prepareAudioFile(audio)
 
+    // With exactOptionalPropertyTypes, vendor SDK request shapes reject
+    // `T | undefined` in optional fields. Build the request incrementally and
+    // only set optional fields when they're actually defined.
+    const responseFormatValue = this.mapResponseFormat(responseFormat)
     const request: OpenAI_SDK.Audio.TranscriptionCreateParams = {
       model,
       file,
-      language,
-      prompt,
-      response_format: this.mapResponseFormat(responseFormat),
-      ...modelOptions,
+      ...(modelOptions ?? {}),
+    }
+    if (language !== undefined) {
+      request.language = language
+    }
+    if (prompt !== undefined) {
+      request.prompt = prompt
+    }
+    if (responseFormatValue !== undefined) {
+      request.response_format = responseFormatValue
     }
 
     // Only Whisper supports verbose_json. The gpt-4o-* transcribe models
@@ -79,29 +89,34 @@ export class OpenAITranscriptionAdapter<
           response_format: 'verbose_json',
         })) as OpenAI_SDK.Audio.Transcriptions.TranscriptionVerbose
 
+        // `TranscriptionResult` declares optional fields without `| undefined`,
+        // so under exactOptionalPropertyTypes we must omit absent fields rather
+        // than assigning `undefined`.
+        const segments = response.segments?.map(
+          (seg): TranscriptionSegment => ({
+            id: seg.id,
+            start: seg.start,
+            end: seg.end,
+            text: seg.text,
+            // The OpenAI SDK types `avg_logprob` as `number`, so call Math.exp
+            // directly. Guarding with `seg.avg_logprob ?` would treat `0`
+            // (perfect confidence) as missing.
+            confidence: Math.exp(seg.avg_logprob),
+          }),
+        )
+        const words = response.words?.map((w) => ({
+          word: w.word,
+          start: w.start,
+          end: w.end,
+        }))
         return {
           id: generateId(this.name),
           model,
           text: response.text,
           language: response.language,
           duration: response.duration,
-          segments: response.segments?.map(
-            (seg): TranscriptionSegment => ({
-              id: seg.id,
-              start: seg.start,
-              end: seg.end,
-              text: seg.text,
-              // The OpenAI SDK types `avg_logprob` as `number`, so call Math.exp
-              // directly. Guarding with `seg.avg_logprob ?` would treat `0`
-              // (perfect confidence) as missing.
-              confidence: Math.exp(seg.avg_logprob),
-            }),
-          ),
-          words: response.words?.map((w) => ({
-            word: w.word,
-            start: w.start,
-            end: w.end,
-          })),
+          ...(segments !== undefined && { segments }),
+          ...(words !== undefined && { words }),
         }
       } else {
         const response = await this.client.audio.transcriptions.create(request)
@@ -110,7 +125,7 @@ export class OpenAITranscriptionAdapter<
           id: generateId(this.name),
           model,
           text: typeof response === 'string' ? response : response.text,
-          language,
+          ...(language !== undefined && { language }),
         }
       }
     } catch (error: unknown) {

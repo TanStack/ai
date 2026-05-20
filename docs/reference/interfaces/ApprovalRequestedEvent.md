@@ -5,28 +5,41 @@ title: ApprovalRequestedEvent
 
 # Interface: ApprovalRequestedEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1092](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1092)
+Defined in: [packages/typescript/ai/src/types.ts:1191](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1191)
 
 Emitted when a server tool requires approval before execution. The agent
 loop yields this and pauses — `structured-output.complete` will not fire
 for that run. The shape is fixed by the orchestrator's tool-approval flow
-(see `buildApprovalChunks` in `activities/chat/index.ts`).
+(the agent-loop branch of `runStreamingStructuredOutputImpl` in
+`activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
 
 ## Extends
 
-- `Omit`\<[`CustomEvent`](CustomEvent.md), `"name"` \| `"value"`\>
+- [`CustomEvent`](CustomEvent.md)
 
 ## Indexable
 
 ```ts
-[key: string]: unknown
-```
-
-```ts
-[key: number]: unknown
+[k: string]: unknown
 ```
 
 ## Properties
+
+### model?
+
+```ts
+optional model: string;
+```
+
+Defined in: [packages/typescript/ai/src/types.ts:1143](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1143)
+
+Model identifier for multi-model support
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+
+***
 
 ### name
 
@@ -34,7 +47,13 @@ for that run. The shape is fixed by the orchestrator's tool-approval flow
 name: "approval-requested";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1096](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1096)
+Defined in: [packages/typescript/ai/src/types.ts:1192](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1192)
+
+#### Overrides
+
+```ts
+CustomEvent.name
+```
 
 ***
 
@@ -44,7 +63,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1096](https://github.com/TanSta
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1097](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1097)
+Defined in: [packages/typescript/ai/src/types.ts:1193](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1193)
 
 #### approval
 
@@ -80,4 +99,10 @@ toolCallId: string;
 
 ```ts
 toolName: string;
+```
+
+#### Overrides
+
+```ts
+CustomEvent.value
 ```

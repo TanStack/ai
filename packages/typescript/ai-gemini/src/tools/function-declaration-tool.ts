@@ -4,8 +4,7 @@ export type FunctionDeclarationTool = FunctionDeclaration
 
 const validateFunctionDeclarationTool = (tool: FunctionDeclarationTool) => {
   const nameRegex = /^[a-zA-Z0-9_:.-]{1,64}$/
-  const valid = nameRegex.test(tool.name!)
-  if (!valid) {
+  if (tool.name === undefined || !nameRegex.test(tool.name)) {
     throw new Error(
       `Invalid function name: ${tool.name}. Must be 1-64 characters long and contain only a-z, A-Z, 0-9, underscores, colons, dots, and dashes.`,
     )

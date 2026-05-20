@@ -49,7 +49,7 @@ export function renderUseChat(options?: UseChatOptions) {
         }
       },
     },
-    rerender: (newOptions?: UseChatOptions) => {
+    rerender: (_newOptions?: UseChatOptions) => {
       // SolidJS doesn't have a rerender concept in the same way React does
       // The signals are already reactive, so we just return the same result
       return rendered

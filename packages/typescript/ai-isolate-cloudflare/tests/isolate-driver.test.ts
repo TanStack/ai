@@ -83,7 +83,7 @@ describe('createCloudflareIsolateDriver', () => {
       expect(result.logs).toEqual(['hello'])
 
       expect(fetchMock).toHaveBeenCalledTimes(1)
-      const [url, options] = fetchMock.mock.calls[0]
+      const [url, options] = fetchMock.mock.calls[0]!
       expect(url).toBe(WORKER_URL)
       expect(options.method).toBe('POST')
       expect(options.headers['Content-Type']).toBe('application/json')
@@ -117,7 +117,7 @@ describe('createCloudflareIsolateDriver', () => {
 
       await context.execute('return 1')
 
-      const body: ExecuteRequest = JSON.parse(fetchMock.mock.calls[0][1].body)
+      const body: ExecuteRequest = JSON.parse(fetchMock.mock.calls[0]![1].body)
       expect(body.timeout).toBe(10000)
     })
   })
@@ -170,7 +170,7 @@ describe('createCloudflareIsolateDriver', () => {
 
       await context.execute('return 1')
 
-      const headers = fetchMock.mock.calls[0][1].headers
+      const headers = fetchMock.mock.calls[0]![1].headers
       expect(headers).not.toHaveProperty('Authorization')
     })
   })
@@ -222,13 +222,13 @@ describe('createCloudflareIsolateDriver', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
 
       // First request: code + tools, no toolResults
-      const body1: ExecuteRequest = JSON.parse(fetchMock.mock.calls[0][1].body)
+      const body1: ExecuteRequest = JSON.parse(fetchMock.mock.calls[0]![1].body)
       expect(body1.toolResults).toBeUndefined()
       expect(body1.tools).toHaveLength(1)
-      expect(body1.tools[0].name).toBe('add')
+      expect(body1.tools[0]!.name).toBe('add')
 
       // Second request: same code + tools + toolResults
-      const body2: ExecuteRequest = JSON.parse(fetchMock.mock.calls[1][1].body)
+      const body2: ExecuteRequest = JSON.parse(fetchMock.mock.calls[1]![1].body)
       expect(body2.toolResults).toBeDefined()
       expect(body2.toolResults!['add_1']).toEqual({ success: true, value: 5 })
     })
@@ -292,7 +292,7 @@ describe('createCloudflareIsolateDriver', () => {
       expect(fetchMock).toHaveBeenCalledTimes(3)
 
       // Round 3 body MUST include both tc_0 and tc_1 (regression guard)
-      const body3: ExecuteRequest = JSON.parse(fetchMock.mock.calls[2][1].body)
+      const body3: ExecuteRequest = JSON.parse(fetchMock.mock.calls[2]![1].body)
       expect(body3.toolResults!['tc_0']).toEqual({ success: true, value: 'a' })
       expect(body3.toolResults!['tc_1']).toEqual({ success: true, value: 'b' })
     })
@@ -338,7 +338,7 @@ describe('createCloudflareIsolateDriver', () => {
       expect(result.success).toBe(true)
       expect(result.value).toBe('AB')
 
-      const body2: ExecuteRequest = JSON.parse(fetchMock.mock.calls[1][1].body)
+      const body2: ExecuteRequest = JSON.parse(fetchMock.mock.calls[1]![1].body)
       expect(body2.toolResults!['getA_1']).toEqual({
         success: true,
         value: 'A',
@@ -383,7 +383,7 @@ describe('createCloudflareIsolateDriver', () => {
 
       await context.execute('await failTool({})')
 
-      const body2: ExecuteRequest = JSON.parse(fetchMock.mock.calls[1][1].body)
+      const body2: ExecuteRequest = JSON.parse(fetchMock.mock.calls[1]![1].body)
       expect(body2.toolResults!['failTool_1']).toEqual({
         success: false,
         error: 'Tool failed',
@@ -416,9 +416,9 @@ describe('createCloudflareIsolateDriver', () => {
       const driver = createCloudflareIsolateDriver({ workerUrl: WORKER_URL })
       const context = await driver.createContext({ bindings: {} })
 
-      const result = await context.execute('await unknownTool({})')
+      await context.execute('await unknownTool({})')
 
-      const body2: ExecuteRequest = JSON.parse(fetchMock.mock.calls[1][1].body)
+      const body2: ExecuteRequest = JSON.parse(fetchMock.mock.calls[1]![1].body)
       expect(body2.toolResults!['unknown_1']).toEqual({
         success: false,
         error: 'Unknown tool: unknownTool',

@@ -101,12 +101,66 @@
           "to": "chat/connection-adapters"
         },
         {
-          "label": "Structured Outputs",
-          "to": "chat/structured-outputs"
-        },
-        {
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content"
+        }
+      ]
+    },
+    {
+      "label": "Structured Outputs",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "structured-outputs/overview"
+        },
+        {
+          "label": "One-Shot Extraction",
+          "to": "structured-outputs/one-shot"
+        },
+        {
+          "label": "Streaming UIs",
+          "to": "structured-outputs/streaming"
+        },
+        {
+          "label": "Multi-Turn Chat",
+          "to": "structured-outputs/multi-turn"
+        },
+        {
+          "label": "With Tools",
+          "to": "structured-outputs/with-tools"
+        }
+      ]
+    },
+    {
+      "label": "Workflows & Orchestration",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "orchestration/overview"
+        },
+        {
+          "label": "Workflows",
+          "to": "orchestration/workflows"
+        },
+        {
+          "label": "Orchestrators",
+          "to": "orchestration/orchestrators"
+        },
+        {
+          "label": "Approvals",
+          "to": "orchestration/approvals"
+        },
+        {
+          "label": "Refining Across Runs",
+          "to": "orchestration/refining-across-runs"
+        },
+        {
+          "label": "Retries & Errors",
+          "to": "orchestration/retries-and-errors"
+        },
+        {
+          "label": "Run Persistence",
+          "to": "orchestration/run-persistence"
         }
       ]
     },
@@ -219,6 +273,10 @@
         {
           "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai"
+        },
+        {
+          "label": "AG-UI Client Compliance",
+          "to": "migration/ag-ui-compliance"
         }
       ]
     },
@@ -252,6 +310,10 @@
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte"
+        },
+        {
+          "label": "@tanstack/ai-orchestration",
+          "to": "api/ai-orchestration"
         }
       ]
     },

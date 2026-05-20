@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AudioGenerationOptions } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
 const composeMock = vi.fn()
 const sfxConvertMock = vi.fn()
@@ -13,13 +13,13 @@ vi.mock('@elevenlabs/elevenlabs-js', () => ({
 
 import { elevenlabsAudio } from '../src/adapters/audio'
 
+/**
+ * Build a real `InternalLogger` so tests run against the actual logging API
+ * surface (`request`, `provider`, `errors`, etc.) rather than a hand-crafted
+ * stub. Tests that need to observe a category call should `vi.spyOn` it.
+ */
 function makeLogger() {
-  return {
-    request: vi.fn(),
-    response: vi.fn(),
-    provider: vi.fn(),
-    errors: vi.fn(),
-  } as unknown as AudioGenerationOptions['logger']
+  return resolveDebugOption(false)
 }
 
 function makeStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
@@ -151,8 +151,11 @@ describe('elevenlabsAudio adapter — unknown model', () => {
   })
 
   it('throws a helpful error for unrecognized models', async () => {
+    // @ts-expect-error - testing runtime rejection of unknown model;
+    // the public signature constrains model to ElevenLabsAudioModel.
     const adapter = elevenlabsAudio('not-a-real-model', { apiKey: 'k' })
     const logger = makeLogger()
+    const errorsSpy = vi.spyOn(logger, 'errors')
     await expect(
       adapter.generateAudio({
         model: 'not-a-real-model',
@@ -160,6 +163,6 @@ describe('elevenlabsAudio adapter — unknown model', () => {
         logger,
       }),
     ).rejects.toThrow(/Unsupported ElevenLabs audio model/i)
-    expect(logger.errors).toHaveBeenCalled()
+    expect(errorsSpy).toHaveBeenCalled()
   })
 })

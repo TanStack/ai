@@ -68,7 +68,9 @@ export function normalizeError(error: unknown): NormalizedError {
     return {
       name: String(errObj.name || 'Error'),
       message: String(errObj.message || 'Unknown error'),
-      stack: errObj.stack ? String(errObj.stack) : undefined,
+      ...(errObj['stack'] !== undefined && {
+        stack: String(errObj['stack']),
+      }),
     }
   }
 

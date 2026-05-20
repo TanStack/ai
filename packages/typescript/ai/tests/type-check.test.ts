@@ -37,6 +37,7 @@ const mockAdapter = {
     },
     toolCapabilities: [] as ReadonlyArray<string>,
     toolCallMetadata: undefined as unknown,
+    systemPromptMetadata: undefined as never,
   },
   chatStream: async function* () {},
   structuredOutput: async () => ({ data: {}, rawText: '{}' }),

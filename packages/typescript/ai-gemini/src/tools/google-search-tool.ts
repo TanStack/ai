@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type { GoogleSearch } from '@google/genai'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
@@ -18,10 +19,9 @@ export function convertGoogleSearchToolToAdapterFormat(tool: Tool) {
 export function googleSearchTool(
   config?: GoogleSearchToolConfig,
 ): GeminiGoogleSearchTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<GeminiGoogleSearchTool>({
     name: 'google_search',
     description: '',
     metadata: config,
-  } as unknown as GeminiGoogleSearchTool
+  })
 }

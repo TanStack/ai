@@ -6,21 +6,27 @@ import { createTranscription } from '../src/create-transcription.svelte'
 import { createSummarize } from '../src/create-summarize.svelte'
 import { createGenerateVideo } from '../src/create-generate-video.svelte'
 import { createMockConnectionAdapter } from './test-utils'
-import type { StreamChunk } from '@tanstack/ai'
+import { EventType, type StreamChunk } from '@tanstack/ai'
 
 // Helper to create generation stream chunks
 function createGenerationChunks(result: unknown): Array<StreamChunk> {
   return [
-    { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
     {
-      type: 'CUSTOM',
+      type: EventType.RUN_STARTED,
+      runId: 'run-1',
+      threadId: 'thread-1',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.CUSTOM,
       name: 'generation:result',
       value: result,
       timestamp: Date.now(),
     },
     {
-      type: 'RUN_FINISHED',
+      type: EventType.RUN_FINISHED,
       runId: 'run-1',
+      threadId: 'thread-1',
       finishReason: 'stop',
       timestamp: Date.now(),
     },
@@ -30,28 +36,34 @@ function createGenerationChunks(result: unknown): Array<StreamChunk> {
 // Helper to create video generation stream chunks
 function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
   return [
-    { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
     {
-      type: 'CUSTOM',
+      type: EventType.RUN_STARTED,
+      runId: 'run-1',
+      threadId: 'thread-1',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.CUSTOM,
       name: 'video:job:created',
       value: { jobId },
       timestamp: Date.now(),
     },
     {
-      type: 'CUSTOM',
+      type: EventType.CUSTOM,
       name: 'video:status',
       value: { jobId, status: 'processing', progress: 50 },
       timestamp: Date.now(),
     },
     {
-      type: 'CUSTOM',
+      type: EventType.CUSTOM,
       name: 'generation:result',
       value: { jobId, status: 'completed', url },
       timestamp: Date.now(),
     },
     {
-      type: 'RUN_FINISHED',
+      type: EventType.RUN_FINISHED,
       runId: 'run-1',
+      threadId: 'thread-1',
       finishReason: 'stop',
       timestamp: Date.now(),
     },
@@ -61,10 +73,15 @@ function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
 // Helper to create error stream chunks
 function createErrorChunks(message: string): Array<StreamChunk> {
   return [
-    { type: 'RUN_STARTED', runId: 'run-1', timestamp: Date.now() },
     {
-      type: 'RUN_ERROR',
+      type: EventType.RUN_STARTED,
       runId: 'run-1',
+      threadId: 'thread-1',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.RUN_ERROR,
+      message,
       error: { message },
       timestamp: Date.now(),
     },
@@ -230,6 +247,7 @@ describe('createGenerateImage', () => {
 
   it('should generate images using fetcher', async () => {
     const mockResult = {
+      id: 'img-1',
       images: [{ url: 'http://example.com/img.png' }],
       model: 'dall-e-3',
     }
@@ -302,6 +320,7 @@ describe('createGenerateSpeech', () => {
 
   it('should generate speech using fetcher', async () => {
     const mockResult = {
+      id: 'tts-1',
       audio: 'base64data',
       format: 'mp3' as const,
       model: 'tts-1',
@@ -350,6 +369,7 @@ describe('createGenerateSpeech', () => {
   it('should stop and reset', async () => {
     const gen = createGenerateSpeech({
       fetcher: async () => ({
+        id: 'tts-1',
         audio: 'base64data',
         format: 'mp3' as const,
         model: 'tts-1',
@@ -384,6 +404,7 @@ describe('createTranscription', () => {
 
   it('should transcribe audio using fetcher', async () => {
     const mockResult = {
+      id: 'tr-1',
       text: 'Hello world',
       model: 'whisper-1',
     }
@@ -431,6 +452,7 @@ describe('createTranscription', () => {
   it('should stop and reset', async () => {
     const gen = createTranscription({
       fetcher: async () => ({
+        id: 'tr-1',
         text: 'Hello world',
         model: 'whisper-1',
       }),
@@ -464,8 +486,10 @@ describe('createSummarize', () => {
 
   it('should summarize text using fetcher', async () => {
     const mockResult = {
+      id: 'sum-1',
       summary: 'A brief summary',
       model: 'gpt-4',
+      usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
     }
 
     const gen = createSummarize({
@@ -511,8 +535,10 @@ describe('createSummarize', () => {
   it('should stop and reset', async () => {
     const gen = createSummarize({
       fetcher: async () => ({
+        id: 'sum-1',
         summary: 'A brief summary',
         model: 'gpt-4',
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
       }),
     })
 

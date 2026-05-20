@@ -10,6 +10,7 @@ export type {
   ToolCallPart,
   ToolResultPart,
   ThinkingPart,
+  StructuredOutputPart,
   // Client configuration types
   ChatClientOptions,
   ChatRequestBody,

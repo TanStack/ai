@@ -5,28 +5,40 @@ title: ToolInputAvailableEvent
 
 # Interface: ToolInputAvailableEvent
 
-Defined in: [packages/typescript/ai/src/types.ts:1111](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1111)
+Defined in: [packages/typescript/ai/src/types.ts:1207](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1207)
 
 Emitted when a client tool is invoked. The agent loop yields this and
 pauses to let the caller run the tool client-side — `structured-output.complete`
-will not fire for that run. Shape fixed by `buildClientToolChunks` in
-`activities/chat/index.ts`.
+will not fire for that run. Shape fixed by the agent-loop forwarding in
+`runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
 
 ## Extends
 
-- `Omit`\<[`CustomEvent`](CustomEvent.md), `"name"` \| `"value"`\>
+- [`CustomEvent`](CustomEvent.md)
 
 ## Indexable
 
 ```ts
-[key: string]: unknown
-```
-
-```ts
-[key: number]: unknown
+[k: string]: unknown
 ```
 
 ## Properties
+
+### model?
+
+```ts
+optional model: string;
+```
+
+Defined in: [packages/typescript/ai/src/types.ts:1143](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1143)
+
+Model identifier for multi-model support
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+
+***
 
 ### name
 
@@ -34,7 +46,13 @@ will not fire for that run. Shape fixed by `buildClientToolChunks` in
 name: "tool-input-available";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1115)
+Defined in: [packages/typescript/ai/src/types.ts:1208](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1208)
+
+#### Overrides
+
+```ts
+CustomEvent.name
+```
 
 ***
 
@@ -44,7 +62,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1115](https://github.com/TanSta
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1116](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1116)
+Defined in: [packages/typescript/ai/src/types.ts:1209](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1209)
 
 #### input
 
@@ -62,4 +80,10 @@ toolCallId: string;
 
 ```ts
 toolName: string;
+```
+
+#### Overrides
+
+```ts
+CustomEvent.value
 ```

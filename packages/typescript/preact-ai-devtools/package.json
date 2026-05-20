@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/preact-ai-devtools",
-  "version": "0.1.32",
+  "version": "0.1.36",
   "description": "Preact Devtools for TanStack AI.",
   "author": "tannerlinsley",
   "license": "MIT",
@@ -53,7 +53,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7"
+    "vite": "^7.3.3"
   },
   "peerDependencies": {
     "preact": "^10.0.0"

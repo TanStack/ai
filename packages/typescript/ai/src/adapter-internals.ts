@@ -4,5 +4,6 @@
 
 export type { ResolvedCategories } from './logger/internal-logger'
 export { InternalLogger } from './logger/internal-logger'
+export type { Logger } from './logger/types'
 export { resolveDebugOption } from './logger/resolve'
 export { toRunErrorPayload } from './activities/error-payload'

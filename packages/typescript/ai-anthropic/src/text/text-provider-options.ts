@@ -4,11 +4,42 @@ import type {
   BetaToolChoiceAuto,
   BetaToolChoiceTool,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages'
+import type { CacheControlEphemeral } from '@anthropic-ai/sdk/resources'
 import type { AnthropicTool } from '../tools'
 import type {
   MessageParam,
   TextBlockParam,
 } from '@anthropic-ai/sdk/resources/messages'
+
+/**
+ * Per-prompt metadata Anthropic understands on `systemPrompts` entries.
+ *
+ * Used via the structured form of `systemPrompts`:
+ *
+ * @example
+ *   import type { AnthropicSystemPromptMetadata } from '@tanstack/ai-anthropic'
+ *
+ *   chat({
+ *     adapter: anthropicText(),
+ *     model: 'claude-sonnet-4-6',
+ *     systemPrompts: [
+ *       {
+ *         content: 'Stable instructions — cache me.',
+ *         metadata: { cache_control: { type: 'ephemeral' } } satisfies AnthropicSystemPromptMetadata,
+ *       },
+ *       'Volatile per-request instruction.',
+ *     ],
+ *   })
+ */
+export interface AnthropicSystemPromptMetadata {
+  /**
+   * Anthropic prompt-caching control applied to this system prompt's
+   * `TextBlockParam`.
+   *
+   * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+   */
+  cache_control?: CacheControlEphemeral
+}
 
 export interface AnthropicContainerOptions {
   /**
@@ -170,10 +201,14 @@ export interface InternalTextProviderOptions extends ExternalTextProviderOptions
    */
   stream?: boolean
   /**
-    * stem prompt.
- 
- A system prompt is a way of providing context and instructions to Claude, such as specifying a particular goal or role.
-    */
+   * System prompt — built by the adapter from the user-facing
+   * `systemPrompts: Array<string>` on the chat call. This field is internal:
+   * users should pass system prompts via `systemPrompts`, not via
+   * `modelOptions`.
+   *
+   * A system prompt is a way of providing context and instructions to Claude,
+   * such as specifying a particular goal or role.
+   */
   system?: string | Array<TextBlockParam>
   /**
    * Amount of randomness injected into the response.

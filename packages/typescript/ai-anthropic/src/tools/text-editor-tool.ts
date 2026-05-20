@@ -1,3 +1,4 @@
+import { brandProviderTool } from '@tanstack/ai'
 import type {
   ToolTextEditor20250124,
   ToolTextEditor20250429,
@@ -27,10 +28,9 @@ export function convertTextEditorToolToAdapterFormat(
 export function textEditorTool<T extends TextEditorToolConfig>(
   config: T,
 ): AnthropicTextEditorTool {
-  // Phantom-brand cast: '~provider'/'~toolKind' are type-only and never assigned at runtime.
-  return {
+  return brandProviderTool<AnthropicTextEditorTool>({
     name: 'str_replace_editor',
     description: '',
     metadata: config,
-  } as unknown as AnthropicTextEditorTool
+  })
 }

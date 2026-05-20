@@ -1,5 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequestBody,
+  maxIterations,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { createTextAdapter } from '@/lib/providers'
 import { getToolsForScenario } from '@/lib/tools-test-tools'
 
@@ -15,17 +20,25 @@ export const Route = createFileRoute('/api/tools-test')({
 
         const abortController = new AbortController()
 
+        let params
         try {
-          const body = await request.json()
-          const messages = body.messages
-          const scenario = body.data?.scenario || body.scenario || 'text-only'
-          const testId: string | undefined =
-            typeof body.data?.testId === 'string' ? body.data.testId : undefined
-          const aimockPort: number | undefined =
-            body.data?.aimockPort != null
-              ? Number(body.data.aimockPort)
-              : undefined
+          params = await chatParamsFromRequestBody(await request.json())
+        } catch (error) {
+          return new Response(
+            error instanceof Error ? error.message : 'Bad request',
+            { status: 400 },
+          )
+        }
 
+        const fp = params.forwardedProps as Record<string, unknown>
+        const scenario =
+          typeof fp.scenario === 'string' ? fp.scenario : 'text-only'
+        const testId: string | undefined =
+          typeof fp.testId === 'string' ? fp.testId : undefined
+        const aimockPort: number | undefined =
+          fp.aimockPort != null ? Number(fp.aimockPort) : undefined
+
+        try {
           // Special error scenario: return a stream that immediately errors
           if (scenario === 'error') {
             const errorStream = (async function* () {
@@ -57,8 +70,10 @@ export const Route = createFileRoute('/api/tools-test')({
 
           const stream = chat({
             ...adapterOptions,
-            messages,
+            messages: params.messages,
             tools,
+            threadId: params.threadId,
+            runId: params.runId,
             agentLoopStrategy: maxIterations(20),
             abortController,
           })

@@ -1,4 +1,5 @@
 import type { ModelMessage, StreamChunk, Tool, ToolCall } from '../../../types'
+import type { SystemPrompt } from '../../../system-prompts'
 
 // ===========================
 // Middleware Context
@@ -28,7 +29,18 @@ export interface ChatMiddlewareContext {
   requestId: string
   /** Unique identifier for this stream */
   streamId: string
-  /** Conversation identifier, if provided by the caller */
+  /**
+   * AG-UI thread identifier — a stable per-conversation ID used to
+   * correlate client and server devtools events. Resolves to the
+   * caller-provided `threadId` (or legacy `conversationId`), or an
+   * auto-generated value when neither is supplied.
+   */
+  threadId: string
+  /**
+   * @deprecated Use `threadId` instead. Retained as an alias of
+   * `threadId` so middleware written before the AG-UI rename keeps
+   * working unchanged. Will be removed in a future major release.
+   */
   conversationId?: string
   /** Current lifecycle phase */
   phase: ChatMiddlewarePhase
@@ -63,13 +75,13 @@ export interface ChatMiddlewareContext {
   // --- Config-derived info (may update per-iteration via onConfig) ---
 
   /** System prompts configured for this chat */
-  systemPrompts: Array<string>
+  systemPrompts: Array<SystemPrompt>
   /** Names of configured tools, if any */
   toolNames?: Array<string>
   /** Flattened generation options (temperature, topP, maxTokens, metadata) */
-  options?: Record<string, unknown>
+  options?: Record<string, unknown> | undefined
   /** Provider-specific model options */
-  modelOptions?: Record<string, unknown>
+  modelOptions?: Record<string, unknown> | undefined
 
   // --- Computed info ---
 
@@ -104,13 +116,13 @@ export interface ChatMiddlewareContext {
  */
 export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
-  systemPrompts: Array<string>
+  systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
   temperature?: number
   topP?: number
   maxTokens?: number
-  metadata?: Record<string, unknown>
-  modelOptions?: Record<string, unknown>
+  metadata?: Record<string, unknown> | undefined
+  modelOptions?: Record<string, unknown> | undefined
 }
 
 // ===========================
@@ -245,11 +257,13 @@ export interface FinishInfo {
   /** Final accumulated text content */
   content: string
   /** Final usage totals, if available */
-  usage?: {
-    promptTokens: number
-    completionTokens: number
-    totalTokens: number
-  }
+  usage?:
+    | {
+        promptTokens: number
+        completionTokens: number
+        totalTokens: number
+      }
+    | undefined
 }
 
 /**

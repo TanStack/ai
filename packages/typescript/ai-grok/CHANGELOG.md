@@ -1,5 +1,35 @@
 # @tanstack/ai-grok
 
+## 0.8.4
+
+### Patch Changes
+
+- Updated dependencies [[`496db9c`](https://github.com/TanStack/ai/commit/496db9c42a7d3051a1295091eae29ae1c31ef997)]:
+  - @tanstack/ai@0.20.0
+  - @tanstack/openai-base@0.3.3
+
+## 0.8.3
+
+### Patch Changes
+
+- Update model metadata from OpenRouter API ([#581](https://github.com/TanStack/ai/pull/581))
+
+## 0.8.2
+
+### Patch Changes
+
+- Updated dependencies [[`2e0e2eb`](https://github.com/TanStack/ai/commit/2e0e2eb72684aac82e570d57767656e218289b49)]:
+  - @tanstack/ai@0.19.0
+  - @tanstack/openai-base@0.3.2
+
+## 0.8.1
+
+### Patch Changes
+
+- Updated dependencies [[`a9d1916`](https://github.com/TanStack/ai/commit/a9d19165a5028515cf1d091d611c8ac4b5b86099), [`e810153`](https://github.com/TanStack/ai/commit/e810153b34e593d3f3e1bbd8050164a6ad4423ed)]:
+  - @tanstack/ai@0.18.0
+  - @tanstack/openai-base@0.3.1
+
 ## 0.8.0
 
 ### Minor Changes

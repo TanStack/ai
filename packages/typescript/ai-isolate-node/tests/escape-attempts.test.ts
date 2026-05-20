@@ -18,14 +18,14 @@ async function runInIsolate(
   const driver = createNodeIsolateDriver()
   const context = await driver.createContext({
     bindings: {},
-    timeout: opts?.timeout,
+    ...(opts?.timeout !== undefined ? { timeout: opts.timeout } : {}),
   })
   try {
     const res = await context.execute(code)
     return {
       success: res.success,
       value: res.value,
-      error: res.error,
+      ...(res.error !== undefined ? { error: res.error } : {}),
     }
   } finally {
     await context.dispose()

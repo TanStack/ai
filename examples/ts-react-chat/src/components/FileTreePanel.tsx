@@ -37,8 +37,7 @@ export function FileTreePanel(props: { files: Array<FileEntry> }) {
       <header className="px-4 py-2 border-b border-ink-line flex items-baseline gap-3 shrink-0">
         <span className="text-bone">files</span>
         <span className="text-taupe tabular text-[11px]">
-          {props.files.length}{' '}
-          {props.files.length === 1 ? 'patch' : 'patches'}
+          {props.files.length} {props.files.length === 1 ? 'patch' : 'patches'}
         </span>
         {props.files.some((f) => f.streaming) && (
           <span className="ml-auto text-citron anim-citron-pulse text-[11px]">
@@ -102,7 +101,9 @@ function DirRow(props: { node: DirNode; depth: number }) {
         </span>
         <span className="text-taupe">{props.node.name}/</span>
       </button>
-      {open && <TreeLevel nodes={props.node.children} depth={props.depth + 1} />}
+      {open && (
+        <TreeLevel nodes={props.node.children} depth={props.depth + 1} />
+      )}
     </div>
   )
 }
@@ -141,7 +142,10 @@ function FileRow(props: { node: FileNode; depth: number }) {
         )}
       </button>
       {open && (
-        <div className="mt-1 mb-2" style={{ paddingLeft: props.depth * 12 + 16 }}>
+        <div
+          className="mt-1 mb-2"
+          style={{ paddingLeft: props.depth * 12 + 16 }}
+        >
           <CodeBlock
             code={fileBody}
             filename={entry.filename}

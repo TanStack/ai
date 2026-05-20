@@ -209,7 +209,7 @@ describe('Gemini Image Adapter', () => {
 
       expect(result.model).toBe('imagen-3.0-generate-002')
       expect(result.images).toHaveLength(1)
-      expect(result.images[0].b64Json).toBe('base64encodedimage')
+      expect(result.images[0]!.b64Json).toBe('base64encodedimage')
     })
 
     it('generates a unique ID for each response', async () => {
@@ -305,7 +305,7 @@ describe('Gemini Image Adapter', () => {
 
       expect(result.model).toBe('gemini-3.1-flash-image-preview')
       expect(result.images).toHaveLength(1)
-      expect(result.images[0].b64Json).toBe('gemini-base64-image')
+      expect(result.images[0]!.b64Json).toBe('gemini-base64-image')
     })
 
     it('calls generateContent without imageConfig when no size provided', async () => {
@@ -532,8 +532,8 @@ describe('Gemini Image Adapter', () => {
 
       // Collects all inlineData parts, skipping text parts
       expect(result.images).toHaveLength(2)
-      expect(result.images[0].b64Json).toBe('img1')
-      expect(result.images[1].b64Json).toBe('img2')
+      expect(result.images[0]!.b64Json).toBe('img1')
+      expect(result.images[1]!.b64Json).toBe('img2')
     })
 
     it('does not augment prompt when numberOfImages is 1', async () => {
