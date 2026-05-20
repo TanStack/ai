@@ -2385,15 +2385,21 @@ async function* fallbackStructuredOutputStream(
 }
 
 /**
- * Run streaming structured output:
- * - Without tools: call adapter.structuredOutputStream directly (single
- *   provider request emitting JSON deltas + a final CUSTOM event).
- * - With tools: run the agent loop, yield its non-terminal chunks, then call
- *   structuredOutputStream on the final messages so the structured stream's
- *   own RUN_STARTED/RUN_FINISHED bracket the run.
+ * Run streaming structured output via the TextEngine, with the engine's
+ * `finalStructuredOutput.yieldChunks: true` mode. The agent loop's
+ * RUN_STARTED/RUN_FINISHED are suppressed; the structured-output finalization
+ * step's pair brackets the run for the consumer.
  *
- * Validates the parsed object against the original Standard Schema (if
- * applicable) when forwarding the final `structured-output.complete` event.
+ * Schema validation is intentionally NOT run on this path — it is the
+ * consumer's responsibility. The `structured-output.complete` CUSTOM event
+ * is forwarded with the adapter-produced `value.object` as-is. This is a
+ * deliberate asymmetry vs. `runAgenticStructuredOutput` (Promise<T> path),
+ * which DOES run Standard Schema validation inside the engine and routes
+ * validation failures through `onError`. The reason for the asymmetry:
+ * streaming consumers typically render partial JSON progressively (via
+ * `parsePartialJSON` or `useChat`'s `partial` slot) and validate downstream
+ * after assembly. Running validation server-side would force a hard error
+ * on partial-by-design payloads. See `docs/structured-outputs/overview.md`.
  *
  * Pre-flight validation (missing schema, unconvertible schema) throws
  * synchronously at call time rather than as a yielded RUN_ERROR mid-stream —
