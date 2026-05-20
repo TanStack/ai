@@ -31,11 +31,11 @@ const stream = chat({
       onStart: (ctx) => {
         console.log('Chat started:', ctx.model)
       },
-      onFinish: (ctx) => {
-        trackAnalytics({ model: ctx.model, tokens: ctx.usage })
+      onFinish: (ctx, info) => {
+        trackAnalytics({ model: ctx.model, tokens: info.usage?.totalTokens })
       },
-      onError: (ctx) => {
-        reportError(ctx.error)
+      onError: (ctx, info) => {
+        reportError(info.error)
       },
     },
   ],

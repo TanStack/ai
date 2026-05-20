@@ -357,7 +357,7 @@ export interface ChatMiddleware {
     | void
     | null
     | Partial<ChatMiddlewareConfig>
-    | Promise<void | Partial<ChatMiddlewareConfig>>
+    | Promise<void | null | Partial<ChatMiddlewareConfig>>
 
   /**
    * Called at the start of the final structured-output call (when the chat
@@ -381,7 +381,7 @@ export interface ChatMiddleware {
     | void
     | null
     | Partial<StructuredOutputMiddlewareConfig>
-    | Promise<void | Partial<StructuredOutputMiddlewareConfig>>
+    | Promise<void | null | Partial<StructuredOutputMiddlewareConfig>>
 
   /**
    * Called when the chat run starts (after initial onConfig).

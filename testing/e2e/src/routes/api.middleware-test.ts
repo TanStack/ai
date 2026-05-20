@@ -371,11 +371,33 @@ export const Route = createFileRoute('/api/middleware-test')({
         }
       },
       GET: async ({ request }) => {
+        const url = new URL(request.url)
+        const testId = url.searchParams.get('testId')
+        const kind = url.searchParams.get('kind')
+
+        // Phase capture is independent of OTEL — keep it available without
+        // requiring the OTEL_TEST_ENABLED gate so that the structured-output
+        // middleware spec works under any harness build configuration.
+        if (kind === 'phase') {
+          if (!testId) {
+            return new Response(
+              JSON.stringify({ error: 'testId query param required' }),
+              {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            )
+          }
+          return new Response(JSON.stringify(getPhaseCapture(testId)), {
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // OTEL capture remains gated — the GET cannot act as an oracle in a
+        // production-like build.
         if (!OTEL_TEST_ENABLED) {
           return new Response(null, { status: 404 })
         }
-        const url = new URL(request.url)
-        const testId = url.searchParams.get('testId')
         if (!testId) {
           return new Response(
             JSON.stringify({ error: 'testId query param required' }),
@@ -384,14 +406,6 @@ export const Route = createFileRoute('/api/middleware-test')({
               headers: { 'Content-Type': 'application/json' },
             },
           )
-        }
-        // `kind=phase` returns the phase-recorder capture (see phase-capture.ts).
-        // Default behavior returns the otel capture to preserve existing callers.
-        const kind = url.searchParams.get('kind')
-        if (kind === 'phase') {
-          return new Response(JSON.stringify(getPhaseCapture(testId)), {
-            headers: { 'Content-Type': 'application/json' },
-          })
         }
         return new Response(JSON.stringify(getOtelCapture(testId)), {
           headers: { 'Content-Type': 'application/json' },

@@ -478,13 +478,13 @@ describe('chat({ outputSchema, stream: true })', () => {
 
     it('forwards adapter-emitted lifecycle ordering (TEXT_MESSAGE_CONTENT precedes structured-output.complete)', async () => {
       // The new streaming orchestrator delegates lifecycle emission to the
-      // engine + adapter pipeline. It no longer synthesizes a
-      // `structured-output.start` event — that responsibility now lives on
-      // the adapter (or the client-side renderer treats the
-      // structured-output.complete event as the only required marker).
-      // What we still guarantee orchestrator-side is the natural delta
-      // ordering: TEXT_MESSAGE_CONTENT chunks reach the consumer before
-      // the terminal `structured-output.complete` event.
+      // engine + adapter pipeline. The engine still synthesizes a
+      // `structured-output.start` event when the adapter doesn't emit one
+      // (see neighboring test "synthesizes structured-output.start ..."),
+      // so the consumer always sees a start marker before the first delta.
+      // What this test guarantees is the natural delta ordering:
+      // TEXT_MESSAGE_CONTENT chunks reach the consumer before the terminal
+      // `structured-output.complete` event.
       const adapter = makeAdapter({
         structuredOutputStream: () =>
           (async function* () {

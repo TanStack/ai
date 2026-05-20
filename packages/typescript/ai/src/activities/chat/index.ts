@@ -381,7 +381,11 @@ class TextEngine<
   // unvalidated payload from the structured-output.complete chunk).
   private validatedStructuredOutput: unknown = undefined
   private hasValidatedStructuredOutput = false
-  private finalizationError: { message: string; code?: string } | null = null
+  private finalizationError: {
+    message: string
+    code?: string
+    cause?: unknown
+  } | null = null
   private readonly finalStructuredOutput?: {
     jsonSchema: JSONSchema
     yieldChunks: boolean
@@ -520,7 +524,11 @@ class TextEngine<
   }
 
   /** Returns the recorded finalization error, if any. */
-  getFinalizationError(): { message: string; code?: string } | null {
+  getFinalizationError(): {
+    message: string
+    code?: string
+    cause?: unknown
+  } | null {
     return this.finalizationError
   }
 
@@ -602,8 +610,20 @@ class TextEngine<
       if (!this.terminalHookCalled && this.toolPhase !== 'wait') {
         if (this.finalizationError) {
           this.terminalHookCalled = true
+          const errForHook = new Error(
+            this.finalizationError.message,
+            this.finalizationError.cause !== undefined
+              ? { cause: this.finalizationError.cause }
+              : undefined,
+          )
+          if (this.finalizationError.code !== undefined) {
+            Object.defineProperty(errForHook, 'code', {
+              value: this.finalizationError.code,
+              enumerable: true,
+            })
+          }
           await this.middlewareRunner.runOnError(this.middlewareCtx, {
-            error: new Error(this.finalizationError.message),
+            error: errForHook,
             duration: Date.now() - this.streamStartTime,
           })
         } else {
@@ -1659,6 +1679,7 @@ class TextEngine<
         value: { messageId: idForStart },
         model: this.params.model,
         timestamp: Date.now(),
+        threadId: this.threadId,
         ...(this.runIdOverride ? { runId: this.runIdOverride } : {}),
       }
     }
@@ -1668,8 +1689,17 @@ class TextEngine<
     ): Promise<Array<StreamChunk>> =>
       this.middlewareRunner.runOnChunk(this.middlewareCtx, synthChunk)
 
+    // Track whether a RUN_ERROR has been yielded to streaming consumers so
+    // we don't emit a duplicate synthetic one at the end.
+    let runErrorYielded = false
+
     // Pipe chunks through middleware; yield to consumer only when yieldChunks=true
     for await (const chunk of providerStream) {
+      // Honor cancellation between chunks (mirrors streamModelResponse).
+      if (this.isCancelled()) {
+        break
+      }
+
       // Detect adapter-emitted structured-output.start so we don't duplicate
       if (
         !startEmitted &&
@@ -1764,6 +1794,9 @@ class TextEngine<
       // finalStructuredOutput.yieldChunks is true).
       if (this.finalStructuredOutput.yieldChunks) {
         for (const outputChunk of outputChunks) {
+          if (outputChunk.type === EventType.RUN_ERROR) {
+            runErrorYielded = true
+          }
           yield outputChunk
           this.middlewareCtx.chunkIndex++
         }
@@ -1799,11 +1832,70 @@ class TextEngine<
         this.validatedStructuredOutput = validated
         this.hasValidatedStructuredOutput = true
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err)
+        // Surface the most informative message we can extract without
+        // landing on "[object Object]" for plain-object errors (e.g. some
+        // Standard Schema validators throw `{ issues: [...] }`).
+        let message: string
+        if (err instanceof Error) {
+          message = err.message
+        } else if (
+          typeof err === 'object' &&
+          err !== null &&
+          'message' in err &&
+          typeof (err as { message: unknown }).message === 'string'
+        ) {
+          message = (err as { message: string }).message
+        } else {
+          try {
+            message = JSON.stringify(err)
+          } catch {
+            message = String(err)
+          }
+        }
         this.finalizationError = {
           message,
           code: 'structured-output-validation-failed',
+          cause: err,
         }
+      }
+    }
+
+    // Streaming consumers must see a RUN_ERROR for finalization failures
+    // (missing-result, validation-failed, or a finalizationError set after
+    // a structured-output.complete already yielded). Without this synthetic
+    // emission, the `for await` on the engine ends silently for the client.
+    //
+    // Skip when a RUN_ERROR was already yielded from the inner stream
+    // (otherwise the consumer would see two error events for one failure).
+    if (
+      this.finalizationError &&
+      this.finalStructuredOutput.yieldChunks &&
+      !runErrorYielded
+    ) {
+      const errChunk: StreamChunk = {
+        type: EventType.RUN_ERROR,
+        runId: this.runIdOverride ?? this.requestId,
+        model: this.params.model,
+        timestamp: Date.now(),
+        threadId: this.threadId,
+        message: this.finalizationError.message,
+        ...(this.finalizationError.code
+          ? { code: this.finalizationError.code }
+          : {}),
+        error: {
+          message: this.finalizationError.message,
+          ...(this.finalizationError.code
+            ? { code: this.finalizationError.code }
+            : {}),
+        },
+      }
+      const outputChunks = await this.middlewareRunner.runOnChunk(
+        this.middlewareCtx,
+        errChunk,
+      )
+      for (const outputChunk of outputChunks) {
+        yield outputChunk
+        this.middlewareCtx.chunkIndex++
       }
     }
   }
@@ -2122,7 +2214,19 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
 
   const finalizationError = engine.getFinalizationError()
   if (finalizationError) {
-    throw new Error(finalizationError.message)
+    const err = new Error(
+      finalizationError.message,
+      finalizationError.cause !== undefined
+        ? { cause: finalizationError.cause }
+        : undefined,
+    )
+    if (finalizationError.code !== undefined) {
+      Object.defineProperty(err, 'code', {
+        value: finalizationError.code,
+        enumerable: true,
+      })
+    }
+    throw err
   }
 
   // If a validator ran, return the validated value (typed by InferSchemaType

@@ -71,13 +71,21 @@ graph TD
     K --> L{Continue loop?}
     L -->|Yes| D
     L -->|No| H
-    H --> M{Outcome}
+    H --> SO{outputSchema?}
+    SO -->|No| M{Outcome}
+    SO -->|Yes| SOC[onStructuredOutputConfig]
+    SOC --> SOM["onConfig (phase: structuredOutput)"]
+    SOM --> SOS["Structured-output finalization (onChunk, onUsage)"]
+    SOS --> M
     M -->|Success| N[onFinish]
     M -->|Abort| O[onAbort]
     M -->|Error| P[onError]
 
     style I fill:#e1f5ff
     style J fill:#ffe1e1
+    style SOC fill:#e1f5ff
+    style SOM fill:#e1f5ff
+    style SOS fill:#e1f5ff
     style N fill:#e1ffe1
     style O fill:#fff4e1
     style P fill:#ffe1e1
@@ -100,7 +108,7 @@ The context's `phase` field tracks where you are in the lifecycle:
 
 ### onConfig
 
-Called twice per iteration: once during `init` (startup) and once during `beforeModel` (before each model call). Use it to transform the configuration that the model receives.
+Called once during `init` (startup) and once per iteration during `beforeModel` (before each model call). When `chat()` was invoked with `outputSchema`, `onConfig` additionally re-fires at the structured-output boundary with `ctx.phase === 'structuredOutput'`, receiving the post-`onStructuredOutputConfig` view of the config — so a single-iteration run with `outputSchema` fires `onConfig` three times (`init` + `beforeModel` + `structuredOutput`). Use it to transform the configuration that the model receives.
 
 Return a **partial** config object with only the fields you want to change — they are shallow-merged with the current config automatically. No need to spread the existing config.
 
@@ -355,6 +363,15 @@ const terminal: ChatMiddleware = {
   },
 };
 ```
+
+The `info` object for `onFinish` (`FinishInfo`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `finishReason` | `string \| null` | The finish reason from the last model response |
+| `duration` | `number` | Total run duration in milliseconds |
+| `content` | `string` | Final accumulated text content |
+| `usage` | `{ promptTokens; completionTokens; totalTokens } \| undefined` | **Optional.** Final usage totals when the adapter reported them on `RUN_FINISHED`. Always guard with `if (info.usage)` or `info.usage?.`. |
 
 ## Context Object
 

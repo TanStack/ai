@@ -4,16 +4,16 @@ import { test, expect } from './fixtures'
  * E2E coverage for the structured-output × middleware interaction
  * introduced in TanStack/ai#390. Two contracts under test:
  *
- *   1. Non-streaming path: the middleware chain sees chunks tagged with
+ *   1. Phase observation: the middleware chain sees chunks tagged with
  *      `ctx.phase === 'structuredOutput'` and `onFinish` is invoked exactly
  *      once. Guards against the pre-fix regression where the structured
  *      finalization adapter call bypassed the middleware chain entirely.
  *
- *   2. Streaming path: the consumer sees exactly one RUN_STARTED and one
- *      RUN_FINISHED chunk pair. Guards against the pre-fix regression where
- *      the streaming structured-output path emitted a synthetic terminal
- *      pair on top of the engine's, producing duplicate run lifecycle
- *      events to the consumer.
+ *   2. Streaming lifecycle: the consumer sees exactly one RUN_STARTED and
+ *      one RUN_FINISHED chunk pair. Guards against the pre-fix regression
+ *      where the streaming structured-output path emitted a synthetic
+ *      terminal pair on top of the engine's, producing duplicate run
+ *      lifecycle events to the consumer.
  *
  * Both tests drive the existing `/middleware-test` harness route with the
  * new `phase-recorder` middleware mode, which records `ctx.phase` per chunk
@@ -21,6 +21,15 @@ import { test, expect } from './fixtures'
  * server-side store. The page fetches that store in `onFinish` and surfaces
  * it via DOM elements (`#mw-phases-json`, `#mw-onfinish-count`,
  * `#mw-yielded-chunks-json`) which the spec reads.
+ *
+ * NOTE on naming: both scenarios below run with `stream: true` against the
+ * harness route — the harness currently hard-codes streaming for both
+ * `structured-output` and `structured-output-stream` modes. The first test
+ * exercises the structured-output phase coverage via the SSE harness; the
+ * true non-streaming `Promise<T>` path is covered by unit tests in
+ * `packages/typescript/ai/tests/structured-output-middleware.test.ts`.
+ * Adding a real non-streaming E2E scenario would require page-side rewiring
+ * to await `Promise<T>` instead of iterating SSE and is out of scope here.
  */
 
 function buildHarnessUrl(testId?: string, aimockPort?: number): string {
@@ -64,7 +73,7 @@ function parseChunkSummaries(raw: string | null): Array<{ type: string }> {
 }
 
 test.describe('Structured Output × Middleware Coverage', () => {
-  test('non-streaming structured output: middleware observes finalization chunks', async ({
+  test('structured output with stream:true: middleware observes finalization phase chunks', async ({
     page,
     testId,
     aimockPort,

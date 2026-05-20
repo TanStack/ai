@@ -17,4 +17,4 @@ Middleware now wraps the final structured-output provider call in `chat({ output
 
 **Internal cleanup:**
 
-- The previous `RUN_STARTED`/`RUN_FINISHED` suppression hack in `runStreamingStructuredOutput` is removed; the engine now emits exactly one outer pair around the whole run.
+- The previous `RUN_STARTED`/`RUN_FINISHED` suppression hack in `runStreamingStructuredOutput` was relocated into the engine (`streamModelResponse`) and gated on `finalStructuredOutput.yieldChunks`. The streaming consumer still sees exactly one outer pair around the whole run.
