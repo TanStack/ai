@@ -36,6 +36,10 @@
         {
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills"
+        },
+        {
+          "label": "Workflows & Orchestrators",
+          "to": "getting-started/workflows"
         }
       ]
     },
