@@ -141,6 +141,12 @@ export interface ChatMiddlewareConfig {
  * provider. Middleware may transform the schema (e.g., inject $defs, strip
  * vendor-incompatible keywords) by returning a partial that includes
  * `outputSchema`.
+ *
+ * Note: `tools` is structurally inherited from ChatMiddlewareConfig but is
+ * NOT forwarded to the structured-output adapter call — the final call is a
+ * single typed-response request, not an agentic loop. Returning a transformed
+ * `tools` array from onStructuredOutputConfig updates engine state but does
+ * not change what reaches the provider's structured-output endpoint.
  */
 export interface StructuredOutputMiddlewareConfig extends ChatMiddlewareConfig {
   /** JSON Schema being sent to the provider for structured output. */

@@ -178,7 +178,7 @@ const injectDefs: ChatMiddleware = {
 |-------|------|-------------|
 | `messages` | `ModelMessage[]` | Conversation history sent to the final call |
 | `systemPrompts` | `SystemPrompt[]` | System prompts on the final call |
-| `tools` | `Tool[]` | Available tools (typically empty for the final call) |
+| `tools` | `Tool[]` | Inherited from `ChatMiddlewareConfig` but **not forwarded** to the structured-output adapter call — the final call is a single typed-response request, not an agentic loop. Transforming `tools` here updates engine state but has no effect on the provider call. |
 | `temperature` | `number` | Sampling temperature |
 | `topP` | `number` | Nucleus sampling |
 | `maxTokens` | `number` | Token limit |
