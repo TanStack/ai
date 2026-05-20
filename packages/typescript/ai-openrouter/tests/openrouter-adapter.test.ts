@@ -15,19 +15,23 @@ let mockSend: any
 // reach the SDK rather than being silently dropped by the adapter.
 let lastOpenRouterConfig: any
 
-// Mock the SDK with a class defined inline
+// Mock the SDK using a constructor function rather than a `class`.
+// `useDefineForClassFields: true` emits real ES2022 class fields, and vitest's
+// mock-hoister mis-rewrites a field named `chat` because that identifier is
+// also a named import on line 2. A plain constructor function with `this.*`
+// assignments sidesteps the collision entirely.
 // eslint-disable-next-line @typescript-eslint/require-await
 vi.mock('@openrouter/sdk', async () => {
-  return {
-    OpenRouter: class {
-      constructor(config?: unknown) {
-        lastOpenRouterConfig = config
-      }
-      chat = {
-        send: (...args: Array<unknown>) => mockSend(...args),
-      }
-    },
+  function OpenRouter(
+    this: { chat: { send: (...args: Array<unknown>) => unknown } },
+    config?: unknown,
+  ) {
+    lastOpenRouterConfig = config
+    this.chat = {
+      send: (...args: Array<unknown>) => mockSend(...args),
+    }
   }
+  return { OpenRouter }
 })
 
 const createAdapter = () =>
