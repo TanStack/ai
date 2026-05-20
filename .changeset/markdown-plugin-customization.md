@@ -17,7 +17,6 @@ with a single prop:
 
 ```tsx
 import remarkCjkFriendly from 'remark-cjk-friendly'
-
 ;<TextPart content={content} remarkPlugins={[remarkCjkFriendly]} />
 ```
 
