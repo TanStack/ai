@@ -11,6 +11,7 @@ import type {
   ErrorInfo,
   FinishInfo,
   IterationInfo,
+  StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   ToolPhaseCompleteInfo,
   UsageInfo,
@@ -95,6 +96,65 @@ export class MiddlewareRunner {
               middlewareName: mw.name || 'unnamed',
               iteration: ctx.iteration,
               changes: result as Record<string, unknown>,
+            })
+          }
+        }
+      }
+    }
+    return current
+  }
+
+  /**
+   * Pipe config through all middleware onStructuredOutputConfig hooks in order.
+   * Each middleware receives the merged config from previous middleware.
+   * Partial returns are shallow-merged with the current config.
+   *
+   * Called once at the structured-output boundary, before runOnConfig at the
+   * same boundary (which receives a ChatMiddlewareConfig view, no outputSchema).
+   */
+  async runOnStructuredOutputConfig(
+    ctx: ChatMiddlewareContext,
+    config: StructuredOutputMiddlewareConfig,
+  ): Promise<StructuredOutputMiddlewareConfig> {
+    let current = config
+    for (const mw of this.middlewares) {
+      if (mw.onStructuredOutputConfig) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        const result = await mw.onStructuredOutputConfig(ctx, current)
+        const hasTransform = result !== undefined && result !== null
+        if (hasTransform) {
+          current = { ...current, ...result }
+          if (!skip) {
+            this.logger.config(
+              `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result as object).join(',')}`,
+              {
+                middleware: mw.name ?? 'unnamed',
+                changes: result,
+              },
+            )
+          }
+        }
+        if (!skip) {
+          const base = instrumentCtx(ctx)
+          aiEventClient.emit('middleware:hook:executed', {
+            ...base,
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onStructuredOutputConfig',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform,
+          })
+          if (hasTransform) {
+            aiEventClient.emit('middleware:config:transformed', {
+              ...base,
+              middlewareName: mw.name || 'unnamed',
+              iteration: ctx.iteration,
+              // `result` is `Partial<StructuredOutputMiddlewareConfig>` —
+              // Object.fromEntries(Object.entries(result)) yields the
+              // structural `Record<string, unknown>` the event emitter wants
+              // without an `as` cast.
+              changes: Object.fromEntries(Object.entries(result)),
             })
           }
         }

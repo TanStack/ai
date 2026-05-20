@@ -90,6 +90,7 @@ export type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
+  StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
   AfterToolCallInfo,

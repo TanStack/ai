@@ -152,6 +152,10 @@ export function createMockAdapter(options: {
   /** Array of chunk sequences: chatStream returns iterations[0] on first call, iterations[1] on second, etc. */
   iterations?: Array<Array<StreamChunk>>
   structuredOutput?: (opts: any) => Promise<{ data: unknown; rawText: string }>
+  /** Optional native streaming structured output. When omitted, the adapter
+   *  has no `structuredOutputStream` and consumers fall through to the
+   *  synthesized fallback in `runStructuredFinalization`. */
+  structuredOutputStream?: (opts: any) => AsyncIterable<StreamChunk>
 }) {
   const calls: Array<Record<string, unknown>> = []
   let callIndex = 0
@@ -193,6 +197,10 @@ export function createMockAdapter(options: {
     },
     structuredOutput:
       options.structuredOutput ?? (async () => ({ data: {}, rawText: '{}' })),
+  }
+
+  if (options.structuredOutputStream) {
+    adapter.structuredOutputStream = options.structuredOutputStream
   }
 
   return { adapter, calls }
