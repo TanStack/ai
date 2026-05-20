@@ -2063,7 +2063,7 @@ class TextEngine<
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
  *   tools: [weatherTool]
  * })) {
- *   if (chunk.type === 'content') {
+ *   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
  *     console.log(chunk.delta)
  *   }
  * }
@@ -2211,7 +2211,12 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     throw new Error('outputSchema is required for structured output')
   }
 
-  const jsonSchema = convertSchemaToJsonSchema(outputSchema)
+  // Same strict-conversion as the streaming path (`forStructuredOutput: true`)
+  // so the same Zod schema produces the same JSON Schema regardless of
+  // stream mode — Promise<T> and stream:true must not diverge here.
+  const jsonSchema = convertSchemaToJsonSchema(outputSchema, {
+    forStructuredOutput: true,
+  })
   if (!jsonSchema) {
     throw new Error('Failed to convert output schema to JSON Schema')
   }
@@ -2313,9 +2318,13 @@ async function* fallbackStructuredOutputStream(
   options: StructuredOutputOptions<Record<string, unknown>>,
 ): AsyncIterable<StreamChunk> {
   const { chatOptions } = options
-  const runId = chatOptions.runId ?? `mock-${Date.now()}`
-  const threadId = chatOptions.threadId ?? `mock-${Date.now()}`
-  const messageId = `mock-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  // Synthesize run/thread/message IDs only when the caller didn't supply them.
+  // Prefix `fallback-` (not `mock-`) because this is production fallback code
+  // used by adapters without native `structuredOutputStream`, not test fixtures.
+  const fallbackRand = Math.random().toString(36).slice(2)
+  const runId = chatOptions.runId ?? `fallback-${Date.now()}-${fallbackRand}`
+  const threadId = chatOptions.threadId ?? `fallback-${Date.now()}-${fallbackRand}`
+  const messageId = `fallback-${Date.now()}-${fallbackRand}`
   const model = chatOptions.model
   const timestamp = Date.now()
 
@@ -2335,6 +2344,7 @@ async function* fallbackStructuredOutputStream(
     yield {
       type: EventType.RUN_ERROR,
       runId,
+      threadId,
       model,
       timestamp,
       message,
