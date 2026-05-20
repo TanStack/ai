@@ -44,5 +44,8 @@
     "packages/typescript/ai-vue-ui": {
       "ignore": ["src/use-chat-context.ts"]
     }
+  },
+  "rules": {
+    "duplicates": "off"
   }
 }

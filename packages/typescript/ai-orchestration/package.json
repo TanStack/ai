@@ -40,9 +40,6 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
-  "dependencies": {
-    "@tanstack/ai-event-client": "workspace:*"
-  },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
   },
@@ -50,7 +47,7 @@
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7",
+    "vite": "^7.3.3",
     "zod": "^4.2.0"
   }
 }
