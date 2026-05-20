@@ -21,6 +21,7 @@ import type {
   ApprovalResult,
   LiveRun,
   RunState,
+  RunStore,
   SignalResult,
   StepDescriptor,
   StepRecord,
@@ -29,9 +30,33 @@ import type {
 } from '../types'
 import type { InMemoryRunStore } from '../run-store/in-memory'
 
+/**
+ * Narrow a generic `RunStore` to one with the in-process live-handle
+ * methods (`setLive` / `getLive`). Durable stores skip these and the
+ * engine falls back to the replay path.
+ */
+function asLiveStore(
+  store: RunStore,
+): InMemoryRunStore | undefined {
+  const candidate = store as Partial<InMemoryRunStore>
+  if (
+    typeof candidate.setLive === 'function' &&
+    typeof candidate.getLive === 'function'
+  ) {
+    return candidate as InMemoryRunStore
+  }
+  return undefined
+}
+
 export interface RunWorkflowOptions {
   workflow: AnyWorkflowDefinition
-  runStore: InMemoryRunStore
+  /**
+   * Run state and step-log store. `InMemoryRunStore` adds an in-process
+   * live-generator cache (`setLive`/`getLive`) for the same-node fast
+   * path; durable `RunStore` implementations omit those and the engine
+   * falls back to the replay path.
+   */
+  runStore: RunStore
   /** First-call: provide `input`. Resume-call: provide `runId` + either
    *  `approval` (legacy) or `signalDelivery` (generic). Attach-call:
    *  provide `runId` + `attach: true`. */
@@ -286,9 +311,14 @@ async function* startRun(
 
   const abortController = new AbortController()
   if (options.signal) {
-    options.signal.addEventListener('abort', () => abortController.abort(), {
-      once: true,
-    })
+    // Honor a signal that's already aborted before runWorkflow was called —
+    // addEventListener('abort') is not invoked for the already-aborted state,
+    // which would otherwise let a pre-cancelled caller proceed past start.
+    if (options.signal.aborted) abortController.abort()
+    else
+      options.signal.addEventListener('abort', () => abortController.abort(), {
+        once: true,
+      })
   }
 
   const state = buildInitialState(options.workflow, options.input)
@@ -338,7 +368,7 @@ async function* startRun(
 
   const generator = options.workflow.run(args as any)
   live.generator = generator
-  options.runStore.setLive(runId, live)
+  asLiveStore(options.runStore)?.setLive(runId, live)
 
   yield* driveLoop({
     live,
@@ -464,6 +494,20 @@ async function* attachRun(
             : undefined),
       },
     })
+    // For approval pauses, also surface `approval-requested` so the
+    // attaching client's existing handler populates `pendingApproval`.
+    // The client treats `__approval` on run.paused as "already handled"
+    // (approval-requested is the source of truth on a live stream);
+    // without this follow-up event on attach, a refresh-mid-approval
+    // leaves the UI with no prompt to act on.
+    if (persistedRunState.pendingApproval) {
+      yield approvalRequestedEvent({
+        approvalId: persistedRunState.pendingApproval.approvalId,
+        kind: 'workflow',
+        title: persistedRunState.pendingApproval.title,
+        description: persistedRunState.pendingApproval.description,
+      })
+    }
     return
   }
 
@@ -503,7 +547,10 @@ async function* resumeRun(
     options.signalDelivery !== undefined || options.approval !== undefined
 
   // Fast path: live generator still in process (same node, no restart).
-  const inMemory = options.runStore.getLive(runId)
+  // Only available on stores that implement `getLive` (the in-memory
+  // store); durable stores skip this and the replay path is the only
+  // resume path.
+  const inMemory = asLiveStore(options.runStore)?.getLive(runId)
   if (inMemory) {
     inMemory.runState = {
       ...inMemory.runState,
@@ -595,9 +642,14 @@ async function* resumeRun(
 
   const abortController = new AbortController()
   if (options.signal) {
-    options.signal.addEventListener('abort', () => abortController.abort(), {
-      once: true,
-    })
+    // Honor a signal that's already aborted before runWorkflow was called —
+    // addEventListener('abort') is not invoked for the already-aborted state,
+    // which would otherwise let a pre-cancelled caller proceed past start.
+    if (options.signal.aborted) abortController.abort()
+    else
+      options.signal.addEventListener('abort', () => abortController.abort(), {
+        once: true,
+      })
   }
 
   const live: LiveRun = {
@@ -630,7 +682,7 @@ async function* resumeRun(
 
   const generator = options.workflow.run(args as any)
   live.generator = generator
-  options.runStore.setLive(runId, live)
+  asLiveStore(options.runStore)?.setLive(runId, live)
   await options.runStore.setRunState(runId, live.runState)
 
   yield runStartedEvent({ runId, threadId: options.threadId })
@@ -657,7 +709,7 @@ interface DriveLoopArgs {
   runId: string
   /** Same reference the user generator's `args.state` holds. */
   state: Record<string, unknown>
-  runStore: InMemoryRunStore
+  runStore: RunStore
   threadId?: string
   outputSink?: (output: unknown) => void
   abortController: AbortController
@@ -784,7 +836,14 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       // the log append and the next replay would re-enter the pause.
       const waitingFor = live.runState.waitingFor
       const seed = args.seedValue
-      const isApproval = !waitingFor || waitingFor.signalName === 'approval'
+      // Approval pauses set `pendingApproval` but NOT `waitingFor`, so the
+      // absence of `waitingFor` is the canonical "this was an approve()"
+      // marker. The signalName check uses the reserved sentinel
+      // `__approval` (matching the same sentinel surfaced on the wire by
+      // attachRun) so a user-named `waitForSignal('approval', ...)` is not
+      // accidentally treated as an approval pause.
+      const isApproval =
+        !waitingFor || waitingFor.signalName === '__approval'
       const content = isApproval
         ? {
             approved: (seed as ApprovalResult | undefined)?.approved ?? false,
@@ -803,7 +862,12 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       if (inMemAppend.kind === 'lost') {
         // Another delivery won the race — this caller's signal had no
         // effect. Surface so the host knows to either retry with a
-        // different signalId or stand down.
+        // different signalId or stand down. Restore status to 'paused'
+        // because the live generator is still parked on the original
+        // pause; the losing caller's resume just stops driving it.
+        live.runState.status = 'paused'
+        live.runState.updatedAt = Date.now()
+        await runStore.setRunState(runId, live.runState)
         yield runErrorEvent({
           runId,
           message: `Signal lost at index ${logLength}: another delivery won the race (winning signalId: ${inMemAppend.existing.signalId ?? '(unsigned)'}).`,
@@ -812,12 +876,25 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         return
       }
       // Idempotent: same signalId, the prior delivery's record stands.
-      // We still emit STEP_FINISHED so the caller sees a coherent end.
+      // We still emit STEP_FINISHED so the caller sees a coherent end,
+      // but the emitted content reflects the EXISTING recorded result,
+      // not the caller's retry payload. Two tabs delivering the same
+      // signalId with different payloads must both observe the
+      // authoritative first-write — otherwise the second caller's UI
+      // shows a different value than the workflow's own state. We also
+      // override `nextValue` so the generator resumes with the recorded
+      // result; sending the caller's payload would advance the workflow
+      // along a divergent path.
+      if (inMemAppend.kind === 'idempotent') {
+        nextValue = inMemAppend.existing.result
+      }
+      const idempotentContent =
+        inMemAppend.kind === 'idempotent' ? inMemAppend.existing.result : content
       logLength++
       yield stepFinishedEvent({
         stepId: pendingApprovalStepId,
         stepName: waitingFor?.signalName ?? 'approval',
-        content,
+        content: idempotentContent,
       })
     }
 
@@ -925,6 +1002,12 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
           finishedAt: Date.now(),
         })
         if (outcome.kind === 'lost') {
+          // Same as the in-memory branch: restore status so the next
+          // resume attempt sees an accurate 'paused' state rather than
+          // a stale 'running'.
+          live.runState.status = 'paused'
+          live.runState.updatedAt = Date.now()
+          await runStore.setRunState(runId, live.runState)
           yield runErrorEvent({
             runId,
             message: `Signal lost at index ${logLength}: another delivery won the race (winning signalId: ${outcome.existing.signalId ?? '(unsigned)'}).`,
@@ -1060,11 +1143,16 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
             once: true,
           })
           let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+          // Track the abort cause explicitly so the abort listener can
+          // distinguish a parent-run abort from a timeout — the previous
+          // `!timeoutHandle` proxy was always truthy once setTimeout had
+          // assigned, which mis-classified run-level aborts as timeouts.
+          let timedOut = false
           if (descriptor.timeout && descriptor.timeout > 0) {
-            timeoutHandle = setTimeout(
-              () => attemptController.abort(),
-              descriptor.timeout,
-            )
+            timeoutHandle = setTimeout(() => {
+              timedOut = true
+              attemptController.abort()
+            }, descriptor.timeout)
           }
 
           try {
@@ -1086,7 +1174,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
                     attemptController.signal.addEventListener(
                       'abort',
                       () => {
-                        if (abortController.signal.aborted && !timeoutHandle) {
+                        if (!timedOut && abortController.signal.aborted) {
                           // Aborted by run-level cancel, not by timeout.
                           reject(new Error('Workflow aborted'))
                           return
@@ -1457,7 +1545,7 @@ type AppendOutcome =
  * path.
  */
 async function tryAppendStep(
-  runStore: InMemoryRunStore,
+  runStore: RunStore,
   runId: string,
   expectedNextIndex: number,
   record: StepRecord,
@@ -1505,7 +1593,7 @@ async function tryAppendStep(
  * throw to let the driveLoop's outer try/catch surface RUN_ERROR.
  */
 async function appendStep(
-  runStore: InMemoryRunStore,
+  runStore: RunStore,
   runId: string,
   expectedNextIndex: number,
   record: StepRecord,

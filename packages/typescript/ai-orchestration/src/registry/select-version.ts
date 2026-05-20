@@ -34,12 +34,15 @@ export async function selectWorkflowVersion<T extends AnyWorkflowDefinition>(
   if (!runState) return undefined
 
   if (runState.workflowVersion) {
-    const exact = versions.find(
+    // The run was started under a specific version. Return the exact
+    // match if registered, otherwise `undefined` — falling through to
+    // the unversioned default for a versioned run would route a v1 run
+    // into v-undefined code, which is a determinism violation.
+    return versions.find(
       (v) =>
         v.name === runState.workflowName &&
         v.version === runState.workflowVersion,
     )
-    if (exact) return exact
   }
 
   // Legacy fallback: pre-versioning runs have no workflowVersion;

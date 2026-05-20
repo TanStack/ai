@@ -134,4 +134,46 @@ describe('engine smoke', () => {
       pendingApproval: { title: 'go?' },
     })
   })
+
+  it('propagates a pre-aborted external signal to the agent run', async () => {
+    // Per the addEventListener('abort', ...) contract, listeners don't
+    // fire for the already-aborted state. The engine has to check the
+    // signal explicitly at start; otherwise the agent's `run({ signal })`
+    // sees a fresh, non-aborted signal even though the caller cancelled.
+    let observedAborted: boolean | null = null
+    const observer = defineAgent({
+      name: 'observer',
+      input: z.object({}).default({}),
+      output: z.object({ ok: z.boolean() }),
+      run: async ({ signal }) => {
+        observedAborted = signal.aborted
+        return { ok: true }
+      },
+    })
+
+    const wf = defineWorkflow({
+      name: 'pre-aborted',
+      input: z.object({}).default({}),
+      output: z.object({ ok: z.boolean() }),
+      state: z.object({}).default({}),
+      agents: { observer },
+      run: async function* ({ agents }) {
+        return yield* agents.observer({})
+      },
+    })
+
+    const ac = new AbortController()
+    ac.abort()
+    await collect(
+      runWorkflow({
+        workflow: wf,
+        input: {},
+        runStore: inMemoryRunStore(),
+        signal: ac.signal,
+      }),
+    )
+    // Without the eager-abort check, observedAborted would be false here —
+    // addEventListener never fires for an already-aborted signal.
+    expect(observedAborted).toBe(true)
+  })
 })

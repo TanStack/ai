@@ -197,6 +197,16 @@ export class WorkflowClient<
     await this.consumeStream(workflowStream)
   }
 
+  /**
+   * Did the local state already settle on a terminal status? Used to keep
+   * a stream event that arrives after `stop()` from flipping the local
+   * 'aborted' status back to 'finished' / 'error'.
+   */
+  private isTerminal(): boolean {
+    const s = this.clientState.status
+    return s === 'aborted' || s === 'finished' || s === 'error'
+  }
+
   stop(): void {
     if (!this.clientState.runId) return
     // openStream returns an AsyncIterable whose underlying request
@@ -292,23 +302,31 @@ export class WorkflowClient<
         break
       }
       case 'RUN_ERROR': {
+        if (this.isTerminal()) break
         const code = chunk.code as string | undefined
         this.setState({
-          error: {
-            code,
-            message: chunk.message as string,
-          },
+          // Don't populate `error` when the local state already reflects an
+          // explicit abort — the user-initiated stop is not a failure.
+          error:
+            code === 'aborted'
+              ? null
+              : { code, message: chunk.message as string },
           status: code === 'aborted' ? 'aborted' : 'error',
         })
         break
       }
       case 'RUN_FINISHED':
+        // Guard against a server-emitted RUN_FINISHED arriving after the
+        // user already invoked `stop()` — the local 'aborted' status is
+        // authoritative once set.
+        if (this.isTerminal()) break
         this.setState({
           status: 'finished',
           output: chunk.output as TOutput,
         } as Partial<WorkflowClientState<TState, TOutput>>)
         break
       case 'RUN_STARTED':
+        if (this.isTerminal()) break
         this.setState({
           runId: chunk.runId as string,
           status: 'running',
@@ -328,10 +346,13 @@ export class WorkflowClient<
       case 'STEP_FINISHED': {
         const stepId = chunk.stepId as string
         const content: unknown = chunk.content
-        const isFailed =
-          content !== null &&
-          typeof content === 'object' &&
-          'error' in (content as Record<string, unknown>)
+        // The engine wraps an uncaught step error as
+        //   { error: { name: string, message: string, stack?: string } }
+        // — check the precise envelope shape so a user-domain step result
+        // that happens to carry an `error` key (e.g. `{ error: null,
+        // value: X }` from a tagged-result pattern) is not misclassified
+        // as failed.
+        const isFailed = isStepFailureEnvelope(content)
         const updated = this.clientState.steps.map((s) =>
           s.stepId === stepId
             ? {
@@ -386,25 +407,54 @@ export class WorkflowClient<
   }
 }
 
+/**
+ * Detect the engine's "failed step" envelope: `{ error: { name, message } }`.
+ * Defensive against user-domain step results that happen to carry an
+ * `error` key with a different shape (e.g. `null`, a string, or an
+ * object without `name`/`message`).
+ */
+function isStepFailureEnvelope(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') return false
+  const error = (value as { error?: unknown }).error
+  if (error === null || typeof error !== 'object') return false
+  const e = error as { name?: unknown; message?: unknown }
+  return typeof e.name === 'string' && typeof e.message === 'string'
+}
+
 // Minimal RFC 6902 patch applier — keeps the client zero-dep on json-patch libs.
-// Handles replace/add/remove on nested paths and array indices.
+// Handles replace/add/remove on nested paths and array indices, plus the
+// root path (`""`) which the engine emits for whole-state replacements
+// when prev/next disagree on type.
 function applyJsonPatch(
   base: unknown,
   ops: Array<Record<string, unknown>>,
 ): unknown {
-  const doc =
-    base === null || base === undefined
-      ? {}
-      : (structuredClone(base) as Record<string, unknown>)
+  // Cursor-shaped wrapper: a function-return value lets us swap the
+  // root document type mid-loop when an op targets the root path.
+  let doc: unknown = base === undefined ? null : structuredClone(base)
   for (const op of ops) {
-    const segments = String(op.path)
+    const path = String(op.path)
+    if (path === '' || path === '/') {
+      // Root op — `replace`/`add` swap the entire doc; `remove` clears it.
+      if (op.op === 'replace' || op.op === 'add') {
+        doc = op.value
+      } else if (op.op === 'remove') {
+        doc = null
+      }
+      continue
+    }
+    const segments = path
       .split('/')
       .slice(1)
       .map((s) => s.replace(/~1/g, '/').replace(/~0/g, '~'))
+    // For non-root ops we need a concrete object/array to mutate. If the
+    // doc isn't one (e.g. primitive root), we can't apply nested ops —
+    // skip per RFC 6902 spirit rather than corrupting state.
+    if (doc === null || typeof doc !== 'object') continue
     if (op.op === 'replace' || op.op === 'add') {
-      setAt(doc, segments, op.value)
+      setAt(doc as Record<string, unknown>, segments, op.value)
     } else if (op.op === 'remove') {
-      removeAt(doc, segments)
+      removeAt(doc as Record<string, unknown>, segments)
     }
   }
   return doc

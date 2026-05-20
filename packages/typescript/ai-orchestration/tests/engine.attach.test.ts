@@ -152,6 +152,60 @@ describe('attach — finished run', () => {
   })
 })
 
+describe('attach — paused on approval', () => {
+  it('emits approval-requested so a refreshing client can populate pendingApproval', async () => {
+    // Regression for the bug where attach to a paused-on-approval run
+    // emitted only run.paused with signalName='__approval'. The client's
+    // run.paused handler treats __approval as "already handled by
+    // approval-requested above" — but the original SSE response that
+    // emitted approval-requested was already closed. Without a re-emit
+    // on attach, the refreshed UI shows no prompt to act on.
+    const { approve } = await import('../src/primitives/approve')
+
+    const wf = defineWorkflow({
+      name: 'pause-on-approval',
+      input: z.object({}).default({}),
+      output: z.object({ ok: z.boolean() }),
+      state: z.object({}).default({}),
+      agents: {},
+      run: async function* () {
+        const d = yield* approve({
+          title: 'publish?',
+          description: 'release to prod',
+        })
+        return { ok: d.approved }
+      },
+    })
+
+    const store = inMemoryRunStore()
+    const start = await collect(
+      runWorkflow({ workflow: wf, input: {}, runStore: store }),
+    )
+    const runId = findRunId(start)
+
+    const attached = await collect(
+      runWorkflow({ workflow: wf, runId, attach: true, runStore: store }),
+    )
+
+    // run.paused is emitted as before.
+    const paused = attached.find(
+      (e) =>
+        e.type === 'CUSTOM' && (e as { name?: string }).name === 'run.paused',
+    ) as { value?: { kind?: string; signalName?: string } } | undefined
+    expect(paused?.value?.kind).toBe('approval')
+    expect(paused?.value?.signalName).toBe('__approval')
+
+    // AND approval-requested is now re-emitted on attach.
+    const approvalRequested = attached.find(
+      (e) =>
+        e.type === 'CUSTOM' &&
+        (e as { name?: string }).name === 'approval-requested',
+    ) as { value?: { title?: string; description?: string } } | undefined
+    expect(approvalRequested?.value?.title).toBe('publish?')
+    expect(approvalRequested?.value?.description).toBe('release to prod')
+  })
+})
+
 describe('attach — unknown run', () => {
   it('emits run_lost when neither state nor live handle exists', async () => {
     const wf = defineWorkflow({

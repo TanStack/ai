@@ -44,12 +44,46 @@ interface RawBody {
 export async function parseWorkflowRequest(
   request: Request,
 ): Promise<WorkflowRequestParams> {
-  const body = (await request.json()) as RawBody
+  let raw: unknown
+  try {
+    raw = await request.json()
+  } catch (err) {
+    // Wrap JSON parse failures in a typed error so route handlers can
+    // distinguish bad client input (return 400) from genuine engine
+    // errors. Without this the raw SyntaxError surfaces as a 500.
+    throw new WorkflowRequestParseError(
+      err instanceof Error ? err.message : 'Invalid JSON body',
+      err,
+    )
+  }
+  // Reject obviously-malformed bodies (string, array, null). The fields
+  // are validated lazily downstream, but rejecting the shell early keeps
+  // the engine's invariants narrow.
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new WorkflowRequestParseError(
+      'Workflow request body must be a JSON object.',
+    )
+  }
+  const body = raw as RawBody
   return {
     approval: body.approval,
     signalDelivery: body.signal,
     input: body.input,
     runId: body.runId,
     abort: body.abort,
+  }
+}
+
+/**
+ * Thrown by `parseWorkflowRequest` when the body cannot be parsed or is
+ * not a JSON object. Route handlers should catch and return a 400.
+ */
+export class WorkflowRequestParseError extends Error {
+  override readonly name = 'WorkflowRequestParseError'
+  constructor(
+    message: string,
+    public override readonly cause?: unknown,
+  ) {
+    super(message)
   }
 }

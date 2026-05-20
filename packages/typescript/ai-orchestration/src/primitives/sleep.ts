@@ -29,6 +29,14 @@ export function sleepUntil(timestamp: number): StepGenerator<void> {
  * `sleepUntil(Date.now() + ms)`.
  *
  *     yield* sleep(60_000) // wake in 60s
+ *
+ * Determinism note: `Date.now()` runs at call time (not at a recorded
+ * yield boundary), so replay recomputes a fresh deadline. The deadline
+ * is advisory — hosts deliver the `__timer` signal whenever the wake
+ * fires — so this divergence only affects timer-indexed worker jobs
+ * built off `waitingFor.deadline` on the replay path. If your host
+ * relies on a stable persisted deadline across replays, anchor it
+ * yourself with `yield* now()` and pass the result to `sleepUntil`.
  */
 export function sleep(ms: number): StepGenerator<void> {
   return sleepUntil(Date.now() + ms)

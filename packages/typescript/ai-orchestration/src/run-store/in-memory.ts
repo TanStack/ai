@@ -29,9 +29,15 @@ export function inMemoryRunStore(
   const stepLogs = new Map<string, Array<StepRecord>>()
   const expirations = new Map<string, NodeJS.Timeout>()
 
-  function scheduleExpiry(runId: string) {
+  function scheduleExpiry(runId: string, state?: RunState) {
     const existing = expirations.get(runId)
     if (existing) clearTimeout(existing)
+    // Don't expire paused runs from underneath the engine. A run that
+    // pauses on a long-running `waitForSignal` / `sleep` (deadline >
+    // ttl) is intentional persistence — the host owns cleanup via
+    // `deleteRun` and the engine calls `deleteRun` automatically on
+    // finish / error / abort.
+    if (state?.status === 'paused') return
     const handle = setTimeout(() => {
       runs.delete(runId)
       live.delete(runId)
@@ -48,7 +54,7 @@ export function inMemoryRunStore(
     },
     setRunState(runId, state) {
       runs.set(runId, state)
-      scheduleExpiry(runId)
+      scheduleExpiry(runId, state)
       return Promise.resolve()
     },
     deleteRun(runId, _reason) {
@@ -81,7 +87,7 @@ export function inMemoryRunStore(
       // staying in sync with the log.
       log.push({ ...record, index: expectedNextIndex })
       stepLogs.set(runId, log)
-      scheduleExpiry(runId)
+      scheduleExpiry(runId, runs.get(runId))
       return Promise.resolve()
     },
     getSteps(runId) {

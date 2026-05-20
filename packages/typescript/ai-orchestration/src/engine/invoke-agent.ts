@@ -37,12 +37,30 @@ export function invokeAgent<T>(
   }
 
   const result = agent.run({ input, emit, signal } as any) as AgentRunResult<T>
+  const candidate = result as unknown
 
   // Shape (c): { stream, output }
-  if (typeof result === 'object' && 'stream' in result && 'output' in result) {
+  // Guard against false-positives where a user returns a plain object
+  // that happens to have `stream` and `output` keys but the values
+  // aren't an AsyncIterable and a Promise. We require `stream` to be
+  // async-iterable AND `output` to be thenable before taking this path;
+  // otherwise the engine would crash on `result.stream` iteration with
+  // a confusing TypeError instead of treating the value as shape (b).
+  if (
+    typeof candidate === 'object' &&
+    candidate !== null &&
+    'stream' in candidate &&
+    'output' in candidate &&
+    isAsyncIterable((candidate as { stream: unknown }).stream) &&
+    isThenable((candidate as { output: unknown }).output)
+  ) {
+    const shapeC = candidate as {
+      stream: AsyncIterable<StreamChunk>
+      output: Promise<T>
+    }
     return {
-      stream: filterInnerRunBoundaries(result.stream),
-      output: result.output.then((o) => parseOutput<T>(agent, o)),
+      stream: filterInnerRunBoundaries(shapeC.stream),
+      output: shapeC.output.then((o) => parseOutput<T>(agent, o)),
     }
   }
 
@@ -90,6 +108,16 @@ export function invokeAgent<T>(
 
 async function* emptyStream(): AsyncIterable<StreamChunk> {
   // intentionally empty
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  if (value === null || typeof value !== 'object') return false
+  return Symbol.asyncIterator in value
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  if (value === null || typeof value !== 'object') return false
+  return typeof (value as { then?: unknown }).then === 'function'
 }
 
 /**

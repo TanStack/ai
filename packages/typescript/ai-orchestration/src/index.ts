@@ -29,7 +29,7 @@ export { fail, succeed } from './result'
 // ===== Server-side run =====
 export { runWorkflow } from './engine/run-workflow'
 export type { RunWorkflowOptions } from './engine/run-workflow'
-export { parseWorkflowRequest } from './server'
+export { parseWorkflowRequest, WorkflowRequestParseError } from './server'
 export type { WorkflowRequestParams } from './server'
 
 // ===== Cross-version registry =====

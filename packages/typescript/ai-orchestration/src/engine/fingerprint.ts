@@ -92,36 +92,41 @@ function collectAgents(
 }
 
 /**
- * 64-bit FNV-1a returned as a base36 string.
+ * 64-bit dispersion hash returned as a base36 string. Used only for
+ * workflow source fingerprinting — equality compare across runs of the
+ * same definition. Crypto strength is not required; deterministic
+ * dispersion that catches code-body changes is.
  *
- * Implementation notes:
- *  - The canonical 64-bit FNV-1a offset basis is `0xcbf29ce484222325`.
- *    JS doesn't have native u64 bitwise math, so we split it into
- *    `hHi = 0xcbf29ce4` and `hLo = 0x84222325` and operate on the
- *    halves with `Math.imul`.
- *  - The canonical 64-bit FNV-1a prime is `0x100000001b3`. The low 32
- *    bits are `0x01000193`; the high 32 bits are exactly `1`. So
- *    multiplying a 64-bit accumulator `(hHi, hLo)` by the prime can be
- *    expressed (mod 2^64) as:
+ * Implementation notes — NOT canonical FNV-1a-64:
+ *  - The accumulator is initialized to the canonical 64-bit FNV-1a
+ *    offset basis (`0xcbf29ce484222325`), split into a high / low
+ *    32-bit pair for JS's lack of u64 bitwise math.
+ *  - The multiplier we use is the canonical 64-bit FNV-1a prime
+ *    `0x100000001b3` interpreted with high half = `0x100` and low half =
+ *    `0x000001b3`. The constant `FNV_PRIME_LO = 0x01000193` declared
+ *    below is actually the 32-bit FNV-1a prime, not the low half of
+ *    the 64-bit prime. The resulting hash is therefore a deterministic
+ *    custom variant, not canonical 64-bit FNV-1a.
+ *  - The carry into `newHi` uses Math.imul on 16-bit splits, which
+ *    truncates the upper 9 bits of `hLoHi16 * FNV_PRIME_LO`. The hash
+ *    stays deterministic but loses some dispersion compared to a
+ *    correct 64-bit FNV-1a.
  *
- *        (hHi:hLo) * prime
- *      = (hHi * 0x01000193 + hLo * 0x01000000)  : (hLo * 0x01000193)
+ * Why not fix it? Stored fingerprints persist on `RunState.fingerprint`
+ * and gate replay correctness — changing the algorithm would invalidate
+ * every in-flight run on the next deploy. If/when a clean migration
+ * window is available, the canonical path is `Math.imul(hLo,
+ * 0x000001b3)` for the low half and a proper 32-bit-split carry. Until
+ * then, this implementation is locked in by backward-compatibility.
  *
- *    with carry from low into high handled below. Concretely:
- *
- *        newLo = hLo * 0x01000193                          (mod 2^32)
- *        newHi = hHi * 0x01000193 + (hLo << 8)             (mod 2^32) + carry
- *
- *    Carry = high 32 bits of (hLo * 0x01000193).
- *  - Per FNV-1a, we XOR each byte into the low half BEFORE the
- *    multiply, not after. The multiply diffuses the byte across both
- *    halves through the carry term, so `hHi` does absorb input — this
- *    is what gives the hash its 64-bit-strength dispersion.
- *
- * Used only for workflow source fingerprinting (equality compare).
- * Crypto-strength is not required.
+ * Per FNV-1a, we XOR each byte into the low half BEFORE the multiply.
+ * The multiply diffuses the byte across both halves through the carry
+ * term so `hHi` absorbs input.
  */
 function fnv1a64(input: string): string {
+  // NOTE: this is the 32-bit FNV-1a prime, not the low half of the
+  // 64-bit FNV-1a prime (`0x000001b3`). See the docblock above for why
+  // we cannot change it without invalidating stored fingerprints.
   const FNV_PRIME_LO = 0x01000193
   let hHi = 0xcbf29ce4
   let hLo = 0x84222325

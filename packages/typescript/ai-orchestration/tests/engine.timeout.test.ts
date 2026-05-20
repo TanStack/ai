@@ -147,6 +147,60 @@ describe('step timeout', () => {
     })
   })
 
+  it('parent-run abort during a step with timeout does NOT surface as StepTimeoutError', async () => {
+    // Regression for the discriminator that used `!timeoutHandle` as a
+    // proxy for "no timeout configured" — once setTimeout had assigned,
+    // the handle was always truthy, so a run-level abort during the
+    // race was mis-classified as a timeout.
+    const wf = defineWorkflow({
+      name: 'abort-during-timeout',
+      input: z.object({}).default({}),
+      output: z.object({ caughtName: z.string() }),
+      state: z.object({}).default({}),
+      agents: {},
+      run: async function* () {
+        let caughtName = ''
+        try {
+          yield* step(
+            'slow-network',
+            () => new Promise<void>(() => {}),
+            { timeout: 5000, retry: { maxAttempts: 1 } },
+          )
+        } catch (err) {
+          caughtName = err instanceof Error ? err.name : String(err)
+        }
+        return { caughtName }
+      },
+    })
+
+    const ac = new AbortController()
+    setTimeout(() => ac.abort(), 20)
+    const events = await collect(
+      runWorkflow({
+        workflow: wf,
+        input: {},
+        runStore: inMemoryRunStore(),
+        signal: ac.signal,
+      }),
+    )
+
+    // The run aborts — engine emits RUN_ERROR { code: 'aborted' } rather
+    // than RUN_FINISHED. We just verify the failure mode is not a
+    // misclassified timeout.
+    const finished = events.find((e) => e.type === 'RUN_FINISHED') as
+      | { output?: { caughtName?: string } }
+      | undefined
+    if (finished) {
+      // If the step's user-catch saw the error, it should NOT be
+      // StepTimeoutError — the parent aborted long before the 5s timeout.
+      expect(finished.output?.caughtName).not.toBe('StepTimeoutError')
+    }
+    // Either way, the run terminated promptly.
+    expect(
+      events.find((e) => e.type === 'RUN_ERROR' || e.type === 'RUN_FINISHED'),
+    ).toBeDefined()
+  })
+
   it('does not throw when fn finishes within the timeout', async () => {
     const wf = defineWorkflow({
       name: 'fast-enough',

@@ -92,6 +92,49 @@ describe('selectWorkflowVersion', () => {
     expect(matched).toBeUndefined()
   })
 
+  it('does NOT fall through to an unversioned definition for a versioned run', async () => {
+    // Regression: a run started under 'v1' must not silently resolve to
+    // an unversioned definition just because that one is available —
+    // doing so would route a v1 run into v-undefined code on the next
+    // resume, which is a determinism violation.
+    const v1 = defineWorkflow({
+      name: 'pipeline',
+      version: 'v1',
+      input: z.object({}).default({}),
+      output: z.object({}).default({}),
+      state: z.object({}).default({}),
+      agents: {},
+      run: async function* () {
+        yield* approve({ title: 'go?' })
+        return {}
+      },
+    })
+    // Same name, no version declared.
+    const legacy = defineWorkflow({
+      name: 'pipeline',
+      input: z.object({}).default({}),
+      output: z.object({}).default({}),
+      state: z.object({}).default({}),
+      agents: {},
+      run: async function* () {
+        yield* approve({ title: 'go?' })
+        return {}
+      },
+    })
+
+    const store = inMemoryRunStore()
+    const events = await collect(
+      runWorkflow({ workflow: v1, input: {}, runStore: store }),
+    )
+    const runId = findRunId(events)
+
+    // Only register the unversioned definition. The v1 run should NOT
+    // be routed to it — selectWorkflowVersion returns undefined and the
+    // host decides whether to refuse the resume or choose a default.
+    const matched = await selectWorkflowVersion([legacy], runId, store)
+    expect(matched).toBeUndefined()
+  })
+
   it('falls back to an unversioned definition for legacy unversioned runs', async () => {
     // Define a workflow WITHOUT version to mimic pre-versioning runs.
     const legacy = defineWorkflow({
