@@ -193,6 +193,7 @@ title: "@tanstack/ai"
 
 ## Functions
 
+- [brandProviderTool](functions/brandProviderTool.md)
 - [chat](functions/chat.md)
 - [chatParamsFromRequest](functions/chatParamsFromRequest.md)
 - [chatParamsFromRequestBody](functions/chatParamsFromRequestBody.md)

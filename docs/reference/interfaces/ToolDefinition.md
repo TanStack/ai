@@ -5,7 +5,7 @@ title: ToolDefinition
 
 # Interface: ToolDefinition\<TInput, TOutput, TName\>
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:107](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L107)
+Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:112](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L112)
 
 Tool definition builder that allows creating server or client tools from a shared definition
 
@@ -35,7 +35,7 @@ Tool definition builder that allows creating server or client tools from a share
 __toolSide: "definition";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:50](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L50)
+Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:55](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L55)
 
 #### Inherited from
 
@@ -49,7 +49,7 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 client: (execute?) => ClientTool<TInput, TOutput, TName>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:125](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L125)
+Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:130](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L130)
 
 Create a client-side tool with optional execute function
 
@@ -204,7 +204,7 @@ type({
 optional lazy: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:595](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L595)
+Defined in: [packages/typescript/ai/src/types.ts:597](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L597)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Only meaningful when used with chat().
 
@@ -220,7 +220,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata: Record<string, any>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:598](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L598)
+Defined in: [packages/typescript/ai/src/types.ts:600](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L600)
 
 Additional metadata for adapters or custom extensions
 
@@ -261,7 +261,7 @@ Must be unique within the tools array.
 optional needsApproval: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:592](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L592)
+Defined in: [packages/typescript/ai/src/types.ts:594](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L594)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -312,7 +312,7 @@ z.object({
 server: (execute) => ServerTool<TInput, TOutput, TName>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L115)
+Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:120](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L120)
 
 Create a server-side tool with execute function
 

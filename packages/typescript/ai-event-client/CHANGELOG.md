@@ -1,5 +1,12 @@
 # @tanstack/ai-event-client
 
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [[`2ad137b`](https://github.com/TanStack/ai/commit/2ad137bd22512248bd1684cccce35ba89597cf96)]:
+  - @tanstack/ai@0.20.1
+
 ## 0.3.5
 
 ### Patch Changes
