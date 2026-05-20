@@ -40,9 +40,14 @@ function computeDelay(opts: RetryOptions, attempt: number): number {
  * Returns an async generator to support delay between retries.
  */
 export async function* retry<T>(
-  fn: () => Generator<StepDescriptor, T, T>,
+  // TNext is `any` (not `T`) to match `StepGenerator<T>` — the engine sends
+  // step results of unrelated types back into the user generator at each
+  // yield boundary, and constraining TNext to T would reject legitimate
+  // workflows that yield multiple agent/step calls with differing return
+  // types inside the retried block.
+  fn: () => Generator<StepDescriptor, T, any>,
   options: RetryOptions,
-): AsyncGenerator<StepDescriptor, T, T> {
+): AsyncGenerator<StepDescriptor, T, any> {
   let lastErr: unknown
   for (let attempt = 1; attempt <= options.attempts; attempt++) {
     try {

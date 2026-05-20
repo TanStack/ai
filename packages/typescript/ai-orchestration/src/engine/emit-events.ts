@@ -34,6 +34,7 @@ export function runFinishedEvent(args: {
 
 export function runErrorEvent(args: {
   runId: string
+  threadId?: string
   message: string
   code?: string
 }): StreamChunk {
@@ -41,6 +42,7 @@ export function runErrorEvent(args: {
     type: 'RUN_ERROR',
     timestamp: Date.now(),
     runId: args.runId,
+    threadId: args.threadId ?? args.runId,
     message: args.message,
     code: args.code ?? 'error',
   } as StreamChunk
