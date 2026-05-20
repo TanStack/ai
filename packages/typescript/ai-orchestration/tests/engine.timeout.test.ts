@@ -161,11 +161,10 @@ describe('step timeout', () => {
       run: async function* () {
         let caughtName = ''
         try {
-          yield* step(
-            'slow-network',
-            () => new Promise<void>(() => {}),
-            { timeout: 5000, retry: { maxAttempts: 1 } },
-          )
+          yield* step('slow-network', () => new Promise<void>(() => {}), {
+            timeout: 5000,
+            retry: { maxAttempts: 1 },
+          })
         } catch (err) {
           caughtName = err instanceof Error ? err.name : String(err)
         }

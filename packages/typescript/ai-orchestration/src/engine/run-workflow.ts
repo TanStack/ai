@@ -35,9 +35,7 @@ import type { InMemoryRunStore } from '../run-store/in-memory'
  * methods (`setLive` / `getLive`). Durable stores skip these and the
  * engine falls back to the replay path.
  */
-function asLiveStore(
-  store: RunStore,
-): InMemoryRunStore | undefined {
+function asLiveStore(store: RunStore): InMemoryRunStore | undefined {
   const candidate = store as Partial<InMemoryRunStore>
   if (
     typeof candidate.setLive === 'function' &&
@@ -842,8 +840,7 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
       // `__approval` (matching the same sentinel surfaced on the wire by
       // attachRun) so a user-named `waitForSignal('approval', ...)` is not
       // accidentally treated as an approval pause.
-      const isApproval =
-        !waitingFor || waitingFor.signalName === '__approval'
+      const isApproval = !waitingFor || waitingFor.signalName === '__approval'
       const content = isApproval
         ? {
             approved: (seed as ApprovalResult | undefined)?.approved ?? false,
@@ -889,7 +886,9 @@ async function* driveLoop(args: DriveLoopArgs): AsyncIterable<StreamChunk> {
         nextValue = inMemAppend.existing.result
       }
       const idempotentContent =
-        inMemAppend.kind === 'idempotent' ? inMemAppend.existing.result : content
+        inMemAppend.kind === 'idempotent'
+          ? inMemAppend.existing.result
+          : content
       logLength++
       yield stepFinishedEvent({
         stepId: pendingApprovalStepId,
