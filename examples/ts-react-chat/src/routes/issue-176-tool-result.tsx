@@ -40,8 +40,7 @@ function Issue176ToolResultRepro() {
   const toolCall = messages
     .flatMap((message) => message.parts)
     .find(
-      (part) =>
-        part.type === 'tool-call' && part.id === 'issue-176-tool-call',
+      (part) => part.type === 'tool-call' && part.id === 'issue-176-tool-call',
     )
   const toolResult = messages
     .flatMap((message) => message.parts)
