@@ -39,9 +39,7 @@ export function fingerprintWorkflow(workflow: AnyWorkflowDefinition): string {
     // JSON.stringify gives an unambiguous serialization — joining with a
     // comma would collide between `['a,b']` and `['a', 'b']`.
     const sorted = [...workflow.patches].sort()
-    return fnv1a64(
-      `patch-versioned:${workflow.name}:${JSON.stringify(sorted)}`,
-    )
+    return fnv1a64(`patch-versioned:${workflow.name}:${JSON.stringify(sorted)}`)
   }
 
   const seen = new WeakSet<AnyWorkflowDefinition>()

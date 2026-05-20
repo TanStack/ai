@@ -66,7 +66,11 @@ function diff(prev: unknown, next: unknown, path: string): Array<Operation> {
     if (prevHas && nextHas) {
       ops.push(...diff(prevObj[key], nextObj[key], subPath))
     } else if (nextHas) {
-      ops.push({ op: 'add', path: subPath, value: normalizeValue(nextObj[key]) })
+      ops.push({
+        op: 'add',
+        path: subPath,
+        value: normalizeValue(nextObj[key]),
+      })
     } else {
       ops.push({ op: 'remove', path: subPath })
     }
