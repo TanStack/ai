@@ -14,6 +14,7 @@ Middleware now wraps the final structured-output provider call in `chat({ output
 
 - `onChunk` now observes chunks from the final structured-output call. Phase-aware middleware can branch on `ctx.phase === 'structuredOutput'` to opt out: `if (ctx.phase === 'structuredOutput') return`.
 - `onFinish` fires once at the end of the whole `chat()` invocation, after finalization completes — not after the agent loop.
+- `onFinish.info` reflects the agent loop's terminal state only. `info.usage` / `info.finishReason` / `info.content` do not include the final structured-output adapter call. To observe finalization tokens, use `onUsage` (fires for both agent-loop and finalization `RUN_FINISHED` events).
 
 **Internal cleanup:**
 

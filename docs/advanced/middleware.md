@@ -343,7 +343,16 @@ Exactly **one** terminal hook fires per `chat()` invocation. They are mutually e
 | `onAbort` | Run was aborted (via `ctx.abort()`, an external `AbortSignal`, or a `{ type: 'abort' }` decision from `onBeforeToolCall`) |
 | `onError` | An unhandled error occurred |
 
-> **Structured-output lifecycle ordering:** When `chat()` is invoked with `outputSchema`, `onFinish` fires **after** the structured-output finalization call completes — not at the end of the agent loop. `onIteration` does **not** fire for the finalization step; it only fires for agent-loop iterations. The terminal `info` reflects the full run, including tokens from the final structured-output call.
+> **Structured-output lifecycle ordering:** When `chat()` is invoked with `outputSchema`, `onFinish` fires **after** the structured-output finalization call completes — not at the end of the agent loop. `onIteration` does **not** fire for the finalization step; it only fires for agent-loop iterations.
+>
+> **`onFinish` info fields and structured-output runs:** the `info` object reflects the **agent loop's** terminal state — finalization state is intentionally segregated to keep agent-loop semantics clean.
+>
+> - `info.content` — the agent loop's accumulated text. Finalization JSON deltas are **not** included here. The structured-output result is delivered via the `structured-output.complete` CUSTOM event, which middleware observes via `onChunk` (with `ctx.phase === 'structuredOutput'`).
+> - `info.usage` — the agent loop's last `RUN_FINISHED.usage`. For a tools-less structured-output run (no agent-loop iteration produces `RUN_FINISHED`), this is `undefined`. To capture finalization tokens, use `onUsage` — that hook fires for **every** `RUN_FINISHED` carrying usage, including the finalization call.
+> - `info.finishReason` — the agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less structured-output run).
+> - `info.duration` — wall-clock duration of the entire `chat()` invocation, including finalization.
+>
+> To aggregate usage across the whole run, accumulate from `onUsage` callbacks rather than relying on `info.usage`.
 
 ```typescript
 const terminal: ChatMiddleware = {
@@ -368,10 +377,10 @@ The `info` object for `onFinish` (`FinishInfo`):
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `finishReason` | `string \| null` | The finish reason from the last model response |
-| `duration` | `number` | Total run duration in milliseconds |
-| `content` | `string` | Final accumulated text content |
-| `usage` | `{ promptTokens; completionTokens; totalTokens } \| undefined` | **Optional.** Final usage totals when the adapter reported them on `RUN_FINISHED`. Always guard with `if (info.usage)` or `info.usage?.`. |
+| `finishReason` | `string \| null` | The agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less `chat({ outputSchema })` run). |
+| `duration` | `number` | Total run duration in milliseconds, including any structured-output finalization. |
+| `content` | `string` | The agent loop's accumulated text content. Does **not** include finalization JSON deltas — for that, observe the `structured-output.complete` CUSTOM event via `onChunk`. |
+| `usage` | `{ promptTokens; completionTokens; totalTokens } \| undefined` | **Optional.** The agent loop's last `RUN_FINISHED.usage`. **Does not include finalization tokens** — use `onUsage` to observe those. Always guard with `if (info.usage)` or `info.usage?.`. |
 
 ## Context Object
 

@@ -22,7 +22,9 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewarePhase,
+  FinishInfo,
   StructuredOutputMiddlewareConfig,
+  UsageInfo,
 } from '../src/activities/chat/middleware/types'
 
 const PersonSchema = z.object({
@@ -231,6 +233,59 @@ describe('chat({ outputSchema }) — Promise<T> path', () => {
     )
     expect(structuredConfigCalls).toHaveLength(1)
     expect(structuredConfigCalls[0]!.config.outputSchema).toBeDefined()
+  })
+
+  it('onFinish info reflects agent-loop terminal state; finalization tokens observed via onUsage', async () => {
+    const finishInfo: Array<FinishInfo> = []
+    const usageEvents: Array<UsageInfo> = []
+
+    const recordFinish: ChatMiddleware = {
+      name: 'record-finish',
+      onFinish: (_ctx, info) => {
+        finishInfo.push(info)
+      },
+      onUsage: (_ctx, usage) => {
+        usageEvents.push(usage)
+      },
+    }
+
+    // Tools-less structured-output run: agent loop yields zero iterations
+    // (no RUN_FINISHED), so `info.usage`/`info.finishReason` should reflect
+    // the agent-loop's *absence* of a terminal RUN_FINISHED — NOT the
+    // finalization step's usage. The finalization usage is delivered via
+    // `onUsage` instead.
+    const adapter = makeAdapter({
+      agentIterations: [],
+      structuredRunFinishedUsage: {
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+      },
+    })
+
+    await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Give me a person' }],
+      outputSchema: PersonSchema,
+      middleware: [recordFinish],
+    })
+
+    // onUsage fires exactly once — for finalization's RUN_FINISHED.
+    expect(usageEvents).toHaveLength(1)
+    expect(usageEvents[0]).toEqual({
+      promptTokens: 10,
+      completionTokens: 5,
+      totalTokens: 15,
+    })
+
+    // onFinish fires exactly once. info.* reflects the agent loop's terminal
+    // state; with no tool-using iterations, the agent loop produced no
+    // RUN_FINISHED, so usage is undefined and finishReason is null.
+    expect(finishInfo).toHaveLength(1)
+    const info = finishInfo[0]!
+    expect(info.usage).toBeUndefined()
+    expect(info.finishReason).toBeNull()
+    expect(info.content).toBe('')
   })
 })
 
