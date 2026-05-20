@@ -2331,7 +2331,8 @@ async function* fallbackStructuredOutputStream(
   // used by adapters without native `structuredOutputStream`, not test fixtures.
   const fallbackRand = Math.random().toString(36).slice(2)
   const runId = chatOptions.runId ?? `fallback-${Date.now()}-${fallbackRand}`
-  const threadId = chatOptions.threadId ?? `fallback-${Date.now()}-${fallbackRand}`
+  const threadId =
+    chatOptions.threadId ?? `fallback-${Date.now()}-${fallbackRand}`
   const messageId = `fallback-${Date.now()}-${fallbackRand}`
   const model = chatOptions.model
   const timestamp = Date.now()
