@@ -3,7 +3,7 @@
 '@tanstack/ai-anthropic': patch
 '@tanstack/ai-code-mode': patch
 '@tanstack/ai-code-mode-skills': patch
-'@tanstack/ai-devtools': patch
+'@tanstack/ai-devtools-core': patch
 '@tanstack/ai-elevenlabs': patch
 '@tanstack/ai-fal': patch
 '@tanstack/ai-gemini': patch
