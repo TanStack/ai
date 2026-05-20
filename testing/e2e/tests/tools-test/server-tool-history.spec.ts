@@ -39,8 +39,7 @@ test.describe('Server Tool History Hydration', () => {
     )
     const toolResult = assistant?.parts.find(
       (part: any) =>
-        part.type === 'tool-result' &&
-        part.toolCallId === 'history-tc-1',
+        part.type === 'tool-result' && part.toolCallId === 'history-tc-1',
     )
 
     expect(toolCall).toMatchObject({
