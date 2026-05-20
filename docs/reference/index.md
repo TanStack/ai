@@ -90,6 +90,7 @@ title: "@tanstack/ai"
 - [StreamProcessorEvents](interfaces/StreamProcessorEvents.md)
 - [StreamProcessorOptions](interfaces/StreamProcessorOptions.md)
 - [StructuredOutputCompleteEvent](interfaces/StructuredOutputCompleteEvent.md)
+- [StructuredOutputMiddlewareConfig](interfaces/StructuredOutputMiddlewareConfig.md)
 - [StructuredOutputPart](interfaces/StructuredOutputPart.md)
 - [StructuredOutputStartEvent](interfaces/StructuredOutputStartEvent.md)
 - [SummarizationOptions](interfaces/SummarizationOptions.md)

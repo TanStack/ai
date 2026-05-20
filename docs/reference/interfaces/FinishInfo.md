@@ -5,7 +5,7 @@ title: FinishInfo
 
 # Interface: FinishInfo
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:252](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L252)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:274](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L274)
 
 Information passed to onFinish.
 
@@ -17,7 +17,7 @@ Information passed to onFinish.
 content: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:258](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L258)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:280](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L280)
 
 Final accumulated text content
 
@@ -29,7 +29,7 @@ Final accumulated text content
 duration: number;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:256](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L256)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:278](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L278)
 
 Total duration of the chat run in milliseconds
 
@@ -41,7 +41,7 @@ Total duration of the chat run in milliseconds
 finishReason: string | null;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:254](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L254)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:276](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L276)
 
 The finish reason from the last model response
 
@@ -53,7 +53,7 @@ The finish reason from the last model response
 optional usage: object;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:260](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L260)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:282](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L282)
 
 Final usage totals, if available
 

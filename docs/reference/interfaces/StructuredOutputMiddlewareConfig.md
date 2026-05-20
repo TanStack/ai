@@ -1,19 +1,22 @@
 ---
-id: ChatMiddlewareConfig
-title: ChatMiddlewareConfig
+id: StructuredOutputMiddlewareConfig
+title: StructuredOutputMiddlewareConfig
 ---
 
-# Interface: ChatMiddlewareConfig
+# Interface: StructuredOutputMiddlewareConfig
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:126](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L126)
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:145](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L145)
 
-Chat configuration that middleware can observe or transform.
-This is a subset of the chat engine's effective configuration
-that middleware is allowed to modify.
+Config passed to onStructuredOutputConfig.
 
-## Extended by
+Extends ChatMiddlewareConfig with the outputSchema being sent to the
+provider. Middleware may transform the schema (e.g., inject $defs, strip
+vendor-incompatible keywords) by returning a partial that includes
+`outputSchema`.
 
-- [`StructuredOutputMiddlewareConfig`](StructuredOutputMiddlewareConfig.md)
+## Extends
+
+- [`ChatMiddlewareConfig`](ChatMiddlewareConfig.md)
 
 ## Properties
 
@@ -24,6 +27,10 @@ optional maxTokens: number;
 ```
 
 Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:132](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L132)
+
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`maxTokens`](ChatMiddlewareConfig.md#maxtokens)
 
 ***
 
@@ -38,6 +45,10 @@ messages: ModelMessage<
 
 Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:127](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L127)
 
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`messages`](ChatMiddlewareConfig.md#messages)
+
 ***
 
 ### metadata?
@@ -47,6 +58,10 @@ optional metadata: Record<string, unknown>;
 ```
 
 Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:133](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L133)
+
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`metadata`](ChatMiddlewareConfig.md#metadata)
 
 ***
 
@@ -58,6 +73,22 @@ optional modelOptions: Record<string, unknown>;
 
 Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:134](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L134)
 
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`modelOptions`](ChatMiddlewareConfig.md#modeloptions)
+
+***
+
+### outputSchema
+
+```ts
+outputSchema: JSONSchema;
+```
+
+Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:147](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L147)
+
+JSON Schema being sent to the provider for structured output.
+
 ***
 
 ### systemPrompts
@@ -67,6 +98,10 @@ systemPrompts: SystemPrompt[];
 ```
 
 Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:128](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L128)
+
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`systemPrompts`](ChatMiddlewareConfig.md#systemprompts)
 
 ***
 
@@ -78,6 +113,10 @@ optional temperature: number;
 
 Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:130](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L130)
 
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`temperature`](ChatMiddlewareConfig.md#temperature)
+
 ***
 
 ### tools
@@ -88,6 +127,10 @@ tools: Tool<SchemaInput, SchemaInput, string>[];
 
 Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:129](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L129)
 
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`tools`](ChatMiddlewareConfig.md#tools)
+
 ***
 
 ### topP?
@@ -97,3 +140,7 @@ optional topP: number;
 ```
 
 Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:131](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L131)
+
+#### Inherited from
+
+[`ChatMiddlewareConfig`](ChatMiddlewareConfig.md).[`topP`](ChatMiddlewareConfig.md#topp)

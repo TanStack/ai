@@ -74,3 +74,45 @@ Pick the journey that matches what you're building. The four guides under "Struc
 The streaming and multi-turn paths both build on `useChat({ outputSchema })`. The "with tools" path layers on top of either. Pick the one that describes your shipping shape — start there, follow the cross-links when you need a piece of another story.
 
 > **Note:** Server-side validation against your schema is always authoritative. The schema you pass to `useChat({ outputSchema })` on the client is used only for TypeScript inference — the schema you pass to `chat({ outputSchema })` on the server is what actually runs the validation.
+
+## Middleware integration
+
+Middleware configured on `chat()` now observes the final structured-output
+provider call in addition to the agent loop. Chunks from the structured-output
+adapter are attributed to `ctx.phase === 'structuredOutput'`; `onFinish` fires
+exactly once at the end of the entire run.
+
+### Observing structured-output chunks
+
+```ts
+import { chat } from "@tanstack/ai";
+import type { ChatMiddleware } from "@tanstack/ai";
+
+const tracing: ChatMiddleware = {
+  name: "tracing",
+  onChunk(ctx, chunk) {
+    // Fires for chunks from the agent loop AND the final structured-output call
+    span.addEvent("chunk", { phase: ctx.phase, type: chunk.type });
+  },
+};
+```
+
+### Transforming the JSON Schema before the provider call
+
+Use the `onStructuredOutputConfig` hook when you need to mutate the schema:
+
+```ts
+import type { ChatMiddleware } from "@tanstack/ai";
+
+const injectDefs: ChatMiddleware = {
+  name: "inject-defs",
+  onStructuredOutputConfig(_ctx, config) {
+    return {
+      outputSchema: { ...config.outputSchema, $defs: { ...sharedDefs } },
+    };
+  },
+};
+```
+
+See [Advanced: Middleware](../advanced/middleware.md) for the full hook
+reference.

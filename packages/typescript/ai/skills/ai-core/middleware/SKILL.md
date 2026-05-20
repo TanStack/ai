@@ -50,22 +50,80 @@ Every hook receives a `ChatMiddlewareContext` as its first argument, which provi
 `requestId`, `streamId`, `phase`, `iteration`, `chunkIndex`, `model`, `provider`,
 `signal`, `abort()`, `defer()`, and more.
 
-| Hook                  | When                                                          | Second Argument                                  |
-| --------------------- | ------------------------------------------------------------- | ------------------------------------------------ |
-| `onConfig`            | Once at startup (`init`) + once per iteration (`beforeModel`) | `ChatMiddlewareConfig` (return partial to merge) |
-| `onStart`             | Once after initial `onConfig`                                 | none                                             |
-| `onIteration`         | Start of each agent loop iteration                            | `IterationInfo`                                  |
-| `onChunk`             | Every streamed chunk                                          | `StreamChunk` (return void/chunk/chunk[]/null)   |
-| `onBeforeToolCall`    | Before each tool executes                                     | `ToolCallHookContext` (return decision or void)  |
-| `onAfterToolCall`     | After each tool executes                                      | `AfterToolCallInfo`                              |
-| `onToolPhaseComplete` | After all tool calls in an iteration                          | `ToolPhaseCompleteInfo`                          |
-| `onUsage`             | When `RUN_FINISHED` includes usage data                       | `UsageInfo`                                      |
-| `onFinish`            | Run completed normally                                        | `FinishInfo`                                     |
-| `onAbort`             | Run was aborted                                               | `AbortInfo`                                      |
-| `onError`             | Unhandled error occurred                                      | `ErrorInfo`                                      |
+| Hook                       | When                                                                                               | Second Argument                                     |
+| -------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `onConfig`                 | Once at startup (`init`) + once per iteration (`beforeModel`) + once at structured-output boundary | `ChatMiddlewareConfig` (return partial to merge)    |
+| `onStructuredOutputConfig` | Once at the structured-output boundary (only when `chat({ outputSchema })`)                        | `StructuredOutputMiddlewareConfig` (return partial) |
+| `onStart`                  | Once after initial `onConfig`                                                                      | none                                                |
+| `onIteration`              | Start of each agent loop iteration                                                                 | `IterationInfo`                                     |
+| `onChunk`                  | Every streamed chunk                                                                               | `StreamChunk` (return void/chunk/chunk[]/null)      |
+| `onBeforeToolCall`         | Before each tool executes                                                                          | `ToolCallHookContext` (return decision or void)     |
+| `onAfterToolCall`          | After each tool executes                                                                           | `AfterToolCallInfo`                                 |
+| `onToolPhaseComplete`      | After all tool calls in an iteration                                                               | `ToolPhaseCompleteInfo`                             |
+| `onUsage`                  | When `RUN_FINISHED` includes usage data                                                            | `UsageInfo`                                         |
+| `onFinish`                 | Run completed normally                                                                             | `FinishInfo`                                        |
+| `onAbort`                  | Run was aborted                                                                                    | `AbortInfo`                                         |
+| `onError`                  | Unhandled error occurred                                                                           | `ErrorInfo`                                         |
 
 Terminal hooks (`onFinish`, `onAbort`, `onError`) are **mutually exclusive** -- exactly
 one fires per `chat()` invocation.
+
+### Phase values
+
+`ctx.phase` is one of:
+
+| Phase                | When                                                                                                                                                                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'init'`             | Initial setup (before the first `onConfig` snapshot is built).                                                                                                                                                                                 |
+| `'beforeModel'`      | Right before each agent-loop adapter call (`onConfig` re-fires here).                                                                                                                                                                          |
+| `'modelStream'`      | During model streaming chunks within the agent loop.                                                                                                                                                                                           |
+| `'beforeTools'`      | Before tool execution phase.                                                                                                                                                                                                                   |
+| `'afterTools'`       | After tool execution phase.                                                                                                                                                                                                                    |
+| `'structuredOutput'` | During the final structured-output adapter call (set for all chunks from `adapter.structuredOutputStream` or the synthesized fallback). Triggered only when `chat({ outputSchema })` is invoked; one phase transition per `chat()` invocation. |
+
+**Structured-output lifecycle rules** (when `chat({ outputSchema })` is used):
+
+- `onStructuredOutputConfig` fires **before** `onConfig` at the structured-output boundary.
+- `onConfig` re-fires at the same boundary with `ctx.phase === 'structuredOutput'`, receiving the post-`onStructuredOutputConfig` view of the config (minus `outputSchema`).
+- `onChunk` and `onUsage` fire for every chunk and usage event emitted by the structured-output call, with `ctx.phase === 'structuredOutput'`.
+- `onIteration` does **not** fire for finalization — it is agent-loop-only.
+- `onFinish` fires once at the end of the whole `chat()` invocation, **after** the structured-output finalization completes (not after the agent loop). Terminal-hook exclusivity still holds (one of `onFinish` / `onAbort` / `onError`).
+
+## onStructuredOutputConfig
+
+A dedicated config hook that fires **only** at the structured-output boundary
+(when `chat({ outputSchema })` is invoked). Use it to transform the JSON Schema
+sent to the provider (inject `$defs`, strip vendor-incompatible keywords) or to
+apply structured-output-specific config changes that should not affect the
+agent-loop adapter calls.
+
+**Signature:**
+
+```ts
+onStructuredOutputConfig?: (
+  ctx: ChatMiddlewareContext,
+  config: StructuredOutputMiddlewareConfig,
+) =>
+  | void
+  | null
+  | Partial<StructuredOutputMiddlewareConfig>
+  | Promise<void | Partial<StructuredOutputMiddlewareConfig>>
+```
+
+**`StructuredOutputMiddlewareConfig` shape:**
+
+```ts
+interface StructuredOutputMiddlewareConfig extends ChatMiddlewareConfig {
+  outputSchema: JSONSchema // The JSON Schema being sent to the provider
+}
+```
+
+**Ordering rule:**
+
+- `onStructuredOutputConfig` fires **before** `onConfig` at the structured-output boundary.
+- `onConfig` re-fires at the same boundary with `ctx.phase === 'structuredOutput'`, receiving the post-`onStructuredOutputConfig` view of the config (minus `outputSchema`).
+- Use `onConfig` for general-purpose transforms that apply to every adapter call (agent-loop iterations and the final structured-output call).
+- Use `onStructuredOutputConfig` when you need to transform the JSON Schema or apply structured-output-specific behavior.
 
 ## Core Patterns
 
@@ -173,7 +231,52 @@ const toolGuard: ChatMiddleware = {
 | `{ type: 'skip', result }`        | Skip execution, use provided result (used by `toolCacheMiddleware`) |
 | `{ type: 'abort', reason? }`      | Abort the entire chat run                                           |
 
-### Pattern 3: Multiple Middleware Composition
+### Pattern 3: Structured-Output Middleware
+
+When `chat({ outputSchema })` is used, the final structured-output adapter call
+now flows through the same middleware chain as the agent loop (with
+`ctx.phase === 'structuredOutput'`). Before this change, the final call bypassed
+middleware entirely — `onChunk`, `onUsage`, `onConfig`, and terminal hooks did
+not see it.
+
+**Example A — Observability (tracing every chunk, including finalization):**
+
+```typescript
+import type { ChatMiddleware } from '@tanstack/ai'
+
+const tracing: ChatMiddleware = {
+  name: 'tracing',
+  onChunk(ctx, chunk) {
+    span.addEvent('chunk', { phase: ctx.phase, type: chunk.type })
+  },
+}
+```
+
+This middleware now observes every chunk from the final structured-output call,
+attributed to `ctx.phase === 'structuredOutput'`. Before the fix, the final
+adapter call bypassed middleware entirely — `tracing` would only see agent-loop
+chunks.
+
+**Example B — Schema rewriting (inject shared `$defs`):**
+
+```typescript
+import type { ChatMiddleware } from '@tanstack/ai'
+
+const injectDefs: ChatMiddleware = {
+  name: 'inject-defs',
+  onStructuredOutputConfig(_ctx, config) {
+    return {
+      outputSchema: { ...config.outputSchema, $defs: { ...sharedDefs } },
+    }
+  },
+}
+```
+
+`onStructuredOutputConfig` is the right hook here because it has direct access
+to `config.outputSchema` and runs only on the structured-output boundary —
+schema rewrites do not leak into the agent-loop adapter calls.
+
+### Pattern 4: Multiple Middleware Composition
 
 Middleware executes in array order (left-to-right). Ordering matters for hooks that
 pipe or short-circuit:
@@ -222,6 +325,7 @@ const stream = chat({
 | Hook                       | Composition                                   | Effect of Order                            |
 | -------------------------- | --------------------------------------------- | ------------------------------------------ |
 | `onConfig`                 | **Piped** -- each receives previous output    | Earlier middleware transforms first        |
+| `onStructuredOutputConfig` | **Piped** -- each receives previous output    | Earlier middleware transforms first        |
 | `onStart`                  | Sequential                                    | All run in order                           |
 | `onChunk`                  | **Piped** -- chunks flow through each         | If first drops a chunk, later never see it |
 | `onBeforeToolCall`         | **First-win** -- first non-void decision wins | Earlier middleware has priority            |
@@ -334,3 +438,4 @@ Source: docs/advanced/middleware.md
 ## Cross-References
 
 - See also: **ai-core/chat-experience/SKILL.md** -- Middleware hooks into the chat lifecycle
+- See also: **ai-core/structured-outputs/SKILL.md** -- Middleware now wraps the final structured-output call; use `onStructuredOutputConfig` for JSON-Schema transforms

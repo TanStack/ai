@@ -94,6 +94,7 @@ The context's `phase` field tracks where you are in the lifecycle:
 | `modelStream` | While adapter streams chunks | `onChunk`, `onUsage` |
 | `beforeTools` | Before tool execution | `onBeforeToolCall` |
 | `afterTools` | After tool execution | `onAfterToolCall` |
+| `structuredOutput` | During the final structured-output adapter call (when `outputSchema` is set). Chunks from `adapter.structuredOutputStream` (or the synthesized non-streaming fallback) flow through `onChunk` with this phase, and `onUsage` fires for the final call's tokens. | `onStructuredOutputConfig`, `onConfig`, `onChunk`, `onUsage` |
 
 ## Hooks Reference
 
@@ -141,6 +142,48 @@ const dynamicTemperature: ChatMiddleware = {
 | `modelOptions` | `Record<string, unknown>` | Provider-specific options |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
+
+### onStructuredOutputConfig
+
+Called once at the start of the final structured-output adapter call — only when `chat()` was invoked with `outputSchema`. Pipes through middleware in order, like `onConfig`, but with access to the **JSON Schema** being sent to the provider. Use this hook when you need to transform the schema (e.g., inject `$defs`, strip vendor-incompatible keywords) or apply structured-output-specific behavior (e.g., suppress system prompts on the final call).
+
+Return a **partial** `StructuredOutputMiddlewareConfig` with only the fields you want to change — they are shallow-merged with the current config. Return `void` to pass through.
+
+```typescript
+const injectDefs: ChatMiddleware = {
+  name: "inject-defs",
+  onStructuredOutputConfig: (_ctx, config) => {
+    // `config.outputSchema` is the JSON Schema being sent to the provider
+    return {
+      outputSchema: {
+        ...config.outputSchema,
+        $defs: { ...sharedDefs },
+      },
+    };
+  },
+};
+```
+
+**Config fields you can transform:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `messages` | `ModelMessage[]` | Conversation history sent to the final call |
+| `systemPrompts` | `SystemPrompt[]` | System prompts on the final call |
+| `tools` | `Tool[]` | Available tools (typically empty for the final call) |
+| `temperature` | `number` | Sampling temperature |
+| `topP` | `number` | Nucleus sampling |
+| `maxTokens` | `number` | Token limit |
+| `metadata` | `Record<string, unknown>` | Request metadata |
+| `modelOptions` | `Record<string, unknown>` | Provider-specific options |
+| `outputSchema` | `JSONSchema` | JSON Schema being sent to the provider for structured output |
+
+**Ordering at the structured-output boundary:**
+
+1. `onStructuredOutputConfig` fires first, piping through every middleware in array order.
+2. `onConfig` then re-fires at the same boundary with `ctx.phase === 'structuredOutput'`, receiving the post-`onStructuredOutputConfig` view of the config (minus `outputSchema`). Use `onConfig` for general-purpose transforms that apply to every adapter call; use `onStructuredOutputConfig` when you need access to the schema.
+
+When multiple middleware define `onStructuredOutputConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
 
 ### onStart
 
@@ -292,6 +335,8 @@ Exactly **one** terminal hook fires per `chat()` invocation. They are mutually e
 | `onAbort` | Run was aborted (via `ctx.abort()`, an external `AbortSignal`, or a `{ type: 'abort' }` decision from `onBeforeToolCall`) |
 | `onError` | An unhandled error occurred |
 
+> **Structured-output lifecycle ordering:** When `chat()` is invoked with `outputSchema`, `onFinish` fires **after** the structured-output finalization call completes — not at the end of the agent loop. `onIteration` does **not** fire for the finalization step; it only fires for agent-loop iterations. The terminal `info` reflects the full run, including tokens from the final structured-output call.
+
 ```typescript
 const terminal: ChatMiddleware = {
   name: "terminal",
@@ -383,6 +428,7 @@ const stream = chat({
 | Hook | Composition | Effect of Order |
 |------|------------|----------------|
 | `onConfig` | **Piped** — each receives previous output | Earlier middleware transforms first |
+| `onStructuredOutputConfig` | **Piped** — each receives previous output | Earlier middleware transforms first |
 | `onStart` | Sequential | All run in order |
 | `onChunk` | **Piped** — chunks flow through each middleware | If first drops a chunk, later middleware never see it |
 | `onBeforeToolCall` | **First-win** — first non-void decision wins | Earlier middleware has priority |
@@ -645,6 +691,7 @@ import type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
+  StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
   AfterToolCallInfo,
