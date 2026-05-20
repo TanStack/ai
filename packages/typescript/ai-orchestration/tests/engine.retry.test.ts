@@ -18,28 +18,7 @@ import {
   runWorkflow,
   step,
 } from '../src'
-import type { StreamChunk } from '@tanstack/ai'
-
-interface RunStartedChunk {
-  type: 'RUN_STARTED'
-  runId: string
-}
-
-async function collect(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
-  for await (const c of iter) out.push(c)
-  return out
-}
-
-function findRunId(events: Array<StreamChunk>): string {
-  const started = events.find((e) => e.type === 'RUN_STARTED') as
-    | RunStartedChunk
-    | undefined
-  if (!started) throw new Error('no RUN_STARTED')
-  return started.runId
-}
+import { collect, findRunId } from './test-utils'
 
 describe('per-step retry', () => {
   it('retries up to maxAttempts and records each attempt', async () => {
@@ -74,7 +53,7 @@ describe('per-step retry', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -111,7 +90,7 @@ describe('per-step retry', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -158,7 +137,7 @@ describe('per-step retry', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -166,10 +145,9 @@ describe('per-step retry', () => {
 
     // shouldRetry returned false on attempt 1 → no further attempts.
     expect(callCount).toBe(1)
-    const finished = events.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { caught: boolean } } | undefined
-    expect(finished?.output.caught).toBe(true)
+    expect(events.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { caught: true },
+    })
   })
 
   it('exhausting maxAttempts throws into user code with the last error', async () => {
@@ -201,17 +179,16 @@ describe('per-step retry', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
     )
 
     expect(callCount).toBe(3)
-    const finished = events.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { caught: string } } | undefined
-    expect(finished?.output.caught).toBe('fail 3')
+    expect(events.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { caught: 'fail 3' },
+    })
   })
 })
 
@@ -238,7 +215,7 @@ describe('workflow-level defaultStepRetry', () => {
     const store = inMemoryRunStore()
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -277,7 +254,7 @@ describe('workflow-level defaultStepRetry', () => {
     const store = inMemoryRunStore()
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),

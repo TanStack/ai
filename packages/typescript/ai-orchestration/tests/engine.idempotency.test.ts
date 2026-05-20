@@ -17,15 +17,7 @@ import {
   runWorkflow,
   waitForSignal,
 } from '../src'
-import type { StreamChunk } from '@tanstack/ai'
-
-async function collect(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
-  for await (const c of iter) out.push(c)
-  return out
-}
+import { collect } from './test-utils'
 
 describe('start idempotency', () => {
   it('uses a client-provided runId', async () => {
@@ -44,7 +36,7 @@ describe('start idempotency', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runId: 'my-run-1',
         runStore: store,
@@ -78,7 +70,7 @@ describe('start idempotency', () => {
     // First call: actually starts the run.
     const first = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: { msg: 'hi' },
         runId: 'my-run-1',
         runStore: store,
@@ -91,7 +83,7 @@ describe('start idempotency', () => {
     // an attach snapshot, not start a duplicate.
     const second = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: { msg: 'hi' },
         runId: 'my-run-1',
         runStore: store,
@@ -136,7 +128,7 @@ describe('start idempotency', () => {
     const store = inMemoryRunStore()
     await collect(
       runWorkflow({
-        workflow: v1 as any,
+        workflow: v1,
         input: {},
         runId: 'collision',
         runStore: store,
@@ -144,7 +136,7 @@ describe('start idempotency', () => {
     )
     const second = await collect(
       runWorkflow({
-        workflow: v2 as any,
+        workflow: v2,
         input: {},
         runId: 'collision',
         runStore: store,
@@ -175,7 +167,7 @@ describe('signal idempotency record', () => {
     const store = inMemoryRunStore()
     const start = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runId: 'r1',
         runStore: store,
@@ -185,7 +177,7 @@ describe('signal idempotency record', () => {
 
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId: 'r1',
         signalDelivery: {
           signalId: 'sig-abc-123',
@@ -222,7 +214,7 @@ describe('signal idempotency record', () => {
     const store = inMemoryRunStore()
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runId: 'r2',
         runStore: store,
@@ -231,7 +223,7 @@ describe('signal idempotency record', () => {
 
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId: 'r2',
         signalDelivery: {
           signalId: 'first-sig',

@@ -19,28 +19,7 @@ import {
   patched,
   runWorkflow,
 } from '../src'
-import type { StreamChunk } from '@tanstack/ai'
-
-interface RunStartedChunk {
-  type: 'RUN_STARTED'
-  runId: string
-}
-
-async function collect(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
-  for await (const c of iter) out.push(c)
-  return out
-}
-
-function findRunId(events: Array<StreamChunk>): string {
-  const started = events.find((e) => e.type === 'RUN_STARTED') as
-    | RunStartedChunk
-    | undefined
-  if (!started) throw new Error('no RUN_STARTED')
-  return started.runId
-}
+import { collect, findRunId, simulateRestart } from './test-utils'
 
 describe('patched()', () => {
   it('returns true when the workflow declares the patch', async () => {
@@ -60,15 +39,14 @@ describe('patched()', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
     )
-    const finished = events.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { flag: boolean } } | undefined
-    expect(finished?.output.flag).toBe(true)
+    expect(events.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { flag: true },
+    })
   })
 
   it('returns false when the workflow does not declare the patch', async () => {
@@ -88,15 +66,14 @@ describe('patched()', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
     )
-    const finished = events.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { flag: boolean } } | undefined
-    expect(finished?.output.flag).toBe(false)
+    expect(events.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { flag: false },
+    })
   })
 
   it('keeps the old behavior for runs started before the patch was added', async () => {
@@ -138,7 +115,7 @@ describe('patched()', () => {
     // Phase 1: start under v1.
     const phase1 = await collect(
       runWorkflow({
-        workflow: v1 as any,
+        workflow: v1,
         input: {},
         runStore: store,
       }),
@@ -146,25 +123,22 @@ describe('patched()', () => {
     const runId = findRunId(phase1)
 
     // Force replay path (simulate deploy across the pause).
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     // Phase 2: resume under v2. v1 run sees `patched('add-cache')`
     // return false; the old code path runs.
     const phase2 = await collect(
       runWorkflow({
-        workflow: v2 as any,
+        workflow: v2,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
       }),
     )
 
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { usedCache: boolean } } | undefined
-    expect(finished?.output.usedCache).toBe(false)
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { usedCache: false },
+    })
   })
 
   it('refuses resume when patches were REMOVED across the deploy', async () => {
@@ -196,19 +170,17 @@ describe('patched()', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: oldWf as any,
+        workflow: oldWf,
         input: {},
         runStore: store,
       }),
     )
     const runId = findRunId(phase1)
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: newWf as any,
+        workflow: newWf,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
@@ -254,19 +226,17 @@ describe('patched()', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: v1 as any,
+        workflow: v1,
         input: {},
         runStore: store,
       }),
     )
     const runId = findRunId(phase1)
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: v2 as any,
+        workflow: v2,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,

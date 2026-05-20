@@ -20,28 +20,7 @@ import {
   step,
   uuid,
 } from '../src'
-import type { StreamChunk } from '@tanstack/ai'
-
-interface RunStartedChunk {
-  type: 'RUN_STARTED'
-  runId: string
-}
-
-async function collect(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
-  for await (const c of iter) out.push(c)
-  return out
-}
-
-function findRunId(events: Array<StreamChunk>): string {
-  const started = events.find((e) => e.type === 'RUN_STARTED') as
-    | RunStartedChunk
-    | undefined
-  if (!started) throw new Error('no RUN_STARTED')
-  return started.runId
-}
+import { collect, findRunId, simulateRestart } from './test-utils'
 
 describe('step()', () => {
   it('runs fn once and persists the result to the log', async () => {
@@ -65,7 +44,7 @@ describe('step()', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -106,7 +85,7 @@ describe('step()', () => {
     const store = inMemoryRunStore()
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -141,7 +120,7 @@ describe('step()', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -150,13 +129,11 @@ describe('step()', () => {
     expect(callCount).toBe(1)
 
     // Force replay.
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
@@ -165,11 +142,9 @@ describe('step()', () => {
 
     // fn was called once in phase 1; replay must NOT call it again.
     expect(callCount).toBe(1)
-
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { data: string } } | undefined
-    expect(finished?.output.data).toBe('world')
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { data: 'world' },
+    })
   })
 
   it('persists thrown errors and re-throws them on replay', async () => {
@@ -198,7 +173,7 @@ describe('step()', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -208,13 +183,11 @@ describe('step()', () => {
 
     const log = await store.getSteps(runId)
     expect(log[0]?.error?.message).toBe('kaboom')
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
@@ -224,10 +197,9 @@ describe('step()', () => {
     // Replay throws the recorded error back into user code without
     // re-invoking fn. User's try/catch must still observe `caught`.
     expect(callCount).toBe(1)
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { caught: boolean } } | undefined
-    expect(finished?.output.caught).toBe(true)
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { caught: true },
+    })
   })
 })
 
@@ -248,7 +220,7 @@ describe('now()', () => {
 
     const store = inMemoryRunStore()
     const phase1 = await collect(
-      runWorkflow({ workflow: wf as any, input: {}, runStore: store }),
+      runWorkflow({ workflow: wf, input: {}, runStore: store }),
     )
     const runId = findRunId(phase1)
     const log = await store.getSteps(runId)
@@ -258,23 +230,20 @@ describe('now()', () => {
     // Force replay; if `now()` were calling Date.now() afresh, the
     // returned value would change between calls (or even within a
     // single millisecond, the persistence-via-log path would skip).
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
       }),
     )
 
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { ts: number } } | undefined
-    expect(finished?.output.ts).toBe(recordedTs)
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { ts: recordedTs },
+    })
   })
 })
 
@@ -295,7 +264,7 @@ describe('uuid()', () => {
 
     const store = inMemoryRunStore()
     const phase1 = await collect(
-      runWorkflow({ workflow: wf as any, input: {}, runStore: store }),
+      runWorkflow({ workflow: wf, input: {}, runStore: store }),
     )
     const runId = findRunId(phase1)
     const log = await store.getSteps(runId)
@@ -304,22 +273,19 @@ describe('uuid()', () => {
     expect(recordedId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     )
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
       }),
     )
 
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { id: string } } | undefined
-    expect(finished?.output.id).toBe(recordedId)
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { id: recordedId },
+    })
   })
 })

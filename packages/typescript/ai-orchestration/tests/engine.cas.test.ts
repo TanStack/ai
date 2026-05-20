@@ -19,15 +19,7 @@ import {
   runWorkflow,
   waitForSignal,
 } from '../src'
-import type { StreamChunk } from '@tanstack/ai'
-
-async function collect(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
-  for await (const c of iter) out.push(c)
-  return out
-}
+import { collect, simulateRestart } from './test-utils'
 
 describe('CAS — idempotent retry', () => {
   it('returns the existing record on duplicate signal delivery (same signalId)', async () => {
@@ -52,7 +44,7 @@ describe('CAS — idempotent retry', () => {
     const store = inMemoryRunStore()
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runId: 'run-a',
         runStore: store,
@@ -62,7 +54,7 @@ describe('CAS — idempotent retry', () => {
     // First delivery — succeeds, run finishes.
     const first = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId: 'run-a',
         signalDelivery: { signalId: 'same-id', payload: { ok: true } },
         runStore: store,
@@ -90,7 +82,7 @@ describe('CAS — idempotent retry', () => {
     const store = inMemoryRunStore()
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runId: 'r',
         runStore: store,
@@ -100,7 +92,7 @@ describe('CAS — idempotent retry', () => {
     // First delivery of 'first' — appends log[0].
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId: 'r',
         signalDelivery: { signalId: 'sig-1', payload: 'p1' },
         runStore: store,
@@ -111,9 +103,7 @@ describe('CAS — idempotent retry', () => {
     expect(log1[0]?.signalId).toBe('sig-1')
 
     // Drop the live handle to force the replay path on retry.
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     // Retry delivery of 'first' with the SAME signalId. The replay
     // path replays log[0] (which has signalId 'sig-1'), then in the
@@ -128,7 +118,7 @@ describe('CAS — idempotent retry', () => {
     // resume still works.
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId: 'r',
         signalDelivery: { signalId: 'sig-2', payload: 'p2' },
         runStore: store,
@@ -159,7 +149,7 @@ describe('CAS — lost race', () => {
     const store = inMemoryRunStore()
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runId: 'race',
         runStore: store,
@@ -181,9 +171,7 @@ describe('CAS — lost race', () => {
       startedAt: Date.now(),
       finishedAt: Date.now(),
     })
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     // Now a *different* delivery tries to write at the same index.
     // Replay sees the existing entry at 0 and short-circuits the
@@ -196,7 +184,7 @@ describe('CAS — lost race', () => {
     // one was already recorded."
     const loser = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId: 'race',
         signalDelivery: { signalId: 'loser', payload: 'loser-payload' },
         runStore: store,

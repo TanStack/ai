@@ -20,28 +20,7 @@ import {
   inMemoryRunStore,
   runWorkflow,
 } from '../src'
-import type { StreamChunk } from '@tanstack/ai'
-
-interface RunStartedChunk {
-  type: 'RUN_STARTED'
-  runId: string
-}
-
-async function collect(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
-  for await (const c of iter) out.push(c)
-  return out
-}
-
-function findRunId(events: Array<StreamChunk>): string {
-  const started = events.find((e) => e.type === 'RUN_STARTED') as
-    | RunStartedChunk
-    | undefined
-  if (!started) throw new Error('no RUN_STARTED in event stream')
-  return started.runId
-}
+import { collect, findRunId, simulateRestart } from './test-utils'
 
 describe('engine durability — step log', () => {
   it('appends one StepRecord per completed agent invocation', async () => {
@@ -68,7 +47,7 @@ describe('engine durability — step log', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: { msg: 'hi' },
         runStore: store,
       }),
@@ -109,7 +88,7 @@ describe('engine durability — step log', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: { msg: 'hi' },
         runStore: store,
       }),
@@ -160,7 +139,7 @@ describe('engine durability — resume after restart (replay)', () => {
     // Phase 1: run until the approval pause.
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: { msg: 'hello' },
         runStore: store,
       }),
@@ -176,14 +155,12 @@ describe('engine durability — resume after restart (replay)', () => {
     // Simulate a process restart: drop the live generator handle.
     // The persisted RunState + (empty so far) step log are all that
     // survives.
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     // Phase 2: resume with the approval payload.
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
@@ -193,12 +170,9 @@ describe('engine durability — resume after restart (replay)', () => {
     const types2 = phase2.map((e) => e.type)
     expect(types2).toContain('RUN_FINISHED')
 
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as {
-      output: { result: string }
-    }
-    expect(finished.output.result).toBe('HELLO')
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { result: 'HELLO' },
+    })
   })
 
   it('replays mid-run agent results without re-executing the agent', async () => {
@@ -232,7 +206,7 @@ describe('engine durability — resume after restart (replay)', () => {
     // Phase 1: agent runs, then we pause on approval.
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: { msg: 'one' },
         runStore: store,
       }),
@@ -242,15 +216,13 @@ describe('engine durability — resume after restart (replay)', () => {
     expect(await store.getSteps(runId)).toHaveLength(1)
 
     // Drop live handle to force replay.
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     // Phase 2: resume. The agent must NOT run again — its result comes
     // from the log.
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
@@ -258,13 +230,9 @@ describe('engine durability — resume after restart (replay)', () => {
     )
 
     expect(echoCallCount).toBe(1)
-
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as {
-      output: { result: string }
-    }
-    expect(finished.output.result).toBe('ONE')
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { result: 'ONE' },
+    })
   })
 
   it('emits workflow_version_mismatch when the workflow source changed', async () => {
@@ -310,7 +278,7 @@ describe('engine durability — resume after restart (replay)', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: v1 as any,
+        workflow: v1,
         input: { msg: 'hi' },
         runStore: store,
       }),
@@ -318,13 +286,11 @@ describe('engine durability — resume after restart (replay)', () => {
     const runId = findRunId(phase1)
 
     // Force replay path.
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: v2 as any,
+        workflow: v2,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
@@ -370,19 +336,17 @@ describe('engine durability — resume after restart (replay)', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: { msg: 'hi' },
         runStore: store,
       }),
     )
     const runId = findRunId(phase1)
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
@@ -409,7 +373,7 @@ describe('engine durability — resume after restart (replay)', () => {
 
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId: 'run-that-never-was',
         approval: { approvalId: 'a1', approved: true },
         runStore: store,

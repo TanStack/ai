@@ -7,6 +7,7 @@ import {
   inMemoryRunStore,
   runWorkflow,
 } from '../src'
+import { collect, findRunId } from './test-utils'
 
 describe('engine smoke', () => {
   it('runs a single-agent workflow end-to-end', async () => {
@@ -29,26 +30,24 @@ describe('engine smoke', () => {
       },
     })
 
-    const events: Array<unknown> = []
-    for await (const c of runWorkflow({
-      workflow: wf as any,
-      input: { msg: 'hello' },
-      runStore: inMemoryRunStore(),
-    })) {
-      events.push(c)
-    }
+    const events = await collect(
+      runWorkflow({
+        workflow: wf,
+        input: { msg: 'hello' },
+        runStore: inMemoryRunStore(),
+      }),
+    )
 
-    const types = events.map((e) => (e as { type: string }).type)
+    const types = events.map((e) => e.type)
     expect(types).toContain('RUN_STARTED')
     expect(types).toContain('STATE_SNAPSHOT')
     expect(types).toContain('STEP_STARTED')
     expect(types).toContain('STEP_FINISHED')
     expect(types).toContain('RUN_FINISHED')
 
-    const stepFinished = events.find(
-      (e) => (e as { type: string }).type === 'STEP_FINISHED',
-    ) as { content: unknown }
-    expect(stepFinished.content).toEqual({ echoed: 'HELLO' })
+    expect(events.find((e) => e.type === 'STEP_FINISHED')).toMatchObject({
+      content: { echoed: 'HELLO' },
+    })
   })
 
   it('emits STATE_DELTA on state mutations between yields', async () => {
@@ -71,28 +70,24 @@ describe('engine smoke', () => {
       },
     })
 
-    const events: Array<unknown> = []
-    for await (const c of runWorkflow({
-      workflow: wf as any,
-      input: {},
-      runStore: inMemoryRunStore(),
-    })) {
-      events.push(c)
-    }
+    const events = await collect(
+      runWorkflow({
+        workflow: wf,
+        input: {},
+        runStore: inMemoryRunStore(),
+      }),
+    )
 
-    const delta = events.find(
-      (e) => (e as { type: string }).type === 'STATE_DELTA',
-    ) as { delta: Array<{ op: string; path: string; value: unknown }> }
-    expect(delta).toBeDefined()
-    expect(delta.delta).toEqual(
-      expect.arrayContaining([
+    const delta = events.find((e) => e.type === 'STATE_DELTA')
+    expect(delta).toMatchObject({
+      delta: expect.arrayContaining([
         expect.objectContaining({
           op: 'replace',
           path: '/counter',
           value: 42,
         }),
       ]),
-    )
+    })
   })
 
   it('pauses on approval — stream ends after approval-requested, RUN_FINISHED not emitted', async () => {
@@ -109,38 +104,34 @@ describe('engine smoke', () => {
     })
 
     const store = inMemoryRunStore()
-    const events: Array<unknown> = []
-    for await (const c of runWorkflow({
-      workflow: wf as any,
-      input: {},
-      runStore: store,
-    })) {
-      events.push(c)
-    }
+    const events = await collect(
+      runWorkflow({
+        workflow: wf,
+        input: {},
+        runStore: store,
+      }),
+    )
 
-    const types = events.map((e) => (e as { type: string }).type)
+    const types = events.map((e) => e.type)
     expect(types).toContain('STEP_STARTED')
     expect(
       events.some(
         (e) =>
-          (e as { type: string; name?: string }).type === 'CUSTOM' &&
+          e.type === 'CUSTOM' &&
+          // CUSTOM-chunk variant carries `name` at runtime; the static union
+          // doesn't surface it, so we narrow per-occurrence.
           (e as { name?: string }).name === 'approval-requested',
       ),
     ).toBe(true)
     // Stream ended at the approval pause.
     expect(types).not.toContain('RUN_FINISHED')
 
-    // The live generator should still be retrievable from the store for resume.
-    // We don't inspect the live map directly (private); we verify the store
-    // can serve a get() of the run state with status 'paused'.
-    // Note: runId isn't returned to the test directly. Find from RUN_STARTED.
-    const runStarted = events.find(
-      (e) => (e as { type: string }).type === 'RUN_STARTED',
-    ) as { runId: string }
-    expect(runStarted.runId).toBeTruthy()
-    const runState = await store.getRunState(runStarted.runId)
-    expect(runState).toBeDefined()
-    expect(runState!.status).toBe('paused')
-    expect(runState!.pendingApproval?.title).toBe('go?')
+    // Verify the persisted RunState reflects the paused approval.
+    const runId = findRunId(events)
+    const runState = await store.getRunState(runId)
+    expect(runState).toMatchObject({
+      status: 'paused',
+      pendingApproval: { title: 'go?' },
+    })
   })
 })

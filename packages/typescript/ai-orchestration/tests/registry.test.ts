@@ -20,28 +20,7 @@ import {
   runWorkflow,
   selectWorkflowVersion,
 } from '../src'
-import type { StreamChunk } from '@tanstack/ai'
-
-interface RunStartedChunk {
-  type: 'RUN_STARTED'
-  runId: string
-}
-
-async function collect(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
-  for await (const c of iter) out.push(c)
-  return out
-}
-
-function findRunId(events: Array<StreamChunk>): string {
-  const started = events.find((e) => e.type === 'RUN_STARTED') as
-    | RunStartedChunk
-    | undefined
-  if (!started) throw new Error('no RUN_STARTED')
-  return started.runId
-}
+import { collect, findRunId, simulateRestart } from './test-utils'
 
 describe('selectWorkflowVersion', () => {
   it('returns the version matching the run`s persisted workflowVersion', async () => {
@@ -73,7 +52,7 @@ describe('selectWorkflowVersion', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: v1 as any,
+        workflow: v1,
         input: {},
         runStore: store,
       }),
@@ -101,7 +80,7 @@ describe('selectWorkflowVersion', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: v1 as any,
+        workflow: v1,
         input: {},
         runStore: store,
       }),
@@ -142,7 +121,7 @@ describe('selectWorkflowVersion', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: legacy as any,
+        workflow: legacy,
         input: {},
         runStore: store,
       }),
@@ -186,7 +165,7 @@ describe('createWorkflowRegistry', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: v1 as any,
+        workflow: v1,
         input: {},
         runStore: store,
       }),
@@ -209,7 +188,7 @@ describe('createWorkflowRegistry', () => {
     // registry — should fall back to default.
     const events = await collect(
       runWorkflow({
-        workflow: v1 as any,
+        workflow: v1,
         input: {},
         runStore: store,
       }),
@@ -262,7 +241,7 @@ describe('createWorkflowRegistry', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: v1 as any,
+        workflow: v1,
         input: {},
         runStore: store,
       }),
@@ -270,25 +249,23 @@ describe('createWorkflowRegistry', () => {
     const runId = findRunId(phase1)
 
     // Simulate the deploy that drops the live handle.
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     // Resume via the registry — should route to v1.
     const routed = await reg.forRun(runId, store)
     expect(routed?.version).toBe('v1')
+    if (!routed) throw new Error('registry returned no workflow for runId')
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: routed as any,
+        workflow: routed,
         runId,
         approval: { approvalId: 'a1', approved: true },
         runStore: store,
       }),
     )
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { version: string } } | undefined
-    expect(finished?.output.version).toBe('v1-via-routing')
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { version: 'v1-via-routing' },
+    })
   })
 })

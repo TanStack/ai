@@ -48,7 +48,7 @@ describe('publisher hook', () => {
     const store = inMemoryRunStore()
     await drain(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: { msg: 'hi' },
         runStore: store,
         publish: (runId, event) => {
@@ -86,7 +86,7 @@ describe('publisher hook', () => {
     const store = inMemoryRunStore()
     const events: Array<StreamChunk> = []
     for await (const e of runWorkflow({
-      workflow: wf as any,
+      workflow: wf,
       input: {},
       runStore: store,
       publish: () => {
@@ -118,7 +118,7 @@ describe('publisher hook', () => {
     const customEvents: Array<{ name: string; value: unknown }> = []
     await drain(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
         publish: (_runId, event) => {

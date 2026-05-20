@@ -18,15 +18,7 @@ import {
   step,
   StepTimeoutError,
 } from '../src'
-import type { StreamChunk } from '@tanstack/ai'
-
-async function collect(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
-  for await (const c of iter) out.push(c)
-  return out
-}
+import { collect } from './test-utils'
 
 describe('step timeout', () => {
   it('throws StepTimeoutError when fn exceeds the timeout', async () => {
@@ -57,15 +49,14 @@ describe('step timeout', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
     )
-    const finished = events.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { caughtName: string } } | undefined
-    expect(finished?.output.caughtName).toBe('StepTimeoutError')
+    expect(events.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { caughtName: 'StepTimeoutError' },
+    })
   })
 
   it('forwards an AbortSignal to fn so well-behaved code can bail early', async () => {
@@ -102,15 +93,14 @@ describe('step timeout', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
     )
-    const finished = events.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { aborted: boolean } } | undefined
-    expect(finished?.output.aborted).toBe(true)
+    expect(events.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { aborted: true },
+    })
     expect(observedAborted).toBe(true)
   })
 
@@ -147,16 +137,14 @@ describe('step timeout', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
     )
-    const finished = events.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { attempts: number; caught: string } } | undefined
-    expect(finished?.output.attempts).toBe(3)
-    expect(finished?.output.caught).toBe('StepTimeoutError')
+    expect(events.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { attempts: 3, caught: 'StepTimeoutError' },
+    })
   })
 
   it('does not throw when fn finishes within the timeout', async () => {
@@ -178,15 +166,14 @@ describe('step timeout', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
     )
-    const finished = events.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { ok: boolean } } | undefined
-    expect(finished?.output.ok).toBe(true)
+    expect(events.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { ok: true },
+    })
   })
 
   it('verifies StepTimeoutError instanceof check works for retry predicates', async () => {
@@ -237,7 +224,7 @@ describe('step timeout', () => {
       const startedAt = Date.now()
       const events = await collect(
         runWorkflow({
-          workflow: wf as any,
+          workflow: wf,
           input: {},
           runStore: store,
         }),
@@ -247,13 +234,10 @@ describe('step timeout', () => {
       // overhead. Five attempts would be 5*20 + 4*1 = 104ms+. We
       // allow generous slack here for CI noise.
       expect(elapsed).toBeLessThan(200)
-      const finished = events.find(
-        (e) => e.type === 'RUN_FINISHED',
-      ) as unknown as { output: { caughtImmediately: boolean } } | undefined
       // caughtImmediately can only be true if we caught a
       // StepTimeoutError before retrying — exactly the predicate's
       // contract.
-      expect(finished).toBeDefined()
+      expect(events.find((e) => e.type === 'RUN_FINISHED')).toBeDefined()
       void timeoutFired
     } finally {
       clearInterval(monkeyPatch)

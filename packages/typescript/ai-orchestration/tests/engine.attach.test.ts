@@ -17,28 +17,7 @@ import {
   runWorkflow,
   waitForSignal,
 } from '../src'
-import type { StreamChunk } from '@tanstack/ai'
-
-interface RunStartedChunk {
-  type: 'RUN_STARTED'
-  runId: string
-}
-
-async function collect(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
-  for await (const c of iter) out.push(c)
-  return out
-}
-
-function findRunId(events: Array<StreamChunk>): string {
-  const started = events.find((e) => e.type === 'RUN_STARTED') as
-    | RunStartedChunk
-    | undefined
-  if (!started) throw new Error('no RUN_STARTED')
-  return started.runId
-}
+import { collect, findRunId } from './test-utils'
 
 describe('attach — paused run', () => {
   it('emits state + steps snapshot and the pause descriptor, then ends', async () => {
@@ -67,7 +46,7 @@ describe('attach — paused run', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: { msg: 'hi' },
         runStore: store,
       }),
@@ -77,7 +56,7 @@ describe('attach — paused run', () => {
     // Attach as if we were a fresh subscriber.
     const attached = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         attach: true,
         runStore: store,
@@ -137,7 +116,7 @@ describe('attach — finished run', () => {
     // Run to completion: start → pause → resume.
     const start = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -145,7 +124,7 @@ describe('attach — finished run', () => {
     const runId = findRunId(start)
     await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         signalDelivery: { signalId: 'g1', payload: undefined },
         runStore: store,
@@ -159,7 +138,7 @@ describe('attach — finished run', () => {
     // deleted) — the engine's hot store is for live operations only.
     const attached = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         attach: true,
         runStore: store,
@@ -189,7 +168,7 @@ describe('attach — unknown run', () => {
     const store = inMemoryRunStore()
     const events = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId: 'no-such-run',
         attach: true,
         runStore: store,

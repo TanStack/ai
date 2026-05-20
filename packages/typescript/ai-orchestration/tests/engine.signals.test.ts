@@ -21,28 +21,7 @@ import {
   TIMER_SIGNAL_NAME,
   waitForSignal,
 } from '../src'
-import type { StreamChunk } from '@tanstack/ai'
-
-interface RunStartedChunk {
-  type: 'RUN_STARTED'
-  runId: string
-}
-
-async function collect(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
-  for await (const c of iter) out.push(c)
-  return out
-}
-
-function findRunId(events: Array<StreamChunk>): string {
-  const started = events.find((e) => e.type === 'RUN_STARTED') as
-    | RunStartedChunk
-    | undefined
-  if (!started) throw new Error('no RUN_STARTED')
-  return started.runId
-}
+import { collect, findRunId, simulateRestart } from './test-utils'
 
 describe('waitForSignal()', () => {
   it('pauses with waitingFor set, emits run.paused, and closes the SSE', async () => {
@@ -64,7 +43,7 @@ describe('waitForSignal()', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -110,7 +89,7 @@ describe('waitForSignal()', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -119,7 +98,7 @@ describe('waitForSignal()', () => {
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         signalDelivery: {
           signalId: 'sig-1',
@@ -129,12 +108,9 @@ describe('waitForSignal()', () => {
       }),
     )
 
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as
-      | { output: { payload: { ok: boolean; n: number } } }
-      | undefined
-    expect(finished?.output.payload).toEqual({ ok: true, n: 42 })
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { payload: { ok: true, n: 42 } },
+    })
   })
 
   it('delivers the same payload via the replay path after a process restart', async () => {
@@ -153,7 +129,7 @@ describe('waitForSignal()', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -161,13 +137,11 @@ describe('waitForSignal()', () => {
     const runId = findRunId(phase1)
 
     // Force replay path.
-    ;(store as unknown as { getLive: (id: string) => undefined }).getLive = (
-      _id,
-    ) => undefined
+    simulateRestart(store)
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         signalDelivery: {
           signalId: 'sig-1',
@@ -177,10 +151,9 @@ describe('waitForSignal()', () => {
       }),
     )
 
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { payload: { ok: boolean } } } | undefined
-    expect(finished?.output.payload).toEqual({ ok: true })
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { payload: { ok: true } },
+    })
   })
 })
 
@@ -203,7 +176,7 @@ describe('sleep() / sleepUntil()', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -240,7 +213,7 @@ describe('sleep() / sleepUntil()', () => {
     const store = inMemoryRunStore()
     const phase1 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         input: {},
         runStore: store,
       }),
@@ -249,7 +222,7 @@ describe('sleep() / sleepUntil()', () => {
 
     const phase2 = await collect(
       runWorkflow({
-        workflow: wf as any,
+        workflow: wf,
         runId,
         signalDelivery: {
           signalId: 'wake-1',
@@ -259,9 +232,8 @@ describe('sleep() / sleepUntil()', () => {
       }),
     )
 
-    const finished = phase2.find(
-      (e) => e.type === 'RUN_FINISHED',
-    ) as unknown as { output: { awoke: boolean } } | undefined
-    expect(finished?.output.awoke).toBe(true)
+    expect(phase2.find((e) => e.type === 'RUN_FINISHED')).toMatchObject({
+      output: { awoke: true },
+    })
   })
 })
