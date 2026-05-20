@@ -184,7 +184,10 @@ describe('step timeout', () => {
     const wf = defineWorkflow({
       name: 'retry-predicate-w-timeout',
       input: z.object({}).default({}),
-      output: z.object({ caughtImmediately: z.boolean(), attempts: z.number() }),
+      output: z.object({
+        caughtImmediately: z.boolean(),
+        attempts: z.number(),
+      }),
       state: z.object({}).default({}),
       agents: {},
       run: async function* () {
