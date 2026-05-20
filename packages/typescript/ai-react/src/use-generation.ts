@@ -114,7 +114,7 @@ export function useGeneration<
     // implicit `undefined` doesn't pollute the function return type.
     const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
       id: clientId,
-      ...(opts.body !== undefined && { body: opts.body }),
+      body: opts.body,
       onResult: (r: TResult) => optionsRef.current.onResult?.(r),
       onError: (e: Error) => {
         optionsRef.current.onError?.(e)

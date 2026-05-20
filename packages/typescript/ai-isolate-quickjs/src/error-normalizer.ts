@@ -29,7 +29,7 @@ export function normalizeError(error: unknown): NormalizedError {
       return {
         name: MEMORY_LIMIT_ERROR,
         message: 'Code execution exceeded memory limit',
-        ...(error.stack !== undefined && { stack: error.stack }),
+        stack: error.stack,
       }
     }
 
@@ -37,7 +37,7 @@ export function normalizeError(error: unknown): NormalizedError {
       return {
         name: STACK_OVERFLOW_ERROR,
         message: 'Code execution exceeded stack size limit',
-        ...(error.stack !== undefined && { stack: error.stack }),
+        stack: error.stack,
       }
     }
 
@@ -45,14 +45,14 @@ export function normalizeError(error: unknown): NormalizedError {
       return {
         name: 'WasmRuntimeError',
         message: msg || 'WebAssembly runtime error',
-        ...(error.stack !== undefined && { stack: error.stack }),
+        stack: error.stack,
       }
     }
 
     return {
       name: error.name,
       message: error.message,
-      ...(error.stack !== undefined && { stack: error.stack }),
+      stack: error.stack,
     }
   }
 
@@ -66,8 +66,8 @@ export function normalizeError(error: unknown): NormalizedError {
   if (typeof error === 'object' && error !== null) {
     const errObj = error as Record<string, unknown>
     return {
-      name: String(errObj['name'] || 'Error'),
-      message: String(errObj['message'] || 'Unknown error'),
+      name: String(errObj.name || 'Error'),
+      message: String(errObj.message || 'Unknown error'),
       ...(errObj['stack'] !== undefined && {
         stack: String(errObj['stack']),
       }),

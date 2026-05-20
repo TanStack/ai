@@ -182,7 +182,7 @@ async function createElevenLabsConnection(
 
   // Only add clientTools if we have any
   if (Object.keys(elevenLabsClientTools).length > 0) {
-    sessionOptions['clientTools'] = elevenLabsClientTools
+    sessionOptions.clientTools = elevenLabsClientTools
   }
 
   // Start the conversation session
@@ -257,10 +257,12 @@ async function createElevenLabsConnection(
       event: TEvent,
       handler: RealtimeEventHandler<TEvent>,
     ): () => void {
-      if (!eventHandlers.has(event)) {
-        eventHandlers.set(event, new Set())
+      let handlers = eventHandlers.get(event)
+      if (!handlers) {
+        handlers = new Set()
+        eventHandlers.set(event, handlers)
       }
-      eventHandlers.get(event)!.add(handler)
+      handlers.add(handler)
 
       return () => {
         eventHandlers.get(event)?.delete(handler)

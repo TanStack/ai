@@ -171,7 +171,7 @@ export class OpenAIVideoAdapter<
       return {
         jobId,
         status: this.mapStatus(response.status),
-        ...(response.progress !== undefined && { progress: response.progress }),
+        progress: response.progress,
         ...(response.error?.message !== undefined && {
           error: response.error.message,
         }),

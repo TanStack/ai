@@ -65,15 +65,15 @@ export class GenerationClient<
   TResult,
   TOutput = TResult,
 > {
-  private connection: ConnectConnectionAdapter | undefined
-  private fetcher: GenerationFetcher<TInput, TResult> | undefined
+  private readonly connection: ConnectConnectionAdapter | undefined
+  private readonly fetcher: GenerationFetcher<TInput, TResult> | undefined
   private body: Record<string, any>
   private result: TOutput | null = null
   private isLoading = false
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
   private abortController: AbortController | null = null
-  private callbacksRef: GenerationCallbacks<TResult, TOutput>
+  private readonly callbacksRef: GenerationCallbacks<TResult, TOutput>
 
   constructor(
     options: GenerationClientOptions<TInput, TResult, TOutput> &

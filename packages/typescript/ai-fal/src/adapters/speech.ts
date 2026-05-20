@@ -101,8 +101,8 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
       const audioObj = data['audio'] as { url: string; content_type?: string }
       audioUrl = audioObj.url
       contentType = audioObj.content_type
-    } else if (typeof data['audio_url'] === 'string') {
-      audioUrl = data['audio_url']
+    } else if (typeof data.audio_url === 'string') {
+      audioUrl = data.audio_url
     }
 
     if (!audioUrl) {

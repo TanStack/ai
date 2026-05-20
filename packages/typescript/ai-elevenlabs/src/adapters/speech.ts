@@ -82,7 +82,7 @@ export class ElevenLabsSpeechAdapter<
 > extends BaseTTSAdapter<TModel, ElevenLabsSpeechProviderOptions> {
   readonly name = 'elevenlabs' as const
 
-  private client: ElevenLabsClient
+  private readonly client: ElevenLabsClient
 
   constructor(model: TModel, config?: ElevenLabsClientConfig) {
     super(model, config ?? {})

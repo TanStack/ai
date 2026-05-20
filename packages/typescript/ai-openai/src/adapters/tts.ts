@@ -66,7 +66,7 @@ export class OpenAITTSAdapter<
       model,
       input: text,
       voice: (voice || 'alloy') as OpenAI_SDK.Audio.SpeechCreateParams['voice'],
-      ...(format !== undefined && { response_format: format }),
+      response_format: format,
       ...(speed !== undefined && { speed }),
       ...(modelOptions ?? {}),
     }

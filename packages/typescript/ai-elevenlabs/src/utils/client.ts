@@ -94,8 +94,8 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   }
   const view = new Uint8Array(buffer)
   let binary = ''
-  for (let i = 0; i < view.byteLength; i += 1) {
-    binary += String.fromCharCode(view[i]!)
+  for (const byte of view) {
+    binary += String.fromCharCode(byte)
   }
   return btoa(binary)
 }

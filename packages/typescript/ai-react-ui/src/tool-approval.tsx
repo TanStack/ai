@@ -32,7 +32,7 @@ export interface ToolApprovalRenderProps {
   /** Whether user has responded */
   hasResponded: boolean
   /** User's decision (if responded) */
-  approved?: boolean | undefined
+  approved?: boolean
 }
 
 /**

@@ -8,7 +8,7 @@ function schemaToType(schema: Record<string, unknown>): string {
     return 'unknown'
   }
 
-  const schemaType = schema['type']
+  const schemaType = schema.type
 
   // Handle basic types
   if (schemaType === 'string') return 'string'
@@ -18,19 +18,19 @@ function schemaToType(schema: Record<string, unknown>): string {
 
   // Handle arrays
   if (schemaType === 'array') {
-    const items = schema['items'] as Record<string, unknown> | undefined
+    const items = schema.items as Record<string, unknown> | undefined
     const itemType = items ? schemaToType(items) : 'unknown'
     return `Array<${itemType}>`
   }
 
   // Handle objects with properties
-  if (schemaType === 'object' && schema['properties']) {
-    const properties = schema['properties'] as Record<
+  if (schemaType === 'object' && schema.properties) {
+    const properties = schema.properties as Record<
       string,
       Record<string, unknown>
     >
     const required = new Set(
-      (schema['required'] as Array<string> | undefined) ?? [],
+      (schema.required as Array<string> | undefined) ?? [],
     )
 
     const props = Object.entries(properties)
@@ -49,14 +49,14 @@ function schemaToType(schema: Record<string, unknown>): string {
   }
 
   // Handle enums
-  if (schema['enum']) {
-    const enumValues = schema['enum'] as Array<unknown>
+  if (schema.enum) {
+    const enumValues = schema.enum as Array<unknown>
     return enumValues.map((v) => JSON.stringify(v)).join(' | ')
   }
 
   // Handle union types (anyOf, oneOf)
-  if (schema['anyOf'] || schema['oneOf']) {
-    const variants = (schema['anyOf'] || schema['oneOf']) as Array<
+  if (schema.anyOf || schema.oneOf) {
+    const variants = (schema.anyOf || schema.oneOf) as Array<
       Record<string, unknown>
     >
     return variants.map((v) => schemaToType(v)).join(' | ')
@@ -114,9 +114,9 @@ export function generateSkillTypes(skills: Array<Skill>): string {
     // Generate input type
     const inputType = schemaToType(skill.inputSchema)
     if (
-      skill.inputSchema['type'] === 'object' &&
-      skill.inputSchema['properties'] &&
-      Object.keys(skill.inputSchema['properties'] as object).length > 0
+      skill.inputSchema.type === 'object' &&
+      skill.inputSchema.properties &&
+      Object.keys(skill.inputSchema.properties as object).length > 0
     ) {
       declarations.push(`interface ${inputTypeName} ${inputType}`)
     }
@@ -124,25 +124,25 @@ export function generateSkillTypes(skills: Array<Skill>): string {
     // Generate output type
     const outputType = schemaToType(skill.outputSchema)
     if (
-      skill.outputSchema['type'] === 'object' &&
-      skill.outputSchema['properties'] &&
-      Object.keys(skill.outputSchema['properties'] as object).length > 0
+      skill.outputSchema.type === 'object' &&
+      skill.outputSchema.properties &&
+      Object.keys(skill.outputSchema.properties as object).length > 0
     ) {
       declarations.push(`interface ${outputTypeName} ${outputType}`)
     }
 
     // Determine type references
     const inputRef =
-      skill.inputSchema['type'] === 'object' &&
-      skill.inputSchema['properties'] &&
-      Object.keys(skill.inputSchema['properties'] as object).length > 0
+      skill.inputSchema.type === 'object' &&
+      skill.inputSchema.properties &&
+      Object.keys(skill.inputSchema.properties as object).length > 0
         ? inputTypeName
         : inputType
 
     const outputRef =
-      skill.outputSchema['type'] === 'object' &&
-      skill.outputSchema['properties'] &&
-      Object.keys(skill.outputSchema['properties'] as object).length > 0
+      skill.outputSchema.type === 'object' &&
+      skill.outputSchema.properties &&
+      Object.keys(skill.outputSchema.properties as object).length > 0
         ? outputTypeName
         : outputType
 

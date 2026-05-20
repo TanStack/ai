@@ -218,11 +218,11 @@ interface EvalRow {
   modelId: string
   modelCategory: ModelCategory
   durationMs: number
-  ttftMs?: number | undefined
+  ttftMs?: number
   promptTokens: number
   completionTokens: number
   totalTokens: number
-  tokenEfficiency?: number | undefined
+  tokenEfficiency?: number
   speedTier: number
   tokenEfficiencyTier: number
   stabilityTier: number
@@ -234,10 +234,10 @@ interface EvalRow {
   compilationFailures: number
   runtimeFailures: number
   redundantSchemaChecks: number
-  stars?: 1 | 2 | 3 | undefined
-  weightedScore?: number | undefined
-  error?: string | undefined
-  judge?: JudgeResult | undefined
+  stars?: 1 | 2 | 3
+  weightedScore?: number
+  error?: string
+  judge?: JudgeResult
 }
 
 function parseArgs(argv: Array<string>): {
@@ -309,12 +309,12 @@ interface RunLogPayload {
   entry: { name: string; model: string }
   query: string
   durationMs: number
-  ttftMs?: number | undefined
+  ttftMs?: number
   modelCategory: ModelCategory
   promptTokens: number
   completionTokens: number
   totalTokens: number
-  tokenEfficiency?: number | undefined
+  tokenEfficiency?: number
   speedTier: number
   tokenEfficiencyTier: number
   stabilityTier: number
@@ -326,13 +326,13 @@ interface RunLogPayload {
   compilationFailures: number
   runtimeFailures: number
   redundantSchemaChecks: number
-  stars?: 1 | 2 | 3 | undefined
-  weightedScore?: number | undefined
+  stars?: 1 | 2 | 3
+  weightedScore?: number
   candidateReportChars: number
   candidateReportEmpty: boolean
   goldReportChars: number
-  error?: string | undefined
-  judge?: JudgeResult | undefined
+  error?: string
+  judge?: JudgeResult
   noJudge: boolean
   goldReport: string
   candidateReport: string
@@ -722,7 +722,7 @@ async function main() {
     `[models-eval] Run logs → ${relative(process.cwd(), LOG_DIR) || LOG_DIR} (gitignored)`,
   )
 
-  if (!effectiveNoJudge && !process.env['ANTHROPIC_API_KEY']) {
+  if (!effectiveNoJudge && !process.env.ANTHROPIC_API_KEY) {
     console.warn(
       '[models-eval] ANTHROPIC_API_KEY is not set; judging will fail. Use --no-judge to skip, or set the key.',
     )

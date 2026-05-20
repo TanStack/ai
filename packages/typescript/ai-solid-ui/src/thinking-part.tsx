@@ -6,7 +6,7 @@ export interface ThinkingPartProps {
   /** Base class applied to thinking parts */
   class?: string
   /** Whether thinking is complete (has text content after) */
-  isComplete?: boolean | undefined
+  isComplete?: boolean
 }
 
 /**

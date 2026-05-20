@@ -696,9 +696,10 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           message !== undefined ? { message } : ({} as const)
         const exception = info.error as Exception
 
-        if (state.currentIterationSpan) {
-          state.currentIterationSpan.recordException(exception)
-          state.currentIterationSpan.setStatus({
+        const iterationSpan = state.currentIterationSpan
+        if (iterationSpan) {
+          iterationSpan.recordException(exception)
+          iterationSpan.setStatus({
             code: SpanStatusCode.ERROR,
             ...statusMessage,
           })
@@ -709,10 +710,10 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
                 ctx,
                 iteration: state.iterationCount - 1,
               } as OtelSpanInfo<'iteration'>,
-              state.currentIterationSpan!,
+              iterationSpan,
             ),
           )
-          state.currentIterationSpan.end()
+          iterationSpan.end()
           state.currentIterationSpan = null
         }
 
@@ -772,8 +773,9 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
           span.setStatus({ code: SpanStatusCode.ERROR, message: 'cancelled' })
         }
 
-        if (state.currentIterationSpan) {
-          closeCancelled(state.currentIterationSpan)
+        const iterationSpan = state.currentIterationSpan
+        if (iterationSpan) {
+          closeCancelled(iterationSpan)
           safeCall('otel.onSpanEnd', () =>
             onSpanEnd?.(
               {
@@ -781,10 +783,10 @@ export function otelMiddleware(options: OtelMiddlewareOptions): ChatMiddleware {
                 ctx,
                 iteration: state.iterationCount - 1,
               } as OtelSpanInfo<'iteration'>,
-              state.currentIterationSpan!,
+              iterationSpan,
             ),
           )
-          state.currentIterationSpan.end()
+          iterationSpan.end()
           state.currentIterationSpan = null
         }
         for (const [id, entry] of state.toolSpans) {

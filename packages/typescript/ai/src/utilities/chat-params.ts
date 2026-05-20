@@ -39,7 +39,7 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   messages: Array<UIMessage | ModelMessage>
   threadId: string
   runId: string
-  parentRunId?: string | undefined
+  parentRunId?: string
   tools: Array<{ name: string; description: string; parameters: JSONSchema }>
   forwardedProps: Record<string, unknown>
   state: unknown
@@ -70,9 +70,9 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
       raw &&
       typeof raw === 'object' &&
       'parts' in raw &&
-      isValidParts(raw['parts'])
+      isValidParts(raw.parts)
     ) {
-      return { ...m, parts: raw['parts'] } as UIMessage | ModelMessage
+      return { ...m, parts: raw.parts } as UIMessage | ModelMessage
     }
     return m as ModelMessage
   })

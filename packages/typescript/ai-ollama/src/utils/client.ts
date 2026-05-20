@@ -2,7 +2,7 @@ import { Ollama } from 'ollama'
 import { generateId as _generateId } from '@tanstack/ai-utils'
 
 export interface OllamaClientConfig {
-  host?: string | undefined
+  host?: string
   headers?: Record<string, string> | undefined
 }
 
@@ -12,7 +12,7 @@ export interface OllamaClientConfig {
 export function createOllamaClient(config: OllamaClientConfig = {}): Ollama {
   return new Ollama({
     host: config.host || 'http://localhost:11434',
-    ...(config.headers !== undefined && { headers: config.headers }),
+    headers: config.headers,
   })
 }
 
@@ -23,13 +23,13 @@ export function createOllamaClient(config: OllamaClientConfig = {}): Ollama {
 export function getOllamaHostFromEnv(): string {
   const env =
     typeof globalThis !== 'undefined' &&
-    (globalThis as Record<string, unknown>)['window']
+    (globalThis as Record<string, unknown>).window
       ? ((
-          (globalThis as Record<string, unknown>)['window'] as Record<
+          (globalThis as Record<string, unknown>).window as Record<
             string,
             unknown
           >
-        )['env'] as Record<string, string> | undefined)
+        ).env as Record<string, string> | undefined)
       : typeof process !== 'undefined'
         ? process.env
         : undefined

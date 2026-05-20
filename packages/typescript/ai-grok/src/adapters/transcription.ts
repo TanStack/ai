@@ -140,7 +140,7 @@ export class GrokTranscriptionAdapter<
         model,
         text: data.text,
         ...(resolvedLanguage !== undefined && { language: resolvedLanguage }),
-        ...(data.duration !== undefined && { duration: data.duration }),
+        duration: data.duration,
         ...(words !== undefined && { words }),
       }
     } catch (error) {

@@ -99,7 +99,7 @@ export async function codeModeWithSkills({
             const strippedCode = await stripTypeScript(wrappedCode)
             const context = await config.driver.createContext({
               bindings: createEventAwareBindings(baseBindings, () => {}),
-              ...(config.timeout !== undefined && { timeout: config.timeout }),
+              timeout: config.timeout,
               ...(config.memoryLimit !== undefined && {
                 memoryLimit: config.memoryLimit,
               }),

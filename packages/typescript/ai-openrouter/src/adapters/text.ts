@@ -169,10 +169,10 @@ export class OpenRouterTextAdapter<
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        code: errorPayload.code,
         error: {
           message: errorPayload.message,
-          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+          code: errorPayload.code,
         },
       }
 
@@ -837,16 +837,16 @@ export class OpenRouterTextAdapter<
             const index = toolCallDelta.index
 
             // Initialize or update the tool call in progress
-            if (!toolCallsInProgress.has(index)) {
-              toolCallsInProgress.set(index, {
+            let toolCall = toolCallsInProgress.get(index)
+            if (!toolCall) {
+              toolCall = {
                 id: toolCallDelta.id || '',
                 name: toolCallDelta.function?.name || '',
                 arguments: '',
                 started: false,
-              })
+              }
+              toolCallsInProgress.set(index, toolCall)
             }
-
-            const toolCall = toolCallsInProgress.get(index)!
 
             // Update with any new data from the delta
             if (toolCallDelta.id) {

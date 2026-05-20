@@ -76,7 +76,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // (output_item.added lacked a name). output_item.done picks these
         // up to emit the missing END. Allow explicit `undefined` so the
         // emission paths can re-clear the slot after handing it off.
-        pendingArguments?: string | undefined
+        pendingArguments?: string
       }
     >()
 
@@ -142,10 +142,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        code: errorPayload.code,
         error: {
           message: errorPayload.message,
-          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+          code: errorPayload.code,
         },
       }
 
@@ -446,11 +446,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           yield* openReasoning()
           // openReasoning() guarantees reasoningMessageId is set on first call;
           // TS can't see through the generator side-effect.
-          const messageId = reasoningMessageId!
+          if (!reasoningMessageId) continue
           accumulatedReasoning += reasoningDelta
           yield {
             type: EventType.REASONING_MESSAGE_CONTENT,
-            messageId,
+            messageId: reasoningMessageId,
             delta: reasoningDelta,
             model,
             timestamp,
@@ -1167,25 +1167,25 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
           if (item.type === 'function_call' && item.id) {
-            const existing = toolCallMetadata.get(item.id)
             // Track the item as soon as we see it so subsequent arg deltas
             // aren't logged as orphans, but only emit TOOL_CALL_START when
             // both id AND name are populated. Emitting START with an empty
             // name would propagate into TOOL_CALL_END (which reads the same
             // metadata) and route the tool call to whatever name happens to
             // match `''` downstream — a silent misroute.
-            if (!existing) {
-              toolCallMetadata.set(item.id, {
+            let metadata = toolCallMetadata.get(item.id)
+            if (!metadata) {
+              metadata = {
                 index: chunk.output_index,
                 name: item.name || '',
                 started: false,
-              })
-            } else if (!existing.name && item.name) {
+              }
+              toolCallMetadata.set(item.id, metadata)
+            } else if (!metadata.name && item.name) {
               // A later output_item.added for the same id finally carries
               // the name. Update so the gated emission below can fire.
-              existing.name = item.name
+              metadata.name = item.name
             }
-            const metadata = toolCallMetadata.get(item.id)!
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,

@@ -283,8 +283,11 @@ function createBufferedStrategy(
         content: filtered.slice(0, safeFilteredEnd),
       } as StreamChunk
 
+      // `pending` was empty before this push iff `emitChunk` is now the only
+      // entry — return it directly without re-indexing through `pending[0]`.
+      const wasEmpty = pending.length === 0
       pending.push(emitChunk)
-      return pending.length === 1 ? pending[0]! : pending
+      return wasEmpty ? emitChunk : pending
     },
   }
 }

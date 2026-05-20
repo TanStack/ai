@@ -39,12 +39,13 @@ const TOKEN_REFRESH_BUFFER_MS = 60_000
  * ```
  */
 export class RealtimeClient {
-  private options: RealtimeClientOptions
+  private readonly options: RealtimeClientOptions
   private connection: RealtimeConnection | null = null
   private token: RealtimeToken | null = null
   private tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null
-  private clientTools: Map<string, AnyClientTool>
-  private stateChangeCallbacks: Set<RealtimeStateChangeCallback> = new Set()
+  private readonly clientTools: Map<string, AnyClientTool>
+  private readonly stateChangeCallbacks: Set<RealtimeStateChangeCallback> =
+    new Set()
   private unsubscribers: Array<() => void> = []
 
   private state: RealtimeClientState = {
@@ -322,10 +323,10 @@ export class RealtimeClient {
     }
 
     // Notify specific callbacks
-    if ('status' in updates) {
+    if ('status' in updates && updates.status !== undefined) {
       this.options.onStatusChange?.(updates.status)
     }
-    if ('mode' in updates) {
+    if ('mode' in updates && updates.mode !== undefined) {
       this.options.onModeChange?.(updates.mode)
     }
   }

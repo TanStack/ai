@@ -41,27 +41,27 @@ export function createMemorySkillStorage(
     skills.set(skill.name, skill)
   }
 
-  async function loadIndex(): Promise<Array<SkillIndexEntry>> {
-    return Array.from(skills.values()).map((skill) => ({
-      id: skill.id,
-      name: skill.name,
-      description: skill.description,
-      usageHints: skill.usageHints,
-      trustLevel: skill.trustLevel,
-    }))
+  function loadIndex(): Promise<Array<SkillIndexEntry>> {
+    return Promise.resolve(
+      Array.from(skills.values()).map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        description: skill.description,
+        usageHints: skill.usageHints,
+        trustLevel: skill.trustLevel,
+      })),
+    )
   }
 
-  async function loadAll(): Promise<Array<Skill>> {
-    return Array.from(skills.values())
+  function loadAll(): Promise<Array<Skill>> {
+    return Promise.resolve(Array.from(skills.values()))
   }
 
-  async function get(name: string): Promise<Skill | null> {
-    return skills.get(name) ?? null
+  function get(name: string): Promise<Skill | null> {
+    return Promise.resolve(skills.get(name) ?? null)
   }
 
-  async function save(
-    skill: Omit<Skill, 'createdAt' | 'updatedAt'>,
-  ): Promise<Skill> {
+  function save(skill: Omit<Skill, 'createdAt' | 'updatedAt'>): Promise<Skill> {
     const now = new Date().toISOString()
     const existing = skills.get(skill.name)
 
@@ -72,18 +72,18 @@ export function createMemorySkillStorage(
     }
 
     skills.set(skill.name, fullSkill)
-    return fullSkill
+    return Promise.resolve(fullSkill)
   }
 
-  async function deleteSkill(name: string): Promise<boolean> {
+  function deleteSkill(name: string): Promise<boolean> {
     if (!skills.has(name)) {
-      return false
+      return Promise.resolve(false)
     }
     skills.delete(name)
-    return true
+    return Promise.resolve(true)
   }
 
-  async function search(
+  function search(
     query: string,
     options: SkillSearchOptions = {},
   ): Promise<Array<SkillIndexEntry>> {
@@ -112,22 +112,24 @@ export function createMemorySkillStorage(
       return { skill, score }
     })
 
-    return scored
-      .filter((s) => s.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map((s) => ({
-        id: s.skill.id,
-        name: s.skill.name,
-        description: s.skill.description,
-        usageHints: s.skill.usageHints,
-        trustLevel: s.skill.trustLevel,
-      }))
+    return Promise.resolve(
+      scored
+        .filter((s) => s.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map((s) => ({
+          id: s.skill.id,
+          name: s.skill.name,
+          description: s.skill.description,
+          usageHints: s.skill.usageHints,
+          trustLevel: s.skill.trustLevel,
+        })),
+    )
   }
 
-  async function updateStats(name: string, success: boolean): Promise<void> {
+  function updateStats(name: string, success: boolean): Promise<void> {
     const skill = skills.get(name)
-    if (!skill) return
+    if (!skill) return Promise.resolve()
 
     const { executions, successRate } = skill.stats
     const newExecutions = executions + 1
@@ -148,6 +150,7 @@ export function createMemorySkillStorage(
       trustLevel: newTrustLevel,
       updatedAt: new Date().toISOString(),
     })
+    return Promise.resolve()
   }
 
   return {

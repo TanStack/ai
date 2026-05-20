@@ -24,8 +24,8 @@ export function normalizeError(error: unknown): NormalizedError {
   if (typeof error === 'object' && error !== null) {
     const errObj = error as Record<string, unknown>
     return {
-      name: String(errObj['name'] || 'Error'),
-      message: String(errObj['message'] || 'Unknown error'),
+      name: String(errObj.name || 'Error'),
+      message: String(errObj.message || 'Unknown error'),
       ...(errObj['stack'] ? { stack: String(errObj['stack']) } : {}),
       ...(errObj['code'] ? { code: String(errObj['code']) } : {}),
     }

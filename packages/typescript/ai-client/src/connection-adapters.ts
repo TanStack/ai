@@ -35,13 +35,7 @@ async function* readStreamLines(
     const decoder = new TextDecoder()
     let buffer = ''
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    while (true) {
-      // Check if aborted before reading
-      if (abortSignal?.aborted) {
-        break
-      }
-
+    while (!abortSignal?.aborted) {
       const { done, value } = await reader.read()
       if (done) break
 
@@ -183,8 +177,9 @@ export function normalizeConnectionAdapter(
       return (async function* () {
         while (!abortSignal?.aborted) {
           let chunk: StreamChunk | null
-          if (myBuffer.length > 0) {
-            chunk = myBuffer.shift()!
+          const buffered = myBuffer.shift()
+          if (buffered !== undefined) {
+            chunk = buffered
           } else {
             chunk = await new Promise<StreamChunk | null>((resolve) => {
               const onAbort = () => resolve(null)

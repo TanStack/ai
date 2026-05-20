@@ -111,7 +111,7 @@ export class OpenRouterResponsesTextAdapter<
         name: string
         started: boolean
         ended?: boolean
-        pendingArguments?: string | undefined
+        pendingArguments?: string
       }
     >()
 
@@ -174,10 +174,10 @@ export class OpenRouterResponsesTextAdapter<
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
-        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        code: errorPayload.code,
         error: {
           message: errorPayload.message,
-          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+          code: errorPayload.code,
         },
       }
 
@@ -453,11 +453,11 @@ export class OpenRouterResponsesTextAdapter<
           yield* openReasoning()
           // openReasoning() guarantees reasoningMessageId is set on first
           // call; TS can't see through the generator side-effect.
-          const messageId = reasoningMessageId!
+          if (!reasoningMessageId) continue
           accumulatedReasoning += reasoningDelta
           yield {
             type: EventType.REASONING_MESSAGE_CONTENT,
-            messageId,
+            messageId: reasoningMessageId,
             delta: reasoningDelta,
             model,
             timestamp,
@@ -772,7 +772,7 @@ export class OpenRouterResponsesTextAdapter<
         name: string
         started: boolean
         ended?: boolean
-        pendingArguments?: string | undefined
+        pendingArguments?: string
       }
     >,
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
@@ -1142,17 +1142,17 @@ export class OpenRouterResponsesTextAdapter<
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
           if (item?.type === 'function_call' && item.id) {
-            const existing = toolCallMetadata.get(item.id)
-            if (!existing) {
-              toolCallMetadata.set(item.id, {
+            let metadata = toolCallMetadata.get(item.id)
+            if (!metadata) {
+              metadata = {
                 index: chunk.outputIndex ?? 0,
                 name: item.name,
                 started: false,
-              })
-            } else if (!existing.name) {
-              existing.name = item.name
+              }
+              toolCallMetadata.set(item.id, metadata)
+            } else if (!metadata.name) {
+              metadata.name = item.name
             }
-            const metadata = toolCallMetadata.get(item.id)!
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
@@ -1804,11 +1804,11 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
     // verbatim so downstream extraction (e.g. for unknown event types) still
     // sees them.
     const out: Record<string, unknown> = { ...raw }
-    if ('item_id' in raw) out['itemId'] = raw['item_id']
-    if ('output_index' in raw) out['outputIndex'] = raw['output_index']
-    if ('content_index' in raw) out['contentIndex'] = raw['content_index']
-    if ('sequence_number' in raw) out['sequenceNumber'] = raw['sequence_number']
-    if ('summary_index' in raw) out['summaryIndex'] = raw['summary_index']
+    if ('item_id' in raw) out.itemId = raw.item_id
+    if ('output_index' in raw) out.outputIndex = raw.output_index
+    if ('content_index' in raw) out.contentIndex = raw.content_index
+    if ('sequence_number' in raw) out.sequenceNumber = raw.sequence_number
+    if ('summary_index' in raw) out.summaryIndex = raw.summary_index
     if (
       'response' in raw &&
       raw['response'] &&
@@ -1818,11 +1818,11 @@ function normalizeStreamEvent(event: StreamEvents): NormalizedStreamEvent {
         raw['response'] as Record<string, unknown>,
       )
     }
-    if ('item' in raw && raw['item'] && typeof raw['item'] === 'object') {
-      out['item'] = camelCaseOutputItem(raw['item'] as Record<string, unknown>)
+    if ('item' in raw && raw.item && typeof raw.item === 'object') {
+      out.item = camelCaseOutputItem(raw.item as Record<string, unknown>)
     }
-    if ('part' in raw) out['part'] = raw['part']
-    out['type'] =
+    if ('part' in raw) out.part = raw.part
+    out.type =
       typeof raw['type'] === 'string'
         ? raw['type']
         : (e.type as string) || 'unknown'
@@ -1841,7 +1841,7 @@ function camelCaseResponseShape(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...src }
   if ('incomplete_details' in src)
-    out['incompleteDetails'] = src['incomplete_details']
+    out.incompleteDetails = src.incomplete_details
   if (
     'input_tokens' in src ||
     'output_tokens' in src ||
@@ -1849,17 +1849,17 @@ function camelCaseResponseShape(
   ) {
     // never mutate src; rewrite usage in place if present.
   }
-  if (src['usage'] && typeof src['usage'] === 'object') {
-    const u = src['usage'] as Record<string, unknown>
-    out['usage'] = {
+  if (src.usage && typeof src.usage === 'object') {
+    const u = src.usage as Record<string, unknown>
+    out.usage = {
       ...u,
-      ...('input_tokens' in u && { inputTokens: u['input_tokens'] }),
-      ...('output_tokens' in u && { outputTokens: u['output_tokens'] }),
-      ...('total_tokens' in u && { totalTokens: u['total_tokens'] }),
+      ...('input_tokens' in u && { inputTokens: u.input_tokens }),
+      ...('output_tokens' in u && { outputTokens: u.output_tokens }),
+      ...('total_tokens' in u && { totalTokens: u.total_tokens }),
     }
   }
-  if (Array.isArray(src['output'])) {
-    out['output'] = src['output'].map((item) =>
+  if (Array.isArray(src.output)) {
+    out.output = src.output.map((item) =>
       item && typeof item === 'object'
         ? camelCaseOutputItem(item as Record<string, unknown>)
         : item,
@@ -1873,7 +1873,7 @@ function camelCaseOutputItem(
   src: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...src }
-  if ('call_id' in src) out['callId'] = src['call_id']
+  if ('call_id' in src) out.callId = src.call_id
   return out
 }
 

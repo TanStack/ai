@@ -70,8 +70,8 @@ interface VideoCallbacks<TOutput> {
  * ```
  */
 export class VideoGenerationClient<TOutput = VideoGenerateResult> {
-  private connection: ConnectConnectionAdapter | undefined
-  private fetcher:
+  private readonly connection: ConnectConnectionAdapter | undefined
+  private readonly fetcher:
     | GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
     | undefined
   private body: Record<string, any>
@@ -83,7 +83,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
   private abortController: AbortController | null = null
-  private callbacksRef: VideoCallbacks<TOutput>
+  private readonly callbacksRef: VideoCallbacks<TOutput>
 
   constructor(
     options: VideoGenerationClientOptions<TOutput> &

@@ -129,7 +129,11 @@ async function createWebRTCConnection(
 
   let audioElement: HTMLAudioElement | null = null
 
-  let dataChannel: RTCDataChannel | null = null
+  // Captured into a const so closures see a non-nullable reference (teardown
+  // re-points the outer `dataChannel` to null, but in-flight closures still
+  // need to close their own channel).
+  const channel = pc.createDataChannel('oai-events')
+  let dataChannel: RTCDataChannel | null = channel
 
   let currentMode: RealtimeMode = 'idle'
   let currentMessageId: string | null = null
@@ -171,8 +175,6 @@ async function createWebRTCConnection(
     }
   }
 
-  dataChannel = pc.createDataChannel('oai-events')
-
   let dataChannelOpened = false
   let rejectDataChannelReady: ((reason: unknown) => void) | null = null
   let dataChannelReadyTimeout: ReturnType<typeof setTimeout> | null = null
@@ -198,7 +200,7 @@ async function createWebRTCConnection(
       }
     }, 15000)
 
-    dataChannel!.onopen = () => {
+    channel.onopen = () => {
       dataChannelOpened = true
       if (dataChannelReadyTimeout !== null) {
         clearTimeout(dataChannelReadyTimeout)
@@ -213,7 +215,7 @@ async function createWebRTCConnection(
     }
   })
 
-  dataChannel.onmessage = (event) => {
+  channel.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data)
       const messageRecord: Record<string, unknown> =
@@ -235,7 +237,7 @@ async function createWebRTCConnection(
     }
   }
 
-  dataChannel.onerror = (error) => {
+  channel.onerror = (error) => {
     // Closing the peer connection cascades into `onerror`/`onclose` on the
     // data channel. Once teardown has started, re-surfacing those as
     // `emit('error')` is noise that confuses consumers (they just called
@@ -262,7 +264,7 @@ async function createWebRTCConnection(
     emit('error', { error: dcErr })
   }
 
-  dataChannel.onclose = () => {
+  channel.onclose = () => {
     // Same rationale as `onerror` above: `pc.close()` during teardown
     // cascades to the data channel's `onclose`. If we've already started
     // teardown, there's nothing to do here.
@@ -497,7 +499,7 @@ async function createWebRTCConnection(
         Authorization: `Bearer ${token.token}`,
         'Content-Type': 'application/sdp',
       },
-      ...(offer.sdp !== undefined && { body: offer.sdp }),
+      body: offer.sdp,
     })
 
     if (!sdpResponse.ok) {
@@ -657,7 +659,7 @@ async function createWebRTCConnection(
             {
               source: 'grok.realtime',
               event_type: 'response.function_call_arguments.done',
-              item_id: event['item_id'],
+              item_id: event.item_id,
             },
           )
           emit('error', {
@@ -769,7 +771,7 @@ async function createWebRTCConnection(
         // emitting a user-visible error. `undefined` shares the bucket because
         // a malformed event without a `type` field is just as unhandleable.
         logger.provider('grok.realtime unhandled server event', {
-          type: event['type'],
+          type: event.type,
         })
         break
     }
@@ -933,7 +935,7 @@ async function createWebRTCConnection(
           `provider=grok direction=out type=${readString(event, 'type') ?? '<unknown>'}`,
           { frame: event },
         )
-        dataChannel!.send(JSON.stringify(event))
+        channel.send(JSON.stringify(event))
       }
       pendingEvents.length = 0
     } catch (error) {
@@ -1043,51 +1045,51 @@ async function createWebRTCConnection(
       const sessionUpdate: Record<string, unknown> = {}
 
       if (config.instructions) {
-        sessionUpdate['instructions'] = config.instructions
+        sessionUpdate.instructions = config.instructions
       }
 
       if (config.voice) {
-        sessionUpdate['voice'] = config.voice
+        sessionUpdate.voice = config.voice
       }
 
       if (config.vadMode) {
         if (config.vadMode === 'semantic') {
-          sessionUpdate['turn_detection'] = {
+          sessionUpdate.turn_detection = {
             type: 'semantic_vad',
             eagerness: config.semanticEagerness ?? 'medium',
           }
         } else if (config.vadMode === 'server') {
-          sessionUpdate['turn_detection'] = {
+          sessionUpdate.turn_detection = {
             type: 'server_vad',
             threshold: config.vadConfig?.threshold ?? 0.5,
             prefix_padding_ms: config.vadConfig?.prefixPaddingMs ?? 300,
             silence_duration_ms: config.vadConfig?.silenceDurationMs ?? 500,
           }
         } else {
-          sessionUpdate['turn_detection'] = null
+          sessionUpdate.turn_detection = null
         }
       }
 
       if (config.tools !== undefined) {
-        sessionUpdate['tools'] = config.tools.map((t) => ({
+        sessionUpdate.tools = config.tools.map((t) => ({
           type: 'function',
           name: t.name,
           description: t.description,
           parameters: t.inputSchema ?? { type: 'object', properties: {} },
         }))
-        sessionUpdate['tool_choice'] = 'auto'
+        sessionUpdate.tool_choice = 'auto'
       }
 
       if (config.outputModalities) {
-        sessionUpdate['modalities'] = config.outputModalities
+        sessionUpdate.modalities = config.outputModalities
       }
 
       if (config.temperature !== undefined) {
-        sessionUpdate['temperature'] = config.temperature
+        sessionUpdate.temperature = config.temperature
       }
 
       if (config.maxOutputTokens !== undefined) {
-        sessionUpdate['max_response_output_tokens'] = config.maxOutputTokens
+        sessionUpdate.max_response_output_tokens = config.maxOutputTokens
       }
 
       // Let callers forward an explicit `input_audio_transcription` value
@@ -1098,15 +1100,15 @@ async function createWebRTCConnection(
         config.providerOptions ?? {}
       const callerTranscription =
         'inputAudioTranscription' in providerOptions
-          ? providerOptions['inputAudioTranscription']
+          ? providerOptions.inputAudioTranscription
           : 'input_audio_transcription' in providerOptions
-            ? providerOptions['input_audio_transcription']
+            ? providerOptions.input_audio_transcription
             : undefined
       if (callerTranscription !== undefined) {
-        sessionUpdate['input_audio_transcription'] =
+        sessionUpdate.input_audio_transcription =
           callerTranscription === false ? null : callerTranscription
       } else if (!hasSentInitialSessionUpdate) {
-        sessionUpdate['input_audio_transcription'] = { model: 'grok-stt' }
+        sessionUpdate.input_audio_transcription = { model: 'grok-stt' }
       }
 
       if (Object.keys(sessionUpdate).length > 0) {
@@ -1131,10 +1133,12 @@ async function createWebRTCConnection(
       event: TEvent,
       handler: RealtimeEventHandler<TEvent>,
     ): () => void {
-      if (!eventHandlers.has(event)) {
-        eventHandlers.set(event, new Set())
+      let handlers = eventHandlers.get(event)
+      if (!handlers) {
+        handlers = new Set()
+        eventHandlers.set(event, handlers)
       }
-      eventHandlers.get(event)!.add(handler)
+      handlers.add(handler)
 
       return () => {
         eventHandlers.get(event)?.delete(handler)

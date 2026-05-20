@@ -71,7 +71,7 @@ export class GeminiImageAdapter<
     modelSizeByName: GeminiImageModelSizeByName
   }
 
-  private client: GoogleGenAI
+  private readonly client: GoogleGenAI
 
   constructor(config: GeminiImageConfig, model: TModel) {
     super(model, config)

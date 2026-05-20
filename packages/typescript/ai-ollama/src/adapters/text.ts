@@ -121,7 +121,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   override readonly kind = 'text' as const
   readonly name = 'ollama' as const
 
-  private client: Ollama
+  private readonly client: Ollama
 
   constructor(
     hostOrClientOrConfig: string | Ollama | OllamaClientConfig | undefined,
@@ -451,13 +451,16 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
         accumulatedReasoning += chunk.message.thinking
 
-        // Spec REASONING content event
-        yield {
-          type: EventType.REASONING_MESSAGE_CONTENT,
-          messageId: reasoningMessageId!,
-          delta: chunk.message.thinking,
-          model: chunk.model,
-          timestamp: Date.now(),
+        // Spec REASONING content event — reasoningMessageId is set in the
+        // hasEmittedStepStarted block above (entered on the same `thinking` path)
+        if (reasoningMessageId) {
+          yield {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: reasoningMessageId,
+            delta: chunk.message.thinking,
+            model: chunk.model,
+            timestamp: Date.now(),
+          }
         }
 
         // Legacy STEP event

@@ -34,9 +34,14 @@ const config = [
       '@typescript-eslint/await-thenable': 'error',
       '@typescript-eslint/switch-exhaustiveness-check': 'error',
       '@typescript-eslint/consistent-type-exports': 'error',
+      '@typescript-eslint/prefer-readonly': 'error',
+      '@typescript-eslint/no-non-null-assertion': 'error',
+      // `no-explicit-any` stays as a warning — much of the existing `any`
+      // is structurally load-bearing (`Tool<any, any>` / `Adapter<any>`
+      // variance wildcards, `Record<string, any>` provider option
+      // carriers), but new `any` introductions should still get a second
+      // look. Tracked as warnings to surface in editors without blocking CI.
       '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-non-null-assertion': 'warn',
-      '@typescript-eslint/prefer-readonly': 'warn',
       // Override the base config which currently allows `@ts-ignore` with a
       // description and forbids `@ts-expect-error`. Invert that: require
       // descriptions on `@ts-expect-error` (which self-heals when the

@@ -123,7 +123,7 @@ export function createGeneration<
   // case we want the key to be absent.
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
     id: clientId,
-    ...(options.body !== undefined && { body: options.body }),
+    body: options.body,
     onResult: (r: TResult) => options.onResult?.(r),
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),

@@ -63,8 +63,8 @@ function normalizeError(error: unknown): { name: string; message: string } {
   if (typeof error === 'object' && error !== null) {
     const e = error as Record<string, unknown>
     return {
-      name: String(e['name'] || 'Error'),
-      message: String(e['message'] || JSON.stringify(error)),
+      name: String(e.name || 'Error'),
+      message: String(e.message || JSON.stringify(error)),
     }
   }
   return { name: 'Error', message: String(error) }
@@ -74,11 +74,11 @@ function normalizeError(error: unknown): { name: string; message: string } {
  * IsolateContext implementation using Cloudflare Workers
  */
 class CloudflareIsolateContext implements IsolateContext {
-  private workerUrl: string
-  private authorization?: string | undefined
-  private timeout: number
-  private maxToolRounds: number
-  private bindings: Record<string, ToolBinding>
+  private readonly workerUrl: string
+  private readonly authorization?: string
+  private readonly timeout: number
+  private readonly maxToolRounds: number
+  private readonly bindings: Record<string, ToolBinding>
   private disposed = false
 
   constructor(

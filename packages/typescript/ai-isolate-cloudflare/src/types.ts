@@ -22,7 +22,7 @@ export interface ExecuteRequest {
   /** Results from previous tool calls (for continuation) */
   toolResults?: Record<string, ToolResultPayload> | undefined
   /** Execution timeout in ms */
-  timeout?: number | undefined
+  timeout?: number
 }
 
 /**
@@ -46,7 +46,7 @@ export interface ToolResultPayload {
   /** The result value if successful */
   value?: unknown
   /** Error message if failed */
-  error?: string | undefined
+  error?: string
 }
 
 /**

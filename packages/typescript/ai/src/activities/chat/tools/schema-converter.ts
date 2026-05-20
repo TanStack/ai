@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-condition */
-
 import type {
   StandardJSONSchemaV1,
   StandardSchemaV1,
@@ -39,6 +37,7 @@ export function isStandardJSONSchema(
     schema !== null &&
     '~standard' in schema &&
     typeof (schema as StandardJSONSchemaV1)['~standard'] === 'object' &&
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard for caller-provided unknown; type assertion narrows but doesn't validate the wire payload
     (schema as StandardJSONSchemaV1)['~standard'].version === 1 &&
     typeof (schema as StandardJSONSchemaV1)['~standard'].jsonSchema ===
       'object' &&
@@ -57,9 +56,9 @@ export function isStandardSchema(schema: unknown): schema is StandardSchemaV1 {
     schema !== null &&
     '~standard' in schema &&
     typeof schema['~standard'] === 'object' &&
-    schema !== null &&
     schema['~standard'] !== null &&
     'version' in schema['~standard'] &&
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard for caller-provided unknown; in-operator narrows but doesn't validate the wire payload
     schema['~standard'].version === 1 &&
     'validate' in schema['~standard'] &&
     typeof schema['~standard'].validate === 'function'

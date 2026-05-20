@@ -121,7 +121,7 @@ export class AnthropicTextAdapter<
   override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
 
-  private client: Anthropic_SDK
+  private readonly client: Anthropic_SDK
 
   constructor(config: AnthropicTextConfig, model: TModel) {
     super({}, model)
@@ -789,14 +789,17 @@ export class AnthropicTextAdapter<
               delta,
               content: accumulatedContent,
             }
-          } else if (event.delta.type === 'thinking_delta') {
+          } else if (
+            event.delta.type === 'thinking_delta' &&
+            reasoningMessageId
+          ) {
             const delta = event.delta.thinking
             accumulatedThinking += delta
 
             // Spec REASONING content event
             yield {
               type: EventType.REASONING_MESSAGE_CONTENT,
-              messageId: reasoningMessageId!,
+              messageId: reasoningMessageId,
               delta,
               model,
               timestamp: Date.now(),

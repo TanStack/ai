@@ -106,7 +106,7 @@ export function createChat<
     onError: (err) => {
       options.onError?.(err)
     },
-    ...(options.tools !== undefined && { tools: options.tools }),
+    tools: options.tools,
     ...(options.onCustomEvent !== undefined && {
       onCustomEvent: options.onCustomEvent,
     }),
@@ -208,15 +208,15 @@ export function createChat<
   const activeStructuredPart: StructuredOutputPart | null = $derived.by(() => {
     let lastUserIndex = -1
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i]!.role === 'user') {
+      if (messages[i]?.role === 'user') {
         lastUserIndex = i
         break
       }
     }
     if (lastUserIndex === -1) return null
     for (let i = messages.length - 1; i > lastUserIndex; i--) {
-      const m = messages[i]!
-      if (m.role !== 'assistant') continue
+      const m = messages[i]
+      if (m?.role !== 'assistant') continue
       const part = m.parts.find(
         (p): p is StructuredOutputPart => p.type === 'structured-output',
       )

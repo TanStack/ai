@@ -14,9 +14,9 @@ let globalExecQueue: Promise<void> = Promise.resolve()
  * IsolateContext implementation using QuickJS WASM
  */
 export class QuickJSIsolateContext implements IsolateContext {
-  private vm: QuickJSAsyncContext
-  private logs: Array<string>
-  private timeout: number
+  private readonly vm: QuickJSAsyncContext
+  private readonly logs: Array<string>
+  private readonly timeout: number
   private disposed = false
   private executing = false
 

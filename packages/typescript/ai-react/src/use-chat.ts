@@ -125,7 +125,7 @@ export function useChat<
     // Conditional spread: `updateOptions` declares strict-optional
     // fields and rejects explicit `undefined` under EOPT.
     client.updateOptions({
-      ...(options.body !== undefined && { body: options.body }),
+      body: options.body,
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
@@ -224,15 +224,15 @@ export function useChat<
   const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
     let lastUserIndex = -1
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i]!.role === 'user') {
+      if (messages[i]?.role === 'user') {
         lastUserIndex = i
         break
       }
     }
     if (lastUserIndex === -1) return null
     for (let i = messages.length - 1; i > lastUserIndex; i--) {
-      const m = messages[i]!
-      if (m.role !== 'assistant') continue
+      const m = messages[i]
+      if (m?.role !== 'assistant') continue
       const part = m.parts.find(
         (p): p is StructuredOutputPart => p.type === 'structured-output',
       )

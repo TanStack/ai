@@ -91,7 +91,7 @@ async function createWebRTCConnection(
   // Audio element for playback (more reliable than AudioContext.destination)
   let audioElement: HTMLAudioElement | null = null
 
-  // Data channel for events
+  // Data channel for events (assigned at construction below; nulled out by teardown)
   let dataChannel: RTCDataChannel | null = null
 
   // Current state
@@ -116,19 +116,23 @@ async function createWebRTCConnection(
     }
   }
 
-  // Set up data channel for bidirectional communication
-  dataChannel = pc.createDataChannel('oai-events')
+  // Set up data channel for bidirectional communication. Captured into a const
+  // so closures see a non-nullable reference (teardown re-points the outer
+  // `dataChannel` to null, but in-flight closures still need to close their
+  // own channel).
+  const channel = pc.createDataChannel('oai-events')
+  dataChannel = channel
 
   // Promise that resolves when the data channel is open and ready
   const dataChannelReady = new Promise<void>((resolve) => {
-    dataChannel!.onopen = () => {
+    channel.onopen = () => {
       flushPendingEvents()
       emit('status_change', { status: 'connected' as RealtimeStatus })
       resolve()
     }
   })
 
-  dataChannel.onmessage = (event) => {
+  channel.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data)
       logger.provider(
@@ -144,7 +148,7 @@ async function createWebRTCConnection(
     }
   }
 
-  dataChannel.onerror = (error) => {
+  channel.onerror = (error) => {
     logger.errors('openai.realtime fatal', {
       error,
       source: 'openai.realtime',
@@ -216,7 +220,7 @@ async function createWebRTCConnection(
 
   // Handle server events
   function handleServerEvent(event: Record<string, unknown>) {
-    const type = event['type'] as string
+    const type = event.type as string
 
     switch (type) {
       case 'session.created':
@@ -239,7 +243,7 @@ async function createWebRTCConnection(
         break
 
       case 'conversation.item.input_audio_transcription.completed': {
-        const transcript = event['transcript'] as string
+        const transcript = event.transcript as string
         emit('transcript', { role: 'user', transcript, isFinal: true })
         break
       }
@@ -250,15 +254,15 @@ async function createWebRTCConnection(
         break
 
       case 'response.output_item.added': {
-        const item = event['item'] as Record<string, unknown>
-        if (item['type'] === 'message') {
-          currentMessageId = item['id'] as string
+        const item = event.item as Record<string, unknown>
+        if (item.type === 'message') {
+          currentMessageId = item.id as string
         }
         break
       }
 
       case 'response.audio_transcript.delta': {
-        const delta = event['delta'] as string
+        const delta = event.delta as string
         emit('transcript', {
           role: 'assistant',
           transcript: delta,
@@ -268,13 +272,13 @@ async function createWebRTCConnection(
       }
 
       case 'response.audio_transcript.done': {
-        const transcript = event['transcript'] as string
+        const transcript = event.transcript as string
         emit('transcript', { role: 'assistant', transcript, isFinal: true })
         break
       }
 
       case 'response.output_text.delta': {
-        const delta = event['delta'] as string
+        const delta = event.delta as string
         emit('transcript', {
           role: 'assistant',
           transcript: delta,
@@ -284,7 +288,7 @@ async function createWebRTCConnection(
       }
 
       case 'response.output_text.done': {
-        const text = event['text'] as string
+        const text = event.text as string
         emit('transcript', {
           role: 'assistant',
           transcript: text,
@@ -334,8 +338,8 @@ async function createWebRTCConnection(
       }
 
       case 'response.done': {
-        const response = event['response'] as Record<string, unknown>
-        const output = response['output'] as
+        const response = event.response as Record<string, unknown>
+        const output = response.output as
           | Array<Record<string, unknown>>
           | undefined
 
@@ -353,18 +357,18 @@ async function createWebRTCConnection(
 
           // Extract content from output items
           for (const item of output || []) {
-            if (item['type'] === 'message' && item['content']) {
-              const content = item['content'] as Array<Record<string, unknown>>
+            if (item.type === 'message' && item.content) {
+              const content = item.content as Array<Record<string, unknown>>
               for (const part of content) {
-                if (part['type'] === 'audio' && part['transcript']) {
+                if (part.type === 'audio' && part.transcript) {
                   message.parts.push({
                     type: 'audio',
-                    transcript: part['transcript'] as string,
+                    transcript: part.transcript as string,
                   })
-                } else if (part['type'] === 'text' && part['text']) {
+                } else if (part.type === 'text' && part.text) {
                   message.parts.push({
                     type: 'text',
-                    content: part['text'] as string,
+                    content: part.text as string,
                   })
                 }
               }
@@ -385,9 +389,9 @@ async function createWebRTCConnection(
         break
 
       case 'error': {
-        const error = event['error'] as Record<string, unknown>
+        const error = event.error as Record<string, unknown>
         emit('error', {
-          error: new Error((error['message'] as string) || 'Unknown error'),
+          error: new Error((error.message as string) || 'Unknown error'),
         })
         break
       }
@@ -457,7 +461,7 @@ async function createWebRTCConnection(
   function sendEvent(event: Record<string, unknown>) {
     if (dataChannel?.readyState === 'open') {
       logger.provider(
-        `provider=openai direction=out type=${(event['type'] as string | undefined) ?? '<unknown>'}`,
+        `provider=openai direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
         { frame: event },
       )
       dataChannel.send(JSON.stringify(event))
@@ -470,10 +474,10 @@ async function createWebRTCConnection(
   function flushPendingEvents() {
     for (const event of pendingEvents) {
       logger.provider(
-        `provider=openai direction=out type=${(event['type'] as string | undefined) ?? '<unknown>'}`,
+        `provider=openai direction=out type=${(event.type as string | undefined) ?? '<unknown>'}`,
         { frame: event },
       )
-      dataChannel!.send(JSON.stringify(event))
+      channel.send(JSON.stringify(event))
     }
     pendingEvents.length = 0
   }
@@ -586,55 +590,55 @@ async function createWebRTCConnection(
       const sessionUpdate: Record<string, unknown> = {}
 
       if (config.instructions) {
-        sessionUpdate['instructions'] = config.instructions
+        sessionUpdate.instructions = config.instructions
       }
 
       if (config.voice) {
-        sessionUpdate['voice'] = config.voice
+        sessionUpdate.voice = config.voice
       }
 
       if (config.vadMode) {
         if (config.vadMode === 'semantic') {
-          sessionUpdate['turn_detection'] = {
+          sessionUpdate.turn_detection = {
             type: 'semantic_vad',
             eagerness: config.semanticEagerness ?? 'medium',
           }
         } else if (config.vadMode === 'server') {
-          sessionUpdate['turn_detection'] = {
+          sessionUpdate.turn_detection = {
             type: 'server_vad',
             threshold: config.vadConfig?.threshold ?? 0.5,
             prefix_padding_ms: config.vadConfig?.prefixPaddingMs ?? 300,
             silence_duration_ms: config.vadConfig?.silenceDurationMs ?? 500,
           }
         } else {
-          sessionUpdate['turn_detection'] = null
+          sessionUpdate.turn_detection = null
         }
       }
 
       if (config.tools !== undefined) {
-        sessionUpdate['tools'] = config.tools.map((t) => ({
+        sessionUpdate.tools = config.tools.map((t) => ({
           type: 'function',
           name: t.name,
           description: t.description,
           parameters: t.inputSchema ?? { type: 'object', properties: {} },
         }))
-        sessionUpdate['tool_choice'] = 'auto'
+        sessionUpdate.tool_choice = 'auto'
       }
 
       if (config.outputModalities) {
-        sessionUpdate['modalities'] = config.outputModalities
+        sessionUpdate.modalities = config.outputModalities
       }
 
       if (config.temperature !== undefined) {
-        sessionUpdate['temperature'] = config.temperature
+        sessionUpdate.temperature = config.temperature
       }
 
       if (config.maxOutputTokens !== undefined) {
-        sessionUpdate['max_response_output_tokens'] = config.maxOutputTokens
+        sessionUpdate.max_response_output_tokens = config.maxOutputTokens
       }
 
       // Always enable input audio transcription so user speech is transcribed
-      sessionUpdate['input_audio_transcription'] = { model: 'whisper-1' }
+      sessionUpdate.input_audio_transcription = { model: 'whisper-1' }
 
       if (Object.keys(sessionUpdate).length > 0) {
         sendEvent({
@@ -658,10 +662,12 @@ async function createWebRTCConnection(
       event: TEvent,
       handler: RealtimeEventHandler<TEvent>,
     ): () => void {
-      if (!eventHandlers.has(event)) {
-        eventHandlers.set(event, new Set())
+      let handlers = eventHandlers.get(event)
+      if (!handlers) {
+        handlers = new Set()
+        eventHandlers.set(event, handlers)
       }
-      eventHandlers.get(event)!.add(handler)
+      handlers.add(handler)
 
       return () => {
         eventHandlers.get(event)?.delete(handler)

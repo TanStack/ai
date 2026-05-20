@@ -142,7 +142,7 @@ export interface TextActivityOptions<
   /** Additional metadata to attach to the request. */
   metadata?: TextOptions['metadata']
   /** Model-specific provider options (type comes from adapter) */
-  modelOptions?: TAdapter['~types']['providerOptions'] | undefined
+  modelOptions?: TAdapter['~types']['providerOptions']
   /** AbortController for cancellation */
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
@@ -173,7 +173,7 @@ export interface TextActivityOptions<
    * // result is { name: string, age: number }
    * ```
    */
-  outputSchema?: TSchema | undefined
+  outputSchema?: TSchema
   /**
    * Whether to stream the text result.
    * When true (default), returns an AsyncIterable<StreamChunk> for streaming output.
@@ -194,7 +194,7 @@ export interface TextActivityOptions<
    * // text is a string with the full response
    * ```
    */
-  stream?: TStream | undefined
+  stream?: TStream
   /**
    * Optional middleware array for observing/transforming chat behavior.
    * Middleware hooks are called in array order. See {@link ChatMiddleware} for available hooks.
@@ -208,7 +208,7 @@ export interface TextActivityOptions<
    * })
    * ```
    */
-  middleware?: Array<ChatMiddleware> | undefined
+  middleware?: Array<ChatMiddleware>
   /**
    * Opaque user-provided context value passed to middleware hooks.
    * Can be used to pass request-scoped data (e.g., user ID, request context).
@@ -220,7 +220,7 @@ export interface TextActivityOptions<
    * granular control and/or a custom `Logger`. Defaults to `undefined`, which
    * means only the `errors` category is active.
    */
-  debug?: DebugOption | undefined
+  debug?: DebugOption
 }
 
 // ===========================
@@ -290,9 +290,9 @@ interface TextEngineConfig<
   TParams extends TextOptions<any, any> = TextOptions<any>,
 > {
   adapter: TAdapter
-  systemPrompts?: Array<SystemPrompt> | undefined
+  systemPrompts?: Array<SystemPrompt>
   params: TParams
-  middleware?: Array<ChatMiddleware> | undefined
+  middleware?: Array<ChatMiddleware>
   context?: unknown
 }
 
@@ -313,8 +313,8 @@ class TextEngine<
   private readonly initialMessageCount: number
   private readonly requestId: string
   private readonly streamId: string
-  private readonly effectiveRequest?: Request | RequestInit | undefined
-  private readonly effectiveSignal?: AbortSignal | undefined
+  private readonly effectiveRequest?: Request | RequestInit
+  private readonly effectiveSignal?: AbortSignal
 
   private messages: Array<ModelMessage>
   private iterationCount = 0
@@ -328,7 +328,7 @@ class TextEngine<
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
   private eventOptions?: Record<string, unknown> | undefined
-  private eventToolNames?: Array<string> | undefined
+  private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
@@ -338,16 +338,16 @@ class TextEngine<
   private readonly initialClientToolResults: Map<string, any>
 
   // AG-UI protocol IDs
-  private threadId: string
-  private runIdOverride?: string | undefined
-  private parentRunIdOverride?: string | undefined
+  private readonly threadId: string
+  private readonly runIdOverride?: string
+  private readonly parentRunIdOverride?: string
 
   // Middleware support
   private readonly middlewareRunner: MiddlewareRunner
   private readonly middlewareCtx: ChatMiddlewareContext
   private readonly deferredPromises: Array<Promise<unknown>> = []
-  private abortReason?: string | undefined
-  private middlewareAbortController?: AbortController | undefined
+  private abortReason?: string
+  private readonly middlewareAbortController?: AbortController
   private terminalHookCalled = false
 
   private readonly logger: InternalLogger
@@ -584,10 +584,10 @@ class TextEngine<
 
     // Gather flattened options into an object for context
     const options: Record<string, unknown> = {}
-    if (temperature !== undefined) options['temperature'] = temperature
-    if (topP !== undefined) options['topP'] = topP
-    if (maxTokens !== undefined) options['maxTokens'] = maxTokens
-    if (metadata !== undefined) options['metadata'] = metadata
+    if (temperature !== undefined) options.temperature = temperature
+    if (topP !== undefined) options.topP = topP
+    if (maxTokens !== undefined) options.maxTokens = maxTokens
+    if (metadata !== undefined) options.metadata = metadata
 
     this.eventOptions = Object.keys(options).length > 0 ? options : undefined
     this.eventToolNames = tools?.map((t) => t.name)
@@ -1009,11 +1009,10 @@ class TextEngine<
       return true
     })
 
-    if (undiscoveredLazyResults.length > 0) {
-      const finishEvt = this.finishedEvent!
+    if (undiscoveredLazyResults.length > 0 && this.finishedEvent) {
       for (const chunk of this.buildToolResultChunks(
         undiscoveredLazyResults,
-        finishEvt,
+        this.finishedEvent,
       )) {
         yield* this.pipeThroughMiddleware(chunk)
       }

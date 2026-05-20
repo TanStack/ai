@@ -11,12 +11,7 @@ async function* readStreamLines(
     const decoder = new TextDecoder()
     let buffer = ''
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    while (true) {
-      if (abortSignal?.aborted) {
-        break
-      }
-
+    while (!abortSignal?.aborted) {
       const { done, value } = await reader.read()
       if (done) break
 

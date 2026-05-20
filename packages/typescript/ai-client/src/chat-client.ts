@@ -28,10 +28,10 @@ import type {
 } from './types'
 
 export class ChatClient {
-  private processor: StreamProcessor
+  private readonly processor: StreamProcessor
   private connection: SubscribeConnectionAdapter
-  private uniqueId: string
-  private threadId: string
+  private readonly uniqueId: string
+  private readonly threadId: string
   // Track the legacy `body` option and the canonical `forwardedProps`
   // option as separate slots so that `updateOptions({ forwardedProps })`
   // doesn't wipe a previously-set `body` (and vice versa). They are
@@ -45,13 +45,13 @@ export class ChatClient {
   private status: ChatClientState = 'ready'
   private connectionStatus: ConnectionStatus = 'disconnected'
   private abortController: AbortController | null = null
-  private events: ChatClientEventEmitter
-  private clientToolsRef: { current: Map<string, AnyClientTool> }
+  private readonly events: ChatClientEventEmitter
+  private readonly clientToolsRef: { current: Map<string, AnyClientTool> }
   private currentStreamId: string | null = null
   private currentMessageId: string | null = null
-  private postStreamActions: Array<() => Promise<void>> = []
+  private readonly postStreamActions: Array<() => Promise<void>> = []
   // Track pending client tool executions to await them before stream finalization
-  private pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
@@ -63,9 +63,9 @@ export class ChatClient {
   private continuationSkipped = false
   private draining = false
   private sessionGenerating = false
-  private activeRunIds = new Set<string>()
+  private readonly activeRunIds = new Set<string>()
 
-  private callbacksRef: {
+  private readonly callbacksRef: {
     current: {
       onResponse: (response?: Response) => void | Promise<void>
       onChunk: (chunk: StreamChunk) => void
@@ -536,7 +536,7 @@ export class ChatClient {
    */
   private normalizeMessageInput(input: string | MultimodalContent): {
     content: string | Array<ContentPart>
-    id?: string | undefined
+    id?: string
   } {
     if (typeof input === 'string') {
       return { content: input.trim() }
@@ -917,8 +917,8 @@ export class ChatClient {
     if (this.draining) return
     this.draining = true
     try {
-      while (this.postStreamActions.length > 0) {
-        const action = this.postStreamActions.shift()!
+      let action: (() => Promise<void>) | undefined
+      while ((action = this.postStreamActions.shift()) !== undefined) {
         await action()
       }
     } finally {

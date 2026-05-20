@@ -140,20 +140,20 @@ export interface ImageUsage {
 // rejecting the assignment.
 interface BaseEventContext {
   timestamp: number
-  requestId?: string | undefined
-  streamId?: string | undefined
-  messageId?: string | undefined
-  clientId?: string | undefined
-  source?: 'client' | 'server' | undefined
-  provider?: string | undefined
-  model?: string | undefined
-  systemPrompts?: Array<string> | undefined
+  requestId?: string
+  streamId?: string
+  messageId?: string
+  clientId?: string
+  source?: 'client' | 'server'
+  provider?: string
+  model?: string
+  systemPrompts?: Array<string>
   options?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
-  toolNames?: Array<string> | undefined
-  messageCount?: number | undefined
-  hasTools?: boolean | undefined
-  streaming?: boolean | undefined
+  toolNames?: Array<string>
+  messageCount?: number
+  hasTools?: boolean
+  streaming?: boolean
 }
 
 // ===========================
@@ -178,9 +178,9 @@ export interface TextRequestCompletedEvent extends BaseEventContext {
   provider: string
   model: string
   content: string
-  finishReason?: string | undefined
-  usage?: TokenUsage | undefined
-  duration?: number | undefined
+  finishReason?: string
+  usage?: TokenUsage
+  duration?: number
   streaming: boolean
   messageCount: number
   hasTools: boolean
@@ -188,14 +188,14 @@ export interface TextRequestCompletedEvent extends BaseEventContext {
 
 /** Emitted when a message is created (user/assistant/system/tool). */
 export interface TextMessageCreatedEvent extends BaseEventContext {
-  requestId?: string | undefined
-  streamId?: string | undefined
+  requestId?: string
+  streamId?: string
   messageId: string
   role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
-  parts?: Array<MessagePart> | undefined
-  toolCalls?: Array<ToolCall> | undefined
-  messageIndex?: number | undefined
+  parts?: Array<MessagePart>
+  toolCalls?: Array<ToolCall>
+  messageIndex?: number
 }
 
 /** Emitted when a user message is created (full content). */
@@ -205,18 +205,18 @@ export interface TextMessageUserEvent extends TextMessageCreatedEvent {
 
 /** Emitted for streaming text content chunks. */
 export interface TextChunkContentEvent extends BaseEventContext {
-  requestId?: string | undefined
+  requestId?: string
   streamId: string
-  messageId?: string | undefined
+  messageId?: string
   content: string
-  delta?: string | undefined
+  delta?: string
 }
 
 /** Emitted for streaming tool call chunks. */
 export interface TextChunkToolCallEvent extends BaseEventContext {
-  requestId?: string | undefined
+  requestId?: string
   streamId: string
-  messageId?: string | undefined
+  messageId?: string
   toolCallId: string
   toolName: string
   index: number
@@ -225,36 +225,36 @@ export interface TextChunkToolCallEvent extends BaseEventContext {
 
 /** Emitted for streaming tool result chunks. */
 export interface TextChunkToolResultEvent extends BaseEventContext {
-  requestId?: string | undefined
+  requestId?: string
   streamId: string
-  messageId?: string | undefined
+  messageId?: string
   toolCallId: string
   result: string
 }
 
 /** Emitted for streaming thinking chunks. */
 export interface TextChunkThinkingEvent extends BaseEventContext {
-  requestId?: string | undefined
+  requestId?: string
   streamId: string
-  messageId?: string | undefined
+  messageId?: string
   content: string
-  delta?: string | undefined
+  delta?: string
 }
 
 /** Emitted when a stream finishes. */
 export interface TextChunkDoneEvent extends BaseEventContext {
-  requestId?: string | undefined
+  requestId?: string
   streamId: string
-  messageId?: string | undefined
+  messageId?: string
   finishReason: string | null
-  usage?: TokenUsage | undefined
+  usage?: TokenUsage
 }
 
 /** Emitted on stream errors. */
 export interface TextChunkErrorEvent extends BaseEventContext {
-  requestId?: string | undefined
+  requestId?: string
   streamId: string
-  messageId?: string | undefined
+  messageId?: string
   error: string
 }
 
@@ -262,7 +262,7 @@ export interface TextChunkErrorEvent extends BaseEventContext {
 export interface TextUsageEvent extends BaseEventContext {
   requestId: string
   streamId: string
-  messageId?: string | undefined
+  messageId?: string
   model: string
   usage: TokenUsage
 }
@@ -286,10 +286,10 @@ export interface TextIterationCompletedEvent extends BaseEventContext {
   requestId: string
   streamId: string
   iteration: number
-  messageId?: string | undefined
+  messageId?: string
   duration: number
-  finishReason?: string | undefined
-  usage?: TokenUsage | undefined
+  finishReason?: string
+  usage?: TokenUsage
 }
 
 // ===========================
@@ -332,9 +332,9 @@ export interface MiddlewareChunkTransformedEvent extends BaseEventContext {
 
 /** Emitted when tool approval is required. */
 export interface ToolsApprovalRequestedEvent extends BaseEventContext {
-  requestId?: string | undefined
+  requestId?: string
   streamId: string
-  messageId?: string | undefined
+  messageId?: string
   toolCallId: string
   toolName: string
   input: unknown
@@ -350,9 +350,9 @@ export interface ToolsApprovalRespondedEvent extends BaseEventContext {
 
 /** Emitted when tool input is available for client execution. */
 export interface ToolsInputAvailableEvent extends BaseEventContext {
-  requestId?: string | undefined
+  requestId?: string
   streamId: string
-  messageId?: string | undefined
+  messageId?: string
   toolCallId: string
   toolName: string
   input: unknown
@@ -360,9 +360,9 @@ export interface ToolsInputAvailableEvent extends BaseEventContext {
 
 /** Emitted when a tool call completes with a result. */
 export interface ToolsCallCompletedEvent extends BaseEventContext {
-  requestId?: string | undefined
+  requestId?: string
   streamId: string
-  messageId?: string | undefined
+  messageId?: string
   toolCallId: string
   toolName: string
   result: unknown
@@ -426,8 +426,8 @@ export interface ImageRequestStartedEvent extends BaseEventContext {
   provider: string
   model: string
   prompt: string
-  numberOfImages?: number | undefined
-  size?: string | undefined
+  numberOfImages?: number
+  size?: string
 }
 
 /** Emitted when an image request completes. */
@@ -456,9 +456,9 @@ export interface SpeechRequestStartedEvent extends BaseEventContext {
   provider: string
   model: string
   text: string
-  voice?: string | undefined
-  format?: string | undefined
-  speed?: number | undefined
+  voice?: string
+  format?: string
+  speed?: number
 }
 
 /** Emitted when a speech request completes. */
@@ -469,8 +469,8 @@ export interface SpeechRequestCompletedEvent extends BaseEventContext {
   audio: string
   format: string
   duration: number
-  audioDuration?: number | undefined
-  contentType?: string | undefined
+  audioDuration?: number
+  contentType?: string
 }
 
 /** Emitted when speech usage metrics are available. */
@@ -489,9 +489,9 @@ export interface TranscriptionRequestStartedEvent extends BaseEventContext {
   requestId: string
   provider: string
   model: string
-  language?: string | undefined
-  prompt?: string | undefined
-  responseFormat?: string | undefined
+  language?: string
+  prompt?: string
+  responseFormat?: string
 }
 
 /** Emitted when a transcription request completes. */
@@ -500,7 +500,7 @@ export interface TranscriptionRequestCompletedEvent extends BaseEventContext {
   provider: string
   model: string
   text: string
-  language?: string | undefined
+  language?: string
   duration: number
 }
 
@@ -521,7 +521,7 @@ export interface AudioRequestStartedEvent extends BaseEventContext {
   provider: string
   model: string
   prompt: string
-  duration?: number | undefined
+  duration?: number
 }
 
 /**
@@ -596,10 +596,10 @@ export interface VideoRequestStartedEvent extends BaseEventContext {
   provider: string
   model: string
   requestType: 'create' | 'status' | 'url'
-  jobId?: string | undefined
-  prompt?: string | undefined
-  size?: string | undefined
-  duration?: number | undefined
+  jobId?: string
+  prompt?: string
+  size?: string
+  duration?: number
 }
 
 /** Emitted when a video request completes. */
@@ -608,11 +608,11 @@ export interface VideoRequestCompletedEvent extends BaseEventContext {
   provider: string
   model: string
   requestType: 'create' | 'status' | 'url'
-  jobId?: string | undefined
-  status?: 'pending' | 'processing' | 'completed' | 'failed' | undefined
-  progress?: number | undefined
-  url?: string | undefined
-  error?: string | undefined
+  jobId?: string
+  status?: 'pending' | 'processing' | 'completed' | 'failed'
+  progress?: number
+  url?: string
+  error?: string
   duration: number
 }
 

@@ -134,7 +134,7 @@ export function useGenerateVideo<
     // against the strict-optional target).
     const baseOptions = {
       id: clientId,
-      ...(opts.body !== undefined && { body: opts.body }),
+      body: opts.body,
       onResult: (r: VideoGenerateResult) => optionsRef.current.onResult?.(r),
       onError: (e: Error) => {
         optionsRef.current.onError?.(e)

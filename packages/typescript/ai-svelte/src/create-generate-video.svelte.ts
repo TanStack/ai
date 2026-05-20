@@ -131,7 +131,7 @@ export function createGenerateVideo<
   // undefined, in which case we want the key to be absent on the target.
   const baseOptions = {
     id: clientId,
-    ...(options.body !== undefined && { body: options.body }),
+    body: options.body,
     onResult: (r: VideoGenerateResult) => options.onResult?.(r),
     onError: (e: Error) => options.onError?.(e),
     onProgress: (p: number, m?: string) => options.onProgress?.(p, m),

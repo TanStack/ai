@@ -233,8 +233,8 @@ async function runGenerateImage<
       // present — `exactOptionalPropertyTypes` rejects `field: undefined`
       // against `field?: string` targets.
       images: result.images.map((image) => ({
-        ...(image.url !== undefined && { url: image.url }),
-        ...(image.b64Json !== undefined && { b64Json: image.b64Json }),
+        url: image.url,
+        b64Json: image.b64Json,
       })),
       duration,
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,

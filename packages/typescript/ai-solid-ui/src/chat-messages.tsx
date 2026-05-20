@@ -48,7 +48,10 @@ export function ChatMessages(props: ChatMessagesProps) {
   return (
     <Show
       when={!error() || !props.errorState}
-      fallback={<>{props.errorState?.({ error: error()!, reload })}</>}
+      fallback={(() => {
+        const err = error()
+        return err ? <>{props.errorState?.({ error: err, reload })}</> : null
+      })()}
     >
       <Show
         when={!isLoading() || messages().length > 0 || !props.loadingState}

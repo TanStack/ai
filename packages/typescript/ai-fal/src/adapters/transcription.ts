@@ -114,14 +114,14 @@ export class FalTranscriptionAdapter<
   ): TranscriptionResult {
     const data = response.data as Record<string, unknown>
 
-    const text = (data['text'] as string) || ''
+    const text = (data.text as string) || ''
 
     // Map fal chunks to TanStack segments. fal whisper can return
     // `timestamp: null` on some chunks (e.g. when word-level timing is
     // disabled), and the runtime payload is not actually constrained to a
     // 2-tuple — treat it as unknown and validate before indexing.
     let segments: Array<TranscriptionSegment> | undefined
-    const chunks = data['chunks'] as Array<FalChunk> | undefined
+    const chunks = data.chunks as Array<FalChunk> | undefined
     if (chunks && Array.isArray(chunks)) {
       segments = chunks.flatMap((chunk, index) => {
         const ts = chunk.timestamp as unknown
@@ -147,9 +147,9 @@ export class FalTranscriptionAdapter<
 
     // Extract language from response
     const language =
-      (data['language'] as string) ||
-      (data['inferred_languages'] as Array<string> | undefined)?.[0] ||
-      (data['languages'] as Array<string> | undefined)?.[0]
+      (data.language as string) ||
+      (data.inferred_languages as Array<string> | undefined)?.[0] ||
+      (data.languages as Array<string> | undefined)?.[0]
 
     return {
       id: response.requestId || this.generateId(),

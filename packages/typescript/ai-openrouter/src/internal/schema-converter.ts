@@ -19,8 +19,8 @@ export function makeStructuredOutputCompatible(
     originalRequired ??
     (Array.isArray(result['required']) ? result['required'] : [])
 
-  if (result['type'] === 'object' && result['properties']) {
-    const properties = { ...result['properties'] }
+  if (result.type === 'object' && result.properties) {
+    const properties = { ...result.properties }
     const allPropertyNames = Object.keys(properties)
 
     for (const propName of allPropertyNames) {
@@ -63,25 +63,25 @@ export function makeStructuredOutputCompatible(
       properties[propName] = prop
     }
 
-    result['properties'] = properties
-    result['required'] = allPropertyNames
-    result['additionalProperties'] = false
+    result.properties = properties
+    result.required = allPropertyNames
+    result.additionalProperties = false
   }
 
-  if (result['type'] === 'array' && result['items']) {
-    result['items'] = makeStructuredOutputCompatible(
-      result['items'],
-      result['items'].required || [],
+  if (result.type === 'array' && result.items) {
+    result.items = makeStructuredOutputCompatible(
+      result.items,
+      result.items.required || [],
     )
   }
 
-  if (result['anyOf'] && Array.isArray(result['anyOf'])) {
-    result['anyOf'] = result['anyOf'].map((variant) =>
+  if (result.anyOf && Array.isArray(result.anyOf)) {
+    result.anyOf = result.anyOf.map((variant) =>
       makeStructuredOutputCompatible(variant, variant.required || []),
     )
   }
 
-  if (result['oneOf']) {
+  if (result.oneOf) {
     throw new Error(
       'oneOf is not supported in OpenAI structured output schemas. Check the supported outputs here: https://platform.openai.com/docs/guides/structured-outputs#supported-types',
     )

@@ -212,7 +212,7 @@ export interface CodeModeToolResult {
   /**
    * Console output captured during execution
    */
-  logs?: Array<string> | undefined
+  logs?: Array<string>
 
   /**
    * Error details if execution failed

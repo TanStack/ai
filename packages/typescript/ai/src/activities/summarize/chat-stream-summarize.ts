@@ -46,7 +46,7 @@ export class ChatStreamSummarizeAdapter<
 > extends BaseSummarizeAdapter<TModel, TProviderOptions> {
   readonly name: string
 
-  private textAdapter: ChatStreamCapable
+  private readonly textAdapter: ChatStreamCapable
 
   constructor(
     textAdapter: ChatStreamCapable,

@@ -25,7 +25,7 @@ export interface ChatMessageProps {
   /** Custom renderer for thinking parts */
   thinkingPartRenderer?: (props: {
     content: string
-    isComplete?: boolean | undefined
+    isComplete?: boolean
   }) => ReactNode
   /** Named tool renderers - use the tool name as the key */
   toolsRenderer?: Record<string, (props: ToolCallRenderProps) => ReactNode>

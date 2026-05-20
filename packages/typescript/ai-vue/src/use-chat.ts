@@ -90,7 +90,7 @@ export function useChat<
     onError: (err) => {
       options.onError?.(err)
     },
-    ...(options.tools !== undefined && { tools: options.tools }),
+    tools: options.tools,
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
     ...(options.streamProcessor !== undefined && {
@@ -128,7 +128,7 @@ export function useChat<
     () => [options.body, options.forwardedProps] as const,
     ([newBody, newForwardedProps]) => {
       client.updateOptions({
-        ...(newBody !== undefined && { body: newBody }),
+        body: newBody,
         ...(newForwardedProps !== undefined && {
           forwardedProps: newForwardedProps,
         }),
@@ -213,15 +213,15 @@ export function useChat<
     const list = messages.value
     let lastUserIndex = -1
     for (let i = list.length - 1; i >= 0; i--) {
-      if (list[i]!.role === 'user') {
+      if (list[i]?.role === 'user') {
         lastUserIndex = i
         break
       }
     }
     if (lastUserIndex === -1) return null
     for (let i = list.length - 1; i > lastUserIndex; i--) {
-      const m = list[i]!
-      if (m.role !== 'assistant') continue
+      const m = list[i]
+      if (m?.role !== 'assistant') continue
       const part = m.parts.find(
         (p): p is StructuredOutputPart => p.type === 'structured-output',
       )

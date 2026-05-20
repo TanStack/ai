@@ -66,7 +66,7 @@ export class GeminiAudioAdapter<
 > extends BaseAudioAdapter<TModel, GeminiAudioProviderOptions> {
   readonly name = 'gemini' as const
 
-  private client: GoogleGenAI
+  private readonly client: GoogleGenAI
 
   constructor(config: GeminiAudioConfig, model: TModel) {
     super(model, config)

@@ -109,7 +109,7 @@ export class GeminiTextAdapter<
   override readonly kind = 'text' as const
   readonly name = 'gemini' as const
 
-  private client: GoogleGenAI
+  private readonly client: GoogleGenAI
 
   constructor(config: GeminiTextConfig, model: TModel) {
     super({}, model)
@@ -315,10 +315,12 @@ export class GeminiTextAdapter<
 
               accumulatedThinking += part.text
 
-              // Spec REASONING content event
+              // Spec REASONING content event — reasoningMessageId is set in the
+              // hasEmittedStepStarted block above (entered on the same `part.thought` path)
+              if (!reasoningMessageId) continue
               yield {
                 type: EventType.REASONING_MESSAGE_CONTENT,
-                messageId: reasoningMessageId!,
+                messageId: reasoningMessageId,
                 delta: part.text,
                 model,
                 timestamp: Date.now(),
@@ -807,7 +809,7 @@ export class GeminiTextAdapter<
       if (!msg.parts) continue
       const seenFunctionResponseNames = new Set<string>()
       msg.parts = msg.parts.filter((part) => {
-        if ('functionResponse' in part && part.functionResponse.name) {
+        if ('functionResponse' in part && part.functionResponse?.name) {
           if (seenFunctionResponseNames.has(part.functionResponse.name)) {
             return false
           }

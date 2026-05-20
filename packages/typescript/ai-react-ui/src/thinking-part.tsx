@@ -4,9 +4,9 @@ export interface ThinkingPartProps {
   /** The thinking content to render */
   content: string
   /** Base className applied to thinking parts */
-  className?: string | undefined
+  className?: string
   /** Whether thinking is complete (has text content after) */
-  isComplete?: boolean | undefined
+  isComplete?: boolean
 }
 
 /**

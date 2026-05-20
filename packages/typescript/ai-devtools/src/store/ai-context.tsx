@@ -14,15 +14,15 @@ interface MessagePart {
     | 'audio'
     | 'video'
     | 'document'
-  content?: string | undefined
-  toolCallId?: string | undefined
-  toolName?: string | undefined
-  arguments?: string | undefined
-  state?: string | undefined
+  content?: string
+  toolCallId?: string
+  toolName?: string
+  arguments?: string
+  state?: string
   output?: unknown
-  error?: string | undefined
+  error?: string
   // Multimodal content fields
-  source?: ContentPartSource | undefined
+  source?: ContentPartSource
   metadata?: unknown
 }
 
@@ -49,19 +49,19 @@ export interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
   timestamp: number
-  parts?: Array<MessagePart> | undefined
-  toolCalls?: Array<ToolCall> | undefined
+  parts?: Array<MessagePart>
+  toolCalls?: Array<ToolCall>
   /** Consolidated chunks - consecutive same-type chunks are merged into one entry */
-  chunks?: Array<Chunk> | undefined
+  chunks?: Array<Chunk>
   /** Total number of raw chunks received (before consolidation) */
-  totalChunkCount?: number | undefined
-  model?: string | undefined
-  usage?: TokenUsage | undefined
-  thinkingContent?: string | undefined
+  totalChunkCount?: number
+  model?: string
+  usage?: TokenUsage
+  thinkingContent?: string
   /** Source of the message: 'client' for aggregated client-side data, 'server' for individual server chunks */
-  source?: 'client' | 'server' | undefined
+  source?: 'client' | 'server'
   /** The requestId this message belongs to (for scoping usage calculations) */
-  requestId?: string | undefined
+  requestId?: string
 }
 
 /**
@@ -79,27 +79,27 @@ export interface Chunk {
     | 'approval'
     | 'thinking'
   timestamp: number
-  messageId?: string | undefined
+  messageId?: string
   /** Accumulated content from all merged chunks */
-  content?: string | undefined
+  content?: string
   /** The last delta received (kept for debugging) */
-  delta?: string | undefined
-  toolName?: string | undefined
-  toolCallId?: string | undefined
-  finishReason?: string | undefined
-  error?: string | undefined
-  approvalId?: string | undefined
+  delta?: string
+  toolName?: string
+  toolCallId?: string
+  finishReason?: string
+  error?: string
+  approvalId?: string
   input?: unknown
   /** Tool arguments for tool_call chunks */
-  arguments?: string | undefined
+  arguments?: string
   /** Tool result data for tool_result chunks */
   result?: unknown
   /** Duration in ms for tool execution */
-  duration?: number | undefined
+  duration?: number
   /** Number of raw chunks that were merged into this consolidated chunk */
   chunkCount: number
   /** Whether this is a client-side tool execution */
-  isClientTool?: boolean | undefined
+  isClientTool?: boolean
 }
 
 export interface MiddlewareEvent {
@@ -117,19 +117,19 @@ export interface MiddlewareEvent {
 
 export interface Iteration {
   /** The requestId this iteration belongs to (unique per chat() call) */
-  requestId?: string | undefined
+  requestId?: string
   index: number
   messageId: string
   startedAt: number
-  completedAt?: number | undefined
-  model?: string | undefined
-  provider?: string | undefined
-  systemPrompts?: Array<string> | undefined
-  toolNames?: Array<string> | undefined
+  completedAt?: number
+  model?: string
+  provider?: string
+  systemPrompts?: Array<string>
+  toolNames?: Array<string>
   options?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
-  finishReason?: string | undefined
-  usage?: TokenUsage | undefined
+  finishReason?: string
+  usage?: TokenUsage
   middlewareEvents: Array<MiddlewareEvent>
   messageIds: Array<string>
 }
@@ -157,31 +157,31 @@ export interface Conversation {
   label: string
   messages: Array<Message>
   chunks: Array<Chunk>
-  model?: string | undefined
-  provider?: string | undefined
+  model?: string
+  provider?: string
   status: 'active' | 'completed' | 'error'
   startedAt: number
-  completedAt?: number | undefined
-  usage?: TokenUsage | undefined
+  completedAt?: number
+  usage?: TokenUsage
   iterations: Array<Iteration>
-  iterationCount?: number | undefined
-  toolNames?: Array<string> | undefined
+  iterationCount?: number
+  toolNames?: Array<string>
   options?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
-  systemPrompts?: Array<string> | undefined
+  systemPrompts?: Array<string>
   /** Flags for which operation types this conversation has */
-  hasChat?: boolean | undefined
-  hasSummarize?: boolean | undefined
-  hasImage?: boolean | undefined
-  hasSpeech?: boolean | undefined
-  hasTranscription?: boolean | undefined
-  hasVideo?: boolean | undefined
+  hasChat?: boolean
+  hasSummarize?: boolean
+  hasImage?: boolean
+  hasSpeech?: boolean
+  hasTranscription?: boolean
+  hasVideo?: boolean
   /** Summarize operations in this conversation */
-  summaries?: Array<SummarizeOperation> | undefined
-  imageEvents?: Array<ActivityEvent> | undefined
-  speechEvents?: Array<ActivityEvent> | undefined
-  transcriptionEvents?: Array<ActivityEvent> | undefined
-  videoEvents?: Array<ActivityEvent> | undefined
+  summaries?: Array<SummarizeOperation>
+  imageEvents?: Array<ActivityEvent>
+  speechEvents?: Array<ActivityEvent>
+  transcriptionEvents?: Array<ActivityEvent>
+  videoEvents?: Array<ActivityEvent>
 }
 
 interface AIStoreState {
@@ -328,13 +328,11 @@ export const AIProvider: ParentComponent = (props) => {
   }
 
   function queueChunk(conversationId: string, chunk: Chunk): void {
-    if (!pendingConversationChunks.has(conversationId)) {
-      pendingConversationChunks.set(conversationId, {
-        chunks: [],
-        newChunkCount: 0,
-      })
+    let pending = pendingConversationChunks.get(conversationId)
+    if (!pending) {
+      pending = { chunks: [], newChunkCount: 0 }
+      pendingConversationChunks.set(conversationId, pending)
     }
-    const pending = pendingConversationChunks.get(conversationId)!
 
     // Pre-merge in pending buffer to reduce array operations during flush
     const lastPending = pending.chunks[pending.chunks.length - 1]
@@ -361,14 +359,16 @@ export const AIProvider: ParentComponent = (props) => {
     messageIndex: number,
     chunk: Chunk,
   ): void {
-    if (!pendingMessageChunks.has(conversationId)) {
-      pendingMessageChunks.set(conversationId, new Map())
+    let messageMap = pendingMessageChunks.get(conversationId)
+    if (!messageMap) {
+      messageMap = new Map()
+      pendingMessageChunks.set(conversationId, messageMap)
     }
-    const messageMap = pendingMessageChunks.get(conversationId)!
-    if (!messageMap.has(messageIndex)) {
-      messageMap.set(messageIndex, { chunks: [], newChunkCount: 0 })
+    let pending = messageMap.get(messageIndex)
+    if (!pending) {
+      pending = { chunks: [], newChunkCount: 0 }
+      messageMap.set(messageIndex, pending)
     }
-    const pending = messageMap.get(messageIndex)!
 
     // Pre-merge in pending buffer
     const lastPending = pending.chunks[pending.chunks.length - 1]
@@ -816,14 +816,12 @@ export const AIProvider: ParentComponent = (props) => {
                 content: part.content,
               }
             }
-            // Handle multimodal parts (image, audio, video, document)
+            // Handle multimodal parts (image, audio, video)
             // These have a source property instead of content
             if (
               part.type === 'image' ||
               part.type === 'audio' ||
-              part.type === 'video' ||
-              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-              part.type === 'document'
+              part.type === 'video'
             ) {
               return {
                 type: part.type,

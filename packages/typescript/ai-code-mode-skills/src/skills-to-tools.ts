@@ -41,13 +41,13 @@ export interface SkillToToolOptions {
    * Timeout for skill execution in ms
    * @default 30000
    */
-  timeout?: number | undefined
+  timeout?: number
 
   /**
    * Memory limit in bytes
    * @default 128
    */
-  memoryLimit?: number | undefined
+  memoryLimit?: number
 }
 
 interface SkillsToToolsOptions {
@@ -76,13 +76,13 @@ interface SkillsToToolsOptions {
    * Timeout for skill execution in ms
    * @default 30000
    */
-  timeout?: number | undefined
+  timeout?: number
 
   /**
    * Memory limit in bytes
    * @default 128
    */
-  memoryLimit?: number | undefined
+  memoryLimit?: number
 }
 
 /**
@@ -90,41 +90,41 @@ interface SkillsToToolsOptions {
  * This is a simplified converter that handles common cases.
  */
 function jsonSchemaToZod(schema: Record<string, unknown>): z.ZodType {
-  const type = schema['type'] as string
+  const type = schema.type as string
 
   if (type === 'string') {
     let zodString = z.string()
-    if (schema['description']) {
-      zodString = zodString.describe(schema['description'] as string)
+    if (schema.description) {
+      zodString = zodString.describe(schema.description as string)
     }
     return zodString
   }
   if (type === 'number' || type === 'integer') {
     let zodNum = z.number()
-    if (schema['description']) {
-      zodNum = zodNum.describe(schema['description'] as string)
+    if (schema.description) {
+      zodNum = zodNum.describe(schema.description as string)
     }
     return zodNum
   }
   if (type === 'boolean') {
     let zodBool = z.boolean()
-    if (schema['description']) {
-      zodBool = zodBool.describe(schema['description'] as string)
+    if (schema.description) {
+      zodBool = zodBool.describe(schema.description as string)
     }
     return zodBool
   }
   if (type === 'array') {
-    const items = schema['items'] as Record<string, unknown> | undefined
+    const items = schema.items as Record<string, unknown> | undefined
     if (items) {
       return z.array(jsonSchemaToZod(items))
     }
     return z.array(z.unknown())
   }
   if (type === 'object') {
-    const properties = schema['properties'] as
+    const properties = schema.properties as
       | Record<string, Record<string, unknown>>
       | undefined
-    const required = (schema['required'] as Array<string> | undefined) ?? []
+    const required = (schema.required as Array<string> | undefined) ?? []
 
     if (properties) {
       const shape: Record<string, z.ZodType> = {}

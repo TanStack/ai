@@ -50,7 +50,7 @@ export class OpenRouterImageAdapter<
   override readonly kind = 'image' as const
   readonly name = 'openrouter' as const
 
-  private client: OpenRouter
+  private readonly client: OpenRouter
 
   constructor(config: OpenRouterImageConfig, model: TModel) {
     super(model, {})

@@ -140,12 +140,12 @@ export function buildTTSRequestBody(options: {
 
   const outputFormat: Record<string, unknown> = { codec }
   if (callerSampleRate !== undefined) {
-    outputFormat['sample_rate'] = callerSampleRate
+    outputFormat.sample_rate = callerSampleRate
   } else if (needsRateInContentType) {
-    outputFormat['sample_rate'] = pcmDefault
+    outputFormat.sample_rate = pcmDefault
   }
   if (codec === 'mp3' && modelOptions?.bit_rate !== undefined) {
-    outputFormat['bit_rate'] = modelOptions.bit_rate
+    outputFormat.bit_rate = modelOptions.bit_rate
   }
 
   // pcm embeds the rate in `audio/L16;rate=…`; mulaw/alaw embed it in
@@ -160,10 +160,10 @@ export function buildTTSRequestBody(options: {
     output_format: outputFormat,
   }
   if (modelOptions?.optimize_streaming_latency !== undefined) {
-    body['optimize_streaming_latency'] = modelOptions.optimize_streaming_latency
+    body.optimize_streaming_latency = modelOptions.optimize_streaming_latency
   }
   if (modelOptions?.text_normalization !== undefined) {
-    body['text_normalization'] = modelOptions.text_normalization
+    body.text_normalization = modelOptions.text_normalization
   }
 
   return { body, codec, sampleRateForContentType }

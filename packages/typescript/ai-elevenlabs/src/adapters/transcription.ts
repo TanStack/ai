@@ -82,7 +82,7 @@ export class ElevenLabsTranscriptionAdapter<
 > {
   readonly name = 'elevenlabs' as const
 
-  private client: ElevenLabsClient
+  private readonly client: ElevenLabsClient
 
   constructor(model: TModel, config?: ElevenLabsClientConfig) {
     super(model, config ?? {})
@@ -262,7 +262,7 @@ function buildWordsAndSegments(
   segments?: Array<TranscriptionSegment>
 } {
   const timedWords = words.filter(
-    (w) =>
+    (w): w is typeof w & { start: number; end: number } =>
       typeof w.start === 'number' &&
       typeof w.end === 'number' &&
       w.type !== 'spacing',
@@ -271,8 +271,8 @@ function buildWordsAndSegments(
 
   const outWords: Array<TranscriptionWord> = timedWords.map((w) => ({
     word: w.text,
-    start: w.start!,
-    end: w.end!,
+    start: w.start,
+    end: w.end,
   }))
 
   // Group contiguous words that share a speaker into segments. If no speaker
@@ -288,8 +288,8 @@ function buildWordsAndSegments(
   for (const w of timedWords) {
     if (!current) {
       current = {
-        start: w.start!,
-        end: w.end!,
+        start: w.start,
+        end: w.end,
         text: w.text,
         ...(w.speakerId ? { speaker: w.speakerId } : {}),
       }
@@ -298,14 +298,14 @@ function buildWordsAndSegments(
     if (w.speakerId && current.speaker !== w.speakerId) {
       segments.push({ id: segments.length, ...current })
       current = {
-        start: w.start!,
-        end: w.end!,
+        start: w.start,
+        end: w.end,
         text: w.text,
         speaker: w.speakerId,
       }
       continue
     }
-    current.end = w.end!
+    current.end = w.end
     current.text = current.text ? `${current.text} ${w.text}` : w.text
   }
   if (current) segments.push({ id: segments.length, ...current })
