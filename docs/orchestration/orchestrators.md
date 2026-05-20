@@ -21,7 +21,7 @@ By the end of this guide you'll have rewritten the linear pipeline from [Workflo
 
 An **orchestrator** is a workflow whose `run` body is a fixed routing loop:
 
-```
+```text
 for turn = 0..maxTurns:
   decision = router({ input, state, agents, turn, lastResult })
   if decision.done: return decision.output

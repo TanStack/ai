@@ -231,8 +231,27 @@ export class WorkflowClient<
   // ---------- internal ----------
 
   private async consumeStream(stream: AsyncIterable<unknown>): Promise<void> {
-    for await (const raw of stream) {
-      this.handleChunk(raw as Record<string, unknown>)
+    try {
+      for await (const raw of stream) {
+        this.handleChunk(raw as Record<string, unknown>)
+      }
+    } catch (err) {
+      // Connection / iteration failures (network drop, parser crash, etc.)
+      // must surface as 'error' state so the UI can recover. Without this
+      // the client could remain stuck on 'running' indefinitely while the
+      // promise returned by start/approve/signal rejects.
+      if (!this.isTerminal()) {
+        this.setState({
+          error: {
+            message:
+              err instanceof Error
+                ? err.message
+                : 'Unknown workflow stream error',
+          },
+          status: 'error',
+        })
+      }
+      throw err
     }
   }
 
@@ -471,7 +490,14 @@ function removeAt(
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i]
     if (seg === undefined) return
-    cursor = cursor[seg] as Record<string, unknown>
+    const next = cursor[seg]
+    // If an intermediate node is missing or not an object/array, there's
+    // nothing to remove — bail out rather than crashing on a malformed
+    // delta.
+    if (next === null || next === undefined || typeof next !== 'object') {
+      return
+    }
+    cursor = next as Record<string, unknown>
   }
   if (Array.isArray(cursor)) (cursor as Array<unknown>).splice(Number(last), 1)
   else delete cursor[last]
@@ -489,8 +515,19 @@ function setAt(
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i]
     if (seg === undefined) return
-    if (cursor[seg] === undefined) cursor[seg] = {}
-    cursor = cursor[seg] as Record<string, unknown>
+    const next = cursor[seg]
+    if (next === null || next === undefined) {
+      // Auto-vivify the path so subsequent ops can land.
+      const fresh: Record<string, unknown> = {}
+      cursor[seg] = fresh
+      cursor = fresh
+    } else if (typeof next !== 'object') {
+      // An intermediate node is a primitive — applying further nested
+      // ops would corrupt state. Skip per RFC 6902 spirit.
+      return
+    } else {
+      cursor = next as Record<string, unknown>
+    }
   }
   cursor[last] = value
 }

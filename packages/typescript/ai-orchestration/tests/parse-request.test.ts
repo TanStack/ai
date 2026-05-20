@@ -13,23 +13,41 @@ function mkRequest(body: BodyInit | null): Request {
 }
 
 describe('parseWorkflowRequest', () => {
-  it('extracts approval / input / runId / signalDelivery / abort fields', async () => {
+  it('extracts approval / input / runId / abort when no signal is present', async () => {
     const req = mkRequest(
       JSON.stringify({
         input: { topic: 'hello' },
         runId: 'r1',
         approval: { approvalId: 'a1', approved: true },
-        signal: { signalId: 's1', payload: { ok: true } },
         abort: false,
       }),
     )
     const params = await parseWorkflowRequest(req)
     expect(params).toEqual({
       approval: { approvalId: 'a1', approved: true },
-      signalDelivery: { signalId: 's1', payload: { ok: true } },
+      signalDelivery: undefined,
       input: { topic: 'hello' },
       runId: 'r1',
       abort: false,
+    })
+  })
+
+  it('drops `approval` when `signal` is also present (signal wins)', async () => {
+    // Documented precedence: when both fields arrive, `signalDelivery`
+    // takes precedence and `approval` is normalized to undefined so
+    // downstream code never has to disambiguate.
+    const req = mkRequest(
+      JSON.stringify({
+        runId: 'r1',
+        approval: { approvalId: 'a1', approved: true },
+        signal: { signalId: 's1', payload: { ok: true } },
+      }),
+    )
+    const params = await parseWorkflowRequest(req)
+    expect(params.approval).toBeUndefined()
+    expect(params.signalDelivery).toEqual({
+      signalId: 's1',
+      payload: { ok: true },
     })
   })
 

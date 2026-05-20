@@ -198,6 +198,65 @@ describe('WorkflowClient — stop() terminal-state guard', () => {
   })
 })
 
+describe('WorkflowClient — consumeStream error mapping', () => {
+  it('surfaces a stream iteration error as { status: "error", error }', async () => {
+    // Adapter whose iterator throws midstream. Without the consumeStream
+    // try/catch the client would stay stuck on 'running' even though the
+    // returned promise rejects, breaking UI recovery.
+    const adapter: WorkflowConnectionAdapter = {
+      async *connect() {
+        yield {
+          type: 'RUN_STARTED',
+          runId: 'r1',
+          threadId: 'r1',
+          timestamp: 1,
+        }
+        throw new Error('connection blew up')
+      },
+    }
+
+    const client = new WorkflowClient({ connection: adapter })
+    await expect(client.start({ topic: 'x' })).rejects.toThrow(
+      'connection blew up',
+    )
+
+    expect(client.state.status).toBe('error')
+    expect(client.state.error?.message).toBe('connection blew up')
+  })
+
+  it('does not flip status to error if the stream errors after stop() set aborted', async () => {
+    let resolveError: () => void = () => {}
+    const errorReady = new Promise<void>((r) => (resolveError = r))
+
+    const adapter: WorkflowConnectionAdapter = {
+      async *connect(body) {
+        if ((body as { abort?: boolean })?.abort) return
+        yield {
+          type: 'RUN_STARTED',
+          runId: 'r1',
+          threadId: 'r1',
+          timestamp: 1,
+        }
+        await errorReady
+        throw new Error('late connection failure')
+      },
+    }
+
+    const client = new WorkflowClient({ connection: adapter })
+    const pending = client.start({ topic: 'x' })
+
+    while (!client.state.runId) await waitTick()
+    client.stop()
+    expect(client.state.status).toBe('aborted')
+
+    resolveError()
+    // The start promise rejects but the local state stays 'aborted' —
+    // user intent wins over the late network failure.
+    await expect(pending).rejects.toThrow('late connection failure')
+    expect(client.state.status).toBe('aborted')
+  })
+})
+
 describe('WorkflowClient — subscribe initial state', () => {
   it('subscribers can read the current state synchronously without an initial push', () => {
     const client = new WorkflowClient({ connection: makeAdapter([]) })

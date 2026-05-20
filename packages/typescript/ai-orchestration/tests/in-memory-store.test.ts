@@ -48,6 +48,31 @@ describe('inMemoryRunStore — state surface', () => {
     expect(await store.getRunState('run-1')).toBeUndefined()
     expect(await store.getSteps('run-1')).toEqual([])
   })
+
+  it('aborts the live controller when a paused run is deleted', async () => {
+    // Regression: deleting a paused run used to drop the LiveRun entry
+    // without aborting it, so the underlying generator hung forever and
+    // any approval/signal resolver awaiter dangled.
+    const store = inMemoryRunStore()
+    const controller = new AbortController()
+    let approvalCalled: { approved: boolean } | null = null
+    store.setLive('run-2', {
+      runState: { ...baseRunState, runId: 'run-2', status: 'paused' },
+      generator: {} as any,
+      abortController: controller,
+      approvalResolver: (r) => {
+        approvalCalled = { approved: r.approved }
+      },
+      pendingEvents: [],
+      pendingApprovalStepId: 'step-x',
+    })
+
+    await store.deleteRun('run-2', 'aborted')
+
+    expect(controller.signal.aborted).toBe(true)
+    expect(approvalCalled).toEqual({ approved: false })
+    expect(store.getLive('run-2')).toBeUndefined()
+  })
 })
 
 describe('inMemoryRunStore — step log surface', () => {

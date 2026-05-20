@@ -5,15 +5,24 @@ interface Draft {
   paragraphs?: Array<string>
 }
 
+function coerceDraft(raw: unknown): Draft | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as { title?: unknown; paragraphs?: unknown }
+  const title = typeof obj.title === 'string' ? obj.title : undefined
+  const paragraphs = Array.isArray(obj.paragraphs)
+    ? obj.paragraphs.filter((p): p is string => typeof p === 'string')
+    : undefined
+  if (title === undefined && paragraphs === undefined) return null
+  return { title, paragraphs }
+}
+
 export function DraftPreview(props: {
   draft: unknown
   phase?: string
   /** When true the draft is being assembled from a live structured-output stream. */
   streaming?: boolean
 }) {
-  const draft = (
-    props.draft && typeof props.draft === 'object' ? props.draft : null
-  ) as Draft | null
+  const draft = coerceDraft(props.draft)
 
   // Pulse highlight when the draft content changes — gives a sense of life.
   const [bumpKey, setBumpKey] = useState(0)

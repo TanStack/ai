@@ -65,8 +65,13 @@ export async function parseWorkflowRequest(
     )
   }
   const body = raw as RawBody
+  // Document precedence at the parse boundary: `signal` wins over
+  // `approval` when both are set. The engine's resume path is documented
+  // to ignore `approval` when `signalDelivery` is present, but a
+  // forwarded `approval` next to `signalDelivery` is ambiguous on the
+  // wire — normalize here so downstream code never has to disambiguate.
   return {
-    approval: body.approval,
+    approval: body.signal ? undefined : body.approval,
     signalDelivery: body.signal,
     input: body.input,
     runId: body.runId,

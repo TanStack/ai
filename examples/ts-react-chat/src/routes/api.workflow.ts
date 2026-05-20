@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { toServerSentEventsResponse } from '@tanstack/ai'
 import {
+  WorkflowRequestParseError,
   inMemoryRunStore,
   parseWorkflowRequest,
   runWorkflow,
@@ -14,17 +15,33 @@ export const Route = createFileRoute('/api/workflow')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const params = await parseWorkflowRequest(request)
-        if (params.abort && params.runId) {
-          runStore.getLive(params.runId)?.abortController.abort()
-          return new Response(null, { status: 204 })
+        try {
+          const params = await parseWorkflowRequest(request)
+          if (params.abort && params.runId) {
+            runStore.getLive(params.runId)?.abortController.abort()
+            return new Response(null, { status: 204 })
+          }
+          const stream = runWorkflow({
+            runStore,
+            workflow: articleWorkflow,
+            ...params,
+          })
+          return toServerSentEventsResponse(stream)
+        } catch (err) {
+          const error = err as Error
+          if (err instanceof WorkflowRequestParseError) {
+            return Response.json(
+              { error: 'invalid_request', message: error.message },
+              { status: 400 },
+            )
+          }
+          const message =
+            err instanceof Error ? error.message : 'Unknown server error'
+          return Response.json(
+            { error: 'internal_error', message },
+            { status: 500 },
+          )
         }
-        const stream = runWorkflow({
-          runStore,
-          workflow: articleWorkflow,
-          ...params,
-        })
-        return toServerSentEventsResponse(stream)
       },
     },
   },

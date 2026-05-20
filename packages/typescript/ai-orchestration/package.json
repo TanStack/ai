@@ -46,7 +46,7 @@
     "test:types": "tsc"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:^"
+    "@tanstack/ai": "workspace:*"
   },
   "devDependencies": {
     "@standard-schema/spec": "^1.1.0",

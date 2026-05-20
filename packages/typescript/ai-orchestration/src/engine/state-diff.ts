@@ -37,13 +37,13 @@ function diff(prev: unknown, next: unknown, path: string): Array<Operation> {
 
   // One is a primitive (or null), or types disagree — replace whole node.
   if (!prevIsObj || !nextIsObj || Array.isArray(prev) !== Array.isArray(next)) {
-    return [{ op: 'replace', path: path || '', value: next }]
+    return [{ op: 'replace', path: path || '', value: normalizeValue(next) }]
   }
 
   if (Array.isArray(prev) && Array.isArray(next)) {
     // Length mismatch → replace the array. Same length → diff element-wise.
     if (prev.length !== next.length) {
-      return [{ op: 'replace', path: path || '', value: next }]
+      return [{ op: 'replace', path: path || '', value: normalizeValue(next) }]
     }
     const ops: Array<Operation> = []
     for (let i = 0; i < prev.length; i++) {
@@ -66,13 +66,35 @@ function diff(prev: unknown, next: unknown, path: string): Array<Operation> {
     if (prevHas && nextHas) {
       ops.push(...diff(prevObj[key], nextObj[key], subPath))
     } else if (nextHas) {
-      ops.push({ op: 'add', path: subPath, value: nextObj[key] })
+      ops.push({ op: 'add', path: subPath, value: normalizeValue(nextObj[key]) })
     } else {
       ops.push({ op: 'remove', path: subPath })
     }
   }
 
   return ops
+}
+
+/**
+ * Normalize `undefined` to `null` recursively before emitting on the wire.
+ *
+ * `JSON.stringify` drops `undefined` properties, so emitting
+ * `{ op: 'add', path: '/x', value: undefined }` produces the RFC 6902
+ * invalid `{"op":"add","path":"/x"}` on the wire — the client applier
+ * then either errors or silently writes `undefined`. Coerce here so the
+ * serialized op is always well-formed.
+ */
+function normalizeValue(value: unknown): unknown {
+  if (value === undefined) return null
+  if (Array.isArray(value)) return value.map(normalizeValue)
+  if (isObject(value)) {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = normalizeValue(v)
+    }
+    return out
+  }
+  return value
 }
 
 function isObject(value: unknown): value is object {

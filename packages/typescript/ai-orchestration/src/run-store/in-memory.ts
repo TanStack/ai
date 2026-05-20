@@ -58,6 +58,35 @@ export function inMemoryRunStore(
       return Promise.resolve()
     },
     deleteRun(runId, _reason) {
+      // If a live run handle is still around (paused on approval / signal /
+      // sleep), abort it and reject any pending approval resolver before
+      // dropping the entry. Without this, callers awaiting the resolver
+      // promise or the engine's generator continuation hang forever after
+      // the run record disappears.
+      const liveRun = live.get(runId)
+      if (liveRun) {
+        try {
+          liveRun.abortController.abort()
+        } catch {
+          // Aborting an already-aborted controller is a no-op in the
+          // standard but defensive callers may throw — swallow so cleanup
+          // can complete.
+        }
+        if (liveRun.approvalResolver) {
+          try {
+            // Synthesizing a rejection-style "approved=false" lets any
+            // awaiter resolve cleanly rather than hanging. Hosts that
+            // care about reason can read the run state's status.
+            liveRun.approvalResolver({
+              approvalId: liveRun.pendingApprovalStepId ?? '',
+              approved: false,
+              feedback: 'run deleted before approval resolved',
+            })
+          } catch {
+            // Resolver may already have been invoked.
+          }
+        }
+      }
       runs.delete(runId)
       live.delete(runId)
       stepLogs.delete(runId)

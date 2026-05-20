@@ -172,9 +172,16 @@ function ResultBlock(props: { result: unknown }) {
   )
 }
 
+function extractErrorMessage(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object') return null
+  const err = (raw as { error?: unknown }).error
+  if (!err || typeof err !== 'object') return null
+  const message = (err as { message?: unknown }).message
+  return typeof message === 'string' ? message : null
+}
+
 function FailureBlock(props: { result: unknown }) {
-  const result = props.result as { error?: { message?: string } }
-  const msg = result.error?.message ?? JSON.stringify(props.result)
+  const msg = extractErrorMessage(props.result) ?? JSON.stringify(props.result)
   return (
     <div className="mt-3 border-l-2 border-rust pl-4 py-1">
       <div className="label-mono text-rust mb-1">error</div>

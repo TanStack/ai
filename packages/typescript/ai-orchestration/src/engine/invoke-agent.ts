@@ -76,6 +76,21 @@ export function invokeAgent<T>(
 
     async function* drain(): AsyncIterable<StreamChunk> {
       let lastTextContent = ''
+      // Settled = output Promise has resolved or rejected. We guarantee
+      // settlement from a `finally` block so the iterator's async cleanup
+      // path (early break by the outer consumer, abort during streaming,
+      // unexpected return) cannot leave `await output` dangling forever.
+      let settled = false
+      const settleResolve = (value: T) => {
+        if (settled) return
+        settled = true
+        resolveOutput(value)
+      }
+      const settleReject = (err: unknown) => {
+        if (settled) return
+        settled = true
+        rejectOutput(err)
+      }
       try {
         for await (const chunk of filterInnerRunBoundaries(stream)) {
           if (chunk.type === 'TEXT_MESSAGE_CONTENT' && 'delta' in chunk) {
@@ -86,13 +101,28 @@ export function invokeAgent<T>(
         // Try to parse final text as the typed output via the agent's outputSchema.
         try {
           const parsed = parseOutputFromText<T>(agent, lastTextContent)
-          resolveOutput(parsed)
+          settleResolve(parsed)
         } catch (err) {
-          rejectOutput(err)
+          settleReject(err)
         }
       } catch (err) {
-        rejectOutput(err)
+        settleReject(err)
         throw err
+      } finally {
+        // If neither the success nor catch path settled (e.g. the
+        // consumer broke out of iteration before completion via the
+        // generator's `.return()` hook), reject so awaiters observe a
+        // clean failure instead of hanging forever. TS narrows `settled`
+        // to `true` via the visible mutations, but early-return through
+        // the iterator skips both branches — hence the cast.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        if (!settled) {
+          settleReject(
+            new Error(
+              `Agent "${agent.name}" stream was abandoned before producing output`,
+            ),
+          )
+        }
       }
     }
 
