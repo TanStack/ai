@@ -1,5 +1,35 @@
 # @tanstack/ai-devtools-core
 
+## 0.3.33
+
+### Patch Changes
+
+- Tighten TypeScript safety: enable `noImplicitOverride`, ([#579](https://github.com/TanStack/ai/pull/579))
+  `noFallthroughCasesInSwitch`, and `useDefineForClassFields` in the
+  root `tsconfig.json`; add a typed-ESLint block scoped to
+  `packages/typescript/*/src/**` that turns on `no-floating-promises`,
+  `no-misused-promises`, `await-thenable`,
+  `switch-exhaustiveness-check`, `consistent-type-exports`,
+  `prefer-readonly`, and `no-non-null-assertion` (errors), plus
+  `no-explicit-any` (warning). `@ts-ignore` and `@ts-nocheck` are
+  disallowed in library source via `@typescript-eslint/ban-ts-comment`,
+  and `as unknown as <T>` double-casts are blocked by a
+  `no-restricted-syntax` rule (escape hatches available with an inline
+  reason). Two flags from the original five-flag set —
+  `noPropertyAccessFromIndexSignature` and `exactOptionalPropertyTypes`
+  — were tried and rolled back: they produced ~500 lines of bracket-
+  access and conditional-spread churn without catching any real bugs,
+  and `exactOptionalPropertyTypes` would have forced consumers using
+  it themselves to deal with our internals' style preferences.
+
+  User-visible API surface is unchanged; this is a hardening pass to
+  keep streaming/agent-loop correctness and discriminated-union
+  exhaustiveness honest going forward. See issue #564.
+
+- Updated dependencies [[`2ad137b`](https://github.com/TanStack/ai/commit/2ad137bd22512248bd1684cccce35ba89597cf96)]:
+  - @tanstack/ai@0.20.1
+  - @tanstack/ai-event-client@0.3.6
+
 ## 0.3.32
 
 ### Patch Changes
